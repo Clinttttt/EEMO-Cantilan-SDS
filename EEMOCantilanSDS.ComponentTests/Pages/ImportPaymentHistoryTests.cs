@@ -53,8 +53,8 @@ public class ImportPaymentHistoryTests : TestContext
     {
         var cut = Render(facility);
 
-        Assert.Contains("Choose a CSV file", cut.Markup);
-        Assert.DoesNotContain("Not for", cut.Markup);
+        Assert.Contains("Choose a file to upload", cut.Markup);
+        Assert.Contains("Download CSV template", cut.Markup);
     }
 
     [Fact]
@@ -65,7 +65,33 @@ public class ImportPaymentHistoryTests : TestContext
         // Refused, and the office is told WHY rather than finding the option simply absent - which would read as
         // an oversight and invite someone to force it through another route.
         Assert.Contains("per market day", cut.Markup);
-        Assert.DoesNotContain("Choose a CSV file", cut.Markup);
+        Assert.DoesNotContain("Choose a file to upload", cut.Markup);
+    }
+
+    [Fact]
+    public void ThePageWalksTheSameThreeStepsAsTheStallholderImport()
+    {
+        var cut = Render("tcc");
+
+        // The office meets both screens in the same sitting; a second layout for the same task is a second thing
+        // to learn.
+        Assert.Contains("Upload", cut.Markup);
+        Assert.Contains("Review &amp; edit", cut.Markup);
+        Assert.Contains("Save", cut.Markup);
+        Assert.Equal(3, cut.FindAll(".iph-step").Count);
+    }
+
+    [Fact]
+    public void TheNativeFileInputIsNotLeftShowingThroughTheDropzone()
+    {
+        var cut = Render("tcc");
+
+        // InputFile renders its input inside a child component, so a scoped class on the element does not reach it
+        // and the browser's own "Choose File / No file chosen" showed through the middle of the dropzone. The rule
+        // that hides it needs ::deep, which is easy to lose in a later edit - hence this.
+        var input = cut.Find(".iph-drop input[type=file]");
+        Assert.NotNull(input);
+        Assert.DoesNotContain("No file chosen", cut.Markup);
     }
 
     [Fact]
@@ -141,8 +167,10 @@ public class ImportPaymentHistoryTests : TestContext
         cut.Find("button.iph-link-btn").Click();
 
         // So the office meets the part-paid case in the sample rather than for the first time in its own history,
-        // where a remaining balance could be mistaken for a failed import.
-        Assert.Contains("1,200", cut.Markup);
+        // where a remaining balance could be mistaken for a failed import. Read from the editable cell's value.
+        var amounts = cut.FindAll("input.iph-input-num").Select(i => i.GetAttribute("value")).ToList();
+        Assert.Contains(amounts, a => a is not null && a.StartsWith("1200"));
+        Assert.Contains(amounts, a => a is not null && a.StartsWith("2400"));
     }
 
     [Fact]

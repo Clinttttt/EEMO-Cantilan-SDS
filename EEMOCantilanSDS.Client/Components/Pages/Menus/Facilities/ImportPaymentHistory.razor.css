@@ -1,17 +1,42 @@
 /* Import payment history.
-   Deliberately plain: this screen states what happened to each row of an office ledger, so it reads as a record
-   rather than a dashboard. No accent colours beyond the ones the rest of the portal already uses. */
+   Deliberately the same chrome as Import Stallholders - hero with steps, dropzone, review bar, editable table,
+   footer - because the office meets both screens in the same sitting and a second layout for the same task is a
+   second thing to learn. The classes are this component's own; only the visual spec is shared. */
 
 .iph-page {
-    padding-bottom: 32px;
+    padding: 0 24px 32px;
 }
 
+.iph-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--navy);
+}
+
+.iph-back-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ── Hero ── */
 .iph-hero {
     display: flex;
-    gap: 16px;
     align-items: center;
-    margin: 16px 20px 0;
-    padding: 20px 22px;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin: 18px 0 16px;
+    padding: 20px 24px;
     border-radius: 14px;
     background: var(--navy);
     color: #fff;
@@ -21,9 +46,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
-    height: 52px;
-    flex: 0 0 52px;
+    width: 54px;
+    height: 54px;
+    flex: 0 0 54px;
     border-radius: 12px;
     background: rgba(255, 255, 255, .1);
 }
@@ -31,6 +56,10 @@
 .iph-hero-icon svg {
     width: 24px;
     height: 24px;
+}
+
+.iph-hero-body {
+    flex: 1 1 260px;
 }
 
 .iph-hero-eyebrow {
@@ -42,91 +71,154 @@
 
 .iph-hero-title {
     margin: 2px 0 0;
-    font-size: 20px;
+    font-size: 21px;
     font-weight: 700;
 }
 
 .iph-hero-sub {
-    margin: 4px 0 0;
+    margin: 3px 0 0;
     font-size: 13px;
-    opacity: .82;
+    opacity: .8;
 }
 
+.iph-steps {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.iph-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, .45);
+}
+
+.iph-step-no {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    background: rgba(255, 255, 255, .12);
+}
+
+.iph-step.is-active {
+    color: #fff;
+}
+
+.iph-step.is-active .iph-step-no {
+    background: var(--gold);
+    color: var(--navy);
+}
+
+.iph-step.is-done {
+    color: rgba(255, 255, 255, .75);
+}
+
+.iph-step-line {
+    width: 26px;
+    height: 1px;
+    background: rgba(255, 255, 255, .2);
+}
+
+/* ── Card ── */
 .iph-card {
-    margin: 16px 20px 0;
     padding: 22px;
     border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--bg-card);
 }
 
-.iph-card-title {
-    margin: 0 0 14px;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text);
+.iph-card-flush {
+    padding: 0;
+    overflow: hidden;
 }
 
-.iph-refused p {
-    margin: 0 0 10px;
-    font-size: 13.5px;
-    line-height: 1.6;
-    color: var(--text-muted);
-}
-
-/* ── Upload ── */
+/* ── Step 1: upload ── */
 .iph-drop {
-    display: block;
     position: relative;
-    border: 1.5px dashed var(--border);
-    border-radius: 12px;
-    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     text-align: center;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 20px;
     cursor: pointer;
-    transition: border-color .15s, background .15s;
+    transition: border-color .15s ease, background .15s ease;
 }
 
 .iph-drop:hover {
-    border-color: color-mix(in srgb, var(--navy) 40%, transparent);
-    background: var(--bg-subtle, #f4f6f8);
+    border-color: var(--gold);
+    background: var(--bg-page);
 }
 
-/* The input covers the label so the whole area is the control, while remaining a real focusable input for the
-   keyboard and for assistive technology. */
-.iph-file {
+/* Hides the native input that <InputFile> renders. It lives inside a child component, so a scoped class on the
+   element alone does not reach it - ::deep does. Without this the browser's own "Choose File / No file chosen"
+   shows through the middle of the dropzone, which is exactly how it looked before. */
+.iph-drop ::deep input[type="file"] {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     opacity: 0;
     cursor: pointer;
+    font-size: 0;
+    color: transparent;
 }
 
-.iph-drop-inner svg {
-    width: 26px;
-    height: 26px;
-    color: var(--text-muted);
+.iph-drop-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: var(--bg-page);
+    color: var(--navy);
+}
+
+.iph-drop-icon svg {
+    width: 22px;
+    height: 22px;
 }
 
 .iph-drop-title {
-    margin-top: 8px;
-    font-size: 14.5px;
-    font-weight: 650;
-    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
 }
 
 .iph-drop-sub {
-    margin-top: 2px;
     font-size: 12.5px;
     color: var(--text-muted);
 }
 
-.iph-template {
+.iph-drop-err {
     margin-top: 12px;
+    padding: 10px 13px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+    background: color-mix(in srgb, var(--red) 7%, transparent);
+    font-size: 12.5px;
+    color: var(--red);
+}
+
+.iph-upload-foot {
     display: flex;
-    gap: 8px;
     align-items: center;
     justify-content: center;
+    gap: 10px;
+    margin-top: 16px;
 }
 
 .iph-foot-sep {
@@ -149,8 +241,8 @@
     height: 15px;
 }
 
-/* The sample offer is a button, not a link, because it changes state rather than navigating - styled to match the
-   template link so the pair reads as one row of choices, as it does on the stallholder import. */
+/* A button, not a link: it changes state rather than navigating. Styled to match so the pair reads as one row of
+   choices, as it does on the stallholder import. */
 .iph-link-btn {
     padding: 0;
     background: none;
@@ -163,74 +255,212 @@
     cursor: pointer;
 }
 
-.iph-columns {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    margin-top: 20px;
+.iph-cols-preview {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
 }
 
-.iph-columns-label {
-    width: 100%;
+.iph-cols-label {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .06em;
     color: var(--text-muted);
 }
 
+.iph-cols-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 10px;
+}
+
 .iph-chip {
-    padding: 5px 11px;
+    padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--bg-page);
     font-size: 12px;
     font-weight: 600;
-    color: var(--text);
+    color: var(--navy);
 }
 
-.iph-rules {
-    margin: 16px 0 0;
-    padding-left: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.iph-hint {
+    margin-top: 16px;
+    padding: 13px 16px;
+    border-left: 3px solid var(--navy);
+    border-radius: 0 9px 9px 0;
+    background: var(--bg-page);
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 1.65;
     color: var(--text-muted);
 }
 
-.iph-rules code {
+.iph-hint code {
     padding: 1px 5px;
     border-radius: 4px;
-    background: var(--bg-page);
+    background: var(--bg-card);
     font-size: 12.5px;
 }
 
-.iph-ready {
+/* ── Step 2: review bar ── */
+.iph-review-bar {
     display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
     align-items: center;
     justify-content: space-between;
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    font-size: 13.5px;
-    color: var(--text);
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
 }
 
-.iph-error {
-    margin-top: 14px;
-    padding: 11px 14px;
-    border-radius: 9px;
-    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-    background: color-mix(in srgb, var(--red) 7%, transparent);
+.iph-review-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.iph-review-count {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1;
+    background: var(--bg-page);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.iph-review-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.iph-review-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.iph-review-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ── Table ── */
+.iph-table-wrap {
+    overflow-x: auto;
+}
+
+.iph-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 13px;
-    color: var(--red);
 }
 
-/* ── Outcome ── */
+.iph-table th {
+    padding: 11px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-page);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.iph-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+    vertical-align: middle;
+}
+
+.iph-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.iph-th-num {
+    width: 46px;
+    text-align: center;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.iph-th-act {
+    width: 44px;
+}
+
+.iph-c {
+    text-align: center;
+}
+
+.iph-r {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.iph-reason {
+    color: var(--text-muted);
+    min-width: 260px;
+}
+
+.iph-input {
+    width: 100%;
+    min-width: 110px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font: inherit;
+    font-size: 13px;
+    color: var(--navy);
+    outline: none;
+    transition: border-color .15s;
+}
+
+.iph-input:focus {
+    border-color: var(--gold);
+}
+
+.iph-input-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.iph-row-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+}
+
+.iph-row-del svg {
+    width: 14px;
+    height: 14px;
+}
+
+.iph-row-del:hover {
+    color: var(--red);
+    border-color: color-mix(in srgb, var(--red) 40%, transparent);
+}
+
+/* ── Step 3: outcome ── */
 .iph-summary {
     display: flex;
     flex-wrap: wrap;
@@ -252,7 +482,8 @@
 .iph-stat-val {
     font-size: 20px;
     font-weight: 700;
-    color: var(--text);
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
 }
 
 .iph-stat-key {
@@ -265,73 +496,56 @@
 }
 
 .iph-note {
-    margin: 14px 0 0;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--text-muted);
-}
-
-.iph-table-wrap {
     margin-top: 16px;
-    overflow-x: auto;
-}
-
-.iph-table {
-    width: 100%;
-    border-collapse: collapse;
+    padding: 13px 16px;
+    border-left: 3px solid var(--navy);
+    border-radius: 0 9px 9px 0;
+    background: var(--bg-page);
     font-size: 13px;
-}
-
-.iph-table th {
-    padding: 9px 11px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .05em;
-    text-transform: uppercase;
+    line-height: 1.65;
     color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
 }
 
-.iph-table td {
-    padding: 10px 11px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    vertical-align: top;
+.iph-error {
+    margin-bottom: 14px;
+    padding: 11px 14px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+    background: color-mix(in srgb, var(--red) 7%, transparent);
+    font-size: 13px;
+    color: var(--red);
 }
 
-.iph-table .iph-c {
-    text-align: center;
-}
-
-.iph-table .iph-r {
-    text-align: right;
-    white-space: nowrap;
-}
-
-.iph-actions {
+/* ── Footer ── */
+.iph-foot {
     display: flex;
+    justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
-    margin-top: 18px;
+    margin-top: 16px;
 }
 
 .iph-btn {
-    min-height: 38px;
-    padding: 9px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 10px 18px;
     border-radius: 9px;
     border: 1px solid var(--border);
     background: var(--bg-card);
-    color: var(--text);
+    color: var(--navy);
     font: inherit;
     font-size: 13.5px;
     font-weight: 650;
     text-decoration: none;
-    display: inline-flex;
-    align-items: center;
     cursor: pointer;
     transition: background .15s, border-color .15s, box-shadow .15s;
+}
+
+.iph-btn svg {
+    width: 15px;
+    height: 15px;
 }
 
 .iph-btn:hover {
@@ -350,16 +564,21 @@
     box-shadow: none;
 }
 
-@media (max-width: 640px) {
-    .iph-hero,
-    .iph-card {
-        margin-left: 12px;
-        margin-right: 12px;
+@media (max-width: 720px) {
+    .iph-page {
+        padding: 0 12px 28px;
+    }
+
+    .iph-hero {
         padding: 16px;
     }
 
     .iph-hero-title {
-        font-size: 17px;
+        font-size: 18px;
+    }
+
+    .iph-steps {
+        width: 100%;
     }
 
     .iph-stat {

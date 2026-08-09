@@ -771,8 +771,16 @@
 }
 
 /* Bulk-import shortcut in the footer — pushed to the left, away from Cancel/Save. */
-.avm-import-btn {
+/* The two imports as one pair, pushed left of Cancel and Add Vendor. The auto margin belongs to the GROUP: when it
+   sat on each button, two of them each pushed the other away and left a gap between what should read as a pair. */
+.avm-import-group {
     margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.avm-import-btn {
     display: inline-flex;
     align-items: center;
     gap: 7px;

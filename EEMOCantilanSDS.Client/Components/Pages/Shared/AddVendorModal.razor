@@ -574,25 +574,29 @@
             </div><!-- /eemo-modal-body -->
             <!-- ── Footer ──────────────────────────────────────────────── -->
             <div class="eemo-drawer-footer">
-                @if (!IsEditing && IsImportSupported)
+                @if (!IsEditing && (IsImportSupported || IsHistoryImportSupported))
                 {
-                    <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImport"
-                            title="Bulk import stallholders from a file">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                        Import list
-                    </button>
-                }
-                @if (IsHistoryImportSupported)
-                {
-                    @* Beside the list import because both are the same kind of act - bringing the office's existing
-                       paper into the system - and this is where a clerk setting a facility up already is. Only on the
-                       monthly-billed facilities: the market is collected per market day, so its history is not one
-                       row per month. *@
-                    <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImportHistory"
-                            title="Record payments already collected, from the office's own books">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>
-                        Import history
-                    </button>
+                    @* Both imports sit together, pushed to the left of Cancel and Add Vendor: they are the same kind
+                       of act - bringing the office's existing paper in - so they read as one pair rather than two
+                       unrelated buttons. *@
+                    <div class="avm-import-group">
+                        @if (IsImportSupported)
+                        {
+                            <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImport"
+                                    title="Bulk import stallholders from a file">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                                Import list
+                            </button>
+                        }
+                        @if (IsHistoryImportSupported)
+                        {
+                            <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImportHistory"
+                                    title="Record payments already collected, from the office's own books">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>
+                                Import history
+                            </button>
+                        }
+                    </div>
                 }
                 <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
                 <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
