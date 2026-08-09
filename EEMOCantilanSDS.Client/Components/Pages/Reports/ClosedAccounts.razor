@@ -574,7 +574,10 @@
                 <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
                 @if (!_renewEditing)
                 {
-                    <button class="btn-ghost" @onclick="() => _renewEditing = true" disabled="@_busy">Edit</button>
+                    @* Named so a test can reach it directly. It was found by position among the footer's ghost
+                       buttons, which passed locally and failed on a slower CI runner where the re-render had not
+                       finished - a brittle selector that blocked a deployment rather than catching a defect. *@
+                    <button class="btn-ghost ca-renew-edit" @onclick="() => _renewEditing = true" disabled="@_busy">Edit</button>
                     <button class="btn-primary" @onclick="ConfirmRenew" disabled="@_busy">@(_busy ? "Working…" : "Proceed")</button>
                 }
                 else

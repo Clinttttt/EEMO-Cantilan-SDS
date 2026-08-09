@@ -120,7 +120,10 @@ public class ClosedAccountsRenewTests : TestContext
         var (cut, sent) = Render(ExpiredAccount());
 
         cut.Find(".ca-row-renew").Click();
-        cut.FindAll(".eemo-modal-footer .btn-ghost")[1].Click();   // Edit
+        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
+        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
+        // deployment without having found anything wrong with the application.
+        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
         cut.Find(".eemo-modal-footer .btn-primary").Click();       // Confirm Renew
 
         var req = Assert.Single(sent);
@@ -135,7 +138,10 @@ public class ClosedAccountsRenewTests : TestContext
         var (cut, sent) = Render(ExpiredAccount());
 
         cut.Find(".ca-row-renew").Click();
-        cut.FindAll(".eemo-modal-footer .btn-ghost")[1].Click();   // Edit
+        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
+        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
+        // deployment without having found anything wrong with the application.
+        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
         cut.Find(".ca-renew-rate").Change("1800");
         cut.Find(".eemo-modal-footer .btn-primary").Click();
 
@@ -151,7 +157,10 @@ public class ClosedAccountsRenewTests : TestContext
         var (cut, _) = Render(ExpiredAccount());
 
         cut.Find(".ca-row-renew").Click();
-        cut.FindAll(".eemo-modal-footer .btn-ghost")[1].Click();   // Edit
+        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
+        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
+        // deployment without having found anything wrong with the application.
+        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
 
         // The facts that identify the space are stated, not offered as fields.
         Assert.Contains("New Public Market", cut.Markup);
