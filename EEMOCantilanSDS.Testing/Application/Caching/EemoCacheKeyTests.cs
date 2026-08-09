@@ -78,7 +78,23 @@ public class EemoCacheKeyTests
             MarketSection.FishSection,
             " Stall 12 ");
 
-        Assert.Equal("tenant:stalls:holders:npm:fishsection:stall%2012", key);
+        // The search term is hashed rather than embedded. It arrives from a query string, so it is unbounded in
+        // length and variety, and it reaches a per-key semaphore map that is never pruned - an arbitrary term
+        // could grow that map without limit. What still matters is asserted: the tenant, facility and section
+        // remain readable, the term is trimmed and case-folded before hashing, and different terms stay apart.
+        Assert.StartsWith("tenant:stalls:holders:npm:fishsection:", key);
+
+        Assert.Equal(key, EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, "stall 12"));
+        Assert.Equal(key, EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, "STALL 12"));
+        Assert.NotEqual(key, EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, "stall 13"));
+
+        // Bounded, whatever was typed.
+        var fromAVeryLongTerm = EemoCacheKeys.StallHolderList(
+            "tenant", FacilityCode.NPM, MarketSection.FishSection, new string('x', 5_000));
+        Assert.True(fromAVeryLongTerm.Length < 100, $"key grew to {fromAVeryLongTerm.Length} characters");
+
+        // An absent term is still plainly readable as such.
+        Assert.EndsWith(":all", EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, null));
     }
 
     [Fact]

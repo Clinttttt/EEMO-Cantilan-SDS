@@ -43,9 +43,10 @@ public class GetFollowUpHistoryQueryHandler(
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpHistoryQuery request, CancellationToken ct)
     {
         var key = request.AllTime
-            // A cumulative view: it does not belong to a year or a month, so it gets its own key. Otherwise it
-            // would collide with (and serve) the selected year's snapshot.
-            ? EemoCacheKeys.FollowUpHistoryAllTime(tenantContext.TenantCode)
+            // A cumulative view, but not a timeless one: it carries the month in progress and assesses its
+            // delinquency as of the anchor, so the anchor is part of the key. It still gets a key of its own so it
+            // cannot collide with, or be served, the selected year's snapshot.
+            ? EemoCacheKeys.FollowUpHistoryAllTime(tenantContext.TenantCode, request.Year, request.Month)
             : EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
         var regions = request.AllTime
             ? EemoCacheRegions.FollowUpAllTimeRegions(tenantContext.TenantCode)

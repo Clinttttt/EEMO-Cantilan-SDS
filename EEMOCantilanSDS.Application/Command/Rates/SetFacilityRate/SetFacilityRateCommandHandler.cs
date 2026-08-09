@@ -39,6 +39,12 @@ namespace EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate
             await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
                 tenantContext.TenantCode, request.FacilityCode, effective.Year, effective.Month, ct);
 
+            // And the stallholder roster, which is reference data rather than a period view. Every money column
+            // on that sheet - monthly rental, actual monthly, whole year - is derived from the fee-rate snapshot,
+            // so leaving it cached meant the office could change a rate and go on being shown the old figures for
+            // up to five minutes, with no way to tell which of the two screens was right.
+            await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
+
             return Result<bool>.Success(true);
         }
     }

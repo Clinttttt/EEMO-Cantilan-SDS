@@ -29,6 +29,23 @@ public sealed class MemoryEemoAppCache(
             if (cache.TryGetValue(key, out cached) && cached is not null)
                 return cached;
 
+            // Change tokens are taken BEFORE the factory runs, and this ordering is the whole correctness of
+            // the cache.
+            //
+            // Taken afterwards, a write that committed while the factory was reading would be lost: the
+            // invalidator cancels its region token AND removes it, so the next request for that token created a
+            // fresh, uncancelled one. The value just read - from before the write - was then stored under it and
+            // served for the full TTL. A payment recorded at the wrong moment would leave the dashboard showing
+            // the old balance for minutes, with nothing able to evict it.
+            //
+            // Taken first, an invalidation during the factory cancels a token this entry already holds, so the
+            // entry is expired the instant it is set. The caller still receives the value it read, which was
+            // true when it was read; it simply is not handed to anybody else.
+            var expirationTokens = regions
+                .Distinct(StringComparer.Ordinal)
+                .Select(invalidator.GetChangeToken)
+                .ToList();
+
             var value = await factory(cancellationToken);
             if (value is null)
                 return value;
@@ -39,8 +56,8 @@ public sealed class MemoryEemoAppCache(
                 Size = cacheOptions.EntrySize
             };
 
-            foreach (var region in regions.Distinct(StringComparer.Ordinal))
-                options.AddExpirationToken(invalidator.GetChangeToken(region));
+            foreach (var token in expirationTokens)
+                options.AddExpirationToken(token);
 
             cache.Set(key, value, options);
             return value;

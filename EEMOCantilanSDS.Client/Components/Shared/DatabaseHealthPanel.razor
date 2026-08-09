@@ -129,10 +129,17 @@
 </section>
 
 @code {
-    // Last snapshot kept across navigation so revisiting Settings renders instantly (no skeleton
-    // flash — that was the perceived "flick"). DB health is global, non-sensitive aggregate data,
-    // so a shared static snapshot is fine; the 5s poll keeps it fresh.
-    private static DatabaseHealthDto? _lastKnown;
+    // Deliberately NOT static any more.
+    //
+    // A static field on a Blazor Server component is shared by every circuit on the server, which is every
+    // signed-in user of every municipality. This snapshot was kept static to avoid a skeleton flash when
+    // revisiting Settings, on the stated grounds that database health is global and non-sensitive - and that
+    // was true when it was written. It stopped being true once DatabaseHealthDto gained TenantSizeBytes,
+    // which its own comment describes as "the CALLER'S municipality data footprint": one LGU's data volume
+    // could render on another LGU's screen for as long as it took the first poll to return.
+    //
+    // The flash comes back. That is a fair price, and the 5s poll fills it quickly.
+    private DatabaseHealthDto? _lastKnown;
 
     private DatabaseHealthDto? _model;
     private string? _error;
