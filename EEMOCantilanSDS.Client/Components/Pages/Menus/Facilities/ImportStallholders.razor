@@ -237,6 +237,9 @@
                     </a>
                     <span class="imp-foot-sep">·</span>
                     <button class="imp-link imp-link-btn" @onclick="LoadSample">Use sample data instead</button>
+                    <span class="imp-foot-sep">·</span>
+                    @* For an office with no file at all. The same review table, starting empty. *@
+                    <button class="imp-link imp-link-btn" @onclick="StartManual">Enter manually</button>
                 </div>
 
                 <div class="imp-cols-preview">
@@ -504,7 +507,10 @@
     /// </summary>
     private readonly List<SheetQuery> _sheetQueries = new();
 
-    private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
+    // The facility's own page, by its canonical route — the one the sidebar links to and the browser shows. Cancel
+    // and the back arrow both land there rather than on whatever page happened to come before, so leaving an import
+    // always returns to the facility being imported into.
+    private string BackUrl => _facility is null ? "/menu" : $"/facility/{_facility.ShortCode.ToLower()}";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -870,6 +876,21 @@
         _fileName = string.Empty;
         _uploadError = null;
         _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
+        _loaded = true;
+        await ApplyContinuedNumberingAsync();
+    }
+
+    /// <summary>
+    /// Starts the review table empty, for an office with no file to upload — a few stalls typed straight from its
+    /// records. One blank row so there is somewhere to type immediately; "Add row" provides the rest, and the same
+    /// review table checks them, so there is one way to enter a batch rather than two.
+    /// </summary>
+    private async Task StartManual()
+    {
+        if (_facility is null) return;
+        _fileName = "Entered by hand";
+        _uploadError = null;
+        _rows = new List<Dictionary<string, string>> { NewRow(_facility) };
         _loaded = true;
         await ApplyContinuedNumberingAsync();
     }

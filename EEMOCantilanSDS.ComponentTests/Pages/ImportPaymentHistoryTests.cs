@@ -174,6 +174,46 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void EnteringManuallyStartsAnEmptyReviewTable()
+    {
+        var cut = Render("tcc");
+
+        // For an office with no file at all. It reaches the SAME review table, starting empty, so rows entered by
+        // hand are checked and saved exactly as uploaded ones are - one path to verify rather than two.
+        cut.FindAll("button.iph-link-btn")[1].Click();
+
+        Assert.Contains("rows ready to review", cut.Markup);
+        Assert.Single(cut.FindAll("table.iph-table-edit tbody tr"));
+        Assert.Contains("Entered by hand", cut.Markup);
+
+        // Empty, not pre-filled: a blank ledger row must not arrive carrying someone else's figures.
+        var stallCells = cut.FindAll("table.iph-table-edit tbody tr input");
+        Assert.All(stallCells.Take(3), input => Assert.True(string.IsNullOrEmpty(input.GetAttribute("value"))));
+    }
+
+    [Fact]
+    public void ThreeWaysToStartAreOffered()
+    {
+        var cut = Render("tcc");
+
+        Assert.Contains("Download CSV template", cut.Markup);
+        Assert.Contains("Use sample data instead", cut.Markup);
+        Assert.Contains("Enter manually", cut.Markup);
+    }
+
+    [Fact]
+    public void LeavingAnImportReturnsToTheFacility()
+    {
+        var cut = Render("tcc");
+        cut.FindAll("button.iph-link-btn")[1].Click();
+
+        // Not to whatever page came before. Someone who abandons an import wants the facility they were importing
+        // into, and the canonical route is the one the sidebar and the address bar use.
+        var cancel = cut.FindAll("a.iph-btn").First(a => a.TextContent.Contains("Cancel"));
+        Assert.Equal("/facility/tcc", cancel.GetAttribute("href"));
+    }
+
+    [Fact]
     public void NothingIsSentUntilThereAreRowsToSend()
     {
         Render("tcc");

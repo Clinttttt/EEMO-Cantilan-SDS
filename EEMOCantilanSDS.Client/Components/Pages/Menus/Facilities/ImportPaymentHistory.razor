@@ -151,6 +151,10 @@
                 </a>
                 <span class="iph-foot-sep">·</span>
                 <button class="iph-link iph-link-btn" type="button" @onclick="LoadSample">Use sample data instead</button>
+                <span class="iph-foot-sep">·</span>
+                @* For an office with no file at all - a few months read straight off the ledger. The same review
+                   table, starting empty, so there is one way to check rows rather than two. *@
+                <button class="iph-link iph-link-btn" type="button" @onclick="StartManual">Enter manually</button>
             </div>
 
             <div class="iph-cols-preview">
@@ -289,7 +293,9 @@
 
     private string FacilityName => Code is { } code ? FacilityCatalog.NameOf(code) : (Facility ?? "this facility");
 
-    private string BackUrl => $"/{(Facility ?? string.Empty).ToLowerInvariant()}";
+    // The facility's own page, by its canonical route - the one the sidebar links to and the browser shows. Cancel
+    // and the back arrow both land there rather than on whatever page happened to come before.
+    private string BackUrl => $"/facility/{(Facility ?? string.Empty).ToLowerInvariant()}";
 
     private static string Peso(decimal amount) => "₱" + amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -343,6 +349,17 @@
     }
 
     private void AddRow() => _rows.Add(new EditableRow());
+
+    /// <summary>
+    /// Starts the review table empty, for an office typing a few months straight off its ledger. One blank row so
+    /// there is somewhere to type immediately; Add row provides the rest.
+    /// </summary>
+    private void StartManual()
+    {
+        Reset();
+        _fileName = "Entered by hand";
+        _rows.Add(new EditableRow());
+    }
 
     private void RemoveRow(int index)
     {

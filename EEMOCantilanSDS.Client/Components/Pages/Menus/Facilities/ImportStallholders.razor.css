@@ -92,8 +92,8 @@
     font-size: 13px; font-weight: 600; color: var(--navy); text-decoration: none;
     background: none; border: none; cursor: pointer; padding: 0;
 }
-.imp-link:hover { color: #8a6d1b; }
 .imp-link svg { width: 15px; height: 15px; }
+.imp-link:hover { color: #8a6d1b; }
 .imp-foot-sep { color: var(--text-subtle); }
 
 .imp-cols-preview { margin-top: 20px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
@@ -365,17 +365,22 @@
 
 /* How to record a space let without a contract. A note about the office's own paperwork, in the document's voice. */
 .imp-cols-note {
-    margin-top: 12px;
-    padding: 11px 13px;
+    margin-top: 16px;
+    padding: 13px 16px;
+    /* Matched to the payment-history note so both imports explain themselves the same way. Muted body text with the
+       key column names in navy: the emphasis carries the meaning, and a full-strength paragraph competes with the
+       table below it. */
     border-left: 3px solid var(--navy, #0b2239);
-    background: var(--surface-2, #f4f6f9);
-    font-size: 12px;
-    line-height: 1.55;
-    color: var(--text-strong, #0b2239);
+    border-radius: 0 9px 9px 0;
+    background: var(--bg-page, #f4f6f9);
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-muted);
 }
 
 .imp-cols-note strong {
     font-weight: 700;
+    color: var(--navy);
 }
 
 
