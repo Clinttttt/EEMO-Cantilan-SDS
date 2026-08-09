@@ -1,0 +1,123 @@
+name: Backup freshness
+
+# Asks one question: when did a database backup last SUCCEED?
+#
+# WHY THIS EXISTS, SEPARATELY FROM THE BACKUP ITSELF
+#   The backup workflow can now report its own failures, but that only helps when it RAN. The failure
+#   this office actually hit was different: GitHub reported "The job was not acquired by Runner of type
+#   hosted even after multiple attempts" — runner capacity, not our code — and because the job never
+#   started, no run record was created, no failure step could fire, and the backups page went on showing
+#   a column of green successes. A workflow cannot notice that it never ran. Something else has to.
+#
+#   So this looks at the AGE of the newest successful backup and complains when it is too old, whatever
+#   the reason: a failed dump, a job never acquired, a disabled schedule, a repository whose Actions were
+#   turned off. It is the difference between "no news is good news" and "no news is no news".
+#
+# HONEST LIMIT
+#   This watchdog runs on the same hosted runners, so it can be skipped for the same reason. Two
+#   independent schedules missing on the same day is far less likely than one, but it is not impossible.
+#   The office should still glance at the backups page weekly; this exists so that a QUIET failure
+#   becomes a LOUD one, not so that nobody ever has to look.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'    # 03:00 UTC = 11:00 Philippine time, well after the 01:00 PHT backup
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read            # to read the backup workflow's run history
+  issues: write            # to raise the alarm where the office will see it
+
+# The number of hours after which a backup is considered stale. The backup runs daily, so 26 hours
+# allows for a late start and a slow dump without tolerating a missed day.
+env:
+  MAX_AGE_HOURS: 26
+
+jobs:
+  check:
+    name: Is the newest backup recent enough
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Measure the age of the newest successful backup
+        id: age
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # conclusion=success rather than status: a run that is still going is not yet a backup.
+          LATEST=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/backup.yml/runs?per_page=20" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | sort_by(.updated_at) | last | .updated_at // empty')
+
+          if [ -z "${LATEST:-}" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "detail=No successful backup run was found at all in the recent history." >> "$GITHUB_OUTPUT"
+            echo "::error title=No backup found::No successful database backup in recent history."
+            exit 0
+          fi
+
+          LATEST_EPOCH=$(date -u -d "$LATEST" +%s)
+          NOW_EPOCH=$(date -u +%s)
+          AGE_HOURS=$(( (NOW_EPOCH - LATEST_EPOCH) / 3600 ))
+
+          echo "Newest successful backup: $LATEST (${AGE_HOURS}h ago)"
+          echo "age_hours=$AGE_HOURS" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Backup freshness"
+            echo ""
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Newest successful backup | $LATEST |"
+            echo "| Age | ${AGE_HOURS} hours |"
+            echo "| Threshold | ${MAX_AGE_HOURS} hours |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$AGE_HOURS" -gt "$MAX_AGE_HOURS" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "detail=The newest successful backup is ${AGE_HOURS} hours old (threshold ${MAX_AGE_HOURS})." >> "$GITHUB_OUTPUT"
+            echo "::error title=Backup is stale::Newest successful backup is ${AGE_HOURS}h old."
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Raise the alarm where the office will see it
+        if: steps.age.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Passed as an environment value, never interpolated into the script: a workflow expression
+          # spliced into bash is a shell-injection waiting for the first apostrophe.
+          DETAIL: ${{ steps.age.outputs.detail }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BACKUP_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/backup.yml
+        run: |
+          set -euo pipefail
+          TITLE="Database backup is stale"
+
+          cat > /tmp/body.md <<EOF
+          ${DETAIL}
+
+          - Checked: $(date -u '+%Y-%m-%d %H:%M UTC')
+          - This check: ${RUN_URL}
+          - Backup workflow: ${BACKUP_WORKFLOW_URL}
+
+          What to do: run "Database backup" from the Actions tab now, then find out why the schedule did not
+          produce one. Until it succeeds, the most recent restorable copy is older than a day, and anything
+          collected since then exists only in the live database.
+          EOF
+
+          # One issue that grows, rather than a new one every morning.
+          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue comment "$EXISTING" --body-file /tmp/body.md
+          else
+            gh issue create --title "$TITLE" --body-file /tmp/body.md
+          fi
+
+      - name: Fail the run so the badge and the Actions tab both show it
+        if: steps.age.outputs.stale == 'true'
+        run: exit 1

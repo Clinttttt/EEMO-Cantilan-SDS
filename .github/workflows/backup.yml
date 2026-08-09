@@ -25,6 +25,7 @@ on:
 permissions:
   contents: read
   id-token: write           # required for Azure OIDC login
+  issues: write             # so a failed backup can raise one instead of passing silently
 
 concurrency:
   group: database-backup
@@ -86,6 +87,61 @@ jobs:
           pg_dump -Fc -Z 6 --no-owner --no-privileges -f "$FILE"
           ls -lh "$FILE"
 
+      - name: Verify the dump before trusting it
+        # A dump nobody has looked at is a hope, not a backup. The upload step's if-no-files-found
+        # only catches a MISSING file: a 0-byte or truncated dump uploaded as a success, and the
+        # office would have discovered it on the day it needed to restore.
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          set -euo pipefail
+
+          # 1. It exists and is not empty.
+          if [ ! -s "$BACKUP_FILE" ]; then
+            echo "::error title=Backup unusable::$BACKUP_FILE is missing or zero bytes."
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s "$BACKUP_FILE")
+          echo "Dump size: $SIZE bytes"
+          echo "BACKUP_SIZE=$SIZE" >> "$GITHUB_ENV"
+
+          # 2. It parses. A custom-format dump carries a table of contents; pg_dump writes that last,
+          #    so a truncated or corrupt file fails here even when its size looks plausible.
+          if ! pg_restore --list "$BACKUP_FILE" > /tmp/backup-toc.txt 2> /tmp/backup-toc.err; then
+            echo "::error title=Backup unreadable::pg_restore could not read the table of contents."
+            cat /tmp/backup-toc.err
+            exit 1
+          fi
+
+          # 3. It is a dump of THIS database, not of an empty or wrong one. These tables exist as
+          #    schema objects whether or not they hold rows, so the check is stable on a quiet day.
+          MISSING=""
+          for t in Users Municipalities Facilities Stalls Contracts PaymentRecords; do
+            grep -q "\"$t\"" /tmp/backup-toc.txt || MISSING="$MISSING $t"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=Backup incomplete::Expected tables absent from the dump:$MISSING"
+            exit 1
+          fi
+
+          ENTRIES=$(wc -l < /tmp/backup-toc.txt)
+          echo "Table-of-contents entries: $ENTRIES"
+          {
+            echo "### Backup verified"
+            echo ""
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| File | \`$BACKUP_FILE\` |"
+            echo "| Size | $SIZE bytes |"
+            echo "| Table-of-contents entries | $ENTRIES |"
+            echo "| Expected tables present | yes |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
@@ -102,6 +158,40 @@ jobs:
             --server-name "${{ vars.PG_SERVER_NAME }}" \
             --name "ghbackup-${GITHUB_RUN_ID}" \
             --yes || true
+
+      - name: Raise an issue if the backup failed
+        # A failed backup used to be silent. Nothing notified anyone, and the office had no reason to
+        # open the Actions tab, so a failure — or a run of them — would simply pass. An issue is used
+        # rather than email because GitHub already emails the watchers of this repository, so it needs
+        # no new secret, no mail server, and no address to keep up to date.
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="Database backup failed"
+
+          # A heredoc rather than a quoted multi-line string: the body carries URLs and punctuation, and
+          # building it by interpolation is how a stray quote turns an alarm into a broken script.
+          cat > /tmp/body.md <<EOF
+          The scheduled database backup did not complete.
+
+          - Run: ${RUN_URL}
+          - When: $(date -u '+%Y-%m-%d %H:%M UTC')
+
+          The last good backup is whatever the previous successful run produced, so the exposure grows with
+          every day this is left. Re-run "Database backup" from the Actions tab once the cause is understood.
+          EOF
+
+          # Reuse the open issue if there is one, so a run of failures reads as one growing problem rather
+          # than burying the office in identical tickets.
+          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
+          if [ -n "${EXISTING:-}" ]; then
+            gh issue comment "$EXISTING" --body-file /tmp/body.md
+          else
+            gh issue create --title "$TITLE" --body-file /tmp/body.md
+          fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ONE-TIME SETUP
