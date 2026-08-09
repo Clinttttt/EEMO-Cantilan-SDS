@@ -1,0 +1,339 @@
+/* Import payment history.
+   Deliberately plain: this screen states what happened to each row of an office ledger, so it reads as a record
+   rather than a dashboard. No accent colours beyond the ones the rest of the portal already uses. */
+
+.iph-page {
+    padding-bottom: 32px;
+}
+
+.iph-hero {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin: 16px 20px 0;
+    padding: 20px 22px;
+    border-radius: 14px;
+    background: var(--navy);
+    color: #fff;
+}
+
+.iph-hero-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .1);
+}
+
+.iph-hero-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.iph-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--gold);
+}
+
+.iph-hero-title {
+    margin: 2px 0 0;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.iph-hero-sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    opacity: .82;
+}
+
+.iph-card {
+    margin: 16px 20px 0;
+    padding: 22px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+}
+
+.iph-card-title {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.iph-refused p {
+    margin: 0 0 10px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+/* ── Upload ── */
+.iph-drop {
+    display: block;
+    position: relative;
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+
+.iph-drop:hover {
+    border-color: color-mix(in srgb, var(--navy) 40%, transparent);
+    background: var(--bg-subtle, #f4f6f8);
+}
+
+/* The input covers the label so the whole area is the control, while remaining a real focusable input for the
+   keyboard and for assistive technology. */
+.iph-file {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.iph-drop-inner svg {
+    width: 26px;
+    height: 26px;
+    color: var(--text-muted);
+}
+
+.iph-drop-title {
+    margin-top: 8px;
+    font-size: 14.5px;
+    font-weight: 650;
+    color: var(--text);
+}
+
+.iph-drop-sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.iph-template {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.iph-link {
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--navy);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--navy) 35%, transparent);
+}
+
+.iph-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.iph-columns-label {
+    width: 100%;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+}
+
+.iph-chip {
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-page);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.iph-rules {
+    margin: 16px 0 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.iph-rules code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--bg-page);
+    font-size: 12.5px;
+}
+
+.iph-ready {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    color: var(--text);
+}
+
+.iph-error {
+    margin-top: 14px;
+    padding: 11px 14px;
+    border-radius: 9px;
+    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+    background: color-mix(in srgb, var(--red) 7%, transparent);
+    font-size: 13px;
+    color: var(--red);
+}
+
+/* ── Outcome ── */
+.iph-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.iph-stat {
+    flex: 1 1 130px;
+    padding: 14px 16px;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--bg-page);
+}
+
+.iph-stat-attention {
+    border-color: color-mix(in srgb, var(--red) 35%, transparent);
+}
+
+.iph-stat-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.iph-stat-key {
+    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.iph-note {
+    margin: 14px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.iph-table-wrap {
+    margin-top: 16px;
+    overflow-x: auto;
+}
+
+.iph-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.iph-table th {
+    padding: 9px 11px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.iph-table td {
+    padding: 10px 11px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+}
+
+.iph-table .iph-c {
+    text-align: center;
+}
+
+.iph-table .iph-r {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.iph-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.iph-btn {
+    min-height: 38px;
+    padding: 9px 16px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 650;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, box-shadow .15s;
+}
+
+.iph-btn:hover {
+    box-shadow: 0 4px 10px rgba(9, 31, 52, .1);
+}
+
+.iph-btn-primary {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+.iph-btn:disabled {
+    opacity: .55;
+    cursor: default;
+    box-shadow: none;
+}
+
+@media (max-width: 640px) {
+    .iph-hero,
+    .iph-card {
+        margin-left: 12px;
+        margin-right: 12px;
+        padding: 16px;
+    }
+
+    .iph-hero-title {
+        font-size: 17px;
+    }
+
+    .iph-stat {
+        flex: 1 1 100%;
+    }
+}

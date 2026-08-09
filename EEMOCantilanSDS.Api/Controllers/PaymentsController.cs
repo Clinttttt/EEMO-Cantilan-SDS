@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
@@ -20,6 +21,21 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "SuperAdmin,Admin,Collector")]
 public class PaymentsController(ISender sender) : ApiBaseController(sender)
 {
+    /// <summary>
+    /// Records an office's existing payment history for a monthly-billed facility, one row per month per space.
+    ///
+    /// <para>Head/admin only. A collector records what they take today; rewriting years of ledger is an office act,
+    /// and these records are indistinguishable from real collections once written.</para>
+    /// </summary>
+    [HttpPost("import-history")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<BulkImportPaymentResultDto>> ImportHistory(
+        [FromBody] BulkImportPaymentHistoryCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
     [HttpGet("stall/{stallId}")]
     public async Task<ActionResult<PaymentRecordDto>> GetPaymentRecord(Guid stallId, [FromQuery] int year, [FromQuery] int month)
     {

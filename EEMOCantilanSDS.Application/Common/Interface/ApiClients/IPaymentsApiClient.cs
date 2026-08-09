@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
@@ -12,6 +13,12 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IPaymentsApiClient
 {
+    /// <summary>
+    /// Records an office's existing payment history for a monthly-billed facility. Returns the outcome of every
+    /// row, including the ones that were refused and why, so the office can correct its sheet rather than guess.
+    /// </summary>
+    Task<Result<BulkImportPaymentResultDto>> ImportPaymentHistoryAsync(BulkImportPaymentHistoryCommand command);
+
     Task<Result<PaymentRecordDto>> GetPaymentRecordAsync(Guid stallId, int year, int month);
     Task<Result<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month);
     Task<Result<IReadOnlyList<NpmStallDailyStatusDto>>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month);

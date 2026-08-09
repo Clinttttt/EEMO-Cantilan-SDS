@@ -1,0 +1,401 @@
+@page "/import-history/{Facility}"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Forms
+@inject NavigationManager Navigation
+@inject IPaymentsApiClient PaymentsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+@*
+    Records an office's existing payment history so it can adopt the system mid-contract.
+
+    Importing the HISTORY rather than an opening balance keeps arrears derived: the system goes on working out
+    what is owed from the term and the payments against it, so every peso traces to a receipt and no figure
+    exists that cannot be audited. These become ordinary payment records, and every screen that already reads
+    them works untouched.
+
+    Monthly-billed facilities only. The market bills per market day, so its history is daily collections rather
+    than one row per month; the server refuses it with that reason rather than mis-recording it.
+*@
+
+<PageTitle>Import payment history</PageTitle>
+
+<div class="iph-page">
+    <header class="topbar">
+        <div class="topbar-left flex gap-2">
+            <a href="@BackUrl" class="imp-back-btn" title="Back to @FacilityName" aria-label="Back to @FacilityName">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </a>
+            <div>
+                <div class="topbar-title">Import Payment History</div>
+                <div class="topbar-breadcrumb">
+                    <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                    <span class="breadcrumb-sep">/</span>
+                    <a href="@BackUrl" class="breadcrumb-link">@FacilityShort</a>
+                    <span class="breadcrumb-sep">/</span>
+                    <span class="breadcrumb-active">Import history</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+
+    <div class="iph-hero">
+        <div class="iph-hero-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" />
+            </svg>
+        </div>
+        <div class="iph-hero-body">
+            <div class="iph-hero-eyebrow">@FacilityShort · PAYMENT HISTORY</div>
+            <h1 class="iph-hero-title">Import @FacilityName payment history</h1>
+            <p class="iph-hero-sub">One row for each month a payor paid. The balance is worked out from these, not entered.</p>
+        </div>
+    </div>
+
+    @if (!IsSupported)
+    {
+        <div class="iph-card iph-refused">
+            <h2 class="iph-card-title">Not for @FacilityName</h2>
+            <p>
+                Payment history can be imported for the monthly-billed facilities — Tampak Commercial Center, New
+                Commercial Center, Barbecue Stand and Iceplant — where one row is one month.
+            </p>
+            <p>
+                The New Public Market is collected per market day, so a month there is many collections rather than
+                one payment. Recording it through this sheet would settle days nobody collected, so it is refused
+                rather than mis-recorded.
+            </p>
+        </div>
+    }
+    else if (_result is not null)
+    {
+        <div class="iph-card">
+            <h2 class="iph-card-title">What was recorded</h2>
+
+            <div class="iph-summary">
+                <div class="iph-stat">
+                    <div class="iph-stat-val">@_result.RecordedCount</div>
+                    <div class="iph-stat-key">Paid in full</div>
+                </div>
+                <div class="iph-stat">
+                    <div class="iph-stat-val">@_result.PartialCount</div>
+                    <div class="iph-stat-key">Part paid</div>
+                </div>
+                <div class="iph-stat">
+                    <div class="iph-stat-val">@_result.AlreadyRecordedCount</div>
+                    <div class="iph-stat-key">Already on record</div>
+                </div>
+                <div class="iph-stat @(_result.RejectedCount > 0 ? "iph-stat-attention" : "")">
+                    <div class="iph-stat-val">@_result.RejectedCount</div>
+                    <div class="iph-stat-key">Not recorded</div>
+                </div>
+                <div class="iph-stat">
+                    <div class="iph-stat-val">@Peso(_result.TotalRecorded)</div>
+                    <div class="iph-stat-key">Total recorded</div>
+                </div>
+            </div>
+
+            @if (_result.PartialCount > 0)
+            {
+                <p class="iph-note">
+                    A part-paid month keeps the remainder outstanding, so those accounts will still show a balance
+                    for the difference. That is the office's own figure, not an error.
+                </p>
+            }
+
+            @if (_result.RejectedCount > 0 || _result.AlreadyRecordedCount > 0)
+            {
+                <div class="iph-table-wrap">
+                    <table class="iph-table">
+                        <thead>
+                            <tr>
+                                <th>Row</th>
+                                <th>Stall / Space</th>
+                                <th>Period</th>
+                                <th class="iph-r">Amount</th>
+                                <th>Why it was not recorded</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _result.Results.Where(r => r.Outcome is ImportPaymentOutcome.Rejected or ImportPaymentOutcome.AlreadyRecorded))
+                            {
+                                <tr>
+                                    <td class="iph-c">@row.RowNumber</td>
+                                    <td>@SpaceNumber.Display(row.StallNo)</td>
+                                    <td class="iph-c">@row.Period</td>
+                                    <td class="iph-r">@Peso(row.AmountPaid)</td>
+                                    <td>@row.Error</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="iph-note">
+                    Correct those rows on your sheet and upload it again. The rows already recorded are reported as
+                    such rather than written twice, so re-uploading the whole file is safe.
+                </p>
+            }
+
+            <div class="iph-actions">
+                <button class="iph-btn" type="button" @onclick="Reset">Import another file</button>
+                <a class="iph-btn iph-btn-primary" href="/@(Facility?.ToLowerInvariant())">Back to @FacilityShort</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="iph-card">
+            <h2 class="iph-card-title">Upload the history</h2>
+
+            <label class="iph-drop">
+                <InputFile OnChange="OnFileChosen" accept=".csv" class="iph-file" />
+                <div class="iph-drop-inner">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <div class="iph-drop-title">Choose a CSV file</div>
+                    <div class="iph-drop-sub">One row for each month a payor paid</div>
+                </div>
+            </label>
+
+            <div class="iph-template">
+                <a class="iph-link" href="@TemplateHref" download="@($"{FacilityShort}-payment-history-template.csv")">Download CSV template</a>
+            </div>
+
+            <div class="iph-columns">
+                <div class="iph-columns-label">COLUMNS</div>
+                @foreach (var column in ColumnNames)
+                {
+                    <span class="iph-chip">@column</span>
+                }
+            </div>
+
+            <ul class="iph-rules">
+                <li><strong>Period</strong> is the month the payment was <em>for</em>, written <code>2025-03</code> — not the month it was received.</li>
+                <li><strong>Amount Paid</strong> is the figure received. Where it is short of that month's rent the month stays outstanding for the difference.</li>
+                <li><strong>OR No.</strong> is required. A payment recorded without a receipt is reported as needing one chased, so a history without them would raise a false alarm on every row.</li>
+                <li>A month the contract does not cover is reported rather than recorded, and re-uploading the same file does not record a month twice.</li>
+            </ul>
+
+            @if (_error is not null)
+            {
+                <div class="iph-error">@_error</div>
+            }
+
+            @if (_rows.Count > 0)
+            {
+                <div class="iph-ready">
+                    <div>
+                        <strong>@_rows.Count</strong> @(_rows.Count == 1 ? "row" : "rows") read from <strong>@_fileName</strong>
+                    </div>
+                    <div class="iph-actions">
+                        <button class="iph-btn" type="button" @onclick="Reset" disabled="@_saving">Discard</button>
+                        <button class="iph-btn iph-btn-primary" type="button" @onclick="Save" disabled="@_saving">
+                            @(_saving ? "Recording…" : $"Record {_rows.Count} {(_rows.Count == 1 ? "payment" : "payments")}")
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Facility { get; set; }
+
+    private static readonly string[] ColumnNames =
+        ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Amount Paid", "OR No.", "Date Paid"];
+
+    private readonly List<ImportPaymentRow> _rows = new();
+    private BulkImportPaymentResultDto? _result;
+    private string? _error;
+    private string? _fileName;
+    private bool _saving;
+
+    /// <summary>
+    /// Monthly-billed only, matching the server's own rule. Stated here as well so the office is told before it
+    /// prepares a file, rather than after it has uploaded one.
+    /// </summary>
+    private static readonly FacilityCode[] SupportedFacilities =
+        [FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE];
+
+    private FacilityCode? Code =>
+        Enum.TryParse<FacilityCode>(Facility, ignoreCase: true, out var code) ? code : null;
+
+    private bool IsSupported => Code is { } code && SupportedFacilities.Contains(code);
+
+    private string FacilityShort => Code is { } code ? FacilityCatalog.ShortNameOf(code) : (Facility ?? "Facility");
+
+    private string FacilityName => Code is { } code ? FacilityCatalog.NameOf(code) : (Facility ?? "this facility");
+
+    /// <summary>Back to the facility this history belongs to.</summary>
+    private string BackUrl => $"/{(Facility ?? string.Empty).ToLowerInvariant()}";
+
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The template, as a data URI so it needs no endpoint. Written through CsvCell so the header cannot itself be
+    /// read as a formula, and so the office's own file round-trips through the same escaping the exports use.
+    /// </summary>
+    private string TemplateHref
+    {
+        get
+        {
+            var header = CsvCell.Row(ColumnNames);
+            var example = CsvCell.Row("1", "Joseph Villamor", "2025-03", "2400.00", "OR-100234", "2025-03-05");
+            var csv = header + "\n" + example + "\n";
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(csv);
+        }
+    }
+
+    private async Task OnFileChosen(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _result = null;
+        _rows.Clear();
+
+        var file = e.File;
+        if (file is null) return;
+        _fileName = file.Name;
+
+        try
+        {
+            // 5 MB is generous for a text history and bounds what a single upload can cost the server.
+            await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var text = await reader.ReadToEndAsync();
+            ParseCsv(text);
+
+            if (_rows.Count == 0 && _error is null)
+                _error = "No rows were found in that file. Check it has a header row and at least one payment.";
+        }
+        catch (IOException)
+        {
+            _error = "That file is larger than 5 MB. Split the history by year and upload each part.";
+        }
+        catch
+        {
+            _error = "That file could not be read. Save it as CSV and try again.";
+        }
+    }
+
+    /// <summary>
+    /// Reads the office's sheet. Every field is parsed defensively and a bad line becomes a reported row rather
+    /// than an exception, because a hand-kept history of several hundred lines will contain surprises.
+    /// </summary>
+    private void ParseCsv(string text)
+    {
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.TrimEnd('\r'))
+            .Where(l => l.Trim().Length > 0)
+            .ToList();
+
+        if (lines.Count == 0) return;
+
+        // Skip the header when it looks like one rather than a payment.
+        var start = lines[0].Contains("stall", StringComparison.OrdinalIgnoreCase)
+                    || lines[0].Contains("period", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+        var rowNumber = 0;
+        for (var i = start; i < lines.Count; i++)
+        {
+            rowNumber++;
+            var cells = SplitCsvLine(lines[i]);
+
+            string Cell(int index) => index < cells.Length ? cells[index].Trim() : string.Empty;
+
+            var (year, month) = ParsePeriod(Cell(2));
+
+            _rows.Add(new ImportPaymentRow(
+                RowNumber: rowNumber,
+                StallNo: Cell(0),
+                Occupant: Cell(1),
+                BillingYear: year,
+                BillingMonth: month,
+                // Through the same reader the stallholder import uses, so "1.500,00" and "1,500.00" are both
+                // fifteen hundred rather than one of them being read as one peso fifty.
+                AmountPaid: SheetNumber.ToDecimal(Cell(3)) ?? 0m,
+                OrNumber: Cell(4),
+                DatePaid: DateTime.TryParse(Cell(5), System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var paid) ? paid : null));
+        }
+    }
+
+    /// <summary>Reads "2025-03", "2025/3" or "03/2025". Zero year or month lets the server report the row.</summary>
+    private static (int Year, int Month) ParsePeriod(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return (0, 0);
+
+        var parts = value.Split(['-', '/', ' '], StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2) return (0, 0);
+
+        if (!int.TryParse(parts[0], out var first) || !int.TryParse(parts[1], out var second))
+            return (0, 0);
+
+        // A four-digit part is the year, whichever side it is written on.
+        return first > 31 ? (first, second) : (second, first);
+    }
+
+    // Honours double-quoted fields, which may contain commas and "" escapes (RFC 4180).
+    private static string[] SplitCsvLine(string line)
+    {
+        var cells = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                else inQuotes = !inQuotes;
+            }
+            else if (ch == ',' && !inQuotes) { cells.Add(sb.ToString()); sb.Clear(); }
+            else sb.Append(ch);
+        }
+
+        cells.Add(sb.ToString());
+        return cells.ToArray();
+    }
+
+    private async Task Save()
+    {
+        if (Code is not { } code || _rows.Count == 0) return;
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var result = await PaymentsApi.ImportPaymentHistoryAsync(
+                new BulkImportPaymentHistoryCommand(code, null, _rows.ToList()));
+
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _result = result.Value;
+                _rows.Clear();
+            }
+            else
+            {
+                // Nothing was written: the batch is one transaction, so the ledger is exactly as it was.
+                _error = result.Error ?? "The history could not be recorded. Nothing was saved.";
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Reset()
+    {
+        _rows.Clear();
+        _result = null;
+        _error = null;
+        _fileName = null;
+    }
+}
