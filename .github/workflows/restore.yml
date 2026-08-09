@@ -17,6 +17,22 @@ name: Database restore
 
 on:
   workflow_dispatch:
+    inputs:
+      target_database:
+        description: 'Database to restore INTO. Leave empty for production. Give a name to rehearse.'
+        required: false
+        default: ''
+
+# NOTE ON THE INPUT ABOVE
+#   It must stay optional with an empty default. The portal dispatches this workflow with a ref and no
+#   inputs at all (GitHubActionsBackupService), so making it required would break the emergency path the
+#   office actually uses - which would be a fine way to discover that the safety net had been welded shut.
+#
+#   Empty means production, so nothing about the real restore changes. Supply a name and the same steps run
+#   against a scratch database instead, which is what makes this procedure practisable. It had never been
+#   executed once, and the reason was simply that there was no way to try it without dropping the live
+#   database. See scripts/restore-drill.ps1 for the offline drill that proves the DUMP restores; this
+#   rehearses the WORKFLOW.
 
 permissions:
   contents: read
@@ -37,6 +53,28 @@ jobs:
     environment: production          # OIDC subject match (same as backup/deploy)
 
     steps:
+      - name: Decide which database is being restored
+        id: target
+        # Settled once, up front, and printed - so the log says plainly whether this run touched
+        # production or a rehearsal copy. Nobody should have to infer that from the steps below.
+        env:
+          PRODUCTION_DB: ${{ secrets.PG_DATABASE }}
+          REQUESTED: ${{ inputs.target_database }}
+        run: |
+          set -euo pipefail
+          if [ -z "${REQUESTED:-}" ] || [ "$REQUESTED" = "$PRODUCTION_DB" ]; then
+            echo "db=$PRODUCTION_DB" >> "$GITHUB_OUTPUT"
+            echo "is_drill=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Restoring PRODUCTION::This run replaces the contents of $PRODUCTION_DB."
+            echo "### Restoring PRODUCTION (\`$PRODUCTION_DB\`)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "db=$REQUESTED" >> "$GITHUB_OUTPUT"
+            echo "is_drill=true" >> "$GITHUB_OUTPUT"
+            echo "Rehearsal: restoring into $REQUESTED. Production ($PRODUCTION_DB) is not written to."
+            echo "### Rehearsal - restoring into \`$REQUESTED\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Production (\`$PRODUCTION_DB\`) is read for the safety dump and never written to." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Sign in to Azure with OpenID Connect
         uses: azure/login@v2
         with:
@@ -110,10 +148,34 @@ jobs:
           fi
           echo "RESTORE_DUMP=$DUMP" >> "$GITHUB_ENV"
 
+      - name: Create the rehearsal database if it does not exist
+        # Only on a drill. Connects to the maintenance database to issue CREATE DATABASE, because you
+        # cannot create a database from inside the one you are creating. Existing is fine: a rehearsal
+        # target is meant to be reused, and the restore below clears it first.
+        if: steps.target.outputs.is_drill == 'true'
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: postgres
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+          TARGET_DB: ${{ steps.target.outputs.db }}
+        run: |
+          set -euo pipefail
+          EXISTS=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname = '${TARGET_DB}'")
+          if [ "${EXISTS:-}" = "1" ]; then
+            echo "Rehearsal database ${TARGET_DB} already exists; it will be cleared by the restore."
+          else
+            psql -c "CREATE DATABASE \"${TARGET_DB}\""
+            echo "Created rehearsal database ${TARGET_DB}."
+          fi
+
       - name: Restore (atomic — rolls back entirely on any error)
         env:
           PGHOST: ${{ secrets.PG_HOST }}
-          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          # The chosen target, not the production secret: this is the one line that decides whether the
+          # run rehearses or replaces the live database.
+          PGDATABASE: ${{ steps.target.outputs.db }}
           PGUSER: ${{ secrets.PG_USER }}
           PGPASSWORD: ${{ secrets.PG_PASSWORD }}
           PGSSLMODE: require
@@ -123,6 +185,51 @@ jobs:
             --single-transaction --exit-on-error \
             -d "$PGDATABASE" "$RESTORE_DUMP"
           echo "Restore completed successfully."
+
+      - name: Verify what came back
+        # The same assertion the offline drill makes: pg_restore can report success having applied very
+        # little, and a schema with no tables restores "successfully". Checked here so a restore that
+        # silently achieved nothing cannot be reported as a good one.
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ steps.target.outputs.db }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          set -euo pipefail
+          TABLES=$(psql -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          MIGRATIONS=$(psql -tAc 'SELECT count(*) FROM "__EFMigrationsHistory"')
+          echo "Tables: $TABLES, migrations applied: $MIGRATIONS"
+          {
+            echo ""
+            echo "| Check | Value |"
+            echo "| --- | --- |"
+            echo "| Database | \`$PGDATABASE\` |"
+            echo "| Tables | $TABLES |"
+            echo "| Migrations applied | $MIGRATIONS |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$TABLES" -lt 20 ]; then
+            echo "::error title=Restore achieved nothing::Only $TABLES tables present after the restore."
+            exit 1
+          fi
+
+      - name: How to remove the rehearsal database
+        if: steps.target.outputs.is_drill == 'true' && always()
+        env:
+          TARGET_DB: ${{ steps.target.outputs.db }}
+        run: |
+          {
+            echo ""
+            echo "Rehearsal copy \`$TARGET_DB\` is left in place so you can inspect it. Drop it when done:"
+            echo ""
+            echo '```sql'
+            echo "DROP DATABASE \"$TARGET_DB\";"
+            echo '```'
+            echo ""
+            echo "It costs storage on the production server until then."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove the temporary firewall rule
         if: always()
