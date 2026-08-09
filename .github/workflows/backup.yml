@@ -184,13 +184,14 @@ jobs:
           every day this is left. Re-run "Database backup" from the Actions tab once the cause is understood.
           EOF
 
-          # Reuse the open issue if there is one, so a run of failures reads as one growing problem rather
-          # than burying the office in identical tickets.
-          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
+          # --repo is required: this job does not check the repository out, and without it the gh CLI looks
+          # for a git remote, finds none, and fails - so the alarm would report the failure correctly and
+          # still tell nobody.
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
           if [ -n "${EXISTING:-}" ]; then
-            gh issue comment "$EXISTING" --body-file /tmp/body.md
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body-file /tmp/body.md
           else
-            gh issue create --title "$TITLE" --body-file /tmp/body.md
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file /tmp/body.md
           fi
 
 # ─────────────────────────────────────────────────────────────────────────────

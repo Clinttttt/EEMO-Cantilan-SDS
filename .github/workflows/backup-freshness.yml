@@ -123,12 +123,14 @@ jobs:
           collected since then exists only in the live database.
           EOF
 
-          # One issue that grows, rather than a new one every morning.
-          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
+          # --repo is required: this job deliberately does not check the repository out, and without it the
+          # gh CLI looks for a git remote, finds none, and fails - which is how an alarm that reports a
+          # problem correctly still tells nobody. Found by rehearsing the alarm rather than trusting it.
+          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
           if [ -n "${EXISTING:-}" ]; then
-            gh issue comment "$EXISTING" --body-file /tmp/body.md
+            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body-file /tmp/body.md
           else
-            gh issue create --title "$TITLE" --body-file /tmp/body.md
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file /tmp/body.md
           fi
 
       - name: Fail the run so the badge and the Actions tab both show it
