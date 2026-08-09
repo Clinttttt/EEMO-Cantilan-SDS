@@ -23,12 +23,18 @@
     Leave the container running afterwards so you can look through the restored data yourself.
 
 .EXAMPLE
-    ./restore-drill.ps1
+    From an ordinary Command Prompt (cmd.exe), use the .cmd wrapper - cmd cannot run a .ps1 directly and
+    will silently do nothing if you try:
+        scripts\restore-drill.cmd
+        scripts\restore-drill.cmd -KeepContainer
 
 .EXAMPLE
-    ./restore-drill.ps1 -RunId 31295284398 -KeepContainer
-    Restores a specific backup and leaves it up. Connect with:
-        psql -h localhost -p 55432 -U postgres -d drill      (password: drill)
+    From a PowerShell prompt, call this file directly:
+        .\restore-drill.ps1
+        .\restore-drill.ps1 -RunId 31295284398 -KeepContainer
+
+    With -KeepContainer, open a session in the restored copy with (no local PostgreSQL needed):
+        docker exec -it stalltrack-restore-drill psql -U postgres -d drill
 
 .NOTES
     Needs: gh (logged in) and docker. pg_restore runs INSIDE the container, so no local PostgreSQL
@@ -172,8 +178,14 @@ if ([int]$tableCount -lt 20) {
 # --- 6. Clean up --------------------------------------------------------------------------------
 if ($KeepContainer) {
     Step 6 'Leaving the container up as asked'
-    Ok "psql -h localhost -p $HostPort -U postgres -d drill    (password: drill)"
-    Ok "Remove it with: docker rm -f $Container"
+    # Through docker rather than a local psql: the machine that runs this drill needs Docker but does not
+    # need PostgreSQL installed, and printing a psql command that is not on PATH sends the reader chasing
+    # an install they do not need.
+    Ok 'Open a session in the restored copy with:'
+    Ok "    docker exec -it $Container psql -U postgres -d drill"
+    Ok 'Or from a tool on this machine, if you have one:'
+    Ok "    host localhost   port $HostPort   database drill   user postgres   password drill"
+    Ok "Remove it when you are done with:  docker rm -f $Container"
 }
 else {
     Step 6 'Removing the container'
