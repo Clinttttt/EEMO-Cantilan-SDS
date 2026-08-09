@@ -188,4 +188,54 @@ public class ImportNumberingTests
         Assert.All(result, r => Assert.Equal(NumberingOutcome.Kept, r.Outcome));
         Assert.Equal(new[] { "101", "102", "103" }, result.Select(r => r.StallNo));
     }
+
+    [Fact]
+    public void RemovingARow_ClosesUpOnlyTheNumbersThisScreenHandedOut()
+    {
+        // Three the office supplied and three this screen gave out. Removing one of ours must close the gap in OURS
+        // and leave the office's exactly as written - the whole batch being renumbered is what once overwrote the
+        // physical stall numbers a facility's collections are keyed on.
+        var supplied = new[] { "101", "102", "103" };
+
+        // What the screen hands out continues after the facility's highest active number.
+        var first = ImportNumbering.Assign(
+            new[] { Stall("101"), Stall("102"), Stall("103"), Stall(null), Stall(null), Stall(null) },
+            activeNumbers: Array.Empty<string>(),
+            highestStallNo: 0,
+            highestSpaceOrdinal: 0);
+
+        Assert.Equal(supplied, first.Take(3).Select(r => r.StallNo));
+        var assigned = first.Skip(3).Select(r => r.StallNo).ToList();
+        Assert.Equal(3, assigned.Distinct().Count());
+
+        // Now the middle assigned row is removed. Re-running with ours blanked is exactly what the screen does.
+        var after = ImportNumbering.Assign(
+            new[] { Stall("101"), Stall("102"), Stall("103"), Stall(null), Stall(null) },
+            activeNumbers: Array.Empty<string>(),
+            highestStallNo: 0,
+            highestSpaceOrdinal: 0);
+
+        Assert.Equal(supplied, after.Take(3).Select(r => r.StallNo));
+        Assert.Equal(assigned.Take(2), after.Skip(3).Select(r => r.StallNo));
+    }
+
+    [Fact]
+    public void ReNumberingOursNeverTakesANumberTheOfficeSupplied()
+    {
+        // The office's numbers are reserved before anything is handed out, so closing a gap in ours cannot land on
+        // one of theirs.
+        var result = ImportNumbering.Assign(
+            new[] { Stall(null), Stall("2"), Stall(null), Stall("4") },
+            activeNumbers: Array.Empty<string>(),
+            highestStallNo: 0,
+            highestSpaceOrdinal: 0);
+
+        Assert.Equal("2", result[1].StallNo);
+        Assert.Equal("4", result[3].StallNo);
+
+        var ours = new[] { result[0].StallNo, result[2].StallNo };
+        Assert.DoesNotContain("2", ours);
+        Assert.DoesNotContain("4", ours);
+        Assert.Equal(2, ours.Distinct().Count());
+    }
 }

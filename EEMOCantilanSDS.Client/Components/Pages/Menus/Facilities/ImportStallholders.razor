@@ -490,6 +490,17 @@
     private int _renumberedClash;
     /// <summary>Rows that arrived with no stall number and were given the next free one.</summary>
     private int _numberedBlank;
+
+    /// <summary>
+    /// The rows whose Stall / Space No. was handed out by THIS SCREEN rather than written on the office's list.
+    /// Only these may be re-sequenced when a row is added or removed; the office's numbers are never moved.
+    /// Reference identity, so editing a row's cells does not change its provenance.
+    /// </summary>
+    private readonly HashSet<Dictionary<string, string>> _screenAssigned = new();
+
+    /// <summary>Numbers held by active stalls in this facility, kept so a removal can re-sequence without asking the
+    /// server again.</summary>
+    private HashSet<string> _activeNumbers = new(StringComparer.OrdinalIgnoreCase);
     private bool _autoContinued;
     private bool _autoContinuedClashed;
     // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
@@ -619,10 +630,12 @@
     {
         if (_facility is null) return;
         var row = NewRow(_facility);
-        // Continue numbering from the highest number already in the facility or the current batch.
-        var batchMax = _rows.Select(r => ParseStallInt(GetCell(r, "stallNo"))).DefaultIfEmpty(0).Max();
-        row["stallNo"] = (Math.Max(_existingMax, batchMax) + 1).ToString();
         _rows.Add(row);
+
+        // Its number is this screen's to give, and to move again if a row is later removed. Allocated through the
+        // shared rule so it steps over the office's own numbers instead of colliding with one.
+        _screenAssigned.Add(row);
+        ResequenceAssignedNumbers();
     }
 
     private static int ParseStallInt(string? value)
@@ -812,11 +825,13 @@
     private void RemoveRow(int index)
     {
         if (index < 0 || index >= _rows.Count) return;
+        var removed = _rows[index];
         _rows.RemoveAt(index);
+        _screenAssigned.Remove(removed);
 
-        // Deliberately NOT re-sequenced. It used to renumber the batch after a removal to keep the assigned numbers
-        // contiguous, which now risks overwriting a number the office supplied and that was rightly left alone. A gap
-        // in the numbers this screen handed out is cosmetic; changing the office's own numbering is not.
+        // Only the numbers this screen handed out are closed up. The office's own numbers stay exactly as written -
+        // renumbering the whole batch is what once overwrote the physical stall numbers a facility is keyed on.
+        ResequenceAssignedNumbers();
     }
 
     /// <summary>
@@ -837,6 +852,9 @@
     /// </param>
     private void AssignBatchNumbers(HashSet<string> activeNumbers)
     {
+        // Kept so a later removal can re-sequence without asking the server again.
+        _activeNumbers = new HashSet<string>(activeNumbers, StringComparer.OrdinalIgnoreCase);
+
         var decisions = ImportNumbering.Assign(
             _rows.Select(r => (
                 SuppliedStallNo: (string?)GetCell(r, "stallNo"),
@@ -848,11 +866,17 @@
         _renumberedClash = 0;
         _numberedBlank = 0;
         _numberedSpaces = 0;
+        _screenAssigned.Clear();
 
         for (var i = 0; i < _rows.Count; i++)
         {
             var decision = decisions[i];
             _rows[i]["stallNo"] = decision.StallNo;
+
+            // Whose number this is. Anything other than Kept was handed out by this screen, so it may be
+            // re-sequenced later; a Kept number is the office's and must never be moved.
+            if (decision.Outcome != NumberingOutcome.Kept)
+                _screenAssigned.Add(_rows[i]);
 
             switch (decision.Outcome)
             {
@@ -860,6 +884,36 @@
                 case NumberingOutcome.NumberedBlank: _numberedBlank++; break;
                 case NumberingOutcome.NumberedSpace: _numberedSpaces++; break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Re-numbers only the rows this screen handed a number to, keeping them contiguous after a row is added or
+    /// removed.
+    ///
+    /// <para>Numbers the office supplied are left exactly as written, which is the whole point: renumbering the
+    /// entire batch is what once overwrote the physical stall numbers a facility's collections are keyed on. But
+    /// leaving OUR OWN numbers with a hole in them after a deletion is just untidy, and reads as a fault.</para>
+    /// </summary>
+    private void ResequenceAssignedNumbers()
+    {
+        if (_screenAssigned.Count == 0) return;
+
+        var decisions = ImportNumbering.Assign(
+            _rows.Select(r => (
+                // Ours are offered as blank so they are handed out afresh, in list order; the office's are supplied
+                // so they are kept and, just as importantly, reserved before anything else is allocated.
+                SuppliedStallNo: _screenAssigned.Contains(r) ? null : (string?)GetCell(r, "stallNo"),
+                HasSignedContract: ArrangementFromContractCell(GetCell(r, "contractName")) == OccupancyArrangement.SignedContract)),
+            _activeNumbers,
+            _existingMax,
+            _existingSpaceMax);
+
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            if (decisions[i].Outcome == NumberingOutcome.Kept) continue;
+            _rows[i]["stallNo"] = decisions[i].StallNo;
+            _screenAssigned.Add(_rows[i]);
         }
     }
 
