@@ -762,6 +762,11 @@
 
         PaymentHub.PaymentReceived += OnOnlinePaymentReceived;
 
+        // Anything that arrived while the connection was down was never delivered - SignalR does not queue for an
+        // absent client. Without re-reading here, a payor could pay online while the collector was out of signal,
+        // the card would still read Unpaid, and the collector would take the same money again in person.
+        PaymentHub.ConnectionRestored += OnConnectionRestored;
+
         await LoadCollectionAsync();
     }
 
@@ -800,7 +805,20 @@
         // Keep the existing list as-is — no error screen for a non-critical realtime refresh.
     }
 
-    public void Dispose() => PaymentHub.PaymentReceived -= OnOnlinePaymentReceived;
+    // The connection came back after a gap. What was missed cannot be recovered from the hub, so the month is
+    // re-read from the API - the only source that knows what actually happened while the app was offline.
+    private void OnConnectionRestored()
+        => _ = InvokeAsync(async () =>
+        {
+            try { await LoadCollectionAsync(); }
+            catch { /* best-effort: a failed refresh must not disturb the collector's screen */ }
+        });
+
+    public void Dispose()
+    {
+        PaymentHub.PaymentReceived -= OnOnlinePaymentReceived;
+        PaymentHub.ConnectionRestored -= OnConnectionRestored;
+    }
 
     private async Task LoadCollectionAsync()
     {

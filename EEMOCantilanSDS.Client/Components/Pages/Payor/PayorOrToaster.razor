@@ -79,6 +79,15 @@
         Realtime.PublishOrIssued();
     }
 
+    /// <summary>
+    /// The hub connection came back after a gap. Any receipt encoded while it was down was never delivered, so the
+    /// open payor pages are told to re-read rather than left showing a provisional receipt that is already official.
+    /// No toast is raised: the payor should not be congratulated for a reconnection, and a receipt they were never
+    /// told about will simply be correct when they look.
+    /// </summary>
+    [JSInvokable]
+    public void OnConnectionRestored() => Realtime.PublishOrIssued();
+
     private async Task AutoDismissAsync(Guid id)
     {
         await Task.Delay(9000);

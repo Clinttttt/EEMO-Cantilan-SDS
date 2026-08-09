@@ -13,4 +13,11 @@
     <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- For the hub retry policy only. It lives here rather than in the MAUI app because the app targets
+         platform frameworks that the net9.0 test project cannot reference, and "the connection never gives up"
+         is a claim that needs a test rather than a comment. -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
+  </ItemGroup>
+
 </Project>
