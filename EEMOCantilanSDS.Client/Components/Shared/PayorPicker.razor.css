@@ -1,0 +1,213 @@
+/* ============================================================
+   PayorPicker.razor.css  —  the payor chooser on the import screens
+   Uses --* tokens from app.css; does NOT redefine them.
+   ============================================================ */
+
+.pp {
+    position: relative;
+}
+
+/* ── The closed control ──────────────────────────────────── */
+.pp-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 168px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    /* 16px so a phone does not zoom the page when the control is focused. */
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+@media (min-width: 640px) {
+    .pp-field {
+        font-size: 13px;
+    }
+}
+
+    .pp-field:hover {
+        border-color: var(--navy);
+    }
+
+    .pp-field:focus-visible {
+        outline: none;
+        border-color: var(--navy);
+        box-shadow: 0 0 0 3px rgba(13, 33, 55, .10);
+    }
+
+    /* Chosen: stated in the page's own ink rather than the muted placeholder grey. */
+    .pp-field-set {
+        color: var(--navy);
+        font-weight: 600;
+    }
+
+.pp-field-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pp-caret {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+}
+
+.pp-open .pp-caret {
+    transform: rotate(180deg);
+}
+
+/* ── The panel ───────────────────────────────────────────── */
+/* Sits above the row it belongs to but below any modal. */
+.pp-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+}
+
+.pp-panel {
+    position: absolute;
+    z-index: 41;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 268px;
+    max-width: 84vw;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(13, 33, 55, .14);
+    overflow: hidden;
+}
+
+.pp-search {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 11px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-icon, #f6f8fa);
+}
+
+    .pp-search svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        color: var(--text-muted);
+    }
+
+.pp-search-input,
+.pp-manual {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--navy);
+}
+
+@media (min-width: 640px) {
+    .pp-search-input,
+    .pp-manual {
+        font-size: 13px;
+    }
+}
+
+    .pp-search-input:focus,
+    .pp-manual:focus {
+        outline: none;
+    }
+
+.pp-list {
+    max-height: 232px;
+    overflow-y: auto;
+}
+
+.pp-opt {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 11px;
+    border: none;
+    background: none;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .pp-opt:hover,
+    .pp-opt:focus-visible {
+        background: var(--bg-icon, #f6f8fa);
+        outline: none;
+    }
+
+    .pp-opt-on {
+        background: rgba(13, 33, 55, .05);
+    }
+
+.pp-opt-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The number, or the plain statement that there is none. */
+.pp-opt-no {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.pp-empty {
+    padding: 14px 12px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+/* ── The escape hatch ────────────────────────────────────── */
+/* An office working from an older sheet may need a number nobody occupies today. */
+.pp-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 11px;
+    border-top: 1px solid var(--border);
+}
+
+.pp-manual-btn {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+    .pp-manual-btn:hover:not(:disabled) {
+        border-color: var(--navy);
+    }
+
+    .pp-manual-btn:disabled {
+        color: var(--text-muted);
+        cursor: default;
+    }

@@ -40,51 +40,28 @@
 
 
 /* ── Hero ────────────────────────────────────────────────── */
+/* A light card, the same surface as every other panel on the page. The hero was a navy slab with a gold wash, which
+   made the page open on a block of colour and read as a banner rather than a record. An office document states who
+   the record is about and leaves the emphasis to the seal and the type. */
 .prof-hero {
     display: flex;
     align-items: center;
-    gap: 20px;
-    background: var(--navy);
+    gap: 22px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 24px 28px;
+    padding: 22px 26px;
     margin-bottom: 20px;
     flex-wrap: wrap;
     position: relative;
-    overflow: hidden;
 }
 
-    .prof-hero::before {
-        content: "";
-        position: absolute;
-        top: -50px;
-        right: -50px;
-        width: 220px;
-        height: 220px;
-        background: radial-gradient(circle, rgba(200,168,75,.15) 0%, transparent 70%);
-        pointer-events: none;
-    }
-
 .prof-hero-badge {
-    width: 60px;
-    height: 60px;
-    border-radius: 14px;
-    background: rgba(200,168,75,.25);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border: 1px solid rgba(200,168,75,.3);
 }
-
-    .prof-hero-badge svg {
-        width: 32px;
-        height: 32px;
-        stroke: var(--gold);
-        fill: none;
-        stroke-width: 1.8;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
 
 .prof-hero-identity {
     flex: 1 1 200px;
@@ -95,14 +72,14 @@
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--text-muted);
     margin-bottom: 4px;
 }
 
 .prof-hero-name {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
-    color: #fff;
+    color: var(--navy);
     line-height: 1.2;
 }
 
@@ -118,14 +95,14 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 12px;
-    color: rgba(255,255,255,.6);
+    font-size: 12.5px;
+    color: var(--text-muted);
 }
 
     .prof-hero-chip svg {
-        width: 12px;
-        height: 12px;
-        stroke: rgba(255,255,255,.5);
+        width: 13px;
+        height: 13px;
+        stroke: var(--text-muted);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -1247,13 +1224,16 @@
 
 .prof-hero-skel { align-items: center; }
 
-.skel-hero-badge { width: 76px; height: 76px; border-radius: 16px; background: rgba(255, 255, 255, 0.18); flex-shrink: 0; }
+/* The hero's placeholders are dark-on-light, like every other skeleton on the page. They were white-on-navy for the
+   navy hero; left as they were against the light card they would have been invisible, so the page would have appeared
+   to load with an empty hero rather than a loading one. */
+.skel-hero-badge { width: 76px; height: 76px; border-radius: 50%; background: rgba(13, 33, 55, 0.10); flex-shrink: 0; }
 
     .prof-hero-skel .skel::after {
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+        background: linear-gradient(90deg, transparent, rgba(13, 33, 55, 0.10), transparent);
     }
 
-.prof-hero-skel .skel-line { background: rgba(255, 255, 255, 0.16); }
+.prof-hero-skel .skel-line { background: rgba(13, 33, 55, 0.09); }
 
 .skel-field { display: flex; align-items: center; justify-content: space-between; }
 

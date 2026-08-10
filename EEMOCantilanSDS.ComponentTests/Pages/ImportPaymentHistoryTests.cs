@@ -28,8 +28,9 @@ public class ImportPaymentHistoryTests : TestContext
     private Mock<IPaymentsApiClient> _payments = new();
 
     /// <summary>
-    /// The facility's own stalls, so the pick-list has something in it. Two occupied and one closed, because a closed
-    /// stall's number must not be offered as a payor.
+    /// The facility's own stalls, so the picker has something in it. Two numbered, one un-numbered space, and one
+    /// closed — a closed stall's number must not be offered as a payor, and a space must be reachable by name because
+    /// it has no number to type.
     /// </summary>
     private static StallHoldersListDto Holders() => new()
     {
@@ -48,6 +49,14 @@ public class ImportPaymentHistoryTests : TestContext
                     {
                         StallNo = "2", ActualOccupant = "Ackerman Tril",
                         EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
+                    },
+                    new StallHolderRowDto
+                    {
+                        // A space the office does not number. Held without a contract, so its term is open-ended.
+                        StallNo = "SP-1", ActualOccupant = "Bernadette Lim",
+                        Arrangement = OccupancyArrangement.SpaceOnly,
+                        EffectivityDate = PhilippineTime.Today.AddYears(-1),
+                        DurationYears = EEMOCantilanSDS.Domain.Constants.DomainRules.OpenEndedTermYears
                     },
                     new StallHolderRowDto
                     {
@@ -265,36 +274,101 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
-    public void TheOfficeCanPickAPayorInsteadOfRememberingAStallNumber()
+    public void TheOfficeCanSearchAndPickAPayorInsteadOfRememberingAStallNumber()
     {
         var cut = Render("tcc");
         cut.Find("button.iph-enter-manually").Click();
 
-        // A mistyped stall number is the one error the import cannot detect for itself - 3 is as valid a stall as 8 -
-        // so the facility's own stalls are offered by name.
-        var options = cut.FindAll("datalist#iph-payors option");
-        Assert.Equal(2, options.Count);
-        Assert.Equal("1", options[0].GetAttribute("value"));
-        Assert.Contains("George Giovanna", options[0].GetAttribute("label"));
+        // Nothing is chosen yet, so the control says so rather than showing a number that means nothing.
+        Assert.Contains("Choose payor", cut.Markup);
 
-        // A closed stall is not a payor and must not be offered.
+        cut.Find("button.pp-field").Click();
+
+        // The facility's own vendors, by name. A closed stall is not a payor and must not be offered.
+        var options = cut.FindAll("button.pp-opt");
+        Assert.Equal(3, options.Count);
+        Assert.Contains("George Giovanna", cut.Markup);
         Assert.DoesNotContain("Vacated Vendor", cut.Markup);
-
-        // Still a plain text box: an office working from an older sheet may need a number nobody occupies today.
-        Assert.Equal("iph-payors", cut.Find("input.iph-input[list]").GetAttribute("list"));
     }
 
     [Fact]
-    public void ChoosingAStallNamesTheVendorItBelongsTo()
+    public void AVendorWithNoStallIsReachableByNameAndNeverShownAnInternalNumber()
     {
         var cut = Render("tcc");
         cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
 
-        cut.Find("input.iph-input[list]").Input("2");
+        // Searching by name is the ONLY way to reach a vendor the office does not number - there is no number to type.
+        cut.Find("input.pp-search-input").Input("bernad");
 
-        // Named where the occupant goes, so a wrong number shows itself before the row is saved rather than after the
-        // money has landed on somebody else's month.
-        Assert.Contains("Ackerman Tril", cut.Markup);
+        var match = Assert.Single(cut.FindAll("button.pp-opt"));
+        Assert.Contains("Bernadette Lim", match.InnerHtml);
+
+        // SP-1 is an internal key. It has never appeared on the office's own list and must not appear here, or the
+        // staff would learn a stall number that does not exist.
+        Assert.DoesNotContain("SP-1", cut.Markup);
+        Assert.DoesNotContain("SP&#8209;1", cut.Markup);
+        Assert.Contains("no stall no.", match.InnerHtml);
+    }
+
+    [Fact]
+    public void PickingAPayorWritesTheRealNameOntoTheRow()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+
+        // The name used to be shown as a placeholder, which looked filled in and saved as blank. It is now the input's
+        // actual value, so what the office sees is what the import records.
+        var occupant = cut.FindAll("input.iph-input").First(i => i.GetAttribute("aria-label") == "Actual occupant");
+        Assert.Equal("Ackerman Tril", occupant.GetAttribute("value"));
+
+        // And the closed control states the choice rather than a placeholder.
+        Assert.Contains("Stall 2 · Ackerman Tril", cut.Find("button.pp-field").TextContent);
+    }
+
+    [Fact]
+    public void PickingASpaceStatesTheVendorWithoutInventingAStallNumber()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Bernadette Lim")).Click();
+
+        var field = cut.Find("button.pp-field").TextContent;
+        Assert.Contains("Bernadette Lim", field);
+        Assert.DoesNotContain("Stall", field);
+        Assert.DoesNotContain("SP-1", field);
+    }
+
+    [Fact]
+    public void ANumberCanStillBeTypedForAStallNobodyOccupiesToday()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        // The escape hatch: an office working from an older sheet may need a number that is not let today.
+        cut.Find("input.pp-manual").Input("47");
+        cut.Find("button.pp-manual-btn").Click();
+
+        Assert.Contains("Stall 47", cut.Find("button.pp-field").TextContent);
+    }
+
+    [Fact]
+    public void SearchingSomethingThatIsNotThereSaysSoRatherThanShowingAnEmptyList()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        cut.Find("input.pp-search-input").Input("zzz");
+
+        Assert.Empty(cut.FindAll("button.pp-opt"));
+        Assert.Contains("Nothing matches", cut.Markup);
     }
 
     [Fact]

@@ -1,0 +1,82 @@
+@using EEMOCantilanSDS.Domain.Enums
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
+@inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
+
+@*
+    The facility's seal: the municipality's own mark inside a ring naming the facility.
+
+    Drawn rather than stored as an image, because the ring's text is per-tenant and per-facility - there is no one
+    seal to ship. The municipality's mark in the centre comes from the tenant's own branding, so no LGU ever sees
+    another's crest, and the ring names whichever facility the surface is about.
+
+    Decorative: every surface that shows this also names the facility in text beside it, so the drawing is hidden
+    from assistive technology rather than read out twice.
+*@
+
+<svg class="fseal" viewBox="0 0 120 120" width="@Size" height="@Size"
+     style="width:@(Size)px;height:@(Size)px" aria-hidden="true" focusable="false">
+    <defs>
+        @* Unique per instance: two seals on one page must not share a path or a clip. *@
+        <path id="fseal-top-@_id" d="M 60,60 m -44,0 a 44,44 0 1,1 88,0" fill="none" />
+        <path id="fseal-bottom-@_id" d="M 60,60 m -38,0 a 38,38 0 1,0 76,0" fill="none" />
+        <clipPath id="fseal-clip-@_id">
+            <circle cx="60" cy="60" r="26" />
+        </clipPath>
+    </defs>
+
+    @* Two rings, the outer heavier, as an office seal is struck. *@
+    <circle cx="60" cy="60" r="57" fill="none" stroke="var(--navy)" stroke-width="2" />
+    <circle cx="60" cy="60" r="51" fill="none" stroke="var(--navy)" stroke-width="1" />
+    <circle cx="60" cy="60" r="30" fill="none" stroke="var(--navy)" stroke-width="1" />
+
+    <text class="fseal-ring" font-size="11" font-weight="700" letter-spacing="1.6" fill="var(--navy)">
+        <textPath href="#fseal-top-@_id" startOffset="50%" text-anchor="middle">@RingText</textPath>
+    </text>
+
+    <text class="fseal-ring" font-size="8" font-weight="600" letter-spacing="1.8" fill="var(--navy)">
+        <textPath href="#fseal-bottom-@_id" startOffset="50%" text-anchor="middle">OFFICIAL SEAL</textPath>
+    </text>
+
+    @* The municipality's mark. An LGU that has not uploaded one falls back to the neutral seal, so the ring is never
+       left hollow. *@
+    <image href="@SealSrc" x="34" y="34" width="52" height="52"
+           clip-path="url(#fseal-clip-@_id)" preserveAspectRatio="xMidYMid slice" />
+</svg>
+
+@code {
+    /// <summary>The facility the seal names.</summary>
+    [Parameter, EditorRequired] public FacilityCode Code { get; set; }
+
+    /// <summary>Drawn size in CSS pixels.</summary>
+    [Parameter] public int Size { get; set; } = 72;
+
+    /// <summary>
+    /// Overrides the ring text. Used where the surface knows a better name for the facility than the catalogue does -
+    /// a Head-added custom facility, for instance.
+    /// </summary>
+    [Parameter] public string? Name { get; set; }
+
+    private readonly string _id = Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>
+    /// The facility's name, upper-cased as a seal is struck. Long names are shortened to the office's own short code
+    /// rather than allowed to overrun the ring, where they would collide with themselves at the top of the arc.
+    /// </summary>
+    private string RingText
+    {
+        get
+        {
+            var name = !string.IsNullOrWhiteSpace(Name) ? Name! : Facilities.NameOf(Code);
+            name = name.Trim();
+
+            // The arc holds roughly this many characters at the ring's font size. Past that the office's own short
+            // name is used, which is what its staff say aloud anyway.
+            return (name.Length > 28 ? Facilities.ShortNameOf(Code) : name).ToUpperInvariant();
+        }
+    }
+
+    private string SealSrc =>
+        string.IsNullOrWhiteSpace(Branding.SealPath)
+            ? EEMOCantilanSDS.Client.Services.BrandingState.NeutralSealPath
+            : Branding.SealPath;
+}

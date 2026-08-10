@@ -132,17 +132,10 @@
 
             <!-- -- Profile Hero -- -->
             <div class="prof-hero">
-                @* The facility's own mark, from the shared artwork both this portal and the collector app draw from,
-                   so a stall in the commercial centre carries the storefront the sidebar and facility page show and
-                   not a house glyph that belonged to no facility in particular. Gold ink, matching the facility hero
-                   this one now reads as a sibling of. A Head-added custom facility has no mark, so the previous glyph
-                   remains as the fallback rather than leaving a gap. *@
+                @* The facility's seal, the municipality's own mark inside a ring naming the facility. Drawn rather
+                   than shipped as an image because the ring's text is per-tenant and per-facility. *@
                 <div class="prof-hero-badge">
-                    <FacilityMark Code="@HeroFacility" Ink="FacilityMarkInk.Gold" Size="32">
-                        <Fallback>
-                            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                        </Fallback>
-                    </FacilityMark>
+                    <FacilitySeal Code="@HeroFacility" Name="@Stall.Facility" Size="76" />
                 </div>
                 <div class="prof-hero-identity">
                     @* Reads like the facility hero above it: eyebrow, then the name as the heading, then the place.

@@ -1,0 +1,181 @@
+@using EEMOCantilanSDS.Domain.Common
+
+@*
+    Chooses the payor a row is for.
+
+    Two things a plain number box cannot do. It cannot help with a space the office does not number - those vendors
+    have no number to type, and their internal key is not something the office has ever written down - and it cannot
+    tell a mistyped number from a correct one, because 3 is as valid a stall as 8 and the money simply lands on the
+    wrong vendor's month.
+
+    So the office searches by name or number and picks, and picking writes the real values into the row rather than
+    hinting at them. Typing is still allowed: an office working from an older sheet may need a number nobody occupies
+    today, and being unable to enter it would be worse than being unable to pick it.
+*@
+
+<div class="pp @(_open ? "pp-open" : null)">
+    <button class="pp-field @(HasSelection ? "pp-field-set" : null)" type="button" @onclick="Toggle"
+            aria-haspopup="listbox" aria-expanded="@_open.ToString().ToLowerInvariant()"
+            aria-label="@(HasSelection ? $"Payor: {SelectedLabel}" : "Choose a payor")">
+        <span class="pp-field-text">@(HasSelection ? SelectedLabel : "Choose payor")</span>
+        <svg class="pp-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+    </button>
+
+    @if (_open)
+    {
+        @* Closes on a click anywhere else. A real element rather than a focus handler, because Blazor cannot see
+           where focus went and a focusout on the wrapper fires when the caret moves into the search box - the panel
+           would shut on the very click meant to use it. *@
+        <div class="pp-backdrop" @onclick="Close"></div>
+
+        <div class="pp-panel" role="listbox">
+            <div class="pp-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>
+                @* Searches the name as well as the number, which is the only way to reach a vendor the office does
+                   not number. *@
+                <input class="pp-search-input" @ref="_searchBox" @bind="_query" @bind:event="oninput"
+                       placeholder="Search name or stall no." aria-label="Search payors" />
+            </div>
+
+            <div class="pp-list">
+                @if (Payors.Count == 0)
+                {
+                    <div class="pp-empty">No vendors on record for this facility yet.</div>
+                }
+                else if (Matches.Count == 0)
+                {
+                    <div class="pp-empty">Nothing matches “@_query”.</div>
+                }
+                else
+                {
+                    @foreach (var payor in Matches)
+                    {
+                        <button class="pp-opt @(payor.StallNo == StallNo ? "pp-opt-on" : null)" type="button"
+                                role="option" aria-selected="@((payor.StallNo == StallNo).ToString().ToLowerInvariant())"
+                                @onclick="() => Choose(payor)">
+                            <span class="pp-opt-name">@payor.Occupant</span>
+                            @* A space the office does not number shows no number. SP-1 is an internal key and has
+                               never appeared on the office's own list; printing it here would teach the staff a
+                               number that does not exist. *@
+                            <span class="pp-opt-no">@(SpaceNumber.IsSpace(payor.StallNo) ? "Space · no stall no." : $"Stall {payor.StallNo}")</span>
+                        </button>
+                    }
+                }
+            </div>
+
+            <div class="pp-foot">
+                @* The escape hatch, stated plainly rather than hidden. *@
+                <input class="pp-manual" @bind="_manual" @bind:event="oninput" placeholder="Or type a stall no."
+                       aria-label="Type a stall or space number" />
+                <button class="pp-manual-btn" type="button" @onclick="UseTyped" disabled="@(_manual.Trim().Length == 0)">Use</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The facility's vendors, as (internal key, name).</summary>
+    [Parameter, EditorRequired] public List<(string StallNo, string Occupant)> Payors { get; set; } = new();
+
+    /// <summary>The chosen stall's internal key. Empty until the office chooses or types one.</summary>
+    [Parameter] public string StallNo { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> StallNoChanged { get; set; }
+
+    /// <summary>The occupant name written onto the row when a payor is chosen.</summary>
+    [Parameter] public EventCallback<string> OccupantChanged { get; set; }
+
+    private bool _open;
+    private string _query = string.Empty;
+    private string _manual = string.Empty;
+    private ElementReference _searchBox;
+    private bool _focusWanted;
+
+    private bool HasSelection => StallNo.Trim().Length > 0;
+
+    /// <summary>
+    /// What the closed control says. A numbered stall states its number and occupant; a space states the occupant
+    /// alone, because it has no number the office would recognise.
+    /// </summary>
+    private string SelectedLabel
+    {
+        get
+        {
+            var key = StallNo.Trim();
+            var match = Payors.FirstOrDefault(p => string.Equals(p.StallNo, key, StringComparison.OrdinalIgnoreCase));
+
+            if (match.Occupant is { Length: > 0 } name)
+                return SpaceNumber.IsSpace(key) ? name : $"Stall {key} · {name}";
+
+            // Typed by hand, or a number that is no longer occupied. Stated as given rather than guessed at.
+            return SpaceNumber.IsSpace(key) ? "Space" : $"Stall {key}";
+        }
+    }
+
+    /// <summary>
+    /// Name or number, matched case-insensitively. Ordered so the numbered stalls come first in the office's own
+    /// reading order and the un-numbered spaces follow, rather than interleaving by a key nobody sees.
+    /// </summary>
+    private List<(string StallNo, string Occupant)> Matches
+    {
+        get
+        {
+            var q = _query.Trim();
+            if (q.Length == 0) return Payors;
+
+            return Payors
+                .Where(p => p.Occupant.Contains(q, StringComparison.OrdinalIgnoreCase)
+                         || SpaceNumber.Display(p.StallNo).Contains(q, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private void Toggle()
+    {
+        _open = !_open;
+        if (_open)
+        {
+            _query = string.Empty;
+            _manual = string.Empty;
+            _focusWanted = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusWanted) return;
+        _focusWanted = false;
+
+        // The search box takes the caret when the panel opens, so the office can type straight away.
+        try { await _searchBox.FocusAsync(); } catch { /* the panel closed again before the caret landed */ }
+    }
+
+    private async Task Choose((string StallNo, string Occupant) payor)
+    {
+        _open = false;
+
+        // Both values, for real. The name used to be a placeholder, which looked filled in and saved as blank.
+        await StallNoChanged.InvokeAsync(payor.StallNo);
+        await OccupantChanged.InvokeAsync(payor.Occupant);
+    }
+
+    private async Task UseTyped()
+    {
+        var typed = _manual.Trim();
+        if (typed.Length == 0) return;
+
+        _open = false;
+
+        // A typed number may belong to a vendor on record, in which case the name is filled in as though it had been
+        // picked. If it does not, the number stands alone and the office writes the name itself.
+        var match = Payors.FirstOrDefault(p => string.Equals(p.StallNo, typed, StringComparison.OrdinalIgnoreCase));
+
+        await StallNoChanged.InvokeAsync(typed);
+        if (match.Occupant is { Length: > 0 } name) await OccupantChanged.InvokeAsync(name);
+    }
+
+    /// <summary>Shuts the panel, leaving the row exactly as it was.</summary>
+    private void Close() => _open = false;
+}
