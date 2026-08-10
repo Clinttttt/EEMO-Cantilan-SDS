@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
@@ -31,6 +32,24 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<BulkImportPaymentResultDto>> ImportHistory(
         [FromBody] BulkImportPaymentHistoryCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Records an office's existing collection history for a daily-billed facility, one row per month per space.
+    ///
+    /// <para>Separate from the monthly import because the market's history is a run of market days rather than a
+    /// monthly payment. Recording it through the monthly path would settle days nobody collected.</para>
+    ///
+    /// <para>Head/admin only, for the same reason as the monthly import: these records are indistinguishable from
+    /// real collections once written.</para>
+    /// </summary>
+    [HttpPost("import-daily-history")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<BulkImportDailyResultDto>> ImportDailyHistory(
+        [FromBody] BulkImportDailyHistoryCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

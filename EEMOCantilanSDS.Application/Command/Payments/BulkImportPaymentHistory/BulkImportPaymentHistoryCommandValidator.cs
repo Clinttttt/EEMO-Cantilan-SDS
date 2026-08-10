@@ -6,21 +6,25 @@ namespace EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 public class BulkImportPaymentHistoryCommandValidator : AbstractValidator<BulkImportPaymentHistoryCommand>
 {
     /// <summary>
-    /// Monthly-billed facilities only. The market bills per market day, so one row per month cannot express its
-    /// history - importing it through this path would record a month's worth of daily fees as a single monthly
-    /// payment and quietly settle days nobody collected. It is refused here rather than mis-recorded.
+    /// Facilities this import can never serve, whatever an LGU has configured.
+    ///
+    /// <para>Stated as the ones that are NOT billed by the month rather than as a list of the ones that are: the
+    /// old list named TCC, NCC, BBQ and ICE, which silently excluded every facility a Head adds for their own LGU
+    /// even though those are monthly-rental and reuse this exact machinery. The facility's own archetype is the
+    /// authority, and the handler checks it; this catches the canonical daily and per-unit facilities early, before a
+    /// file is even read, so the office is told before it prepares one.</para>
     /// </summary>
-    private static readonly HashSet<FacilityCode> Supported = new()
+    private static readonly HashSet<FacilityCode> NotMonthly = new()
     {
-        FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE
+        FacilityCode.NPM, FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM
     };
 
     public BulkImportPaymentHistoryCommandValidator()
     {
         RuleFor(x => x.FacilityCode)
-            .Must(code => Supported.Contains(code))
-            .WithMessage("Payment history can only be imported for the monthly-billed facilities: TCC, NCC, BBQ and ICE. " +
-                         "The New Public Market is collected per market day, so its history is recorded separately.");
+            .Must(code => !NotMonthly.Contains(code))
+            .WithMessage("This facility is not billed by the month, so its history cannot be imported one month at " +
+                         "a time. The New Public Market is collected per market day and has its own import.");
 
         RuleFor(x => x.Rows)
             .NotEmpty().WithMessage("There are no rows to import.");

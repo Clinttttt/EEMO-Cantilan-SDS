@@ -1,0 +1,316 @@
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
+using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
+using Moq;
+
+namespace EEMOCantilanSDS.Testing.Application.Payments;
+
+/// <summary>
+/// Recording the market's existing collection history.
+///
+/// <para>
+/// The market is not billed by the month, so its history cannot be a monthly payment: it is a run of market days at a
+/// fixed daily fee. The office's books record a COUNT of days against a receipt, not a rent figure, and this import
+/// turns that count into the days it refers to.
+/// </para>
+///
+/// <para>These tests hold the things that would otherwise let a count of days quietly become the wrong money: days
+/// that have not happened, days nobody owes for, days already collected, and the same days claimed twice.</para>
+/// </summary>
+public class BulkImportDailyHistoryTests
+{
+    private static readonly Guid StallId = Guid.NewGuid();
+
+    /// <summary>A month safely in the past, so "not started yet" never interferes with a test about days.</summary>
+    private static readonly DateOnly Past = PhilippineTime.Today.AddMonths(-6);
+
+    private static ImportDailyPaymentRow Row(
+        int n, string stallNo, int year, int month, int days, string? or = "OR-1001") =>
+        new(n, stallNo, "Kim Chui", year, month, days, or);
+
+    /// <summary>A market space let from two years ago, so every month under test falls inside its term.</summary>
+    private static Stall DailyStall(string stallNo = "1")
+    {
+        var stall = Stall.Create(Guid.NewGuid(), stallNo, 0m, ApplicableFees.BaseRental);
+        typeof(Stall).GetProperty(nameof(Stall.Id))!.SetValue(stall, StallId);
+
+        var contract = Contract.Create(
+            stall.Id, "Kim Chui", "Kim Chui",
+            PhilippineTime.Today.AddYears(-2), durationYears: 3, monthlyRate: 900m);
+        stall.Contracts.Add(contract);
+        return stall;
+    }
+
+    private static (BulkImportDailyHistoryCommandHandler Handler, List<DailyCollection> Added) Build(
+        Stall? stall = null,
+        IEnumerable<DailyCollection>? onRecord = null,
+        IEnumerable<DateOnly>? closures = null,
+        Facility? facility = null)
+    {
+        var theStall = stall ?? DailyStall();
+
+        var stalls = new Mock<IStallRepository>();
+        stalls.Setup(s => s.GetStallsWithContractsByFacilityAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { theStall });
+
+        var added = new List<DailyCollection>();
+        var existing = (onRecord ?? Array.Empty<DailyCollection>()).ToList();
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(d => d.GetByStallAndMonthAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid _, int y, int m, CancellationToken _) =>
+                existing.Where(e => e.CollectionDate.Year == y && e.CollectionDate.Month == m).ToList());
+        daily.Setup(d => d.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
+            .Callback<DailyCollection, CancellationToken>((dc, _) => { added.Add(dc); existing.Add(dc); })
+            .Returns(Task.CompletedTask);
+
+        var closureList = (closures ?? Array.Empty<DateOnly>()).ToList();
+        var closureRepo = new Mock<INpmMarketClosureRepository>();
+        closureRepo.Setup(c => c.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int y, int m, CancellationToken _) =>
+                closureList.Where(d => d.Year == y && d.Month == m)
+                           .Select(d => NpmMarketClosure.Create(d))
+                           .ToList());
+
+        var facilities = new Mock<IFacilityRepository>();
+        facilities.Setup(f => f.GetByCodeAsync(It.IsAny<FacilityCode>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(facility ?? Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+
+        var uow = new Mock<IUnitOfWork>();
+        uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        return (new BulkImportDailyHistoryCommandHandler(
+            stalls.Object, daily.Object, Mock.Of<IPaymentRepository>(), closureRepo.Object,
+            facilities.Object, CacheTestDoubles.FeeRateResolver, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), added);
+    }
+
+    private static BulkImportDailyHistoryCommand Command(params ImportDailyPaymentRow[] rows) =>
+        new(FacilityCode.NPM, MarketSection.VegetableArea, rows);
+
+    [Fact]
+    public async Task ACountOfDaysBecomesThatManyCollectedDays()
+    {
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 12)), CancellationToken.None);
+
+        Assert.Equal(12, added.Count);
+        Assert.All(added, dc => Assert.True(dc.IsPaid));
+        Assert.Equal(12, result.Value!.TotalDaysSettled);
+        Assert.Equal(ImportDailyOutcome.RecordedInFull, result.Value!.Results[0].Outcome);
+
+        // Earliest first, and each day distinct - a count of days that settled the same day twelve times would report
+        // success while collecting one day's fee.
+        Assert.Equal(added.Select(a => a.CollectionDate).Distinct().Count(), added.Count);
+        Assert.Equal(added.OrderBy(a => a.CollectionDate).Select(a => a.CollectionDate), added.Select(a => a.CollectionDate));
+    }
+
+    [Fact]
+    public async Task TheAmountIsDerivedFromTheFacilitysOwnDailyFee()
+    {
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 5)), CancellationToken.None);
+
+        // Never typed by the office. An LGU may change its fee mid-year, so a typed total would disagree with the rate
+        // on record for those very days, and storing it would leave a figure arrears could not be reconciled against.
+        var expected = added.Sum(a => a.TotalCollected);
+        Assert.Equal(expected, result.Value!.TotalRecorded);
+        Assert.True(expected > 0m);
+    }
+
+    [Fact]
+    public async Task DaysAlreadyCollectedAreNotCollectedAgain()
+    {
+        // Three days of that month are already on record. A count of five must settle five OTHER days, not overwrite
+        // these and report five.
+        var taken = new List<DailyCollection>();
+        foreach (var day in new[] { 1, 2, 3 })
+        {
+            var dc = DailyCollection.Create(StallId, new DateOnly(Past.Year, Past.Month, day), "collector", 30m);
+            dc.MarkPaid("OR-EARLIER", collectorId: null, fishKilos: null, updatedBy: "collector");
+            taken.Add(dc);
+        }
+
+        var (handler, added) = Build(onRecord: taken);
+
+        await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 5)), CancellationToken.None);
+
+        Assert.Equal(5, added.Count);
+        Assert.DoesNotContain(added, a => a.CollectionDate.Day is 1 or 2 or 3);
+        Assert.All(taken, t => Assert.Equal("OR-EARLIER", t.ORNumber));
+    }
+
+    [Fact]
+    public async Task ADayTheMarketWasClosedIsNeverSettled()
+    {
+        // A facility-wide closure owes nothing. Settling it would collect a fee for a day the market did not open.
+        var closed = new DateOnly(Past.Year, Past.Month, 2);
+        var (handler, added) = Build(closures: new[] { closed });
+
+        await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 4)), CancellationToken.None);
+
+        Assert.Equal(4, added.Count);
+        Assert.DoesNotContain(added, a => a.CollectionDate == closed);
+    }
+
+    [Fact]
+    public async Task AnExcusedDayIsLeftExcused()
+    {
+        // An absent day is not owed at all - no ₱0 due, no later payment. Settling it would charge a vendor for a day
+        // the office had already excused.
+        var absentDate = new DateOnly(Past.Year, Past.Month, 1);
+        var absent = DailyCollection.Create(StallId, absentDate, "head", 30m);
+        absent.MarkAbsent("head");
+
+        var (handler, added) = Build(onRecord: new[] { absent });
+
+        await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 3)), CancellationToken.None);
+
+        Assert.DoesNotContain(added, a => a.CollectionDate == absentDate);
+        Assert.True(absent.IsAbsent);
+        Assert.False(absent.IsPaid);
+    }
+
+    [Fact]
+    public async Task TheSameSpaceAndMonthTwiceInOneFileDoesNotSettleTheSameDaysTwice()
+    {
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 4), Row(2, "1", Past.Year, Past.Month, 3)),
+            CancellationToken.None);
+
+        // Seven distinct days, not four days settled twice. Without the in-batch guard the second row re-reads the
+        // month, finds the first row's days unsaved, and claims them again.
+        Assert.Equal(7, added.Count);
+        Assert.Equal(7, added.Select(a => a.CollectionDate).Distinct().Count());
+        Assert.Equal(7, result.Value!.TotalDaysSettled);
+    }
+
+    [Fact]
+    public async Task AMonthWithFewerCollectableDaysThanClaimedIsReportedAsPartNotAsDone()
+    {
+        // Every day of the month is already collected except two. A row claiming ten must say what it actually did,
+        // or the office reconciles against a success that never happened.
+        var daysInMonth = DateTime.DaysInMonth(Past.Year, Past.Month);
+        var taken = new List<DailyCollection>();
+        for (var day = 1; day <= daysInMonth - 2; day++)
+        {
+            var dc = DailyCollection.Create(StallId, new DateOnly(Past.Year, Past.Month, day), "collector", 30m);
+            dc.MarkPaid("OR-EARLIER", collectorId: null, fishKilos: null, updatedBy: "collector");
+            taken.Add(dc);
+        }
+
+        var (handler, added) = Build(onRecord: taken);
+
+        var result = await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 10)), CancellationToken.None);
+
+        Assert.Equal(2, added.Count);
+        Assert.Equal(ImportDailyOutcome.RecordedInPart, result.Value!.Results[0].Outcome);
+        Assert.Equal(10, result.Value!.Results[0].DaysClaimed);
+        Assert.Equal(2, result.Value!.Results[0].DaysSettled);
+        Assert.Contains("Only 2 of 10", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task NoDayAfterTodayIsEverSettled()
+    {
+        // The month in progress is allowed - its days so far are real collection days - but a day that has not
+        // happened cannot have been collected.
+        var today = PhilippineTime.Today;
+        var (handler, added) = Build();
+
+        await handler.Handle(Command(Row(1, "1", today.Year, today.Month, 31)), CancellationToken.None);
+
+        Assert.NotEmpty(added);
+        Assert.All(added, a => Assert.True(a.CollectionDate <= today));
+    }
+
+    [Fact]
+    public async Task AMonthThatHasNotStartedYetIsRefused()
+    {
+        var next = PhilippineTime.Today.AddMonths(2);
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", next.Year, next.Month, 5)), CancellationToken.None);
+
+        Assert.Empty(added);
+        Assert.Equal(1, result.Value!.RejectedCount);
+        Assert.Contains("has not started yet", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task AnOrNumberIsRequiredAndIsWrittenOntoEveryDayItCovers()
+    {
+        var (handler, added) = Build();
+
+        var refused = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 3, or: null)), CancellationToken.None);
+        Assert.Empty(added);
+        Assert.Equal(1, refused.Value!.RejectedCount);
+
+        // One receipt covers the days it names, which is how the market's own collection dialog already records a run
+        // of days. Without the OR on each day, every one of them is reported as missing a receipt.
+        await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 3, or: "OR-2002")), CancellationToken.None);
+        Assert.Equal(3, added.Count);
+        Assert.All(added, a => Assert.Equal("OR-2002", a.ORNumber));
+    }
+
+    [Fact]
+    public async Task ADayNoTermAnswersForIsNeverSettled()
+    {
+        // The space was let only from the middle of the month, so the days before it are nobody's to owe.
+        var start = new DateOnly(Past.Year, Past.Month, 15);
+        var stall = Stall.Create(Guid.NewGuid(), "1", 0m, ApplicableFees.BaseRental);
+        typeof(Stall).GetProperty(nameof(Stall.Id))!.SetValue(stall, StallId);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Kim Chui", "Kim Chui", start, durationYears: 3, monthlyRate: 900m));
+
+        var (handler, added) = Build(stall);
+
+        await handler.Handle(Command(Row(1, "1", Past.Year, Past.Month, 5)), CancellationToken.None);
+
+        Assert.NotEmpty(added);
+        Assert.All(added, a => Assert.True(a.CollectionDate >= start));
+    }
+
+    [Fact]
+    public async Task AMonthlyBilledFacilityIsRefusedWholesale()
+    {
+        // A month there is a payment, not a run of days. Recording it through this path would settle days nobody
+        // collected.
+        var monthly = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var (handler, added) = Build(facility: monthly);
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 5)), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(added);
+    }
+
+    [Fact]
+    public async Task MoreDaysThanAnyMonthHoldsIsRejectedRatherThanClamped()
+    {
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 45)), CancellationToken.None);
+
+        // Clamping would report success on a transcription error, and the office would reconcile against 31 days it
+        // never wrote down.
+        Assert.Empty(added);
+        Assert.Equal(1, result.Value!.RejectedCount);
+        Assert.Contains("more than any month holds", result.Value!.Results[0].Error);
+    }
+}

@@ -1,4 +1,5 @@
-﻿using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
+﻿using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
@@ -16,6 +17,9 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
 {
     public async Task<Result<BulkImportPaymentResultDto>> ImportPaymentHistoryAsync(BulkImportPaymentHistoryCommand command) =>
         await PostAsync<BulkImportPaymentHistoryCommand, BulkImportPaymentResultDto>("api/Payments/import-history", command);
+
+    public async Task<Result<BulkImportDailyResultDto>> ImportDailyHistoryAsync(BulkImportDailyHistoryCommand command) =>
+        await PostAsync<BulkImportDailyHistoryCommand, BulkImportDailyResultDto>("api/Payments/import-daily-history", command);
 
     public async Task<Result<PaymentRecordDto>> GetPaymentRecordAsync(Guid stallId, int year, int month) =>
         await GetAsync<PaymentRecordDto>($"api/Payments/stall/{stallId}?year={year}&month={month}");

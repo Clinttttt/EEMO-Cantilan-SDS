@@ -43,7 +43,8 @@ public class BulkImportPaymentHistoryTests
 
     private static (BulkImportPaymentHistoryCommandHandler Handler, List<PaymentRecord> Added) Build(
         Stall? stall = null,
-        PaymentRecordDtoStub? existing = null)
+        PaymentRecordDtoStub? existing = null,
+        Facility? facility = null)
     {
         var theStall = stall ?? MonthlyStall();
 
@@ -63,7 +64,7 @@ public class BulkImportPaymentHistoryTests
 
         var facilities = new Mock<IFacilityRepository>();
         facilities.Setup(f => f.GetByCodeAsync(It.IsAny<FacilityCode>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC"));
+            .ReturnsAsync(facility ?? Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC"));
 
         var uow = new Mock<IUnitOfWork>();
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
@@ -353,6 +354,35 @@ public class BulkImportPaymentHistoryTests
 
         Assert.Equal(1, result.Value!.RecordedCount);
         Assert.Single(added);
+    }
+
+    [Fact]
+    public async Task AFacilityTheHeadAddedForTheirOwnLguIsImportedLikeAnyOtherMonthlyOne()
+    {
+        // A custom facility is monthly-rental and reuses this exact machinery. The rule used to be a list naming
+        // TCC, NCC, BBQ and ICE, so every LGU that added a facility of its own was turned away for no reason beyond
+        // the list. The facility's archetype is the authority now.
+        var custom = Facility.Create(FacilityCode.Custom1, "Cantilan Trade Hall", "CTH");
+        var (handler, added) = Build(facility: custom);
+
+        var result = await handler.Handle(Command(Row(1, "1", 2024, 3, 2_400m)), CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.RecordedCount);
+        Assert.Single(added);
+    }
+
+    [Fact]
+    public async Task AFacilityThatIsNotBilledByTheMonthIsRefusedWholesale()
+    {
+        // One row per month cannot express a history collected per market day: it would record a month of daily fees
+        // as one monthly payment and settle days nobody collected. Refused rather than mis-recorded.
+        var daily = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var (handler, added) = Build(facility: daily);
+
+        var result = await handler.Handle(Command(Row(1, "1", 2024, 3, 900m)), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(added);
     }
 
     /// <summary>Stands in for a payment already on record for a given month.</summary>

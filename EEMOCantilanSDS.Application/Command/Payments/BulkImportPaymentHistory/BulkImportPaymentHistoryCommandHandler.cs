@@ -31,6 +31,19 @@ public class BulkImportPaymentHistoryCommandHandler(
         if (facility is null)
             return Result<BulkImportPaymentResultDto>.NotFound();
 
+        // Whether the facility bills by the month, asked of the facility itself rather than of a list of codes.
+        //
+        // The list used to be spelled out as TCC/NCC/BBQ/ICE, which quietly excluded every facility a Head adds for
+        // their own LGU - those are monthly-rental too, and reuse this same machinery, so there was never a reason
+        // beyond the list for them to be refused. The archetype is the field that says how a facility bills, and it
+        // is per-tenant data, so an LGU that maps its facilities differently is answered correctly without new code.
+        if (facility.Archetype != BillingArchetype.MonthlyRental)
+        {
+            return Result<BulkImportPaymentResultDto>.Failure(
+                $"{facility.Name} is not billed by the month, so its history cannot be imported one month at a time. " +
+                "The market is collected per market day and has its own import.", 400);
+        }
+
         var stalls = await stallRepo.GetStallsWithContractsByFacilityAsync(
             request.FacilityCode, request.Section, request.CustomSectionName, ct);
 

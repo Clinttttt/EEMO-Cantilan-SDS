@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
@@ -18,6 +19,13 @@ public interface IPaymentsApiClient
     /// row, including the ones that were refused and why, so the office can correct its sheet rather than guess.
     /// </summary>
     Task<Result<BulkImportPaymentResultDto>> ImportPaymentHistoryAsync(BulkImportPaymentHistoryCommand command);
+
+    /// <summary>
+    /// Records an office's existing collection history for a daily-billed facility. Returns the outcome of every row,
+    /// including how many of the days it claimed were actually settled, so the office can reconcile against its own
+    /// sheet rather than trust a total.
+    /// </summary>
+    Task<Result<BulkImportDailyResultDto>> ImportDailyHistoryAsync(BulkImportDailyHistoryCommand command);
 
     Task<Result<PaymentRecordDto>> GetPaymentRecordAsync(Guid stallId, int year, int month);
     Task<Result<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month);

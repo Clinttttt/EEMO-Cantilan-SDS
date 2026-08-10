@@ -308,16 +308,20 @@
     private bool _saving;
 
     /// <summary>
-    /// Monthly-billed only, matching the server's rule. Stated here as well so the office is told before it prepares
-    /// a file rather than after it uploads one.
+    /// The facilities this screen cannot serve, matching the server's rule.
+    ///
+    /// <para>Named as the ones that are NOT billed by the month rather than as a list of the ones that are. The old
+    /// list spelled out TCC, NCC, BBQ and ICE, which silently excluded every facility a Head adds for their own LGU -
+    /// those are monthly-rental and use this exact screen, so there was never a reason beyond the list for them to be
+    /// turned away.</para>
     /// </summary>
-    private static readonly FacilityCode[] SupportedFacilities =
-        [FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE];
+    private static readonly FacilityCode[] NotMonthlyFacilities =
+        [FacilityCode.NPM, FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM];
 
     private FacilityCode? Code =>
         Enum.TryParse<FacilityCode>(Facility, ignoreCase: true, out var code) ? code : null;
 
-    private bool IsSupported => Code is { } code && SupportedFacilities.Contains(code);
+    private bool IsSupported => Code is { } code && !NotMonthlyFacilities.Contains(code);
 
     private string FacilityShort => Code is { } code ? FacilityCatalog.ShortNameOf(code) : (Facility ?? "Facility");
 
