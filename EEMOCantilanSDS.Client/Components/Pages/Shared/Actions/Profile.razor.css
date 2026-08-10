@@ -40,20 +40,21 @@
 
 
 /* ── Hero ────────────────────────────────────────────────── */
-/* A light card, the same surface as every other panel on the page. The hero was a navy slab with a gold wash, which
-   made the page open on a block of colour and read as a banner rather than a record. An office document states who
-   the record is about and leaves the emphasis to the seal and the type. */
+/* A light card, but not a sheet of white: set on the page's own tint with a slightly stronger edge, so it reads as a
+   header band rather than as a panel that lost its background. The navy slab it replaced opened the page on a block of
+   colour; plain white opened it on nothing at all. */
 .prof-hero {
     display: flex;
     align-items: center;
     gap: 22px;
-    background: var(--bg-card);
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg, #f1f4f8) 100%);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 22px 26px;
     margin-bottom: 20px;
     flex-wrap: wrap;
     position: relative;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
 }
 
 .prof-hero-badge {
@@ -154,15 +155,17 @@
     }
 
 .btn-primary {
-    background: var(--gold);
+    /* Navy, the colour every other primary action in the portal uses. Gold was chosen against the navy hero this card
+       replaced; on a light hero it read as a warning rather than as the page's main action. */
+    background: var(--navy);
     color: #fff;
-    border-color: var(--gold);
+    border-color: var(--navy);
     font-weight: 700;
 }
 
     .btn-primary:hover {
-        background: #d4a83c;
-        border-color: #d4a83c;
+        background: #16324f;
+        border-color: #16324f;
     }
 
     .btn-primary svg {

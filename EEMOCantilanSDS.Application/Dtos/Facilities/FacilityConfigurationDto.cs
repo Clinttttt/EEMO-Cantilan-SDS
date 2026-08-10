@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -55,7 +56,10 @@ public static class FacilityDisplay
     public static string RateLabel(FeeRateKey key) => key switch
     {
         FeeRateKey.NpmDailyStall => "Daily stall fee",
-        FeeRateKey.NpmMonthlyStall => "Monthly stall rent (blank = 30 × daily)",
+        // The month-length convention, taken from the rule rather than written out: an LGU that states no monthly rent
+        // has its month read as this many daily fees, and a label saying "30" while the rule said otherwise would be
+        // the office's own screen contradicting the arithmetic behind it.
+        FeeRateKey.NpmMonthlyStall => $"Monthly stall rent (blank = {DomainRules.DailyBilledMonthDays} × daily)",
         FeeRateKey.NpmFishPerKilo => "Fish fee (per kilo)",
         FeeRateKey.SlhHogPerHead => "Hog (per head)",
         FeeRateKey.SlhLargePerHead => "Large animal (per head)",

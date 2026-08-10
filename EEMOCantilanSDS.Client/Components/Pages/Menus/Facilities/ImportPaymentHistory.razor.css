@@ -425,9 +425,14 @@
     width: 100%;
     min-width: 110px;
     /* Block, so the cell has no text baseline to sit on. The inputs were inline-block and the payor picker a block
-       element, so the picker sat a few pixels higher than the boxes beside it - the line box's descender space under
-       the inline controls pushed them down. Making every control block-level lines the whole row up. */
+       element, so the picker sat a few pixels higher than the boxes beside it. */
     display: block;
+    /* An explicit height, shared with the payor picker (PayorPicker.razor.css uses the same figure). Padding and
+       line-height alone did not settle it: a button and an input compute their content height differently, so the two
+       controls agreed on padding and still disagreed on height. One number in two places, each pointing at the other,
+       is more honest than an arithmetic coincidence. */
+    height: 36px;
+    box-sizing: border-box;
     padding: 7px 10px;
     border-radius: 8px;
     border: 1px solid var(--border);
@@ -443,8 +448,13 @@
     border-color: var(--gold);
 }
 
+/* Left, like every other cell in the row.
+   Money is conventionally set to the right in a REPORT, where a column of figures is read down and the decimal points
+   must line up. This is a form: the office reads across a row, and one field whose text and placeholder start at the
+   far edge while its neighbours start at the near one reads as a mistake. Tabular figures are kept so the digits are
+   still even. */
 .iph-input-num {
-    text-align: right;
+    text-align: left;
     font-variant-numeric: tabular-nums;
 }
 
@@ -734,18 +744,22 @@
 
 .iph-dates-head {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
-.iph-dates-label {
-    font-size: 11px;
+.iph-dates-title {
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: .05em;
-    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.iph-dates-sub {
+    font-size: 11px;
     color: var(--text-muted);
+    margin-top: 2px;
 }
 
 .iph-dates-fill {
@@ -757,15 +771,49 @@
     color: var(--text-muted);
 }
 
-/* Wraps, because a month can claim thirty-one of these and a single row of them would force the table sideways. */
-.iph-dates-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+/* One line per day, with the receipt it was collected under. A table because that is what the office's own collection
+   sheet is - a grid of loose fields made the count and the receipts impossible to read against each other. */
+.iph-days-table {
+    width: 100%;
+    max-width: 560px;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
 }
 
-.iph-date-slot {
-    width: auto;
-    min-width: 148px;
-    flex: 0 0 auto;
+    .iph-days-table thead th {
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--text-subtle, var(--text-muted));
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg, #f6f8fa);
+    }
+
+    .iph-days-table td {
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+    }
+
+    .iph-days-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+.iph-days-th-no {
+    width: 52px;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.iph-date-slot,
+.iph-day-or {
+    min-width: 0;
 }

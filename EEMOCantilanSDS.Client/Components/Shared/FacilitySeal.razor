@@ -18,7 +18,20 @@
 *@
 
 <div class="fseal" style="width:@(Size)px;height:@(Size)px" aria-hidden="true">
-    <img class="fseal-crest" src="@SealSrc" alt="" />
+    @* The FACILITY's own mark, from the shared artwork the portal and the collector app both draw from, so a market
+       stall carries the market's mark and a commercial-centre space the storefront. The municipality's crest belongs to
+       the municipality, not to one of its facilities, and a seal naming the market while showing the town's arms said
+       the wrong thing about which of the two the page was about.
+
+       A facility a Head added for their own LGU has no artwork of its own, so the tenant's crest stands in rather than
+       leaving the ring hollow. *@
+    <span class="fseal-mark">
+        <FacilityMark Code="@Code" Ink="FacilityMarkInk.Navy" Size="@(Size / 3)">
+            <Fallback>
+                <img class="fseal-crest" src="@SealSrc" alt="" />
+            </Fallback>
+        </FacilityMark>
+    </span>
 
     <svg class="fseal-type" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
         <defs>

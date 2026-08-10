@@ -259,7 +259,7 @@ public class ImportPaymentHistoryTests : TestContext
         // Nothing stated, so the server fills the month's collectable days - which is the only defensible reading of a
         // sheet that records a count.
         _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
-            c.Rows.All(r => r.Dates == null || r.Dates.Count == 0))), Times.Once);
+            c.Rows.All(r => r.Days == null || r.Days.Count == 0))), Times.Once);
     }
 
     [Fact]
@@ -278,8 +278,8 @@ public class ImportPaymentHistoryTests : TestContext
 
         // Exactly those days travel, and the import honours them without filling anything in around them.
         _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
-            c.Rows.All(r => r.Dates != null && r.Dates.Count == 2
-                            && r.Dates.All(d => d.Year == past.Year && d.Month == past.Month)))), Times.Once);
+            c.Rows.All(r => r.Days != null && r.Days.Count == 2
+                            && r.Days.All(d => d.Date.Year == past.Year && d.Date.Month == past.Month)))), Times.Once);
     }
 
     [Fact]

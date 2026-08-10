@@ -151,14 +151,17 @@ public class BulkImportDailyHistoryCommandHandler(
             var refusedDates = new List<string>();
 
             // Whether the office stated the days, or only how many. Stated days are honoured exactly - see the DTO.
-            var stated = (row.Dates ?? Array.Empty<DateOnly>())
-                .Distinct()
-                .OrderBy(d => d)
+            // De-duplicated by DATE: the same day twice is one day's collection, whatever receipts are written beside
+            // it, and the first receipt given for a day is the one recorded.
+            var stated = (row.Days ?? Array.Empty<ImportDailyDay>())
+                .GroupBy(d => d.Date)
+                .Select(g => g.First())
+                .OrderBy(d => d.Date)
                 .ToList();
 
             // Settles one day, or says why it could not. Shared so a stated date and a filled one are judged by
             // exactly the same rules - a date the office named must not slip past a guard a filled day would meet.
-            async Task<string?> TrySettle(DateOnly date)
+            async Task<string?> TrySettle(DateOnly date, string? dayOr)
             {
                 if (date.Year != row.BillingYear || date.Month != row.BillingMonth)
                     return $"{date:yyyy-MM-dd} is not in {period}";
@@ -170,6 +173,10 @@ public class BulkImportDailyHistoryCommandHandler(
 
                 if (onRecord.TryGetValue(date, out var already) && (already.IsPaid || already.IsAbsent))
                     return $"{date:yyyy-MM-dd} is already {(already.IsAbsent ? "excused" : "collected")}";
+
+                // The day's own receipt where the sheet gives one, the month's otherwise. Never blank: a collection
+                // without an OR is reported by the arrears lists as missing a receipt.
+                var receipt = string.IsNullOrWhiteSpace(dayOr) ? orNumber : dayOr!.Trim();
 
                 var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, date));
 
@@ -185,7 +192,7 @@ public class BulkImportDailyHistoryCommandHandler(
                     already.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: null, updatedBy: Actor);
                 }
 
-                already.SetOrNumber(orNumber, Actor);
+                already.SetOrNumber(receipt, Actor);
                 alreadyThisBatch.Add(date);
                 settled.Add(already);
                 rowAmount += already.TotalCollected;
@@ -194,9 +201,9 @@ public class BulkImportDailyHistoryCommandHandler(
 
             if (stated.Count > 0)
             {
-                foreach (var date in stated)
+                foreach (var day in stated)
                 {
-                    if (await TrySettle(date) is { } why) refusedDates.Add(why);
+                    if (await TrySettle(day.Date, day.OrNumber) is { } why) refusedDates.Add(why);
                 }
             }
             else
@@ -204,7 +211,7 @@ public class BulkImportDailyHistoryCommandHandler(
                 // Only a count. Filled in order, earliest first, which is the most defensible reading of a sheet that
                 // does not say which days.
                 for (var day = 1; day <= daysInMonth && settled.Count < row.DaysPaid; day++)
-                    await TrySettle(new DateOnly(row.BillingYear, row.BillingMonth, day));
+                    await TrySettle(new DateOnly(row.BillingYear, row.BillingMonth, day), null);
             }
 
             if (settled.Count == 0)

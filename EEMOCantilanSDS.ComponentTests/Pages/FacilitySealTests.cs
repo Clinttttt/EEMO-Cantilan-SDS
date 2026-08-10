@@ -46,14 +46,26 @@ public class FacilitySealTests : TestContext
     }
 
     [Fact]
-    public void TheCrestComesFromTheTenantsOwnBrandingAndIsNeverLeftEmpty()
+    public void TheCentreCarriesTheFacilitysOwnMark()
     {
         var cut = Render(FacilityCode.NPM);
 
-        // A municipality that has not uploaded a mark falls back to the neutral seal, so the ring is never hollow.
+        // The facility's mark, not the municipality's crest: the crest belongs to the town, and a seal naming the
+        // market while showing the town's arms says the wrong thing about which of the two the page is about.
+        Assert.Contains("fseal-mark", cut.Markup);
+        Assert.Contains("<svg", cut.Markup);
+        Assert.DoesNotContain("img", cut.Markup);
+    }
+
+    [Fact]
+    public void AFacilityWithNoArtworkFallsBackToTheTenantsOwnCrest()
+    {
+        // A facility a Head added for their own LGU has no mark of its own. The ring must not be left hollow, and the
+        // crest that stands in comes from the tenant's branding - never another LGU's.
+        var cut = Render(FacilityCode.Custom1);
+
         var crest = cut.Find("img.fseal-crest");
-        var src = crest.GetAttribute("src") ?? string.Empty;
-        Assert.NotEqual(string.Empty, src);
+        Assert.NotEqual(string.Empty, crest.GetAttribute("src") ?? string.Empty);
 
         // Decorative: the facility is named in text beside every seal, so the image is not read out a second time.
         Assert.Equal(string.Empty, crest.GetAttribute("alt"));

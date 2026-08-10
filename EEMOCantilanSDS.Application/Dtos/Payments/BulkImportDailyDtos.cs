@@ -30,17 +30,26 @@ namespace EEMOCantilanSDS.Application.Dtos.Payments;
 /// <param name="BillingYear">The year the days fall in.</param>
 /// <param name="BillingMonth">The month the days fall in.</param>
 /// <param name="DaysPaid">How many market days the vendor paid for in that month.</param>
-/// <param name="OrNumber">The Official Receipt the days were collected under. One receipt covers the days it names,
-/// which is how the market's own collection dialog already records a run of days.</param>
-/// <param name="Dates">
+/// <summary>
+/// One market day as the office's own collection sheet records it: the date, and the receipt it was collected under.
+///
+/// <para>The receipt is per DAY, not per month, because that is how the market is actually collected: a run of days
+/// may sit under one OR, or each day may carry its own, and a sheet that records several cannot be reduced to one
+/// without discarding receipts the office would later be asked to produce. Left blank, the row's own OR applies.</para>
+/// </summary>
+public record ImportDailyDay(DateOnly Date, string? OrNumber = null);
+
+/// <param name="OrNumber">The Official Receipt the days were collected under, where the sheet records one for the
+/// month. A day that names its own receipt overrides it.</param>
+/// <param name="Days">
 /// The exact days, when the office knows them.
 ///
 /// <para>Supplied, they are honoured exactly and nothing is filled in around them: the office has stated which days
 /// it collected, and topping the row up to the claimed count with a day of the system's choosing would invent a
-/// collection. A date that cannot be settled is reported rather than substituted.</para>
+/// collection. A day that cannot be settled is reported rather than substituted.</para>
 ///
 /// <para>Empty — a sheet that records only a count — falls back to filling the month's collectable days in order,
-/// earliest first.</para>
+/// earliest first, all under the row's own receipt.</para>
 /// </param>
 public record ImportDailyPaymentRow(
     int RowNumber,
@@ -50,7 +59,7 @@ public record ImportDailyPaymentRow(
     int BillingMonth,
     int DaysPaid,
     string? OrNumber,
-    IReadOnlyList<DateOnly>? Dates = null);
+    IReadOnlyList<ImportDailyDay>? Days = null);
 
 /// <summary>Why a row of market history was not recorded, or how it was.</summary>
 public enum ImportDailyOutcome

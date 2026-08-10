@@ -26,13 +26,28 @@
         pointer-events: none;
     }
 
-/* The municipality's own mark, inside its own ring. */
-.fseal-crest {
+/* The facility's own mark, inside its own ring. */
+.fseal-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 46%;
     height: 46%;
     border-radius: 50%;
-    object-fit: cover;
     box-shadow: 0 0 0 1px var(--navy);
+}
+
+    /* Deep enough to read at this size against the ring around it. */
+    .fseal-mark ::deep svg {
+        stroke-width: 1.6;
+    }
+
+/* Stands in for a facility with no artwork of its own — a Head-added one — so the ring is never hollow. */
+.fseal-crest {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
 }
 
 /* Only the curved text needs SVG. Laid over the rings, and inert so it never swallows a click meant for the card. */

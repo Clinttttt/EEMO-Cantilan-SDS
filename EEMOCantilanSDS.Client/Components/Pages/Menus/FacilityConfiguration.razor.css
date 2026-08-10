@@ -892,3 +892,10 @@
     .vs-hero-sub2 { display: none; }
 }
 
+
+/* No ordinance rates stated yet. Said plainly, because a blank panel reads as a page that failed to load rather than
+   as configuration still to do. */
+.fac-rate-none {
+    color: var(--text-muted);
+    font-style: italic;
+}

@@ -299,7 +299,7 @@ public class BulkImportDailyHistoryTests
         };
 
         var result = await handler.Handle(
-            Command(Row(1, "1", Past.Year, Past.Month, 3) with { Dates = dates }), CancellationToken.None);
+            Command(Row(1, "1", Past.Year, Past.Month, 3) with { Days = dates.Select(d => new ImportDailyDay(d)).ToList() }), CancellationToken.None);
 
         Assert.Equal(dates, added.Select(a => a.CollectionDate).OrderBy(d => d));
         Assert.Equal(ImportDailyOutcome.RecordedInFull, result.Value!.Results[0].Outcome);
@@ -316,7 +316,7 @@ public class BulkImportDailyHistoryTests
         var result = await handler.Handle(
             Command(Row(1, "1", Past.Year, Past.Month, 2) with
             {
-                Dates = new[] { new DateOnly(Past.Year, Past.Month, 7), closed }
+                Days = new[] { new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 7)), new ImportDailyDay(closed) }
             }),
             CancellationToken.None);
 
@@ -337,7 +337,7 @@ public class BulkImportDailyHistoryTests
         var result = await handler.Handle(
             Command(Row(1, "1", Past.Year, Past.Month, 5) with
             {
-                Dates = new[] { new DateOnly(Past.Year, Past.Month, 3), new DateOnly(Past.Year, Past.Month, 4) }
+                Days = new[] { new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 3)), new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 4)) }
             }),
             CancellationToken.None);
 
@@ -357,7 +357,7 @@ public class BulkImportDailyHistoryTests
         var result = await handler.Handle(
             Command(Row(1, "1", Past.Year, Past.Month, 1) with
             {
-                Dates = new[] { new DateOnly(wrongMonth.Year, wrongMonth.Month, 5) }
+                Days = new[] { new ImportDailyDay(new DateOnly(wrongMonth.Year, wrongMonth.Month, 5)) }
             }),
             CancellationToken.None);
 
@@ -372,7 +372,7 @@ public class BulkImportDailyHistoryTests
         var date = new DateOnly(Past.Year, Past.Month, 9);
 
         await handler.Handle(
-            Command(Row(1, "1", Past.Year, Past.Month, 2) with { Dates = new[] { date, date } }),
+            Command(Row(1, "1", Past.Year, Past.Month, 2) with { Days = new[] { new ImportDailyDay(date), new ImportDailyDay(date) } }),
             CancellationToken.None);
 
         // One day, one fee. The same date twice would collect twice for a day the vendor paid for once.
@@ -392,13 +392,41 @@ public class BulkImportDailyHistoryTests
         var result = await handler.Handle(
             Command(Row(1, "1", Past.Year, Past.Month, 1) with
             {
-                Dates = new[] { new DateOnly(Past.Year, Past.Month, 6) }
+                Days = new[] { new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 6)) }
             }),
             CancellationToken.None);
 
         Assert.Empty(added);
         Assert.Equal("OR-EARLIER", taken.ORNumber);
         Assert.Contains("already collected", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task ADayCanCarryItsOwnReceipt_AndFallsBackToTheRowsWhenItDoesNot()
+    {
+        // The market issues a receipt per collection, so a month's days may sit under several. Reducing them to one
+        // would discard receipts the office can later be asked to produce.
+        var (handler, added) = Build();
+
+        await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 3, or: "OR-MONTH") with
+            {
+                Days = new[]
+                {
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 2), "OR-AAA"),
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 3), "OR-BBB"),
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 4))
+                }
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(3, added.Count);
+        Assert.Equal("OR-AAA", added.Single(a => a.CollectionDate.Day == 2).ORNumber);
+        Assert.Equal("OR-BBB", added.Single(a => a.CollectionDate.Day == 3).ORNumber);
+
+        // Blank takes the row's own receipt. Never left empty: a collection without one is reported as missing a
+        // receipt by every arrears list that reads it.
+        Assert.Equal("OR-MONTH", added.Single(a => a.CollectionDate.Day == 4).ORNumber);
     }
 
     [Fact]

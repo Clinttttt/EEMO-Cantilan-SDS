@@ -15,6 +15,11 @@
     gap: 8px;
     width: 100%;
     min-width: 168px;
+    /* 36px, the same height the import table's inputs use (ImportPaymentHistory.razor.css). A button and an input
+       compute their content height differently, so the two agreed on padding and still came out different heights -
+       one of them sat above the row it belonged to. Stated as a number in both places rather than left to coincide. */
+    height: 36px;
+    box-sizing: border-box;
     padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;

@@ -393,31 +393,63 @@
                                 <tr class="iph-dates-row">
                                     <td class="iph-th-num"></td>
                                     <td colspan="4">
-                                        @if (row.Dates.Count == 0)
+                                        @if (row.Days.Count == 0)
                                         {
                                             <div class="iph-dates-empty">
-                                                Enter the number of days first, and a field will appear for each one.
+                                                Enter the number of days first, and a line will appear for each one.
                                             </div>
                                         }
                                         else
                                         {
                                             <div class="iph-dates-head">
-                                                <span class="iph-dates-label">
-                                                    Days collected — @row.Dates.Count(d => d.HasValue) of @row.Dates.Count filled
-                                                </span>
+                                                <div>
+                                                    <div class="iph-dates-title">
+                                                        Days collected@(string.IsNullOrWhiteSpace(row.Occupant) ? "" : $" — {row.Occupant}")
+                                                    </div>
+                                                    <div class="iph-dates-sub">
+                                                        @row.Days.Count(d => d.Date.HasValue) of @row.Days.Count dated@(string.IsNullOrWhiteSpace(row.Period) ? "" : $" · {row.Period}")
+                                                    </div>
+                                                </div>
                                                 <button class="iph-link iph-link-btn iph-dates-fill" type="button"
-                                                        @onclick="() => FillDates(row)">Fill the blanks</button>
+                                                        @onclick="() => FillDays(row)">Fill the blanks</button>
                                             </div>
-                                            <div class="iph-dates-grid">
-                                                @for (var d = 0; d < row.Dates.Count; d++)
-                                                {
-                                                    var slot = d;
-                                                    <input class="iph-input iph-date-slot" type="date"
-                                                           value="@row.Dates[slot]?.ToString("yyyy-MM-dd")"
-                                                           @onchange="e => SetDate(row, slot, e.Value?.ToString())"
-                                                           aria-label="Day @(slot + 1) of @row.Dates.Count" />
-                                                }
-                                            </div>
+
+                                            @* A table, because that is what it is: one line per day, each with the
+                                               receipt it was collected under. The market issues a receipt per
+                                               collection, so a month may carry several - reducing them to one would
+                                               discard receipts the office can be asked to produce. Blank takes the
+                                               row's own OR, which the placeholder states rather than leaving implied. *@
+                                            <table class="iph-days-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="iph-days-th-no">Day</th>
+                                                        <th>Date</th>
+                                                        <th>OR No.</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @for (var d = 0; d < row.Days.Count; d++)
+                                                    {
+                                                        var slot = d;
+                                                        var day = row.Days[slot];
+                                                        <tr>
+                                                            <td class="iph-days-th-no">@(slot + 1)</td>
+                                                            <td>
+                                                                <input class="iph-input iph-date-slot" type="date"
+                                                                       value="@day.Date?.ToString("yyyy-MM-dd")"
+                                                                       @onchange="e => SetDayDate(row, slot, e.Value?.ToString())"
+                                                                       aria-label="Date of day @(slot + 1)" />
+                                                            </td>
+                                                            <td>
+                                                                <input class="iph-input iph-day-or" @bind="day.OrNumber"
+                                                                       @bind:event="oninput"
+                                                                       placeholder="@(string.IsNullOrWhiteSpace(row.OrNumber) ? "OR-100234" : row.OrNumber)"
+                                                                       aria-label="OR number for day @(slot + 1)" />
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
                                         }
                                     </td>
                                     <td class="iph-th-act"></td>
@@ -485,12 +517,22 @@
         public string DaysPaid { get; set; } = string.Empty;
 
         /// <summary>
+        /// One market day the office has stated: the date, and the receipt it was collected under if that day carries
+        /// its own. Left blank, the row's receipt applies.
+        /// </summary>
+        public sealed class DayEntry
+        {
+            public DateTime? Date { get; set; }
+            public string OrNumber { get; set; } = string.Empty;
+        }
+
+        /// <summary>
         /// The exact days, when the office chooses to state them. One entry per day claimed.
         ///
         /// <para>Kept per row rather than per screen because a sheet is rarely uniform: the office may know the days
         /// for one vendor's month and only the count for another's, and the import honours each row as it stands.</para>
         /// </summary>
-        public List<DateTime?> Dates { get; } = new();
+        public List<DayEntry> Days { get; } = new();
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -798,48 +840,48 @@
         _showDates = !_showDates;
         if (!_showDates) return;
 
-        // Opened: every row gets one field per day it claims, pre-filled, so the office corrects rather than types
-        // from nothing.
+        // Opened: every row gets one line per day it claims, dated, so the office corrects rather than types from
+        // nothing.
         foreach (var row in _rows)
         {
             SyncDates(row);
-            FillDates(row);
+            FillDays(row);
         }
     }
 
     /// <summary>
-    /// Keeps a row's date fields at one per day claimed. Days already entered are kept: reducing the count drops the
-    /// last fields rather than clearing what the clerk has typed.
+    /// Keeps a row's day lines at one per day claimed. Lines already filled in are kept: reducing the count drops the
+    /// last lines rather than clearing what the clerk has typed.
     /// </summary>
     private static void SyncDates(EditableRow row)
     {
         _ = int.TryParse((row.DaysPaid ?? string.Empty).Trim(), out var days);
         days = Math.Clamp(days, 0, 31);
 
-        while (row.Dates.Count > days) row.Dates.RemoveAt(row.Dates.Count - 1);
-        while (row.Dates.Count < days) row.Dates.Add(null);
+        while (row.Days.Count > days) row.Days.RemoveAt(row.Days.Count - 1);
+        while (row.Days.Count < days) row.Days.Add(new EditableRow.DayEntry());
     }
 
     /// <summary>
-    /// Fills the blank fields with consecutive days of the row's own month, skipping any date already entered in that
+    /// Dates the undated lines with consecutive days of the row's own month, skipping any date already stated in that
     /// row and never running past today.
     ///
     /// <para>A convenience only. It cannot know which days the market was closed, or when the term began — the server
     /// knows both and refuses those days by name — so this offers a starting point rather than an answer.</para>
     /// </summary>
-    private static void FillDates(EditableRow row)
+    private static void FillDays(EditableRow row)
     {
         var (year, month) = ParsePeriod(row.Period);
         if (year == 0 || month == 0) return;
 
-        var taken = row.Dates.Where(d => d.HasValue).Select(d => d!.Value.Date).ToHashSet();
+        var taken = row.Days.Where(d => d.Date.HasValue).Select(d => d.Date!.Value.Date).ToHashSet();
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var today = PhilippineTime.Today;
         var next = 1;
 
-        for (var i = 0; i < row.Dates.Count; i++)
+        foreach (var day in row.Days)
         {
-            if (row.Dates[i].HasValue) continue;
+            if (day.Date.HasValue) continue;
 
             while (next <= daysInMonth)
             {
@@ -849,18 +891,18 @@
                 if (DateOnly.FromDateTime(candidate) > today) break;
                 if (taken.Contains(candidate)) continue;
 
-                row.Dates[i] = candidate;
+                day.Date = candidate;
                 taken.Add(candidate);
                 break;
             }
         }
     }
 
-    private static void SetDate(EditableRow row, int slot, string? value)
+    private static void SetDayDate(EditableRow row, int slot, string? value)
     {
-        if (slot < 0 || slot >= row.Dates.Count) return;
+        if (slot < 0 || slot >= row.Days.Count) return;
 
-        row.Dates[slot] = DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+        row.Days[slot].Date = DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var parsed)
             ? parsed
             : null;
@@ -1103,9 +1145,14 @@
                 DaysPaid: days,
                 OrNumber: row.OrNumber,
                 // Only sent when the office is actually stating the days. Sent, they are honoured exactly and nothing
-                // is filled in around them - so a blank field is one day fewer recorded, not a day chosen for them.
-                Dates: _showDates
-                    ? row.Dates.Where(d => d.HasValue).Select(d => DateOnly.FromDateTime(d!.Value)).ToList()
+                // is filled in around them - so an undated line is one day fewer recorded, not a day chosen for them.
+                Days: _showDates
+                    ? row.Days
+                        .Where(d => d.Date.HasValue)
+                        .Select(d => new ImportDailyDay(
+                            DateOnly.FromDateTime(d.Date!.Value),
+                            string.IsNullOrWhiteSpace(d.OrNumber) ? null : d.OrNumber.Trim()))
+                        .ToList()
                     : null));
         }
 
