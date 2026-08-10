@@ -1,5 +1,6 @@
 using Bunit;
 using Bunit.TestDoubles;
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
@@ -73,6 +74,16 @@ public class ImportPaymentHistoryTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _payments = new Mock<IPaymentsApiClient>();
+
+        // Both imports answer with an empty-but-successful result. Without this the page would be testing a null the
+        // real HTTP client never returns.
+        _payments.Setup(p => p.ImportPaymentHistoryAsync(It.IsAny<BulkImportPaymentHistoryCommand>()))
+                 .ReturnsAsync(Result<BulkImportPaymentResultDto>.Success(
+                     new BulkImportPaymentResultDto(0, 0, 0, 0, 0, 0m, [])));
+        _payments.Setup(p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()))
+                 .ReturnsAsync(Result<BulkImportDailyResultDto>.Success(
+                     new BulkImportDailyResultDto(0, 0, 0, 0, 0, 0, 0m, [])));
+
         Services.AddSingleton(_payments.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
 
@@ -104,13 +115,63 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
-    public void TheMarketIsRefused_WithTheReasonStated()
+    public void TheMarketAsksForItsSectionBeforeAnythingElse()
     {
         var cut = Render("npm");
 
-        // Refused, and the office is told WHY rather than finding the option simply absent - which would read as
-        // an oversight and invite someone to force it through another route.
-        Assert.Contains("per market day", cut.Markup);
+        // The market numbers its spaces PER SECTION - three of them are called "1" - so a list without a section could
+        // be written against the wrong vendor's space. Asked before a file is read rather than after.
+        Assert.Contains("Choose the section", cut.Markup);
+        Assert.DoesNotContain("Choose a file to upload", cut.Markup);
+        Assert.Equal(3, cut.FindAll("button.iph-section-btn").Count);
+    }
+
+    [Fact]
+    public void TheMarketAsksForDaysRatherThanAnAmount()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-section-btn")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        // A month at the market is not a payment; it is a run of market days at a fixed daily fee. There is nothing
+        // for the office to total, because the money follows from the facility's own rate for the days settled.
+        Assert.Contains("Days Paid", cut.Markup);
+        Assert.DoesNotContain("Amount Paid", cut.Markup);
+        Assert.Single(cut.FindAll("input.iph-days"));
+
+        // And no date-paid column: the days ARE the dates.
+        Assert.DoesNotContain("Date Paid", cut.Markup);
+    }
+
+    [Fact]
+    public void TheMarketSavesThroughItsOwnImportAndNotTheMonthlyOne()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-section-btn")[1].Click();          // Fish Section
+        cut.Find("button.iph-use-sample").Click();
+
+        cut.Find("button.iph-btn-primary").Click();
+
+        // Sent as days through the market's own import. Through the monthly one it would have recorded a month of
+        // daily fees as a single monthly payment and settled days nobody collected.
+        _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
+            c.FacilityCode == FacilityCode.NPM
+            && c.Section == MarketSection.FishSection
+            && c.Rows.All(r => r.DaysPaid > 0))), Times.Once);
+
+        _payments.Verify(
+            p => p.ImportPaymentHistoryAsync(It.IsAny<BulkImportPaymentHistoryCommand>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void AFacilityChargedPerUnitHasNoHistoryToImport()
+    {
+        var cut = Render("slh");
+
+        // Per head, per trip - there is no period to key a history to. The office is told why rather than finding the
+        // option simply absent, which would read as an oversight and invite someone to force it through another route.
+        Assert.Contains("per unit collected", cut.Markup);
         Assert.DoesNotContain("Choose a file to upload", cut.Markup);
     }
 

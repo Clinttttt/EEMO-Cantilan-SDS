@@ -1003,12 +1003,15 @@
     }
 
     /// <summary>
-    /// The monthly-billed facilities, where one row is one month. The market bills per market day, so its history
-    /// cannot be expressed that way and the option is not offered for it - the same rule the page and the server
-    /// enforce, stated here so the button never leads to a refusal.
+    /// The facilities whose history can be imported: the ones billed by the month, where one row is one month, and
+    /// the market, where one row is a month's worth of market days.
+    ///
+    /// <para>The facilities charged per unit collected — per head, per trip, per vendor per market day — have no
+    /// period to key a history to, so the option is not offered for them. The same rule the page and the server
+    /// enforce, stated here so the button never leads to a refusal.</para>
     /// </summary>
     private static readonly HashSet<string> HistoryImportFacilities = new(StringComparer.OrdinalIgnoreCase)
-        { "TCC", "NCC", "BBQ", "ICE" };
+        { "NPM", "TCC", "NCC", "BBQ", "ICE", "CUSTOM1", "CUSTOM2", "CUSTOM3", "CUSTOM4", "CUSTOM5" };
 
     private bool IsHistoryImportSupported => HistoryImportFacilities.Contains(Form.FacilityCode);
 

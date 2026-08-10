@@ -1,6 +1,7 @@
 @page "/import-history/{Facility}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory
+@using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
@@ -50,9 +51,17 @@
             </svg>
         </div>
         <div class="iph-hero-body">
-            <div class="iph-hero-eyebrow">@FacilityShort · PAYMENT HISTORY</div>
-            <h1 class="iph-hero-title">Import @FacilityName Payment History</h1>
-            <p class="iph-hero-sub">Upload past payments, review &amp; edit, then save.</p>
+            <div class="iph-hero-eyebrow">@FacilityShort · @(IsDaily ? "COLLECTION HISTORY" : "PAYMENT HISTORY")</div>
+            <h1 class="iph-hero-title">Import @FacilityName @(IsDaily ? "Collection History" : "Payment History")</h1>
+            <p class="iph-hero-sub">
+                @(IsDaily
+                    ? "Upload market days already collected, review & edit, then save."
+                    : "Upload past payments, review & edit, then save.")
+                @if (IsDaily && _section is { } chosen)
+                {
+                    <span class="iph-hero-section">@SectionLabel(chosen)</span>
+                }
+            </p>
         </div>
         <div class="iph-steps">
             <div class="iph-step @(StepClass(1))"><span class="iph-step-no">1</span> Upload</div>
@@ -67,11 +76,89 @@
     {
         <div class="iph-card">
             <div class="iph-note">
-                Payment history is imported for the monthly-billed facilities, where one row is one month.
-                <strong>@FacilityName</strong> is collected per market day, so its history is recorded separately.
+                A history is imported for the facilities that bill by the month and for the market, which bills by the
+                market day. <strong>@FacilityName</strong> is charged per unit collected — per head, per trip — so
+                there is no period to import a history for.
             </div>
             <div class="iph-foot">
                 <a class="iph-btn iph-btn-outline" href="@BackUrl">Back to @FacilityShort</a>
+            </div>
+        </div>
+    }
+    else if (IsDaily && _section is null)
+    {
+        @* The market numbers its spaces PER SECTION - three of them are called "1" - so a list without a section
+           could be written against the wrong vendor's space. Asked before a file is read rather than after. *@
+        <div class="iph-card">
+            <div class="iph-note">
+                @FacilityShort numbers its spaces separately in each section, so the same number exists in more than
+                one of them. Choose the section this list belongs to.
+            </div>
+
+            <div class="iph-section-pick">
+                @foreach (var section in DailySections)
+                {
+                    <button class="iph-btn iph-btn-outline iph-section-btn" type="button"
+                            @onclick="() => ChooseSection(section)">
+                        @SectionLabel(section)
+                    </button>
+                }
+            </div>
+
+            <div class="iph-foot">
+                <a class="iph-btn iph-btn-outline" href="@BackUrl">Cancel</a>
+            </div>
+        </div>
+    }
+    else if (_dailyResult is not null)
+    {
+        <!-- ── Step 3: Saved (market) ── -->
+        <div class="iph-card">
+            <div class="iph-summary">
+                <div class="iph-stat"><div class="iph-stat-val">@_dailyResult.RecordedCount</div><div class="iph-stat-key">Recorded in full</div></div>
+                <div class="iph-stat"><div class="iph-stat-val">@_dailyResult.PartialCount</div><div class="iph-stat-key">Recorded in part</div></div>
+                <div class="iph-stat"><div class="iph-stat-val">@_dailyResult.AlreadyRecordedCount</div><div class="iph-stat-key">Nothing left to settle</div></div>
+                <div class="iph-stat @(_dailyResult.RejectedCount > 0 ? "iph-stat-attention" : "")"><div class="iph-stat-val">@_dailyResult.RejectedCount</div><div class="iph-stat-key">Not recorded</div></div>
+            </div>
+
+            <div class="iph-note">
+                @_dailyResult.TotalDaysSettled market @(_dailyResult.TotalDaysSettled == 1 ? "day" : "days")
+                recorded, ₱@_dailyResult.TotalRecorded.ToString("N2") in total. The amount is the facility's own daily
+                fee for each day settled.
+            </div>
+
+            <div class="iph-result-wrap">
+                <table class="iph-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Stall / Space No.</th>
+                            <th>Period</th>
+                            <th>Days claimed</th>
+                            <th>Days settled</th>
+                            <th>Amount</th>
+                            <th>Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _dailyResult.Results)
+                        {
+                            <tr class="@(row.Outcome == ImportDailyOutcome.Rejected ? "iph-row-bad" : null)">
+                                <td>@row.RowNumber</td>
+                                <td>@SpaceNumber.Display(row.StallNo)</td>
+                                <td>@row.Period</td>
+                                <td>@row.DaysClaimed</td>
+                                <td>@row.DaysSettled</td>
+                                <td>@row.AmountRecorded.ToString("N2")</td>
+                                <td>@(row.Error ?? DailyOutcomeLabel(row.Outcome))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="iph-foot">
+                <a class="iph-btn iph-btn-primary" href="@BackUrl">Back to @FacilityShort</a>
             </div>
         </div>
     }
@@ -163,7 +250,7 @@
             <div class="iph-cols-preview">
                 <div class="iph-cols-label">COLUMNS FOR @FacilityShort</div>
                 <div class="iph-cols-chips">
-                    @foreach (var column in ColumnNames)
+                    @foreach (var column in Columns)
                     {
                         <span class="iph-chip">@column</span>
                     }
@@ -212,9 +299,17 @@
                             <th>Stall / Space No.</th>
                             <th>Actual Occupant</th>
                             <th>Period (YYYY-MM)</th>
-                            <th>Amount Paid</th>
-                            <th>OR No.</th>
-                            <th>Date Paid</th>
+                            @if (IsDaily)
+                            {
+                                <th>Days Paid</th>
+                                <th>OR No.</th>
+                            }
+                            else
+                            {
+                                <th>Amount Paid</th>
+                                <th>OR No.</th>
+                                <th>Date Paid</th>
+                            }
                             <th class="iph-th-act"></th>
                         </tr>
                     </thead>
@@ -241,9 +336,20 @@
                                            @bind="row.Period" @bind:event="oninput" placeholder="2025-03"
                                            aria-label="Period, year and month" />
                                 </td>
-                                <td><input class="iph-input iph-input-num" @bind="row.AmountPaid" @bind:event="oninput" placeholder="0.00" /></td>
-                                <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" /></td>
-                                <td><input class="iph-input" type="date" @bind="row.DatePaid" /></td>
+                                @if (IsDaily)
+                                {
+                                    @* Days, not an amount. The market's books record a count of days against a
+                                       receipt; the money follows from the facility's own daily fee for the days
+                                       settled, which is why there is nothing here for the office to total. *@
+                                    <td><input class="iph-input iph-input-num iph-days" @bind="row.DaysPaid" @bind:event="oninput" placeholder="12" aria-label="Days paid" /></td>
+                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" aria-label="OR number" /></td>
+                                }
+                                else
+                                {
+                                    <td><input class="iph-input iph-input-num" @bind="row.AmountPaid" @bind:event="oninput" placeholder="0.00" aria-label="Amount paid" /></td>
+                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" aria-label="OR number" /></td>
+                                    <td><input class="iph-input" type="date" @bind="row.DatePaid" aria-label="Date paid" /></td>
+                                }
                                 <td class="iph-th-act">
                                     <button class="iph-row-del" type="button" @onclick="() => RemoveRow(index)"
                                             title="Remove this row" aria-label="Remove row @(index + 1)">
@@ -279,6 +385,15 @@
         ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Amount Paid", "OR No.", "Date Paid"];
 
     /// <summary>
+    /// The market's columns. Days rather than an amount, and no date paid: the days ARE the dates, and the amount is
+    /// the facility's own daily fee for each of them rather than a figure the office types.
+    /// </summary>
+    private static readonly string[] DailyColumnNames =
+        ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Days Paid", "OR No."];
+
+    private string[] Columns => IsDaily ? DailyColumnNames : ColumnNames;
+
+    /// <summary>
     /// An editable row. Held as text, like the stallholder import's rows, so a clerk can correct a cell in place and
     /// a malformed figure is reported by the server rather than silently becoming zero as they type.
     /// </summary>
@@ -288,6 +403,12 @@
         public string Occupant { get; set; } = string.Empty;
         public string Period { get; set; } = string.Empty;
         public string AmountPaid { get; set; } = string.Empty;
+
+        /// <summary>
+        /// How many market days were paid for, on a daily-billed facility. Held as text like every other cell so a
+        /// mistyped figure is reported rather than silently becoming zero as the clerk types.
+        /// </summary>
+        public string DaysPaid { get; set; } = string.Empty;
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -302,6 +423,9 @@
     private List<(string StallNo, string Occupant)> _payors = new();
 
     private BulkImportPaymentResultDto? _result;
+
+    /// <summary>What the market's import did. Reported in days settled rather than amounts paid.</summary>
+    private BulkImportDailyResultDto? _dailyResult;
     private string? _error;
     private string? _saveError;
     private string _fileName = "Sample data";
@@ -318,10 +442,56 @@
     private static readonly FacilityCode[] NotMonthlyFacilities =
         [FacilityCode.NPM, FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM];
 
+    /// <summary>
+    /// The facilities collected per market day. Their history is a run of days rather than a monthly payment, so this
+    /// screen asks for days and calls the market's own import.
+    /// </summary>
+    private static readonly FacilityCode[] DailyFacilities = [FacilityCode.NPM];
+
+    /// <summary>
+    /// The facilities with no period to import a history for at all: charged per head, per trip, or per vendor per
+    /// market day with no space of their own to key a history to.
+    /// </summary>
+    private static readonly FacilityCode[] NoHistoryFacilities =
+        [FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM];
+
     private FacilityCode? Code =>
         Enum.TryParse<FacilityCode>(Facility, ignoreCase: true, out var code) ? code : null;
 
-    private bool IsSupported => Code is { } code && !NotMonthlyFacilities.Contains(code);
+    private bool IsSupported => Code is { } code && !NoHistoryFacilities.Contains(code);
+
+    private bool IsDaily => Code is { } code && DailyFacilities.Contains(code);
+
+    /// <summary>The market's canonical sections. Its spaces are numbered separately in each.</summary>
+    private static readonly MarketSection[] DailySections =
+        [MarketSection.VegetableArea, MarketSection.FishSection, MarketSection.MeatSection];
+
+    private MarketSection? _section;
+
+    private static string SectionLabel(MarketSection section) => section switch
+    {
+        MarketSection.VegetableArea => "Vegetable Area",
+        MarketSection.FishSection => "Fish Section",
+        MarketSection.MeatSection => "Meat Section",
+        _ => section.ToString()
+    };
+
+    private async Task ChooseSection(MarketSection section)
+    {
+        _section = section;
+
+        // Awaited, so the picker has the section's own vendors before the office reaches the table. The payor list is
+        // section-scoped: unscoped, it would offer three spaces called "1" and the office could not tell them apart.
+        await LoadPayorsAsync();
+    }
+
+    private static string DailyOutcomeLabel(ImportDailyOutcome outcome) => outcome switch
+    {
+        ImportDailyOutcome.RecordedInFull => "Recorded",
+        ImportDailyOutcome.RecordedInPart => "Recorded in part",
+        ImportDailyOutcome.AlreadyRecorded => "Nothing left to settle",
+        _ => "Not recorded"
+    };
 
     private string FacilityShort => Code is { } code ? FacilityCatalog.ShortNameOf(code) : (Facility ?? "Facility");
 
@@ -354,7 +524,10 @@
 
         try
         {
-            var res = await StallsApi.GetStallHoldersListAsync(code, null);
+            // Scoped to the chosen section for the market. Its spaces are numbered per section - three of them are
+            // called "1" - so an unscoped list would offer three identical numbers and the office could not tell which
+            // vendor it had picked.
+            var res = await StallsApi.GetStallHoldersListAsync(code, _section);
             if (!res.IsSuccess || res.Value is null) return;
 
             _payors = res.Value.Sections
@@ -404,8 +577,10 @@
     {
         get
         {
-            var csv = CsvCell.Row(ColumnNames) + "\n"
-                      + CsvCell.Row("1", "Joseph Villamor", "2025-03", "2400.00", "OR-100234", "2025-03-05") + "\n";
+            var csv = CsvCell.Row(Columns) + "\n"
+                      + (IsDaily
+                          ? CsvCell.Row("1", "Kim Chui", "2025-03", "12", "OR-100234") + "\n"
+                          : CsvCell.Row("1", "Joseph Villamor", "2025-03", "2400.00", "OR-100234", "2025-03-05") + "\n");
             return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(csv);
         }
     }
@@ -427,6 +602,22 @@
         foreach (var back in new[] { 3, 2, 1 })
         {
             var period = today.AddMonths(-back);
+
+            if (IsDaily)
+            {
+                // Days, not amounts. One month short of a full month's market days, so the part-recorded case is
+                // visible before the office meets it in its own history.
+                _rows.Add(new EditableRow
+                {
+                    StallNo = "1",
+                    Occupant = "Kim Chui",
+                    Period = $"{period.Year:0000}-{period.Month:00}",
+                    DaysPaid = back == 2 ? "8" : "20",
+                    OrNumber = $"OR-{100_000 + (4 - back)}"
+                });
+                continue;
+            }
+
             _rows.Add(new EditableRow
             {
                 StallNo = "1",
@@ -523,6 +714,21 @@
             var cells = SplitCsvLine(lines[i]);
             string Cell(int index) => index < cells.Length ? cells[index].Trim() : string.Empty;
 
+            if (IsDaily)
+            {
+                // Read by position, like the monthly sheet, but the market's fourth column is a count of days and
+                // there is no date-paid column at all: the days ARE the dates.
+                _rows.Add(new EditableRow
+                {
+                    StallNo = Cell(0),
+                    Occupant = Cell(1),
+                    Period = Cell(2),
+                    DaysPaid = Cell(3),
+                    OrNumber = Cell(4)
+                });
+                continue;
+            }
+
             _rows.Add(new EditableRow
             {
                 StallNo = Cell(0),
@@ -591,6 +797,12 @@
         _saveError = null;
         try
         {
+            if (IsDaily)
+            {
+                await SaveDailyAsync(code);
+                return;
+            }
+
             var rows = new List<ImportPaymentRow>(_rows.Count);
             for (var i = 0; i < _rows.Count; i++)
             {
@@ -630,10 +842,54 @@
         }
     }
 
+    /// <summary>
+    /// Records the market's history: days rather than amounts, through the facility's own daily-collection machinery.
+    ///
+    /// <para>Kept apart from the monthly path rather than folded into it with flags, because the two agree about
+    /// almost nothing - what a row means, what the server does with it, and what the office reads back afterwards.</para>
+    /// </summary>
+    private async Task SaveDailyAsync(FacilityCode code)
+    {
+        var rows = new List<ImportDailyPaymentRow>(_rows.Count);
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            var row = _rows[i];
+            var (year, month) = ParsePeriod(row.Period);
+
+            // A count of days, not money - so it is read as a whole number and a bad cell becomes zero, which the
+            // server rejects by name rather than settling something arbitrary.
+            _ = int.TryParse((row.DaysPaid ?? string.Empty).Trim(), out var days);
+
+            rows.Add(new ImportDailyPaymentRow(
+                RowNumber: i + 1,
+                StallNo: row.StallNo,
+                Occupant: row.Occupant,
+                BillingYear: year,
+                BillingMonth: month,
+                DaysPaid: days,
+                OrNumber: row.OrNumber));
+        }
+
+        var result = await PaymentsApi.ImportDailyHistoryAsync(
+            new BulkImportDailyHistoryCommand(code, _section, rows));
+
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _dailyResult = result.Value;
+            _rows.Clear();
+        }
+        else
+        {
+            // Nothing was written: the batch is one transaction, so the ledger is exactly as it was.
+            _saveError = result.Error ?? "The history could not be recorded. Nothing was saved.";
+        }
+    }
+
     private void Reset()
     {
         _rows.Clear();
         _result = null;
+        _dailyResult = null;
         _error = null;
         _saveError = null;
         _fileName = "Sample data";
