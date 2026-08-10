@@ -4,10 +4,13 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using Microsoft.AspNetCore.Components.Forms
 @inject NavigationManager Navigation
 @inject IPaymentsApiClient PaymentsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject IStallsApiClient StallsApi
 
 @*
     Records an office's existing payment history, so it can adopt the system mid-contract.
@@ -222,9 +225,22 @@
                             var row = _rows[index];
                             <tr>
                                 <td class="iph-th-num">@(index + 1)</td>
-                                <td><input class="iph-input" @bind="row.StallNo" @bind:event="oninput" placeholder="1" /></td>
-                                <td><input class="iph-input" @bind="row.Occupant" @bind:event="oninput" placeholder="Name on the sheet" /></td>
-                                <td><input class="iph-input" @bind="row.Period" @bind:event="oninput" placeholder="2025-03" /></td>
+                                @* Typed or picked. The list is the facility's own active stalls, so the office can
+                                   choose the payor instead of remembering a number - a mistyped number is the one
+                                   error this screen cannot catch for itself, because 3 is as valid a stall as 8 and
+                                   the import would credit the wrong vendor's month with a straight face. Still a
+                                   plain text box: an office working from an older sheet may need a number that is
+                                   not occupied today. *@
+                                <td>
+                                    <input class="iph-input" list="iph-payors" @bind="row.StallNo"
+                                           @bind:event="oninput" placeholder="1" aria-label="Stall or space number" />
+                                </td>
+                                <td><input class="iph-input" @bind="row.Occupant" @bind:event="oninput" placeholder="@OccupantHint(row.StallNo)" aria-label="Actual occupant" /></td>
+                                <td>
+                                    <input class="iph-input iph-period @(IsFuturePeriod(row.Period) ? "iph-input-bad" : null)"
+                                           @bind="row.Period" @bind:event="oninput" placeholder="2025-03"
+                                           aria-label="Period, year and month" />
+                                </td>
                                 <td><input class="iph-input iph-input-num" @bind="row.AmountPaid" @bind:event="oninput" placeholder="0.00" /></td>
                                 <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" /></td>
                                 <td><input class="iph-input" type="date" @bind="row.DatePaid" /></td>
@@ -238,6 +254,15 @@
                         }
                     </tbody>
                 </table>
+
+                @* One list for every row's number box. A native datalist so the office can pick a payor or keep
+                   typing, and so it behaves the same on the office's own browsers without script. *@
+                <datalist id="iph-payors">
+                    @foreach (var payor in _payors)
+                    {
+                        <option value="@payor.StallNo" label="@payor.Occupant"></option>
+                    }
+                </datalist>
             </div>
         </div>
 
@@ -252,6 +277,12 @@
 
 @code {
     [Parameter] public string? Facility { get; set; }
+
+    /// <summary>
+    /// Fetched once, before any rows exist, so the pick-list is already there whichever of the three ways the office
+    /// starts. Awaiting it here rather than per-row keeps one request per visit.
+    /// </summary>
+    protected override async Task OnParametersSetAsync() => await LoadPayorsAsync();
 
     private static readonly string[] ColumnNames =
         ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Amount Paid", "OR No.", "Date Paid"];
@@ -271,6 +302,14 @@
     }
 
     private readonly List<EditableRow> _rows = new();
+
+    /// <summary>
+    /// The facility's own active stalls, offered as a pick-list on every number box. A mistyped stall number is the
+    /// one mistake this screen cannot detect for itself - 3 is as valid a stall as 8 - and it would credit the wrong
+    /// vendor's month without complaint, so the office is given the real list to choose from.
+    /// </summary>
+    private List<(string StallNo, string Occupant)> _payors = new();
+
     private BulkImportPaymentResultDto? _result;
     private string? _error;
     private string? _saveError;
@@ -292,6 +331,76 @@
     private string FacilityShort => Code is { } code ? FacilityCatalog.ShortNameOf(code) : (Facility ?? "Facility");
 
     private string FacilityName => Code is { } code ? FacilityCatalog.NameOf(code) : (Facility ?? "this facility");
+
+    /// <summary>
+    /// Whether a row names a month that has not started yet. The server refuses these outright - a history is money
+    /// already received - but the office is told while it types rather than after pressing Save, because a period is
+    /// typed once and read back many times.
+    /// </summary>
+    private static bool IsFuturePeriod(string? period)
+    {
+        var (year, month) = ParsePeriod(period ?? string.Empty);
+        if (year == 0 || month == 0) return false;
+
+        var today = PhilippineTime.Today;
+        return year > today.Year || (year == today.Year && month > today.Month);
+    }
+
+    /// <summary>The rows naming a month that has not started, so Save can say how many and stop.</summary>
+    private int FuturePeriodCount => _rows.Count(r => IsFuturePeriod(r.Period));
+
+    /// <summary>
+    /// Names the vendor a number belongs to, shown as the Actual Occupant placeholder once a stall is chosen, so a
+    /// wrong number is visible before the row is saved rather than after the money has landed on it.
+    /// </summary>
+    private string OccupantHint(string? stallNo)
+    {
+        var key = (stallNo ?? string.Empty).Trim();
+        if (key.Length == 0) return "Name on the sheet";
+
+        var match = _payors.FirstOrDefault(p => string.Equals(p.StallNo, key, StringComparison.OrdinalIgnoreCase));
+        return match.Occupant is { Length: > 0 } name ? name : "Name on the sheet";
+    }
+
+    /// <summary>
+    /// Loads the facility's active stalls for the pick-list. A failure is deliberately silent: the list is an aid to
+    /// accuracy, not a gate, and an office with no connection to it must still be able to type a number and save.
+    /// </summary>
+    private async Task LoadPayorsAsync()
+    {
+        if (Code is not { } code) return;
+
+        try
+        {
+            var res = await StallsApi.GetStallHoldersListAsync(code, null);
+            if (!res.IsSuccess || res.Value is null) return;
+
+            _payors = res.Value.Sections
+                .SelectMany(s => s.Rows)
+                .Where(r => !r.IsClosed && !DomainRules.TermHasExpired(r.EffectivityDate, r.DurationYears, PhilippineTime.Today))
+                .Select(r => ((r.StallNo ?? string.Empty).Trim(), (r.ActualOccupant ?? string.Empty).Trim()))
+                .Where(p => p.Item1.Length > 0)
+                .GroupBy(p => p.Item1, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(p => SpaceNumber.IsSpace(p.Item1))
+                .ThenBy(p => ParseStallInt(p.Item1))
+                .ThenBy(p => p.Item1, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            // Left empty on purpose - see the summary above.
+        }
+    }
+
+    /// <summary>The leading digits of a stall number, for ordering the pick-list the way the office reads it.</summary>
+    private static int ParseStallInt(string value)
+    {
+        if (SpaceNumber.IsSpace(value)) return SpaceNumber.HighestOrdinal(new[] { value });
+
+        var digits = new string(value.TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var n) ? n : int.MaxValue;
+    }
 
     // The facility's own page, by its canonical route - the one the sidebar links to and the browser shows. Cancel
     // and the back arrow both land there rather than on whatever page happened to come before.
@@ -484,6 +593,17 @@
     private async Task Save()
     {
         if (Code is not { } code || _rows.Count == 0) return;
+
+        // Stopped here as well as at the server. A month that has not started cannot have been collected, and the
+        // office is better told which rows before the request than shown a list of rejections after it.
+        if (FuturePeriodCount is var future && future > 0)
+        {
+            var today = PhilippineTime.Today;
+            _saveError = $"{future} {(future == 1 ? "row names a month" : "rows name months")} that " +
+                         $"{(future == 1 ? "has" : "have")} not started yet. A payment history can only cover " +
+                         $"months up to {today.Year:0000}-{today.Month:00}.";
+            return;
+        }
 
         _saving = true;
         _saveError = null;

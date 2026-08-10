@@ -236,10 +236,10 @@
                         Download CSV template
                     </a>
                     <span class="imp-foot-sep">·</span>
-                    <button class="imp-link imp-link-btn" @onclick="LoadSample">Use sample data instead</button>
+                    <button class="imp-link imp-link-btn imp-use-sample" @onclick="LoadSample">Use sample data instead</button>
                     <span class="imp-foot-sep">·</span>
                     @* For an office with no file at all. The same review table, starting empty. *@
-                    <button class="imp-link imp-link-btn" @onclick="StartManual">Enter manually</button>
+                    <button class="imp-link imp-link-btn imp-enter-manually" @onclick="StartManual">Enter manually</button>
                 </div>
 
                 <div class="imp-cols-preview">
@@ -280,7 +280,7 @@
                     </div>
                 </div>
                 <div class="imp-review-actions">
-                    <button class="imp-btn imp-btn-ghost" @onclick="AddRow">
+                    <button class="imp-btn imp-btn-ghost imp-add-row" @onclick="AddRow">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                         Add row
                     </button>
@@ -412,7 +412,9 @@
                                         }
                                         else
                                         {
-                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
+                                            @* The stall-number box is named so a test can read it without counting
+                                               columns. Selecting cells by position is what failed a deployment once. *@
+                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @(col.Key == "stallNo" ? "imp-stallno" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
                                                    type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
                                                    value="@GetCell(row, col.Key)"
                                                    placeholder="@col.Placeholder"
@@ -578,7 +580,15 @@
         => row.TryGetValue(key, out var v) ? v : string.Empty;
 
     private void SetCell(Dictionary<string, string> row, string key, string? value)
-        => row[key] = value ?? string.Empty;
+    {
+        row[key] = value ?? string.Empty;
+
+        // Typing a number makes it the office's, not this screen's. Without this, a number the clerk entered into a
+        // row the screen had numbered would be re-sequenced away the next time a row was added or removed - the
+        // screen would quietly overwrite what they had just typed, which is the same fault as renumbering an
+        // uploaded list, only slower to notice.
+        if (key == "stallNo") _screenAssigned.Remove(row);
+    }
 
     // NPM imports one section at a time (each section is a separate physical list).
     private bool RequiresSection => _facility?.ShortCode == "NPM";
@@ -932,6 +942,16 @@
         _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
         _loaded = true;
         await ApplyContinuedNumberingAsync();
+
+        // The sample's numbers are THIS SCREEN'S, not the office's. Nobody wrote them on a list, so there is no
+        // physical stall behind them to protect and no reason for a deletion to leave a hole - which is what made
+        // the sample look broken while an uploaded file was behaving exactly as it must.
+        //
+        // The distinction is the point: a number from an uploaded file is kept because stall 103 is a place, and
+        // renumbering 104 down to it would hand the next lessee somebody else's stall. A number from the sample is
+        // ours, so it closes up.
+        foreach (var row in _rows) _screenAssigned.Add(row);
+        ResequenceAssignedNumbers();
     }
 
     /// <summary>

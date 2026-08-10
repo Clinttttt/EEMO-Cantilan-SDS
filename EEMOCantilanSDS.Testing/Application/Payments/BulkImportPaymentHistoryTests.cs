@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -320,6 +321,38 @@ public class BulkImportPaymentHistoryTests
         // Nobody in the system collected it. The column is nullable so that can be said; a zero GUID is not
         // "nobody" and the transaction feed renders one as though a collector were named.
         Assert.Null(record.CollectorId);
+    }
+
+    [Fact]
+    public async Task AMonthThatHasNotStartedYetIsRefused()
+    {
+        // A history is a record of money already received. Accepted, the row settles rent nobody has been billed for:
+        // the month arrives already paid, the vendor's own screens still call it "Soon", and the year's collected
+        // total carries money the office's books have nothing to reconcile against.
+        var (handler, added) = Build();
+
+        var next = PhilippineTime.Today.AddMonths(2);
+        var result = await handler.Handle(
+            Command(Row(1, "1", next.Year, next.Month, 1_000m)), CancellationToken.None);
+
+        Assert.Empty(added);
+        Assert.Equal(1, result.Value!.RejectedCount);
+        Assert.Contains("has not started yet", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task TheMonthInProgressIsStillAccepted()
+    {
+        // Rent falls due when the month opens, so this month can genuinely have been paid today. The guard must stop
+        // at months that have not begun, not at every month that has not finished.
+        var (handler, added) = Build();
+
+        var today = PhilippineTime.Today;
+        var result = await handler.Handle(
+            Command(Row(1, "1", today.Year, today.Month, 2_400m)), CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.RecordedCount);
+        Assert.Single(added);
     }
 
     /// <summary>Stands in for a payment already on record for a given month.</summary>

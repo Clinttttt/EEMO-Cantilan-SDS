@@ -63,6 +63,20 @@ public class BulkImportPaymentHistoryCommandHandler(
             if (stallNo.Length == 0) { Reject("Stall / Space No. is required."); continue; }
             if (row.BillingMonth is < 1 or > 12) { Reject("The billing month must be between 1 and 12."); continue; }
             if (row.BillingYear is < 1990 or > 2200) { Reject("The billing year is not a real year."); continue; }
+
+            // A history is a record of money the office has already received, so a month that has not started yet
+            // cannot have one. Left unchecked the row settles rent nobody has been billed for: the month arrives
+            // already paid or part-paid, the vendor's own screens still show it as "Soon", and the year's collected
+            // total carries money against a period the office's books have nothing to reconcile it to. The current
+            // month is allowed - monthly rent falls due when the month opens, so it can genuinely be paid today.
+            var thisMonth = PhilippineTime.Today;
+            if (row.BillingYear > thisMonth.Year ||
+                (row.BillingYear == thisMonth.Year && row.BillingMonth > thisMonth.Month))
+            {
+                Reject($"{period} has not started yet. A payment history can only cover months up to " +
+                       $"{thisMonth.Year:0000}-{thisMonth.Month:00}.");
+                continue;
+            }
             if (row.AmountPaid <= 0m) { Reject("The amount paid must be more than zero."); continue; }
             if (row.AmountPaid > MaxAmount) { Reject("The amount paid is implausibly large."); continue; }
             if (string.IsNullOrWhiteSpace(row.OrNumber))

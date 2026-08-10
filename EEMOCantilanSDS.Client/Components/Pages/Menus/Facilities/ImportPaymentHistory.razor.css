@@ -593,3 +593,16 @@
         flex: 1 1 100%;
     }
 }
+
+
+/* A period that has not started yet. Marked, not blocked mid-typing: "2026-1" is on its way to "2026-10" and a box
+   that fights the clerk as they type is worse than one that tells them where they have got to. Save refuses it. */
+.iph-input-bad {
+    border-color: #b3261e;
+    background: #fdf6f5;
+}
+
+.iph-input-bad:focus {
+    border-color: #b3261e;
+    box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.12);
+}

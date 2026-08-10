@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,38 @@ public class ImportPaymentHistoryTests : TestContext
 {
     private Mock<IPaymentsApiClient> _payments = new();
 
+    /// <summary>
+    /// The facility's own stalls, so the pick-list has something in it. Two occupied and one closed, because a closed
+    /// stall's number must not be offered as a payor.
+    /// </summary>
+    private static StallHoldersListDto Holders() => new()
+    {
+        Sections =
+        [
+            new StallHoldersSectionDto
+            {
+                Rows =
+                [
+                    new StallHolderRowDto
+                    {
+                        StallNo = "1", ActualOccupant = "George Giovanna",
+                        EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
+                    },
+                    new StallHolderRowDto
+                    {
+                        StallNo = "2", ActualOccupant = "Ackerman Tril",
+                        EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
+                    },
+                    new StallHolderRowDto
+                    {
+                        StallNo = "9", ActualOccupant = "Vacated Vendor", IsClosed = true,
+                        EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
+                    }
+                ]
+            }
+        ]
+    };
+
     private IRenderedComponent<ImportPaymentHistory> Render(string facility)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -33,7 +66,11 @@ public class ImportPaymentHistoryTests : TestContext
         _payments = new Mock<IPaymentsApiClient>();
         Services.AddSingleton(_payments.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
-        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+
+        var stalls = new Mock<IStallsApiClient>();
+        stalls.Setup(s => s.GetStallHoldersListAsync(It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>()))
+              .ReturnsAsync(Result<StallHoldersListDto>.Success(Holders()));
+        Services.AddSingleton(stalls.Object);
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
@@ -222,6 +259,60 @@ public class ImportPaymentHistoryTests : TestContext
 
         // The page must not call the API on load. A history import writes to the ledger; it happens when the office
         // asks for it and not before.
+        _payments.Verify(
+            p => p.ImportPaymentHistoryAsync(It.IsAny<BulkImportPaymentHistoryCommand>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void TheOfficeCanPickAPayorInsteadOfRememberingAStallNumber()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        // A mistyped stall number is the one error the import cannot detect for itself - 3 is as valid a stall as 8 -
+        // so the facility's own stalls are offered by name.
+        var options = cut.FindAll("datalist#iph-payors option");
+        Assert.Equal(2, options.Count);
+        Assert.Equal("1", options[0].GetAttribute("value"));
+        Assert.Contains("George Giovanna", options[0].GetAttribute("label"));
+
+        // A closed stall is not a payor and must not be offered.
+        Assert.DoesNotContain("Vacated Vendor", cut.Markup);
+
+        // Still a plain text box: an office working from an older sheet may need a number nobody occupies today.
+        Assert.Equal("iph-payors", cut.Find("input.iph-input[list]").GetAttribute("list"));
+    }
+
+    [Fact]
+    public void ChoosingAStallNamesTheVendorItBelongsTo()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        cut.Find("input.iph-input[list]").Input("2");
+
+        // Named where the occupant goes, so a wrong number shows itself before the row is saved rather than after the
+        // money has landed on somebody else's month.
+        Assert.Contains("Ackerman Tril", cut.Markup);
+    }
+
+    [Fact]
+    public void AMonthThatHasNotStartedYetIsMarkedAndRefused()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        var next = PhilippineTime.Today.AddMonths(2);
+        cut.Find("input.iph-period").Input($"{next.Year:0000}-{next.Month:00}");
+
+        // Marked while typing...
+        Assert.Contains("iph-input-bad", cut.Markup);
+
+        // ...and refused on Save, because a history is money already received. Reaching the server would have settled
+        // rent nobody has been billed for.
+        cut.Find("button.iph-btn-primary").Click();
+        Assert.Contains("not started yet", cut.Markup);
         _payments.Verify(
             p => p.ImportPaymentHistoryAsync(It.IsAny<BulkImportPaymentHistoryCommand>()),
             Times.Never);

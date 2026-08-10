@@ -132,13 +132,23 @@
 
             <!-- -- Profile Hero -- -->
             <div class="prof-hero">
+                @* The facility's own mark, from the shared artwork both this portal and the collector app draw from,
+                   so a stall in the commercial centre carries the storefront the sidebar and facility page show and
+                   not a house glyph that belonged to no facility in particular. Gold ink, matching the facility hero
+                   this one now reads as a sibling of. A Head-added custom facility has no mark, so the previous glyph
+                   remains as the fallback rather than leaving a gap. *@
                 <div class="prof-hero-badge">
-                    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                    <FacilityMark Code="@HeroFacility" Ink="FacilityMarkInk.Gold" Size="32">
+                        <Fallback>
+                            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                        </Fallback>
+                    </FacilityMark>
                 </div>
                 <div class="prof-hero-identity">
-                    @* Empty for a space the office does not number — the occupant's name below carries the identity,
-                       as it does on the office's own list. *@
-                    <div class="prof-hero-stall-no">@SpaceNumber.Describe(Stall.StallNo)</div>
+                    @* Reads like the facility hero above it: eyebrow, then the name as the heading, then the place.
+                       The stall number was the heading before, which made the vendor's name look like a subtitle of a
+                       number - on a page about a person, the person is the title. *@
+                    <div class="prof-hero-eyebrow">@HeroEyebrow</div>
                     <div class="prof-hero-name">@Stall.ActualOccupant</div>
                     <div class="prof-hero-meta">
                         <span class="prof-hero-chip">
@@ -814,6 +824,33 @@
 
     [Parameter]
     public string FacilityId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The facility whose mark the hero draws. Falls back to the market only so the component has something to ask
+    /// for; an unrecognised code has no artwork and renders the hero's own fallback glyph instead.
+    /// </summary>
+    private FacilityCode HeroFacility =>
+        System.Enum.TryParse<FacilityCode>(FacilityId, true, out var code) ? code : FacilityCode.NPM;
+
+    /// <summary>
+    /// The line above the name: the facility's short code and the stall number, in the office's own words.
+    ///
+    /// <para>A space the office does not number contributes no number - SpaceNumber.Describe returns nothing for
+    /// those - so the eyebrow states the facility alone rather than printing an internal key the office has never
+    /// used on paper.</para>
+    /// </summary>
+    private string HeroEyebrow
+    {
+        get
+        {
+            var facility = System.Enum.TryParse<FacilityCode>(FacilityId, true, out var code)
+                ? FacilityCatalog.ShortNameOf(code)
+                : FacilityId.ToUpperInvariant();
+
+            var stall = SpaceNumber.Describe(Stall?.StallNo ?? string.Empty);
+            return stall.Length > 0 ? $"{facility} · {stall}" : facility;
+        }
+    }
 
     // Slug for the facility link/redirect: custom facilities resolve to their acronym (…/facility/fe),
     // canonical facilities keep their code (…/facility/npm). Falls back to the raw route value.
