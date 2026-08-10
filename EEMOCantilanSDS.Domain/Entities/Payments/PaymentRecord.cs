@@ -101,6 +101,31 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedBy = updatedBy;
         }
         /// <summary>
+        /// Clears the collector on a payment brought in from the office's own books. Nobody in the system collected
+        /// it, and the column is nullable precisely so that can be said - a zero GUID is not "nobody", and the
+        /// transaction feed renders one as though a collector were named.
+        /// </summary>
+        public void ClearCollectorForImportedHistory() => CollectorId = null;
+
+        /// <summary>
+        /// Records the date the office's own books state a historical payment was received, instead of now.
+        ///
+        /// <para>An imported history is a record of money taken months or years ago. Left at the moment of import,
+        /// every row appears in the transaction feed and the dashboard's recent collections as though it had been
+        /// collected today - the period-keyed reports stay correct, but any view ordered by date states something
+        /// untrue. Only moves the date backwards, and only on a payment that has one.</para>
+        /// </summary>
+        public void BackdateReceipt(DateTime receivedAt, string updatedBy = "System")
+        {
+            if (PaidAt is null) return;
+            if (receivedAt > PaidAt) return;
+
+            PaidAt = receivedAt;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
         /// Attaches a manually-entered OR number to an already-recorded payment without
         /// altering the fee breakdown, status, or original collector attribution.
         /// </summary>

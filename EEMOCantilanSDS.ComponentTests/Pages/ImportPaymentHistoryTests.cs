@@ -149,7 +149,7 @@ public class ImportPaymentHistoryTests : TestContext
     {
         var cut = Render("tcc");
 
-        cut.Find("button.iph-link-btn").Click();
+        cut.Find("button.iph-use-sample").Click();
 
         // The stallholder sample was written with a fixed date and, three years on, produced rows that arrived
         // already expired. A payment sample dated in the past would be rejected month by month and read as the
@@ -164,7 +164,7 @@ public class ImportPaymentHistoryTests : TestContext
     {
         var cut = Render("tcc");
 
-        cut.Find("button.iph-link-btn").Click();
+        cut.Find("button.iph-use-sample").Click();
 
         // So the office meets the part-paid case in the sample rather than for the first time in its own history,
         // where a remaining balance could be mistaken for a failed import. Read from the editable cell's value.
@@ -180,7 +180,9 @@ public class ImportPaymentHistoryTests : TestContext
 
         // For an office with no file at all. It reaches the SAME review table, starting empty, so rows entered by
         // hand are checked and saved exactly as uploaded ones are - one path to verify rather than two.
-        cut.FindAll("button.iph-link-btn")[1].Click();
+        // Named, not indexed. The commit that removed FindAll(...)[1] from another test yesterday existed because
+        // that pattern failed a deployment; reaching for it again here would have been the same mistake twice.
+        cut.Find("button.iph-enter-manually").Click();
 
         Assert.Contains("rows ready to review", cut.Markup);
         Assert.Single(cut.FindAll("table.iph-table-edit tbody tr"));
@@ -205,7 +207,7 @@ public class ImportPaymentHistoryTests : TestContext
     public void LeavingAnImportReturnsToTheFacility()
     {
         var cut = Render("tcc");
-        cut.FindAll("button.iph-link-btn")[1].Click();
+        cut.Find("button.iph-enter-manually").Click();
 
         // Not to whatever page came before. Someone who abandons an import wants the facility they were importing
         // into, and the canonical route is the one the sidebar and the address bar use.

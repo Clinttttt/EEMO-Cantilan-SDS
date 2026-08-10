@@ -80,16 +80,25 @@ public class BulkImportPaymentHistoryCommandHandler(
                 continue;
             }
 
-            // The occupancy in force for the month being PAID FOR, not the one in force today. A stall outlives its
-            // lessees, so a payment for March 2024 belongs to whoever held it then - attaching it to the current
-            // contract would credit this lessee with the previous one's money.
-            var contract = stall.Contracts.FirstOrDefault(c => c.BillsCalendarMonth(row.BillingYear, row.BillingMonth));
-            if (contract is null)
+            // The occupancy ANSWERING for the month being paid for, not merely a contract whose term spans it.
+            //
+            // BillsCalendarMonth only asks whether a month falls inside a term. It does not know that the occupancy
+            // was terminated early, handed to the next lessee, or ended by the stall being closed - so on a re-let
+            // stall it could match the wrong lessee, take the rent from their contract, and then judge whether the
+            // amount settled the month against a figure belonging to somebody else. StallOccupancy.AnsweringForMonth
+            // is the rule of record that the register, the reports and the collection dialog all read; the import
+            // must answer the same question the same way or it will disagree with every screen that shows it.
+            var occupancy = StallOccupancy.AnsweringForMonth(
+                stall.Occupancies(PhilippineTime.Today), row.BillingYear, row.BillingMonth);
+
+            if (occupancy is null || !occupancy.Contract.BillsCalendarMonth(row.BillingYear, row.BillingMonth))
             {
-                Reject($"No contract on stall {stallNo} bills {period}. The month is before the term started, " +
-                       "after it ended, or the term on record is wrong.");
+                Reject($"No occupancy on stall {stallNo} answers for {period}. The month is before the term started, " +
+                       "after it ended, or the space had been handed over or closed by then.");
                 continue;
             }
+
+            var contract = occupancy.Contract;
 
             var monthlyRent = contract.ActualMonthlyRental is > 0m
                 ? contract.ActualMonthlyRental.Value
@@ -132,6 +141,18 @@ public class BulkImportPaymentHistoryCommandHandler(
                 partialAmount: isFull ? null : row.AmountPaid,
                 remarks: BuildRemark(row),
                 updatedBy: Actor);
+
+            // No collector: this is the office's own historical record, not a collection taken in the system. The
+            // column is nullable and the codebase's attribution rule writes null where nobody collected - a zero GUID
+            // is not "nobody", and the transaction feed renders it as though a collector named it.
+            record.ClearCollectorForImportedHistory();
+
+            if (row.DatePaid is { } receivedOn)
+            {
+                // Dated from the office's books rather than the moment of import, or every row would appear in the
+                // transaction feed and the dashboard's recent collections as collected today.
+                record.BackdateReceipt(receivedOn.ToUniversalTime(), Actor);
+            }
 
             created.Add(record);
             results.Add(new BulkImportPaymentRowResult(

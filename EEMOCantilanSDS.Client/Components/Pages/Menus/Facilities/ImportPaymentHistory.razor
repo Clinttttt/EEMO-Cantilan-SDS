@@ -150,11 +150,11 @@
                     Download CSV template
                 </a>
                 <span class="iph-foot-sep">·</span>
-                <button class="iph-link iph-link-btn" type="button" @onclick="LoadSample">Use sample data instead</button>
+                <button class="iph-link iph-link-btn iph-use-sample" type="button" @onclick="LoadSample">Use sample data instead</button>
                 <span class="iph-foot-sep">·</span>
                 @* For an office with no file at all - a few months read straight off the ledger. The same review
                    table, starting empty, so there is one way to check rows rather than two. *@
-                <button class="iph-link iph-link-btn" type="button" @onclick="StartManual">Enter manually</button>
+                <button class="iph-link iph-link-btn iph-enter-manually" type="button" @onclick="StartManual">Enter manually</button>
             </div>
 
             <div class="iph-cols-preview">
@@ -366,6 +366,14 @@
         if (index >= 0 && index < _rows.Count) _rows.RemoveAt(index);
     }
 
+    /// <summary>Rows a single upload will read.</summary>
+    /// <remarks>
+    /// Capped HERE, not only at the server. The server's limit is checked when Save is pressed, by which time this
+    /// page has already parsed the file and rendered six inputs per row - so an oversized history would take the
+    /// browser down before the validator was ever consulted. The office is told to split by year instead.
+    /// </remarks>
+    private const int MaxRows = 5000;
+
     private async Task OnFileChange(InputFileChangeEventArgs e)
     {
         _error = null;
@@ -414,6 +422,13 @@
 
         for (var i = start; i < lines.Count; i++)
         {
+            if (_rows.Count >= MaxRows)
+            {
+                _error = $"That file has more than {MaxRows:N0} rows. The first {MaxRows:N0} were read — " +
+                         "split the history by year and upload each part.";
+                break;
+            }
+
             var cells = SplitCsvLine(lines[i]);
             string Cell(int index) => index < cells.Length ? cells[index].Trim() : string.Empty;
 
