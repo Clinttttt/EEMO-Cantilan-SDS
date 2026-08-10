@@ -183,10 +183,10 @@ public class ImportPaymentHistoryTests : TestContext
         cut.Find("button.iph-enter-manually").Click();
 
         // Off by default: most sheets record a count, and a grid of dates nobody fills in is a grid of mistakes.
-        Assert.Empty(cut.FindAll("tr.iph-dates-row"));
+        Assert.Empty(cut.FindAll("tr.iph-day-row"));
 
         cut.Find("button.iph-dates-toggle").Click();
-        Assert.Single(cut.FindAll("tr.iph-dates-row"));
+        Assert.NotEmpty(cut.FindAll("tr.iph-day-row"));
 
         // And it is only offered for the market. A monthly row already names its own date paid.
         var monthly = Render("tcc");
@@ -283,7 +283,7 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
-    public void EachDayLineRepeatsTheRowsOccupantAndPeriodWithoutOfferingThemForEditing()
+    public void EachDayIsARowOfTheSameTable_RepeatingTheOccupantAndPeriodWithoutOfferingThemForEditing()
     {
         var cut = Render("npm");
         cut.FindAll("button.iph-pick-card")[0].Click();
@@ -296,19 +296,30 @@ public class ImportPaymentHistoryTests : TestContext
         cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
         cut.Find("button.iph-dates-toggle").Click();
 
-        // The same headings as the table above, so the panel reads as that row one day at a time.
-        var headings = cut.FindAll("table.iph-days-table thead th").Select(h => h.TextContent.Trim()).ToList();
-        Assert.Equal(["Day", "Actual Occupant", "Period (YYYY-MM)", "Date Collected", "OR No."], headings);
+        // Rows of the SAME table, not a table inside it. A nested one is measured against its own contents, so it sat
+        // narrower than the row it belonged to with a band of empty space down the right.
+        Assert.Empty(cut.FindAll("table.iph-days-table"));
 
-        // Stated, not offered for editing: they belong to the row, and a second editable copy of a value is a second
-        // version of it.
-        var read = cut.FindAll("td.iph-days-read").Select(c => c.TextContent.Trim()).ToList();
-        Assert.Equal(4, read.Count);
-        Assert.All(read.Where((_, i) => i % 2 == 0), v => Assert.Equal("Ackerman Tril", v));
-        Assert.All(read.Where((_, i) => i % 2 == 1), v => Assert.Equal($"{past.Year:0000}-{past.Month:00}", v));
+        // Two days, and each line carries the row's full column count so it lands under the headings that describe it.
+        var dayRows = cut.FindAll("tr.iph-day-row:not(.iph-day-caption)");
+        Assert.Equal(2, dayRows.Count);
+        Assert.All(dayRows, r => Assert.Equal(7, r.QuerySelectorAll("td").Length));
 
-        // One cell spanning the whole row, so the panel is not fighting the table's own column widths.
-        Assert.Equal("7", cut.Find("td.iph-dates-cell").GetAttribute("colspan"));
+        // Stated, not offered for editing: they belong to the row above, and a second editable copy of a value is a
+        // second version of it.
+        Assert.All(dayRows, r =>
+        {
+            var read = r.QuerySelectorAll("td.iph-days-read").Select(c => c.TextContent.Trim()).ToList();
+            Assert.Contains("Ackerman Tril", read);
+            Assert.Contains($"{past.Year:0000}-{past.Month:00}", read);
+        });
+
+        // One date and one receipt per line, in the columns the row above uses for the same things.
+        Assert.All(dayRows, r =>
+        {
+            Assert.Single(r.QuerySelectorAll("input.iph-date-slot"));
+            Assert.Single(r.QuerySelectorAll("input.iph-day-or"));
+        });
     }
 
     [Fact]

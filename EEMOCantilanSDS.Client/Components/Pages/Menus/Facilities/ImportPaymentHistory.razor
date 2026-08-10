@@ -385,83 +385,77 @@
 
                             @if (IsDaily && _showDates)
                             {
-                                @* One field per day claimed, pre-filled with consecutive days from the start of the
-                                   month so the office corrects rather than types from nothing. What is sent is what
-                                   stands here: the import honours these days exactly and fills nothing in around
-                                   them, so a day left blank is one day fewer recorded rather than a day of the
-                                   system's choosing. *@
-                                <tr class="iph-dates-row">
-                                    @* One cell spanning the whole row. It used to span four cells of seven, which left
-                                       the table's own column widths fighting the panel inside it — that is what made
-                                       this read as something bolted on rather than as part of the row above. *@
-                                    <td class="iph-dates-cell" colspan="7">
-                                        @if (row.Days.Count == 0)
-                                        {
-                                            <div class="iph-dates-empty">
-                                                Enter the number of days first, and a line will appear for each one.
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <div class="iph-days-panel">
-                                                <div class="iph-dates-head">
-                                                    <div>
-                                                        <div class="iph-dates-title">Days collected</div>
-                                                        <div class="iph-dates-sub">
-                                                            @row.Days.Count(d => d.Date.HasValue) of @row.Days.Count dated
-                                                        </div>
-                                                    </div>
-                                                    <button class="iph-link iph-link-btn iph-dates-fill" type="button"
-                                                            @onclick="() => FillDays(row)">Fill the blanks</button>
-                                                </div>
+                                @* The days are ROWS OF THIS TABLE, not a table inside it.
+                                   
+                                   A nested table cannot line up with the one around it: its columns are measured
+                                   against its own contents, so it ended up narrower than the row it belonged to with a
+                                   band of empty space down the right. As rows here, each day sits under the very
+                                   headings that describe it - the occupant under Actual Occupant, the receipt under
+                                   OR No. - and the width matches because it is the same table.
+                                   
+                                   What is sent is what stands here: the import honours these days exactly and fills
+                                   nothing in around them, so a day left undated is one day fewer recorded rather than
+                                   a day of the system's choosing. *@
+                                @if (row.Days.Count == 0)
+                                {
+                                    <tr class="iph-day-row">
+                                        <td class="iph-th-num"></td>
+                                        <td colspan="6" class="iph-dates-empty">
+                                            Enter the number of days first, and a line will appear for each one.
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    <tr class="iph-day-row iph-day-caption">
+                                        <td class="iph-th-num"></td>
+                                        <td colspan="4">
+                                            <span class="iph-dates-title">Days collected</span>
+                                            <span class="iph-dates-sub">
+                                                @row.Days.Count(d => d.Date.HasValue) of @row.Days.Count dated
+                                            </span>
+                                        </td>
+                                        <td colspan="2" class="iph-day-caption-act">
+                                            <button class="iph-link iph-link-btn iph-dates-fill" type="button"
+                                                    @onclick="() => FillDays(row)">Fill the blanks</button>
+                                        </td>
+                                    </tr>
 
-                                                @* The same headings as the table above, because this IS that row —
-                                                   read one day at a time. The occupant and the period are STATED, not
-                                                   offered as inputs: they belong to the row, and a second editable
-                                                   copy of a value is a second version of it. *@
-                                                <table class="iph-days-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th class="iph-days-th-no">Day</th>
-                                                            <th>Actual Occupant</th>
-                                                            <th>Period (YYYY-MM)</th>
-                                                            <th>Date Collected</th>
-                                                            <th>OR No.</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @for (var d = 0; d < row.Days.Count; d++)
-                                                        {
-                                                            var slot = d;
-                                                            var day = row.Days[slot];
-                                                            <tr>
-                                                                <td class="iph-days-th-no">@(slot + 1)</td>
-                                                                <td class="iph-days-read">
-                                                                    @(string.IsNullOrWhiteSpace(row.Occupant) ? "—" : row.Occupant)
-                                                                </td>
-                                                                <td class="iph-days-read">
-                                                                    @(string.IsNullOrWhiteSpace(row.Period) ? "—" : row.Period)
-                                                                </td>
-                                                                <td>
-                                                                    <input class="iph-input iph-date-slot" type="date"
-                                                                           value="@day.Date?.ToString("yyyy-MM-dd")"
-                                                                           @onchange="e => SetDayDate(row, slot, e.Value?.ToString())"
-                                                                           aria-label="Date of day @(slot + 1)" />
-                                                                </td>
-                                                                <td>
-                                                                    <input class="iph-input iph-day-or" @bind="day.OrNumber"
-                                                                           @bind:event="oninput"
-                                                                           placeholder="@(string.IsNullOrWhiteSpace(row.OrNumber) ? "OR-100234" : row.OrNumber)"
-                                                                           aria-label="OR number for day @(slot + 1)" />
-                                                                </td>
-                                                            </tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        }
-                                    </td>
-                                </tr>
+                                    @for (var d = 0; d < row.Days.Count; d++)
+                                    {
+                                        var slot = d;
+                                        var day = row.Days[slot];
+                                        <tr class="iph-day-row">
+                                            <td class="iph-th-num"></td>
+                                            @* The day's own identity, where the row above states the stall's. *@
+                                            <td class="iph-days-read iph-day-label">Day @(slot + 1)</td>
+                                            @* Stated, not offered for editing: these belong to the row above, and a
+                                               second editable copy of a value is a second version of it. *@
+                                            <td class="iph-days-read">
+                                                @(string.IsNullOrWhiteSpace(row.Occupant) ? "—" : row.Occupant)
+                                            </td>
+                                            <td class="iph-days-read">
+                                                @(string.IsNullOrWhiteSpace(row.Period) ? "—" : row.Period)
+                                            </td>
+                                            @* Under Days Paid, because that is what this cell says: WHICH day, where
+                                               the row above says how many. *@
+                                            <td>
+                                                <input class="iph-input iph-date-slot" type="date"
+                                                       value="@day.Date?.ToString("yyyy-MM-dd")"
+                                                       @onchange="e => SetDayDate(row, slot, e.Value?.ToString())"
+                                                       aria-label="Date of day @(slot + 1)" />
+                                            </td>
+                                            @* And its receipt, directly under the row's own. *@
+                                            <td>
+                                                <input class="iph-input iph-day-or" @bind="day.OrNumber"
+                                                       @bind:event="oninput"
+                                                       placeholder="@(string.IsNullOrWhiteSpace(row.OrNumber) ? "OR-100234" : row.OrNumber)"
+                                                       aria-label="OR number for day @(slot + 1)" />
+                                            </td>
+                                            <td class="iph-th-act"></td>
+                                        </tr>
+                                    }
+                                }
                             }
                         }
                     </tbody>
