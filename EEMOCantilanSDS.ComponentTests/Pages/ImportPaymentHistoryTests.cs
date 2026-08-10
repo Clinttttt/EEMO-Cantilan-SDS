@@ -372,6 +372,36 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void ThePayorListIsADialogSoTheScrollingTableCannotClipIt()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        // It opened as a panel hanging off the field, inside a table that scrolls sideways - so it was cut off two
+        // rows down and appeared to sit behind the table. Fixed to the viewport, nothing can clip it.
+        var dialog = cut.Find(".pp-dialog");
+        Assert.Equal("dialog", dialog.GetAttribute("role"));
+        Assert.Equal("true", dialog.GetAttribute("aria-modal"));
+        Assert.Single(cut.FindAll(".pp-scrim"));
+    }
+
+    [Fact]
+    public void TheDialogClosesOnEscapeAndOnTheScrim()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        cut.Find("button.pp-field").Click();
+        cut.Find(".pp-dialog").KeyDown(Key.Escape);
+        Assert.Empty(cut.FindAll(".pp-dialog"));
+
+        cut.Find("button.pp-field").Click();
+        cut.Find(".pp-scrim").Click();
+        Assert.Empty(cut.FindAll(".pp-dialog"));
+    }
+
+    [Fact]
     public void AMonthThatHasNotStartedYetIsMarkedAndRefused()
     {
         var cut = Render("tcc");

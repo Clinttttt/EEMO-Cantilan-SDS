@@ -24,52 +24,70 @@
 
     @if (_open)
     {
-        @* Closes on a click anywhere else. A real element rather than a focus handler, because Blazor cannot see
-           where focus went and a focusout on the wrapper fires when the caret moves into the search box - the panel
-           would shut on the very click meant to use it. *@
-        <div class="pp-backdrop" @onclick="Close"></div>
+        @* A dialog rather than a panel hanging off the field.
 
-        <div class="pp-panel" role="listbox">
-            <div class="pp-search">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>
-                @* Searches the name as well as the number, which is the only way to reach a vendor the office does
-                   not number. *@
-                <input class="pp-search-input" @ref="_searchBox" @bind="_query" @bind:event="oninput"
-                       placeholder="Search name or stall no." aria-label="Search payors" />
+           The field lives in a table that scrolls sideways, and anything floating out of a scrolling box is clipped
+           by it - the list was being cut off two rows down, behind the table. Escaping that without a dialog means
+           measuring the field in JavaScript and placing a fixed panel by hand, which is a lot of machinery to make a
+           list appear in the right place. A dialog cannot be clipped by anything, states what it is for, and is the
+           same shape as every other dialog in the portal. *@
+        <div class="pp-scrim" @onclick="Close"></div>
+
+        <div class="pp-dialog" role="dialog" aria-modal="true" aria-label="Choose payor"
+             @onkeydown="OnKeyDown" @onclick:stopPropagation="true">
+            <div class="pp-head">
+                <div class="pp-head-text">
+                    <div class="pp-head-eyebrow">Payment history</div>
+                    <div class="pp-head-title">Choose payor</div>
+                </div>
+                <button class="pp-close" type="button" @onclick="Close" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                         stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
             </div>
 
-            <div class="pp-list">
-                @if (Payors.Count == 0)
-                {
-                    <div class="pp-empty">No vendors on record for this facility yet.</div>
-                }
-                else if (Matches.Count == 0)
-                {
-                    <div class="pp-empty">Nothing matches “@_query”.</div>
-                }
-                else
-                {
-                    @foreach (var payor in Matches)
+            <div class="pp-panel">
+                <div class="pp-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                         stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>
+                    @* Searches the name as well as the number, which is the only way to reach a vendor the office does
+                       not number. *@
+                    <input class="pp-search-input" @ref="_searchBox" @bind="_query" @bind:event="oninput"
+                           placeholder="Search name or stall no." aria-label="Search payors" />
+                </div>
+
+                <div class="pp-list" role="listbox" aria-label="Payors">
+                    @if (Payors.Count == 0)
                     {
-                        <button class="pp-opt @(payor.StallNo == StallNo ? "pp-opt-on" : null)" type="button"
-                                role="option" aria-selected="@((payor.StallNo == StallNo).ToString().ToLowerInvariant())"
-                                @onclick="() => Choose(payor)">
-                            <span class="pp-opt-name">@payor.Occupant</span>
-                            @* A space the office does not number shows no number. SP-1 is an internal key and has
-                               never appeared on the office's own list; printing it here would teach the staff a
-                               number that does not exist. *@
-                            <span class="pp-opt-no">@(SpaceNumber.IsSpace(payor.StallNo) ? "Space · no stall no." : $"Stall {payor.StallNo}")</span>
-                        </button>
+                        <div class="pp-empty">No vendors on record for this facility yet.</div>
                     }
-                }
-            </div>
+                    else if (Matches.Count == 0)
+                    {
+                        <div class="pp-empty">Nothing matches “@_query”.</div>
+                    }
+                    else
+                    {
+                        @foreach (var payor in Matches)
+                        {
+                            <button class="pp-opt @(payor.StallNo == StallNo ? "pp-opt-on" : null)" type="button"
+                                    role="option" aria-selected="@((payor.StallNo == StallNo).ToString().ToLowerInvariant())"
+                                    @onclick="() => Choose(payor)">
+                                <span class="pp-opt-name">@payor.Occupant</span>
+                                @* A space the office does not number shows no number. SP-1 is an internal key and has
+                                   never appeared on the office's own list; printing it here would teach the staff a
+                                   number that does not exist. *@
+                                <span class="pp-opt-no">@(SpaceNumber.IsSpace(payor.StallNo) ? "Space · no stall no." : $"Stall {payor.StallNo}")</span>
+                            </button>
+                        }
+                    }
+                </div>
 
-            <div class="pp-foot">
-                @* The escape hatch, stated plainly rather than hidden. *@
-                <input class="pp-manual" @bind="_manual" @bind:event="oninput" placeholder="Or type a stall no."
-                       aria-label="Type a stall or space number" />
-                <button class="pp-manual-btn" type="button" @onclick="UseTyped" disabled="@(_manual.Trim().Length == 0)">Use</button>
+                <div class="pp-foot">
+                    @* The escape hatch, stated plainly rather than hidden. *@
+                    <input class="pp-manual" @bind="_manual" @bind:event="oninput" placeholder="Or type a stall no."
+                           aria-label="Type a stall or space number" />
+                    <button class="pp-manual-btn" type="button" @onclick="UseTyped" disabled="@(_manual.Trim().Length == 0)">Use</button>
+                </div>
             </div>
         </div>
     }
@@ -176,6 +194,12 @@
         if (match.Occupant is { Length: > 0 } name) await OccupantChanged.InvokeAsync(name);
     }
 
-    /// <summary>Shuts the panel, leaving the row exactly as it was.</summary>
+    /// <summary>Shuts the dialog, leaving the row exactly as it was.</summary>
     private void Close() => _open = false;
+
+    /// <summary>Escape closes it, as it closes every other dialog in the portal.</summary>
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
+    }
 }

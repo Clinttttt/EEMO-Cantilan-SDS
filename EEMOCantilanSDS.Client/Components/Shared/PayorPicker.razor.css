@@ -67,33 +67,93 @@
     transform: rotate(180deg);
 }
 
-/* ── The panel ───────────────────────────────────────────── */
-/* Sits above the row it belongs to but below any modal. */
-.pp-backdrop {
+/* ── The dialog ──────────────────────────────────────────── */
+/* Fixed to the viewport, so the table that scrolls sideways cannot clip it. The panel used to hang off the field and
+   was cut off by that scroll box, appearing to sit behind the table. */
+.pp-scrim {
     position: fixed;
     inset: 0;
-    z-index: 40;
+    z-index: 1200;
+    background: rgba(13, 33, 55, .38);
 }
 
-.pp-panel {
-    position: absolute;
-    z-index: 41;
-    top: calc(100% + 4px);
-    left: 0;
-    width: 268px;
-    max-width: 84vw;
+.pp-dialog {
+    position: fixed;
+    z-index: 1201;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 96px);
+    display: flex;
+    flex-direction: column;
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 12px 28px rgba(13, 33, 55, .14);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(13, 33, 55, .28);
     overflow: hidden;
+}
+
+.pp-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.pp-head-eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.pp-head-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-top: 2px;
+}
+
+.pp-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+    .pp-close:hover {
+        color: var(--navy);
+        border-color: var(--navy);
+    }
+
+    .pp-close svg {
+        width: 15px;
+        height: 15px;
+    }
+
+.pp-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .pp-search {
     display: flex;
     align-items: center;
     gap: 7px;
-    padding: 9px 11px;
+    padding: 11px 14px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-icon, #f6f8fa);
 }
@@ -129,7 +189,9 @@
     }
 
 .pp-list {
-    max-height: 232px;
+    flex: 1;
+    min-height: 0;
+    max-height: 320px;
     overflow-y: auto;
 }
 
@@ -139,7 +201,7 @@
     justify-content: space-between;
     gap: 10px;
     width: 100%;
-    padding: 8px 11px;
+    padding: 10px 14px;
     border: none;
     background: none;
     font-family: inherit;
@@ -186,7 +248,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 11px;
+    padding: 12px 14px;
     border-top: 1px solid var(--border);
 }
 
