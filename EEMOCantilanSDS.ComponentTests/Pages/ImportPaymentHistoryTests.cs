@@ -283,6 +283,35 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void EachDayLineRepeatsTheRowsOccupantAndPeriodWithoutOfferingThemForEditing()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // The same headings as the table above, so the panel reads as that row one day at a time.
+        var headings = cut.FindAll("table.iph-days-table thead th").Select(h => h.TextContent.Trim()).ToList();
+        Assert.Equal(["Day", "Actual Occupant", "Period (YYYY-MM)", "Date Collected", "OR No."], headings);
+
+        // Stated, not offered for editing: they belong to the row, and a second editable copy of a value is a second
+        // version of it.
+        var read = cut.FindAll("td.iph-days-read").Select(c => c.TextContent.Trim()).ToList();
+        Assert.Equal(4, read.Count);
+        Assert.All(read.Where((_, i) => i % 2 == 0), v => Assert.Equal("Ackerman Tril", v));
+        Assert.All(read.Where((_, i) => i % 2 == 1), v => Assert.Equal($"{past.Year:0000}-{past.Month:00}", v));
+
+        // One cell spanning the whole row, so the panel is not fighting the table's own column widths.
+        Assert.Equal("7", cut.Find("td.iph-dates-cell").GetAttribute("colspan"));
+    }
+
+    [Fact]
     public void AFacilityChargedPerUnitHasNoHistoryToImport()
     {
         var cut = Render("slh");

@@ -736,10 +736,21 @@
 }
 
 /* The expanded row beneath the one it belongs to, set back so it reads as part of that row and not as a row of its
-   own. */
+   own. One cell spanning the whole width, so the panel inside is not fighting the table's column widths. */
 .iph-dates-row > td {
     background: var(--bg, #f6f8fa);
-    padding: 10px 12px 14px;
+    padding: 0;
+}
+
+.iph-dates-cell {
+    padding: 0 !important;
+}
+
+/* Indented under the row above and held to the width of its own table, so the heading and the "Fill the blanks" link
+   sit over the columns they describe instead of at opposite ends of the screen. */
+.iph-days-panel {
+    max-width: 780px;
+    padding: 12px 12px 16px 56px;
 }
 
 .iph-dates-head {
@@ -771,11 +782,10 @@
     color: var(--text-muted);
 }
 
-/* One line per day, with the receipt it was collected under. A table because that is what the office's own collection
-   sheet is - a grid of loose fields made the count and the receipts impossible to read against each other. */
+/* One line per day, with the receipt it was collected under. The same headings as the table above, because this is that
+   row read one day at a time. */
 .iph-days-table {
     width: 100%;
-    max-width: 560px;
     border-collapse: separate;
     border-spacing: 0;
     background: var(--bg-card);
@@ -786,6 +796,7 @@
 
     .iph-days-table thead th {
         text-align: left;
+        white-space: nowrap;
         font-size: 10px;
         font-weight: 700;
         letter-spacing: .06em;
@@ -807,10 +818,18 @@
     }
 
 .iph-days-th-no {
-    width: 52px;
+    width: 46px;
     color: var(--text-muted);
     font-weight: 700;
     font-size: 12px;
+}
+
+/* Stated, not offered for editing: these belong to the row above, and a second editable copy of a value is a second
+   version of it. Set in the muted ink so it is plain they are being repeated rather than asked for. */
+.iph-days-read {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
 }
 
 .iph-date-slot,

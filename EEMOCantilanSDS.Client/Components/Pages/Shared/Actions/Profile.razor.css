@@ -57,12 +57,28 @@
     box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
 }
 
+/* The facility's icon, the same tile the facility hero and the sidebar use, so a stall's page is marked the way its
+   facility is everywhere else. */
 .prof-hero-badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 13px;
+    background: rgba(13, 33, 55, .06);
+    border: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
+
+    /* The mark is drawn by a child component, so it carries no scope of this page's own - hence ::deep. Without it the
+       browser's own defaults would decide the size and the drawing would arrive at whatever the SVG asked for. */
+    .prof-hero-badge ::deep svg {
+        width: 30px;
+        height: 30px;
+        stroke: var(--navy);
+        fill: none;
+    }
 
 .prof-hero-identity {
     flex: 1 1 200px;
@@ -1230,7 +1246,7 @@
 /* The hero's placeholders are dark-on-light, like every other skeleton on the page. They were white-on-navy for the
    navy hero; left as they were against the light card they would have been invisible, so the page would have appeared
    to load with an empty hero rather than a loading one. */
-.skel-hero-badge { width: 76px; height: 76px; border-radius: 50%; background: rgba(13, 33, 55, 0.10); flex-shrink: 0; }
+.skel-hero-badge { width: 56px; height: 56px; border-radius: 13px; background: rgba(13, 33, 55, 0.10); flex-shrink: 0; }
 
     .prof-hero-skel .skel::after {
         background: linear-gradient(90deg, transparent, rgba(13, 33, 55, 0.10), transparent);
