@@ -1,0 +1,45 @@
+/* ============================================================
+   FacilitySeal.razor.css  —  the facility's seal
+   Uses --* tokens from app.css; does NOT redefine them.
+   ============================================================ */
+
+/* Two rings, the outer heavier, as an office seal is struck. Drawn with borders rather than SVG circles so the crest
+   can be an ordinary img in the middle of them. */
+.fseal {
+    position: relative;
+    flex-shrink: 0;
+    border: 2px solid var(--navy);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .fseal::before {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        border: 1px solid var(--navy);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+
+/* The municipality's own mark, inside its own ring. */
+.fseal-crest {
+    width: 46%;
+    height: 46%;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px var(--navy);
+}
+
+/* Only the curved text needs SVG. Laid over the rings, and inert so it never swallows a click meant for the card. */
+.fseal-type {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
