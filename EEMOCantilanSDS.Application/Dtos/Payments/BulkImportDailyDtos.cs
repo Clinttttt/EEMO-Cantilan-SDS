@@ -32,6 +32,16 @@ namespace EEMOCantilanSDS.Application.Dtos.Payments;
 /// <param name="DaysPaid">How many market days the vendor paid for in that month.</param>
 /// <param name="OrNumber">The Official Receipt the days were collected under. One receipt covers the days it names,
 /// which is how the market's own collection dialog already records a run of days.</param>
+/// <param name="Dates">
+/// The exact days, when the office knows them.
+///
+/// <para>Supplied, they are honoured exactly and nothing is filled in around them: the office has stated which days
+/// it collected, and topping the row up to the claimed count with a day of the system's choosing would invent a
+/// collection. A date that cannot be settled is reported rather than substituted.</para>
+///
+/// <para>Empty — a sheet that records only a count — falls back to filling the month's collectable days in order,
+/// earliest first.</para>
+/// </param>
 public record ImportDailyPaymentRow(
     int RowNumber,
     string StallNo,
@@ -39,7 +49,8 @@ public record ImportDailyPaymentRow(
     int BillingYear,
     int BillingMonth,
     int DaysPaid,
-    string? OrNumber);
+    string? OrNumber,
+    IReadOnlyList<DateOnly>? Dates = null);
 
 /// <summary>Why a row of market history was not recorded, or how it was.</summary>
 public enum ImportDailyOutcome

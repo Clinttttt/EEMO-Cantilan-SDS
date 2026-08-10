@@ -12,6 +12,7 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IStallsApiClient StallsApi
+@inject IFacilitiesApiClient FacilitiesApi
 
 @*
     Records an office's existing payment history, so it can adopt the system mid-contract.
@@ -57,9 +58,9 @@
                 @(IsDaily
                     ? "Upload market days already collected, review & edit, then save."
                     : "Upload past payments, review & edit, then save.")
-                @if (IsDaily && _section is { } chosen)
+                @if (IsDaily && SectionChosen)
                 {
-                    <span class="iph-hero-section">@SectionLabel(chosen)</span>
+                    <span class="iph-hero-section">@ChosenSectionLabel</span>
                 }
             </p>
         </div>
@@ -85,28 +86,41 @@
             </div>
         </div>
     }
-    else if (IsDaily && _section is null)
+    else if (IsDaily && !SectionChosen)
     {
-        @* The market numbers its spaces PER SECTION - three of them are called "1" - so a list without a section
-           could be written against the wrong vendor's space. Asked before a file is read rather than after. *@
-        <div class="iph-card">
-            <div class="iph-note">
-                @FacilityShort numbers its spaces separately in each section, so the same number exists in more than
-                one of them. Choose the section this list belongs to.
+        @* The same chooser the stallholder import uses, because it is the same question asked of the same office in
+           the same sitting. The market numbers its spaces PER SECTION - three of them are called "1" - so a list
+           without a section could be written against the wrong vendor's space, and it is asked before a file is read
+           rather than after. *@
+        <div class="iph-pick">
+            <div class="iph-pick-head">
+                <div class="iph-pick-title">Which section are you importing?</div>
+                <div class="iph-pick-sub">
+                    @FacilityName keeps a separate list per section. Pick one — every row you import will be recorded
+                    into it.
+                </div>
             </div>
-
-            <div class="iph-section-pick">
-                @foreach (var section in DailySections)
+            <div class="iph-pick-grid">
+                @foreach (var option in DailySectionOptions)
                 {
-                    <button class="iph-btn iph-btn-outline iph-section-btn" type="button"
-                            @onclick="() => ChooseSection(section)">
-                        @SectionLabel(section)
+                    var chosen = option;
+                    <button type="button" class="iph-pick-card" @onclick="() => ChooseSection(chosen.Section)">
+                        <span class="iph-pick-icon @chosen.Css">@((MarkupString)chosen.Icon)</span>
+                        <span class="iph-pick-name">@chosen.Name</span>
+                        <span class="iph-pick-desc">@SectionDesc(chosen)</span>
                     </button>
                 }
-            </div>
-
-            <div class="iph-foot">
-                <a class="iph-btn iph-btn-outline" href="@BackUrl">Cancel</a>
+                @* Per-LGU custom sections, offered as import targets alongside the canonical three. Their rate is the
+                   tenant's own resolved daily fee, never a figure written into this page. *@
+                @foreach (var custom in _customSections)
+                {
+                    var name = custom;
+                    <button type="button" class="iph-pick-card" @onclick="() => ChooseCustomSection(name)">
+                        <span class="iph-pick-icon">@((MarkupString)CustomSectionIconSvg)</span>
+                        <span class="iph-pick-name">@name</span>
+                        <span class="iph-pick-desc">Custom section · ₱@(_dailyRate.ToString("0"))/day</span>
+                    </button>
+                }
             </div>
         </div>
     }
@@ -277,6 +291,17 @@
                 </div>
             </div>
             <div class="iph-review-actions">
+                @if (IsDaily)
+                {
+                    @* The office's sheet may name the actual days rather than only how many. Off by default, because
+                       most sheets record a count, and a column of dates nobody fills in is a column of mistakes
+                       waiting to happen. *@
+                    <button class="iph-btn iph-btn-ghost iph-dates-toggle @(_showDates ? "iph-btn-on" : null)"
+                            type="button" @onclick="ToggleDates">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                        @(_showDates ? "Hide exact dates" : "Set exact dates")
+                    </button>
+                }
                 <button class="iph-btn iph-btn-ghost" type="button" @onclick="AddRow">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Add row
@@ -341,7 +366,7 @@
                                     @* Days, not an amount. The market's books record a count of days against a
                                        receipt; the money follows from the facility's own daily fee for the days
                                        settled, which is why there is nothing here for the office to total. *@
-                                    <td><input class="iph-input iph-input-num iph-days" @bind="row.DaysPaid" @bind:event="oninput" placeholder="12" aria-label="Days paid" /></td>
+                                    <td><input class="iph-input iph-input-num iph-days" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => SyncDates(row)" placeholder="12" aria-label="Days paid" /></td>
                                     <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" aria-label="OR number" /></td>
                                 }
                                 else
@@ -357,6 +382,47 @@
                                     </button>
                                 </td>
                             </tr>
+
+                            @if (IsDaily && _showDates)
+                            {
+                                @* One field per day claimed, pre-filled with consecutive days from the start of the
+                                   month so the office corrects rather than types from nothing. What is sent is what
+                                   stands here: the import honours these days exactly and fills nothing in around
+                                   them, so a day left blank is one day fewer recorded rather than a day of the
+                                   system's choosing. *@
+                                <tr class="iph-dates-row">
+                                    <td class="iph-th-num"></td>
+                                    <td colspan="4">
+                                        @if (row.Dates.Count == 0)
+                                        {
+                                            <div class="iph-dates-empty">
+                                                Enter the number of days first, and a field will appear for each one.
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="iph-dates-head">
+                                                <span class="iph-dates-label">
+                                                    Days collected — @row.Dates.Count(d => d.HasValue) of @row.Dates.Count filled
+                                                </span>
+                                                <button class="iph-link iph-link-btn iph-dates-fill" type="button"
+                                                        @onclick="() => FillDates(row)">Fill the blanks</button>
+                                            </div>
+                                            <div class="iph-dates-grid">
+                                                @for (var d = 0; d < row.Dates.Count; d++)
+                                                {
+                                                    var slot = d;
+                                                    <input class="iph-input iph-date-slot" type="date"
+                                                           value="@row.Dates[slot]?.ToString("yyyy-MM-dd")"
+                                                           @onchange="e => SetDate(row, slot, e.Value?.ToString())"
+                                                           aria-label="Day @(slot + 1) of @row.Dates.Count" />
+                                                }
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="iph-th-act"></td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>
@@ -379,7 +445,11 @@
     /// Fetched once, before any rows exist, so the pick-list is already there whichever of the three ways the office
     /// starts. Awaiting it here rather than per-row keeps one request per visit.
     /// </summary>
-    protected override async Task OnParametersSetAsync() => await LoadPayorsAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadDailySetupAsync();
+        await LoadPayorsAsync();
+    }
 
     private static readonly string[] ColumnNames =
         ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Amount Paid", "OR No.", "Date Paid"];
@@ -408,7 +478,19 @@
         /// How many market days were paid for, on a daily-billed facility. Held as text like every other cell so a
         /// mistyped figure is reported rather than silently becoming zero as the clerk types.
         /// </summary>
+        /// <summary>
+        /// How many market days were paid for, on a daily-billed facility. Held as text like every other cell so a
+        /// mistyped figure is reported rather than silently becoming zero as the clerk types.
+        /// </summary>
         public string DaysPaid { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The exact days, when the office chooses to state them. One entry per day claimed.
+        ///
+        /// <para>Kept per row rather than per screen because a sheet is rarely uniform: the office may know the days
+        /// for one vendor's month and only the count for another's, and the import honours each row as it stands.</para>
+        /// </summary>
+        public List<DateTime?> Dates { get; } = new();
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -463,10 +545,41 @@
     private bool IsDaily => Code is { } code && DailyFacilities.Contains(code);
 
     /// <summary>The market's canonical sections. Its spaces are numbered separately in each.</summary>
-    private static readonly MarketSection[] DailySections =
-        [MarketSection.VegetableArea, MarketSection.FishSection, MarketSection.MeatSection];
+    private sealed record DailySectionOption(MarketSection Section, string Name, string Desc, string Css, string Icon);
+
+    /// <summary>
+    /// The same three cards the stallholder import offers, with the same artwork, because it is the same question
+    /// asked of the same office. The rate in each description is the TENANT'S resolved daily fee, fetched rather than
+    /// written here — no LGU may be shown another's figures.
+    /// </summary>
+    private static readonly List<DailySectionOption> DailySectionOptions = new()
+    {
+        new(MarketSection.VegetableArea, "Vegetable", "Vegetable stalls", "veg",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2c0 0-1 3-1 6s1 5 1 5'/><path d='M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z'/><path d='M9 4c-2 1-3 3-3 5'/><path d='M15 4c2 1 3 3 3 5'/></svg>"),
+        new(MarketSection.FishSection, "Fish", "Fish stalls", "fish",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z'/><circle cx='14' cy='11' r='1' fill='currentColor' stroke='none'/></svg>"),
+        new(MarketSection.MeatSection, "Meat", "Meat stalls", "meat",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
+    };
+
+    private const string CustomSectionIconSvg = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>";
 
     private MarketSection? _section;
+
+    /// <summary>A per-LGU section of the market's own naming, when one was chosen instead of a canonical three.</summary>
+    private string? _customSectionName;
+
+    private List<string> _customSections = new();
+
+    /// <summary>The tenant's resolved daily fee and fish rate, for the chooser's descriptions.</summary>
+    private decimal _dailyRate;
+    private decimal _fishRate;
+
+    private bool SectionChosen => _section is not null || !string.IsNullOrWhiteSpace(_customSectionName);
+
+    private string SectionDesc(DailySectionOption option) =>
+        $"{option.Desc} · ₱{_dailyRate:0}/day"
+        + (option.Section == MarketSection.FishSection && _fishRate > 0m ? $" + ₱{_fishRate:0}/kg" : "");
 
     private static string SectionLabel(MarketSection section) => section switch
     {
@@ -476,13 +589,53 @@
         _ => section.ToString()
     };
 
+    /// <summary>What the hero states once a section is chosen.</summary>
+    private string ChosenSectionLabel =>
+        _section is { } s ? SectionLabel(s) : (_customSectionName ?? string.Empty);
+
     private async Task ChooseSection(MarketSection section)
     {
         _section = section;
+        _customSectionName = null;
 
         // Awaited, so the picker has the section's own vendors before the office reaches the table. The payor list is
         // section-scoped: unscoped, it would offer three spaces called "1" and the office could not tell them apart.
         await LoadPayorsAsync();
+    }
+
+    private async Task ChooseCustomSection(string name)
+    {
+        _customSectionName = name;
+        _section = null;
+        await LoadPayorsAsync();
+    }
+
+    /// <summary>
+    /// The tenant's own market rates and custom sections, for the chooser. Failures are silent: the chooser still
+    /// offers the canonical three, and a missing rate only costs a line of description rather than the ability to work.
+    /// </summary>
+    private async Task LoadDailySetupAsync()
+    {
+        if (!IsDaily) return;
+
+        try
+        {
+            var rates = await StallsApi.GetNpmRatesAsync();
+            if (rates.IsSuccess && rates.Value is not null)
+            {
+                _dailyRate = rates.Value.DailyRate;
+                _fishRate = rates.Value.FishRate;
+            }
+        }
+        catch { /* see the summary above */ }
+
+        try
+        {
+            var sections = await FacilitiesApi.GetNpmCustomSectionsAsync();
+            if (sections.IsSuccess && sections.Value is not null)
+                _customSections = sections.Value.Select(c => c.Name).ToList();
+        }
+        catch { /* see the summary above */ }
     }
 
     private static string DailyOutcomeLabel(ImportDailyOutcome outcome) => outcome switch
@@ -631,6 +784,87 @@
     }
 
     private void AddRow() => _rows.Add(new EditableRow());
+
+    /// <summary>
+    /// Whether the office is stating the actual days rather than only how many.
+    ///
+    /// <para>Off by default. Most collection sheets record a count, and a grid of dates nobody fills in is a grid of
+    /// mistakes waiting to happen.</para>
+    /// </summary>
+    private bool _showDates;
+
+    private void ToggleDates()
+    {
+        _showDates = !_showDates;
+        if (!_showDates) return;
+
+        // Opened: every row gets one field per day it claims, pre-filled, so the office corrects rather than types
+        // from nothing.
+        foreach (var row in _rows)
+        {
+            SyncDates(row);
+            FillDates(row);
+        }
+    }
+
+    /// <summary>
+    /// Keeps a row's date fields at one per day claimed. Days already entered are kept: reducing the count drops the
+    /// last fields rather than clearing what the clerk has typed.
+    /// </summary>
+    private static void SyncDates(EditableRow row)
+    {
+        _ = int.TryParse((row.DaysPaid ?? string.Empty).Trim(), out var days);
+        days = Math.Clamp(days, 0, 31);
+
+        while (row.Dates.Count > days) row.Dates.RemoveAt(row.Dates.Count - 1);
+        while (row.Dates.Count < days) row.Dates.Add(null);
+    }
+
+    /// <summary>
+    /// Fills the blank fields with consecutive days of the row's own month, skipping any date already entered in that
+    /// row and never running past today.
+    ///
+    /// <para>A convenience only. It cannot know which days the market was closed, or when the term began — the server
+    /// knows both and refuses those days by name — so this offers a starting point rather than an answer.</para>
+    /// </summary>
+    private static void FillDates(EditableRow row)
+    {
+        var (year, month) = ParsePeriod(row.Period);
+        if (year == 0 || month == 0) return;
+
+        var taken = row.Dates.Where(d => d.HasValue).Select(d => d!.Value.Date).ToHashSet();
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var today = PhilippineTime.Today;
+        var next = 1;
+
+        for (var i = 0; i < row.Dates.Count; i++)
+        {
+            if (row.Dates[i].HasValue) continue;
+
+            while (next <= daysInMonth)
+            {
+                var candidate = new DateTime(year, month, next);
+                next++;
+
+                if (DateOnly.FromDateTime(candidate) > today) break;
+                if (taken.Contains(candidate)) continue;
+
+                row.Dates[i] = candidate;
+                taken.Add(candidate);
+                break;
+            }
+        }
+    }
+
+    private static void SetDate(EditableRow row, int slot, string? value)
+    {
+        if (slot < 0 || slot >= row.Dates.Count) return;
+
+        row.Dates[slot] = DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var parsed)
+            ? parsed
+            : null;
+    }
 
     /// <summary>
     /// Starts the review table empty, for an office typing a few months straight off its ledger. One blank row so
@@ -867,7 +1101,12 @@
                 BillingYear: year,
                 BillingMonth: month,
                 DaysPaid: days,
-                OrNumber: row.OrNumber));
+                OrNumber: row.OrNumber,
+                // Only sent when the office is actually stating the days. Sent, they are honoured exactly and nothing
+                // is filled in around them - so a blank field is one day fewer recorded, not a day chosen for them.
+                Dates: _showDates
+                    ? row.Dates.Where(d => d.HasValue).Select(d => DateOnly.FromDateTime(d!.Value)).ToList()
+                    : null));
         }
 
         var result = await PaymentsApi.ImportDailyHistoryAsync(

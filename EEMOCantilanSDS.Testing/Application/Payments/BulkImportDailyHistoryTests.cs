@@ -285,6 +285,123 @@ public class BulkImportDailyHistoryTests
     }
 
     [Fact]
+    public async Task DatesTheOfficeStatesAreSettledExactly()
+    {
+        // The office knows which days it collected, so those are the days recorded - not a run from the first of the
+        // month. This is the whole point of stating them.
+        var (handler, added) = Build();
+
+        var dates = new[]
+        {
+            new DateOnly(Past.Year, Past.Month, 7),
+            new DateOnly(Past.Year, Past.Month, 14),
+            new DateOnly(Past.Year, Past.Month, 21)
+        };
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 3) with { Dates = dates }), CancellationToken.None);
+
+        Assert.Equal(dates, added.Select(a => a.CollectionDate).OrderBy(d => d));
+        Assert.Equal(ImportDailyOutcome.RecordedInFull, result.Value!.Results[0].Outcome);
+    }
+
+    [Fact]
+    public async Task AStatedDateThatCannotBeSettledIsNamedAndNotSubstituted()
+    {
+        // A closure among the stated days. Quietly settling a different day instead would invent a collection the
+        // office never recorded, so the day is refused and named.
+        var closed = new DateOnly(Past.Year, Past.Month, 14);
+        var (handler, added) = Build(closures: new[] { closed });
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 2) with
+            {
+                Dates = new[] { new DateOnly(Past.Year, Past.Month, 7), closed }
+            }),
+            CancellationToken.None);
+
+        Assert.Single(added);
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 7), added[0].CollectionDate);
+        Assert.Equal(ImportDailyOutcome.RecordedInPart, result.Value!.Results[0].Outcome);
+        Assert.Contains("market closure", result.Value!.Results[0].Error);
+        Assert.Contains($"{closed:yyyy-MM-dd}", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task StatedDatesAreNeverToppedUpToTheClaimedCount()
+    {
+        // Two dates given against a claim of five. The office stated the days; filling the other three from the
+        // month's calendar would record collections nobody wrote down.
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 5) with
+            {
+                Dates = new[] { new DateOnly(Past.Year, Past.Month, 3), new DateOnly(Past.Year, Past.Month, 4) }
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(2, added.Count);
+        Assert.Equal(2, result.Value!.Results[0].DaysSettled);
+        Assert.Equal(5, result.Value!.Results[0].DaysClaimed);
+    }
+
+    [Fact]
+    public async Task ADateOutsideTheRowsMonthIsRefused()
+    {
+        // A transcription slip that would otherwise write a collection into a month the row does not name, where no
+        // one reconciling that period would ever find it.
+        var wrongMonth = Past.AddMonths(-1);
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 1) with
+            {
+                Dates = new[] { new DateOnly(wrongMonth.Year, wrongMonth.Month, 5) }
+            }),
+            CancellationToken.None);
+
+        Assert.Empty(added);
+        Assert.Contains("is not in", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
+    public async Task ADateGivenTwiceIsSettledOnce()
+    {
+        var (handler, added) = Build();
+        var date = new DateOnly(Past.Year, Past.Month, 9);
+
+        await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 2) with { Dates = new[] { date, date } }),
+            CancellationToken.None);
+
+        // One day, one fee. The same date twice would collect twice for a day the vendor paid for once.
+        Assert.Single(added);
+    }
+
+    [Fact]
+    public async Task AStatedDateIsHeldToTheSameRulesAsAFilledOne()
+    {
+        // Named by the office, but already collected. A stated date must not slip past a guard a filled day would
+        // meet - that is why both go through one settle path.
+        var taken = DailyCollection.Create(StallId, new DateOnly(Past.Year, Past.Month, 6), "collector", 30m);
+        taken.MarkPaid("OR-EARLIER", collectorId: null, fishKilos: null, updatedBy: "collector");
+
+        var (handler, added) = Build(onRecord: new[] { taken });
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 1) with
+            {
+                Dates = new[] { new DateOnly(Past.Year, Past.Month, 6) }
+            }),
+            CancellationToken.None);
+
+        Assert.Empty(added);
+        Assert.Equal("OR-EARLIER", taken.ORNumber);
+        Assert.Contains("already collected", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
     public async Task AMonthlyBilledFacilityIsRefusedWholesale()
     {
         // A month there is a payment, not a run of days. Recording it through this path would settle days nobody

@@ -69,9 +69,20 @@ public class ImportPaymentHistoryTests : TestContext
         ]
     };
 
+    private bool _registered;
+
     private IRenderedComponent<ImportPaymentHistory> Render(string facility)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+
+        if (_registered)
+        {
+            // bUnit refuses new registrations once anything has been resolved, and one test renders two facilities to
+            // show that an option offered for the market is not offered elsewhere.
+            return RenderComponent<ImportPaymentHistory>(p => p.Add(c => c.Facility, facility));
+        }
+
+        _registered = true;
 
         _payments = new Mock<IPaymentsApiClient>();
 
@@ -121,16 +132,16 @@ public class ImportPaymentHistoryTests : TestContext
 
         // The market numbers its spaces PER SECTION - three of them are called "1" - so a list without a section could
         // be written against the wrong vendor's space. Asked before a file is read rather than after.
-        Assert.Contains("Choose the section", cut.Markup);
+        Assert.Contains("Which section are you importing?", cut.Markup);
         Assert.DoesNotContain("Choose a file to upload", cut.Markup);
-        Assert.Equal(3, cut.FindAll("button.iph-section-btn").Count);
+        Assert.Equal(3, cut.FindAll("button.iph-pick-card").Count);
     }
 
     [Fact]
     public void TheMarketAsksForDaysRatherThanAnAmount()
     {
         var cut = Render("npm");
-        cut.FindAll("button.iph-section-btn")[0].Click();
+        cut.FindAll("button.iph-pick-card")[0].Click();
         cut.Find("button.iph-enter-manually").Click();
 
         // A month at the market is not a payment; it is a run of market days at a fixed daily fee. There is nothing
@@ -147,7 +158,7 @@ public class ImportPaymentHistoryTests : TestContext
     public void TheMarketSavesThroughItsOwnImportAndNotTheMonthlyOne()
     {
         var cut = Render("npm");
-        cut.FindAll("button.iph-section-btn")[1].Click();          // Fish Section
+        cut.FindAll("button.iph-pick-card")[1].Click();          // Fish Section
         cut.Find("button.iph-use-sample").Click();
 
         cut.Find("button.iph-btn-primary").Click();
@@ -162,6 +173,113 @@ public class ImportPaymentHistoryTests : TestContext
         _payments.Verify(
             p => p.ImportPaymentHistoryAsync(It.IsAny<BulkImportPaymentHistoryCommand>()),
             Times.Never);
+    }
+
+    [Fact]
+    public void TheExactDatesGridAppearsOnlyWhenAskedFor()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        // Off by default: most sheets record a count, and a grid of dates nobody fills in is a grid of mistakes.
+        Assert.Empty(cut.FindAll("tr.iph-dates-row"));
+
+        cut.Find("button.iph-dates-toggle").Click();
+        Assert.Single(cut.FindAll("tr.iph-dates-row"));
+
+        // And it is only offered for the market. A monthly row already names its own date paid.
+        var monthly = Render("tcc");
+        monthly.Find("button.iph-enter-manually").Click();
+        Assert.Empty(monthly.FindAll("button.iph-dates-toggle"));
+    }
+
+    [Fact]
+    public void OneDateFieldAppearsPerDayClaimed_AndPreFilledSoTheOfficeCorrectsRatherThanTypes()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("4");
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // Four days claimed, four fields, each already carrying a day of that month.
+        var slots = cut.FindAll("input.iph-date-slot");
+        Assert.Equal(4, slots.Count);
+
+        var filled = slots.Select(s => s.GetAttribute("value") ?? string.Empty).ToList();
+        Assert.All(filled, v => Assert.StartsWith($"{past.Year:0000}-{past.Month:00}", v));
+
+        // Distinct, and in order - the same day four times would collect one day's fee four times over.
+        Assert.Equal(4, filled.Distinct().Count());
+        Assert.Equal(filled.OrderBy(v => v), filled);
+    }
+
+    [Fact]
+    public void ChangingTheDayCountResizesTheGridWithoutLosingWhatWasTyped()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("3");
+        cut.Find("button.iph-dates-toggle").Click();
+
+        var firstBefore = cut.FindAll("input.iph-date-slot")[0].GetAttribute("value");
+
+        cut.Find("input.iph-days").Input("5");
+        Assert.Equal(5, cut.FindAll("input.iph-date-slot").Count);
+
+        // Growing the count must not disturb the days already stated.
+        Assert.Equal(firstBefore, cut.FindAll("input.iph-date-slot")[0].GetAttribute("value"));
+
+        cut.Find("input.iph-days").Input("2");
+        Assert.Equal(2, cut.FindAll("input.iph-date-slot").Count);
+        Assert.Equal(firstBefore, cut.FindAll("input.iph-date-slot")[0].GetAttribute("value"));
+    }
+
+    [Fact]
+    public void WhenTheOfficeStatesNoDates_NoneAreSent()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+
+        cut.Find("button.iph-btn-primary").Click();
+
+        // Nothing stated, so the server fills the month's collectable days - which is the only defensible reading of a
+        // sheet that records a count.
+        _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
+            c.Rows.All(r => r.Dates == null || r.Dates.Count == 0))), Times.Once);
+    }
+
+    [Fact]
+    public void WhenTheOfficeStatesTheDates_ExactlyThoseAreSent()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.iph-dates-toggle").Click();
+
+        cut.Find("button.iph-btn-primary").Click();
+
+        // Exactly those days travel, and the import honours them without filling anything in around them.
+        _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
+            c.Rows.All(r => r.Dates != null && r.Dates.Count == 2
+                            && r.Dates.All(d => d.Year == past.Year && d.Month == past.Month)))), Times.Once);
     }
 
     [Fact]

@@ -148,45 +148,73 @@ public class BulkImportDailyHistoryCommandHandler(
             var daysInMonth = DateTime.DaysInMonth(row.BillingYear, row.BillingMonth);
             var settled = new List<DailyCollection>();
             var rowAmount = 0m;
+            var refusedDates = new List<string>();
 
-            for (var day = 1; day <= daysInMonth && settled.Count < row.DaysPaid; day++)
+            // Whether the office stated the days, or only how many. Stated days are honoured exactly - see the DTO.
+            var stated = (row.Dates ?? Array.Empty<DateOnly>())
+                .Distinct()
+                .OrderBy(d => d)
+                .ToList();
+
+            // Settles one day, or says why it could not. Shared so a stated date and a filled one are judged by
+            // exactly the same rules - a date the office named must not slip past a guard a filled day would meet.
+            async Task<string?> TrySettle(DateOnly date)
             {
-                var date = new DateOnly(row.BillingYear, row.BillingMonth, day);
+                if (date.Year != row.BillingYear || date.Month != row.BillingMonth)
+                    return $"{date:yyyy-MM-dd} is not in {period}";
+                if (date > today) return $"{date:yyyy-MM-dd} has not happened yet";
+                if (closures.Contains(date)) return $"{date:yyyy-MM-dd} was a market closure";
+                if (alreadyThisBatch.Contains(date)) return $"{date:yyyy-MM-dd} is already claimed by an earlier row";
+                if (!occupancies.Any(o => o.Start <= date && date <= o.BillableEnd))
+                    return $"{date:yyyy-MM-dd} is outside the term";
 
-                if (date > today) break;                                  // never settle a day that has not happened
-                if (closures.Contains(date)) continue;                    // facility-wide closure: nothing owed
-                if (alreadyThisBatch.Contains(date)) continue;            // claimed by an earlier row in this file
-                if (!occupancies.Any(o => o.Start <= date && date <= o.BillableEnd)) continue;
-
-                if (onRecord.TryGetValue(date, out var existing) && (existing.IsPaid || existing.IsAbsent))
-                    continue;                                             // already collected, or excused
+                if (onRecord.TryGetValue(date, out var already) && (already.IsPaid || already.IsAbsent))
+                    return $"{date:yyyy-MM-dd} is already {(already.IsAbsent ? "excused" : "collected")}";
 
                 var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, date));
 
-                if (existing is null)
+                if (already is null)
                 {
-                    existing = DailyCollection.Create(stall.Id, date, Actor, fee);
-                    existing.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: null, updatedBy: Actor);
-                    await dailyRepo.AddAsync(existing, ct);
-                    onRecord[date] = existing;
+                    already = DailyCollection.Create(stall.Id, date, Actor, fee);
+                    already.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: null, updatedBy: Actor);
+                    await dailyRepo.AddAsync(already, ct);
+                    onRecord[date] = already;
                 }
                 else
                 {
-                    existing.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: null, updatedBy: Actor);
+                    already.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: null, updatedBy: Actor);
                 }
 
-                existing.SetOrNumber(orNumber, Actor);
+                already.SetOrNumber(orNumber, Actor);
                 alreadyThisBatch.Add(date);
-                settled.Add(existing);
-                rowAmount += existing.TotalCollected;
+                settled.Add(already);
+                rowAmount += already.TotalCollected;
+                return null;
+            }
+
+            if (stated.Count > 0)
+            {
+                foreach (var date in stated)
+                {
+                    if (await TrySettle(date) is { } why) refusedDates.Add(why);
+                }
+            }
+            else
+            {
+                // Only a count. Filled in order, earliest first, which is the most defensible reading of a sheet that
+                // does not say which days.
+                for (var day = 1; day <= daysInMonth && settled.Count < row.DaysPaid; day++)
+                    await TrySettle(new DateOnly(row.BillingYear, row.BillingMonth, day));
             }
 
             if (settled.Count == 0)
             {
                 results.Add(new BulkImportDailyRowResult(
                     row.RowNumber, stallNo, period, row.DaysPaid, 0, 0m, ImportDailyOutcome.AlreadyRecorded,
-                    "No day in that month was left to settle: its days are already collected, excused, closed, or " +
-                    "outside the term."));
+                    refusedDates.Count > 0
+                        ? $"None of the days given could be settled: {string.Join("; ", refusedDates)}."
+                        : "No day in that month was left to settle: its days are already collected, excused, closed, " +
+                          "or outside the term."));
                 continue;
             }
 
@@ -198,12 +226,17 @@ public class BulkImportDailyHistoryCommandHandler(
                 ? ImportDailyOutcome.RecordedInFull
                 : ImportDailyOutcome.RecordedInPart;
 
-            results.Add(new BulkImportDailyRowResult(
-                row.RowNumber, stallNo, period, row.DaysPaid, settled.Count, rowAmount, outcome,
-                outcome == ImportDailyOutcome.RecordedInPart
-                    ? $"Only {settled.Count} of {row.DaysPaid} days could be settled: the rest were already " +
+            // A stated date that could not be settled is NAMED. A count that could not be filled says how far it got.
+            // Either way the office is told what happened rather than handed a total to trust.
+            var note = outcome == ImportDailyOutcome.RecordedInPart || refusedDates.Count > 0
+                ? refusedDates.Count > 0
+                    ? $"{settled.Count} of {row.DaysPaid} days recorded. {string.Join("; ", refusedDates)}."
+                    : $"Only {settled.Count} of {row.DaysPaid} days could be settled: the rest were already " +
                       "collected, excused, closed, or outside the term."
-                    : null));
+                : null;
+
+            results.Add(new BulkImportDailyRowResult(
+                row.RowNumber, stallNo, period, row.DaysPaid, settled.Count, rowAmount, outcome, note));
         }
 
         if (results.Any(r => r.Outcome != ImportDailyOutcome.Rejected))
