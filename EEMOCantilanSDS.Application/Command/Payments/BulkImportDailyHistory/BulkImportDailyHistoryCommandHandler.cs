@@ -113,7 +113,16 @@ public class BulkImportDailyHistoryCommandHandler(
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(row.OrNumber))
+            // A receipt is required for every day recorded, but it need not be stated on the ROW.
+            //
+            // The market issues a receipt per collection, so an office's sheet often carries one against each day and
+            // none for the month. Demanding a row-level OR rejected exactly that sheet - the whole row, with every one
+            // of its receipts - and asked for a figure the sheet does not keep. What matters is that no DAY is written
+            // without a receipt, which is checked as each day is settled.
+            var rowOr = (row.OrNumber ?? string.Empty).Trim();
+            var statedDays = row.Days ?? Array.Empty<ImportDailyDay>();
+
+            if (rowOr.Length == 0 && statedDays.Count == 0)
             {
                 Reject("An OR number is required: collections without one are reported as missing a receipt.");
                 continue;
@@ -126,7 +135,7 @@ public class BulkImportDailyHistoryCommandHandler(
                 continue;
             }
 
-            var orNumber = row.OrNumber!.Trim();
+            var orNumber = rowOr;
 
             // The days nobody owes for. Every exclusion here matches the market's own collection dialog, so an
             // imported month and a collected month agree about what the month contained.
@@ -174,9 +183,12 @@ public class BulkImportDailyHistoryCommandHandler(
                 if (onRecord.TryGetValue(date, out var already) && (already.IsPaid || already.IsAbsent))
                     return $"{date:yyyy-MM-dd} is already {(already.IsAbsent ? "excused" : "collected")}";
 
-                // The day's own receipt where the sheet gives one, the month's otherwise. Never blank: a collection
-                // without an OR is reported by the arrears lists as missing a receipt.
+                // The day's own receipt where the sheet gives one, the month's otherwise. A day with neither is refused
+                // rather than written: a collection with no OR is reported as missing a receipt by every arrears list
+                // that reads it, and one written here would raise that alarm for ever.
                 var receipt = string.IsNullOrWhiteSpace(dayOr) ? orNumber : dayOr!.Trim();
+                if (receipt.Length == 0)
+                    return $"{date:yyyy-MM-dd} has no OR number, on the day or on the month";
 
                 var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, date));
 

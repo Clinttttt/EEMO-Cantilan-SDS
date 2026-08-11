@@ -304,6 +304,7 @@ public class ImportPaymentHistoryTests : TestContext
         cut.Find("input.iph-days").Input("2");
         cut.Find("button.pp-field").Click();
         cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.FindAll("input.iph-input").First(i => i.GetAttribute("aria-label") == "OR number").Input("OR-500");
 
         cut.Find("button.iph-btn-primary").Click();
 
@@ -325,6 +326,7 @@ public class ImportPaymentHistoryTests : TestContext
         cut.Find("input.iph-days").Input("2");
         cut.Find("button.pp-field").Click();
         cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.FindAll("input.iph-input").First(i => i.GetAttribute("aria-label") == "OR number").Input("OR-500");
         cut.Find("button.iph-dates-toggle").Click();
 
         cut.Find("button.iph-btn-primary").Click();
@@ -454,6 +456,60 @@ public class ImportPaymentHistoryTests : TestContext
         Assert.Equal("40", or.GetAttribute("maxlength"));
 
         Assert.Equal("7", cut.Find("input.iph-period").GetAttribute("maxlength"));
+    }
+
+    [Fact]
+    public void AReceiptPerDayIsEnough_TheMonthDoesNotNeedOneOfItsOwn()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // What the office actually does: a receipt against each day, none for the month, because the market issues one
+        // per collection. This was refused outright - the whole row, with both of its receipts - and nothing recorded.
+        var dayOrs = cut.FindAll("input.iph-day-or");
+        Assert.Equal(2, dayOrs.Count);
+        dayOrs[0].Input("77756724");
+        cut.FindAll("input.iph-day-or")[1].Input("6454645");
+
+        cut.Find("button.iph-btn-primary").Click();
+
+        _payments.Verify(p => p.ImportDailyHistoryAsync(It.Is<BulkImportDailyHistoryCommand>(c =>
+            c.Rows.All(r => string.IsNullOrWhiteSpace(r.OrNumber)
+                            && r.Days != null
+                            && r.Days.Count == 2
+                            && r.Days.All(d => !string.IsNullOrWhiteSpace(d.OrNumber))))), Times.Once);
+    }
+
+    [Fact]
+    public void ADayWithNoReceiptAnywhereIsRefusedBeforeTheRequest()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // One day given a receipt, the other left blank, and no receipt on the month either.
+        cut.FindAll("input.iph-day-or")[0].Input("77756724");
+        cut.Find("button.iph-btn-primary").Click();
+
+        Assert.Contains("no OR number", cut.Markup);
+        _payments.Verify(
+            p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()),
+            Times.Never);
     }
 
     [Fact]

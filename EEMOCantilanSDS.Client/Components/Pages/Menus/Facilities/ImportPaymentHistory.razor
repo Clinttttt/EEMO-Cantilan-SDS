@@ -370,7 +370,10 @@
                                        receipt; the money follows from the facility's own daily fee for the days
                                        settled, which is why there is nothing here for the office to total. *@
                                     <td><input class="iph-input iph-input-num iph-days @(DaysIsBad(row.DaysPaid) ? "iph-input-bad" : null)" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => SyncDates(row)" maxlength="2" inputmode="numeric" placeholder="12" aria-label="Days paid" /></td>
-                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" maxlength="@MaxOr" placeholder="OR-100234" aria-label="OR number" /></td>
+                                    @* Optional once the days carry their own receipts, which is how the market is
+                                       actually collected. The placeholder says so rather than implying a figure the
+                                       office's sheet may not keep. *@
+                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" maxlength="@MaxOr" placeholder="@(_showDates ? "Per day below" : "OR-100234")" aria-label="OR number" /></td>
                                 }
                                 else
                                 {
@@ -816,6 +819,28 @@
             {
                 return $"{badDays} {(badDays == 1 ? "row does" : "rows do")} not state how many market days were " +
                        "paid for. A month holds between 1 and 31.";
+            }
+
+            // A receipt is needed for every day recorded, and it may be written against the day OR against the month.
+            // The market issues a receipt per collection, so a sheet often carries one per day and none for the month -
+            // which the import used to reject outright, losing every receipt on the row.
+            var noReceipt = _rows.Count(r =>
+                string.IsNullOrWhiteSpace(r.OrNumber)
+                && (!_showDates || r.Days.Any(d => d.Date.HasValue && string.IsNullOrWhiteSpace(d.OrNumber))));
+
+            if (noReceipt > 0)
+            {
+                return $"{noReceipt} {(noReceipt == 1 ? "row has a day" : "rows have days")} with no OR number. Write " +
+                       "the receipt against each day, or one for the whole month.";
+            }
+        }
+        else
+        {
+            var noReceipt = _rows.Count(r => string.IsNullOrWhiteSpace(r.OrNumber));
+            if (noReceipt > 0)
+            {
+                return $"{noReceipt} {(noReceipt == 1 ? "row has" : "rows have")} no OR number. A payment without one " +
+                       "is reported as missing a receipt.";
             }
         }
 

@@ -430,6 +430,54 @@ public class BulkImportDailyHistoryTests
     }
 
     [Fact]
+    public async Task ARowWhoseDaysEachCarryAReceiptIsRecorded_EvenWithNoReceiptOnTheRow()
+    {
+        // Exactly what the office did: left the month's OR blank and wrote a receipt against each day, because that is
+        // how the market is collected. The row was REJECTED for having no OR of its own and nothing was recorded - the
+        // import asked for a figure the sheet does not keep, and refused the receipts it does.
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 2, or: null) with
+            {
+                Days = new[]
+                {
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 9), "77756724"),
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 10), "6454645")
+                }
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(2, added.Count);
+        Assert.Equal(0, result.Value!.RejectedCount);
+        Assert.Equal("77756724", added.Single(a => a.CollectionDate.Day == 9).ORNumber);
+        Assert.Equal("6454645", added.Single(a => a.CollectionDate.Day == 10).ORNumber);
+    }
+
+    [Fact]
+    public async Task ADayWithNoReceiptOfItsOwnAndNoneOnTheRowIsRefused()
+    {
+        // The other half of the same rule: a collection with no receipt anywhere is reported as missing one by every
+        // arrears list that reads it, so it is refused rather than written.
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 2, or: null) with
+            {
+                Days = new[]
+                {
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 9), "77756724"),
+                    new ImportDailyDay(new DateOnly(Past.Year, Past.Month, 10))
+                }
+            }),
+            CancellationToken.None);
+
+        Assert.Single(added);
+        Assert.Equal(9, added[0].CollectionDate.Day);
+        Assert.Contains("no OR number", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
     public async Task AMonthlyBilledFacilityIsRefusedWholesale()
     {
         // A month there is a payment, not a run of days. Recording it through this path would settle days nobody
