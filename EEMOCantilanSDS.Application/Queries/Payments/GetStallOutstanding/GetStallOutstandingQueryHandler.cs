@@ -5,7 +5,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Payments.GetStallOutstanding;
 
-public class GetStallOutstandingQueryHandler(IPaymentRepository paymentRepository)
+public class GetStallOutstandingQueryHandler(IStallLedgerQueries paymentRepository)
     : IRequestHandler<GetStallOutstandingQuery, Result<IReadOnlyList<PaymentHistoryDto>>>
 {
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> Handle(GetStallOutstandingQuery request, CancellationToken ct)

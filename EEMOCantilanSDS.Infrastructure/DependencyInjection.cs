@@ -71,6 +71,10 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();
+            // The same instance answers the narrow per-stall ledger reads, so one request shares one repository and one
+            // change tracker. Registered as a factory over the wide registration rather than as a second AddScoped of
+            // the same type, which would build two instances per request for no reason.
+            service.AddScoped<IStallLedgerQueries>(sp => (PaymentRepository)sp.GetRequiredService<IPaymentRepository>());
             service.AddScoped<IStallMonthlyExceptionRepository, StallMonthlyExceptionRepository>();
             service.AddScoped<INpmMarketClosureRepository, NpmMarketClosureRepository>();
             service.AddScoped<IVendorRepository, VendorRepository>();

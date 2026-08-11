@@ -8,7 +8,7 @@ namespace EEMOCantilanSDS.Application.Queries.Payors.GetPayorPaymentHistory;
 
 public class GetPayorPaymentHistoryQueryHandler(
     IPayorRepository payorRepository,
-    IPaymentRepository paymentRepository,
+    IStallLedgerQueries paymentRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetPayorPaymentHistoryQuery, Result<IReadOnlyList<PaymentHistoryDto>>>
 {
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> Handle(GetPayorPaymentHistoryQuery request, CancellationToken cancellationToken)

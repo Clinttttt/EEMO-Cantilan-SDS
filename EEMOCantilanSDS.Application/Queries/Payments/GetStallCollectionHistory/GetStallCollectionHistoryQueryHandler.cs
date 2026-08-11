@@ -5,7 +5,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Payments.GetStallCollectionHistory;
 
-public class GetStallCollectionHistoryQueryHandler(IPaymentRepository paymentRepository)
+public class GetStallCollectionHistoryQueryHandler(IStallLedgerQueries paymentRepository)
     : IRequestHandler<GetStallCollectionHistoryQuery, Result<CursorPagedResult<StallCollectionHistoryRowDto>>>
 {
     public async Task<Result<CursorPagedResult<StallCollectionHistoryRowDto>>> Handle(

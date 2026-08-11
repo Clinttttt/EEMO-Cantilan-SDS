@@ -5,7 +5,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
 
-public class GetPaymentHistoryQueryHandler(IPaymentRepository paymentRepository) : IRequestHandler<GetPaymentHistoryQuery, Result<IReadOnlyList<PaymentHistoryDto>>>
+public class GetPaymentHistoryQueryHandler(IStallLedgerQueries paymentRepository) : IRequestHandler<GetPaymentHistoryQuery, Result<IReadOnlyList<PaymentHistoryDto>>>
 {
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> Handle(GetPaymentHistoryQuery request, CancellationToken ct)
     {

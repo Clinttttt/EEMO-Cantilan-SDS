@@ -5,7 +5,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
 
-public class GetStallLedgerSummaryQueryHandler(IPaymentRepository paymentRepository)
+public class GetStallLedgerSummaryQueryHandler(IStallLedgerQueries paymentRepository)
     : IRequestHandler<GetStallLedgerSummaryQuery, Result<StallLedgerSummaryDto>>
 {
     public async Task<Result<StallLedgerSummaryDto>> Handle(GetStallLedgerSummaryQuery request, CancellationToken ct)

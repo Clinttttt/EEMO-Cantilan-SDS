@@ -23,26 +23,21 @@ public interface IPaymentRepository
     /// "Whole year" Missing-OR aggregation.
     /// </summary>
     Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsForYearAsync(int year, CancellationToken ct);
-    Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct);
     /// <summary>
-    /// Cursor-paginated transparency log of a stall's collections, newest first. NPM → recorded daily
-    /// collections (paid/absent); monthly facilities → payment records. Cursor is the last row's date.
-    /// </summary>
-    Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(Guid stallId, DateTime? cursor, int pageSize, CancellationToken ct);
-    Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct);
+    /// The stall's UNPAID months with an outstanding balance across the WHOLE contract period (not just
+    /// the rolling 12 months, and INCLUDING months with no collection at all) — the source for the
+    /// Pay-bill form. NPM synthesises each month's ₱/day obligation (billable days × rate − collected);
     /// <summary>
     /// The stall's UNPAID months with an outstanding balance across the WHOLE contract period (not just
     /// the rolling 12 months, and INCLUDING months with no collection at all) — the source for the
     /// Pay-bill form. NPM synthesises each month's ₱/day obligation (billable days × rate − collected);
     /// monthly facilities use the rent obligation less any partial. Only balance &gt; 0 months are returned.
     /// </summary>
-    /// <summary>
-    /// The unpaid billing months of one occupancy, with its own balances. Whose is decided by
-    /// <paramref name="contractId"/>, else by the term that held the stall during <paramref name="forPeriod"/> (so a
-    /// screen showing a past period is answered by the lessee of that period), else by the most recent term.
-    /// </summary>
-    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(
-        Guid stallId, Guid? contractId, DateOnly? forPeriod, CancellationToken ct);
+    /// <remarks>
+    /// A stall's own history, collection log, ledger totals and outstanding months now live on
+    /// <see cref="IStallLedgerQueries"/>. They are reads of one account, and a caller that wants them should not have to
+    /// depend on something that can also write payments and rule on receipt numbers.
+    /// </remarks>
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     /// <summary>
     /// OR availability for an NPM daily-collection receipt: available when unused anywhere in the LGU OR
