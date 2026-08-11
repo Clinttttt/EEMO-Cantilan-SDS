@@ -789,3 +789,12 @@
     font-weight: 600;
     color: var(--navy);
 }
+
+/* What the payor's own record says about the month: settled, or fewer days uncollected than the row claims. Stated
+   beside the days rather than left as empty boxes to be puzzled over. */
+.iph-days-note {
+    display: block;
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}

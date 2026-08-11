@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Command.Payments.ClearMonthlyException;
 using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -26,6 +27,12 @@ public interface IPaymentsApiClient
     /// sheet rather than trust a total.
     /// </summary>
     Task<Result<BulkImportDailyResultDto>> ImportDailyHistoryAsync(BulkImportDailyHistoryCommand command);
+
+    /// <summary>
+    /// The market days of one month a stall still owes, so the history import can offer the payor's OWN uncollected
+    /// days instead of the first days of the calendar.
+    /// </summary>
+    Task<Result<CollectableDaysDto>> GetCollectableDaysAsync(Guid stallId, int year, int month);
 
     Task<Result<PaymentRecordDto>> GetPaymentRecordAsync(Guid stallId, int year, int month);
     Task<Result<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month);

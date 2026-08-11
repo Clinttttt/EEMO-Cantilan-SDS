@@ -355,10 +355,13 @@
                                                  StallNoChanged="v => row.StallNo = v"
                                                  OccupantChanged="v => row.Occupant = v" />
                                 </td>
-                                <td><input class="iph-input" @bind="row.Occupant" @bind:event="oninput" placeholder="Name on the sheet" aria-label="Actual occupant" /></td>
+                                @* Capped in the markup as well as checked on save. A cell with no limit accepted a
+                                   paste of a hundred characters of nonsense, which then stood in every day line
+                                   beneath it and pushed the table sideways. *@
+                                <td><input class="iph-input" @bind="row.Occupant" @bind:event="oninput" maxlength="@MaxOccupant" placeholder="Name on the sheet" aria-label="Actual occupant" /></td>
                                 <td>
-                                    <input class="iph-input iph-period @(IsFuturePeriod(row.Period) ? "iph-input-bad" : null)"
-                                           @bind="row.Period" @bind:event="oninput" placeholder="2025-03"
+                                    <input class="iph-input iph-period @(PeriodIsBad(row.Period) ? "iph-input-bad" : null)"
+                                           @bind="row.Period" @bind:event="oninput" @bind:after="() => OnPeriodChanged(row)" maxlength="7" placeholder="2025-03"
                                            aria-label="Period, year and month" />
                                 </td>
                                 @if (IsDaily)
@@ -366,13 +369,13 @@
                                     @* Days, not an amount. The market's books record a count of days against a
                                        receipt; the money follows from the facility's own daily fee for the days
                                        settled, which is why there is nothing here for the office to total. *@
-                                    <td><input class="iph-input iph-input-num iph-days" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => SyncDates(row)" placeholder="12" aria-label="Days paid" /></td>
-                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" aria-label="OR number" /></td>
+                                    <td><input class="iph-input iph-input-num iph-days @(DaysIsBad(row.DaysPaid) ? "iph-input-bad" : null)" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => SyncDates(row)" maxlength="2" inputmode="numeric" placeholder="12" aria-label="Days paid" /></td>
+                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" maxlength="@MaxOr" placeholder="OR-100234" aria-label="OR number" /></td>
                                 }
                                 else
                                 {
                                     <td><input class="iph-input iph-input-num" @bind="row.AmountPaid" @bind:event="oninput" placeholder="0.00" aria-label="Amount paid" /></td>
-                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" placeholder="OR-100234" aria-label="OR number" /></td>
+                                    <td><input class="iph-input" @bind="row.OrNumber" @bind:event="oninput" maxlength="@MaxOr" placeholder="OR-100234" aria-label="OR number" /></td>
                                     <td><input class="iph-input" type="date" @bind="row.DatePaid" aria-label="Date paid" /></td>
                                 }
                                 <td class="iph-th-act">
@@ -414,10 +417,16 @@
                                             <span class="iph-dates-sub">
                                                 @row.Days.Count(d => d.Date.HasValue) of @row.Days.Count dated
                                             </span>
+                                            @* What the payor's own record says about this month, stated where the days
+                                               are rather than left as empty boxes to be puzzled over. *@
+                                            @if (!string.IsNullOrWhiteSpace(row.DaysNote))
+                                            {
+                                                <span class="iph-days-note">@row.DaysNote</span>
+                                            }
                                         </td>
                                         <td colspan="2" class="iph-day-caption-act">
                                             <button class="iph-link iph-link-btn iph-dates-fill" type="button"
-                                                    @onclick="() => FillDays(row)">Fill the blanks</button>
+                                                    @onclick="() => FillDaysAsync(row)">Fill the blanks</button>
                                         </td>
                                     </tr>
 
@@ -535,6 +544,12 @@
         /// for one vendor's month and only the count for another's, and the import honours each row as it stands.</para>
         /// </summary>
         public List<DayEntry> Days { get; } = new();
+
+        /// <summary>
+        /// What the screen has to say about this row's days: that the month is settled, or that fewer days are
+        /// uncollected than the row claims. Held per row because it is about that row's payor and month.
+        /// </summary>
+        public string? DaysNote { get; set; }
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -546,7 +561,7 @@
     /// one mistake this screen cannot detect for itself - 3 is as valid a stall as 8 - and it would credit the wrong
     /// vendor's month without complaint, so the office is given the real list to choose from.
     /// </summary>
-    private List<(string StallNo, string Occupant)> _payors = new();
+    private List<(string StallNo, string Occupant, Guid StallId)> _payors = new();
 
     private BulkImportPaymentResultDto? _result;
 
@@ -695,9 +710,55 @@
     private string FacilityName => Code is { } code ? FacilityCatalog.NameOf(code) : (Facility ?? "this facility");
 
     /// <summary>
-    /// Whether a row names a month that has not started yet. The server refuses these outright - a history is money
-    /// already received - but the office is told while it types rather than after pressing Save, because a period is
-    /// typed once and read back many times.
+    /// Caps on what a cell will accept.
+    ///
+    /// <para>A cell with no limit took a paste of a hundred characters of nonsense, which then stood in every day line
+    /// beneath it and pushed the table sideways. Long enough for any real name or receipt the office writes; short
+    /// enough that a mis-paste is obvious rather than structural.</para>
+    /// </summary>
+    private const int MaxOccupant = 120;
+    private const int MaxOr = 40;
+
+    /// <summary>
+    /// Whether a period cannot be read as a month, or names one that has not started.
+    ///
+    /// <para>Both are marked the same way because both mean the same thing to the office: this row cannot be recorded
+    /// as it stands. A period being typed is not yet wrong — "2026-1" is on its way to "2026-10" — so a value shorter
+    /// than a full month is left alone.</para>
+    /// </summary>
+    private static bool PeriodIsBad(string? period)
+    {
+        var text = (period ?? string.Empty).Trim();
+        if (text.Length < 6) return false;
+
+        var (year, month) = ParsePeriod(text);
+        if (year == 0 || month == 0) return true;
+
+        return IsFuturePeriod(text);
+    }
+
+    /// <summary>Whether a day count is present but could not be a month's worth of days.</summary>
+    private static bool DaysIsBad(string? days)
+    {
+        var text = (days ?? string.Empty).Trim();
+        if (text.Length == 0) return false;
+
+        return !int.TryParse(text, out var n) || n < 1 || n > 31;
+    }
+
+    /// <summary>Re-dates a row's days when its period changes: the days owed depend on the month.</summary>
+    private async Task OnPeriodChanged(EditableRow row)
+    {
+        if (!_showDates) return;
+
+        // The dates already shown belong to the month that was there before, so they are cleared rather than carried
+        // into a month they do not fall in - the import would refuse them by name, one row at a time.
+        foreach (var day in row.Days) day.Date = null;
+
+        await FillDaysAsync(row);
+    }
+    /// <summary>
+    /// Whether a row names a month that has not started yet.
     /// </summary>
     private static bool IsFuturePeriod(string? period)
     {
@@ -710,6 +771,56 @@
 
     /// <summary>The rows naming a month that has not started, so Save can say how many and stop.</summary>
     private int FuturePeriodCount => _rows.Count(r => IsFuturePeriod(r.Period));
+
+    /// <summary>
+    /// What is wrong with the batch, in the office's own terms, or empty when nothing is.
+    ///
+    /// <para>Counted rather than listed row by row: a sheet of fifty rows with the same fault in twelve of them is one
+    /// correction to make, and twelve messages would bury it. Every check here is one the server applies too - this
+    /// exists so the office hears it before the request rather than after.</para>
+    /// </summary>
+    private string RowsNeedingAttention()
+    {
+        var today = PhilippineTime.Today;
+
+        var future = _rows.Count(r => IsFuturePeriod(r.Period));
+        if (future > 0)
+        {
+            return $"{future} {(future == 1 ? "row names a month" : "rows name months")} that " +
+                   $"{(future == 1 ? "has" : "have")} not started yet. A history can only cover months up to " +
+                   $"{today.Year:0000}-{today.Month:00}.";
+        }
+
+        var unreadable = _rows.Count(r =>
+        {
+            var (y, m) = ParsePeriod(r.Period);
+            return y == 0 || m == 0;
+        });
+        if (unreadable > 0)
+        {
+            return $"{unreadable} {(unreadable == 1 ? "row does" : "rows do")} not name a month that can be read. " +
+                   "Write the period as a year and month, like 2025-03.";
+        }
+
+        var noPayor = _rows.Count(r => string.IsNullOrWhiteSpace(r.StallNo));
+        if (noPayor > 0)
+        {
+            return $"{noPayor} {(noPayor == 1 ? "row has" : "rows have")} no payor. Choose the vendor each row is for, " +
+                   "or remove the row.";
+        }
+
+        if (IsDaily)
+        {
+            var badDays = _rows.Count(r => DaysIsBad(r.DaysPaid) || string.IsNullOrWhiteSpace(r.DaysPaid));
+            if (badDays > 0)
+            {
+                return $"{badDays} {(badDays == 1 ? "row does" : "rows do")} not state how many market days were " +
+                       "paid for. A month holds between 1 and 31.";
+            }
+        }
+
+        return string.Empty;
+    }
 
     /// <summary>
     /// Loads the facility's active stalls for the pick-list. A failure is deliberately silent: the list is an aid to
@@ -730,7 +841,7 @@
             _payors = res.Value.Sections
                 .SelectMany(s => s.Rows)
                 .Where(r => !r.IsClosed && !DomainRules.TermHasExpired(r.EffectivityDate, r.DurationYears, PhilippineTime.Today))
-                .Select(r => ((r.StallNo ?? string.Empty).Trim(), (r.ActualOccupant ?? string.Empty).Trim()))
+                .Select(r => ((r.StallNo ?? string.Empty).Trim(), (r.ActualOccupant ?? string.Empty).Trim(), r.StallId))
                 .Where(p => p.Item1.Length > 0)
                 .GroupBy(p => p.Item1, StringComparer.OrdinalIgnoreCase)
                 .Select(g => g.First())
@@ -837,17 +948,16 @@
     /// </summary>
     private bool _showDates;
 
-    private void ToggleDates()
+    private async Task ToggleDates()
     {
         _showDates = !_showDates;
         if (!_showDates) return;
 
-        // Opened: every row gets one line per day it claims, dated, so the office corrects rather than types from
-        // nothing.
+        // Opened: every row gets one line per day it claims, dated from the payor's OWN uncollected days.
         foreach (var row in _rows)
         {
             SyncDates(row);
-            FillDays(row);
+            await FillDaysAsync(row);
         }
     }
 
@@ -865,39 +975,74 @@
     }
 
     /// <summary>
-    /// Dates the undated lines with consecutive days of the row's own month, skipping any date already stated in that
-    /// row and never running past today.
+    /// Dates the undated lines from the payor's OWN uncollected days in that month, earliest first.
     ///
-    /// <para>A convenience only. It cannot know which days the market was closed, or when the term began — the server
-    /// knows both and refuses those days by name — so this offers a starting point rather than an answer.</para>
+    /// <para>It filled consecutive days from the first of the month before, which offered days the vendor did not owe:
+    /// a space let on the 9th owes nothing for the 1st, and a day already collected cannot be collected again. The
+    /// server decides, because the server holds the rules — the term windows, the closures, the days already collected
+    /// or excused — and the same rules the import will apply when it accepts these days.</para>
+    ///
+    /// <para>A row with no payor or no readable period is left alone rather than guessed at.</para>
     /// </summary>
-    private static void FillDays(EditableRow row)
+    private async Task FillDaysAsync(EditableRow row)
     {
+        row.DaysNote = null;
+
         var (year, month) = ParsePeriod(row.Period);
-        if (year == 0 || month == 0) return;
+        if (year == 0 || month == 0 || row.Days.Count == 0) return;
 
-        var taken = row.Days.Where(d => d.Date.HasValue).Select(d => d.Date!.Value.Date).ToHashSet();
-        var daysInMonth = DateTime.DaysInMonth(year, month);
-        var today = PhilippineTime.Today;
-        var next = 1;
+        var stallId = StallIdFor(row.StallNo);
+        if (stallId is null)
+        {
+            row.DaysNote = "Choose the payor first, and their uncollected days will be filled in.";
+            return;
+        }
 
+        var res = await PaymentsApi.GetCollectableDaysAsync(stallId.Value, year, month);
+        if (!res.IsSuccess || res.Value is null)
+        {
+            row.DaysNote = "That month's days could not be read. Enter the dates by hand.";
+            return;
+        }
+
+        var available = res.Value.Uncollected
+            .Where(d => !row.Days.Any(x => x.Date.HasValue && DateOnly.FromDateTime(x.Date!.Value) == d))
+            .ToList();
+
+        var next = 0;
         foreach (var day in row.Days)
         {
             if (day.Date.HasValue) continue;
+            if (next >= available.Count) break;
 
-            while (next <= daysInMonth)
-            {
-                var candidate = new DateTime(year, month, next);
-                next++;
-
-                if (DateOnly.FromDateTime(candidate) > today) break;
-                if (taken.Contains(candidate)) continue;
-
-                day.Date = candidate;
-                taken.Add(candidate);
-                break;
-            }
+            day.Date = available[next].ToDateTime(TimeOnly.MinValue);
+            next++;
         }
+
+        // Said plainly, in the office's own terms, rather than leaving empty boxes to be puzzled over.
+        var dated = row.Days.Count(d => d.Date.HasValue);
+        if (res.Value.Uncollected.Count == 0)
+        {
+            row.DaysNote = res.Value.AlreadyCollected > 0
+                ? $"Paid up to date — all {res.Value.AlreadyCollected} market {(res.Value.AlreadyCollected == 1 ? "day" : "days")} this month are already collected."
+                : "No day of this month is owed by this payor: the space was not let, or the market did not open.";
+        }
+        else if (dated < row.Days.Count)
+        {
+            row.DaysNote = $"Only {res.Value.Uncollected.Count} " +
+                           $"{(res.Value.Uncollected.Count == 1 ? "day is" : "days are")} uncollected this month, " +
+                           $"so {row.Days.Count - dated} of the {row.Days.Count} claimed could not be dated.";
+        }
+    }
+
+    /// <summary>The stall a row names, matched within the section already chosen. Null when nothing matches.</summary>
+    private Guid? StallIdFor(string? stallNo)
+    {
+        var key = (stallNo ?? string.Empty).Trim();
+        if (key.Length == 0) return null;
+
+        var match = _payors.FirstOrDefault(p => string.Equals(p.StallNo, key, StringComparison.OrdinalIgnoreCase));
+        return match.StallId == Guid.Empty ? null : match.StallId;
     }
 
     private static void SetDayDate(EditableRow row, int slot, string? value)
@@ -1060,14 +1205,11 @@
     {
         if (Code is not { } code || _rows.Count == 0) return;
 
-        // Stopped here as well as at the server. A month that has not started cannot have been collected, and the
-        // office is better told which rows before the request than shown a list of rejections after it.
-        if (FuturePeriodCount is var future && future > 0)
+        // Stopped here as well as at the server, and named by count, so the office corrects its sheet rather than
+        // reading a list of rejections back afterwards.
+        if (RowsNeedingAttention() is { Length: > 0 } complaint)
         {
-            var today = PhilippineTime.Today;
-            _saveError = $"{future} {(future == 1 ? "row names a month" : "rows name months")} that " +
-                         $"{(future == 1 ? "has" : "have")} not started yet. A payment history can only cover " +
-                         $"months up to {today.Year:0000}-{today.Month:00}.";
+            _saveError = complaint;
             return;
         }
 

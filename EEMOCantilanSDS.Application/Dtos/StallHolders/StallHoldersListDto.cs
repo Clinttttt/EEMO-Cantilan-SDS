@@ -27,6 +27,15 @@ public class StallHoldersSectionDto
 
 public class StallHolderRowDto
 {
+    /// <summary>
+    /// The stall this row is about.
+    ///
+    /// <para>Carried so a caller can act on the stall itself rather than on its number. A number identifies a stall
+    /// only WITHIN a facility and section — the market has three spaces called "1" — so anything that has to reach the
+    /// stall behind a row needs this.</para>
+    /// </summary>
+    public Guid StallId { get; set; }
+
     public int RowNumber { get; set; }
     public string ActualOccupant { get; set; } = string.Empty;
     public string NameOnContract { get; set; } = string.Empty;

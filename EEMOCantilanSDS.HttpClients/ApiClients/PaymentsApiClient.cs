@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
+using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -20,6 +21,9 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
 
     public async Task<Result<BulkImportDailyResultDto>> ImportDailyHistoryAsync(BulkImportDailyHistoryCommand command) =>
         await PostAsync<BulkImportDailyHistoryCommand, BulkImportDailyResultDto>("api/Payments/import-daily-history", command);
+
+    public async Task<Result<CollectableDaysDto>> GetCollectableDaysAsync(Guid stallId, int year, int month) =>
+        await GetAsync<CollectableDaysDto>($"api/Payments/stall/{stallId}/collectable-days?year={year}&month={month}");
 
     public async Task<Result<PaymentRecordDto>> GetPaymentRecordAsync(Guid stallId, int year, int month) =>
         await GetAsync<PaymentRecordDto>($"api/Payments/stall/{stallId}?year={year}&month={month}");

@@ -63,7 +63,7 @@
                     }
                     else if (Matches.Count == 0)
                     {
-                        <div class="pp-empty">Nothing matches “@_query”.</div>
+                        <div class="pp-empty">Nothing matches that search.</div>
                     }
                     else
                     {
@@ -76,7 +76,7 @@
                                 @* A space the office does not number shows no number. SP-1 is an internal key and has
                                    never appeared on the office's own list; printing it here would teach the staff a
                                    number that does not exist. *@
-                                <span class="pp-opt-no">@(SpaceNumber.IsSpace(payor.StallNo) ? "Space · no stall no." : $"Stall {payor.StallNo}")</span>
+                                <span class="pp-opt-no">@(SpaceNumber.IsSpace(payor.StallNo) ? "Space, no stall no." : $"Stall {payor.StallNo}")</span>
                             </button>
                         }
                     }
@@ -94,8 +94,8 @@
 </div>
 
 @code {
-    /// <summary>The facility's vendors, as (internal key, name).</summary>
-    [Parameter, EditorRequired] public List<(string StallNo, string Occupant)> Payors { get; set; } = new();
+    /// <summary>The facility's vendors, as (internal key, name, stall identity).</summary>
+    [Parameter, EditorRequired] public List<(string StallNo, string Occupant, Guid StallId)> Payors { get; set; } = new();
 
     /// <summary>The chosen stall's internal key. Empty until the office chooses or types one.</summary>
     [Parameter] public string StallNo { get; set; } = string.Empty;
@@ -125,7 +125,7 @@
             var match = Payors.FirstOrDefault(p => string.Equals(p.StallNo, key, StringComparison.OrdinalIgnoreCase));
 
             if (match.Occupant is { Length: > 0 } name)
-                return SpaceNumber.IsSpace(key) ? name : $"Stall {key} · {name}";
+            return SpaceNumber.IsSpace(key) ? name : SpaceNumber.Line($"Stall {key}", name);
 
             // Typed by hand, or a number that is no longer occupied. Stated as given rather than guessed at.
             return SpaceNumber.IsSpace(key) ? "Space" : $"Stall {key}";
@@ -136,7 +136,7 @@
     /// Name or number, matched case-insensitively. Ordered so the numbered stalls come first in the office's own
     /// reading order and the un-numbered spaces follow, rather than interleaving by a key nobody sees.
     /// </summary>
-    private List<(string StallNo, string Occupant)> Matches
+    private List<(string StallNo, string Occupant, Guid StallId)> Matches
     {
         get
         {
@@ -170,7 +170,7 @@
         try { await _searchBox.FocusAsync(); } catch { /* the panel closed again before the caret landed */ }
     }
 
-    private async Task Choose((string StallNo, string Occupant) payor)
+    private async Task Choose((string StallNo, string Occupant, Guid StallId) payor)
     {
         _open = false;
 

@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Command.Payments.ClearMonthlyException;
 using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Application.Queries.Payments.GetFacilityPaymentRecords;
 using EEMOCantilanSDS.Application.Queries.Payments.GetMonthlyExceptions;
 using EEMOCantilanSDS.Application.Queries.Payments.GetMarketClosures;
@@ -52,6 +53,21 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
         [FromBody] BulkImportDailyHistoryCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// The market days of one month that a stall still owes.
+    ///
+    /// <para>Read by the collection-history import so the days it offers are the payor's own uncollected days rather
+    /// than the first days of the calendar. Head/admin only, like the import it serves.</para>
+    /// </summary>
+    [HttpGet("stall/{stallId}/collectable-days")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<CollectableDaysDto>> GetCollectableDays(
+        Guid stallId, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetCollectableDaysQuery(stallId, year, month));
         return HandleResponse(result);
     }
 

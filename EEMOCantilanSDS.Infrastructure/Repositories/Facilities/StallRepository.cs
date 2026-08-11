@@ -390,6 +390,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {
+                        // The stall itself, so a caller can act on it rather than on its number: a number identifies a
+                        // stall only within a facility and section, and the market has three spaces called "1".
+                        StallId = s.Id,
                         RowNumber = idx + 1,
                         ActualOccupant = contract?.ActualOccupant ?? "",
                         NameOnContract = contract?.NameOnContract ?? "",
@@ -430,6 +433,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
                     return new StallHolderRowDto
                     {
+                        // The stall itself, so a caller can act on it rather than on its number: a number identifies a
+                        // stall only within a facility and section, and the market has three spaces called "1".
+                        StallId = s.Id,
                         RowNumber = idx + 1,
                         ActualOccupant = contract?.ActualOccupant ?? "",
                         NameOnContract = contract?.NameOnContract ?? "",
@@ -466,6 +472,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {
+                        // The stall itself, so a caller can act on it rather than on its number: a number identifies a
+                        // stall only within a facility and section, and the market has three spaces called "1".
+                        StallId = s.Id,
                         RowNumber = idx + 1,
                         ActualOccupant = contract?.ActualOccupant ?? "",
                         NameOnContract = contract?.NameOnContract ?? "",

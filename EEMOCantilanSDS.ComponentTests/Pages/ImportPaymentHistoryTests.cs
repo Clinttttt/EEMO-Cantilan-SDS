@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
+using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,11 @@ public class ImportPaymentHistoryTests : TestContext
 {
     private Mock<IPaymentsApiClient> _payments = new();
 
+    /// <summary>Stall identities, so a row can name the stall behind a number rather than the number alone.</summary>
+    private static readonly Guid Stall1 = Guid.NewGuid();
+    private static readonly Guid Stall2 = Guid.NewGuid();
+    private static readonly Guid Space1 = Guid.NewGuid();
+
     /// <summary>
     /// The facility's own stalls, so the picker has something in it. Two numbered, one un-numbered space, and one
     /// closed — a closed stall's number must not be offered as a payor, and a space must be reachable by name because
@@ -43,17 +49,20 @@ public class ImportPaymentHistoryTests : TestContext
                 [
                     new StallHolderRowDto
                     {
+                        StallId = Stall1,
                         StallNo = "1", ActualOccupant = "George Giovanna",
                         EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
                     },
                     new StallHolderRowDto
                     {
+                        StallId = Stall2,
                         StallNo = "2", ActualOccupant = "Ackerman Tril",
                         EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
                     },
                     new StallHolderRowDto
                     {
                         // A space the office does not number. Held without a contract, so its term is open-ended.
+                        StallId = Space1,
                         StallNo = "SP-1", ActualOccupant = "Bernadette Lim",
                         Arrangement = OccupancyArrangement.SpaceOnly,
                         EffectivityDate = PhilippineTime.Today.AddYears(-1),
@@ -61,6 +70,7 @@ public class ImportPaymentHistoryTests : TestContext
                     },
                     new StallHolderRowDto
                     {
+                        StallId = Guid.NewGuid(),
                         StallNo = "9", ActualOccupant = "Vacated Vendor", IsClosed = true,
                         EffectivityDate = PhilippineTime.Today.AddYears(-1), DurationYears = 3
                     }
@@ -68,6 +78,19 @@ public class ImportPaymentHistoryTests : TestContext
             }
         ]
     };
+
+    /// <summary>
+    /// The days a stall still owes in a month, as the server states them.
+    ///
+    /// <para>Deliberately NOT the first days of the month: the vendor's space was let on the 9th, which is the very
+    /// case that made a calendar-order prefill wrong.</para>
+    /// </summary>
+    private static CollectableDaysDto Collectable(int year, int month) => new(
+        Stall2, year, month,
+        Uncollected: [new DateOnly(year, month, 9), new DateOnly(year, month, 10), new DateOnly(year, month, 11)],
+        AlreadyCollected: 2,
+        Excused: 0,
+        ClosedOrOutsideTerm: 6);
 
     private bool _registered;
 
@@ -94,6 +117,11 @@ public class ImportPaymentHistoryTests : TestContext
         _payments.Setup(p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()))
                  .ReturnsAsync(Result<BulkImportDailyResultDto>.Success(
                      new BulkImportDailyResultDto(0, 0, 0, 0, 0, 0, 0m, [])));
+
+        // The day prefill reads the payor's own uncollected days from the server, so the fixture has to answer.
+        _payments.Setup(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+                 .ReturnsAsync((Guid _, int y, int m) =>
+                     Result<CollectableDaysDto>.Success(Collectable(y, m)));
 
         Services.AddSingleton(_payments.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
@@ -195,7 +223,7 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
-    public void OneDateFieldAppearsPerDayClaimed_AndPreFilledSoTheOfficeCorrectsRatherThanTypes()
+    public void TheDatesOfferedAreThePayorsOwnUncollectedDays_NotTheFirstDaysOfTheMonth()
     {
         var cut = Render("npm");
         cut.FindAll("button.iph-pick-card")[0].Click();
@@ -203,19 +231,40 @@ public class ImportPaymentHistoryTests : TestContext
 
         var past = PhilippineTime.Today.AddMonths(-3);
         cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
-        cut.Find("input.iph-days").Input("4");
+        cut.Find("input.iph-days").Input("3");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
         cut.Find("button.iph-dates-toggle").Click();
 
-        // Four days claimed, four fields, each already carrying a day of that month.
-        var slots = cut.FindAll("input.iph-date-slot");
-        Assert.Equal(4, slots.Count);
+        // The server says this vendor owes the 9th, 10th and 11th - its space was let on the 9th. Filling 1, 2, 3 from
+        // the calendar offered days the vendor never owed, which is the fault this replaced.
+        var filled = cut.FindAll("input.iph-date-slot")
+            .Select(s => s.GetAttribute("value") ?? string.Empty)
+            .ToList();
 
-        var filled = slots.Select(s => s.GetAttribute("value") ?? string.Empty).ToList();
-        Assert.All(filled, v => Assert.StartsWith($"{past.Year:0000}-{past.Month:00}", v));
+        Assert.Equal(3, filled.Count);
+        Assert.Equal(
+            [$"{past.Year:0000}-{past.Month:00}-09", $"{past.Year:0000}-{past.Month:00}-10", $"{past.Year:0000}-{past.Month:00}-11"],
+            filled);
+    }
 
-        // Distinct, and in order - the same day four times would collect one day's fee four times over.
-        Assert.Equal(4, filled.Distinct().Count());
-        Assert.Equal(filled.OrderBy(v => v), filled);
+    [Fact]
+    public void ARowWithNoPayorIsToldToChooseOneRatherThanGuessedAt()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // Which days a vendor owes depends on which vendor. Without one, the screen says so instead of offering the
+        // month's first days as though they were owed.
+        Assert.Contains("Choose the payor first", cut.Markup);
+        Assert.All(cut.FindAll("input.iph-date-slot"),
+            s => Assert.True(string.IsNullOrEmpty(s.GetAttribute("value"))));
     }
 
     [Fact]
@@ -253,6 +302,8 @@ public class ImportPaymentHistoryTests : TestContext
         var past = PhilippineTime.Today.AddMonths(-3);
         cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
         cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
 
         cut.Find("button.iph-btn-primary").Click();
 
@@ -272,6 +323,8 @@ public class ImportPaymentHistoryTests : TestContext
         var past = PhilippineTime.Today.AddMonths(-3);
         cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
         cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
         cut.Find("button.iph-dates-toggle").Click();
 
         cut.Find("button.iph-btn-primary").Click();
@@ -320,6 +373,87 @@ public class ImportPaymentHistoryTests : TestContext
             Assert.Single(r.QuerySelectorAll("input.iph-date-slot"));
             Assert.Single(r.QuerySelectorAll("input.iph-day-or"));
         });
+    }
+
+    [Fact]
+    public void ASettledMonthSaysSoInsteadOfOfferingEmptyBoxes()
+    {
+        // Every day of the month already collected. Empty date fields with no explanation invited the office to guess,
+        // and a guess here records a collection that did not happen.
+        var cut = Render("npm");
+
+        // Set AFTER rendering: Render creates the mock, so an override placed before it is replaced.
+        _payments.Setup(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+                 .ReturnsAsync((Guid s, int y, int m) =>
+                     Result<CollectableDaysDto>.Success(new CollectableDaysDto(s, y, m, [], 22, 0, 8)));
+
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        Assert.Contains("Paid up to date", cut.Markup);
+        Assert.Contains("22 market days", cut.Markup);
+    }
+
+    [Fact]
+    public void MoreDaysClaimedThanAreUncollectedIsSaidPlainly()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("5");        // the fixture offers three
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // Three dated, two left undated, and the reason stated rather than left to be inferred from empty boxes.
+        Assert.Contains("3 days are uncollected", cut.Markup);
+        Assert.Equal(3, cut.FindAll("input.iph-date-slot").Count(s => !string.IsNullOrEmpty(s.GetAttribute("value"))));
+    }
+
+    [Fact]
+    public void ARowThatCannotBeRecordedIsRefusedBeforeTheRequest()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        // A period that cannot be read as a month. The office hears it once, by count, rather than as a list of
+        // rejections read back afterwards.
+        cut.Find("input.iph-period").Input("not-a-month");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.iph-btn-primary").Click();
+
+        Assert.Contains("does not name a month", cut.Markup);
+        _payments.Verify(
+            p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void PastedNonsenseCannotOverrunTheCells()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        // A cell with no limit took a hundred characters of nonsense, which then stood in every day line beneath it and
+        // pushed the table sideways.
+        var occupant = cut.FindAll("input.iph-input").First(i => i.GetAttribute("aria-label") == "Actual occupant");
+        Assert.Equal("120", occupant.GetAttribute("maxlength"));
+
+        var or = cut.FindAll("input.iph-input").First(i => i.GetAttribute("aria-label") == "OR number");
+        Assert.Equal("40", or.GetAttribute("maxlength"));
+
+        Assert.Equal("7", cut.Find("input.iph-period").GetAttribute("maxlength"));
     }
 
     [Fact]
