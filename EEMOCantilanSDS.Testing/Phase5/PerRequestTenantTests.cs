@@ -56,16 +56,23 @@ public class PerRequestTenantTests
     }
 
     [Fact]
-    public void Stamp_UnresolvedContext_LeavesRowUnstamped()
+    public void Stamp_UnresolvedContext_RefusesTheWrite()
     {
+        // CHANGED with the tenant write boundary. This asserted that an unresolved context saved the row UNSTAMPED,
+        // which produced a row belonging to no LGU: invisible to every resolved tenant, visible to every unresolved one,
+        // and in no office's register though they were told it saved.
+        //
+        // A context that HAS an accessor and still resolves to nothing is a write that should have had a tenant and does
+        // not, so it is refused. A context built with no accessor at all - tooling, migrations, much of this suite -
+        // is unchanged.
         using var ctx = new AppDbContext(Options(), new FixedMunicipality(Guid.Empty));
 
-        var facility = Facility.Create(FacilityCode.NPM, "Cantilan NPM", "NPM");
-        ctx.Facilities.Add(facility);
-        ctx.SaveChanges();
+        ctx.Facilities.Add(Facility.Create(FacilityCode.NPM, "Cantilan NPM", "NPM"));
 
-        var saved = ctx.Facilities.IgnoreQueryFilters().Single();
-        Assert.Equal(Guid.Empty, saved.MunicipalityId);
+        var refused = Assert.Throws<InvalidOperationException>(() => ctx.SaveChanges());
+        Assert.Contains("no municipality", refused.Message);
+
+        Assert.Empty(ctx.Facilities.IgnoreQueryFilters());
     }
 
     // ---- CurrentUserService: reads the municipality_id claim ---------------------------------------

@@ -120,25 +120,44 @@ public class TenantFilterCharacterizationTests
     }
 
     [Fact]
-    public void AWriteWithNoResolvedTenantIsLeftUNSTAMPED_theOtherHalfOfTheDefect()
+    public void AWriteWithNoResolvedTenantIsREFUSED_notSilentlyLeftUnstamped()
     {
-        // CHARACTERIZATION OF A DEFECT. An unstamped row belongs to nobody: it is invisible to every resolved tenant and
-        // visible to every unresolved one. Seeding relies on this - reference rows are written before the default
-        // municipality exists - so failing closed on the write needs the seeders to declare a scope first.
+        // CHANGED BEHAVIOUR, and the first half of the fix.
+        //
+        // This used to save the row unstamped, so it belonged to NOBODY: invisible to every resolved tenant, visible to
+        // every unresolved one, counted by no LGU's reports. Silence was the worst outcome available - the row is
+        // written, the office is told it saved, and it is not in their register.
+        //
+        // Nothing in production writes one: every seeder and the first-admin path resolve the municipality themselves,
+        // and production carries zero unstamped rows in every tenant-owned table. So this cannot fire for a working
+        // deployment; it fires for a broken one.
         var options = SharedStore();
 
-        using (var unresolved = new AppDbContext(options, new FixedMunicipality(Guid.Empty)))
-        {
-            unresolved.Add(Facility.Create(FacilityCode.BBQ, "Nobody's Barbecue Stand", "BBQ"));
-            unresolved.SaveChanges();
-        }
+        using var unresolved = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+        unresolved.Add(Facility.Create(FacilityCode.BBQ, "Nobody's Barbecue Stand", "BBQ"));
+
+        var refused = Assert.Throws<InvalidOperationException>(() => unresolved.SaveChanges());
+        Assert.Contains("no municipality", refused.Message);
+        Assert.Contains("Facility", refused.Message);
+
+        // And nothing was written.
+        using var bare = new AppDbContext(options);
+        Assert.Empty(bare.Facilities);
+    }
+
+    [Fact]
+    public void AWriteFromAContextWithNoAccessorIsStillAllowed()
+    {
+        // Design-time tooling, migrations and much of the suite build contexts with no accessor and legitimately work
+        // across tenants. Refusing those would take the migration story and the test suite with it, so "no accessor" and
+        // "accessor that resolved to nothing" are deliberately NOT the same thing.
+        var options = SharedStore();
 
         using var bare = new AppDbContext(options);
-        Assert.Equal(Guid.Empty, bare.Facilities.Single().MunicipalityId);
+        bare.Add(Facility.Create(FacilityCode.SLH, "Tooling's Slaughterhouse", "SLH"));
+        bare.SaveChanges();
 
-        // And so it cannot be seen by a tenant at all.
-        using var a = new AppDbContext(options, new FixedMunicipality(TenantA));
-        Assert.Empty(a.Facilities);
+        Assert.Equal(Guid.Empty, bare.Facilities.Single().MunicipalityId);
     }
 
     [Fact]

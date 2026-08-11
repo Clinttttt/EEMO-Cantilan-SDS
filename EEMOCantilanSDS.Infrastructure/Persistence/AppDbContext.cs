@@ -43,6 +43,16 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         /// </summary>
         public Guid CurrentMunicipalityId => _municipality?.MunicipalityId ?? Guid.Empty;
 
+        /// <summary>
+        /// Whether this context was given a tenant accessor at all.
+        ///
+        /// <para>The options-only constructor supplies none: design-time tooling, migrations and much of the test suite
+        /// build contexts that way, and they legitimately work across tenants. A context that HAS an accessor and still
+        /// resolves to nothing is a different thing entirely — a request that should have had a tenant and does not —
+        /// and the write stamp treats the two differently rather than reading <see cref="Guid.Empty"/> as both.</para>
+        /// </summary>
+        public bool HasTenantAccessor => _municipality is not null;
+
 
 
         public DbSet<Facility> Facilities { get; set; }
