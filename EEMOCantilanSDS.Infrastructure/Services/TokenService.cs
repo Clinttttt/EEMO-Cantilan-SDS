@@ -59,6 +59,13 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 // flows fall back to the default municipality (Cantilan).
                 new(AppClaimTypes.MunicipalityId, user.MunicipalityId.ToString()),
             };
+
+            // The dedicated platform-operator flag, where the account carries one. On the token so the API's policy
+            // decides by the same fact the Application guard reads from the database - the two disagreed before, and a
+            // dedicated operator was refused the very activation it had approved.
+            if (user is AdminUser { IsPlatformOperator: true })
+                claim.Add(new Claim(AppClaimTypes.PlatformOperator, "true"));
+
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
             var token = new JwtSecurityToken

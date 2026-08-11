@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Api.Services;
 using EEMOCantilanSDS.Application.Common;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using Microsoft.AspNetCore.RateLimiting;
@@ -18,13 +19,23 @@ namespace EEMOCantilanSDS.Api
             service.AddHttpContextAccessor();
             service.AddAuthorization(options =>
             {
-                // Platform operator = a SuperAdmin of the DEFAULT (Cantilan) LGU. Whole-database operations
-                // (backup, restore, DB-health) run over the shared database across every LGU, so once a
-                // second LGU exists a per-LGU Head must never trigger them — restrict to the default-tenant
-                // SuperAdmin. While Cantilan is the only LGU this is exactly its Head, so behavior is unchanged.
+                // Platform operator = a dedicated operator account, or (while none exists) a SuperAdmin of the DEFAULT
+                // LGU. Whole-database operations — backup, restore, DB-health, onboarding — run over the shared
+                // database across every LGU, so a per-LGU Head must never trigger them.
+                //
+                // The decision is PlatformOperatorPolicy's, the same rule the Application guard applies. This policy
+                // used to state its own version and accepted only the default tenant's SuperAdmin, so a dedicated
+                // operator was refused here while being accepted inside the handlers.
                 options.AddPolicy("PlatformOperator", policy => policy.RequireAssertion(ctx =>
-                    ctx.User.IsInRole("SuperAdmin")
-                    && ctx.User.FindFirst(AppClaimTypes.Municipality)?.Value == TenantConstants.DefaultTenantCode));
+                    PlatformOperatorPolicy.IsOperator(
+                        isDedicatedOperator: string.Equals(
+                            ctx.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true",
+                            StringComparison.OrdinalIgnoreCase),
+                        role: ctx.User.IsInRole(PlatformOperatorPolicy.SuperAdminRole)
+                            ? PlatformOperatorPolicy.SuperAdminRole
+                            : null,
+                        isDefaultTenant: ctx.User.FindFirst(AppClaimTypes.Municipality)?.Value
+                                         == TenantConstants.DefaultTenantCode)));
             });
             service.AddSignalR();
             service.AddScoped<SignalROnlinePaymentNotifier>();

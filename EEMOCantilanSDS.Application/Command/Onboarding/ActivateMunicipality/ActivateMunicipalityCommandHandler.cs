@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Onboarding;
@@ -28,21 +29,13 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
         public async Task<Result<ActivationResultDto>> Handle(ActivateMunicipalityCommand request, CancellationToken ct)
         {
-            // Platform-operator authorization: onboarding a new LGU is a system-owner action, so only a
-            // SuperAdmin of the DEFAULT municipality (Cantilan) may run it. A per-LGU Head can never
-            // provision another municipality. (Defense-in-depth alongside the controller's [Authorize].)
-            var defaultMunicipalityId = await context.Municipalities
-                .IgnoreQueryFilters()
-                .Where(m => m.IsDefault)
-                .Select(m => (Guid?)m.Id)
-                .FirstOrDefaultAsync(ct);
-
-            var isPlatformOperator =
-                string.Equals(currentUser.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
-                && defaultMunicipalityId is not null
-                && currentUser.MunicipalityId == defaultMunicipalityId;
-
-            if (!isPlatformOperator)
+            // Platform-operator authorization: onboarding a new LGU is a system-owner action, so a per-LGU Head can
+            // never provision another municipality. (Defense-in-depth alongside the controller's [Authorize].)
+            //
+            // Through the shared guard, not an inlined copy. The copy accepted only the default tenant's SuperAdmin, so
+            // a DEDICATED operator account — the mechanism meant to replace that fallback — could approve an LGU's
+            // onboarding and then be refused the activation that completes it.
+            if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
                 return Result<ActivationResultDto>.Forbidden();
 
             var code = request.MunicipalityCode.Trim().ToUpperInvariant();

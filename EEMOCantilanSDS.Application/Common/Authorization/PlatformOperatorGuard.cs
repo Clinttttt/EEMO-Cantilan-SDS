@@ -38,13 +38,7 @@ namespace EEMOCantilanSDS.Application.Common.Authorization
         {
             // Primary: a dedicated platform/console operator (the IsPlatformOperator flag), independent of any
             // municipality's Head role.
-            if (await IsDedicatedOperatorAsync(context, currentUser, ct))
-                return true;
-
-            // Backward-compatible fallback (temporary, until a dedicated console admin exists): a SuperAdmin
-            // of the DEFAULT municipality (Cantilan's Head) may still operate onboarding.
-            if (!string.Equals(currentUser.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
-                return false;
+            var isDedicated = await IsDedicatedOperatorAsync(context, currentUser, ct);
 
             var defaultMunicipalityId = await context.Municipalities
                 .IgnoreQueryFilters()
@@ -52,7 +46,12 @@ namespace EEMOCantilanSDS.Application.Common.Authorization
                 .Select(m => (Guid?)m.Id)
                 .FirstOrDefaultAsync(ct);
 
-            return defaultMunicipalityId is not null && currentUser.MunicipalityId == defaultMunicipalityId;
+            var isDefaultTenant = defaultMunicipalityId is not null
+                                  && currentUser.MunicipalityId == defaultMunicipalityId;
+
+            // The decision itself lives in PlatformOperatorPolicy, so the API's authorization policy and this guard
+            // cannot drift apart. They differ only in where the two facts come from: claims there, the database here.
+            return PlatformOperatorPolicy.IsOperator(isDedicated, currentUser.Role, isDefaultTenant);
         }
     }
 }

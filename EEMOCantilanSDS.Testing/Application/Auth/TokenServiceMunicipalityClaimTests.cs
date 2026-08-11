@@ -39,6 +39,47 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
             .Value;
 
     [Fact]
+    public void ADedicatedOperatorsTokenCarriesTheFlag()
+    {
+        // On the token so the API's policy decides by the same fact the Application guard reads from the database.
+        // Without it the policy could only see role and tenant, refused a dedicated operator, and that account could
+        // approve an LGU's onboarding and then be refused the activation that completes it.
+        var context = NewContext();
+        var operatorAccount = AdminUser.Create(
+            "Console", "console", "console@stalltrack.site", "Secret123!", AdminRole.SuperAdmin,
+            isPlatformOperator: true);
+        context.Add(operatorAccount);
+        context.SaveChanges();
+
+        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var token = service.CreateToken(operatorAccount, "SuperAdmin");
+
+        var claim = new JwtSecurityTokenHandler().ReadJwtToken(token).Claims
+            .FirstOrDefault(c => c.Type == AppClaimTypes.PlatformOperator);
+
+        Assert.NotNull(claim);
+        Assert.Equal("true", claim!.Value);
+    }
+
+    [Fact]
+    public void AnOrdinaryAccountsTokenCarriesNoOperatorFlag()
+    {
+        // Absent rather than "false": a claim that says false is a claim to read wrongly one day, and the policy treats
+        // anything other than "true" as not an operator.
+        var context = NewContext();
+        var head = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        context.Add(head);
+        context.SaveChanges();
+
+        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var token = service.CreateToken(head, "SuperAdmin");
+
+        Assert.DoesNotContain(
+            new JwtSecurityTokenHandler().ReadJwtToken(token).Claims,
+            c => c.Type == AppClaimTypes.PlatformOperator);
+    }
+
+    [Fact]
     public void CantilanUser_WithDefaultMunicipalityId_YieldsDefaultTenantCode()
     {
         var context = NewContext();
