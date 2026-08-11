@@ -9,7 +9,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 
 public sealed class GetMobileNpmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
-    IStallRepository stallRepository,
+    IStallMobileQueries mobileQueries,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileNpmCollectionQuery, Result<MobileNpmCollectionDto>>
 {
     public async Task<Result<MobileNpmCollectionDto>> Handle(GetMobileNpmCollectionQuery request, CancellationToken ct)
@@ -25,7 +25,7 @@ public sealed class GetMobileNpmCollectionQueryHandler(
         if (!hasNpmAssignment)
             return Result<MobileNpmCollectionDto>.Forbidden();
 
-        var collection = await stallRepository.GetMobileNpmCollectionAsync(
+        var collection = await mobileQueries.GetMobileNpmCollectionAsync(
             request.Year,
             request.Month,
             PhilippineTime.Today,

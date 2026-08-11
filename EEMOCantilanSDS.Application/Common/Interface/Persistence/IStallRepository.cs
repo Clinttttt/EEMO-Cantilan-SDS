@@ -13,8 +13,11 @@ public interface IStallRepository
     Task<IReadOnlyList<StallDto>> GetStallsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct);
     Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct);
     Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct);
-    Task<MobileNpmCollectionDto> GetMobileNpmCollectionAsync(int year, int month, DateOnly collectionDate, CancellationToken ct);
-    Task<MobileMonthlyCollectionDto> GetMobileMonthlyCollectionAsync(FacilityCode facilityCode, int year, int month, DateOnly collectionDate, CancellationToken ct);
+    /// <remarks>
+    /// The collector app's two whole-screen projections live on <see cref="IStallMobileQueries"/>. They are a different
+    /// shape from anything the office reads, and a handler serving the app has no business with stall aggregates or
+    /// number uniqueness.
+    /// </remarks>
     Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     /// <summary>
     /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>

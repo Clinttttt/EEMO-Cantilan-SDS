@@ -15,7 +15,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IStallRepository
+// Implements the stall repository AND the collector app's projections. Not split into separate files yet: the mobile
+// screens reuse the same private obligation and eligibility arithmetic the register uses, and duplicating that is how two
+// screens start disagreeing about the same peso. The CONTRACTS are separate, so a handler serving the app cannot reach a
+// stall aggregate, and moving the code later is a file operation rather than a redesign.
+public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
+    : IStallRepository, IStallMobileQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
     public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }

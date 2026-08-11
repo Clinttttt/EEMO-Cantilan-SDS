@@ -8,7 +8,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 
 public sealed class GetMobileMonthlyCollectionQueryHandler(
     ICollectorRepository collectorRepository,
-    IStallRepository stallRepository,
+    IStallMobileQueries mobileQueries,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileMonthlyCollectionQuery, Result<MobileMonthlyCollectionDto>>
 {
     public async Task<Result<MobileMonthlyCollectionDto>> Handle(GetMobileMonthlyCollectionQuery request, CancellationToken ct)
@@ -27,7 +27,7 @@ public sealed class GetMobileMonthlyCollectionQueryHandler(
         if (!isAssigned)
             return Result<MobileMonthlyCollectionDto>.Forbidden();
 
-        var collection = await stallRepository.GetMobileMonthlyCollectionAsync(
+        var collection = await mobileQueries.GetMobileMonthlyCollectionAsync(
             request.Facility,
             request.Year,
             request.Month,

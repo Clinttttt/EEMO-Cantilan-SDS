@@ -66,4 +66,22 @@ public class StallLedgerQueriesCompositionTests
         Assert.Contains("IsDailyCollectionOrAvailableForStallAsync", wide);
         Assert.Contains("IsMonthlyOrAvailableForStallAsync", wide);
     }
+
+    [Fact]
+    public void TheCollectorAppsScreensHaveTheirOwnContract()
+    {
+        // The app needs every payor for a round in one payload, already carrying status and balance, because it must keep
+        // working when the signal drops halfway down the market. That is a different shape from anything the office reads,
+        // and a handler serving it has no business with stall aggregates or number uniqueness.
+        Assert.True(typeof(IStallMobileQueries).IsAssignableFrom(typeof(StallRepository)));
+        Assert.True(typeof(IStallRepository).IsAssignableFrom(typeof(StallRepository)));
+
+        var wide = typeof(IStallRepository).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(IStallMobileQueries.GetMobileNpmCollectionAsync), wide);
+        Assert.DoesNotContain(nameof(IStallMobileQueries.GetMobileMonthlyCollectionAsync), wide);
+
+        // And it keeps what it is for: loading a stall to modify, and the number rules.
+        Assert.Contains("GetByIdWithContractsAsync", wide);
+        Assert.Contains("IsStallNoUniqueAsync", wide);
+    }
 }

@@ -10,11 +10,12 @@ namespace EEMOCantilanSDS.Testing;
 
 public class GetMobileMonthlyCollectionQueryHandlerTests
 {
-    private static (GetMobileMonthlyCollectionQueryHandler handler, Mock<IStallRepository> stallRepo) Build(
+    private static (GetMobileMonthlyCollectionQueryHandler handler, Mock<IStallMobileQueries> stallRepo) Build(
         CollectorUser? collector, Guid? collectorId)
     {
         var collectorRepo = new Mock<ICollectorRepository>();
-        var stallRepo = new Mock<IStallRepository>();
+        // The collector app's screen is all this handler reads, so it stubs that capability and nothing wider.
+        var stallRepo = new Mock<IStallMobileQueries>();
         var currentUser = new Mock<ICurrentUserService>();
 
         if (collector is not null)

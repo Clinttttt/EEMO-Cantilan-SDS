@@ -68,6 +68,9 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ICollectorDeviceTokenRepository, CollectorDeviceTokenRepository>();
             service.AddScoped<IPushSender, EEMOCantilanSDS.Infrastructure.Services.FcmPushSender>();
             service.AddScoped<IStallRepository, StallRepository>();
+            // Same instance, one change tracker per request. See the IStallLedgerQueries registration below for why this
+            // is a factory over the existing registration rather than a second AddScoped of the same type.
+            service.AddScoped<IStallMobileQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();
