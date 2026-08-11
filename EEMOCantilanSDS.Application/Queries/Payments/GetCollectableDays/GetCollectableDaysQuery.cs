@@ -23,6 +23,16 @@ public record GetCollectableDaysQuery(Guid StallId, int Year, int Month)
 /// What a month holds for one stall.
 /// </summary>
 /// <param name="Uncollected">The days still owed, earliest first. Empty when the month is settled.</param>
+/// <param name="Chargeable">
+/// Every day of the month this stall owes, collected or not, earliest first.
+///
+/// <para>Carried so a caller can say WHICH of the payor's own days a date is. A space let on the 9th has the 9th as its
+/// first market day, so the 11th is its third — numbering the lines of an entry form 1, 2, 3 described the form rather
+/// than the vendor, and the office reconciles against the vendor.</para>
+///
+/// <para>Excused days and days the market did not open are not here: nothing is owed for them, so they are not the
+/// payor's days to count.</para>
+/// </param>
 /// <param name="AlreadyCollected">Days of this month already collected, so the office can see why there are few left.</param>
 /// <param name="Excused">Days the office excused: owed nothing, and not collectable later.</param>
 /// <param name="ClosedOrOutsideTerm">Days the market did not open, or that fell outside every term of this stall.</param>
@@ -33,4 +43,5 @@ public record CollectableDaysDto(
     IReadOnlyList<DateOnly> Uncollected,
     int AlreadyCollected,
     int Excused,
-    int ClosedOrOutsideTerm);
+    int ClosedOrOutsideTerm,
+    IReadOnlyList<DateOnly>? Chargeable = null);

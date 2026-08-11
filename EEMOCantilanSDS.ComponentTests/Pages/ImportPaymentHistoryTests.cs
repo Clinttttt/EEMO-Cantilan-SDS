@@ -83,14 +83,20 @@ public class ImportPaymentHistoryTests : TestContext
     /// The days a stall still owes in a month, as the server states them.
     ///
     /// <para>Deliberately NOT the first days of the month: the vendor's space was let on the 9th, which is the very
-    /// case that made a calendar-order prefill wrong.</para>
+    /// case that made a calendar-order prefill wrong. Two days are already collected, so the day still owed is the
+    /// payor's THIRD market day — the number the office reckons by.</para>
     /// </summary>
     private static CollectableDaysDto Collectable(int year, int month) => new(
         Stall2, year, month,
         Uncollected: [new DateOnly(year, month, 9), new DateOnly(year, month, 10), new DateOnly(year, month, 11)],
         AlreadyCollected: 2,
         Excused: 0,
-        ClosedOrOutsideTerm: 6);
+        ClosedOrOutsideTerm: 6,
+        Chargeable:
+        [
+            new DateOnly(year, month, 7), new DateOnly(year, month, 8),
+            new DateOnly(year, month, 9), new DateOnly(year, month, 10), new DateOnly(year, month, 11)
+        ]);
 
     private bool _registered;
 
@@ -580,6 +586,49 @@ public class ImportPaymentHistoryTests : TestContext
         _payments.Verify(
             p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()),
             Times.Never);
+    }
+
+    [Fact]
+    public void ADayLineIsNumberedByThePayorsOwnMarketDay_NotTheLineOfTheForm()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // The payor's chargeable days start on the 7th, so the 9th is their third and the 10th their fourth. The lines
+        // said "Day 1" and "Day 2", which described this form rather than the vendor the office reconciles against.
+        var labels = cut.FindAll("td.iph-day-label").Select(c => c.TextContent.Trim()).ToList();
+        Assert.Equal(["Day 3", "Day 4"], labels);
+    }
+
+    [Fact]
+    public void AnUndatedLineClaimsNoDayNumber()
+    {
+        var cut = Render("npm");
+
+        _payments.Setup(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+                 .ReturnsAsync((Guid s, int y, int m) =>
+                     Result<CollectableDaysDto>.Success(new CollectableDaysDto(s, y, m, [], 0, 0, 30, [])));
+
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // No date, so there is no day of the payor's to name. Saying "Day 1" would be a number about nothing.
+        Assert.All(cut.FindAll("td.iph-day-label"), c => Assert.Equal("—", c.TextContent.Trim()));
     }
 
     [Fact]

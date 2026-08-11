@@ -444,7 +444,7 @@
                                         <tr class="iph-day-row">
                                             <td class="iph-th-num"></td>
                                             @* The day's own identity, where the row above states the stall's. *@
-                                            <td class="iph-days-read iph-day-label">Day @(slot + 1)</td>
+                                            <td class="iph-days-read iph-day-label">@DayLabel(row, slot)</td>
                                             @* Stated, not offered for editing: these belong to the row above, and a
                                                second editable copy of a value is a second version of it. *@
                                             <td class="iph-days-read">
@@ -557,6 +557,15 @@
         /// uncollected than the row claims. Held per row because it is about that row's payor and month.
         /// </summary>
         public string? DaysNote { get; set; }
+
+        /// <summary>
+        /// Every day of this row's month the payor owes, collected or not, as the server states them.
+        ///
+        /// <para>Held so a line can be labelled by the payor's OWN market day: a space let on the 9th has the 9th as
+        /// its first, so the 11th is its third. Numbering the lines 1, 2, 3 described this form rather than the vendor,
+        /// and the office reconciles against the vendor.</para>
+        /// </summary>
+        public List<DateOnly> Chargeable { get; } = new();
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -1062,6 +1071,7 @@
     private async Task FillDaysAsync(EditableRow row)
     {
         row.DaysNote = null;
+        row.Chargeable.Clear();
 
         var (year, month) = ParsePeriod(row.Period);
         if (year == 0 || month == 0 || row.Days.Count == 0) return;
@@ -1083,6 +1093,9 @@
         var available = res.Value.Uncollected
             .Where(d => !row.Days.Any(x => x.Date.HasValue && DateOnly.FromDateTime(x.Date!.Value) == d))
             .ToList();
+
+        // The payor's own market days for this month, so a line can be labelled by which of THEIR days it is.
+        row.Chargeable.AddRange((res.Value.Chargeable ?? res.Value.Uncollected).OrderBy(d => d));
 
         var next = 0;
         foreach (var day in row.Days)
@@ -1118,6 +1131,24 @@
 
         var match = _payors.FirstOrDefault(p => string.Equals(p.StallNo, key, StringComparison.OrdinalIgnoreCase));
         return match.StallId == Guid.Empty ? null : match.StallId;
+    }
+
+    /// <summary>
+    /// Which of the PAYOR'S market days a line is, not which line of this form it is.
+    ///
+    /// <para>A space let on the 9th has the 9th as its first market day, so the 11th is its third — and that is the
+    /// number the office's own reckoning uses. Where the date is not one of the payor's owed days, or is not yet
+    /// entered, there is no such number to give and the cell says so rather than inventing one.</para>
+    /// </summary>
+    private static string DayLabel(EditableRow row, int slot)
+    {
+        if (slot < 0 || slot >= row.Days.Count) return "—";
+
+        var date = row.Days[slot].Date;
+        if (date is null) return "—";
+
+        var ordinal = row.Chargeable.IndexOf(DateOnly.FromDateTime(date.Value));
+        return ordinal >= 0 ? $"Day {ordinal + 1}" : "—";
     }
 
     private static void SetDayDate(EditableRow row, int slot, string? value)

@@ -150,6 +150,44 @@ public class GetCollectableDaysQueryHandlerTests
     }
 
     [Fact]
+    public async Task TheChargeableDaysAreThePayorsOwn_CollectedOnesIncluded()
+    {
+        // A space let on the 9th, with the 9th and 10th already collected. Its chargeable days are 9, 10, 11... - so
+        // the 11th is the payor's THIRD market day, which is the number the office's own reckoning uses. Numbering an
+        // entry form's lines 1, 2, 3 described the form rather than the vendor.
+        var handler = Build(StallLetFrom(9), onRecord: new[] { Collected(9), Collected(10) });
+
+        var result = await handler.Handle(new GetCollectableDaysQuery(StallId, Past.Year, Past.Month), CancellationToken.None);
+
+        var chargeable = result.Value!.Chargeable!;
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 9), chargeable[0]);
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 10), chargeable[1]);
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 11), chargeable[2]);
+
+        // Ordered, and a superset of what is still owed: the collected days are the payor's days too, and dropping them
+        // would renumber every day after them.
+        Assert.Equal(chargeable.OrderBy(d => d), chargeable);
+        Assert.All(result.Value!.Uncollected, d => Assert.Contains(d, chargeable));
+    }
+
+    [Fact]
+    public async Task AnExcusedDayIsNotOneOfThePayorsDaysToCount()
+    {
+        // Nothing is owed for an excused day, so it is not the payor's day either. Counting it would push every later
+        // day's number up by one and disagree with the office's own reckoning.
+        var absent = DailyCollection.Create(StallId, new DateOnly(Past.Year, Past.Month, 2), "head", 30m);
+        absent.MarkAbsent("head");
+
+        var handler = Build(StallLetFrom(1), onRecord: new[] { absent });
+
+        var result = await handler.Handle(new GetCollectableDaysQuery(StallId, Past.Year, Past.Month), CancellationToken.None);
+
+        Assert.DoesNotContain(new DateOnly(Past.Year, Past.Month, 2), result.Value!.Chargeable!);
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 1), result.Value!.Chargeable![0]);
+        Assert.Equal(new DateOnly(Past.Year, Past.Month, 3), result.Value!.Chargeable![1]);
+    }
+
+    [Fact]
     public async Task AMonthThatIsNotAMonthIsRefused()
     {
         var handler = Build(StallLetFrom(1));

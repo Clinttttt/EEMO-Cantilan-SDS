@@ -35,6 +35,7 @@ public class GetCollectableDaysQueryHandler(
         var occupancies = stall.Occupancies(today);
 
         var uncollected = new List<DateOnly>();
+        var chargeable = new List<DateOnly>();
         var collected = 0;
         var excused = 0;
         var notOwed = 0;
@@ -55,14 +56,17 @@ public class GetCollectableDaysQueryHandler(
 
             if (onRecord.TryGetValue(date, out var existing))
             {
-                if (existing.IsPaid) { collected++; continue; }
+                if (existing.IsPaid) { collected++; chargeable.Add(date); continue; }
+
+                // Excused: nothing is owed, so it is not one of the payor's days to count either.
                 if (existing.IsAbsent) { excused++; continue; }
             }
 
             uncollected.Add(date);
+            chargeable.Add(date);
         }
 
         return Result<CollectableDaysDto>.Success(new CollectableDaysDto(
-            request.StallId, request.Year, request.Month, uncollected, collected, excused, notOwed));
+            request.StallId, request.Year, request.Month, uncollected, collected, excused, notOwed, chargeable));
     }
 }
