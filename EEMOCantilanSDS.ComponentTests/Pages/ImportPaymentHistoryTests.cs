@@ -513,6 +513,76 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void ThePeriodTakesItsOwnDash()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        // Six keystrokes, not seven: the office types digits and the shape follows. A period written in a shape the
+        // import cannot read is a rejection the clerk only hears about after saving.
+        var period = cut.Find("input.iph-period");
+
+        period.Input("2026");
+        Assert.Equal("2026", cut.Find("input.iph-period").GetAttribute("value"));
+
+        period = cut.Find("input.iph-period");
+        period.Input("20264");
+        Assert.Equal("2026-4", cut.Find("input.iph-period").GetAttribute("value"));
+
+        period = cut.Find("input.iph-period");
+        period.Input("202604");
+        Assert.Equal("2026-04", cut.Find("input.iph-period").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void ATypedDashIsNotDoubled()
+    {
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        // An office that types the dash out of habit must not end up with "2026--4". Only the digits are kept, so the
+        // shape is the same whichever way it was typed.
+        cut.Find("input.iph-period").Input("2026-04");
+        Assert.Equal("2026-04", cut.Find("input.iph-period").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void UndatedDayLinesAreNamedAsTheFault_NotTheReceipt()
+    {
+        // The office wrote a receipt against every line and left the dates blank, because that month had no day the
+        // payor owed. The complaint came back as "an OR number is required" - at an office that had entered three of
+        // them. The fault is the dates, and the message must say so.
+        var cut = Render("npm");
+
+        _payments.Setup(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+                 .ReturnsAsync((Guid s, int y, int m) =>
+                     Result<CollectableDaysDto>.Success(new CollectableDaysDto(s, y, m, [], 0, 0, 30)));
+
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}{past.Month:00}");
+        cut.Find("input.iph-days").Input("3");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        // Receipts written, dates blank - exactly the office's entry.
+        cut.FindAll("input.iph-day-or")[0].Input("445645646");
+        cut.FindAll("input.iph-day-or")[1].Input("465456465");
+        cut.FindAll("input.iph-day-or")[2].Input("5647347457");
+
+        cut.Find("button.iph-btn-primary").Click();
+
+        Assert.Contains("with no date", cut.Markup);
+        Assert.DoesNotContain("OR number is required", cut.Markup);
+        _payments.Verify(
+            p => p.ImportDailyHistoryAsync(It.IsAny<BulkImportDailyHistoryCommand>()),
+            Times.Never);
+    }
+
+    [Fact]
     public void AFacilityChargedPerUnitHasNoHistoryToImport()
     {
         var cut = Render("slh");

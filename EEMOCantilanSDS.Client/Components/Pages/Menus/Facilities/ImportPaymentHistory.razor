@@ -148,9 +148,9 @@
                             <th>#</th>
                             <th>Stall / Space No.</th>
                             <th>Period</th>
-                            <th>Days claimed</th>
-                            <th>Days settled</th>
-                            <th>Amount</th>
+                            <th class="iph-c">Days claimed</th>
+                            <th class="iph-c">Days settled</th>
+                            <th class="iph-c">Amount</th>
                             <th>Outcome</th>
                         </tr>
                     </thead>
@@ -161,9 +161,9 @@
                                 <td>@row.RowNumber</td>
                                 <td>@SpaceNumber.Display(row.StallNo)</td>
                                 <td>@row.Period</td>
-                                <td>@row.DaysClaimed</td>
-                                <td>@row.DaysSettled</td>
-                                <td>@row.AmountRecorded.ToString("N2")</td>
+                                <td class="iph-c">@row.DaysClaimed</td>
+                                <td class="iph-c">@row.DaysSettled</td>
+                                <td class="iph-c">@Peso(row.AmountRecorded)</td>
                                 <td>@(row.Error ?? DailyOutcomeLabel(row.Outcome))</td>
                             </tr>
                         }
@@ -202,7 +202,7 @@
                                 <th class="iph-th-num">#</th>
                                 <th>Stall / Space</th>
                                 <th>Period</th>
-                                <th class="iph-r">Amount</th>
+                                <th class="iph-c">Amount</th>
                                 <th>Reason</th>
                             </tr>
                         </thead>
@@ -213,7 +213,7 @@
                                     <td class="iph-th-num">@row.RowNumber</td>
                                     <td>@SpaceNumber.Display(row.StallNo)</td>
                                     <td class="iph-c">@row.Period</td>
-                                    <td class="iph-r">@Peso(row.AmountPaid)</td>
+                                    <td class="iph-c">@Peso(row.AmountPaid)</td>
                                     <td class="iph-reason">@row.Error</td>
                                 </tr>
                             }
@@ -360,9 +360,13 @@
                                    beneath it and pushed the table sideways. *@
                                 <td><input class="iph-input" @bind="row.Occupant" @bind:event="oninput" maxlength="@MaxOccupant" placeholder="Name on the sheet" aria-label="Actual occupant" /></td>
                                 <td>
+                                    @* The dash is put in as the office types, so a period is six keystrokes rather than
+                                       seven and cannot be written in a shape the import will not read. inputmode
+                                       numeric brings up the number pad on a phone. *@
                                     <input class="iph-input iph-period @(PeriodIsBad(row.Period) ? "iph-input-bad" : null)"
-                                           @bind="row.Period" @bind:event="oninput" @bind:after="() => OnPeriodChanged(row)" maxlength="7" placeholder="2025-03"
-                                           aria-label="Period, year and month" />
+                                           @bind="row.Period" @bind:event="oninput" @bind:after="() => OnPeriodChanged(row)"
+                                           @onblur="() => PadPeriodMonth(row)" maxlength="7" inputmode="numeric"
+                                           placeholder="2025-03" aria-label="Period, year and month" />
                                 </td>
                                 @if (IsDaily)
                                 {
@@ -749,9 +753,41 @@
         return !int.TryParse(text, out var n) || n < 1 || n > 31;
     }
 
+    /// <summary>
+    /// Puts the dash in as the office types, so a period is six keystrokes rather than seven and cannot be written in
+    /// a shape the import will not read.
+    ///
+    /// <para>Digits only, year then month: "20264" becomes "2026-4", and a sixth digit completes it. The month is
+    /// padded on the way out — "2026-4" is stored as 2026-04 — because a clerk types 4 and means April, and asking
+    /// them to type the nought is asking them to do the computer's work.</para>
+    /// </summary>
+    private static void NormalisePeriod(EditableRow row)
+    {
+        var digits = new string((row.Period ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length > 6) digits = digits[..6];
+
+        row.Period = digits.Length switch
+        {
+            <= 4 => digits,
+            5 => $"{digits[..4]}-{digits[4]}",
+            _ => $"{digits[..4]}-{digits[4..6]}"
+        };
+    }
+
+    /// <summary>Pads a single-digit month once the office leaves the field: 2026-4 is April, and reads better as 04.</summary>
+    private static void PadPeriodMonth(EditableRow row)
+    {
+        var (year, month) = ParsePeriod(row.Period ?? string.Empty);
+        if (year == 0 || month == 0) return;
+
+        row.Period = $"{year:0000}-{month:00}";
+    }
+
     /// <summary>Re-dates a row's days when its period changes: the days owed depend on the month.</summary>
     private async Task OnPeriodChanged(EditableRow row)
     {
+        NormalisePeriod(row);
+
         if (!_showDates) return;
 
         // The dates already shown belong to the month that was there before, so they are cleared rather than carried
@@ -819,6 +855,20 @@
             {
                 return $"{badDays} {(badDays == 1 ? "row does" : "rows do")} not state how many market days were " +
                        "paid for. A month holds between 1 and 31.";
+            }
+
+            // Checked BEFORE the receipt, because an undated day line is the fault the office actually has. It used to
+            // fall through to the server, which saw a row with no dates at all, required a receipt for the month it
+            // would have filled in, and reported "an OR number is required" at an office that had written a receipt
+            // against every line. The complaint named the wrong field.
+            if (_showDates)
+            {
+                var undated = _rows.Count(r => r.Days.Any(d => !d.Date.HasValue));
+                if (undated > 0)
+                {
+                    return $"{undated} {(undated == 1 ? "row has a day" : "rows have days")} with no date. Give each " +
+                           "day its date, or reduce the days paid to the ones you can date.";
+                }
             }
 
             // A receipt is needed for every day recorded, and it may be written against the day OR against the month.

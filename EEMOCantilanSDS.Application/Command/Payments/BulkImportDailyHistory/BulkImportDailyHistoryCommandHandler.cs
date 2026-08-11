@@ -124,7 +124,12 @@ public class BulkImportDailyHistoryCommandHandler(
 
             if (rowOr.Length == 0 && statedDays.Count == 0)
             {
-                Reject("An OR number is required: collections without one are reported as missing a receipt.");
+                // Names both ways the office can satisfy this, because a row reaching here has neither: no receipt for
+                // the month, and no dated day carrying one of its own. The old wording said only "an OR number is
+                // required", which read as a contradiction to an office that had written a receipt against every line
+                // it listed - those lines had no DATES, so none of them arrived.
+                Reject("No OR number for this month, and no dated day carrying one. Write a receipt against the " +
+                       "month, or date each day and write its own.");
                 continue;
             }
 
