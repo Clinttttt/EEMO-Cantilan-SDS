@@ -76,17 +76,17 @@ public class TenantFilterCharacterizationTests
     }
 
     [Fact]
-    public void AnUnresolvedTenantSeesEVERYTHING_theBehaviourUnderReview()
+    public void AnUnresolvedTenantSeesNOTHING_theFix()
     {
-        // CHARACTERIZATION OF A DEFECT. Guid.Empty means "unresolved", and the filter treats it as a no-op, so a context
-        // with no resolved tenant reads every LGU's rows. A production request cannot reach this today - it falls back
-        // to the default municipality - but nothing in the filter says so, and that is the point.
+        // CHANGED. This asserted the defect: Guid.Empty meant "unresolved", the filter treated it as a no-op, and a
+        // context with no resolved tenant read every LGU's rows. "I don't know who is asking" now answers with nothing,
+        // which is the only safe answer a shared database can give.
         var options = SharedStore();
         SeedOnePerTenant(options);
 
         using var unresolved = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
 
-        Assert.Equal(2, unresolved.Facilities.Count());
+        Assert.Empty(unresolved.Facilities);
     }
 
     [Fact]
@@ -179,17 +179,16 @@ public class TenantFilterCharacterizationTests
     }
 
     [Fact]
-    public void AnAuthenticatedUserWithNoMunicipalityOfItsOwnDependsOnTheDefaultFallback()
+    public void AnAuthenticatedUserWithNoMunicipalityOfItsOwnNowSeesNothing_ratherThanCantilansData()
     {
-        // THE FACT THAT DECIDES THE ORDER OF THE FIX.
+        // CHANGED, and this is the hazard the whole item existed for.
         //
-        // A user row carries its own MunicipalityId, and Cantilan's original accounts predate that column being filled,
-        // so theirs is Guid.Empty. CurrentUserService reads an all-zero claim as NULL, and the accessor then falls back
-        // to the default municipality - which is the only reason those accounts see Cantilan's data at all.
+        // A user row carries its own MunicipalityId. CurrentUserService reads an absent or all-zero claim as NULL, and the
+        // accessor USED to fall back to the default municipality - so a user of ANY LGU whose claim was missing or
+        // malformed read CANTILAN's data and was told it was their own. Now they resolve to nothing and see nothing.
         //
-        // So removing the fallback for authenticated requests, or failing the filter closed, would lock the office out
-        // of its own system BEFORE those rows are stamped. The data has to be corrected first. This test states the
-        // dependency so the sequence cannot be forgotten.
+        // Production carries zero such rows (checked: every tenant-owned table, including Users), which is why this could
+        // be tightened without a backfill first.
         var options = SharedStore();
 
         using (var writer = new AppDbContext(options, new FixedMunicipality(TenantA)))
@@ -198,13 +197,12 @@ public class TenantFilterCharacterizationTests
             writer.SaveChanges();
         }
 
-        // Resolved to the default (what the fallback does today): the office sees its own facility.
-        using (var withFallback = new AppDbContext(options, new FixedMunicipality(TenantA)))
-            Assert.Single(withFallback.Facilities);
+        // The tenant it belongs to still sees it.
+        using (var owner = new AppDbContext(options, new FixedMunicipality(TenantA)))
+            Assert.Single(owner.Facilities);
 
-        // Resolved to nothing (what removing the fallback would do to those accounts): today it reads EVERY tenant's
-        // rows, and under a fail-closed filter it would read none. Neither is what the office should see.
-        using var withoutFallback = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
-        Assert.Single(withoutFallback.Facilities);   // today: the no-op filter happens to show it
+        // A caller whose tenant could not be resolved sees nothing at all - not Cantilan's rows, and not everyone's.
+        using var unresolved = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+        Assert.Empty(unresolved.Facilities);
     }
 }

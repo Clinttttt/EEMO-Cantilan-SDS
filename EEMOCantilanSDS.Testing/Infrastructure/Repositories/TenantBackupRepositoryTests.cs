@@ -13,6 +13,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -28,7 +29,16 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
     /// </summary>
     public class TenantBackupRepositoryTests
     {
-        private sealed class FixedMunicipality(Guid id) : ICurrentMunicipalityAccessor
+        /// <summary>
+    /// The tenant these tests run as.
+    ///
+    /// <para>They used to run with an UNRESOLVED tenant, which worked only because the query filter was then a no-op.
+    /// Now that an unresolved tenant sees nothing, they run as a real one — which is also truer to the subject: a backup
+    /// belongs to the LGU whose database it holds, and reading one as nobody was never a case worth covering.</para>
+    /// </summary>
+    private static readonly Guid Tenant = Guid.NewGuid();
+
+    private sealed class FixedMunicipality(Guid id) : ICurrentMunicipalityAccessor
         {
             public Guid MunicipalityId => id;
             public void Set(Guid municipalityId) { }
@@ -37,6 +47,9 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         private static DbContextOptions<AppDbContext> Options() =>
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                // The repository leaves the municipality to the interceptor, which is how production stamps it. Without
+                // it registered here the rows were written unstamped and the test was describing its own rig.
+                .AddInterceptors(new MunicipalityStampInterceptor())
                 .Options;
 
         private static ICurrentUserService User(string username = "head")
@@ -76,7 +89,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
             var options = Options();
             // Empty tenant → the municipality query filter is a no-op, so the rows added here are visible
             // to the same context (the stamp interceptor isn't wired in hand-built test contexts).
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot(2)), User());
 
             for (var i = 0; i < 18; i++)
@@ -92,7 +105,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         public async Task GetFileAndSnapshot_RoundTripTheStoredJson()
         {
             var options = Options();
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             var snap = SampleSnapshot(3);
             var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(snap), User());
 
@@ -113,7 +126,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         public async Task GetContents_ReturnsPerTableCounts_FriendlyNames_MostFirst()
         {
             var options = Options();
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             var snap = new TenantRestoreSnapshot("restore-v1", "cantilan-sds", Guid.Empty, DateTime.UtcNow,
                 new Dictionary<string, string>
                 {
@@ -141,7 +154,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         public async Task GetTableRows_ReturnsColumnsAndValues_WithTruncationFlag()
         {
             var options = Options();
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             var snap = new TenantRestoreSnapshot("restore-v1", "cantilan-sds", Guid.Empty, DateTime.UtcNow,
                 new Dictionary<string, string>
                 {
@@ -171,7 +184,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         public async Task ListRestoreEvents_ParsesStructuredBreakdownFromAudit()
         {
             var options = Options();
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             var newValues = "{\"rows\":15,\"tables\":2,\"snapshotUtc\":\"2026-07-13T09:26:39Z\",\"perTable\":{\"Stalls\":10,\"Contracts\":5}}";
             ctx.AuditLogs.Add(AuditLog.Create(
                 actorId: "u", actorName: "carrascal.head", actorRole: "SuperAdmin",
@@ -197,7 +210,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         public async Task ListRestoreEvents_ParsesCountsFromNote_WhenNoStructuredBreakdown()
         {
             var options = Options();
-            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
             // An older restore: only the human summary note, no NewValues.
             ctx.AuditLogs.Add(AuditLog.Create(
                 actorId: "u", actorName: "head", actorRole: "SuperAdmin",

@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
@@ -145,17 +145,27 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         }
 
         // Tenant-owned + soft-deletable: hide soft-deleted rows AND rows of other municipalities.
+        //
+        // FAIL CLOSED. An unresolved tenant now matches NOTHING, where it used to make the filter a no-op and return
+        // every LGU's rows - the worst possible answer to "I don't know who is asking". A context built with NO accessor
+        // is a different case and still sees everything: design-time tooling, migrations and much of the test suite are
+        // built that way and legitimately work across tenants, which is why Guid.Empty could not carry both meanings.
+        //
+        // Deliberate cross-tenant work stays possible and stays visible, through IgnoreQueryFilters() at the call site -
+        // login, the seeders, backup and the platform-operator paths already read that way.
         private void SetOwnedAuditableFilter<T>(ModelBuilder modelBuilder) where T : class =>
             modelBuilder.Entity<T>().HasQueryFilter(e =>
                 !EF.Property<bool>(e, nameof(AuditableEntity.IsDeleted))
-                && (CurrentMunicipalityId == Guid.Empty
-                    || EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId));
+                && (!HasTenantAccessor
+                    || (CurrentMunicipalityId != Guid.Empty
+                        && EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId)));
 
         // Tenant-owned but not soft-deletable (e.g. AuditLog, join links): municipality isolation only.
         private void SetOwnedFilter<T>(ModelBuilder modelBuilder) where T : class =>
             modelBuilder.Entity<T>().HasQueryFilter(e =>
-                CurrentMunicipalityId == Guid.Empty
-                || EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId);
+                !HasTenantAccessor
+                || (CurrentMunicipalityId != Guid.Empty
+                    && EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId));
 
         // Not tenant-owned (e.g. Municipality) but soft-deletable: preserve the original soft-delete filter.
         private void SetSoftDeleteFilter<T>(ModelBuilder modelBuilder) where T : class =>

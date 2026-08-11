@@ -93,13 +93,17 @@ public class AuditTrailScopeTests
     }
 
     [Fact]
-    public async Task AnUnresolvedTenant_ChangesNothing()
+    public async Task AnUnresolvedTenant_SeesNothing()
     {
-        // Tests and token-less paths run with an empty tenant; the trail must behave exactly as before.
+        // CHANGED with the tenant read boundary. This asserted that an unresolved tenant read the trail "exactly as
+        // before" — which meant every LGU's audit entries, because the filter was then a no-op. An audit trail is the
+        // last place that should answer a caller it cannot identify.
+        //
+        // The rows are seeded under a real tenant, because rows belonging to nobody can no longer be written at all.
         var options = Options();
         var cantilan = Guid.NewGuid();
 
-        using (var seed = new AppDbContext(options, new FixedMunicipality(Guid.Empty)))
+        using (var seed = new AppDbContext(options, new FixedMunicipality(cantilan)))
         {
             SeedAdmin(seed, cantilan, "cantilan.head", "Juan Dela Cruz");
             SeedEvent(seed, cantilan, "cantilan.head");
@@ -110,7 +114,14 @@ public class AuditTrailScopeTests
         var trail = await new AuditRepository(ctx, new FixedMunicipality(Guid.Empty))
             .GetAuditTrailAsync(null, null, null, null, null, null, 1, 25, true, CancellationToken.None);
 
-        Assert.Single(trail.Items);
+        Assert.Empty(trail.Items);
+
+        // And the tenant it belongs to still sees it, which is the half that matters.
+        using var owner = new AppDbContext(options, new FixedMunicipality(cantilan));
+        var owned = await new AuditRepository(owner, new FixedMunicipality(cantilan))
+            .GetAuditTrailAsync(null, null, null, null, null, null, 1, 25, true, CancellationToken.None);
+
+        Assert.Single(owned.Items);
     }
 
     [Fact]
