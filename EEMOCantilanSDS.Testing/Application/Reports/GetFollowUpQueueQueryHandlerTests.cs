@@ -84,7 +84,8 @@ public class GetFollowUpQueueQueryHandlerTests
                 new(Guid.NewGuid(), "REF-1", FacilityCode.NCC, "07", "Ana Lim", "2026-06", 3_240m, "GCash", DateTime.UtcNow),
             });
 
-        var payments = new Mock<IPaymentRepository>();
+        // The follow-up queue reads only the awaiting-OR queue, so it now depends on that capability alone.
+        var payments = new Mock<IMissingReceiptQueries>();
         payments.Setup(p => p.GetUnreceiptedCashPaymentsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cash ?? Array.Empty<UnreceiptedPaymentDto>());
 

@@ -33,7 +33,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
-    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IPaymentRepository> Payments, Mock<ISlaughterRepository> Slaughter) Build()
+    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IMissingReceiptQueries> Payments, Mock<ISlaughterRepository> Slaughter) Build()
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -113,7 +113,8 @@ public class GetFollowUpHistoryQueryHandlerTests
                 new(Guid.NewGuid(), "REF-1", FacilityCode.NCC, "07", "Ana Lim", "2025-12", 3_240m, "GCash", DateTime.UtcNow),
             });
 
-        var payments = new Mock<IPaymentRepository>();
+        // Follow-up history reads only the awaiting-OR queue, so it depends on that capability alone now.
+        var payments = new Mock<IMissingReceiptQueries>();
         payments.Setup(p => p.GetUnreceiptedCashPaymentsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
         payments.Setup(p => p.GetUnreceiptedCashPaymentsForYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))

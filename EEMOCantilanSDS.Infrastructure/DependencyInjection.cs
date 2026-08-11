@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -75,6 +75,7 @@ namespace EEMOCantilanSDS.Infrastructure
             // change tracker. Registered as a factory over the wide registration rather than as a second AddScoped of
             // the same type, which would build two instances per request for no reason.
             service.AddScoped<IStallLedgerQueries>(sp => (PaymentRepository)sp.GetRequiredService<IPaymentRepository>());
+            service.AddScoped<IMissingReceiptQueries>(sp => (PaymentRepository)sp.GetRequiredService<IPaymentRepository>());
             service.AddScoped<IStallMonthlyExceptionRepository, StallMonthlyExceptionRepository>();
             service.AddScoped<INpmMarketClosureRepository, NpmMarketClosureRepository>();
             service.AddScoped<IVendorRepository, VendorRepository>();

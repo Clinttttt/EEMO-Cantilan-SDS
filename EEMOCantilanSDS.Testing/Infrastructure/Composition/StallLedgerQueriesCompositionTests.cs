@@ -25,6 +25,19 @@ public class StallLedgerQueriesCompositionTests
     {
         Assert.True(typeof(IPaymentRepository).IsAssignableFrom(typeof(PaymentRepository)));
         Assert.True(typeof(IStallLedgerQueries).IsAssignableFrom(typeof(PaymentRepository)));
+        Assert.True(typeof(IMissingReceiptQueries).IsAssignableFrom(typeof(PaymentRepository)));
+    }
+
+    [Fact]
+    public void TheAwaitingReceiptQueueHasItsOwnContract()
+    {
+        // A different question from what a stall owes: these scan a whole PERIOD across every payor for money already
+        // received whose receipt has not been written down. The follow-up reports asked it through a contract that could
+        // also write payments.
+        var wide = typeof(IPaymentRepository).GetMethods().Select(m => m.Name).ToHashSet();
+
+        Assert.DoesNotContain(nameof(IMissingReceiptQueries.GetUnreceiptedCashPaymentsAsync), wide);
+        Assert.DoesNotContain(nameof(IMissingReceiptQueries.GetUnreceiptedCashPaymentsForYearAsync), wide);
     }
 
     [Fact]

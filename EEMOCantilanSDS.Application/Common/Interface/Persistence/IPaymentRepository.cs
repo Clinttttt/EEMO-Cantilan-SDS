@@ -12,17 +12,6 @@ public interface IPaymentRepository
     Task<IReadOnlyList<FacilityPaymentRecordDto>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<IReadOnlyList<NpmStallDailyStatusDto>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     /// <summary>
-    /// Fully-paid records whose OR is still blank for the given period — the cash/field "awaiting OR"
-    /// queue. Returns monthly records (one per stall) and NPM daily collections (grouped per stall).
-    /// Online payments are excluded; they surface via the online awaiting-OR queue.
-    /// </summary>
-    Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct);
-    /// <summary>
-    /// Whole-year variant of <see cref="GetUnreceiptedCashPaymentsAsync"/>: one row per (stall, billing
-    /// month) for every blank-OR paid cash/field record in the year. Powers the Follow-up History
-    /// "Whole year" Missing-OR aggregation.
-    /// </summary>
-    Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsForYearAsync(int year, CancellationToken ct);
     /// <summary>
     /// The stall's UNPAID months with an outstanding balance across the WHOLE contract period (not just
     /// the rolling 12 months, and INCLUDING months with no collection at all) — the source for the

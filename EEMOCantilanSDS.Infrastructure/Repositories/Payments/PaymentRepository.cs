@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // wants to read one account can depend on IStallLedgerQueries and nothing else. Moving the code out is a mechanical
 // follow-up, not a redesign, now that the seam is stated.
 public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
-    : IPaymentRepository, IStallLedgerQueries
+    : IPaymentRepository, IStallLedgerQueries, IMissingReceiptQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
     public PaymentRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }

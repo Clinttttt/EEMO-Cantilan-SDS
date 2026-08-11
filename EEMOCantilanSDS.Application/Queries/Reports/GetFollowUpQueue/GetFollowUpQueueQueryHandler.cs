@@ -18,7 +18,7 @@ public class GetFollowUpQueueQueryHandler(
     IFacilityReportsRepository reportsRepository,
     IStallRepository stallRepository,
     IOnlinePaymentRepository onlinePaymentRepository,
-    IPaymentRepository paymentRepository,
+    IMissingReceiptQueries missingReceipts,
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
@@ -39,7 +39,7 @@ public class GetFollowUpQueueQueryHandler(
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
         var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
-        var unreceipted = await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
+        var unreceipted = await missingReceipts.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         // Live queue shows only contracts EXPIRING SOON (still active). Already-EXPIRED contracts are a
         // past concern and belong on Past follow-up (the history handler keeps them via its as-of scope),
         // so they are excluded here to stop them counting/showing in the active queue.

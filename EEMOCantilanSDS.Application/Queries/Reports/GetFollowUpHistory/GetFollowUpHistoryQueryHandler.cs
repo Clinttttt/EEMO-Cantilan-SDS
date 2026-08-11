@@ -30,7 +30,7 @@ public class GetFollowUpHistoryQueryHandler(
     IFacilityReportsRepository reportsRepository,
     IStallRepository stallRepository,
     IOnlinePaymentRepository onlinePaymentRepository,
-    IPaymentRepository paymentRepository,
+    IMissingReceiptQueries missingReceipts,
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
@@ -168,8 +168,8 @@ public class GetFollowUpHistoryQueryHandler(
         // Missing-OR (cash/field) source: whole-year aggregates every month so a blank-OR settlement in
         // ANY month surfaces; a specific month keeps the exact single-month behaviour (unchanged).
         var unreceipted = request.WholeYear
-            ? await paymentRepository.GetUnreceiptedCashPaymentsForYearAsync(year, ct)
-            : await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
+            ? await missingReceipts.GetUnreceiptedCashPaymentsForYearAsync(year, ct)
+            : await missingReceipts.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
 
         // The window this snapshot is scoped to. A whole-year view runs from January; a single month is its own
