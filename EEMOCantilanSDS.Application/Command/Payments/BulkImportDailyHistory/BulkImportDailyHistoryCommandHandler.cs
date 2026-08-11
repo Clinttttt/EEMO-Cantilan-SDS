@@ -140,6 +140,22 @@ public class BulkImportDailyHistoryCommandHandler(
                 continue;
             }
 
+            // The count and the dates have to agree. A row claiming two days and naming five contradicts itself, and
+            // honouring the dates settled all five while reporting "recorded in full" against a claim of two - more
+            // money than the row claimed, described as complete. Refused rather than reconciled to one of the two, for
+            // the same reason a count above 31 is refused: the office wrote both figures, and only it can say which is
+            // right.
+            var datedCount = (row.Days ?? Array.Empty<ImportDailyDay>())
+                .Select(d => d.Date)
+                .Distinct()
+                .Count();
+
+            if (datedCount > row.DaysPaid)
+            {
+                Reject($"{row.DaysPaid} days paid, but {datedCount} days are dated. Correct one or the other.");
+                continue;
+            }
+
             var orNumber = rowOr;
 
             // The days nobody owes for. Every exclusion here matches the market's own collection dialog, so an

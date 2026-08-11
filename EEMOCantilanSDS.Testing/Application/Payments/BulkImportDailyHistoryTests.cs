@@ -478,6 +478,29 @@ public class BulkImportDailyHistoryTests
     }
 
     [Fact]
+    public async Task MoreDatesThanDaysClaimedIsRefused_NotSettledAnyway()
+    {
+        // A row that claims two days and names five contradicts itself. Honouring the dates settled five and reported
+        // "recorded in full" against a claim of two - more money than the row claimed, described as complete. The
+        // screen cannot produce this, but the endpoint can be called directly, and the count is the office's own
+        // statement of what it collected.
+        var (handler, added) = Build();
+
+        var result = await handler.Handle(
+            Command(Row(1, "1", Past.Year, Past.Month, 2) with
+            {
+                Days = Enumerable.Range(3, 5)
+                    .Select(d => new ImportDailyDay(new DateOnly(Past.Year, Past.Month, d), "OR-9"))
+                    .ToList()
+            }),
+            CancellationToken.None);
+
+        Assert.Empty(added);
+        Assert.Equal(1, result.Value!.RejectedCount);
+        Assert.Contains("5 days are dated", result.Value!.Results[0].Error);
+    }
+
+    [Fact]
     public async Task AMonthlyBilledFacilityIsRefusedWholesale()
     {
         // A month there is a payment, not a run of days. Recording it through this path would settle days nobody

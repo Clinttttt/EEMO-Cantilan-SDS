@@ -566,6 +566,12 @@
         /// and the office reconciles against the vendor.</para>
         /// </summary>
         public List<DateOnly> Chargeable { get; } = new();
+
+        /// <summary>
+        /// The month this row's dates were last fetched for, so a keystroke that does not change the month does not
+        /// clear them or ask the server again.
+        /// </summary>
+        public (int Year, int Month) DatesFetchedFor { get; set; }
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -792,12 +798,24 @@
         row.Period = $"{year:0000}-{month:00}";
     }
 
-    /// <summary>Re-dates a row's days when its period changes: the days owed depend on the month.</summary>
+    /// <summary>
+    /// Re-dates a row's days when its period changes to a DIFFERENT month.
+    ///
+    /// <para>Guarded on the month actually changing. Bound to oninput, this ran on every keystroke: typing 2-0-2-6-0-8
+    /// asked the server six times and cleared the dates six times, so a date the office had entered by hand was wiped
+    /// while they typed the month beside it. Now the fetch happens once, when the month is readable and new.</para>
+    /// </summary>
     private async Task OnPeriodChanged(EditableRow row)
     {
         NormalisePeriod(row);
 
         if (!_showDates) return;
+
+        var (year, month) = ParsePeriod(row.Period ?? string.Empty);
+        if (year == 0 || month == 0) return;                    // half-typed: nothing to fetch for yet
+        if (row.DatesFetchedFor == (year, month)) return;        // same month: leave what is there alone
+
+        row.DatesFetchedFor = (year, month);
 
         // The dates already shown belong to the month that was there before, so they are cleared rather than carried
         // into a month they do not fall in - the import would refuse them by name, one row at a time.
@@ -1075,6 +1093,9 @@
 
         var (year, month) = ParsePeriod(row.Period);
         if (year == 0 || month == 0 || row.Days.Count == 0) return;
+
+        // Recorded by every path that fetches, so a later keystroke on the same month knows there is nothing to do.
+        row.DatesFetchedFor = (year, month);
 
         var stallId = StallIdFor(row.StallNo);
         if (stallId is null)

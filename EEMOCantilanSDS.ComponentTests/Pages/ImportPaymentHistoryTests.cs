@@ -632,6 +632,35 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void TypingThePeriodDoesNotAskTheServerOnEveryKeystrokeOrWipeADateAlreadyEntered()
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        var dated = cut.FindAll("input.iph-date-slot")[0].GetAttribute("value");
+        Assert.False(string.IsNullOrEmpty(dated));
+
+        _payments.Invocations.Clear();
+
+        // Re-typing the SAME month, digit by digit. Bound to oninput, this used to clear the dates and ask the server
+        // once per keystroke - so a date entered by hand was wiped while the clerk typed the month beside it.
+        cut.Find("input.iph-period").Input($"{past.Year:0000}{past.Month:00}");
+
+        Assert.Equal(dated, cut.FindAll("input.iph-date-slot")[0].GetAttribute("value"));
+        _payments.Verify(
+            p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    [Fact]
     public void AFacilityChargedPerUnitHasNoHistoryToImport()
     {
         var cut = Render("slh");
