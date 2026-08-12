@@ -17,13 +17,11 @@ public interface ICollectorRepository
     /// (the global overload would return an arbitrary match).
     /// </summary>
     Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, Guid municipalityId, CancellationToken cancellationToken = default);
-    Task<List<CollectorListDto>> GetAllCollectorsWithStatsAsync(int year, int month, CancellationToken cancellationToken = default);
-    Task<CollectorActivityDto?> GetCollectorActivityAsync(Guid collectorId, int year, int month, CancellationToken cancellationToken = default);
 
     /// <remarks>
-    /// The three projections a collector's own app reads about their work live on
-    /// <see cref="ICollectorMobileQueries"/>. This is an account repository — it loads a collector to modify, finds one
-    /// for LOGIN, and rules on uniqueness — and a handler serving the app has no business with any of that.
+    /// The office's roster and activity views live on <see cref="ICollectorReportingQueries"/>; a collector's own app
+    /// reads <see cref="ICollectorMobileQueries"/>. What is left here is the ACCOUNT: load one to modify, find one for
+    /// login, and rule on uniqueness.
     /// </remarks>
     Task AddAsync(CollectorUser collector, CancellationToken cancellationToken = default);
     Task<bool> IsEmployeeIdUniqueAsync(string employeeId, CancellationToken cancellationToken = default);

@@ -68,6 +68,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ICollectorRepository, CollectorRepository>();
             // Same instance, one change tracker per request — see the IStallLedgerQueries registration below.
             service.AddScoped<ICollectorMobileQueries>(sp => (CollectorRepository)sp.GetRequiredService<ICollectorRepository>());
+            service.AddScoped<ICollectorReportingQueries>(sp => (CollectorRepository)sp.GetRequiredService<ICollectorRepository>());
             service.AddScoped<ICollectorDeviceTokenRepository, CollectorDeviceTokenRepository>();
             service.AddScoped<IPushSender, EEMOCantilanSDS.Infrastructure.Services.FcmPushSender>();
             service.AddScoped<IStallRepository, StallRepository>();

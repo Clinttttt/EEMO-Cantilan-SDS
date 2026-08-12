@@ -37,9 +37,9 @@ RESIDUALS — not defects today, but the ways this can quietly regress:
   boundary completely. An architecture test could pin the allowed list.
 - **Tenant isolation IS now proven against real Postgres** (`TenantIsolationTests`, four cases: each tenant sees only its
   own; an unresolved tenant sees nothing while the rows demonstrably exist; another tenant's row is unreachable by primary
-  key; a write is stamped with the writer's tenant). Those tests were seen passing. What was NOT done: proving them
-  load-bearing by reintroducing the old no-op filter, because the container runtime was withdrawn mid-verification. The
-  same property IS proven load-bearing at unit level in `70075c0`.
+  key; a write is stamped with the writer's tenant). Proven load-bearing on 2026-08-12: reinstating the old fail-open
+  filter failed `AnUnresolvedTenantReadsNothing` and ONLY that one — the three resolved-tenant cases correctly still
+  passed, since that defect opens only the unresolved path. The filter was then restored byte-identical.
 
 ### 3. Move password hashing out of Domain — HALF DONE
 
@@ -74,8 +74,10 @@ Corrections to the review worth keeping:
 mobile projections, reports and uniqueness checks.
 
 Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
-`ICollectorMobileQueries` (`13ffe29`). `IPaymentRepository` is now load-by-id, add, update and the three
-receipt-availability rules; `IStallRepository` and `ICollectorRepository` have shed their mobile projections.
+`ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (this commit). `IPaymentRepository` is now load-by-id,
+add, update and the three receipt-availability rules; `IStallRepository` has shed its mobile projections, and
+`ICollectorRepository` is now the ACCOUNT only — load to modify, find for login, rule on uniqueness — with the office's
+roster and one collector's activity on the reporting contract and the app's three projections on the mobile one.
 
 Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
 mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
@@ -86,8 +88,6 @@ Remaining, in order:
 - **`StallRepository` closed-accounts and contract-attention seams.** `GetClosedStallAccountsAsync` alone has ~35 refs and
   `GetClosedStallAccountsForPeriodAsync` ~14, mostly test setups. Needs its own session; the volume is the risk, not the
   design.
-- **`CollectorRepository` reporting seam** — `GetAllCollectorsWithStatsAsync` (6 refs) and `GetCollectorActivityAsync` (3).
-  Small; the obvious next one.
 - **`StallRepository` register seam** — `GetStallsByFacilityAsync`, `...Paginated`, `GetStallHoldersListAsync`,
   `GetSectionSummariesAsync`.
 - **A receipt-registry CONTRACT.** Lower value than the review implies: the RULE is already single-sourced in

@@ -5,7 +5,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorById;
 
-public class GetCollectorByIdQueryHandler(ICollectorRepository collectorRepo) 
+public class GetCollectorByIdQueryHandler(ICollectorReportingQueries collectorRepo) 
     : IRequestHandler<GetCollectorByIdQuery, Result<CollectorActivityDto>>
 {
     public async Task<Result<CollectorActivityDto>> Handle(

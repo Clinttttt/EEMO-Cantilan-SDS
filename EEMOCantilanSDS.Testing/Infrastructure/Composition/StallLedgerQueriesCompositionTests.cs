@@ -104,4 +104,21 @@ public class StallLedgerQueriesCompositionTests
         Assert.Contains("IsEmployeeIdUniqueAsync", wide);
         Assert.Contains("AddAsync", wide);
     }
+
+    [Fact]
+    public void TheOfficesRosterViewsAreNeitherTheAppsNorTheAccounts()
+    {
+        // Three different questions about one subject, now three contracts. The office asks who collected how much this
+        // month; the collector's app asks what to collect next; the account repository is about the person's record. One
+        // interface answering all three is how a supervisor's report ends up able to reset a password.
+        Assert.True(typeof(ICollectorReportingQueries).IsAssignableFrom(typeof(CollectorRepository)));
+
+        var wide = typeof(ICollectorRepository).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(ICollectorReportingQueries.GetAllCollectorsWithStatsAsync), wide);
+        Assert.DoesNotContain(nameof(ICollectorReportingQueries.GetCollectorActivityAsync), wide);
+
+        // And the two read contracts stay apart from each other.
+        var mobile = typeof(ICollectorMobileQueries).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(ICollectorReportingQueries.GetAllCollectorsWithStatsAsync), mobile);
+    }
 }

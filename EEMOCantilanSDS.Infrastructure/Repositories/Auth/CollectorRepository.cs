@@ -19,7 +19,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // reports use, and duplicating money arithmetic is how two screens start disagreeing. The CONTRACTS are separate, so a
 // handler serving the app cannot reach an authentication lookup.
 public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
-    : ICollectorRepository, ICollectorMobileQueries
+    : ICollectorRepository, ICollectorMobileQueries, ICollectorReportingQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
     public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
