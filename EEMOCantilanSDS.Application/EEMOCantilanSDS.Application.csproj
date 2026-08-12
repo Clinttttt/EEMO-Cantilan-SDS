@@ -15,7 +15,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="9.0.0" />
+    <!-- Microsoft.Extensions.Identity.Core removed: password hashing moved behind IPasswordHasher, implemented in
+         Infrastructure. Application no longer needs an identity package to answer whether a password is right. -->
   </ItemGroup>
 
   <ItemGroup>

@@ -10,8 +10,10 @@ namespace EEMOCantilanSDS.Testing.Architecture;
 /// Infrastructure/Api; Infrastructure never references the Api/UI projects). These are dependency-free
 /// reflection checks — they read each assembly's direct references, so a future accidental violation
 /// (e.g. Application using an Infrastructure type) will fail the build instead of silently leaking.
-/// Note: the known, accepted pragmatic leaks (Domain uses PasswordHasher; Application's IAppDbContext
-/// exposes EF Core DbSet) are intentionally NOT asserted here, matching the approved review.
+/// Note: one of the two documented pragmatic leaks is now closed — Application no longer references ASP.NET
+/// Identity, since password hashing moved behind a port. Domain still hashes inline (eight call sites in the
+/// user entities) and Application's IAppDbContext still exposes EF Core DbSets; both remain unasserted on
+/// purpose, and both are recorded in .kiro/knowledge/OUTSTANDING_WORK.md with what closing them would touch.
 /// </summary>
 public class ArchitectureDependencyTests
 {
@@ -34,6 +36,20 @@ public class ArchitectureDependencyTests
         Assert.DoesNotContain("EEMOCantilanSDS.Api", refs);
         Assert.DoesNotContain("EEMOCantilanSDS.Client", refs);
         Assert.DoesNotContain("Microsoft.EntityFrameworkCore", refs);
+    }
+
+    [Fact]
+    public void Application_DoesNotDependOn_AspNetIdentity()
+    {
+        // Earned, not aspirational: six handlers used to construct ASP.NET Identity's PasswordHasher inline, so
+        // Application referenced an identity package to answer "is this password right". That decision now lives behind
+        // IPasswordHasher and is implemented in Infrastructure, and the package reference is gone.
+        //
+        // Asserted so it cannot creep back one convenient using at a time. If a handler needs to hash or check a
+        // password, it takes the port; if the port is missing something, the port grows.
+        var refs = ReferencedNames(Application);
+        Assert.DoesNotContain("Microsoft.Extensions.Identity.Core", refs);
+        Assert.DoesNotContain("Microsoft.AspNetCore.Identity", refs);
     }
 
     [Fact]

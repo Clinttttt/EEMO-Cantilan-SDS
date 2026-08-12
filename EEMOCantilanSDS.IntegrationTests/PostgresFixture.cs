@@ -75,16 +75,20 @@ public sealed class PostgresFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// A context on the throwaway database, reading as the given tenant. <see cref="Guid.Empty"/> reads across
-    /// tenants, which is how the platform operator sees it.
-    /// </summary>
-    /// <summary>
     /// A raw connection to the test database, for the few things that are properties of the SERVER rather
     /// than of the model - notably the advisory lock that stops two instances migrating at once, whose whole
     /// behaviour is about what one session can see of another.
     /// </summary>
     public NpgsqlConnection CreateRawConnection() => new(ConnectionString);
 
+    /// <summary>
+    /// A context on the throwaway database, reading as the given tenant.
+    ///
+    /// <para><see cref="Guid.Empty"/> means the tenant is UNRESOLVED, which since the boundary was made to fail closed
+    /// reads NOTHING rather than everything. It stays the right choice for setup that supplies the municipality itself,
+    /// and for migrations and raw SQL, which the filter never touches. Cross-tenant READS are deliberately not available
+    /// this way: a test that needs one should say so with IgnoreQueryFilters, as the platform-operator paths do.</para>
+    /// </summary>
     public AppDbContext CreateContext(Guid municipalityId)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

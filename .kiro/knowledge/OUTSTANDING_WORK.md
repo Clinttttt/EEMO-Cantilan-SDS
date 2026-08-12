@@ -27,15 +27,19 @@ separates "system" from "unresolved", which `Guid.Empty` used to conflate.
 RESIDUALS — not defects today, but the ways this can quietly regress:
 
 - **The no-accessor escape hatch is ungated.** `new AppDbContext(options)` sees every tenant, by design, for tooling and
-  tests. Verified 2026-08-12 that NO production code uses that constructor. Nothing stops one being added. Worth an
-  architecture test asserting that only the test projects and the design-time factory construct it.
+  tests. Verified 2026-08-12 that NO production code uses that constructor — the only 235 call sites are in the two test
+  projects. Nothing stops one being added. Making the constructor `internal` with `InternalsVisibleTo` would let the
+  compiler enforce it; NOT done because `dotnet ef` design-time behaviour was not verified and a broken migration workflow
+  is a poor trade for a guardrail. A source-scanning test was considered and rejected as brittle across CI paths.
 - **`IgnoreQueryFilters()` is still free to call anywhere.** The review wanted cross-tenant reads expressed through named
   cross-tenant ports instead. Today roughly a dozen call sites use it legitimately (login, seeders, backup, the OR
   registry, platform-operator paths), and each is commented — but a new one can be added silently, and it bypasses the
   boundary completely. An architecture test could pin the allowed list.
-- **No integration test proves tenant A cannot read tenant B against real Postgres.** The unit tests prove it against the
-  in-memory provider, which shares the filter code but not the SQL. The review asked for this explicitly and it is the one
-  test that would catch a provider-specific surprise.
+- **Tenant isolation IS now proven against real Postgres** (`TenantIsolationTests`, four cases: each tenant sees only its
+  own; an unresolved tenant sees nothing while the rows demonstrably exist; another tenant's row is unreachable by primary
+  key; a write is stamped with the writer's tenant). Those tests were seen passing. What was NOT done: proving them
+  load-bearing by reintroducing the old no-op filter, because the container runtime was withdrawn mid-verification. The
+  same property IS proven load-bearing at unit level in `70075c0`.
 
 ### 3. Move password hashing out of Domain — HALF DONE
 
