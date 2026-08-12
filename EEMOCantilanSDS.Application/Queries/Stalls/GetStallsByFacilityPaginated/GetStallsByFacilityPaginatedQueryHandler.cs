@@ -5,12 +5,12 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 
-public class GetStallsByFacilityPaginatedQueryHandler(IStallRepository stallRepository) 
+public class GetStallsByFacilityPaginatedQueryHandler(IStallRegisterQueries stallRegister) 
     : IRequestHandler<GetStallsByFacilityPaginatedQuery, Result<CursorPagedResult<StallDto>>>
 {
     public async Task<Result<CursorPagedResult<StallDto>>> Handle(GetStallsByFacilityPaginatedQuery request, CancellationToken ct)
     {
-        var result = await stallRepository.GetStallsByFacilityPaginatedAsync(
+        var result = await stallRegister.GetStallsByFacilityPaginatedAsync(
             request.FacilityCode, 
             request.Section, 
             request.Cursor, 

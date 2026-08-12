@@ -103,8 +103,12 @@ public class ClosedAccountsRenewTests : TestContext
         var (cut, sent) = Render(ExpiredAccount());
 
         cut.Find(".ca-row-renew").Click();
-        cut.Find(".eemo-modal-footer .btn-primary").Click();   // Proceed
+        // The dialog renders asynchronously, so wait for its footer instead of assuming it is present: the click below
+        // used to fail intermittently under full-suite load and pass in isolation. Selected by class, never by position
+        // among the footer's buttons.
+        cut.WaitForElement(".eemo-modal-footer .btn-primary", RenderTimeout).Click();   // Proceed
 
+        cut.WaitForAssertion(() => Assert.NotEmpty(sent), RenderTimeout);
         var req = Assert.Single(sent);
         Assert.Null(req.MonthlyRate);
         Assert.Null(req.AreaSqm);

@@ -8,7 +8,7 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
 
 public class GetStallHoldersListQueryHandler(
-    IStallRepository stallRepository,
+    IStallRegisterQueries stallRegister,
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions)
@@ -26,7 +26,7 @@ public class GetStallHoldersListQueryHandler(
             key,
             regions,
             cacheOptions.StallHolderListTtl,
-            token => stallRepository.GetStallHoldersListAsync(
+            token => stallRegister.GetStallHoldersListAsync(
                 request.FacilityCode,
                 request.Section,
                 request.SearchTerm,

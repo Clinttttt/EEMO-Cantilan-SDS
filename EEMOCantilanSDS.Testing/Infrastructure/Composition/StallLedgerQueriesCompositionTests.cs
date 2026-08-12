@@ -140,8 +140,36 @@ public class StallLedgerQueriesCompositionTests
 
         // The lifetime and period readings must both stay reachable and distinct: serving a period report from the
         // lifetime figures is how a monthly report starts showing arrears that predate the month.
-        var register = typeof(IClosedStallAccountQueries).GetMethods().Select(m => m.Name).ToHashSet();
-        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsAsync), register);
-        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsForPeriodAsync), register);
+        var closedRegister = typeof(IClosedStallAccountQueries).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsAsync), closedRegister);
+        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsForPeriodAsync), closedRegister);
+    }
+
+    [Fact]
+    public void DisplayingTheRegisterIsNotHoldingTheStallAggregate()
+    {
+        // The facility pages, the stallholders list, the section summaries and the utility register only DISPLAY spaces.
+        // Off IStallRepository each of those six handlers could also let a space, transfer it, close it or decide whether
+        // a stall number was free.
+        Assert.True(typeof(IStallRegisterQueries).IsAssignableFrom(typeof(StallRepository)));
+
+        var wide = typeof(IStallRepository).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(IStallRegisterQueries.GetStallsByFacilityAsync), wide);
+        Assert.DoesNotContain(nameof(IStallRegisterQueries.GetStallsByFacilityPaginatedAsync), wide);
+        Assert.DoesNotContain(nameof(IStallRegisterQueries.GetStallHoldersListAsync), wide);
+        Assert.DoesNotContain(nameof(IStallRegisterQueries.GetSectionSummariesAsync), wide);
+
+        // What the aggregate is FOR must stay on it: letting a space and ruling on its number.
+        Assert.Contains("AddAsync", wide);
+        Assert.Contains("AddContractAsync", wide);
+        Assert.Contains("UpdateAsync", wide);
+        Assert.Contains("IsStallNoUniqueAsync", wide);
+        Assert.Contains("GetByIdWithContractsAsync", wide);
+
+        // And the register cannot write: no aggregate mutation may appear on the read contract.
+        var register = typeof(IStallRegisterQueries).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain("AddAsync", register);
+        Assert.DoesNotContain("UpdateAsync", register);
+        Assert.DoesNotContain("IsStallNoUniqueAsync", register);
     }
 }

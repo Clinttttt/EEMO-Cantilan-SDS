@@ -29,7 +29,7 @@ public class UtilityCommandTests
         var billed = Guid.NewGuid();
         var unbilled = Guid.NewGuid();
 
-        var stalls = new Mock<IStallRepository>();
+        var stalls = new Mock<IStallRegisterQueries>();
         stalls.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<StallDto>
             {
@@ -71,7 +71,7 @@ public class UtilityCommandTests
         var metered = Guid.NewGuid();
         var locked = Guid.NewGuid();
 
-        var stalls = new Mock<IStallRepository>();
+        var stalls = new Mock<IStallRegisterQueries>();
         stalls.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<StallDto>
             {

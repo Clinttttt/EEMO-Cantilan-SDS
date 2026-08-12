@@ -10,7 +10,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
 
 public class GetMobileNpmUtilityQueryHandler(
     IUtilityBillRepository utilityRepository,
-    IStallRepository stallRepository,
+    IStallRegisterQueries stallRegister,
     IFacilityRepository facilityRepository,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser)
@@ -34,7 +34,7 @@ public class GetMobileNpmUtilityQueryHandler(
         // The month's bills AND anything still owed from earlier months. A utility bill the office raised in
         // June does not stop being collectible in August, and the collector is the one standing at the stall.
         var bills = await utilityRepository.GetForMonthWithOutstandingAsync(request.Year, request.Month, ct);
-        var stalls = await stallRepository.GetStallsByFacilityAsync(FacilityCode.NPM, null, ct);
+        var stalls = await stallRegister.GetStallsByFacilityAsync(FacilityCode.NPM, null, ct);
         var byStall = stalls.ToDictionary(s => s.Id);
 
         // Tenant's own market-section labels (e.g. "Gulayan"), resolved once; falls back to the canonical name.

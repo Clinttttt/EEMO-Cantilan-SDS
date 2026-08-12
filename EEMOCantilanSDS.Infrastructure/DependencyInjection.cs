@@ -77,6 +77,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IStallMobileQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IClosedStallAccountQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IContractAttentionQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
+            service.AddScoped<IStallRegisterQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();

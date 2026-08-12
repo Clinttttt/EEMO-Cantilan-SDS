@@ -75,10 +75,11 @@ mobile projections, reports and uniqueness checks.
 
 Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
 `ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (`99ae349`), `IClosedStallAccountQueries` +
-`IContractAttentionQueries` (this commit). `IPaymentRepository` is now load-by-id, add, update and the three
-receipt-availability rules; `ICollectorRepository` is the ACCOUNT only; and `IStallRepository` has shed the collector
-app's projections and both follow-up reads, so the four report handlers that read them can no longer let, transfer, renew
-or close the stalls they report on.
+`IContractAttentionQueries` (`f100980`), `IStallRegisterQueries` (this commit). `IPaymentRepository` is now load-by-id,
+add, update and the three receipt-availability rules; `ICollectorRepository` is the ACCOUNT only; and `IStallRepository`
+is now the stall AGGREGATE only — load with contracts, let, transfer, close, and rule on stall-number uniqueness — with
+the register, stallholders list, section summaries, the collector app's projections and both follow-up reads on their own
+read contracts.
 
 Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
 mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
@@ -86,8 +87,6 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- **`StallRepository` register seam** — `GetStallsByFacilityAsync`, `...Paginated`, `GetStallHoldersListAsync`,
-  `GetSectionSummariesAsync`.
 - **A receipt-registry CONTRACT.** Lower value than the review implies: the RULE is already single-sourced in
   `OrNumberRegistry`, verified 2026-08-12, so this is about interface placement (five repository interfaces expose one
   rule) rather than about unifying logic. Tidying, not correctness.
@@ -145,6 +144,18 @@ authorizer. Keep the existing financial, Cantilan-unchanged and tenancy regressi
 
 `Command`/`Queries`/`Dtos`/`Requests` scatter each capability. File moves only, no behaviour. Last, because it churns
 every path and would bury a real change in the diff.
+
+### Test reliability — one flake found and fixed, worth watching for more
+
+`ClosedAccountsRenewTests.Proceed_StatesNoFigures_SoTheStallKeepsItsOwnRate` failed once in a full-suite run on 2026-08-12
+and passed in isolation and on re-run. Cause: it clicked the renew row and then immediately `Find`-ed a button inside the
+dialog, which renders asynchronously, and asserted on the sent request straight after the click. The other tests in the
+same file already waited. Fixed by waiting for the footer button and for the request, using the file's existing
+`WaitForElement`/`WaitForAssertion`/`RenderTimeout` idiom; the full suite then passed three times running.
+
+Worth knowing because CI runs these on every push, so a flake of this shape shows up as a failed DEPLOY rather than as a
+test problem. Any remaining `cut.Find(...)` immediately after an interaction that triggers rendering or an HTTP call is the
+same hazard.
 
 ---
 

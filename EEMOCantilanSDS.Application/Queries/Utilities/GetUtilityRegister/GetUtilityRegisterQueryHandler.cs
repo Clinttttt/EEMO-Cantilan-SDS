@@ -7,13 +7,13 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Queries.Utilities.GetUtilityRegister;
 
 public class GetUtilityRegisterQueryHandler(
-    IStallRepository stallRepository,
+    IStallRegisterQueries stallRegister,
     IUtilityBillRepository utilityRepository)
     : IRequestHandler<GetUtilityRegisterQuery, Result<UtilityRegisterDto>>
 {
     public async Task<Result<UtilityRegisterDto>> Handle(GetUtilityRegisterQuery request, CancellationToken ct)
     {
-        var stalls = await stallRepository.GetStallsByFacilityAsync(FacilityCode.NPM, request.Section, ct);
+        var stalls = await stallRegister.GetStallsByFacilityAsync(FacilityCode.NPM, request.Section, ct);
 
         var bills = await utilityRepository.GetForMonthAsync(request.Year, request.Month, ct);
         var byStall = bills.ToDictionary(b => b.StallId);

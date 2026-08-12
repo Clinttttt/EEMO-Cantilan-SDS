@@ -10,20 +10,13 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 
 public interface IStallRepository
 {
-    Task<IReadOnlyList<StallDto>> GetStallsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct);
-    Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct);
-    Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct);
     /// <remarks>
-    /// The collector app's two whole-screen projections live on <see cref="IStallMobileQueries"/>. They are a different
-    /// shape from anything the office reads, and a handler serving the app has no business with stall aggregates or
-    /// number uniqueness.
-    /// </remarks>
-    Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
-    /// <remarks>
-    /// The follow-up reads have moved off this contract: contracts needing attention are on
-    /// <see cref="IContractAttentionQueries"/> and the register of inactive accounts is on
-    /// <see cref="IClosedStallAccountQueries"/>. Both are reports, and a report should not be able to let, transfer,
-    /// renew or close the stalls it reports on.
+    /// This is the stall AGGREGATE: load a space with its contracts, let it, transfer it, close it, and rule on stall-number
+    /// uniqueness. The projections the office and the app merely READ have their own contracts —
+    /// <see cref="IStallRegisterQueries"/> for the register, stallholders list and section summaries;
+    /// <see cref="IStallMobileQueries"/> for the collector app's two whole-screen projections;
+    /// <see cref="IContractAttentionQueries"/> and <see cref="IClosedStallAccountQueries"/> for the follow-up reads. A
+    /// handler that only displays spaces has no business with any of the above.
     /// </remarks>
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     /// <summary>The facility code that a stall belongs to, or null if the stall is not found. Used to route

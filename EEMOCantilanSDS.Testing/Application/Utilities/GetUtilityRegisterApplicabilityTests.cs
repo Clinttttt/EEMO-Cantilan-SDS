@@ -45,7 +45,7 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
 
         private static GetUtilityRegisterQueryHandler Handler(params StallDto[] stalls)
         {
-            var stallRepo = new Mock<IStallRepository>();
+            var stallRepo = new Mock<IStallRegisterQueries>();
             stallRepo.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(stalls.ToList());
 
@@ -106,7 +106,7 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
                 waterPreviousReading: 0m, waterCurrentReading: 0m, waterRatePerCubicMeter: 1m,
                 createdBy: "test");
 
-            var stallRepo = new Mock<IStallRepository>();
+            var stallRepo = new Mock<IStallRegisterQueries>();
             stallRepo.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<StallDto> { stall });
 

@@ -25,7 +25,7 @@ public class GetMobileNpmUtilityQueryHandlerTests
         util.Setup(r => r.GetForMonthWithOutstandingAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(bills ?? Array.Empty<UtilityBill>());
 
-        var stalls = new Mock<IStallRepository>();
+        var stalls = new Mock<IStallRegisterQueries>();
         stalls.Setup(r => r.GetStallsByFacilityAsync(It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(stallRows ?? Array.Empty<StallDto>());
 
