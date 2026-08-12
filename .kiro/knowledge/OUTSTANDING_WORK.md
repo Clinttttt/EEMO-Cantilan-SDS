@@ -45,9 +45,11 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- `StallRepository` — register / mobile / ledger seams.
-- `CollectorRepository` — mobile projections are the clear first cut.
-- The receipt registry. BLOCKED ON A POLICY QUESTION, see below.
+- `StallRepository` — closed-accounts and contract-attention seams (66 refs; needs its own session).
+- `CollectorRepository` — reporting/admin projections (`GetAllCollectorsWithStatsAsync`, `GetCollectorActivityAsync`).
+- A receipt-registry CONTRACT. Lower value than the review implies: the RULE is already single-sourced in
+  `OrNumberRegistry`, verified 2026-08-12, so this is about interface placement (five repository interfaces expose one
+  rule) rather than about unifying logic. Worth doing, but it is tidying, not correctness.
 
 ### 3. Move password hashing out of Domain — NOT STARTED
 
@@ -105,17 +107,31 @@ every path and would bury a real change in the diff.
 
 ---
 
+## Confirmed office rules
+
+Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
+should not have to re-derive them.
+
+**OR numbers.** Unique per TRANSACTION within the LGU. The same number must never appear against another vendor, or in
+another module. But one transaction may produce several RECORDS, and those share the one number, because it was one
+payment: two kinds of animal on one slaughterhouse receipt; several market days paid at once; several months settled
+together. Verified 2026-08-12 that the code implements exactly this — all five repositories route to one
+`OrNumberRegistry` (Infrastructure/Repositories/OrNumberRegistry.cs), which allows the repeat within one stall's months,
+one stall's days, and one slaughter receipt (same owner AND same date), and refuses it everywhere else. It also checks
+soft-deleted rows, so deleting a record never frees its receipt number, and it scopes per municipality so a second LGU
+may reuse a number that exists only in another.
+
+**The three billing rules** stand as implemented, per the same interview: a term of N years owes exactly N × 12 months'
+rent; an expired contract stops accruing rent but keeps its balance collectable; a current or yearly market report counts
+only the market days elapsed as of the report date.
+
+---
+
 ## Open questions for the office
 
 These cannot be answered by reading code.
 
-1. **Do the billing rules match the ordinance?** Three are load-bearing and still unconfirmed: a term of N years owes
-   exactly N × 12 months' rent; an expired contract stops accruing rent but keeps its balance collectable; a current or
-   yearly market report counts only the market days elapsed as of the report date.
-2. **May one OR number span modules?** Today five repositories each answer OR availability, and one OR may cover several
-   days or months of the SAME stall but is rejected across stalls or modules. Whether that is the ordinance's rule decides
-   whether the receipt registry is one rule or five — and therefore how item 2's last slice is built.
-3. **Two Postgres firewall rules** (`ClientIPAddress_2026-7-6...`, `ClientIPAddress_2026-7-17...`) open specific IPs
+1. **Two Postgres firewall rules** (`ClientIPAddress_2026-7-6...`, `ClientIPAddress_2026-7-17...`) open specific IPs
    indefinitely. Flagged; keeping or removing them is the office's call.
 
 ---

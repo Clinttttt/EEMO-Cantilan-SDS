@@ -15,6 +15,63 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         public void Set(Guid municipalityId) { }
     }
 
+    // ── The office's rule, stated in an interview and now written down ────────────────────────────────────
+    //
+    // "The OR number is unique per TRANSACTION. It must not appear on another vendor. But one transaction can
+    //  produce several records — two kinds of animal on one slaughter receipt, several market days paid at once,
+    //  several months settled together — and those records share the one OR, because it was one payment."
+    //
+    // The two tests below cover the halves of that rule which had none: the slaughterhouse multi-head receipt,
+    // which is the office's own example, and the rule that a receipted OR is never freed by deleting the record.
+
+    [Fact]
+    public async Task Slaughter_OneReceiptCoveringTwoAnimals_SharesOneOr_ButNotAcrossOwnersOrDates()
+    {
+        await using var ctx = NewContext();
+
+        var owner = "Juan Dela Cruz";
+        var day = new DateOnly(2026, 1, 5);
+
+        // The first head of a two-animal receipt.
+        ctx.Add(SlaughterTransaction.CreateHog(
+            Guid.NewGuid(), Guid.NewGuid(), owner, heads: 1, orNumber: "OR-500", transactionDate: day));
+        await ctx.SaveChangesAsync();
+
+        var repo = new SlaughterRepository(ctx);
+
+        // The second head of the SAME receipt: same owner, same day, one payment, so the same OR stands.
+        Assert.True(await repo.IsORNumberAvailableForReceiptAsync("OR-500", owner, day, CancellationToken.None));
+
+        // A different owner on the same day is a different transaction, and must not borrow the receipt.
+        Assert.False(await repo.IsORNumberAvailableForReceiptAsync("OR-500", "Maria Santos", day, CancellationToken.None));
+
+        // The same owner on another day is also a different transaction - a receipt covers one visit.
+        Assert.False(await repo.IsORNumberAvailableForReceiptAsync("OR-500", owner, day.AddDays(1), CancellationToken.None));
+
+        // And the plain uniqueness question, which knows nothing about receipts, still refuses it outright.
+        Assert.False(await repo.IsORNumberUniqueAsync("OR-500", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ADeletedRecordDoesNotFreeItsOrNumber()
+    {
+        // A receipt booklet cannot be un-issued. If deleting a record released its OR, the same number could be
+        // written against a second payment and the audit trail would show one receipt for two transactions - with
+        // the deleted one invisible to every screen that looks.
+        await using var ctx = NewContext();
+
+        var tx = SlaughterTransaction.CreateHog(
+            Guid.NewGuid(), Guid.NewGuid(), "owner", heads: 1, orNumber: "OR-GONE", transactionDate: new DateOnly(2026, 2, 2));
+        ctx.Add(tx);
+        await ctx.SaveChangesAsync();
+
+        tx.SoftDelete("head");
+        await ctx.SaveChangesAsync();
+
+        var repo = new PaymentRepository(ctx);
+        Assert.False(await repo.IsORNumberUniqueAsync("OR-GONE", CancellationToken.None));
+    }
+
     // Regression: OR numbers must be unique across modules. A payment OR that already
     // exists on a slaughter receipt must be rejected (previously only Payments+Daily were checked).
     [Fact]
