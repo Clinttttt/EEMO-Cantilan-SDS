@@ -5,7 +5,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using System.Linq;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.CollectorAuth.Login;
 
@@ -13,7 +13,8 @@ public class CollectorLoginCommandHandler(
     ICollectorRepository collectorRepository,
     IMunicipalityRepository municipalityRepository,
     ITokenService tokenService,
-    IUnitOfWork unitOfWork) : IRequestHandler<CollectorLoginCommand, Result<TokenResponseDto>>
+    IUnitOfWork unitOfWork,
+    IPasswordHasher passwordHasher) : IRequestHandler<CollectorLoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(CollectorLoginCommand request, CancellationToken cancellationToken)
     {
@@ -47,12 +48,9 @@ public class CollectorLoginCommandHandler(
         if (collector.IsLockedOut)
             return Result<TokenResponseDto>.Unauthorized();
 
-        var verification = new PasswordHasher<BaseUser>().VerifyHashedPassword(
-            collector,
-            collector.PasswordHash,
-            request.Password!);
+        var verification = passwordHasher.Check(collector.PasswordHash, request.Password!);
 
-        if (verification == PasswordVerificationResult.Failed)
+        if (verification == PasswordCheck.Failed)
         {
             collector.RecordFailedLogin();
             await unitOfWork.SaveChangesAsync(cancellationToken);

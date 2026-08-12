@@ -13,7 +13,7 @@ Last reviewed: 2026-08-12.
 Source: `StallTrack_Architecture_Review.md` (external, 2026-08-11). Its claims were checked one at a time; where the
 review was wrong or overstated, that is recorded here rather than silently dropped.
 
-### 1. Tenant isolation — DONE
+### 1. Tenant isolation — DONE, with three residuals recorded below
 
 Shipped in `4a6ea50` (characterization tests), `eee55d8` (writes fail closed), `70075c0` (reads fail closed, authenticated
 fallback removed).
@@ -23,6 +23,39 @@ token-less caller (login, activation, webhook, background work, startup) still r
 for paths with no user. An unresolved tenant reads NOTHING and cannot write at all. A context built with no accessor
 (design-time tooling, migrations, much of the test suite) still works across tenants; `AppDbContext.HasTenantAccessor`
 separates "system" from "unresolved", which `Guid.Empty` used to conflate.
+
+RESIDUALS — not defects today, but the ways this can quietly regress:
+
+- **The no-accessor escape hatch is ungated.** `new AppDbContext(options)` sees every tenant, by design, for tooling and
+  tests. Verified 2026-08-12 that NO production code uses that constructor. Nothing stops one being added. Worth an
+  architecture test asserting that only the test projects and the design-time factory construct it.
+- **`IgnoreQueryFilters()` is still free to call anywhere.** The review wanted cross-tenant reads expressed through named
+  cross-tenant ports instead. Today roughly a dozen call sites use it legitimately (login, seeders, backup, the OR
+  registry, platform-operator paths), and each is commented — but a new one can be added silently, and it bypasses the
+  boundary completely. An architecture test could pin the allowed list.
+- **No integration test proves tenant A cannot read tenant B against real Postgres.** The unit tests prove it against the
+  in-memory provider, which shares the filter code but not the SQL. The review asked for this explicitly and it is the one
+  test that would catch a provider-specific surprise.
+
+### 3. Move password hashing out of Domain — HALF DONE
+
+Shipped in the commit that added `IPasswordHasher` (Application port), `IdentityPasswordHasher` (Infrastructure), and
+migrated the SIX verification call sites: admin, collector and payor login, and the three restore handlers that
+re-authenticate. Those files no longer import ASP.NET Identity at all.
+
+The format is deliberately unchanged — `PasswordHasher<BaseUser>` with default options, exactly what the call sites used —
+because every stored hash was written that way. Tests assert that a hash produced by `AdminUser.Create` and by
+`CollectorUser.Create` verifies through the port; if that ever fails, the office is locked out of its own system.
+
+Also fixed while there: a malformed or empty stored hash used to throw `FormatException` out of a login attempt, giving a
+500 where a 401 belongs. It reads as "wrong password" now.
+
+REMAINING — the harder half. Domain still hashes in eight places: `BaseUser` (4), `AdminUser` (2), `CollectorUser` (2),
+`PayorUser` (2 — includes its own `Create`). Those are `Create` factories and `ChangePassword`/`ResetPassword` methods that
+take PLAINTEXT. Fixing it properly means the factories accept an already-computed hash, which changes their signatures and
+therefore every caller: seeders, onboarding activation, first-console-admin, MFA reset, password reset, and a good number
+of tests. That is a wide, mechanical change and should be its own commit — with the same compatibility test as its
+guardrail, because it is the change that could lock everyone out.
 
 Corrections to the review worth keeping:
 - It said seeding depends on the filter being a no-op. It does not — `MunicipalitySeeder` reads a table that is not
@@ -36,8 +69,9 @@ Corrections to the review worth keeping:
 `CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB. They mix aggregate writes, auth lookup,
 mobile projections, reports and uniqueness checks.
 
-Done: `IStallLedgerQueries` (`466fa11`) and `IMissingReceiptQueries` (`2f9bffc`) split out of `IPaymentRepository`, which
-is now down to load-by-id, add, update and the three receipt-availability rules.
+Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
+`ICollectorMobileQueries` (`13ffe29`). `IPaymentRepository` is now load-by-id, add, update and the three
+receipt-availability rules; `IStallRepository` and `ICollectorRepository` have shed their mobile projections.
 
 Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
 mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
@@ -45,17 +79,22 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- `StallRepository` — closed-accounts and contract-attention seams (66 refs; needs its own session).
-- `CollectorRepository` — reporting/admin projections (`GetAllCollectorsWithStatsAsync`, `GetCollectorActivityAsync`).
-- A receipt-registry CONTRACT. Lower value than the review implies: the RULE is already single-sourced in
+- **`StallRepository` closed-accounts and contract-attention seams.** `GetClosedStallAccountsAsync` alone has ~35 refs and
+  `GetClosedStallAccountsForPeriodAsync` ~14, mostly test setups. Needs its own session; the volume is the risk, not the
+  design.
+- **`CollectorRepository` reporting seam** — `GetAllCollectorsWithStatsAsync` (6 refs) and `GetCollectorActivityAsync` (3).
+  Small; the obvious next one.
+- **`StallRepository` register seam** — `GetStallsByFacilityAsync`, `...Paginated`, `GetStallHoldersListAsync`,
+  `GetSectionSummariesAsync`.
+- **A receipt-registry CONTRACT.** Lower value than the review implies: the RULE is already single-sourced in
   `OrNumberRegistry`, verified 2026-08-12, so this is about interface placement (five repository interfaces expose one
-  rule) rather than about unifying logic. Worth doing, but it is tidying, not correctness.
+  rule) rather than about unifying logic. Tidying, not correctness.
+- **THE FILE MOVES.** Every slice so far split contracts and left the implementations in place, on purpose. Three files are
+  still oversized (`CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB) and the seams are now
+  stated by the compiler. Moving the code into per-capability files is the mechanical follow-up that actually shrinks them —
+  and the private arithmetic they share has to be moved deliberately, not duplicated.
 
-### 3. Move password hashing out of Domain — NOT STARTED
-
-Domain references ASP.NET Identity and calls `PasswordHasher<BaseUser>` from entities. Add `IPasswordHasher` to
-Application, implement in Infrastructure, have Domain accept an already-computed hash. Do not pass plaintext into Domain
-factories. `LoginCommandHandler` also news up the hasher directly.
+### 3. Move password hashing out of Domain — see above (HALF DONE)
 
 ### 4. Move `Result<T>` and paging models out of Domain — NOT STARTED
 

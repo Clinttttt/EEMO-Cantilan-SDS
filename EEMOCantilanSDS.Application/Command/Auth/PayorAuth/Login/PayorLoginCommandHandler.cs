@@ -4,14 +4,15 @@ using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.PayorAuth.Login;
 
 public class PayorLoginCommandHandler(
     IPayorRepository payorRepository,
     ITokenService tokenService,
-    IUnitOfWork unitOfWork) : IRequestHandler<PayorLoginCommand, Result<TokenResponseDto>>
+    IUnitOfWork unitOfWork,
+    IPasswordHasher passwordHasher) : IRequestHandler<PayorLoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(PayorLoginCommand request, CancellationToken cancellationToken)
     {
@@ -23,10 +24,9 @@ public class PayorLoginCommandHandler(
         if (payor.IsLockedOut)
             return Result<TokenResponseDto>.Unauthorized();
 
-        var verification = new PasswordHasher<BaseUser>().VerifyHashedPassword(
-            payor, payor.PasswordHash, request.Password!);
+        var verification = passwordHasher.Check(payor.PasswordHash, request.Password!);
 
-        if (verification == PasswordVerificationResult.Failed)
+        if (verification == PasswordCheck.Failed)
         {
             payor.RecordFailedLogin();
             await unitOfWork.SaveChangesAsync(cancellationToken);

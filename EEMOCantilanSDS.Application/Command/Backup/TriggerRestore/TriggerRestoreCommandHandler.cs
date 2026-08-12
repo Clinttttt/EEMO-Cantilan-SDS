@@ -3,7 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using Microsoft.Extensions.Logging;
 
 namespace EEMOCantilanSDS.Application.Command.Backup.TriggerRestore;
@@ -18,7 +18,8 @@ public class TriggerRestoreCommandHandler(
     ICurrentUserService currentUser,
     IAuthRepository authRepository,
     IBackupService backupService,
-    ILogger<TriggerRestoreCommandHandler> logger)
+    ILogger<TriggerRestoreCommandHandler> logger,
+    IPasswordHasher passwordHasher)
     : IRequestHandler<TriggerRestoreCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(TriggerRestoreCommand request, CancellationToken cancellationToken)
@@ -42,8 +43,7 @@ public class TriggerRestoreCommandHandler(
             return Result<bool>.Unauthorized();
 
         // 5) Re-authenticate: verify the password exactly like LoginCommandHandler does.
-        if (new PasswordHasher<BaseUser>().VerifyHashedPassword(admin, admin.PasswordHash, request.Password)
-            == PasswordVerificationResult.Failed)
+        if (passwordHasher.Check(admin.PasswordHash, request.Password) == PasswordCheck.Failed)
             return Result<bool>.Failure("Password is incorrect.", 401);
 
         // 6) All guardrails passed — dispatch the destructive restore workflow.

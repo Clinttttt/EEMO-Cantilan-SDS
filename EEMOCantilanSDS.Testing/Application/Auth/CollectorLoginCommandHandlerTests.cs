@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Auth.CollectorAuth.Login;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -39,7 +40,7 @@ public class CollectorLoginCommandHandlerTests
                 Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, isDefault: true)
             });
 
-        return (new CollectorLoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object), token, uow, muni);
+        return (new CollectorLoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher()), token, uow, muni);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -32,7 +33,7 @@ public class LoginCommandHandlerTests
         token.Setup(t => t.CreateTokenResponse(It.IsAny<AdminUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
 
-        return (new LoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object), token, uow, muni);
+        return (new LoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher()), token, uow, muni);
     }
 
     [Fact]

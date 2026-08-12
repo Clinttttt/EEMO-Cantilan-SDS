@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Infrastructure.Payments;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using EEMOCantilanSDS.Infrastructure.Repositories;
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Infrastructure.Services;
 using EEMOCantilanSDS.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -108,6 +109,9 @@ namespace EEMOCantilanSDS.Infrastructure
 
             // Services
             service.AddScoped<ICurrentUserService, CurrentUserService>();
+            // The one place that knows how a password is stored. Singleton: it holds no state beyond the hasher itself,
+            // and the format must be identical everywhere or existing accounts stop verifying.
+            service.AddSingleton<Application.Common.Interface.Security.IPasswordHasher, IdentityPasswordHasher>();
             service.AddScoped<ITokenService, TokenService>();
             service.AddScoped<IOnlinePaymentUrlBuilder, OnlinePaymentUrlBuilder>();
 

@@ -69,7 +69,7 @@ public class MfaLoginEnforcementTests
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         token.Setup(t => t.CreateTokenResponse(It.IsAny<BaseUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
-        return new LoginCommandHandler(repo.Object, Mock.Of<IMunicipalityRepository>(), token.Object, uow.Object);
+        return new LoginCommandHandler(repo.Object, Mock.Of<IMunicipalityRepository>(), token.Object, uow.Object, new IdentityPasswordHasher());
     }
 
     [Fact]

@@ -4,7 +4,7 @@ using EEMOCantilanSDS.Application.Dtos.Backup;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using Microsoft.Extensions.Logging;
 
 namespace EEMOCantilanSDS.Application.Command.Backup.RestoreTenantFromBackup;
@@ -20,7 +20,8 @@ public class RestoreTenantFromBackupCommandHandler(
     IAuthRepository authRepository,
     ITenantBackupRepository backupRepository,
     ITenantRestoreRepository restoreRepository,
-    ILogger<RestoreTenantFromBackupCommandHandler> logger)
+    ILogger<RestoreTenantFromBackupCommandHandler> logger,
+    IPasswordHasher passwordHasher)
     : IRequestHandler<RestoreTenantFromBackupCommand, Result<TenantRestoreResult>>
 {
     public async Task<Result<TenantRestoreResult>> Handle(RestoreTenantFromBackupCommand request, CancellationToken ct)
@@ -39,8 +40,7 @@ public class RestoreTenantFromBackupCommandHandler(
         if (admin is null)
             return Result<TenantRestoreResult>.Unauthorized();
 
-        if (new PasswordHasher<BaseUser>().VerifyHashedPassword(admin, admin.PasswordHash, request.Password)
-            == PasswordVerificationResult.Failed)
+        if (passwordHasher.Check(admin.PasswordHash, request.Password) == PasswordCheck.Failed)
             return Result<TenantRestoreResult>.Failure("Password is incorrect.", 401);
 
         var snapshot = await backupRepository.GetSnapshotAsync(request.BackupId, ct);

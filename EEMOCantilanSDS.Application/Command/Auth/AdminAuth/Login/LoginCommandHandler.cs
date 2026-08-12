@@ -1,17 +1,17 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 
-public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRepository municipalityRepository, ITokenService tokenService, IUnitOfWork unitOfWork) : IRequestHandler<LoginCommand, Result<TokenResponseDto>>
+public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRepository municipalityRepository, ITokenService tokenService, IUnitOfWork unitOfWork, IPasswordHasher passwordHasher) : IRequestHandler<LoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
@@ -35,8 +35,7 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         // Uniform 401 for both unknown username and wrong password — never reveal which usernames exist.
         if (user is null) return Result<TokenResponseDto>.Unauthorized();
 
-        var passwordOk = new PasswordHasher<BaseUser>().VerifyHashedPassword(user, user.PasswordHash, request.Password)
-            != PasswordVerificationResult.Failed;
+        var passwordOk = passwordHasher.Check(user.PasswordHash, request.Password) != PasswordCheck.Failed;
 
         // A locked account is told so — but only when the password is right. Someone guessing passwords keeps
         // getting the same blank 401 and so cannot use the lockout notice to discover that an account exists,
