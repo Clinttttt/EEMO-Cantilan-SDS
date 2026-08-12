@@ -28,7 +28,8 @@ namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistory;
 /// </summary>
 public class GetFollowUpHistoryQueryHandler(
     IFacilityReportsRepository reportsRepository,
-    IStallRepository stallRepository,
+    IClosedStallAccountQueries closedRegister,
+    IContractAttentionQueries contractAttention,
     IOnlinePaymentRepository onlinePaymentRepository,
     IMissingReceiptQueries missingReceipts,
     ISlaughterRepository slaughterRepository,
@@ -75,7 +76,7 @@ public class GetFollowUpHistoryQueryHandler(
         // showing a single month's figure under a "whole time" heading is exactly the contradiction this fixes.
         if (request.AllTime)
         {
-            var allAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+            var allAccounts = await closedRegister.GetClosedStallAccountsAsync(ct);
             // Keyed on stall identity, and only the occupancy that is still in force. Keying by facility-and-number
             // summed the market's three "Stall 1" spaces into one figure, and including ended occupancies put their
             // balance on a lapsed contract row as well as on their own row in the register section below — the same
@@ -85,7 +86,7 @@ public class GetFollowUpHistoryQueryHandler(
                 .GroupBy(a => a.StallId)
                 .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
 
-            var lapsed = (await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
+            var lapsed = (await contractAttention.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
                 .Where(c => c.IsExpired)
                 .ToList();
 
@@ -170,7 +171,7 @@ public class GetFollowUpHistoryQueryHandler(
         var unreceipted = request.WholeYear
             ? await missingReceipts.GetUnreceiptedCashPaymentsForYearAsync(year, ct)
             : await missingReceipts.GetUnreceiptedCashPaymentsAsync(year, month, ct);
-        var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
+        var contracts = await contractAttention.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
 
         // The window this snapshot is scoped to. A whole-year view runs from January; a single month is its own
         // window. The end never runs past the snapshot date, so a still-running occupancy is never stated into
@@ -180,7 +181,7 @@ public class GetFollowUpHistoryQueryHandler(
 
         // What each ended occupancy owed and paid FOR this period. The lifetime register answers "what is owed in
         // total" and belongs to "Whole time"; stating it here put a lifetime balance under a period heading.
-        var closedAccounts = await stallRepository.GetClosedStallAccountsForPeriodAsync(periodStart, periodEnd, ct);
+        var closedAccounts = await closedRegister.GetClosedStallAccountsForPeriodAsync(periodStart, periodEnd, ct);
 
         var dto = FollowUpComposer.Compose(
             year, month, asOf,

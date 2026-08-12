@@ -51,7 +51,7 @@ public class GetFinancialReportQueryHandlerTests
 
     /// <summary>The stall-repository stub the last <see cref="Build"/> wired in, so a test can restate its rows.
     /// xUnit does not run tests of one class in parallel, so a single slot is safe here.</summary>
-    private static Mock<IStallRepository>? _lastStalls;
+    private static Mock<IClosedStallAccountQueries>? _lastStalls;
 
     private static (GetFinancialReportQueryHandler handler, Mock<IFacilityReportsRepository> reports) Build()
     {
@@ -114,7 +114,7 @@ public class GetFinancialReportQueryHandlerTests
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
         // Two ended NPM accounts (handed over), each with a ₱32,910 historical uncollected balance.
-        var stalls = new Mock<IStallRepository>();
+        var stalls = new Mock<IClosedStallAccountQueries>();
         stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { Closed("91", 32_910m), Closed("92", 32_910m) });
         _lastStalls = stalls;

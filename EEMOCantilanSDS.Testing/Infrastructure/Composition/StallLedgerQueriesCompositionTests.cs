@@ -121,4 +121,27 @@ public class StallLedgerQueriesCompositionTests
         var mobile = typeof(ICollectorMobileQueries).GetMethods().Select(m => m.Name).ToHashSet();
         Assert.DoesNotContain(nameof(ICollectorReportingQueries.GetAllCollectorsWithStatsAsync), mobile);
     }
+
+    [Fact]
+    public void TheFollowUpReadsCannotChangeWhatTheyReportOn()
+    {
+        // The register of inactive accounts and the contracts needing attention are what the follow-up queue, the
+        // follow-up history and the financial report are built from. Off IStallRepository they came with the ability to
+        // let, transfer, renew and close a stall — everything the report describes. Two narrow read contracts now carry
+        // them, and both resolve to the same StallRepository instance.
+        Assert.True(typeof(IClosedStallAccountQueries).IsAssignableFrom(typeof(StallRepository)));
+        Assert.True(typeof(IContractAttentionQueries).IsAssignableFrom(typeof(StallRepository)));
+
+        var wide = typeof(IStallRepository).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(IClosedStallAccountQueries.GetClosedStallAccountsAsync), wide);
+        Assert.DoesNotContain(nameof(IClosedStallAccountQueries.GetClosedStallAccountsForPeriodAsync), wide);
+        Assert.DoesNotContain(nameof(IContractAttentionQueries.GetContractAttentionAsync), wide);
+        Assert.DoesNotContain(nameof(IContractAttentionQueries.GetContractAttentionAsOfAsync), wide);
+
+        // The lifetime and period readings must both stay reachable and distinct: serving a period report from the
+        // lifetime figures is how a monthly report starts showing arrears that predate the month.
+        var register = typeof(IClosedStallAccountQueries).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsAsync), register);
+        Assert.Contains(nameof(IClosedStallAccountQueries.GetClosedStallAccountsForPeriodAsync), register);
+    }
 }

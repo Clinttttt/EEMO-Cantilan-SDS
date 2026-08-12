@@ -33,7 +33,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
-    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IMissingReceiptQueries> Payments, Mock<ISlaughterRepository> Slaughter) Build()
+    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IClosedStallAccountQueries> Closed, Mock<IContractAttentionQueries> Attention, Mock<IOnlinePaymentRepository> Online, Mock<IMissingReceiptQueries> Payments, Mock<ISlaughterRepository> Slaughter) Build()
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -67,25 +67,26 @@ public class GetFollowUpHistoryQueryHandlerTests
                 new(FacilityCode.NPM, "09", "Ben Cruz", 2, 4_800m),
             });
 
-        var stalls = new Mock<IStallRepository>();
+        var attention = new Mock<IContractAttentionQueries>();
+        var closedRegister = new Mock<IClosedStallAccountQueries>();
         // Iceplant stall 02 is ONE stall, so every source names it by the same identity — which is what lets the
         // composer tell it apart from a different stall that happens to share a number. The market numbers spaces
         // per section, so NPM really does have three stalls called "1".
         var iceStall02 = Guid.NewGuid();
-        stalls.Setup(s => s.GetContractAttentionAsOfAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        attention.Setup(s => s.GetContractAttentionAsOfAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
                 new(iceStall02, FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
         // The cumulative "Whole time" view reads contract attention as of today rather than as of a period.
-        stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        attention.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
                 new(iceStall02, FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
-        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+        closedRegister.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
@@ -96,7 +97,7 @@ public class GetFollowUpHistoryQueryHandlerTests
 
         // A period-scoped snapshot reads the register bounded to that period: the same accounts, with the figures
         // that period assessed. Here it returns the same row so the composition rules can be compared directly.
-        stalls.Setup(s => s.GetClosedStallAccountsForPeriodAsync(
+        closedRegister.Setup(s => s.GetClosedStallAccountsForPeriodAsync(
                 It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
@@ -144,7 +145,8 @@ public class GetFollowUpHistoryQueryHandlerTests
 
         var handler = new GetFollowUpHistoryQueryHandler(
             reports.Object,
-            stalls.Object,
+            closedRegister.Object,
+            attention.Object,
             online.Object,
             payments.Object,
             slaughter.Object,
@@ -155,7 +157,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());
 
-        return (handler, stalls, online, payments, slaughter);
+        return (handler, closedRegister, attention, online, payments, slaughter);
     }
 
     [Fact]
@@ -163,7 +165,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     {
         // The two views answer different questions and must not borrow each other's figures: "what is owed in total"
         // is the whole-time reading, and a year or month states only its own.
-        var (handler, _, _, _, _) = Build();
+        var (handler, _, _, _, _, _) = Build();
 
         var allTime = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
 
@@ -181,7 +183,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task APeriodSnapshot_ReadsTheRegisterBoundedToThatPeriod_NotTheLifetimeOne()
     {
-        var (handler, stalls, _, _, _) = Build();
+        var (handler, closed, _, _, _, _) = Build();
 
         var result = await handler.Handle(new GetFollowUpHistoryQuery(2026, 7, WholeYear: true), CancellationToken.None);
 
@@ -189,26 +191,26 @@ public class GetFollowUpHistoryQueryHandlerTests
         // A whole-year window runs from January to the snapshot date — never into the future — and the figures come
         // from the register bounded to it. Reading the lifetime register here is what put a lifetime balance under a
         // single year's heading.
-        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+        closed.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 7, 31), It.IsAny<CancellationToken>()), Times.Once);
-        stalls.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Never);
+        closed.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task AMonthSnapshot_BoundsTheRegisterToThatMonth()
     {
-        var (handler, stalls, _, _, _) = Build();
+        var (handler, closed, _, _, _, _) = Build();
 
         await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None);
 
-        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+        closed.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2025, 12, 1), new DateOnly(2025, 12, 31), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task TheWholeTimeView_ReportsItsDelinquentsInsteadOfShowingNone()
     {
-        var (handler, _, _, _, _) = Build();
+        var (handler, _, _, _, _, _) = Build();
 
         var dto = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
 
@@ -230,7 +232,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task TheWholeTimeView_IncludesTheMonthInProgress()
     {
-        var (handler, _, _, _, _) = Build();
+        var (handler, _, _, _, _, _) = Build();
 
         var wholeTime = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
         var oneYear = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None)).Value!;
@@ -249,7 +251,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task TheMonthInProgress_StatesItsOwnMonthAndNotTheWholeTimeHeading()
     {
-        var (handler, _, _, _, _) = Build();
+        var (handler, _, _, _, _, _) = Build();
 
         var dto = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
 
@@ -263,19 +265,19 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task TheWholeTimeView_ReadsTheLifetimeRegister()
     {
-        var (handler, stalls, _, _, _) = Build();
+        var (handler, closed, _, _, _, _) = Build();
 
         await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
 
-        stalls.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Once);
-        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+        closed.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Once);
+        closed.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task Composes_PastPeriodSnapshot_UsingPeriodScopedSources()
     {
-        var (handler, stalls, online, _, _) = Build();
+        var (handler, _, attention, online, _, _) = Build();
 
         var result = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None);
 
@@ -318,8 +320,8 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.Equal(3_240m, missingOr.Amount);
 
         // Period-scoped sources were used with the requested period — NOT the live "as of today" ones.
-        stalls.Verify(s => s.GetContractAttentionAsOfAsync(2025, 12, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
-        stalls.Verify(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        attention.Verify(s => s.GetContractAttentionAsOfAsync(2025, 12, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+        attention.Verify(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         online.Verify(o => o.GetAwaitingOrByPeriodAsync(2025, 12, It.IsAny<CancellationToken>()), Times.Once);
         online.Verify(o => o.GetAwaitingOrAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -327,7 +329,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task WholeYear_AggregatesMissingOr_AcrossMonths_UsingYearWideSource()
     {
-        var (handler, _, _, payments, _) = Build();
+        var (handler, _, _, _, payments, _) = Build();
 
         // Two blank-OR NPM whole-month settlements in DIFFERENT months (Mar + May) — the case the
         // single-month "as of June" view could never show.
@@ -358,7 +360,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task WholeYear_AggregatesServiceFacilityMissingOr_PerRecordMonth()
     {
-        var (handler, _, _, _, slaughter) = Build();
+        var (handler, _, _, _, _, slaughter) = Build();
 
         // Blank-OR slaughter receipts for the SAME owner in TWO different months (Feb + Aug).
         slaughter.Setup(s => s.GetTransactionsByYearAsync(2026, It.IsAny<CancellationToken>()))

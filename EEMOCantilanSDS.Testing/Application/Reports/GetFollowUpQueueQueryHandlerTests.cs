@@ -65,13 +65,15 @@ public class GetFollowUpQueueQueryHandlerTests
                 new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // arrears (1 mo)
             });
 
-        var stalls = new Mock<IStallRepository>();
+        var closedRegister = new Mock<IClosedStallAccountQueries>();
         // The register of inactive accounts. The live queue reads it to surface occupancies that ended THIS period
         // and still owe — without this the queue is handed nothing and those balances appear on no screen the office
         // opens during the month it should be collecting them.
-        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+        closedRegister.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(closedAccounts ?? Array.Empty<ClosedStallAccountDto>());
-        stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+
+        var attention = new Mock<IContractAttentionQueries>();
+        attention.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
                 new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2023, 5, 30), new DateOnly(2026, 5, 30), IsExpired: true),
@@ -106,7 +108,7 @@ public class GetFollowUpQueueQueryHandlerTests
             .ReturnsAsync(utilityBills ?? Array.Empty<UtilityBill>());
 
         return new GetFollowUpQueueQueryHandler(
-            reports.Object, stalls.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object);
+            reports.Object, closedRegister.Object, attention.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object);
     }
 
     [Fact]

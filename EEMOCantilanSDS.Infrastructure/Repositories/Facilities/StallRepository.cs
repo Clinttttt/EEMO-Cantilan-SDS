@@ -20,7 +20,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // screens start disagreeing about the same peso. The CONTRACTS are separate, so a handler serving the app cannot reach a
 // stall aggregate, and moving the code later is a file operation rather than a redesign.
 public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
-    : IStallRepository, IStallMobileQueries
+    : IStallRepository, IStallMobileQueries, IClosedStallAccountQueries, IContractAttentionQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
     public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }

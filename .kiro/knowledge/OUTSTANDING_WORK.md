@@ -74,10 +74,11 @@ Corrections to the review worth keeping:
 mobile projections, reports and uniqueness checks.
 
 Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
-`ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (this commit). `IPaymentRepository` is now load-by-id,
-add, update and the three receipt-availability rules; `IStallRepository` has shed its mobile projections, and
-`ICollectorRepository` is now the ACCOUNT only — load to modify, find for login, rule on uniqueness — with the office's
-roster and one collector's activity on the reporting contract and the app's three projections on the mobile one.
+`ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (`99ae349`), `IClosedStallAccountQueries` +
+`IContractAttentionQueries` (this commit). `IPaymentRepository` is now load-by-id, add, update and the three
+receipt-availability rules; `ICollectorRepository` is the ACCOUNT only; and `IStallRepository` has shed the collector
+app's projections and both follow-up reads, so the four report handlers that read them can no longer let, transfer, renew
+or close the stalls they report on.
 
 Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
 mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
@@ -85,9 +86,6 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- **`StallRepository` closed-accounts and contract-attention seams.** `GetClosedStallAccountsAsync` alone has ~35 refs and
-  `GetClosedStallAccountsForPeriodAsync` ~14, mostly test setups. Needs its own session; the volume is the risk, not the
-  design.
 - **`StallRepository` register seam** — `GetStallsByFacilityAsync`, `...Paginated`, `GetStallHoldersListAsync`,
   `GetSectionSummariesAsync`.
 - **A receipt-registry CONTRACT.** Lower value than the review implies: the RULE is already single-sourced in

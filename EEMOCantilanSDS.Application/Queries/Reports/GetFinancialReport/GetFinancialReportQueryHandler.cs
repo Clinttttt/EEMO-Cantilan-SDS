@@ -26,7 +26,7 @@ public class GetFinancialReportQueryHandler(
     ITpmRepository tpmRepository,
     ITransactionFeedRepository transactionFeedRepository,
     IFacilityRepository facilityRepository,
-    IStallRepository stallRepository,
+    IClosedStallAccountQueries closedRegister,
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
@@ -305,7 +305,7 @@ public class GetFinancialReportQueryHandler(
         // arrears and delinquency figures above. Counting it here as well stated the same debt twice — Cantilan
         // read "84 accounts need follow-up · ₱519,880" beside "closed / expired accounts ₱1,905,300", and 57 of
         // those 58 accounts were the same live receivables, over a longer span, presented as a separate sum.
-        var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+        var closedAccounts = await closedRegister.GetClosedStallAccountsAsync(ct);
         var closedWithBalance = closedAccounts
             .Where(a => a.Uncollected > 0m
                 && a.State != InactiveAccountState.Lapsed

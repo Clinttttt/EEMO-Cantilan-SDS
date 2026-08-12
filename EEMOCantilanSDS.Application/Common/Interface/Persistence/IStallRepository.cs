@@ -19,31 +19,12 @@ public interface IStallRepository
     /// number uniqueness.
     /// </remarks>
     Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
-    /// <summary>
-    /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>
-    /// — the contract-attention source for the Follow-up Queue. Expired rows are returned first.
-    /// </summary>
-    Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct);
-    /// <summary>
-    /// Period-scoped contract attention for the Follow-up History (past-period snapshot). Evaluates
-    /// expiry/expiring-soon as of the LAST day of <paramref name="year"/>/<paramref name="month"/> instead
-    /// of "today", so a past month reflects the contract state that would have shown then.
-    /// </summary>
-    Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsOfAsync(int year, int month, int withinMonths, CancellationToken ct);
-    /// <summary>
-    /// Inactive stall accounts for the register: explicitly CLOSED (frozen) stalls and EXPIRED ones
-    /// (active stall whose contract term has lapsed). Includes lifetime collected (all money ever
-    /// received) and uncollected arrears accrued up to the end point (close date / contract expiry),
-    /// excused/absent-aware.
-    /// </summary>
-    Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
-    /// <summary>
-    /// The same register bounded to a period: each figure is what that ended occupancy owed and paid FOR
-    /// [<paramref name="from"/>, <paramref name="to"/>], and an occupancy that did not exist in the period is
-    /// omitted. A period view must state its own period's money; the lifetime reading above is the cumulative
-    /// answer to "what is owed in total".
-    /// </summary>
-    Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsForPeriodAsync(DateOnly from, DateOnly to, CancellationToken ct);
+    /// <remarks>
+    /// The follow-up reads have moved off this contract: contracts needing attention are on
+    /// <see cref="IContractAttentionQueries"/> and the register of inactive accounts is on
+    /// <see cref="IClosedStallAccountQueries"/>. Both are reports, and a report should not be able to let, transfer,
+    /// renew or close the stalls it reports on.
+    /// </remarks>
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     /// <summary>The facility code that a stall belongs to, or null if the stall is not found. Used to route
     /// online-payment notifications to that facility's assigned collectors.</summary>

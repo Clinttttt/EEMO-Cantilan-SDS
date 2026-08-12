@@ -8,7 +8,7 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Queries.Stalls.GetClosedStallAccounts;
 
 public class GetClosedStallAccountsQueryHandler(
-    IStallRepository stallRepository,
+    IClosedStallAccountQueries closedRegister,
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions)
@@ -24,7 +24,7 @@ public class GetClosedStallAccountsQueryHandler(
             key,
             regions,
             cacheOptions.ClosedAccountsTtl,
-            token => stallRepository.GetClosedStallAccountsAsync(token),
+            token => closedRegister.GetClosedStallAccountsAsync(token),
             ct);
 
         return Result<IReadOnlyList<ClosedStallAccountDto>>.Success(result);

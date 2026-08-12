@@ -16,7 +16,8 @@ namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 /// </summary>
 public class GetFollowUpQueueQueryHandler(
     IFacilityReportsRepository reportsRepository,
-    IStallRepository stallRepository,
+    IClosedStallAccountQueries closedRegister,
+    IContractAttentionQueries contractAttention,
     IOnlinePaymentRepository onlinePaymentRepository,
     IMissingReceiptQueries missingReceipts,
     ISlaughterRepository slaughterRepository,
@@ -43,7 +44,7 @@ public class GetFollowUpQueueQueryHandler(
         // Live queue shows only contracts EXPIRING SOON (still active). Already-EXPIRED contracts are a
         // past concern and belong on Past follow-up (the history handler keeps them via its as-of scope),
         // so they are excluded here to stop them counting/showing in the active queue.
-        var contracts = (await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
+        var contracts = (await contractAttention.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
             .Where(c => !c.IsExpired)
             .ToList();
         var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
@@ -61,7 +62,7 @@ public class GetFollowUpQueueQueryHandler(
         // final — nothing further will be billed and there is no later period for the remainder to surface in.
         var periodStart = new DateOnly(year, month, 1);
         var periodEnd = DomainRules.EarnedThrough(periodStart.AddMonths(1).AddDays(-1), PhilippineTime.Today);
-        var endedThisPeriod = (await stallRepository.GetClosedStallAccountsAsync(ct))
+        var endedThisPeriod = (await closedRegister.GetClosedStallAccountsAsync(ct))
             .Where(a => a.Uncollected > 0m)
             .Where(a =>
             {
