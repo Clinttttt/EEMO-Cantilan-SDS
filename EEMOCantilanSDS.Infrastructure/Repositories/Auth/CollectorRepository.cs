@@ -14,7 +14,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : ICollectorRepository
+// Implements the collector account repository AND the three projections the collector's own app reads. Not split into
+// separate files yet: those projections reuse the same private recognition and obligation arithmetic the office's
+// reports use, and duplicating money arithmetic is how two screens start disagreeing. The CONTRACTS are separate, so a
+// handler serving the app cannot reach an authentication lookup.
+public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
+    : ICollectorRepository, ICollectorMobileQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
     public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }

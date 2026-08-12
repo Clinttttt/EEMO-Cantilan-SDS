@@ -84,4 +84,24 @@ public class StallLedgerQueriesCompositionTests
         Assert.Contains("GetByIdWithContractsAsync", wide);
         Assert.Contains("IsStallNoUniqueAsync", wide);
     }
+
+    [Fact]
+    public void ACollectorsOwnScreensAreNotTheAccountRepository()
+    {
+        // ICollectorRepository is an account repository: it loads a collector to modify, finds one for LOGIN, and rules
+        // on uniqueness. The three projections a collector reads about their own work had no business sitting beside an
+        // authentication lookup, and a test for one of those screens had to stub seventeen members to get at it.
+        Assert.True(typeof(ICollectorMobileQueries).IsAssignableFrom(typeof(CollectorRepository)));
+        Assert.True(typeof(ICollectorRepository).IsAssignableFrom(typeof(CollectorRepository)));
+
+        var wide = typeof(ICollectorRepository).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.DoesNotContain(nameof(ICollectorMobileQueries.GetCollectorRecordsAsync), wide);
+        Assert.DoesNotContain(nameof(ICollectorMobileQueries.GetCollectorReportAsync), wide);
+        Assert.DoesNotContain(nameof(ICollectorMobileQueries.GetCollectorProfileAsync), wide);
+
+        // The account side keeps the login lookup and the uniqueness rules.
+        Assert.Contains("GetByUsernameOrEmployeeIdAsync", wide);
+        Assert.Contains("IsEmployeeIdUniqueAsync", wide);
+        Assert.Contains("AddAsync", wide);
+    }
 }

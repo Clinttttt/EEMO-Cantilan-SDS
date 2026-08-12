@@ -20,22 +20,11 @@ public interface ICollectorRepository
     Task<List<CollectorListDto>> GetAllCollectorsWithStatsAsync(int year, int month, CancellationToken cancellationToken = default);
     Task<CollectorActivityDto?> GetCollectorActivityAsync(Guid collectorId, int year, int month, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// The collector's own collection events (paid/partial) across their assigned facilities for a PH
-    /// date range, optionally narrowed to one facility. Scoped by CollectorId, so it never leaks others'.
-    /// </summary>
-    Task<IReadOnlyList<MobileCollectorRecordDto>> GetCollectorRecordsAsync(
-        Guid collectorId, FacilityCode? facility, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
-
-    Task<MobileCollectorReportDto> GetCollectorReportAsync(
-        Guid collectorId, IReadOnlyCollection<FacilityCode> facilities, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// The authenticated collector's own profile: account fields plus lifetime collection stats
-    /// (all-time recognized collected, distinct active days, assigned-facility count).
-    /// </summary>
-    Task<MobileCollectorProfileDto?> GetCollectorProfileAsync(Guid collectorId, CancellationToken cancellationToken = default);
-
+    /// <remarks>
+    /// The three projections a collector's own app reads about their work live on
+    /// <see cref="ICollectorMobileQueries"/>. This is an account repository — it loads a collector to modify, finds one
+    /// for LOGIN, and rules on uniqueness — and a handler serving the app has no business with any of that.
+    /// </remarks>
     Task AddAsync(CollectorUser collector, CancellationToken cancellationToken = default);
     Task<bool> IsEmployeeIdUniqueAsync(string employeeId, CancellationToken cancellationToken = default);
     Task<bool> IsUsernameUniqueAsync(string username, CancellationToken cancellationToken = default);

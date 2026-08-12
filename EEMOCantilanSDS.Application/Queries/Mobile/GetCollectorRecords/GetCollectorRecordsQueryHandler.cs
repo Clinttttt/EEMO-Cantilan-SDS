@@ -7,7 +7,7 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 
 public class GetCollectorRecordsQueryHandler(
-    ICollectorRepository collectorRepository,
+    ICollectorMobileQueries mobileQueries,
     IFacilityRepository facilityRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetCollectorRecordsQuery, Result<IReadOnlyList<MobileCollectorRecordDto>>>
 {
@@ -16,7 +16,7 @@ public class GetCollectorRecordsQueryHandler(
         if (currentUser.CollectorId is not { } collectorId)
             return Result<IReadOnlyList<MobileCollectorRecordDto>>.Forbidden();
 
-        var records = await collectorRepository.GetCollectorRecordsAsync(
+        var records = await mobileQueries.GetCollectorRecordsAsync(
             collectorId, request.Facility, request.FromDate, request.ToDate, ct);
 
         // Stamp the canonical facility display name (single source of truth) onto every row.

@@ -8,6 +8,9 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 
 public class GetCollectorReportQueryHandler(
     ICollectorRepository collectorRepository,
+    // Both, and honestly so: this one loads the collector's account to know their assigned facilities, then reads their
+    // report. The account lookup is not a projection and the projection is not an account.
+    ICollectorMobileQueries mobileQueries,
     ICurrentUserService currentUser) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
 {
     public async Task<Result<MobileCollectorReportDto>> Handle(GetCollectorReportQuery request, CancellationToken ct)
@@ -39,7 +42,7 @@ public class GetCollectorReportQueryHandler(
             ? today
             : monthEnd;
 
-        var report = await collectorRepository.GetCollectorReportAsync(
+        var report = await mobileQueries.GetCollectorReportAsync(
             collectorId,
             assignedFacilities,
             monthStart,
