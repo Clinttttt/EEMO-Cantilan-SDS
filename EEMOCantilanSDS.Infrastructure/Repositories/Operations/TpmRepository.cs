@@ -114,10 +114,6 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
     public async Task<bool> IsVendorNameUniqueAsync(string vendorName, CancellationToken ct = default)
         => !await context.TpmVendors.AnyAsync(v => v.VendorName.ToLower() == vendorName.ToLower(), ct);
 
-    public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
-    {
-        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
-    }
 
     /// <summary>
     /// Every vendor attendance for the month, projected with vendor name/goods in a single query

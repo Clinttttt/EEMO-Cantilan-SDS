@@ -11,6 +11,7 @@ namespace EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
 
 public class RecordUtilityPaymentCommandHandler(
     IUtilityBillRepository utilityRepository,
+    IOrNumberRegistry orNumbers,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
@@ -41,11 +42,11 @@ public class RecordUtilityPaymentCommandHandler(
         // OR uniqueness — per utility, excluding this bill so re-marking (or one receipt covering both
         // utilities of this bill) is allowed; reject an OR already used on another bill.
         if (request.ElecStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(elecOr)
-            && !await utilityRepository.IsORNumberUniqueAsync(elecOr, bill.Id, ct))
+            && !await orNumbers.IsAvailableForUtilityBillAsync(elecOr, bill.Id, ct))
             return Result<UtilityBillDto>.Failure("Electricity OR number already exists.", 409);
 
         if (request.WaterStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(waterOr)
-            && !await utilityRepository.IsORNumberUniqueAsync(waterOr, bill.Id, ct))
+            && !await orNumbers.IsAvailableForUtilityBillAsync(waterOr, bill.Id, ct))
             return Result<UtilityBillDto>.Failure("Water OR number already exists.", 409);
 
         bill.RecordPayment(

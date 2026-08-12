@@ -30,5 +30,4 @@ public interface IUtilityBillRepository
 
     /// <summary>True when no other utility bill already uses this OR number (on either utility).
     /// <paramref name="excludeBillId"/> lets the current bill re-use its own OR when re-marking.</summary>
-    Task<bool> IsORNumberUniqueAsync(string orNumber, Guid? excludeBillId = null, CancellationToken ct = default);
 }

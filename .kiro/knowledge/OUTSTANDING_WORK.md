@@ -75,11 +75,13 @@ mobile projections, reports and uniqueness checks.
 
 Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
 `ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (`99ae349`), `IClosedStallAccountQueries` +
-`IContractAttentionQueries` (`f100980`), `IStallRegisterQueries` (this commit). `IPaymentRepository` is now load-by-id,
-add, update and the three receipt-availability rules; `ICollectorRepository` is the ACCOUNT only; and `IStallRepository`
-is now the stall AGGREGATE only — load with contracts, let, transfer, close, and rule on stall-number uniqueness — with
-the register, stallholders list, section summaries, the collector app's projections and both follow-up reads on their own
-read contracts.
+`IContractAttentionQueries` (`f100980`), `IStallRegisterQueries` (`e11081f`), `IOrNumberRegistry` (this commit).
+`IPaymentRepository` is now load-by-id, add, update and the two stall-scoped receipt allowances; `ICollectorRepository` is
+the ACCOUNT only; and `IStallRepository` is the stall AGGREGATE only — load with contracts, let, transfer, close, and rule
+on stall-number uniqueness — with the register, stallholders list, section summaries, the collector app's projections and
+both follow-up reads on their own read contracts. Plain OR availability is no longer a method on five module repositories:
+it is one port with one implementation (`DbOrNumberRegistry`) over the one rule (`OrNumberRegistry`), and the composition
+test asserts it is absent from all five.
 
 Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
 mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
@@ -87,9 +89,6 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- **A receipt-registry CONTRACT.** Lower value than the review implies: the RULE is already single-sourced in
-  `OrNumberRegistry`, verified 2026-08-12, so this is about interface placement (five repository interfaces expose one
-  rule) rather than about unifying logic. Tidying, not correctness.
 - **THE FILE MOVES.** Every slice so far split contracts and left the implementations in place, on purpose. Three files are
   still oversized (`CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB) and the seams are now
   stated by the compiler. Moving the code into per-capability files is the mechanical follow-up that actually shrinks them —

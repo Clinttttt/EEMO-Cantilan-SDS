@@ -97,7 +97,8 @@ public class UtilityCommandTests
     {
         var bills = new Mock<IUtilityBillRepository>();
         bills.Setup(r => r.GetByIdAsync(bill.Id, It.IsAny<CancellationToken>())).ReturnsAsync(bill);
-        bills.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>())).ReturnsAsync(orUnique);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableForUtilityBillAsync(It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>())).ReturnsAsync(orUnique);
 
         var collectors = new Mock<ICollectorRepository>();
         var user = new Mock<ICurrentUserService>();
@@ -110,7 +111,7 @@ public class UtilityCommandTests
         tenant.SetupGet(t => t.TenantCode).Returns("cantilan");
 
         var handler = new RecordUtilityPaymentCommandHandler(
-            bills.Object, collectors.Object, user.Object, uow.Object, cache.Object, tenant.Object);
+            bills.Object, orNumbers.Object, collectors.Object, user.Object, uow.Object, cache.Object, tenant.Object);
         return (bills, handler, uow, cache);
     }
 

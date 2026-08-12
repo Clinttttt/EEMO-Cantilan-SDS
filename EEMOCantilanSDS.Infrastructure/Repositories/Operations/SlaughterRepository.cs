@@ -303,10 +303,6 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task AddAsync(SlaughterTransaction transaction, CancellationToken ct = default)
         => await context.SlaughterTransactions.AddAsync(transaction, ct);
 
-    public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
-    {
-        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
-    }
 
     public async Task<bool> IsORNumberAvailableForReceiptAsync(string orNumber, string ownerName, DateOnly transactionDate, CancellationToken ct = default)
     {

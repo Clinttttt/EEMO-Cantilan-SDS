@@ -19,19 +19,21 @@ public class MarkVendorPaidCommandHandlerTests
     {
         var attendance = TpmAttendance.Create(Guid.NewGuid(), new DateOnly(2026, 6, 5)); // a Friday
         var tpmRepo = new Mock<ITpmRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var collectorRepo = new Mock<ICollectorRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
 
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
-        tpmRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         if (collector is not null)
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(c => c.Role).Returns(role);
         currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), attendance);
+        return (new MarkVendorPaidCommandHandler(tpmRepo.Object, orNumbers.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), attendance);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
@@ -73,15 +75,17 @@ public class MarkVendorPaidCommandHandlerTests
     {
         var attendance = TpmAttendance.Create(Guid.NewGuid(), new DateOnly(2026, 6, 5));
         var tpmRepo = new Mock<ITpmRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var collectorRepo = new Mock<ICollectorRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
-        tpmRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
         currentUser.SetupGet(c => c.Role).Returns("Admin");
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, orNumbers.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "DUP-1"), CancellationToken.None);
 
         Assert.Equal(409, result.StatusCode);
@@ -96,16 +100,18 @@ public class MarkVendorPaidCommandHandlerTests
         attendance.SetORNumber("OR-1", "prev");
 
         var tpmRepo = new Mock<ITpmRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var collectorRepo = new Mock<ICollectorRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
         // OR "exists" globally only because it is on this same attendance.
-        tpmRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
         currentUser.SetupGet(c => c.Role).Returns("Admin");
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, orNumbers.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "OR-1"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

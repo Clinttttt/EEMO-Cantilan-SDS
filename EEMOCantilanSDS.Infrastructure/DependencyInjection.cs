@@ -78,6 +78,10 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IClosedStallAccountQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IContractAttentionQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IStallRegisterQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
+
+            // The OR rule is LGU-wide, so it is its own service rather than a method on whichever module repository
+            // a handler happens to hold. Scoped: it shares the request's context and change tracker.
+            service.AddScoped<IOrNumberRegistry, DbOrNumberRegistry>();
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();

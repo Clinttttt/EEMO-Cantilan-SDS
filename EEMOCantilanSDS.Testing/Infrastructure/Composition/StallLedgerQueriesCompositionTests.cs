@@ -56,15 +56,26 @@ public class StallLedgerQueriesCompositionTests
     [Fact]
     public void TheWideRepositoryKeepsWhatItIsFor()
     {
-        // Aggregate persistence and receipt-number availability stay where they were. This is a split, not a rewrite,
-        // and nothing about how a payment is written or an OR is judged changed here.
+        // Aggregate persistence stays where it was. This is a split, not a rewrite, and nothing about how a payment is
+        // written or an OR is judged changed here.
         var wide = typeof(IPaymentRepository).GetMethods().Select(m => m.Name).ToHashSet();
 
         Assert.Contains("AddAsync", wide);
         Assert.Contains("UpdateAsync", wide);
-        Assert.Contains("IsORNumberUniqueAsync", wide);
         Assert.Contains("IsDailyCollectionOrAvailableForStallAsync", wide);
         Assert.Contains("IsMonthlyOrAvailableForStallAsync", wide);
+
+        // Plain OR availability has moved to IOrNumberRegistry, because it is an LGU-wide question and five interfaces
+        // each declaring it invited the reading that the market's rule and the terminal's rule were different rules.
+        // What stays here are the two allowances that only mean something for a payment record: one receipt may settle
+        // several months, or cover several days, of the SAME stall.
+        Assert.DoesNotContain("IsORNumberUniqueAsync", wide);
+        foreach (var moduleContract in new[] { typeof(ISlaughterRepository), typeof(ITpmRepository), typeof(ITrmRepository), typeof(IUtilityBillRepository) })
+            Assert.DoesNotContain("IsORNumberUniqueAsync", moduleContract.GetMethods().Select(m => m.Name));
+
+        var registry = typeof(IOrNumberRegistry).GetMethods().Select(m => m.Name).ToHashSet();
+        Assert.Contains(nameof(IOrNumberRegistry.IsAvailableAsync), registry);
+        Assert.Contains(nameof(IOrNumberRegistry.IsAvailableForUtilityBillAsync), registry);
     }
 
     [Fact]

@@ -28,5 +28,4 @@ public interface ITrmRepository
     Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default);
 
     // Validation
-    Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default);
 }

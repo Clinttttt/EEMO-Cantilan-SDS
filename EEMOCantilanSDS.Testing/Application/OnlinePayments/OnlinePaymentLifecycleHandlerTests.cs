@@ -356,7 +356,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var uow = new Mock<IUnitOfWork>();
         return (new IssueOnlinePaymentOrNumberCommandHandler(
-            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, new Mock<IDailyCollectionRepository>().Object, new Mock<IUtilityBillRepository>().Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
+            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, new Mock<IDailyCollectionRepository>().Object, new Mock<IUtilityBillRepository>().Object, new Mock<IOrNumberRegistry>().Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
     }
 
     [Fact]
@@ -443,7 +443,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var handler = new IssueOnlinePaymentOrNumberCommandHandler(
             onlineRepo.Object, paymentRepo.Object, new Mock<IStallRepository>().Object, new Mock<ICollectorRepository>().Object,
-            dailyRepo.Object, new Mock<IUtilityBillRepository>().Object, currentUser.Object, notifier.Object, uow.Object,
+            dailyRepo.Object, new Mock<IUtilityBillRepository>().Object, new Mock<IOrNumberRegistry>().Object, currentUser.Object, notifier.Object, uow.Object,
             CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-FISH-1"), CancellationToken.None);

@@ -13,6 +13,7 @@ namespace EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollec
 public class RecordDailyCollectionCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IPaymentRepository paymentRepository,
+    IOrNumberRegistry orNumbers,
     IStallRepository stallRepository,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
@@ -73,7 +74,7 @@ public class RecordDailyCollectionCommandHandler(
                 {
                     // Permit re-marking with the OR already on this day; reject a new OR used elsewhere.
                     var alreadyOnThisRecord = string.Equals(existing.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
-                    if (!alreadyOnThisRecord && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                    if (!alreadyOnThisRecord && !await orNumbers.IsAvailableAsync(orNumber, ct))
                         return Result<bool>.Failure("OR number already exists.", 409);
                 }
 
@@ -111,7 +112,7 @@ public class RecordDailyCollectionCommandHandler(
             }
             else if (request.IsPaid)
             {
-                if (!string.IsNullOrWhiteSpace(orNumber) && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                if (!string.IsNullOrWhiteSpace(orNumber) && !await orNumbers.IsAvailableAsync(orNumber, ct))
                     return Result<bool>.Failure("OR number already exists.", 409);
 
                 newCollection.MarkPaid(

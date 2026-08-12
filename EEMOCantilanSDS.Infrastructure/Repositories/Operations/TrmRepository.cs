@@ -321,8 +321,4 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
         };
     }
 
-    public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
-    {
-        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
-    }
 }

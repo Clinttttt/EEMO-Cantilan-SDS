@@ -49,7 +49,7 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         Assert.False(await repo.IsORNumberAvailableForReceiptAsync("OR-500", owner, day.AddDays(1), CancellationToken.None));
 
         // And the plain uniqueness question, which knows nothing about receipts, still refuses it outright.
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-500", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-500", CancellationToken.None));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         await ctx.SaveChangesAsync();
 
         var repo = new PaymentRepository(ctx);
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-GONE", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-GONE", CancellationToken.None));
     }
 
     // Regression: OR numbers must be unique across modules. A payment OR that already
@@ -85,8 +85,8 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
 
         var repo = new PaymentRepository(ctx);
 
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-X", CancellationToken.None));
-        Assert.True(await repo.IsORNumberUniqueAsync("OR-UNUSED", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-X", CancellationToken.None));
+        Assert.True(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-UNUSED", CancellationToken.None));
     }
 
     // Phase 5 hardening: OR uniqueness is scoped per municipality — a second LGU may reuse an OR number
@@ -116,13 +116,13 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         // LGU-B: OR-A is free (belongs to another LGU).
         await using (var ctxB = new AppDbContext(Options(), new FixedMunicipality(lguB)))
         {
-            Assert.True(await new PaymentRepository(ctxB).IsORNumberUniqueAsync("OR-A", CancellationToken.None));
+            Assert.True(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctxB).IsAvailableAsync("OR-A", CancellationToken.None));
         }
 
         // LGU-A: OR-A is still taken.
         await using (var ctxA = new AppDbContext(Options(), new FixedMunicipality(lguA)))
         {
-            Assert.False(await new PaymentRepository(ctxA).IsORNumberUniqueAsync("OR-A", CancellationToken.None));
+            Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctxA).IsAvailableAsync("OR-A", CancellationToken.None));
         }
     }
 
@@ -141,7 +141,7 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         await ctx.SaveChangesAsync();
 
         // A collection OR must be rejected when it already exists on a utility bill.
-        Assert.False(await new PaymentRepository(ctx).IsORNumberUniqueAsync("OR-UTIL", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-UTIL", CancellationToken.None));
     }
 
     [Fact]
@@ -165,11 +165,11 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         var repo = new EEMOCantilanSDS.Infrastructure.Repositories.Payments.UtilityBillRepository(ctx);
 
         // A utility OR is rejected when it collides with a collection OR (cross-module).
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-COLL", null, CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableForUtilityBillAsync("OR-COLL", null, CancellationToken.None));
         // But re-marking THIS bill with its own OR is still allowed (excluded by id).
-        Assert.True(await repo.IsORNumberUniqueAsync("OR-SELF", bill.Id, CancellationToken.None));
+        Assert.True(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableForUtilityBillAsync("OR-SELF", bill.Id, CancellationToken.None));
         // A fresh OR is available.
-        Assert.True(await repo.IsORNumberUniqueAsync("OR-FRESH", null, CancellationToken.None));
+        Assert.True(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableForUtilityBillAsync("OR-FRESH", null, CancellationToken.None));
     }
 
     // Broader OR uniqueness: the service-facility checks (SLH/TPM/TRM) now also reject a utility OR.
@@ -188,9 +188,9 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
 
         var slh = new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterRepository(ctx);
 
-        Assert.False(await slh.IsORNumberUniqueAsync("OR-UTIL", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-UTIL", CancellationToken.None));
         Assert.False(await slh.IsORNumberAvailableForReceiptAsync("OR-UTIL", "Owner", new DateOnly(2026, 7, 1), CancellationToken.None));
-        Assert.True(await slh.IsORNumberUniqueAsync("OR-FRESH", CancellationToken.None));
+        Assert.True(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-FRESH", CancellationToken.None));
     }
 
     // Option B: one OR (receipt) may cover several days of the SAME NPM stall, but is still rejected
@@ -214,7 +214,7 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         // A different stall may NOT reuse it.
         Assert.False(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-DAY1", stallB, CancellationToken.None));
         // The stall-agnostic check still reports it taken (monthly/other modules must not reuse it).
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-DAY1", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-DAY1", CancellationToken.None));
         // A fresh OR is available for any stall.
         Assert.True(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-FRESH", stallB, CancellationToken.None));
     }
@@ -241,7 +241,7 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         // A different stall may NOT reuse it.
         Assert.False(await repo.IsMonthlyOrAvailableForStallAsync("OR-MONTH", stallB, CancellationToken.None));
         // The stall-agnostic check still reports it taken.
-        Assert.False(await repo.IsORNumberUniqueAsync("OR-MONTH", CancellationToken.None));
+        Assert.False(await new EEMOCantilanSDS.Infrastructure.Repositories.DbOrNumberRegistry(ctx).IsAvailableAsync("OR-MONTH", CancellationToken.None));
         // A fresh OR is available for any stall.
         Assert.True(await repo.IsMonthlyOrAvailableForStallAsync("OR-FRESH", stallB, CancellationToken.None));
     }

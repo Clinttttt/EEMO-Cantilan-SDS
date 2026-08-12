@@ -16,6 +16,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
     ICollectorRepository collectorRepository,
     IDailyCollectionRepository dailyCollectionRepository,
     IUtilityBillRepository utilityBillRepository,
+    IOrNumberRegistry orNumbers,
     ICurrentUserService currentUser,
     IPayorRealtimeNotifier payorNotifier,
     IUnitOfWork unitOfWork,
@@ -195,7 +196,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (bill is null)
             return Result<bool>.Failure("Linked utility bill not found.", 500);
 
-        if (!await utilityBillRepository.IsORNumberUniqueAsync(orNumber, bill.Id, cancellationToken))
+        if (!await orNumbers.IsAvailableForUtilityBillAsync(orNumber, bill.Id, cancellationToken))
             return Result<bool>.Failure("OR number already exists.", 409);
 
         // Preserve an already-receipted side's OR (paid in person); stamp the new OR only on blank sides.

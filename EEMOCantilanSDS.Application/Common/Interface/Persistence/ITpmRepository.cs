@@ -28,5 +28,4 @@ public interface ITpmRepository
     
     // Validation
     Task<bool> IsVendorNameUniqueAsync(string vendorName, CancellationToken ct = default);
-    Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default);
 }

@@ -5,7 +5,7 @@ namespace EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 
 public class RecordTripCommandValidator : AbstractValidator<RecordTripCommand>
 {
-    public RecordTripCommandValidator(ITrmRepository trmRepo)
+    public RecordTripCommandValidator(IOrNumberRegistry orNumbers)
     {
         // TransporterId is optional — an ad-hoc / walk-in trip has none. When supplied it must be a real id.
         RuleFor(x => x.TransporterId).NotEqual(Guid.Empty).When(x => x.TransporterId.HasValue);
@@ -15,7 +15,7 @@ public class RecordTripCommandValidator : AbstractValidator<RecordTripCommand>
         RuleFor(x => x.ORNumber)
             .NotEmpty()
             .MaximumLength(50)
-            .MustAsync(async (orNumber, ct) => await trmRepo.IsORNumberUniqueAsync(orNumber, ct))
+            .MustAsync(async (orNumber, ct) => await orNumbers.IsAvailableAsync(orNumber, ct))
             .WithMessage("OR number already exists.");
     }
 }

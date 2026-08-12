@@ -26,8 +26,11 @@ public interface IPaymentRepository
     /// A stall's own history, collection log, ledger totals and outstanding months now live on
     /// <see cref="IStallLedgerQueries"/>. They are reads of one account, and a caller that wants them should not have to
     /// depend on something that can also write payments and rule on receipt numbers.
+    ///
+    /// <para>Plain OR availability is an LGU-WIDE question spanning every module, so it is asked through
+    /// <see cref="IOrNumberRegistry"/> rather than through whichever module repository a handler happens to hold. What
+    /// remains below is narrower: the allowances that only mean something for a payment record.</para>
     /// </remarks>
-    Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     /// <summary>
     /// OR availability for an NPM daily-collection receipt: available when unused anywhere in the LGU OR
     /// only already used by daily collections of <paramref name="stallId"/> itself (one receipt covering

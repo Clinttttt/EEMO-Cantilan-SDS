@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 
 public class MarkVendorPaidCommandHandler(
     ITpmRepository tpmRepo,
+    IOrNumberRegistry orNumbers,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork uow,
@@ -44,7 +45,7 @@ public class MarkVendorPaidCommandHandler(
             {
                 // Allow re-marking with the OR already on this attendance; reject a new OR used elsewhere.
                 var alreadyOnThisRecord = string.Equals(attendance.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
-                if (!alreadyOnThisRecord && !await tpmRepo.IsORNumberUniqueAsync(orNumber, ct))
+                if (!alreadyOnThisRecord && !await orNumbers.IsAvailableAsync(orNumber, ct))
                     return Result<bool>.Failure("OR number already exists.", 409);
             }
 

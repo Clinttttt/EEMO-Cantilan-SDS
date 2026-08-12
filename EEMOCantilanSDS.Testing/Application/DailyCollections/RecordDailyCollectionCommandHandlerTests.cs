@@ -42,7 +42,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(stall);
@@ -58,7 +60,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, DateOnly.FromDateTime(DateTime.UtcNow), IsPaid: true),
@@ -83,7 +85,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(stall);
@@ -99,7 +103,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "000001"),
@@ -122,7 +126,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(stall);
@@ -137,7 +143,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), false),
@@ -160,7 +166,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -168,7 +176,7 @@ public class RecordDailyCollectionCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("collector1");
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "DUP-1"),
@@ -191,8 +199,10 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         // OR "exists" globally only because it is on this same day's record.
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -200,7 +210,7 @@ public class RecordDailyCollectionCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("collector1");
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "X-1"),
@@ -227,7 +237,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(stall.Id, collectionDate, It.IsAny<CancellationToken>()))
@@ -239,7 +251,7 @@ public class RecordDailyCollectionCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("collector-b");
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, collectionDate, IsPaid: true, ORNumber: "OR-B"),
@@ -267,7 +279,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync("OR-A", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync("OR-A", It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(stall.Id, collectionDate, It.IsAny<CancellationToken>()))
@@ -280,7 +294,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, collectionDate, IsPaid: true, FishKilos: 2m, ORNumber: "OR-A"),
@@ -304,6 +318,8 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -317,7 +333,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: false, IsAbsent: true),
@@ -343,6 +359,8 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
@@ -351,7 +369,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: false, IsAbsent: true),
@@ -377,6 +395,8 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync(existing);
@@ -384,7 +404,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         // Collector switches the absent day to "Not Collected".
         var result = await handler.Handle(
@@ -409,7 +429,9 @@ public class RecordDailyCollectionCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
         var paymentRepo = new Mock<IPaymentRepository>();
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         dailyRepo.Setup(r => r.GetByStallAndDateAsync(It.IsAny<Guid>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync(existing);
@@ -417,7 +439,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: true, ORNumber: "OR-9"),

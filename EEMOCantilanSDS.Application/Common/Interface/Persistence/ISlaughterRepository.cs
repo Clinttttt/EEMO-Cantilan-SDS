@@ -16,7 +16,6 @@ public interface ISlaughterRepository
     Task<SlaughterOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct = default);
     Task<SlaughterHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     Task AddAsync(SlaughterTransaction transaction, CancellationToken ct = default);
-    Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default);
     /// <summary>
     /// Whether <paramref name="orNumber"/> may be used for a slaughter receipt identified by
     /// (<paramref name="ownerName"/>, <paramref name="transactionDate"/>). Returns false if the OR

@@ -64,7 +64,7 @@ public class ActorAttributionTests
         var uow = new Mock<IUnitOfWork>();
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, new Mock<IOrNumberRegistry>().Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         await handler.Handle(new MarkVendorPaidCommand(Guid.NewGuid(), IsPaid: true), CancellationToken.None);
         return attendance;
     }
