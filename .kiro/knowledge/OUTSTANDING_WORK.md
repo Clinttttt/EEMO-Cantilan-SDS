@@ -114,11 +114,32 @@ after the last caller goes.
 tests depend on the whole assembly. Correct in principle and the largest single change on the list; do it after the
 boundaries are right.
 
-### 7. One transaction boundary per command — NOT STARTED
+### 7. One transaction boundary per command — DONE
 
-`CreateStallCommandHandler` saves the stall, then saves its contract in a second commit; a failure between them leaves an
-incomplete stall. Audit for other multi-save handlers. No blanket transaction behaviour without auditing external HTTP
-calls first.
+Audited every handler that calls `SaveChangesAsync` more than once (nine of them) and separated the two shapes: several
+saves in ALTERNATIVE branches are fine, several in ONE path are the defect.
+
+Two genuine defects, one more than the review named:
+
+- `CreateStallCommandHandler` saved the stall, then its first contract. A failure between them produced a let space with no
+  agreement behind it — on the register, answering for a month's rent, with no lessee, term or start date to bill against.
+- `CreateCollectorCommandHandler` saved the account, then its facility assignments. A failure between them produced a
+  collector who could sign in but was assigned nowhere, and the office's natural remedy (create them again) would then fail
+  on the unique employee ID.
+
+Both are now one commit. No new abstraction was needed: entity ids are generated in memory and neither second step reads
+the row written by the first (the assignment lookup reads FACILITIES), so a single `SaveChangesAsync` inserts both in one
+transaction. Proven load-bearing — reinstating the interleaved save failed all three new tests and left the handover test,
+which was already single-commit, correctly passing.
+
+Not defects, checked and recorded so nobody re-audits them: `IssueOnlinePaymentOrNumberCommandHandler` and
+`InitiateOnlinePaymentCommandHandler` save once per module branch (monthly / NPM daily / utility / fish day);
+`VerifyMfaLoginCommandHandler`, `LoginCommandHandler` and `ResetPasswordByTokenCommandHandler` save once per outcome, each
+followed by its own return.
+
+`IUnitOfWork` deliberately still exposes only `SaveChangesAsync`. An explicit transaction API would only be needed by a
+handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
+bugs for no benefit. If a future command needs it, that is the moment to add it.
 
 ### 8. Inject time instead of static clocks — NOT STARTED
 

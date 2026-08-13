@@ -159,4 +159,38 @@ public class CreateStallReassignTests
         Assert.NotEqual(existing.Id, result.Value!.Id);           // a genuinely new stall record
         stalls.Verify(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ANewStallAndItsFirstTermAreOneCommit()
+    {
+        // A let space and the agreement behind it are one fact about the office, so they must be written together.
+        // Committing the stall first left a window: a failure after it produced a space that appears on the register and
+        // answers for a month's rent, with no lessee, no term and no start date to bill against. Nobody would think to
+        // look for it, because the screen that would show the problem is the one listing contracts.
+        var (handler, stalls, _, uow) = Build(existing: null);
+
+        var result = await handler.Handle(Command(reuse: false), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        stalls.Verify(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()), Times.Once);
+        stalls.Verify(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AHandoverIsAlsoOneCommit()
+    {
+        // The reassignment path already committed once; asserted so it stays that way. Ending the outgoing term,
+        // reopening the space, restating its rates, starting the new term and revoking the previous lessee's payor
+        // links are one handover — half of it would credit the wrong lessee.
+        var existing = VacatedStall(closed: false);
+        var (handler, _, payors, uow) = Build(existing);
+
+        var result = await handler.Handle(Command(reuse: true), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        payors.Verify(r => r.RemoveStallLinksAsync(existing.Id, It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
 }

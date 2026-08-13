@@ -32,9 +32,13 @@ public class CreateCollectorCommandHandler(
             request.Password);
 
         await collectorRepo.AddAsync(collector, cancellationToken);
-        await uow.SaveChangesAsync(cancellationToken);
 
         await collectorRepo.AddFacilityAssignmentsAsync(collector.Id, request.AssignedFacilities, cancellationToken);
+
+        // ONE commit for the account and the facilities it is assigned to. Saving the account first left a window in
+        // which a failure produced a collector who could sign in but was assigned nowhere — their app would open with no
+        // facility to collect for, which reads as a broken account rather than an incomplete one. The assignment lookup
+        // reads FACILITIES, not the new collector, so it does not need the account to be persisted first.
         await uow.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 

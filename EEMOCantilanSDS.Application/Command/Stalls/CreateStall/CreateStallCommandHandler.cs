@@ -61,7 +61,6 @@ public class CreateStallCommandHandler(
             facility.AddCustomSection(request.CustomSectionName, "Admin");
 
         await stallRepo.AddAsync(stall, cancellationToken);
-        await uow.SaveChangesAsync(cancellationToken);
 
         var contract = Contract.Create(
             stall.Id,
@@ -76,6 +75,11 @@ public class CreateStallCommandHandler(
             request.Arrangement);
 
         await stallRepo.AddContractAsync(contract, cancellationToken);
+
+        // ONE commit for the space and its first term. Saving the stall first and the contract after left a window in
+        // which a failure produced a let space with no agreement behind it: it would appear on the register, answer for
+        // a month's rent, and have no lessee, no term and no start date to bill against. The stall's id is generated in
+        // memory, so nothing here needs the first insert to have happened.
         await uow.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 
