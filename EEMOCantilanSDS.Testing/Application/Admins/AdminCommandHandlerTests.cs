@@ -20,7 +20,7 @@ public class AdminCommandHandlerTests
         Mock.Of<IEmailVerificationSender>();
 
     private static AdminUser NewAdmin(AdminRole role = AdminRole.Admin) =>
-        AdminUser.Create("Old Name", "olduser", "old@eemo.gov", "Secret123!", role);
+        AdminUser.Create("Old Name", "olduser", "old@eemo.gov", TestPasswords.Hash("Secret123!"), role);
 
     private static (Mock<IAdminRepository> repo, Mock<ICurrentUserService> user, Mock<IUnitOfWork> uow) Mocks(AdminUser? admin)
     {
@@ -48,7 +48,8 @@ public class AdminCommandHandlerTests
             uow.Object,
             cacheInvalidator.Object,
             tenantContext.Object,
-            NoOpVerificationSender);
+            NoOpVerificationSender,
+            new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new CreateAdminCommand("Maria Santos", "maria", "maria@eemo.gov", "Secret123!", AdminRole.Admin),

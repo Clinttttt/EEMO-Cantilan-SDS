@@ -20,7 +20,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var collector = CollectorUser.Create("Maria", "EEMO-2026-009", "maria", "maria@eemo.gov", "0917", "Secret123!");
+        var collector = CollectorUser.Create("Maria", "EEMO-2026-009", "maria", "maria@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
         foreach (var code in codes)
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
         return collector;
@@ -113,7 +113,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
         var stall = StallInFacility(FacilityCode.TCC);
         var (handler, payorRepo) = Build(stall, collector: null, "Admin", collectorId: null);
         payorRepo.Setup(r => r.GetByContactNumberAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(PayorUser.Create("Diego Villafuerte", "09171234567", "Secret123!"));
+            .ReturnsAsync(PayorUser.Create("Diego Villafuerte", "09171234567", TestPasswords.Hash("Secret123!")));
 
         var result = await handler.Handle(
             new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);

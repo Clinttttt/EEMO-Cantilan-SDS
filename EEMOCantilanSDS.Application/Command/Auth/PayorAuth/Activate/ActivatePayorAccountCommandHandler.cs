@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -13,7 +14,8 @@ public class ActivatePayorAccountCommandHandler(
     IMunicipalityRepository municipalityRepository,
     IRequestTenantScope tenantScope,
     ITokenService tokenService,
-    IUnitOfWork unitOfWork) : IRequestHandler<ActivatePayorAccountCommand, Result<TokenResponseDto>>
+    IUnitOfWork unitOfWork,
+    IPasswordHasher passwordHasher) : IRequestHandler<ActivatePayorAccountCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(ActivatePayorAccountCommand request, CancellationToken cancellationToken)
     {
@@ -41,7 +43,7 @@ public class ActivatePayorAccountCommandHandler(
             return Result<TokenResponseDto>.Failure(
                 "This mobile number is already activated. Please sign in instead.", 409);
 
-        var payor = PayorUser.Create(request.FullName!.Trim(), contactNumber, request.Password!);
+        var payor = PayorUser.Create(request.FullName!.Trim(), contactNumber, passwordHasher.Hash(request.Password!));
         await payorRepository.AddPayorAsync(payor, cancellationToken);
 
         await payorRepository.AddStallLinkAsync(PayorStallLink.Create(payor.Id, code.StallId), cancellationToken);

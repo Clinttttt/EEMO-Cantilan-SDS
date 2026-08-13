@@ -28,7 +28,7 @@ public class IdentityPasswordHasherTests
         // The load-bearing case. AdminUser.Create hashes inline with PasswordHasher<BaseUser>, exactly as the six handlers
         // used to, and every account in production was written that way. If the port's hasher disagreed with it, the
         // office would be locked out of its own system by a refactor.
-        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
 
         Assert.Equal(PasswordCheck.Succeeded, Hasher.Check(admin.PasswordHash, "Secret123!"));
         Assert.Equal(PasswordCheck.Failed, Hasher.Check(admin.PasswordHash, "Secret123"));
@@ -37,7 +37,7 @@ public class IdentityPasswordHasherTests
     [Fact]
     public void AHashWrittenByACollectorEntityStillVerifies()
     {
-        var collector = CollectorUser.Create("Ana Cruz", "acruz", "acruz@eemo.gov", "0917000000", "EMP-001", "Secret123!");
+        var collector = CollectorUser.Create("Ana Cruz", "acruz", "acruz@eemo.gov", "0917000000", "EMP-001", TestPasswords.Hash("Secret123!"));
 
         Assert.Equal(PasswordCheck.Succeeded, Hasher.Check(collector.PasswordHash, "Secret123!"));
         Assert.Equal(PasswordCheck.Failed, Hasher.Check(collector.PasswordHash, "wrong"));
@@ -46,7 +46,7 @@ public class IdentityPasswordHasherTests
     [Fact]
     public void AHashItWritesItselfVerifies()
     {
-        var hash = Hasher.Hash("Secret123!");
+        var hash = Hasher.Hash("Secret123!").Value;   // the stored string, which is what Check() reads
 
         Assert.NotEqual("Secret123!", hash);
         Assert.Equal(PasswordCheck.Succeeded, Hasher.Check(hash, "Secret123!"));

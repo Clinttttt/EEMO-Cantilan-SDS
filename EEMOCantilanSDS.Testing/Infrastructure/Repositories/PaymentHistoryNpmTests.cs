@@ -25,7 +25,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
         // Contract effective well before this month so the whole month is collectable.
         var contract = Contract.Create(stall.Id, "Ana Reyes", "Ana Reyes", monthStart.AddMonths(-2), 3, 900m);
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
 
         // Three paid days this month (₱90 total).
         var days = new[] { monthStart, monthStart.AddDays(1), monthStart.AddDays(2) }
@@ -140,7 +140,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
         var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", monthStart.AddMonths(-2), 3, 900m);
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
 
         // Two paid daily collections this month = ₱60.
         var d1 = DailyCollection.Create(stall.Id, monthStart); d1.MarkPaid("OR-D1", collector.Id);
@@ -180,7 +180,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
         var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", monthStart.AddMonths(-1), 3, 900m);
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
 
         // A collection dated the LAST day of the month (>= today): an advance payment.
         var dc = DailyCollection.Create(stall.Id, monthEnd); dc.MarkPaid("OR-LAST", collector.Id);

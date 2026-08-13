@@ -1,5 +1,5 @@
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
-using Microsoft.AspNetCore.Identity;
 
 namespace EEMOCantilanSDS.Domain.Entities.Users
 {
@@ -21,7 +21,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// Creates a self-activated payor account. <paramref name="contactNumber"/> doubles as the
         /// login identifier (stored in Username); email is intentionally null.
         /// </summary>
-        public static PayorUser Create(string fullName, string contactNumber, string password)
+        public static PayorUser Create(string fullName, string contactNumber, HashedPassword password)
         {
             return new PayorUser
             {
@@ -29,7 +29,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 FullName = fullName,
                 Username = contactNumber,
                 Email = null,
-                PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, password),
+                PasswordHash = password.Value,
                 IsActive = true,
                 MustChangePassword = false,
                 CreatedAt = DateTime.UtcNow,

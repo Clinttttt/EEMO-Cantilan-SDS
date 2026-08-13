@@ -1,5 +1,4 @@
 using EEMOCantilanSDS.Domain.Common;
-using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -226,9 +225,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// The already-hashed password. Domain states what changes when a password is reset; it does not decide how a
         /// password is hashed, which is an infrastructure choice — see <c>IPasswordHasher</c>.
         /// </param>
-        public void CompletePasswordReset(string passwordHash)
+        public void CompletePasswordReset(HashedPassword passwordHash)
         {
-            PasswordHash = passwordHash;
+            PasswordHash = passwordHash.Value;
             MustChangePassword = false;
             FailedAttempts = 0;
             LockedUntil = null;
@@ -455,9 +454,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// lockout so they can sign in immediately.
         /// </summary>
         /// <param name="passwordHash">The already-hashed password the user chose. See <c>IPasswordHasher</c>.</param>
-        public void CompleteActivation(string passwordHash)
+        public void CompleteActivation(HashedPassword passwordHash)
         {
-            PasswordHash = passwordHash;
+            PasswordHash = passwordHash.Value;
             IsActive = true;
             MustChangePassword = false;
             FailedAttempts = 0;

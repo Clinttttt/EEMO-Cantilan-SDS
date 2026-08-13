@@ -25,9 +25,9 @@ public class LockoutTests
 
     public static TheoryData<string, BaseUser> EveryKindOfUser() => new()
     {
-        { "admin", AdminUser.Create("Office Head", "head", "head@example.gov.ph", "Str0ng-Passw0rd!", AdminRole.Admin) },
-        { "collector", CollectorUser.Create("R. Uy", "EEMO-014", "ruy", null, null, "Str0ng-Passw0rd!") },
-        { "payor", PayorUser.Create("Vendor", "09171234567", "Str0ng-Passw0rd!") },
+        { "admin", AdminUser.Create("Office Head", "head", "head@example.gov.ph", TestPasswords.Hash("Str0ng-Passw0rd!"), AdminRole.Admin) },
+        { "collector", CollectorUser.Create("R. Uy", "EEMO-014", "ruy", null, null, TestPasswords.Hash("Str0ng-Passw0rd!")) },
+        { "payor", PayorUser.Create("Vendor", "09171234567", TestPasswords.Hash("Str0ng-Passw0rd!")) },
     };
 
     [Theory]

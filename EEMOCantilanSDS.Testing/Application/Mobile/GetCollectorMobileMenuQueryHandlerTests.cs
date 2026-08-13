@@ -11,7 +11,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
 {
     private static CollectorUser NewCollector()
     {
-        var collector = CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", "Secret123!");
+        var collector = CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", TestPasswords.Hash("Secret123!"));
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), FacilityCode.NPM));
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), FacilityCode.TCC));
         return collector;
@@ -73,7 +73,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
     public async Task CustomFacility_WhenAssigned_IsAvailable_WithMonthlyRentalArchetype()
     {
         // Audit #1 — a tenant's custom facility (bills as MonthlyRental) must be openable on mobile, not locked.
-        var collector = CollectorUser.Create("Custom Col", "EEMO-9", "cc", "cc@x.gov", "09170000000", "Secret123!");
+        var collector = CollectorUser.Create("Custom Col", "EEMO-9", "cc", "cc@x.gov", "09170000000", TestPasswords.Hash("Secret123!"));
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), FacilityCode.Custom1));
         var repo = new Mock<ICollectorRepository>();
         repo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);

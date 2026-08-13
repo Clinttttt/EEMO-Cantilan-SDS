@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Security;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Security;
 
@@ -18,7 +19,7 @@ public static class TestPasswords
     private static readonly IPasswordHasher Hasher = new IdentityPasswordHasher();
 
     /// <summary>Hashes a password the way production does, for handing to a domain factory or password-change method.</summary>
-    public static string Hash(string password) => Hasher.Hash(password);
+    public static HashedPassword Hash(string password) => Hasher.Hash(password);
 
     /// <summary>Whether this user's stored hash accepts the password — the assertion that matters after a reset.</summary>
     public static bool Accepts(this BaseUser user, string password) =>

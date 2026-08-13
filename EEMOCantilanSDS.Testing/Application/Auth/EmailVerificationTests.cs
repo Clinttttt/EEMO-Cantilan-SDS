@@ -41,7 +41,7 @@ public class EmailVerificationTests
         {
             var municipality = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
             typeof(Municipality).GetProperty(nameof(Municipality.Id))!.SetValue(municipality, municipalityId);
-            var admin = AdminUser.Create("Head Two", "head2", "head2@eemo.gov.ph", "OldPass123", AdminRole.SuperAdmin, municipalityId);
+            var admin = AdminUser.Create("Head Two", "head2", "head2@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, municipalityId);
             admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddDays(7));
             seed.Municipalities.Add(municipality);
             seed.AdminUsers.Add(admin);
@@ -76,7 +76,7 @@ public class EmailVerificationTests
         var options = Options();
         using (var seed = new AppDbContext(options))
         {
-            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
             admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddDays(7));
             seed.AdminUsers.Add(admin);
             await seed.SaveChangesAsync();
@@ -101,7 +101,7 @@ public class EmailVerificationTests
     [Fact]
     public void ChangingEmail_InvalidatesOutstandingConfirmationLink()
     {
-        var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+        var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
         admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddDays(7));
         Assert.True(admin.IsEmailVerificationTokenValid(Hash(RawToken), DateTime.UtcNow));
 
@@ -117,7 +117,7 @@ public class EmailVerificationTests
         Guid id;
         using (var seed = new AppDbContext(options))
         {
-            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
             admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddMinutes(-1));
             seed.AdminUsers.Add(admin);
             await seed.SaveChangesAsync();
@@ -140,7 +140,7 @@ public class EmailVerificationTests
     [Fact]
     public void UpdateProfile_ChangingEmail_ClearsVerifiedAndPendingToken()
     {
-        var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+        var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
         admin.MarkEmailVerified();
         admin.SetEmailVerificationToken(Hash("pending"), DateTime.UtcNow.AddDays(7));
         Assert.True(admin.EmailVerified);
@@ -154,7 +154,7 @@ public class EmailVerificationTests
     [Fact]
     public void UpdateProfile_KeepingSameEmail_KeepsVerified()
     {
-        var admin = AdminUser.Create("Head", "head", "same@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+        var admin = AdminUser.Create("Head", "head", "same@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
         admin.MarkEmailVerified();
 
         // Same address (different casing) — a rename must not silently revoke verification.
@@ -175,7 +175,7 @@ public class EmailVerificationTests
         {
             var municipality = Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "carmen");
             typeof(Municipality).GetProperty(nameof(Municipality.Id))!.SetValue(municipality, municipalityId);
-            var admin = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, municipalityId);
+            var admin = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, municipalityId);
             admin.MarkEmailVerified();
             admin.SetPasswordResetToken(Hash(RawToken), DateTime.UtcNow.AddMinutes(30), DateTime.UtcNow);
             seed.Municipalities.Add(municipality);
@@ -198,7 +198,7 @@ public class EmailVerificationTests
         var options = Options();
         using (var seed = new AppDbContext(options))
         {
-            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+            var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.Admin, Guid.NewGuid());
             admin.SetPasswordResetToken(Hash(RawToken), DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow);
             seed.AdminUsers.Add(admin);
             await seed.SaveChangesAsync();

@@ -37,7 +37,7 @@ public class RecordSlaughterCommandHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var collector = CollectorUser.Create("Ramon", "EEMO-2026-004", "ramon", "ramon@eemo.gov", "0917", "Secret123!");
+        var collector = CollectorUser.Create("Ramon", "EEMO-2026-004", "ramon", "ramon@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
         foreach (var code in codes)
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
         return collector;

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -13,7 +14,8 @@ public class CreateCollectorCommandHandler(
     ICollectorRepository collectorRepo,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) 
+    ITenantContext tenantContext,
+    IPasswordHasher passwordHasher)
     : IRequestHandler<CreateCollectorCommand, Result<CollectorDto>>
 {
     public async Task<Result<CollectorDto>> Handle(CreateCollectorCommand request, CancellationToken cancellationToken)
@@ -29,7 +31,7 @@ public class CreateCollectorCommandHandler(
             request.Username,
             email,
             contactNumber,
-            request.Password);
+            passwordHasher.Hash(request.Password));
 
         await collectorRepo.AddAsync(collector, cancellationToken);
 

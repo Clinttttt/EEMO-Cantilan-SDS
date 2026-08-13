@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -103,7 +104,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
                 Assert.True(result.IsSuccess);
             }
 
@@ -125,7 +126,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // Handler runs as the platform operator (Cantilan-scoped context).
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
 
                 Assert.True(result.IsSuccess);
                 Assert.Equal(carmenId, result.Value!.MunicipalityId);
@@ -201,7 +202,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.Equal(0, result.Value!.StallsCreated);   // StallGroups ignored — no stalls provisioned
                 Assert.Equal(2, result.Value.FacilitiesCreated); // facility shells still created
@@ -236,7 +237,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.Equal(2, result.Value!.CustomAnimalTypesCreated);
             }
@@ -274,7 +275,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.True(result.Value!.OrSeriesConfigured);
             }
@@ -300,7 +301,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(code: "CANTILAN"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "CANTILAN"), default);
 
             Assert.False(result.IsSuccess);
         }
@@ -312,11 +313,11 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var first = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(), default);
+            var first = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
             Assert.True(first.IsSuccess);
 
             using var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var second = await new ActivateMunicipalityCommandHandler(ctx2, Operator(cantilanId), Email).Handle(CarmenConfig(), default);
+            var second = await new ActivateMunicipalityCommandHandler(ctx2, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
             Assert.False(second.IsSuccess);
         }
 
@@ -327,7 +328,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(code: "NOWHERE"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "NOWHERE"), default);
 
             Assert.False(result.IsSuccess);
         }
@@ -341,7 +342,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // A SuperAdmin of a NON-default LGU (Carmen) is not the platform operator.
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, new FakeCurrentUser(carmenId, "SuperAdmin"), Email)
+                var result = await new ActivateMunicipalityCommandHandler(ctx, new FakeCurrentUser(carmenId, "SuperAdmin"), Email, new IdentityPasswordHasher())
                     .Handle(CarmenConfig(), default);
                 Assert.False(result.IsSuccess);
             }
@@ -349,7 +350,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // An Admin (not SuperAdmin) of the default LGU is likewise rejected.
             using (var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result2 = await new ActivateMunicipalityCommandHandler(ctx2, new FakeCurrentUser(cantilanId, "Admin"), Email)
+                var result2 = await new ActivateMunicipalityCommandHandler(ctx2, new FakeCurrentUser(cantilanId, "Admin"), Email, new IdentityPasswordHasher())
                     .Handle(CarmenConfig(), default);
                 Assert.False(result2.IsSuccess);
             }

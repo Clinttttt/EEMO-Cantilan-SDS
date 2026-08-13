@@ -45,7 +45,7 @@ public class GetMobileNpmUtilityQueryHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var c = CollectorUser.Create("Test Collector", "EEMO-1", "tc", "tc@x.gov", "09170000000", "Passw0rd!");
+        var c = CollectorUser.Create("Test Collector", "EEMO-1", "tc", "tc@x.gov", "09170000000", TestPasswords.Hash("Passw0rd!"));
         foreach (var code in codes)
             c.FacilityAssignments.Add(CollectorFacilityAssignment.Create(c.Id, Guid.NewGuid(), code));
         return c;

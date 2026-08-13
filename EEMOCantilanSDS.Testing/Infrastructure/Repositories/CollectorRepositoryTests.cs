@@ -18,7 +18,7 @@ public class CollectorRepositoryTests : RepositoryTestBase
     {
         await using var ctx = NewContext();
 
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
         var stallId = Guid.NewGuid();
 
         var payment = PaymentRecord.Create(stallId, 2026, 1, baseRental: 900m);
@@ -45,7 +45,7 @@ public class CollectorRepositoryTests : RepositoryTestBase
     {
         await using var ctx = NewContext();
 
-        var collector = CollectorUser.Create("Juan", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
         var otherCollectorId = Guid.NewGuid();
 
         var theirs = PaymentRecord.Create(Guid.NewGuid(), 2026, 1, 900m);
@@ -70,7 +70,7 @@ public class CollectorRepositoryTests : RepositoryTestBase
         await using var ctx = NewContext();
         var today = PhilippineTime.Today;
 
-        var collector = CollectorUser.Create("Pedro Cruz", "EEMO-2026-009", "pedro", "pedro@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Pedro Cruz", "EEMO-2026-009", "pedro", "pedro@x.com", "0917", TestPasswords.Hash("pw"));
 
         // SLH: Hog ×1 = ₱250 (TransactionDate carries the period)
         var slh = SlaughterTransaction.CreateHog(Guid.NewGuid(), collector.Id, "Owner A", 1, "OR-S1", today);

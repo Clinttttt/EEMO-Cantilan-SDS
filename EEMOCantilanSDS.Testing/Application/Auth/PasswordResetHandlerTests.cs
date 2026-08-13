@@ -69,7 +69,7 @@ public class PasswordResetHandlerTests
     {
         using var seed = new AppDbContext(options);
         var municipalityId = Guid.NewGuid();
-        var admin = AdminUser.Create("Head Admin", username, email, "OldPass123", AdminRole.SuperAdmin, municipalityId, isActive: isActive);
+        var admin = AdminUser.Create("Head Admin", username, email, TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, municipalityId, isActive: isActive);
         if (emailVerified) admin.MarkEmailVerified();
         seed.AdminUsers.Add(admin);
         await seed.SaveChangesAsync();
@@ -157,9 +157,9 @@ public class PasswordResetHandlerTests
 
         using (var seed = new AppDbContext(options))
         {
-            var cantilan = AdminUser.Create("Cantilan Head", "head2", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            var cantilan = AdminUser.Create("Cantilan Head", "head2", "shared@lgu.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, Guid.NewGuid());
             cantilan.MarkEmailVerified();
-            var carmen = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            var carmen = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, Guid.NewGuid());
             carmen.MarkEmailVerified();
             seed.AdminUsers.AddRange(cantilan, carmen);
             await seed.SaveChangesAsync();
@@ -281,9 +281,9 @@ public class PasswordResetHandlerTests
         using (var seed = new AppDbContext(options))
         {
             targetMunicipalityId = Guid.NewGuid();
-            var target = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, targetMunicipalityId);
+            var target = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, targetMunicipalityId);
             target.MarkEmailVerified();
-            var other = AdminUser.Create("Cantilan Head", "cantilan.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            var other = AdminUser.Create("Cantilan Head", "cantilan.head", "shared@lgu.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, Guid.NewGuid());
             other.MarkEmailVerified();
             seed.AdminUsers.AddRange(target, other);
             await seed.SaveChangesAsync();
@@ -337,7 +337,7 @@ public class PasswordResetHandlerTests
         DbContextOptions<AppDbContext> options, DateTime expiry, bool isActive = true)
     {
         using var seed = new AppDbContext(options);
-        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid(), isActive: isActive);
+        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov.ph", TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, Guid.NewGuid(), isActive: isActive);
         admin.MarkEmailVerified();
         admin.SetPasswordResetToken(Hash(RawToken), expiry, DateTime.UtcNow);
         admin.SetRefreshToken("existing-refresh", DateTime.UtcNow.AddDays(7));
@@ -449,10 +449,10 @@ public class PasswordResetHandlerTests
     [Fact]
     public void CompleteActivation_MarksEmailVerified()
     {
-        var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", "placeholder", AdminRole.SuperAdmin, Guid.NewGuid(), isActive: false);
+        var admin = AdminUser.Create("Head", "head", "head@eemo.gov.ph", TestPasswords.Hash("placeholder"), AdminRole.SuperAdmin, Guid.NewGuid(), isActive: false);
         Assert.False(admin.EmailVerified);
 
-        admin.CompleteActivation("ChosenPass123");
+        admin.CompleteActivation(TestPasswords.Hash("ChosenPass123"));
 
         Assert.True(admin.EmailVerified);
         Assert.True(admin.IsActive);

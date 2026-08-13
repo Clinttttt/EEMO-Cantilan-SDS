@@ -46,7 +46,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         // approve an LGU's onboarding and then be refused the activation that completes it.
         var context = NewContext();
         var operatorAccount = AdminUser.Create(
-            "Console", "console", "console@stalltrack.site", "Secret123!", AdminRole.SuperAdmin,
+            "Console", "console", "console@stalltrack.site", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin,
             isPlatformOperator: true);
         context.Add(operatorAccount);
         context.SaveChanges();
@@ -67,7 +67,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         // Absent rather than "false": a claim that says false is a claim to read wrongly one day, and the policy treats
         // anything other than "true" as not an operator.
         var context = NewContext();
-        var head = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var head = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(head);
         context.SaveChanges();
 
@@ -83,7 +83,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
     public void CantilanUser_WithDefaultMunicipalityId_YieldsDefaultTenantCode()
     {
         var context = NewContext();
-        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(admin); // MunicipalityId left as default (Guid.Empty) — unresolved -> fallback
         context.SaveChanges();
 
@@ -103,7 +103,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
             tenantCode: "cantilan-sds", isDefault: true);
         context.Add(cantilan);
 
-        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(admin);
         context.Entry(admin).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = cantilan.Id;
         context.SaveChanges();
@@ -122,7 +122,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
             "CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "carmen");
         context.Add(carmen);
 
-        var admin = AdminUser.Create("Carmen Admin", "carmen", "carmen@eemo.gov", "Secret123!", AdminRole.Admin);
+        var admin = AdminUser.Create("Carmen Admin", "carmen", "carmen@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
         context.Add(admin);
         context.Entry(admin).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = carmen.Id;
         context.SaveChanges();

@@ -41,7 +41,23 @@ RESIDUALS — not defects today, but the ways this can quietly regress:
   filter failed `AnUnresolvedTenantReadsNothing` and ONLY that one — the three resolved-tenant cases correctly still
   passed, since that defect opens only the unresolved path. The filter was then restored byte-identical.
 
-### 3. Move password hashing out of Domain — MOSTLY DONE (three `Create` factories left)
+### 3. Move password hashing out of Domain — DONE
+
+Verification went behind `IPasswordHasher` in `19085b3`; the password-change methods followed in `fdc3700`; the three
+`Create` factories and the package reference are done now. Domain no longer hashes, verifies, or references an identity
+package — its csproj has NO package references at all.
+
+The volume was the risk: six production callers and ~102 test sites, every one able to pass plaintext where a hash was meant,
+with both being `string`. Rather than trust careful editing, `HashedPassword` (Domain) makes it a COMPILE error: the
+factories and password-change methods accept only that type, and the only way to obtain one is `IPasswordHasher.Hash`. The
+compiler then listed all 96 remaining sites, and each was rewritten at the file, line and column the compiler pointed at, so
+nothing was guessed and nothing missed.
+
+The stored format is unchanged — the same `PasswordHasher<BaseUser>` with default options — which is what lets existing
+accounts sign in. Six tests fail if the format changes, which is the guardrail that matters most here.
+
+`HashedPassword` also refuses an empty value: an empty hash accepts nothing, so it is a bug rather than a state, and failing
+where it is constructed beats writing a row whose owner can never sign in.
 
 Verification (six login/restore sites) went through `IPasswordHasher` in `19085b3`. The password-CHANGING half is now done
 too: `CompletePasswordReset`, `CompleteActivation` and both `ResetPassword` methods take an already-hashed value, and
@@ -56,10 +72,8 @@ by hand, and the risk is covered by test: reinstating the plaintext call failed
 Tests hash through the real implementation via `TestPasswords.Hash`/`.Accepts`, because a test that hashed differently from
 production would prove nothing about whether an account can sign in.
 
-STILL TO DO: `AdminUser.Create`, `CollectorUser.Create` and `PayorUser.Create` still hash inline (three sites). Deliberately
-left for its own commit — six production callers but ~102 test call sites, and the same silent plaintext-for-hash hazard
-applies to every one of them. Domain's `Microsoft.Extensions.Identity.Core` reference, and the "Domain free of Identity"
-architecture assertion, can only follow once those three are done.
+The `Create` factories, the package reference and the "Domain free of Identity" assertion are all done — see the item 3
+heading above for how the ~102 call sites were changed safely.
 
 Shipped in the commit that added `IPasswordHasher` (Application port), `IdentityPasswordHasher` (Infrastructure), and
 migrated the SIX verification call sites: admin, collector and payor login, and the three restore handlers that
@@ -112,7 +126,7 @@ Remaining, in order:
   stated by the compiler. Moving the code into per-capability files is the mechanical follow-up that actually shrinks them —
   and the private arithmetic they share has to be moved deliberately, not duplicated.
 
-### 3. Move password hashing out of Domain — see above (MOSTLY DONE)
+### 3. Move password hashing out of Domain — see above (DONE)
 
 ### 4. Move `Result<T>` and paging models out of Domain — NOT STARTED
 
@@ -244,7 +258,6 @@ DONE:
 
 STILL TO DO, and each is blocked by an unfinished item rather than by effort:
 
-- **Domain free of Identity** — needs item 3's harder half (Domain still hashes in eight places).
 - **No HTTP status codes in Domain** — needs item 4 (`Result<T>` carries them).
 - **Application free of EF** — needs item 5 (`IAppDbContext` exposes `DbSet`).
 - **No API-client interfaces in Application** — needs item 6 (the Contracts project).

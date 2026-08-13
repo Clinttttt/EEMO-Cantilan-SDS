@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.Application.Common.Interface.Security;
 
 /// <summary>
@@ -39,8 +40,12 @@ public enum PasswordCheck
 /// </summary>
 public interface IPasswordHasher
 {
-    /// <summary>Hashes a plaintext password for storage.</summary>
-    string Hash(string password);
+    /// <summary>
+    /// Hashes a plaintext password for storage. Returns <see cref="HashedPassword"/> rather than a bare string so the result
+    /// cannot be confused with the plaintext it came from: the domain factories and password-change methods accept only that
+    /// type, which turns a silent lock-out bug into a compile error.
+    /// </summary>
+    HashedPassword Hash(string password);
 
     /// <summary>Checks a plaintext password against a stored hash.</summary>
     PasswordCheck Check(string hash, string password);

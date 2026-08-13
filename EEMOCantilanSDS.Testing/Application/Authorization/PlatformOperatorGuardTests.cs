@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -51,7 +52,7 @@ public class PlatformOperatorGuardTests
         context.Add(cantilan);
 
         var console = AdminUser.Create(
-            "Console", "console", "console@stalltrack.site", "Secret123!", AdminRole.SuperAdmin,
+            "Console", "console", "console@stalltrack.site", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin,
             isPlatformOperator: true);
         context.Add(console);
         await context.SaveChangesAsync();
@@ -72,7 +73,7 @@ public class PlatformOperatorGuardTests
             "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, "cantilan-sds", isDefault: true);
         context.Add(cantilan);
 
-        var head = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var head = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(head);
         await context.SaveChangesAsync();
 
@@ -94,7 +95,7 @@ public class PlatformOperatorGuardTests
         context.Add(otherLgu);
         context.Add(cantilan);
 
-        var head = AdminUser.Create("Head", "head2", "head@sds.gov", "Secret123!", AdminRole.SuperAdmin);
+        var head = AdminUser.Create("Head", "head2", "head@sds.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(head);
         await context.SaveChangesAsync();
 
@@ -135,13 +136,13 @@ public class PlatformOperatorGuardTests
             "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, "cantilan-sds", isDefault: true));
 
         var console = AdminUser.Create(
-            "Console", "console", "console@stalltrack.site", "Secret123!", AdminRole.SuperAdmin,
+            "Console", "console", "console@stalltrack.site", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin,
             isPlatformOperator: true);
         context.Add(console);
         await context.SaveChangesAsync();
 
         var handler = new ActivateMunicipalityCommandHandler(
-            context, new Caller(console.Id, "SuperAdmin", otherLgu.Id), new SilentEmail());
+            context, new Caller(console.Id, "SuperAdmin", otherLgu.Id), new SilentEmail(), new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ActivateMunicipalityCommand(

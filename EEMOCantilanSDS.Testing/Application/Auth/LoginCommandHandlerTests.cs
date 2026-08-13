@@ -15,7 +15,7 @@ public class LoginCommandHandlerTests
     private const string Password = "Secret123!";
 
     private static AdminUser NewAdmin() =>
-        AdminUser.Create("Head Admin", "head", "head@eemo.gov", Password, AdminRole.SuperAdmin);
+        AdminUser.Create("Head Admin", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.SuperAdmin);
 
     private static (LoginCommandHandler handler, Mock<ITokenService> token, Mock<IUnitOfWork> uow, Mock<IMunicipalityRepository> muni) Build(AdminUser? user)
     {
@@ -134,7 +134,7 @@ public class LoginCommandHandlerTests
     public async Task ScopedLogin_AccountBelongsToThatMunicipality_ReturnsToken()
     {
         var lgu = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active);
-        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov", Password, AdminRole.SuperAdmin, lgu.Id);
+        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.SuperAdmin, lgu.Id);
         var (handler, token, _, muni) = Build(admin);
         muni.Setup(m => m.GetByIdentifierAsync("cantilan", It.IsAny<CancellationToken>())).ReturnsAsync(lgu);
 
@@ -149,7 +149,7 @@ public class LoginCommandHandlerTests
     {
         // The login page is scoped to Carrascal, but this (correctly-authenticated) account belongs elsewhere.
         var carrascal = Municipality.Create("CARRASCAL", "Carrascal", "Surigao del Sur", MunicipalityStatus.Active);
-        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov", Password, AdminRole.SuperAdmin, Guid.NewGuid());
+        var admin = AdminUser.Create("Head Admin", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.SuperAdmin, Guid.NewGuid());
         var (handler, token, _, muni) = Build(admin);
         muni.Setup(m => m.GetByIdentifierAsync("carrascal", It.IsAny<CancellationToken>())).ReturnsAsync(carrascal);
 

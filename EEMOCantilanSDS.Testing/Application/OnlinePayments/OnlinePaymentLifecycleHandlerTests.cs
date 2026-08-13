@@ -404,7 +404,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         typeof(Stall).GetProperty(nameof(Stall.Facility))!
             .SetValue(stall, Facility.Create(FacilityCode.TCC, "TCC", "TCC"));
         var collectorId = Guid.NewGuid();
-        var collector = CollectorUser.Create("Col", "EMP-1", "col", "c@x.gov", "0917", "Passw0rd!"); // no assignments
+        var collector = CollectorUser.Create("Col", "EMP-1", "col", "c@x.gov", "0917", TestPasswords.Hash("Passw0rd!")); // no assignments
 
         var (handler, uow, _) = Build(txn, record, role: "Collector", collectorId: collectorId, stall: stall, collector: collector);
 

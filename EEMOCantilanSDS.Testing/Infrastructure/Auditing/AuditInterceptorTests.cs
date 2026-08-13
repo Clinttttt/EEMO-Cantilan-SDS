@@ -58,7 +58,7 @@ public class AuditInterceptorTests
     public async Task AccountCreation_IsAudited_WithPasswordRedacted()
     {
         using var context = NewAuditedContext();
-        var admin = AdminUser.Create("New Admin", "newadmin", "n@a.com", "Secret123!", AdminRole.Admin);
+        var admin = AdminUser.Create("New Admin", "newadmin", "n@a.com", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
         context.Add(admin);
         await context.SaveChangesAsync();
 
@@ -75,7 +75,7 @@ public class AuditInterceptorTests
     public async Task Login_TokenRefresh_IsNotAudited_But_ProfileUpdate_Is()
     {
         using var context = NewAuditedContext();
-        var admin = AdminUser.Create("New Admin", "newadmin", "n@a.com", "Secret123!", AdminRole.Admin);
+        var admin = AdminUser.Create("New Admin", "newadmin", "n@a.com", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
         context.Add(admin);
         await context.SaveChangesAsync();   // 1 audit row: account creation
 

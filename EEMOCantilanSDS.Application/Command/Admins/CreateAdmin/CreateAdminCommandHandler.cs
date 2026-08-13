@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -14,7 +15,8 @@ public class CreateAdminCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext,
-    IEmailVerificationSender verificationSender)
+    IEmailVerificationSender verificationSender,
+    IPasswordHasher passwordHasher)
     : IRequestHandler<CreateAdminCommand, Result<AdminDto>>
 {
     public async Task<Result<AdminDto>> Handle(CreateAdminCommand request, CancellationToken cancellationToken)
@@ -23,7 +25,7 @@ public class CreateAdminCommandHandler(
             request.FullName.Trim(),
             request.Username.Trim(),
             request.Email.Trim(),
-            request.Password,
+            passwordHasher.Hash(request.Password),
             request.Role);
 
         await adminRepo.AddAsync(admin, cancellationToken);

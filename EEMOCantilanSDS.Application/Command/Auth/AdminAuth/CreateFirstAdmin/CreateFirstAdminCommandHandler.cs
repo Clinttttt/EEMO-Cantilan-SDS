@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -6,7 +7,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin;
 
-public class CreateFirstAdminCommandHandler(ISetupRepository setupRepository, IUnitOfWork uow) : IRequestHandler<CreateFirstAdminCommand, Result<bool>>
+public class CreateFirstAdminCommandHandler(ISetupRepository setupRepository, IUnitOfWork uow, IPasswordHasher passwordHasher) : IRequestHandler<CreateFirstAdminCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(CreateFirstAdminCommand request, CancellationToken ct)
     {
@@ -22,7 +23,7 @@ public class CreateFirstAdminCommandHandler(ISetupRepository setupRepository, IU
             request.FullName,
             request.Username,
             request.Email,
-            request.Password,
+            passwordHasher.Hash(request.Password),
             AdminRole.SuperAdmin,
             municipalityId: defaultMunicipalityId
         );

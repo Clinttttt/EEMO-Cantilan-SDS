@@ -138,7 +138,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
 
         var context = NewContext();
         var (facility, stall, term) = NpmStall(monthStart);
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2025-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2025-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
         // One day collected, so the month appears on the grid at all — a month with nothing recorded is omitted there.
         var day1 = DailyCollection.Create(stall.Id, monthStart);
@@ -529,7 +529,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // The mobile report exists to reconcile with the web's figures, so both read the monthly obligation.
         var context = NewContext();
         var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
-        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
 
         context.AddRange(facility, stall, term, collector);

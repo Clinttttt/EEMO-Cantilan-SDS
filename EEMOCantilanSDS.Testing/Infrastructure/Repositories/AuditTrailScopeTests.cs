@@ -47,7 +47,7 @@ public class AuditTrailScopeTests
     }
 
     private static void SeedAdmin(AppDbContext ctx, Guid municipalityId, string username, string fullName)    {
-        var admin = AdminUser.Create(fullName, username, $"{username}@lgu.gov", "Secret123!", AdminRole.SuperAdmin);
+        var admin = AdminUser.Create(fullName, username, $"{username}@lgu.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         ctx.AdminUsers.Add(admin);
         Stamp(ctx, admin, municipalityId);
     }

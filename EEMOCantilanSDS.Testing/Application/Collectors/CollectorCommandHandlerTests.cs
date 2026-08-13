@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Testing;
 public class CollectorCommandHandlerTests
 {
     private static CollectorUser NewCollector() =>
-        CollectorUser.Create("Old Name", "EMP-1", "juan", "old@eemo.gov", "0917", "Secret123!");
+        CollectorUser.Create("Old Name", "EMP-1", "juan", "old@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
 
     private static (Mock<ICollectorRepository> repo, Mock<ICurrentUserService> user, Mock<IUnitOfWork> uow) Mocks(CollectorUser? collector)
     {

@@ -10,11 +10,11 @@ namespace EEMOCantilanSDS.Testing;
 public class ResetCollectorPasswordCommandHandlerTests
 {
     private static CollectorUser NewCollector() =>
-        CollectorUser.Create("Juan Collector", "EMP-1", "juan", "juan@eemo.gov", "0917", "Secret123!");
+        CollectorUser.Create("Juan Collector", "EMP-1", "juan", "juan@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
 
     // The acting Head whose own password authorizes the reset.
     private static AdminUser NewHead() =>
-        AdminUser.Create("Head", "head", "head@eemo.gov", "HeadPass123!", AdminRole.SuperAdmin);
+        AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("HeadPass123!"), AdminRole.SuperAdmin);
 
     private static (Mock<ICollectorRepository> collectorRepo, Mock<IAdminRepository> adminRepo, Mock<ICurrentUserService> user, Mock<IUnitOfWork> uow)
         Mocks(CollectorUser? collector, AdminUser head)

@@ -119,7 +119,7 @@ public class AuditRepositoryTests
     public async Task Resolves_Staff_Username_To_Full_Name()
     {
         using var ctx = NewContext();
-        ctx.AdminUsers.Add(AdminUser.Create("Juan Dela Cruz", "admin", "admin@eemo.gov.ph", "P@ssw0rd!", AdminRole.SuperAdmin));
+        ctx.AdminUsers.Add(AdminUser.Create("Juan Dela Cruz", "admin", "admin@eemo.gov.ph", TestPasswords.Hash("P@ssw0rd!"), AdminRole.SuperAdmin));
         ctx.AuditLogs.Add(Log("Created", actor: "admin", role: "SuperAdmin"));
         await ctx.SaveChangesAsync();
 
@@ -136,7 +136,7 @@ public class AuditRepositoryTests
     public async Task Search_Matches_Staff_Full_Name_Not_Just_Username()
     {
         using var ctx = NewContext();
-        ctx.AdminUsers.Add(AdminUser.Create("Clint Villanueva", "admin", "clint@eemo.gov.ph", "P@ssw0rd!", AdminRole.SuperAdmin));
+        ctx.AdminUsers.Add(AdminUser.Create("Clint Villanueva", "admin", "clint@eemo.gov.ph", TestPasswords.Hash("P@ssw0rd!"), AdminRole.SuperAdmin));
         ctx.AuditLogs.AddRange(
             Log("Created", actor: "admin"),                 // Clint
             Log("Created", actor: "personalsingko"));       // someone else

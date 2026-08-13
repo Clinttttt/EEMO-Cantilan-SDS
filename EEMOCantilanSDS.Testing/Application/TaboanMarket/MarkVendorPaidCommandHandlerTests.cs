@@ -38,7 +38,7 @@ public class MarkVendorPaidCommandHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var collector = CollectorUser.Create("Nena", "EEMO-2026-008", "nena", "nena@eemo.gov", "0917", "Secret123!");
+        var collector = CollectorUser.Create("Nena", "EEMO-2026-008", "nena", "nena@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
         foreach (var code in codes)
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
         return collector;

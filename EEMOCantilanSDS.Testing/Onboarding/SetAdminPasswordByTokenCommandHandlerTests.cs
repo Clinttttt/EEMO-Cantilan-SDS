@@ -26,7 +26,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         private static async Task<Guid> SeedInactiveHeadWithToken(DbContextOptions<AppDbContext> options, string rawToken, DateTime expiry)
         {
             using var seed = new AppDbContext(options);
-            var head = AdminUser.Create("Maria", "carmen.head", "head@carmen.gov.ph", "placeholder", AdminRole.SuperAdmin, Guid.NewGuid(), isActive: false);
+            var head = AdminUser.Create("Maria", "carmen.head", "head@carmen.gov.ph", TestPasswords.Hash("placeholder"), AdminRole.SuperAdmin, Guid.NewGuid(), isActive: false);
             head.SetActivationToken(Hash(rawToken), expiry);
             seed.AdminUsers.Add(head);
             await seed.SaveChangesAsync();

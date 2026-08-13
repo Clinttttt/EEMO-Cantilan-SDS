@@ -72,7 +72,7 @@ public class TransactionFeedTests : RepositoryTestBase
 
         // A registered collector who recorded one receipt on the mobile app.
         var collector = EEMOCantilanSDS.Domain.Entities.Users.CollectorUser.Create(
-            "Maria Santos", "EMP-01", "msantos", "m@eemo.gov", "0917", "Passw0rd!");
+            "Maria Santos", "EMP-01", "msantos", "m@eemo.gov", "0917", TestPasswords.Hash("Passw0rd!"));
         context.CollectorUsers.Add(collector);
 
         var date = new DateOnly(2026, 6, 11);

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using System;
 using System.Linq;
 using System.Security.Cryptography;
@@ -20,7 +21,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 {
-    public class ActivateMunicipalityCommandHandler(IAppDbContext context, ICurrentUserService currentUser, IEmailSender emailSender)
+    public class ActivateMunicipalityCommandHandler(IAppDbContext context, ICurrentUserService currentUser, IEmailSender emailSender, IPasswordHasher passwordHasher)
         : IRequestHandler<ActivateMunicipalityCommand, Result<ActivationResultDto>>
     {
         // Rates are seeded effective from a base date early enough to cover any billing period, so the
@@ -125,7 +126,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 request.Administrator.FullName.Trim(),
                 username,
                 request.Administrator.Email.Trim(),
-                GenerateTemporaryPassword(),
+                passwordHasher.Hash(GenerateTemporaryPassword()),
                 AdminRole.SuperAdmin,
                 municipality.Id,
                 isActive: false);

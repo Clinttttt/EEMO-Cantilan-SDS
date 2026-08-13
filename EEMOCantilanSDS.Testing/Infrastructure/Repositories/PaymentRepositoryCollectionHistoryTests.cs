@@ -21,7 +21,7 @@ public class PaymentRepositoryCollectionHistoryTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
         var contract = Contract.Create(stall.Id, "Maria Santos", "Maria Santos", new DateOnly(2026, 1, 1), 3, 900m);
-        var collector = CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", "Secret123!");
+        var collector = CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", TestPasswords.Hash("Secret123!"));
 
         var paidDays = Enumerable.Range(1, 5).Select(d =>
         {

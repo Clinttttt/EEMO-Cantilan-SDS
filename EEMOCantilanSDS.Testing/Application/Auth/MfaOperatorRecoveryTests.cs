@@ -56,16 +56,16 @@ public class MfaOperatorRecoveryTests
         var carmen = Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "carmen", officeAcronym: "CEEO");
         seed.Municipalities.AddRange(cantilan, carmen);
 
-        var op = AdminUser.Create("Console Op", "console.op", "op@stalltrack.ph", OperatorPassword,
+        var op = AdminUser.Create("Console Op", "console.op", "op@stalltrack.ph", TestPasswords.Hash(OperatorPassword),
             AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: operatorFlag);
 
         // A Carmen Head who has lost their phone AND used every recovery code.
-        var carmenHead = AdminUser.Create("Carmen Head", "carmen.head", "head@carmen.gov.ph", TargetPassword,
+        var carmenHead = AdminUser.Create("Carmen Head", "carmen.head", "head@carmen.gov.ph", TestPasswords.Hash(TargetPassword),
             AdminRole.SuperAdmin, carmen.Id);
         carmenHead.BeginMfaEnrollment("enc:SECRET");
         carmenHead.ConfirmMfaEnrollment(100, Array.Empty<string>());
 
-        var plainAdmin = AdminUser.Create("Staff", "staff", "staff@carmen.gov.ph", "StaffPass1!", AdminRole.Admin, carmen.Id);
+        var plainAdmin = AdminUser.Create("Staff", "staff", "staff@carmen.gov.ph", TestPasswords.Hash("StaffPass1!"), AdminRole.Admin, carmen.Id);
 
         seed.AdminUsers.AddRange(op, carmenHead, plainAdmin);
         await seed.SaveChangesAsync();
@@ -225,7 +225,7 @@ public class MfaOperatorRecoveryTests
         using (var seed = new AppDbContext(options))
         {
             var cantilanAdmin = AdminUser.Create("Cantilan Clerk", "cantilan.clerk", "clerk@cantilan.gov.ph",
-                "ClerkPass1!", AdminRole.Admin, cantilanId);
+                TestPasswords.Hash("ClerkPass1!"), AdminRole.Admin, cantilanId);
             cantilanAdmin.BeginMfaEnrollment("enc:SECRET");
             cantilanAdmin.ConfirmMfaEnrollment(100, Array.Empty<string>());
             seed.AdminUsers.Add(cantilanAdmin);

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Domain.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +19,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         private AdminUser() { }
         public static AdminUser Create(string fullName,string
             username,string 
-            email,string password,
+            email,HashedPassword password,
             AdminRole role,
             Guid municipalityId = default,
             bool isActive = true,
@@ -33,8 +33,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 FullName = fullName,
                 Username = username,
                 Email = email,
-                PasswordHash = new PasswordHasher<BaseUser>()
-                                   .HashPassword(null!, password),
+                PasswordHash = password.Value,
                 Role = role,
                 IsActive = isActive,
                 IsPlatformOperator = isPlatformOperator,
@@ -83,9 +82,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         // Head-initiated password reset. Forces a change on next login and clears any lockout
         // so a forgotten-password account can immediately sign in with the temporary password.
         /// <param name="passwordHash">The already-hashed new password. See <c>IPasswordHasher</c>.</param>
-        public void ResetPassword(string passwordHash, string updatedBy)
+        public void ResetPassword(HashedPassword passwordHash, string updatedBy)
         {
-            PasswordHash = passwordHash;
+            PasswordHash = passwordHash.Value;
             MustChangePassword = true;
             FailedAttempts = 0;
             LockedUntil = null;

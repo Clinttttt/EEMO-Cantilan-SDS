@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Testing;
 public class MfaReminderTests
 {
     private static AdminUser NewHead() =>
-        AdminUser.Create("Head Admin", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        AdminUser.Create("Head Admin", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
 
     private static (AcknowledgeMfaReminderCommandHandler ack, GetMfaStatusQueryHandler status, Mock<IUnitOfWork> uow)
         Build(AdminUser user)

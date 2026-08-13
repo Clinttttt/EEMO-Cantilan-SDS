@@ -43,8 +43,8 @@ public class AdminPeerHeadGuardTests
     [Fact]
     public void Guard_DeniesPeerHead_AllowsSelfAndPlainAdmins()
     {
-        var head = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
-        var plainAdmin = AdminUser.Create("Admin", "admin", "admin@eemo.gov", "Secret123!", AdminRole.Admin);
+        var head = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
+        var plainAdmin = AdminUser.Create("Admin", "admin", "admin@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
 
         Assert.False(AdminManagementGuard.CanActOn(head, Guid.NewGuid()));   // a different Head
         Assert.True(AdminManagementGuard.CanActOn(head, head.Id));           // own account
@@ -59,7 +59,7 @@ public class AdminPeerHeadGuardTests
     [Fact]
     public async Task Update_PeerHead_IsDenied_AndNothingSaved()
     {
-        var target = AdminUser.Create("Other Head", "other.head", "other@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var target = AdminUser.Create("Other Head", "other.head", "other@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(target, actingId: Guid.NewGuid());
 
         var result = await UpdateHandler(repo, user, uow).Handle(
@@ -77,7 +77,7 @@ public class AdminPeerHeadGuardTests
     [Fact]
     public async Task Update_OwnHeadAccount_IsAllowed()
     {
-        var target = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var target = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(target, actingId: target.Id);
 
         var result = await UpdateHandler(repo, user, uow).Handle(
@@ -91,7 +91,7 @@ public class AdminPeerHeadGuardTests
     [Fact]
     public async Task Update_PlainAdmin_IsAllowedByAnyHead()
     {
-        var target = AdminUser.Create("Staff", "staff", "staff@eemo.gov", "Secret123!", AdminRole.Admin);
+        var target = AdminUser.Create("Staff", "staff", "staff@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
         var (repo, user, uow) = Mocks(target, actingId: Guid.NewGuid());
 
         var result = await UpdateHandler(repo, user, uow).Handle(
@@ -107,8 +107,8 @@ public class AdminPeerHeadGuardTests
     [Fact]
     public async Task ResetPassword_PeerHead_IsDenied_AndHashUnchanged()
     {
-        var actingHead = AdminUser.Create("Acting", "acting.head", "acting@eemo.gov", "ActingPass1!", AdminRole.SuperAdmin);
-        var target = AdminUser.Create("Other Head", "other.head", "other@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        var actingHead = AdminUser.Create("Acting", "acting.head", "acting@eemo.gov", TestPasswords.Hash("ActingPass1!"), AdminRole.SuperAdmin);
+        var target = AdminUser.Create("Other Head", "other.head", "other@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         var originalHash = target.PasswordHash;
 
         var repo = new Mock<IAdminRepository>();

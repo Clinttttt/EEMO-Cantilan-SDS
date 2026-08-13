@@ -12,8 +12,8 @@
     <None Remove="Helper\**" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="9.0.0" />
-  </ItemGroup>
+  <!-- No package references. Microsoft.Extensions.Identity.Core was removed once the user entities stopped hashing
+       passwords themselves: the domain states what changes when a password changes, and HOW it is hashed is an
+       infrastructure choice behind IPasswordHasher. Domain now depends on nothing outside the BCL. -->
 
 </Project>

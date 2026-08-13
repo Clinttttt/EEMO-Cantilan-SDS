@@ -48,7 +48,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
 
             using (var seed = new AppDbContext(options, new FixedMunicipality(carmen)))
             {
-                var head = AdminUser.Create("Carmen Head", "carmen.head", "h@carmen.gov", "Passw0rd!", AdminRole.SuperAdmin, carmen, isActive: true);
+                var head = AdminUser.Create("Carmen Head", "carmen.head", "h@carmen.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, carmen, isActive: true);
                 head.SetRefreshToken(hash, DateTime.UtcNow.AddDays(7));
                 seed.Users.Add(head);
                 await seed.SaveChangesAsync();
@@ -74,7 +74,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             var carmen = Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "carmen");
             ctx.Municipalities.AddRange(cantilan, carmen);
             // Only Carmen (a non-default LGU) has a Head.
-            ctx.Users.Add(AdminUser.Create("Carmen Head", "carmen.head", "h@carmen.gov", "Passw0rd!", AdminRole.SuperAdmin, carmen.Id, isActive: true));
+            ctx.Users.Add(AdminUser.Create("Carmen Head", "carmen.head", "h@carmen.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, carmen.Id, isActive: true));
             await ctx.SaveChangesAsync();
 
             var repo = new SetupRepository(ctx);
@@ -84,12 +84,12 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
 
             // A platform/console operator stamped to Cantilan (IsPlatformOperator) is NOT the Cantilan Head,
             // so setup must STILL be required — the console operator and the LGU Head are distinct identities.
-            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true));
+            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true));
             await ctx.SaveChangesAsync();
             Assert.False(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
 
             // Once Cantilan gets its (non-platform-operator) Head, setup is complete.
-            ctx.Users.Add(AdminUser.Create("Cantilan Head", "cantilan.head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan.Id, isActive: true));
+            ctx.Users.Add(AdminUser.Create("Cantilan Head", "cantilan.head", "h@cantilan.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan.Id, isActive: true));
             await ctx.SaveChangesAsync();
             Assert.True(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
         }
@@ -104,8 +104,8 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             var options = Options();
             var cantilan = Guid.NewGuid();
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
-            var head = AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true);
-            var op = AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true);
+            var head = AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan, isActive: true);
+            var op = AdminUser.Create("Console Op", "console.op", "op@x.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true);
             ctx.Users.AddRange(head, op);
             await ctx.SaveChangesAsync();
 
@@ -116,7 +116,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             Assert.Equal(0, await repo.CountOtherActiveSuperAdminsAsync(head.Id, CancellationToken.None));
 
             // A second genuine Head IS counted.
-            ctx.Users.Add(AdminUser.Create("Deputy Head", "deputy", "d@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true));
+            ctx.Users.Add(AdminUser.Create("Deputy Head", "deputy", "d@cantilan.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan, isActive: true));
             await ctx.SaveChangesAsync();
             Assert.Equal(1, await repo.CountOtherActiveSuperAdminsAsync(head.Id, CancellationToken.None));
         }
@@ -129,8 +129,8 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             var options = Options();
             var cantilan = Guid.NewGuid();
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
-            ctx.Users.Add(AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true));
-            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true));
+            ctx.Users.Add(AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan, isActive: true));
+            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true));
             await ctx.SaveChangesAsync();
 
             var repo = new AdminRepository(ctx);

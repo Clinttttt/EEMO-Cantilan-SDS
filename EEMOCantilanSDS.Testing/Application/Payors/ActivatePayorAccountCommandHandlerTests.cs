@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Auth.PayorAuth.Activate;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -30,7 +31,7 @@ public class ActivatePayorAccountCommandHandlerTests
         var uow = new Mock<IUnitOfWork>();
         var muniRepo = new Mock<IMunicipalityRepository>();
         var tenantScope = new EEMOCantilanSDS.Infrastructure.Tenancy.RequestTenantScope();
-        return (new ActivatePayorAccountCommandHandler(repo.Object, muniRepo.Object, tenantScope, token.Object, uow.Object), repo, uow);
+        return (new ActivatePayorAccountCommandHandler(repo.Object, muniRepo.Object, tenantScope, token.Object, uow.Object, new IdentityPasswordHasher()), repo, uow);
     }
 
     private static ActivatePayorAccountCommand Command(string password = Password) =>
@@ -64,7 +65,7 @@ public class ActivatePayorAccountCommandHandlerTests
     {
         // The number already belongs to a payor. Activation must NOT link the code's stall onto that
         // account (that merge was the bug) and must NOT create a duplicate — it directs them to sign in.
-        var existing = PayorUser.Create("Diego Villafuerte", Contact, Password);
+        var existing = PayorUser.Create("Diego Villafuerte", Contact, TestPasswords.Hash(Password));
         var (handler, repo, _) = Build(ValidCode(), existing);
 
         var result = await handler.Handle(Command(Password), CancellationToken.None);

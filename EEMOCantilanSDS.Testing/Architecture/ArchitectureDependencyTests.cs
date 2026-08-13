@@ -41,6 +41,13 @@ public class ArchitectureDependencyTests
         // that could publish through it would let entity code reach back into handlers.
         Assert.DoesNotContain("MediatR", refs);
         Assert.DoesNotContain("MediatR.Contracts", refs);
+
+        // And it no longer hashes passwords. The user entities used to construct ASP.NET Identity's hasher inline, which is
+        // what put an identity package in the domain; they now take a HashedPassword produced by IPasswordHasher. Asserting
+        // the reference is gone, rather than that the code is absent, because the package coming back is the first step to
+        // the code coming back.
+        Assert.DoesNotContain("Microsoft.Extensions.Identity.Core", refs);
+        Assert.DoesNotContain("Microsoft.AspNetCore.Identity", refs);
     }
 
     [Fact]

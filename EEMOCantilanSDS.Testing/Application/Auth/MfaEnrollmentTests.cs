@@ -41,7 +41,7 @@ public class MfaEnrollmentTests
 
     private static (MfaCommandHandlers handlers, AdminUser user, Mock<IUnitOfWork> uow) Build(AdminUser? existing = null)
     {
-        var user = existing ?? AdminUser.Create("Head", "head", "head@eemo.gov", Password, AdminRole.SuperAdmin);
+        var user = existing ?? AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.SuperAdmin);
 
         var repo = new Mock<IAdminRepository>();
         repo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
@@ -285,7 +285,7 @@ public class MfaEnrollmentTests
     public void RecoveryCode_MatchIgnoresFormatting()
     {
         var (plain, hashes) = RecoveryCodes.Generate(1);
-        var user = AdminUser.Create("Head", "head", "head@eemo.gov", Password, AdminRole.Admin);
+        var user = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.Admin);
         user.ReplaceRecoveryCodes(hashes);
 
         var messy = plain[0].ToLowerInvariant().Replace("-", " ");

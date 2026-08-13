@@ -22,7 +22,7 @@ public class RecordDailyCollectionCommandHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var collector = CollectorUser.Create("Maria", "EEMO-2026-010", "maria", "maria@eemo.gov", "0917", "Secret123!");
+        var collector = CollectorUser.Create("Maria", "EEMO-2026-010", "maria", "maria@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
         foreach (var code in codes)
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
         return collector;

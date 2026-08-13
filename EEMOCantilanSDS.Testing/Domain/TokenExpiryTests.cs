@@ -22,7 +22,7 @@ public class TokenExpiryTests
     private static string Hash(string raw) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
 
     private static AdminUser Admin() =>
-        AdminUser.Create("Office Head", "head", "head@example.gov.ph", "Str0ng-Passw0rd!", AdminRole.Admin);
+        AdminUser.Create("Office Head", "head", "head@example.gov.ph", TestPasswords.Hash("Str0ng-Passw0rd!"), AdminRole.Admin);
 
     [Fact]
     public void AnActivationTokenStopsWorkingWhenItExpires()

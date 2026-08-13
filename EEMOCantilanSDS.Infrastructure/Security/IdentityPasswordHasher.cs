@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.AspNetCore.Identity;
@@ -25,7 +26,7 @@ public sealed class IdentityPasswordHasher : IPasswordHasher
 {
     private readonly PasswordHasher<BaseUser> _hasher = new();
 
-    public string Hash(string password) => _hasher.HashPassword(null!, password);
+    public HashedPassword Hash(string password) => new(_hasher.HashPassword(null!, password));
 
     public PasswordCheck Check(string hash, string password)
     {

@@ -10,7 +10,7 @@ public class AuthTokenServiceTests : RepositoryTestBase
     private static (TokenService service, AppDbContext context) BuildWithAdmin(out AdminUser admin)
     {
         var context = NewContext();
-        admin = AdminUser.Create("Head", "head", "head@eemo.gov", "Secret123!", AdminRole.SuperAdmin);
+        admin = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin);
         context.Add(admin);
         context.SaveChanges();
 

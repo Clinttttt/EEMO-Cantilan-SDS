@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.CreateFirstConsoleAdmin
 {
-    public class CreateFirstConsoleAdminCommandHandler(IAppDbContext context)
+    public class CreateFirstConsoleAdminCommandHandler(IAppDbContext context, IPasswordHasher passwordHasher)
         : IRequestHandler<CreateFirstConsoleAdminCommand, Result<bool>>
     {
         public async Task<Result<bool>> Handle(CreateFirstConsoleAdminCommand request, CancellationToken ct)
@@ -41,7 +42,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.CreateFirstConsoleAdmin
                 request.FullName.Trim(),
                 username,
                 request.Email.Trim(),
-                request.Password,
+                passwordHasher.Hash(request.Password),
                 AdminRole.SuperAdmin,
                 defaultMunicipalityId.Value,
                 isActive: true,

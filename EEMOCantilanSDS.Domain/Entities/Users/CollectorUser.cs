@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+using EEMOCantilanSDS.Domain.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +22,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
        string username,
        string? email,
        string? contactNumber,
-       string password,
+       HashedPassword password,
        Guid municipalityId = default)
         {
             return new CollectorUser
@@ -33,7 +33,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 Username = username,
                 Email = email,
                 ContactNumber = contactNumber,
-                PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, password),
+                PasswordHash = password.Value,
                 IsActive = true,
                 MustChangePassword = false,   // Collectors don't need forced password change
                 MunicipalityId = municipalityId,   // default (Guid.Empty) is stamped by the interceptor on save
@@ -84,9 +84,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         // Head-initiated password reset for collectors who forgot their mobile-app credentials.
         // Clears any lockout so the collector can sign in again with the temporary password.
         /// <param name="passwordHash">The already-hashed new password. See <c>IPasswordHasher</c>.</param>
-        public void ResetPassword(string passwordHash, string updatedBy)
+        public void ResetPassword(HashedPassword passwordHash, string updatedBy)
         {
-            PasswordHash = passwordHash;
+            PasswordHash = passwordHash.Value;
             FailedAttempts = 0;
             LockedUntil = null;
             UpdatedAt = DateTime.UtcNow;

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -37,7 +38,7 @@ public class CreateCollectorTransactionTests
         collectors.Setup(r => r.IsEmailUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         var handler = new CreateCollectorCommandHandler(
-            collectors.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+            collectors.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new IdentityPasswordHasher());
 
         return (handler, collectors, uow);
     }

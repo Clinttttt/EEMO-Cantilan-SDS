@@ -36,7 +36,7 @@ public class RecordTripCommandHandlerTests
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
     {
-        var collector = CollectorUser.Create("Tonyo", "EEMO-2026-006", "tonyo", "tonyo@eemo.gov", "0917", "Secret123!");
+        var collector = CollectorUser.Create("Tonyo", "EEMO-2026-006", "tonyo", "tonyo@eemo.gov", "0917", TestPasswords.Hash("Secret123!"));
         foreach (var code in codes)
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
         return collector;

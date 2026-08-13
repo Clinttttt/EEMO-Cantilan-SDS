@@ -15,7 +15,7 @@ public class CollectorLoginCommandHandlerTests
     private const string Password = "Secret123!";
 
     private static CollectorUser NewCollector(Guid municipalityId = default) =>
-        CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", Password, municipalityId);
+        CollectorUser.Create("Juan Collector", "EEMO-2026-001", "juan", "juan@eemo.gov", "09170000000", TestPasswords.Hash(Password), municipalityId);
 
     private static (CollectorLoginCommandHandler handler, Mock<ITokenService> token, Mock<IUnitOfWork> uow, Mock<IMunicipalityRepository> muni) Build(CollectorUser? collector)
     {

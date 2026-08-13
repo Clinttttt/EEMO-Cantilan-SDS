@@ -45,7 +45,7 @@ public class MfaLoginEnforcementTests
     /// <summary>An MFA-enabled admin with a known secret and one recovery code.</summary>
     private static AdminUser EnrolledAdmin(out string secret, out string recoveryCode)
     {
-        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", Password, AdminRole.SuperAdmin, Guid.NewGuid());
+        var admin = AdminUser.Create("Head", "head", "head@eemo.gov", TestPasswords.Hash(Password), AdminRole.SuperAdmin, Guid.NewGuid());
         secret = new TotpService().GenerateSecret();
         var (plain, hashes) = RecoveryCodes.Generate(1);
         recoveryCode = plain[0];
@@ -96,7 +96,7 @@ public class MfaLoginEnforcementTests
     [Fact]
     public async Task Login_WithoutMfa_IssuesTokensExactlyAsBefore()
     {
-        var admin = AdminUser.Create("Plain", "plain", "plain@eemo.gov", Password, AdminRole.Admin, Guid.NewGuid());
+        var admin = AdminUser.Create("Plain", "plain", "plain@eemo.gov", TestPasswords.Hash(Password), AdminRole.Admin, Guid.NewGuid());
         var token = new Mock<ITokenService>();
         var handler = LoginHandler(admin, token, new Mock<IUnitOfWork>());
 

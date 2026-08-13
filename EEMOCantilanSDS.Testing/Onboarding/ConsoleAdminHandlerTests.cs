@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Auth.CreateFirstConsoleAdmin;
@@ -60,7 +61,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             using (var seed = new AppDbContext(options))
             {
                 // A dedicated operator that is NOT a default-LGU SuperAdmin (role Admin, different muni).
-                var op = AdminUser.Create("Console Op", "console.op", "op@x.gov.ph", "Passw0rd!", AdminRole.Admin, Guid.NewGuid(), isActive: true, isPlatformOperator: true);
+                var op = AdminUser.Create("Console Op", "console.op", "op@x.gov.ph", TestPasswords.Hash("Passw0rd!"), AdminRole.Admin, Guid.NewGuid(), isActive: true, isPlatformOperator: true);
                 seed.AdminUsers.Add(op);
                 await seed.SaveChangesAsync();
                 opId = op.Id;
@@ -79,7 +80,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             Guid headId;
             using (var seed = new AppDbContext(options))
             {
-                var head = AdminUser.Create("Cantilan Head", "head", "head@x.gov.ph", "Passw0rd!", AdminRole.SuperAdmin, cantilanId, isActive: true);
+                var head = AdminUser.Create("Cantilan Head", "head", "head@x.gov.ph", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, cantilanId, isActive: true);
                 seed.AdminUsers.Add(head);
                 await seed.SaveChangesAsync();
                 headId = head.Id;
@@ -98,7 +99,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             Guid otherId;
             using (var seed = new AppDbContext(options))
             {
-                var other = AdminUser.Create("Carmen Head", "carmen.head", "c@x.gov.ph", "Passw0rd!", AdminRole.SuperAdmin, Guid.NewGuid(), isActive: true);
+                var other = AdminUser.Create("Carmen Head", "carmen.head", "c@x.gov.ph", TestPasswords.Hash("Passw0rd!"), AdminRole.SuperAdmin, Guid.NewGuid(), isActive: true);
                 seed.AdminUsers.Add(other);
                 await seed.SaveChangesAsync();
                 otherId = other.Id;
@@ -125,7 +126,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var cmd = new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "console@stalltrack.site", "Passw0rd1");
             using (var ctx = new AppDbContext(options))
             {
-                var r = await new CreateFirstConsoleAdminCommandHandler(ctx).Handle(cmd, default);
+                var r = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher()).Handle(cmd, default);
                 Assert.True(r.IsSuccess);
             }
             using (var ctx = new AppDbContext(options))
@@ -136,7 +137,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
             using (var ctx = new AppDbContext(options))
             {
-                var r2 = await new CreateFirstConsoleAdminCommandHandler(ctx).Handle(cmd, default);
+                var r2 = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher()).Handle(cmd, default);
                 Assert.False(r2.IsSuccess); // second run refused
             }
         }
