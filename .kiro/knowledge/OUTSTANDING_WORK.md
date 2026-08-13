@@ -391,9 +391,20 @@ These cannot be answered by reading code.
     reporting trouble rather than a dead one, and it recovers by itself when the API returns.
   - Verified before pushing: all six workflows parse, and the STEP ORDER is asserted programmatically rather than eyeballed
     (stop before snapshot, disconnect between stop and restore, restart after restore and unconditional).
-  - NOT exercised end to end: the stop and disconnect steps run only for a production restore, and the only way to
-    exercise those is to replace the live database. The rehearsal path (`target_database`) can be run any time and would
-    exercise everything except those two steps.
+  - EXERCISED END TO END on 2026-08-14, against production, at the office's instruction (the system is not yet in service).
+    The API went `Running` → `Stopped` → `Running`, observed from Azure while the run progressed; the log shows the stop, the
+    drain, "Closed 0 other session(s)", a successful restore, 29 tables / 65 migrations, and the API answering `/health`
+    afterwards. The pre-restore safety dump is retained as an artifact (29,072 bytes, 90 days). A rehearsal was run first,
+    against a scratch database, so a logic error would have surfaced there rather than against the live one.
+
+- **Restore rehearsals can now be cleaned up** — `drill-cleanup.yml`. The rehearsal is what makes the recovery procedure
+  practisable, but it leaves the scratch copy behind and its summary only told the operator to drop it; nobody could, because
+  the database password lives in this repository's secrets and nowhere else. Found immediately after running the first drill.
+  A separate file on purpose: `restore.yml` is what the office reaches for on its worst day, and a DROP branch inside the
+  recovery tool would sit one input away from the production name. The production database is refused twice, both times
+  against the secret rather than a hardcoded name, and the target must look like a rehearsal copy so a typo cannot destroy
+  another database on the same server. Both paths were exercised: asked for the production name it refused and SKIPPED every
+  later step, and asked for the drill copy it dropped it and proved production still present.
 - **`Profile` "Earlier Terms" card** has no component test (no fixture existed when it was written).
 - **"Same payor" matching is free-text name comparison** — there is no payor entity behind it.
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
