@@ -27,7 +27,7 @@
             <div class="mfa-title">Two-Factor Recovery</div>
             <div class="mfa-sub">Office use — clear two-factor for an account that lost its device and codes</div>
         </div>
-        @if (_accounts is not null)
+        @if (_accounts is not null && !_loadFailed)
         {
             <span class="mfa-state mfa-state-off">@_accounts.Count enrolled</span>
         }
@@ -37,6 +37,13 @@
         @if (_accounts is null)
         {
             <Skeleton Width="70%" Height="12px" Radius="6px" />
+        }
+        else if (_loadFailed)
+        {
+            <div class="mfa-step">
+                The enrolled accounts could not be read, so this list is not a statement about your security.
+                <button class="btn-ghost" type="button" @onclick="RefreshAsync">Try again</button>
+            </div>
         }
         else if (_accounts.Count == 0)
         {
@@ -119,6 +126,7 @@
     [Parameter] public bool Flat { get; set; }
 
     private IReadOnlyList<MfaEnrolledAccountDto>? _accounts;
+    private bool _loadFailed;
     private MfaEnrolledAccountDto? _selected;
     private string _password = string.Empty;
     private int _formNonce;
@@ -128,8 +136,24 @@
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    /// <summary>
+    /// Re-reads the enrolled accounts.
+    ///
+    /// <para>
+    /// Called by the parent panel after two-factor is switched on or off. This component is nested inside that panel and
+    /// stays in the render tree, so its initialisation runs ONCE — which is why the list could state "0 enrolled" moments
+    /// after the same dialog had enrolled an account, while the page's own indicator said 1.
+    /// </para>
+    /// </summary>
+    public async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
     private async Task LoadAsync()
     {
+        _loadFailed = false;
         try
         {
             var result = await MfaApi.GetMfaEnrolledAccountsAsync();
@@ -139,6 +163,9 @@
 
             if (!result.IsSuccess)
             {
+                // A list that could not be read is NOT an empty list. Reporting "no account has two-factor enabled" when
+                // the request failed would tell the office the opposite of the truth about their own security.
+                _loadFailed = true;
                 _error = result.StatusCode switch
                 {
                     401 => "Your session has expired. Please sign in again.",
@@ -150,6 +177,7 @@
         catch
         {
             _accounts = Array.Empty<MfaEnrolledAccountDto>();
+            _loadFailed = true;
         }
     }
 

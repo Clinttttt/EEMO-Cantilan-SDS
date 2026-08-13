@@ -190,7 +190,7 @@
     @if (ShowOperatorRecovery)
     {
         <div class="mfa-divider"></div>
-        <TwoFactorRecoveryPanel Flat="true" />
+        <TwoFactorRecoveryPanel Flat="true" @ref="_recoveryPanel" />
     }
 </section>
 
@@ -219,6 +219,12 @@
     /// </summary>
     [Parameter] public bool ShowOperatorRecovery { get; set; }
 
+    /// <summary>
+    /// The nested recovery list, so it can be re-read when this panel changes what it lists. Without this it initialises
+    /// once and then contradicts the panel above it — stating "0 enrolled" immediately after an account enrolled here.
+    /// </summary>
+    private TwoFactorRecoveryPanel? _recoveryPanel;
+
     private MfaStatusDto? _status;
 
     /// <summary>True when the status could not be read (expired session / network) — distinct from "off".</summary>
@@ -234,6 +240,12 @@
     private string? _ok;
 
     protected override async Task OnInitializedAsync() => await LoadStatusAsync();
+
+    /// <summary>
+    /// Re-reads two-factor status and everything that depends on it. Public so a test can drive the same refresh that
+    /// enrolling, disabling and regenerating codes perform, which is where the nested recovery list used to go stale.
+    /// </summary>
+    public Task RefreshStatusAsync() => LoadStatusAsync();
 
     /// <summary>
     /// Records what was typed and warns if it looks like the setup key rather than a code. The value is NOT
@@ -290,6 +302,11 @@
 
         if (_status is not null && OnStatusChanged.HasDelegate)
             await OnStatusChanged.InvokeAsync(_status);
+
+        // The operator recovery list below shows which accounts are enrolled, so it is stale the moment this status
+        // changes. Refreshing it here keeps one dialog from contradicting itself.
+        if (_recoveryPanel is not null)
+            await _recoveryPanel.RefreshAsync();
     }
 
     private async Task BeginAsync()

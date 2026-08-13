@@ -303,6 +303,18 @@ These cannot be answered by reading code.
 
 ## Deferred product work
 
+- **`MustChangePassword` is set but never enforced — needs the office's decision.** Resetting an admin's password sets the
+  flag, it is persisted, it travels on the token as `must_change_password`, `CurrentUserService` reads it, and the Accounts
+  list shows a "Reset pending" badge for it. Nothing ever asks the user to change their password: there is no
+  change-password screen and no route guard, only `/forgot-password` and `/reset-password/{token}`. Found 2026-08-13 because
+  the reset dialog promised "they'll be asked to change it on next login" and the Head signed in without being asked.
+  The false copy is corrected. Two ways forward, and it is a product choice:
+  (a) implement it — a change-password screen plus a guard that redirects while the flag is set, for admins and collectors,
+      which is a feature in its own right and touches every authenticated route; or
+  (b) drop the flag and treat an office-issued password as simply the account's password.
+  Until one is chosen, the flag means only "the office set this password and the holder has not chosen their own", which is
+  what the badge tooltip now says.
+
 - **NPM daily history for CUSTOM sections** is reachable through the section chooser but has no end-to-end test.
 - **Hide or soft-delete an OR number** so a withdrawn receipt stops being reported as missing.
 - **The Backups page** has two different sections both headed "Recent backups" — one for in-app restore points, one for CI

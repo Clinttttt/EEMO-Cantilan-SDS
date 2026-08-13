@@ -526,7 +526,7 @@
                     </span>
                     @if (EditingAdmin.MustChangePassword)
                     {
-                        <span class="acct-flag" title="Must change password on next login">
+                        <span class="acct-flag" title="The office set this password; the holder has not chosen their own yet">
                             <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                             Reset pending
                         </span>
@@ -576,7 +576,7 @@
                     </li>
                     <li>
                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                        The admin signs in with the temporary password above and must change it on first login.
+                        The admin signs in with the password above. Give it to them securely.
                     </li>
                     <li>
                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
@@ -626,18 +626,27 @@
                         </div>
                         <div class="reset-success-title">Password reset</div>
                         <p class="confirm-text reset-success-text">
-                            A new temporary password has been set for <span class="confirm-name">@ResetTargetName</span>.
-                            @if (ResetIsCollector)
+                            @if (ResetIsSelf)
                             {
-                                <span>Share it securely — they'll use it to sign in to the mobile app.</span>
+                                <span>This is your own account, so this is now your password. Use it the next time you sign in.</span>
                             }
                             else
                             {
-                                <span>Share it securely — they'll be asked to change it on next login.</span>
+                                <span>
+                                    A new password has been set for <span class="confirm-name">@ResetTargetName</span>.
+                                    @if (ResetIsCollector)
+                                    {
+                                        <span>Give it to them securely — they sign in to the mobile app with it.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Give it to them securely — it is the password they sign in with.</span>
+                                    }
+                                </span>
                             }
                         </p>
                         <div class="reset-success-pass">
-                            <span class="reset-success-pass-label">Temporary password</span>
+                            <span class="reset-success-pass-label">@(ResetIsSelf ? "Your new password" : "New password")</span>
                             <code class="reset-success-pass-value">@ResetPasswordValue</code>
                         </div>
                     </div>
@@ -645,14 +654,19 @@
                 else
                 {
                     <p class="confirm-text">
-                        Set a new temporary password for <span class="confirm-name">@ResetTargetName</span>.
-                        @if (ResetIsCollector)
+                        @if (ResetIsSelf)
                         {
-                            <span>They can sign in to the mobile app with it.</span>
+                            <span>Set a new password for <span class="confirm-name">your own account</span>. You will sign in with it from now on.</span>
                         }
                         else
                         {
-                            <span>They will be asked to change it on next login.</span>
+                            <span>
+                                Set a new password for <span class="confirm-name">@ResetTargetName</span>.
+                                @if (ResetIsCollector)
+                                {
+                                    <span>They can sign in to the mobile app with it.</span>
+                                }
+                            </span>
                         }
                     </p>
                     <div class="form-group">
@@ -662,11 +676,15 @@
                                    @bind="ResetPasswordValue" @bind:event="oninput" />
                             <button class="btn-ghost" type="button" @onclick="() => ResetPasswordValue = GeneratePassword()">Generate</button>
                         </div>
-                        <div class="field-hint">Share this temporary password with the account holder securely.</div>
+                        <div class="field-hint">
+                            @(ResetIsSelf
+                                ? "Choose something only you know."
+                                : "Give this password to the account holder securely.")
+                        </div>
                     </div>
                     <div class="security-note">
                         <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                        <span>Security check — confirm it's really you before changing someone's password.</span>
+                        <span>@(ResetIsSelf ? "Security check — confirm it's really you before changing your password." : "Security check — confirm it's really you before changing someone's password.")</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Confirm With Your Password <span class="req">*</span></label>
@@ -794,7 +812,7 @@
                     </span>
                     @if (ProfileAdmin.MustChangePassword)
                     {
-                        <span class="acct-flag" title="Must change password on next login">
+                        <span class="acct-flag" title="The office set this password; the holder has not chosen their own yet">
                             <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                             Reset pending
                         </span>
@@ -1100,6 +1118,13 @@
     private Guid ResetTargetId;
     private string ResetTargetName = string.Empty;
     private bool ResetIsCollector;
+
+    /// <summary>
+    /// True when the Head is resetting THEIR OWN password. The wording changes throughout the dialog: there is nobody to
+    /// hand the password to, and telling the signed-in officer to "share it securely" with themselves read as though they
+    /// had reset a stranger's account.
+    /// </summary>
+    private bool ResetIsSelf;
     private string ResetPasswordValue = string.Empty;
     private string ResetConfirmValue = string.Empty;
     private string ResetError = string.Empty;
@@ -1110,6 +1135,8 @@
         ResetTargetId = id;
         ResetTargetName = name;
         ResetIsCollector = isCollector;
+        // A collector is never the signed-in portal user, so self can only apply to an administrator account.
+        ResetIsSelf = !isCollector && _currentUserId is { } me && me == id;
         ResetPasswordValue = GeneratePassword();
         ResetConfirmValue = string.Empty;
         ResetError = string.Empty;

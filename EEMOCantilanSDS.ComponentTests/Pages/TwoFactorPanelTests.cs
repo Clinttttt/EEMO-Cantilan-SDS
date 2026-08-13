@@ -111,4 +111,67 @@ public class TwoFactorPanelTests : TestContext
             Assert.DoesNotContain("Add a second step to your sign-in", cut.Markup);
         }, RenderTimeout);
     }
+
+    [Fact]
+    public void TheEnrolledListIsReReadWhenTwoFactorIsSwitchedOn()
+    {
+        // The reported defect: the operator-recovery list inside this same dialog said "0 enrolled" moments after an
+        // account had enrolled here, while the panel above it showed two-factor as on. The list initialises once, so it
+        // has to be told to re-read when this panel changes what it lists — one dialog must not contradict itself.
+        var api = new Mock<IMfaApiClient>();
+        api.Setup(a => a.GetMfaStatusAsync()).ReturnsAsync(Result<MfaStatusDto>.Success(Off()));
+
+        var enrolledCalls = 0;
+        api.Setup(a => a.GetMfaEnrolledAccountsAsync())
+           .ReturnsAsync(() =>
+           {
+               enrolledCalls++;
+               return Result<IReadOnlyList<MfaEnrolledAccountDto>>.Success(Array.Empty<MfaEnrolledAccountDto>());
+           });
+
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        this.AddTestAuthorization().SetAuthorized("Head");
+
+        var cut = RenderComponent<TwoFactorPanel>(p => p
+            .Add(c => c.Flat, true)
+            .Add(c => c.ShowOperatorRecovery, true));
+
+        cut.WaitForAssertion(() => Assert.True(enrolledCalls >= 1, "the recovery list never loaded"), RenderTimeout);
+        var afterFirstLoad = enrolledCalls;
+
+        // Re-reading the status is what happens after enrolling, disabling, or regenerating codes.
+        cut.InvokeAsync(() => cut.Instance.RefreshStatusAsync());
+
+        cut.WaitForAssertion(
+            () => Assert.True(enrolledCalls > afterFirstLoad, "the recovery list was not re-read after the status changed"),
+            RenderTimeout);
+    }
+
+    [Fact]
+    public void TheOnNoticeIsNotColourCoded()
+    {
+        // A government screen states the position; it does not congratulate the officer in green. Asserted because the
+        // green success styling was reintroduced once already.
+        var css = File.ReadAllText(Path.Combine(RepoRoot(), "EEMOCantilanSDS.Client", "Components", "Pages", "Shared", "TwoFactorPanel.razor.css"));
+        var notice = css[css.IndexOf(".mfa-notice-ok", StringComparison.Ordinal)..];
+        notice = notice[..notice.IndexOf('}')];
+
+        Assert.DoesNotContain("--green", notice);
+    }
+
+    /// <summary>Walks up from the test assembly to the repository root, so the CSS assertion works from any bin path.</summary>
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "EEMOCantilanSDS.slnx")))
+            dir = dir.Parent;
+
+        Assert.NotNull(dir);
+        return dir!.FullName;
+    }
 }
