@@ -17,6 +17,9 @@
     @* Two-factor is offered once to a Head who has it switched off, then left to their judgement — it is no
        longer compulsory, so nobody is held on the setup page. Fails quiet and never blocks work. *@
     <EEMOCantilanSDS.Client.Components.Shared.MfaReminderPrompt />
+    @* An office-issued password must be replaced before anything else. The API refuses every other endpoint meanwhile, so
+       this only decides WHERE the user is sent; it is not the security boundary. *@
+    <EEMOCantilanSDS.Client.Components.Shared.MustChangePasswordGuard />
     <EEMOCantilanSDS.Client.Components.Shared.SessionGuard LoginPath="/login" LogoutEndpoint="/api/authproxy/logout" />
 }
 else

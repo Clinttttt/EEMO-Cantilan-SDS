@@ -221,8 +221,11 @@ public class AdminCommandHandlerTests
     }
 
     [Fact]
-    public async Task ResetPassword_WithCorrectConfirmation_ChangesHash_AndSaves()
+    public async Task ResetPassword_OfYourOwnAccount_ChangesHash_AndDoesNotDemandAnotherChange()
     {
+        // The Head resetting their OWN password has chosen it, so they are not then marched to the change-password screen to
+        // replace a password they just chose. This test used to assert the opposite while setting the acting user to the
+        // target — it was describing an office-issued reset with a self-reset's setup.
         var admin = NewAdmin(AdminRole.Admin); // password "Secret123!"
         var originalHash = admin.PasswordHash;
         var (repo, user, uow) = Mocks(admin);
@@ -234,8 +237,34 @@ public class AdminCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.NotEqual(originalHash, admin.PasswordHash);
-        Assert.True(admin.MustChangePassword);
+        Assert.False(admin.MustChangePassword);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResetPassword_OfSomeoneElsesAccount_RequiresThemToChangeIt()
+    {
+        // The other half, and the case the requirement exists for: the office issues a password it knows, so the holder must
+        // replace it before doing anything else.
+        var target = NewAdmin(AdminRole.Admin);
+        var actingHead = NewAdmin(AdminRole.SuperAdmin);
+
+        var repo = new Mock<IAdminRepository>();
+        repo.Setup(r => r.GetByIdAsync(target.Id, It.IsAny<CancellationToken>())).ReturnsAsync(target);
+        repo.Setup(r => r.GetByIdAsync(actingHead.Id, It.IsAny<CancellationToken>())).ReturnsAsync(actingHead);
+
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(c => c.UserId).Returns(actingHead.Id);
+        user.SetupGet(c => c.Username).Returns("head");
+
+        var uow = new Mock<IUnitOfWork>();
+        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
+
+        var result = await handler.Handle(
+            new ResetAdminPasswordCommand(target.Id, "BrandNew123!", "Secret123!"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(target.MustChangePassword);
     }
 
     [Fact]

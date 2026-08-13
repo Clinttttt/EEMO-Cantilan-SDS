@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ChangeMyPassword;
 using EEMOCantilanSDS.Api.Extensions;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
@@ -36,6 +37,28 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
         // may be written here — the session is only established by mfa/verify-login.
         if (result.IsSuccess && result.Value is { MfaRequired: false })
             CookieHelper.SetAuthCookies(Response, result.Value!.AccessToken, result.Value.RefreshToken);
+
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// The signed-in administrator replaces their own password, and receives a fresh session.
+    ///
+    /// <para>
+    /// Allowed while a password change is REQUIRED — see <c>MustChangePasswordMiddleware</c>, which blocks everything else
+    /// until this succeeds. Rate-limited like the other credential endpoints, and the new cookies are written here because
+    /// the old access token still says a change is required.
+    /// </para>
+    /// </summary>
+    [HttpPost("change-my-password")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<TokenResponseDto>> ChangeMyPasswordAsync([FromBody] ChangeMyPasswordCommand command)
+    {
+        var result = await Sender.Send(command);
+
+        if (result.IsSuccess && result.Value is not null)
+            CookieHelper.SetAuthCookies(Response, result.Value.AccessToken, result.Value.RefreshToken);
 
         return HandleResponse(result);
     }

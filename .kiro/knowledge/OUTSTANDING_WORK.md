@@ -328,17 +328,28 @@ These cannot be answered by reading code.
 
 ## Deferred product work
 
-- **`MustChangePassword` is set but never enforced — needs the office's decision.** Resetting an admin's password sets the
-  flag, it is persisted, it travels on the token as `must_change_password`, `CurrentUserService` reads it, and the Accounts
-  list shows a "Reset pending" badge for it. Nothing ever asks the user to change their password: there is no
-  change-password screen and no route guard, only `/forgot-password` and `/reset-password/{token}`. Found 2026-08-13 because
-  the reset dialog promised "they'll be asked to change it on next login" and the Head signed in without being asked.
-  The false copy is corrected. Two ways forward, and it is a product choice:
-  (a) implement it — a change-password screen plus a guard that redirects while the flag is set, for admins and collectors,
-      which is a feature in its own right and touches every authenticated route; or
-  (b) drop the flag and treat an office-issued password as simply the account's password.
-  Until one is chosen, the flag means only "the office set this password and the holder has not chosen their own", which is
-  what the badge tooltip now says.
+- **`MustChangePassword` is now ENFORCED** (was: set but never enforced). Resolved 2026-08-14 at the office's decision:
+  - `ChangeMyPasswordCommand` — the signed-in administrator replaces their own password, re-authenticating first (an
+    office-issued password may have been handed over on paper) and refusing a new password equal to the old one, which would
+    satisfy the requirement while leaving the account on a password the office knows. Returns fresh tokens, because the
+    requirement travels as a claim: without new ones the user changes their password and is asked again.
+  - `MustChangePasswordMiddleware` (API) refuses every other endpoint meanwhile, with a short explicit allow-list — change
+    the password, read current-user, refresh, log out, health — and a machine-readable code so the portal routes on the code
+    rather than on English prose. The allow-list is asserted in both directions: blocking too little makes it cosmetic,
+    blocking too much locks the office out of the screen that would fix it.
+  - `MustChangePasswordGuard` (portal) sends a flagged session to `/change-password`. It is the experience, not the
+    boundary: the API is the gate, since a guard living only in the browser is a suggestion.
+  - The new page carries NO LGU branding. `AuthBrandPanel` defaults to Cantilan's seal and office name, and the branding
+    endpoint that would supply the real ones is itself blocked while the requirement stands — so using it would have shown
+    Cantilan's identity to every other municipality.
+  - Resetting your OWN password no longer flags the account: choosing a password is not being issued one. An existing test
+    asserted the opposite while setting the acting user to the target — it was describing an office-issued reset with a
+    self-reset's setup, and is now split into both cases.
+  - A source-level test asserts the middleware is REGISTERED, and in the right place. Found necessary the hard way: deleting
+    the registration left all sixteen behavioural tests green while nothing enforced anything.
+  - Collectors and payors are unaffected — neither type sets the flag, and a missing claim means "not required", so older
+    tokens and non-admin accounts are never caught by it.
+
 
 - **NPM daily history for CUSTOM sections** is reachable through the section chooser but has no end-to-end test.
 - **Hide or soft-delete an OR number** so a withdrawn receipt stops being reported as missing.

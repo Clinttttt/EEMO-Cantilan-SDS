@@ -227,12 +227,38 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// </param>
         public void CompletePasswordReset(HashedPassword passwordHash)
         {
+            AcceptChosenPassword(passwordHash);
+        }
+
+        /// <summary>
+        /// The signed-in user chooses their own password — either freely, or because the office issued them one and the
+        /// system is requiring them to replace it.
+        ///
+        /// <para>
+        /// The same state transition as completing an emailed reset, so it shares that code rather than restating it: a
+        /// password the USER chose clears <see cref="MustChangePassword"/>, whereas one the OFFICE issued sets it. That is
+        /// the whole distinction between this and <c>ResetPassword</c>, and duplicating the transition is how the two would
+        /// drift.
+        /// </para>
+        /// </summary>
+        public void ChangeOwnPassword(HashedPassword passwordHash)
+        {
+            AcceptChosenPassword(passwordHash);
+        }
+
+        /// <summary>
+        /// A password the account holder chose: stored, no longer requiring a change, lockout and failed attempts cleared,
+        /// any outstanding reset token consumed, and every existing session signed out — a credential change should not
+        /// leave someone else's session alive on another device.
+        /// </summary>
+        private void AcceptChosenPassword(HashedPassword passwordHash)
+        {
             PasswordHash = passwordHash.Value;
             MustChangePassword = false;
             FailedAttempts = 0;
             LockedUntil = null;
             ClearPasswordResetToken();
-            ClearRefreshToken();          // sign out every existing session after a credential change
+            ClearRefreshToken();
             UpdatedAt = DateTime.UtcNow;
         }
 

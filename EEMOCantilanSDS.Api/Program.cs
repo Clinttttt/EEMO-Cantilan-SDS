@@ -75,6 +75,11 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
+// After authentication and authorization, so the claim is available and the endpoint's own [Authorize] has already had its
+// say: an anonymous caller gets the ordinary 401 rather than this. Before MapControllers, so a blocked session reaches no
+// handler at all.
+app.UseMiddleware<MustChangePasswordMiddleware>();
+
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 // Readiness probe: confirms the database is reachable (for load-balancer/monitoring readiness checks).

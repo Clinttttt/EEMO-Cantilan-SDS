@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ChangeMyPassword;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
 using EEMOCantilanSDS.Application.Command.Auth.Mfa;
@@ -48,6 +50,33 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
 
         logger.LogInformation("Cookies set successfully via SignInAsync");
         
+        return Ok();
+    }
+
+    /// <summary>
+    /// The signed-in administrator replaces their own password and the cookie session is rebuilt from the new tokens.
+    ///
+    /// <para>
+    /// The rebuild is the point. The requirement to change travels as a claim inside the cookie, so without re-signing in
+    /// the user would change their password and still be told to change it — the portal reads the old claim, and the API
+    /// keeps refusing on the old access token.
+    /// </para>
+    /// </summary>
+    [HttpPost("change-my-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangeMyPassword([FromBody] ChangeMyPasswordCommand request)
+    {
+        var result = await apiAuthService.ChangeMyPasswordAsync(request);
+
+        if (!result.IsSuccess || result.Value is null)
+        {
+            // The API's message is specific and safe to relay here: the caller is already authenticated as this account, so
+            // "your current password is incorrect" reveals nothing they do not know.
+            logger.LogWarning("Password change refused for the signed-in administrator");
+            return StatusCode(result.StatusCode ?? 400, new { error = result.Error ?? "We could not change your password." });
+        }
+
+        await SignInWithTokensAsync(result.Value.AccessToken, result.Value.RefreshToken);
         return Ok();
     }
 

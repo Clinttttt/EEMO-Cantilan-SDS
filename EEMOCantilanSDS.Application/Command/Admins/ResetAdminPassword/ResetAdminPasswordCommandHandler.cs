@@ -30,7 +30,13 @@ public class ResetAdminPasswordCommandHandler(
         if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
             return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
-        admin.ResetPassword(passwordHasher.Hash(request.NewPassword), currentUser.Username ?? "Admin");
+        // Resetting YOUR OWN password is choosing it, not being issued one, so it does not then demand a change. The Head
+        // who sets their own password would otherwise be marched to the change-password screen on their next sign-in to
+        // replace a password they had just chosen.
+        if (admin.Id == actingId)
+            admin.ChangeOwnPassword(passwordHasher.Hash(request.NewPassword));
+        else
+            admin.ResetPassword(passwordHasher.Hash(request.NewPassword), currentUser.Username ?? "Admin");
 
         await uow.SaveChangesAsync(cancellationToken);
         return Result<bool>.Success(true);

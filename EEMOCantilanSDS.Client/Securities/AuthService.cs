@@ -82,6 +82,38 @@ public class AuthService(
         }
     }
 
+    /// <summary>
+    /// The signed-in administrator replaces their own password. The proxy rebuilds the cookie session from the new tokens,
+    /// so the requirement to change — which travels as a claim inside that cookie — is actually lifted.
+    /// </summary>
+    /// <remarks>
+    /// Reuses the same <c>loginWithMfa</c> JS envelope as sign-in: it posts JSON, includes credentials, and always resolves
+    /// with ok / error. A second helper doing the same thing would be one more place for the cookie handling to drift.
+    /// </remarks>
+    public async Task<LoginOutcome> ChangeMyPasswordAsync(string currentPassword, string newPassword)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(new { currentPassword, newPassword });
+            var raw = await js.InvokeAsync<string?>("loginWithMfa", "/api/authproxy/change-my-password", json);
+            var outcome = ParseOutcome(raw);
+
+            if (!outcome.Success)
+            {
+                logger.LogWarning("Password change refused for the signed-in administrator");
+                return outcome;
+            }
+
+            await authStateProvider.MarkUserAsAuthenticated();
+            return outcome;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Exception while changing the signed-in administrator's password");
+            return new LoginOutcome(false, false, Error: "Unable to change your password. Please try again.");
+        }
+    }
+
     private static LoginOutcome ParseOutcome(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))

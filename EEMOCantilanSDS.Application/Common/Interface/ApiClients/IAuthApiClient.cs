@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ChangeMyPassword;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
@@ -13,6 +14,12 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IAuthApiClient
 {
     Task<Result<TokenResponseDto>> LoginAsync(LoginCommand command);
+
+    /// <summary>
+    /// The signed-in administrator replaces their own password, receiving a fresh session. Returns tokens because the
+    /// requirement to change travels on the token: without new ones the portal would keep asking.
+    /// </summary>
+    Task<Result<TokenResponseDto>> ChangeMyPasswordAsync(ChangeMyPasswordCommand command);
     Task<Result<TokenResponseDto>> RefreshTokenAsync(RefreshTokenCommand command);
     Task LogoutAsync(string refreshToken);
 
