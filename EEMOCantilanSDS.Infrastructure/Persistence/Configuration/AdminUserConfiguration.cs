@@ -24,7 +24,6 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasDefaultValue(false);
 
-            builder.Ignore(x => x.IsLockedOut);
         }
     }
 }

@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -12,6 +13,7 @@ using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Infrastructure.Services;
 using EEMOCantilanSDS.Infrastructure.Tenancy;
+using EEMOCantilanSDS.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,6 +84,9 @@ namespace EEMOCantilanSDS.Infrastructure
             // The OR rule is LGU-wide, so it is its own service rather than a method on whichever module repository
             // a handler happens to hold. Scoped: it shares the request's context and change tracker.
             service.AddScoped<IOrNumberRegistry, DbOrNumberRegistry>();
+
+            // The clock is stateless, so a singleton: every caller reads the same real time.
+            service.AddSingleton<IClock, SystemClock>();
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();

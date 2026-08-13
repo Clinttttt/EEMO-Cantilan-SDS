@@ -33,7 +33,7 @@ public class LoginCommandHandlerTests
         token.Setup(t => t.CreateTokenResponse(It.IsAny<AdminUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
 
-        return (new LoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher()), token, uow, muni);
+        return (new LoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher(), new FixedClock(DateTime.UtcNow)), token, uow, muni);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class LoginCommandHandlerTests
         // The owner of the account gets a straight answer instead of "invalid username or password" for the
         // whole lockout window — and no token, obviously.
         var admin = NewAdmin();
-        for (var i = 0; i < 5; i++) admin.RecordFailedLogin();
-        Assert.True(admin.IsLockedOut);
+        for (var i = 0; i < 5; i++) admin.RecordFailedLogin(DateTime.UtcNow);
+        Assert.True(admin.IsLockedOut(DateTime.UtcNow));
         var (handler, token, _, _) = Build(admin);
 
         var result = await handler.Handle(new LoginCommand("head", Password), CancellationToken.None);
@@ -86,7 +86,7 @@ public class LoginCommandHandlerTests
         // Someone guessing passwords must not be able to use the lockout notice to discover that an account
         // exists, and their guesses must not push the unlock time further out.
         var admin = NewAdmin();
-        for (var i = 0; i < 5; i++) admin.RecordFailedLogin();
+        for (var i = 0; i < 5; i++) admin.RecordFailedLogin(DateTime.UtcNow);
         var lockedUntil = admin.LockedUntil;
         var (handler, token, uow, _) = Build(admin);
 
@@ -104,14 +104,14 @@ public class LoginCommandHandlerTests
     public async Task TheAttemptThatTripsTheLock_SaysSoImmediately()
     {
         var admin = NewAdmin();
-        for (var i = 0; i < 4; i++) admin.RecordFailedLogin();
+        for (var i = 0; i < 4; i++) admin.RecordFailedLogin(DateTime.UtcNow);
         var (handler, _, _, _) = Build(admin);
 
         var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
 
         Assert.Equal(423, result.StatusCode);
         Assert.Contains("15 minutes", result.Error);
-        Assert.True(admin.IsLockedOut);
+        Assert.True(admin.IsLockedOut(DateTime.UtcNow));
         Assert.Equal(5, admin.FailedAttempts);
     }
 

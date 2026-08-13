@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
@@ -12,7 +13,8 @@ public class PayorLoginCommandHandler(
     IPayorRepository payorRepository,
     ITokenService tokenService,
     IUnitOfWork unitOfWork,
-    IPasswordHasher passwordHasher) : IRequestHandler<PayorLoginCommand, Result<TokenResponseDto>>
+    IPasswordHasher passwordHasher,
+    IClock clock) : IRequestHandler<PayorLoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(PayorLoginCommand request, CancellationToken cancellationToken)
     {
@@ -21,14 +23,14 @@ public class PayorLoginCommandHandler(
         if (payor is null)
             return Result<TokenResponseDto>.Unauthorized();   // uniform 401 — never reveal which numbers exist
 
-        if (payor.IsLockedOut)
+        if (payor.IsLockedOut(clock.UtcNow))
             return Result<TokenResponseDto>.Unauthorized();
 
         var verification = passwordHasher.Check(payor.PasswordHash, request.Password!);
 
         if (verification == PasswordCheck.Failed)
         {
-            payor.RecordFailedLogin();
+            payor.RecordFailedLogin(clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<TokenResponseDto>.Unauthorized();
         }

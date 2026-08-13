@@ -44,12 +44,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             LockedUntil = null;
         }
 
-        public void RecordFailedLogin()
-        {
-            FailedAttempts++;
-            if (FailedAttempts >= DomainRules.MaxFailedLoginAttempts)
-                LockedUntil = DateTime.UtcNow.AddMinutes(DomainRules.LockoutMinutes);
-        }
 
         public void ResetPassword(string newPassword)
         {
@@ -60,6 +54,5 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             UpdatedBy = "Self-Service";
         }
 
-        public bool IsLockedOut => LockedUntil.HasValue && LockedUntil > DateTime.UtcNow;
     }
 }

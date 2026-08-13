@@ -141,11 +141,34 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — NOT STARTED
+### 8. Inject time instead of static clocks — STARTED (lockout done; ~275 sites remain)
 
-Domain calls `DateTime.UtcNow`; Application reads static `PhilippineTime.Now`/`Today`. Prioritise lockout, token expiry,
-billing eligibility and reporting periods, and pass dates INTO domain decisions. Mechanical audit stamps can stay in the
-interceptor.
+`IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
+`UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
+static on purpose: converting a stored instant, or bounding a local day or month in UTC, is a pure function of its
+arguments and needs no clock.
+
+DONE — the lockout rule. It was written three times, identically, on `AdminUser`, `CollectorUser` and `PayorUser`, while
+the state it works on always lived on `BaseUser`; it is now one `RecordFailedLogin(asOf)` and one `IsLockedOut(asOf)` on
+the base. The four login/MFA handlers pass `clock.UtcNow`. The three `builder.Ignore(x => x.IsLockedOut)` lines are gone
+with it, since a method is not mappable — confirmed by the integration suite, which builds the real model.
+
+Thirteen tests now cover a rule that previously had none worth having: "the account unlocks after fifteen minutes" could
+only be verified by waiting, so the part that protects the office — that a lockout ENDS — went unasserted. Each runs
+against all three user types, because a lockout policy differing by account type is a security hole rather than an
+inconsistency. Proven load-bearing: making the lockout permanent failed six of them.
+
+STILL TO DO, in the order the review prioritised:
+
+- **Token expiry** — refresh token, activation token and password-reset token all compare against `DateTime.UtcNow` inside
+  `BaseUser`. Same treatment: pass the instant in. Small (`IsRefreshTokenValid` 1 ref, `IsActivationTokenValid` 3,
+  `IsPasswordResetTokenValid` 4) and security-relevant, so it is the obvious next slice.
+- **Billing eligibility and reporting periods** — the bulk. ~58 `PhilippineTime.Now/Today` reads in Application and ~44 in
+  Infrastructure. These decide which market days are chargeable, whether a term has lapsed, and which month a report
+  covers, so they are the ones that make a suite pass in one month and fail in another. Convert per feature while already
+  changing it, not as a sweep.
+- **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments. They are mechanical
+  and belong with the interceptor; converting them would be a large diff with nothing to assert.
 
 ### 9. Split API / Infrastructure / Client registrations — NOT STARTED
 

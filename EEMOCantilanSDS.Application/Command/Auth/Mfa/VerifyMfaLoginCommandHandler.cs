@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -33,7 +34,8 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
         IAppDbContext context,
         ICredentialProtector protector,
         ITotpService totp,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IClock clock)
         : IRequestHandler<VerifyMfaLoginCommand, Result<TokenResponseDto>>
     {
         // One message for every failure mode: unknown/expired/used challenge, wrong code, locked or
@@ -57,7 +59,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 return Result<TokenResponseDto>.Failure(GenericError, 400);
 
             // State may have changed between the password step and now.
-            if (!user.IsActive || user.IsLockedOut || !user.MfaEnabled || user.MfaSecretCipher is null)
+            if (!user.IsActive || user.IsLockedOut(clock.UtcNow) || !user.MfaEnabled || user.MfaSecretCipher is null)
             {
                 user.ClearMfaChallenge();
                 await context.SaveChangesAsync(ct);
@@ -78,7 +80,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             else
             {
                 // Wrong second factor counts as a failed sign-in, so repeated guesses lock the account.
-                user.RecordFailedLogin();
+                user.RecordFailedLogin(clock.UtcNow);
                 await context.SaveChangesAsync(ct);
                 return Result<TokenResponseDto>.Failure(GenericError, 400);
             }

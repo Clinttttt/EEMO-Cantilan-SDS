@@ -15,7 +15,6 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasForeignKey(l => l.PayorUserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            builder.Ignore(x => x.IsLockedOut);
         }
     }
 }

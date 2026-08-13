@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -98,14 +98,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             LockedUntil = null;
         }
 
-        public void RecordFailedLogin()
-        {
-            FailedAttempts++;
-            if (FailedAttempts >= Constants.DomainRules.MaxFailedLoginAttempts)
-                LockedUntil = DateTime.UtcNow.AddMinutes(Constants.DomainRules.LockoutMinutes);
-        }
 
-        public bool IsLockedOut => LockedUntil.HasValue && LockedUntil > DateTime.UtcNow;
     }
 
     public enum AdminRole

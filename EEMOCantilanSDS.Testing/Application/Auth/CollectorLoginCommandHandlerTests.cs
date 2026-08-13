@@ -40,7 +40,7 @@ public class CollectorLoginCommandHandlerTests
                 Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, isDefault: true)
             });
 
-        return (new CollectorLoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher()), token, uow, muni);
+        return (new CollectorLoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object, new IdentityPasswordHasher(), new FixedClock(DateTime.UtcNow)), token, uow, muni);
     }
 
     [Fact]

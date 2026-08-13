@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Common;
 using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
@@ -178,10 +178,37 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
 
         /// <summary>
+        /// A failed sign-in, judged as of <paramref name="asOf"/>: count it, and lock the account once the office's limit
+        /// is reached.
+        ///
+        /// <para>
+        /// One rule for every kind of user. It used to be written three times — identically — on AdminUser, CollectorUser
+        /// and PayorUser, which is how a lockout policy quietly comes to differ by account type. The state it works on
+        /// (<see cref="FailedAttempts"/>, <see cref="LockedUntil"/>) always lived here.
+        /// </para>
+        ///
+        /// <para>The instant is passed in rather than read from the machine clock, so the lockout window can be tested
+        /// without waiting for it to elapse.</para>
+        /// </summary>
+        public void RecordFailedLogin(DateTime asOf)
+        {
+            FailedAttempts++;
+            if (FailedAttempts >= Constants.DomainRules.MaxFailedLoginAttempts)
+                LockedUntil = asOf.AddMinutes(Constants.DomainRules.LockoutMinutes);
+        }
+
+        /// <summary>
+        /// Whether the account is locked as of <paramref name="asOf"/>. A lapsed lockout is not a lockout: the stored
+        /// instant stays on the row as a record of what happened, and the answer simply becomes false once it passes.
+        /// </summary>
+        public bool IsLockedOut(DateTime asOf) => LockedUntil.HasValue && LockedUntil > asOf;
+
+        /// <summary>
         /// Completes a self-service password reset: sets the new password, consumes the one-time token, and
         /// clears any lockout so the user can sign in immediately. Deliberately does NOT change IsActive —
         /// a reset link can never re-enable a deactivated account — and does NOT set MustChangePassword,
-        /// because the user just chose this password themselves.
+        /// because the user just chose this password themselves. Domain hashes the password and revokes the
+        /// refresh token, so every existing session is signed out after a credential change.
         /// </summary>
         public void CompletePasswordReset(string newPassword)
         {

@@ -27,7 +27,6 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasForeignKey(s => s.CollectorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            builder.Ignore(x => x.IsLockedOut);
 
 
         }

@@ -69,7 +69,7 @@ public class MfaLoginEnforcementTests
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         token.Setup(t => t.CreateTokenResponse(It.IsAny<BaseUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
-        return new LoginCommandHandler(repo.Object, Mock.Of<IMunicipalityRepository>(), token.Object, uow.Object, new IdentityPasswordHasher());
+        return new LoginCommandHandler(repo.Object, Mock.Of<IMunicipalityRepository>(), token.Object, uow.Object, new IdentityPasswordHasher(), new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class MfaLoginEnforcementTests
         token.Setup(t => t.CreateTokenResponse(It.IsAny<BaseUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
 
-        return (new VerifyMfaLoginCommandHandler(ctx, new FakeProtector(), new TotpService(), token.Object), ctx, token);
+        return (new VerifyMfaLoginCommandHandler(ctx, new FakeProtector(), new TotpService(), token.Object, new FixedClock(DateTime.UtcNow)), ctx, token);
     }
 
     [Fact]
@@ -173,7 +173,7 @@ public class MfaLoginEnforcementTests
         }
 
         using var ctx2 = new AppDbContext(options);
-        var handler2 = new VerifyMfaLoginCommandHandler(ctx2, new FakeProtector(), new TotpService(), Mock.Of<ITokenService>());
+        var handler2 = new VerifyMfaLoginCommandHandler(ctx2, new FakeProtector(), new TotpService(), Mock.Of<ITokenService>(), new FixedClock(DateTime.UtcNow));
         var second = await handler2.Handle(new VerifyMfaLoginCommand("chal-2", CodeFor(secret, 1)), default);
 
         Assert.False(second.IsSuccess);
@@ -192,7 +192,7 @@ public class MfaLoginEnforcementTests
         }
 
         using var ctx = new AppDbContext(options);
-        var handler = new VerifyMfaLoginCommandHandler(ctx, new FakeProtector(), new TotpService(), Mock.Of<ITokenService>());
+        var handler = new VerifyMfaLoginCommandHandler(ctx, new FakeProtector(), new TotpService(), Mock.Of<ITokenService>(), new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new VerifyMfaLoginCommand("chal-3", CodeFor(secret)), default);
 

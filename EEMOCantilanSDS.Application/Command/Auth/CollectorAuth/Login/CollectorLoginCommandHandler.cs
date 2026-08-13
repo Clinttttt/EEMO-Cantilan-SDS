@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
@@ -14,7 +15,8 @@ public class CollectorLoginCommandHandler(
     IMunicipalityRepository municipalityRepository,
     ITokenService tokenService,
     IUnitOfWork unitOfWork,
-    IPasswordHasher passwordHasher) : IRequestHandler<CollectorLoginCommand, Result<TokenResponseDto>>
+    IPasswordHasher passwordHasher,
+    IClock clock) : IRequestHandler<CollectorLoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(CollectorLoginCommand request, CancellationToken cancellationToken)
     {
@@ -45,14 +47,14 @@ public class CollectorLoginCommandHandler(
         if (collector is null)
             return Result<TokenResponseDto>.Unauthorized();   // uniform 401 — never reveal which accounts exist
 
-        if (collector.IsLockedOut)
+        if (collector.IsLockedOut(clock.UtcNow))
             return Result<TokenResponseDto>.Unauthorized();
 
         var verification = passwordHasher.Check(collector.PasswordHash, request.Password!);
 
         if (verification == PasswordCheck.Failed)
         {
-            collector.RecordFailedLogin();
+            collector.RecordFailedLogin(clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<TokenResponseDto>.Unauthorized();
         }

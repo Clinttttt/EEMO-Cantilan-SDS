@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -11,7 +12,7 @@ using System.Text;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 
-public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRepository municipalityRepository, ITokenService tokenService, IUnitOfWork unitOfWork, IPasswordHasher passwordHasher) : IRequestHandler<LoginCommand, Result<TokenResponseDto>>
+public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRepository municipalityRepository, ITokenService tokenService, IUnitOfWork unitOfWork, IPasswordHasher passwordHasher, IClock clock) : IRequestHandler<LoginCommand, Result<TokenResponseDto>>
 {
     public async Task<Result<TokenResponseDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
@@ -41,7 +42,7 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         // getting the same blank 401 and so cannot use the lockout notice to discover that an account exists,
         // while the real owner is not left staring at "invalid credentials" for fifteen minutes. Attempts are
         // not counted while locked, so guessing cannot extend the lock indefinitely.
-        if (user.IsLockedOut)
+        if (user.IsLockedOut(clock.UtcNow))
         {
             if (!passwordOk) return Result<TokenResponseDto>.Unauthorized();
 
@@ -54,12 +55,12 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
 
         if (!passwordOk)
         {
-            user.RecordFailedLogin();
+            user.RecordFailedLogin(clock.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
             // The attempt that trips the lock says so immediately, so the user is not left guessing why the
             // next five minutes of correct passwords are refused.
-            if (user.IsLockedOut)
+            if (user.IsLockedOut(clock.UtcNow))
                 return Result<TokenResponseDto>.Failure(
                     $"This account is now locked for {DomainRules.LockoutMinutes} minutes after " +
                     $"{DomainRules.MaxFailedLoginAttempts} failed sign-in attempts.",
