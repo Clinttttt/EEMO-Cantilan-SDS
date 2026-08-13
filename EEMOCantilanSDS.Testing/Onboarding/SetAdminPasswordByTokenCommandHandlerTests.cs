@@ -40,7 +40,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options))
             {
-                var result = await new SetAdminPasswordByTokenCommandHandler(ctx)
+                var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetAdminPasswordByTokenCommand("tok-123", "NewPass123"), default);
                 Assert.True(result.IsSuccess);
             }
@@ -57,7 +57,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // Single-use: the same token no longer works.
             using (var ctx = new AppDbContext(options))
             {
-                var again = await new SetAdminPasswordByTokenCommandHandler(ctx)
+                var again = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetAdminPasswordByTokenCommand("tok-123", "Another123"), default);
                 Assert.False(again.IsSuccess);
             }
@@ -70,7 +70,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             await SeedInactiveHeadWithToken(options, "tok-123", DateTime.UtcNow.AddDays(7));
 
             using var ctx = new AppDbContext(options);
-            var result = await new SetAdminPasswordByTokenCommandHandler(ctx)
+            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
                 .Handle(new SetAdminPasswordByTokenCommand("wrong-token", "NewPass123"), default);
 
             Assert.False(result.IsSuccess);
@@ -83,7 +83,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             await SeedInactiveHeadWithToken(options, "tok-123", DateTime.UtcNow.AddDays(-1));
 
             using var ctx = new AppDbContext(options);
-            var result = await new SetAdminPasswordByTokenCommandHandler(ctx)
+            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
                 .Handle(new SetAdminPasswordByTokenCommand("tok-123", "NewPass123"), default);
 
             Assert.False(result.IsSuccess);

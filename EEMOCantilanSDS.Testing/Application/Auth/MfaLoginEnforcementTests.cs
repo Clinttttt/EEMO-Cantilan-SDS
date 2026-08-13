@@ -278,6 +278,6 @@ public class MfaLoginEnforcementTests
         admin.DisableMfa();
 
         Assert.Null(admin.MfaChallengeTokenHash);
-        Assert.False(admin.IsMfaChallengeValid(Hash("chal-8")));
+        Assert.False(admin.IsMfaChallengeValid(Hash("chal-8"), DateTime.UtcNow));
     }
 }

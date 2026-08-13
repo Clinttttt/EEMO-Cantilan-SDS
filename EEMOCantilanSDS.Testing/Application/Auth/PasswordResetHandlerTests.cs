@@ -354,7 +354,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, email)
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, email, new FixedClock(DateTime.UtcNow))
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.True(result.IsSuccess);
         }
@@ -378,7 +378,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender())
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.False(result.IsSuccess);
         }
@@ -395,7 +395,7 @@ public class PasswordResetHandlerTests
         await SeedAdminWithResetTokenAsync(options, DateTime.UtcNow.AddMinutes(30));
 
         using var ctx = new AppDbContext(options);
-        var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender())
+        var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
             .Handle(new ResetPasswordByTokenCommand("some-other-token", "BrandNew123"), default);
 
         Assert.False(result.IsSuccess);
@@ -410,14 +410,14 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var first = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender())
+            var first = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.True(first.IsSuccess);
         }
 
         using (var ctx = new AppDbContext(options))
         {
-            var second = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender())
+            var second = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "Another456"), default);
             Assert.False(second.IsSuccess);
         }
@@ -431,7 +431,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender())
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.False(result.IsSuccess);
         }

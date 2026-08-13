@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,7 +20,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail
     /// so this link is safe even if it sits in a mailbox for days.
     /// </para>
     /// </summary>
-    public class VerifyEmailCommandHandler(IAppDbContext context)
+    public class VerifyEmailCommandHandler(IAppDbContext context, IClock clock)
         : IRequestHandler<VerifyEmailCommand, Result<VerifiedAccountDto>>
     {
         private const string GenericError = "This confirmation link is invalid or has expired.";
@@ -36,7 +37,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.EmailVerificationTokenHash == hash && !u.IsDeleted, ct);
 
-            if (user is null || !user.IsEmailVerificationTokenValid(hash))
+            if (user is null || !user.IsEmailVerificationTokenValid(hash, clock.UtcNow))
                 return Result<VerifiedAccountDto>.Failure(GenericError);
 
             var alreadyVerified = user.EmailVerified;

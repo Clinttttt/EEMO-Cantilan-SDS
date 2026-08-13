@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
 {
-    public class GetActivationContextQueryHandler(IAppDbContext context)
+    public class GetActivationContextQueryHandler(IAppDbContext context, IClock clock)
         : IRequestHandler<GetActivationContextQuery, Result<ActivationContextDto>>
     {
         private const string GenericError = "This activation link is invalid or has expired.";
@@ -28,7 +29,7 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.ActivationTokenHash == hash, ct);
 
-            if (user is null || !user.IsActivationTokenValid(hash))
+            if (user is null || !user.IsActivationTokenValid(hash, clock.UtcNow))
                 return Result<ActivationContextDto>.Failure(GenericError);
 
             var muni = await context.Municipalities

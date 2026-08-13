@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,7 +16,7 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext
     /// Read-only token→account lookup for the reset page. Mirrors the activation page's context query: the
     /// details are released ONLY to a holder of a valid, unexpired token, and nothing is mutated.
     /// </summary>
-    public class GetPasswordResetContextQueryHandler(IAppDbContext context)
+    public class GetPasswordResetContextQueryHandler(IAppDbContext context, IClock clock)
         : IRequestHandler<GetPasswordResetContextQuery, Result<TokenAccountContextDto>>
     {
         private const string GenericError = "This password reset link is invalid or has expired.";
@@ -33,7 +34,7 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext
                 .FirstOrDefaultAsync(u => u.PasswordResetTokenHash == hash && !u.IsDeleted, ct);
 
             // Re-checks the hash in fixed time and enforces the expiry.
-            if (user is null || !user.IsPasswordResetTokenValid(hash))
+            if (user is null || !user.IsPasswordResetTokenValid(hash, clock.UtcNow))
                 return Result<TokenAccountContextDto>.Failure(GenericError);
 
             var municipality = await context.Municipalities

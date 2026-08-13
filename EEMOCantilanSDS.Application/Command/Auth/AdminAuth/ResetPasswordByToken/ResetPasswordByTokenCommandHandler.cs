@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,7 +20,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToke
     /// re-enable a deactivated account. Every existing session is invalidated after the change.
     /// </para>
     /// </summary>
-    public class ResetPasswordByTokenCommandHandler(IAppDbContext context, IEmailSender emailSender)
+    public class ResetPasswordByTokenCommandHandler(IAppDbContext context, IEmailSender emailSender, IClock clock)
         : IRequestHandler<ResetPasswordByTokenCommand, Result<bool>>
     {
         // One message for every failure mode: unknown token, expired token, already-used token, or a
@@ -40,7 +41,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToke
                 .FirstOrDefaultAsync(u => u.PasswordResetTokenHash == hash && !u.IsDeleted, ct);
 
             // IsPasswordResetTokenValid re-checks the hash in fixed time and enforces the expiry.
-            if (user is null || !user.IsPasswordResetTokenValid(hash))
+            if (user is null || !user.IsPasswordResetTokenValid(hash, clock.UtcNow))
                 return Result<bool>.Failure(GenericError);
 
             // A deactivated account must not be recoverable through a reset link. The token is consumed

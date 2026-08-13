@@ -51,7 +51,7 @@ public class EmailVerificationTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default);
+            var result = await new VerifyEmailCommandHandler(ctx, new FixedClock(DateTime.UtcNow)).Handle(new VerifyEmailCommand(RawToken), default);
             Assert.True(result.IsSuccess);
             Assert.Equal("head2", result.Value!.Username);
             Assert.False(result.Value.AlreadyVerified);
@@ -84,14 +84,14 @@ public class EmailVerificationTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var first = await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default);
+            var first = await new VerifyEmailCommandHandler(ctx, new FixedClock(DateTime.UtcNow)).Handle(new VerifyEmailCommand(RawToken), default);
             Assert.True(first.IsSuccess);
             Assert.False(first.Value!.AlreadyVerified);
         }
 
         using (var ctx = new AppDbContext(options))
         {
-            var second = await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default);
+            var second = await new VerifyEmailCommandHandler(ctx, new FixedClock(DateTime.UtcNow)).Handle(new VerifyEmailCommand(RawToken), default);
             Assert.True(second.IsSuccess);                 // no "link already used" dead end
             Assert.True(second.Value!.AlreadyVerified);
         }
@@ -103,11 +103,11 @@ public class EmailVerificationTests
     {
         var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
         admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddDays(7));
-        Assert.True(admin.IsEmailVerificationTokenValid(Hash(RawToken)));
+        Assert.True(admin.IsEmailVerificationTokenValid(Hash(RawToken), DateTime.UtcNow));
 
         admin.UpdateProfile("Head", "head", "new@eemo.gov.ph", "tester");
 
-        Assert.False(admin.IsEmailVerificationTokenValid(Hash(RawToken)));
+        Assert.False(admin.IsEmailVerificationTokenValid(Hash(RawToken), DateTime.UtcNow));
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class EmailVerificationTests
         }
 
         using (var ctx = new AppDbContext(options))
-            Assert.False((await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default)).IsSuccess);
+            Assert.False((await new VerifyEmailCommandHandler(ctx, new FixedClock(DateTime.UtcNow)).Handle(new VerifyEmailCommand(RawToken), default)).IsSuccess);
 
         using var verify = new AppDbContext(options);
         Assert.False((await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id)).EmailVerified);
@@ -184,7 +184,7 @@ public class EmailVerificationTests
         }
 
         using var ctx = new AppDbContext(options);
-        var result = await new GetPasswordResetContextQueryHandler(ctx)
+        var result = await new GetPasswordResetContextQueryHandler(ctx, new FixedClock(DateTime.UtcNow))
             .Handle(new GetPasswordResetContextQuery(RawToken), default);
 
         Assert.True(result.IsSuccess);
@@ -205,7 +205,7 @@ public class EmailVerificationTests
         }
 
         using var ctx = new AppDbContext(options);
-        var handler = new GetPasswordResetContextQueryHandler(ctx);
+        var handler = new GetPasswordResetContextQueryHandler(ctx, new FixedClock(DateTime.UtcNow));
 
         Assert.False((await handler.Handle(new GetPasswordResetContextQuery(RawToken), default)).IsSuccess);      // expired
         Assert.False((await handler.Handle(new GetPasswordResetContextQuery("nope"), default)).IsSuccess);        // unknown

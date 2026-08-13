@@ -56,7 +56,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
 
             // The refresh request resolves to a DIFFERENT (default) tenant; it must still find the Carmen user.
             using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.NewGuid()));
-            var svc = new TokenService(Mock.Of<IConfiguration>(), Mock.Of<IUnitOfWork>(), ctx);
+            var svc = new TokenService(Mock.Of<IConfiguration>(), Mock.Of<IUnitOfWork>(), ctx, new FixedClock(DateTime.UtcNow));
 
             var user = await svc.ValidateRefreshToken(raw, CancellationToken.None);
 

@@ -51,7 +51,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         context.Add(operatorAccount);
         context.SaveChanges();
 
-        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         var token = service.CreateToken(operatorAccount, "SuperAdmin");
 
         var claim = new JwtSecurityTokenHandler().ReadJwtToken(token).Claims
@@ -71,7 +71,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         context.Add(head);
         context.SaveChanges();
 
-        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         var token = service.CreateToken(head, "SuperAdmin");
 
         Assert.DoesNotContain(
@@ -87,7 +87,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         context.Add(admin); // MunicipalityId left as default (Guid.Empty) — unresolved -> fallback
         context.SaveChanges();
 
-        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         var token = service.CreateToken(admin, "SuperAdmin");
 
         Assert.Equal(TenantConstants.DefaultTenantCode, MunicipalityClaim(token));
@@ -108,7 +108,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         context.Entry(admin).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = cantilan.Id;
         context.SaveChanges();
 
-        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         var token = service.CreateToken(admin, "SuperAdmin");
 
         Assert.Equal("cantilan-sds", MunicipalityClaim(token));
@@ -127,7 +127,7 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         context.Entry(admin).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = carmen.Id;
         context.SaveChanges();
 
-        var service = new TokenService(Config(), new UnitOfWork(context), context);
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         var token = service.CreateToken(admin, "Admin");
 
         Assert.Equal("carmen", MunicipalityClaim(token));

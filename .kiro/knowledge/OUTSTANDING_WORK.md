@@ -141,7 +141,7 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — STARTED (lockout done; ~275 sites remain)
+### 8. Inject time instead of static clocks — STARTED (lockout and token expiry done; ~270 sites remain)
 
 `IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
 `UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
@@ -158,11 +158,23 @@ only be verified by waiting, so the part that protects the office — that a loc
 against all three user types, because a lockout policy differing by account type is a security hole rather than an
 inconsistency. Proven load-bearing: making the lockout permanent failed six of them.
 
-STILL TO DO, in the order the review prioritised:
+DONE — token expiry. Five windows, not the three the review named: refresh, activation, password reset, MFA challenge and
+email verification all compared against the machine clock inside `BaseUser` and now take the instant. Six handlers and
+`TokenService` supply it.
 
-- **Token expiry** — refresh token, activation token and password-reset token all compare against `DateTime.UtcNow` inside
-  `BaseUser`. Same treatment: pass the instant in. Small (`IsRefreshTokenValid` 1 ref, `IsActivationTokenValid` 3,
-  `IsPasswordResetTokenValid` 4) and security-relevant, so it is the obvious next slice.
+Two faults found while converting, both recorded because they were invisible rather than harmless:
+
+- `BaseUser.IsRefreshTokenValid(token)` had NO callers and could never have returned true — it compared a raw token against
+  the stored HASH. The refresh path had grown its own copy of the rule instead. Replaced by
+  `CanRefresh(refreshTokenHash, asOf)`, which `TokenService.ValidateRefreshToken` now calls.
+- That copy contained a FOURTH transcription of the lockout check, in Infrastructure, missed by the lockout slice above. So
+  a locked account could have kept refreshing its session if the two ever drifted. It now asks the user.
+
+Seven more tests, each asserting the half of the rule that was unassertable: that the token STOPS working. Proven
+load-bearing — making activation tokens permanent, and dropping the lockout consultation from refresh, each failed exactly
+the test that describes it.
+
+STILL TO DO, in the order the review prioritised:
 - **Billing eligibility and reporting periods** — the bulk. ~58 `PhilippineTime.Now/Today` reads in Application and ~44 in
   Infrastructure. These decide which market days are chargeable, whether a term has lapsed, and which month a report
   covers, so they are the ones that make a suite pass in one month and fail in another. Convert per feature while already

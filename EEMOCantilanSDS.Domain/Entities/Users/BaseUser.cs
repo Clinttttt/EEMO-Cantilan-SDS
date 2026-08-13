@@ -119,10 +119,22 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             RefreshToken = token;
             RefreshTokenExpiryTime = expiry;
         }
-        public bool IsRefreshTokenValid(string token)
-        {
-            return RefreshToken == token && RefreshTokenExpiryTime > DateTime.UtcNow;
-        }
+        /// <summary>
+        /// Whether this account may exchange the presented refresh token for a new session, as of
+        /// <paramref name="asOf"/>: the token must match, be unexpired, and the account must not be locked out.
+        ///
+        /// <para>
+        /// Takes the token HASH, because that is what is stored. The method this replaces took the raw token and compared it
+        /// to the stored hash, so it could only ever return false — it had no callers, and the refresh path had grown its
+        /// own copy of both rules instead. That copy included a FOURTH transcription of the lockout check, which is how a
+        /// locked account could have kept refreshing its session if the two ever drifted apart.
+        /// </para>
+        /// </summary>
+        public bool CanRefresh(string refreshTokenHash, DateTime asOf)
+            => !string.IsNullOrEmpty(RefreshToken)
+               && RefreshToken == refreshTokenHash
+               && RefreshTokenExpiryTime > asOf
+               && !IsLockedOut(asOf);
         public void ClearRefreshToken()
         {
             RefreshToken = null;
@@ -137,11 +149,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
 
         /// <summary>True when the supplied token hash matches an unexpired activation token.</summary>
-        public bool IsActivationTokenValid(string tokenHash)
+        public bool IsActivationTokenValid(string tokenHash, DateTime asOf)
             => !string.IsNullOrEmpty(ActivationTokenHash)
                && ActivationTokenHash == tokenHash
                && ActivationTokenExpiry.HasValue
-               && ActivationTokenExpiry.Value > DateTime.UtcNow;
+               && ActivationTokenExpiry.Value > asOf;
 
         /// <summary>
         /// Stamps a one-time password-reset token (store the HASH, never the raw token) and records the
@@ -158,11 +170,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// True when the supplied token hash matches an unexpired password-reset token. The comparison is
         /// fixed-time so a token cannot be recovered by timing the response.
         /// </summary>
-        public bool IsPasswordResetTokenValid(string tokenHash)
+        public bool IsPasswordResetTokenValid(string tokenHash, DateTime asOf)
         {
             if (string.IsNullOrEmpty(PasswordResetTokenHash) || string.IsNullOrEmpty(tokenHash))
                 return false;
-            if (!PasswordResetTokenExpiry.HasValue || PasswordResetTokenExpiry.Value <= DateTime.UtcNow)
+            if (!PasswordResetTokenExpiry.HasValue || PasswordResetTokenExpiry.Value <= asOf)
                 return false;
 
             return CryptographicOperations.FixedTimeEquals(
@@ -351,11 +363,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// True when the supplied challenge hash matches an unexpired challenge. Fixed-time comparison so the
         /// challenge cannot be recovered by timing the response.
         /// </summary>
-        public bool IsMfaChallengeValid(string tokenHash)
+        public bool IsMfaChallengeValid(string tokenHash, DateTime asOf)
         {
             if (string.IsNullOrEmpty(MfaChallengeTokenHash) || string.IsNullOrEmpty(tokenHash))
                 return false;
-            if (!MfaChallengeTokenExpiry.HasValue || MfaChallengeTokenExpiry.Value <= DateTime.UtcNow)
+            if (!MfaChallengeTokenExpiry.HasValue || MfaChallengeTokenExpiry.Value <= asOf)
                 return false;
 
             return CryptographicOperations.FixedTimeEquals(
@@ -384,11 +396,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// True when the supplied token hash matches an unexpired email-verification token. Fixed-time
         /// comparison so the token cannot be recovered by timing the response.
         /// </summary>
-        public bool IsEmailVerificationTokenValid(string tokenHash)
+        public bool IsEmailVerificationTokenValid(string tokenHash, DateTime asOf)
         {
             if (string.IsNullOrEmpty(EmailVerificationTokenHash) || string.IsNullOrEmpty(tokenHash))
                 return false;
-            if (!EmailVerificationTokenExpiry.HasValue || EmailVerificationTokenExpiry.Value <= DateTime.UtcNow)
+            if (!EmailVerificationTokenExpiry.HasValue || EmailVerificationTokenExpiry.Value <= asOf)
                 return false;
 
             return CryptographicOperations.FixedTimeEquals(

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -21,7 +22,7 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Infrastructure.Services
 {
-    public class TokenService(IConfiguration configuration, IUnitOfWork unitOfWork, AppDbContext context) : ITokenService
+    public class TokenService(IConfiguration configuration, IUnitOfWork unitOfWork, AppDbContext context, IClock clock) : ITokenService
     {
      
 
@@ -126,13 +127,10 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             // user's refresh would never match and they'd be logged out the moment their access token expires.
             var user = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(
                 s => s.RefreshToken == hashed && s.IsActive && !s.IsDeleted, cancellationToken);
-            if (user is null
-                || user.RefreshTokenExpiryTime <= DateTime.UtcNow
-                || (user.LockedUntil.HasValue && user.LockedUntil > DateTime.UtcNow))
-            {
-                return null!;
-            }
-            return user;
+
+            // The rule itself lives on the user: token matches, not expired, not locked out. This method used to restate
+            // all three, including its own copy of the lockout check.
+            return user is not null && user.CanRefresh(hashed, clock.UtcNow) ? user : null!;
         }
 
         public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)

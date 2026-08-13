@@ -14,7 +14,7 @@ public class AuthTokenServiceTests : RepositoryTestBase
         context.Add(admin);
         context.SaveChanges();
 
-        var service = new TokenService(new ConfigurationBuilder().Build(), new UnitOfWork(context), context);
+        var service = new TokenService(new ConfigurationBuilder().Build(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
         return (service, context);
     }
 

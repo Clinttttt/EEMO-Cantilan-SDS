@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Security.Cryptography;
 using System.Text;
 using System.Linq;
@@ -10,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
 {
-    public class SetAdminPasswordByTokenCommandHandler(IAppDbContext context)
+    public class SetAdminPasswordByTokenCommandHandler(IAppDbContext context, IClock clock)
         : IRequestHandler<SetAdminPasswordByTokenCommand, Result<bool>>
     {
         private const string GenericError = "This activation link is invalid or has expired.";
@@ -28,7 +29,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.ActivationTokenHash == hash, ct);
 
-            if (user is null || !user.IsActivationTokenValid(hash))
+            if (user is null || !user.IsActivationTokenValid(hash, clock.UtcNow))
                 return Result<bool>.Failure(GenericError);
 
             // Optional: the activating user may choose their own sign-in username. Normalize to trimmed

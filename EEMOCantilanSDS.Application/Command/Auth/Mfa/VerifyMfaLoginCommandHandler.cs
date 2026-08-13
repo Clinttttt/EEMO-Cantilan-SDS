@@ -55,7 +55,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.MfaChallengeTokenHash == hash && !u.IsDeleted, ct);
 
-            if (user is null || !user.IsMfaChallengeValid(hash))
+            if (user is null || !user.IsMfaChallengeValid(hash, clock.UtcNow))
                 return Result<TokenResponseDto>.Failure(GenericError, 400);
 
             // State may have changed between the password step and now.
