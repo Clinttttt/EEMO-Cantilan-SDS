@@ -71,9 +71,137 @@ jobs:
           dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj
           --configuration Release
 
+  backup-gate:
+    name: Fresh backup before a schema change
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write          # to start the backup workflow and read its result
+
+    # WHY THIS JOB EXISTS
+    #   Migrations are applied on API startup, so a deployment carrying one changes the shape of the
+    #   office's data before anyone has a chance to check it. The 7-day point-in-time restore and the daily
+    #   dump both exist, but a daily dump can be almost 24 hours old — and on a market day that is a day of
+    #   collections. This makes the safety net a PRECONDITION of the risky change rather than a hope.
+    #
+    # WHY IT IS CONDITIONAL
+    #   Most deployments carry no migration at all; today's were entirely code. Demanding a dump for every
+    #   one of those would add minutes to every release and teach the office to ignore the gate. The strict
+    #   treatment is reserved for the deployments that can actually reshape the database.
+    outputs:
+      schema_changed: ${{ steps.detect.outputs.schema_changed }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # the comparison below needs history, not just the tip
+
+      - name: Does this deployment change the database schema
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The range that is actually being deployed. On a normal push GitHub gives both ends; on a manual
+          # run (or a first push) "before" is absent or all-zeroes, and then the honest answer is "we cannot
+          # tell", which is treated as a schema change. Being wrong that way costs one dump; being wrong the
+          # other way costs the database.
+          BEFORE="${{ github.event.before }}"
+          MIGRATIONS_PATH="EEMOCantilanSDS.Infrastructure/Migrations"
+
+          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "Cannot determine what changed (manual run, or the previous commit is unavailable)."
+            echo "Treating this as a schema change so the backup is taken regardless."
+            echo "schema_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BEFORE" "${GITHUB_SHA}" -- "$MIGRATIONS_PATH" || true)
+
+          if [ -n "$CHANGED" ]; then
+            echo "Migration files in this deployment:"
+            echo "$CHANGED"
+            echo "schema_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No migration files changed between $BEFORE and $GITHUB_SHA."
+            echo "schema_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Note that no backup is required
+        if: steps.detect.outputs.schema_changed != 'true'
+        run: |
+          {
+            echo "### Backup gate"
+            echo ""
+            echo "No migration in this deployment, so the daily backup stands and no extra dump was taken."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Take a backup now, and wait for it
+        if: steps.detect.outputs.schema_changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Deliberately unconditional rather than "only if the last one is older than N hours". A schema
+          # change is rare, a dump takes a couple of minutes, and threshold arithmetic is one more thing to
+          # get wrong in the job whose whole purpose is to be trustworthy.
+          STARTED_AT=$(date -u +%s)
+          gh workflow run backup.yml --ref "${GITHUB_REF_NAME}"
+          echo "Requested a database backup. Waiting for it to finish..."
+
+          # Find the run this dispatch created. It appears a moment later, so poll for it rather than
+          # assuming the newest run is ours.
+          RUN_ID=""
+          for attempt in $(seq 1 20); do
+            sleep 6
+            RUN_ID=$(gh run list --workflow=backup.yml --event=workflow_dispatch --limit 10 \
+              --json databaseId,createdAt \
+              --jq "[.[] | select((.createdAt | fromdateiso8601) >= ${STARTED_AT} - 60)] | sort_by(.createdAt) | last | .databaseId // empty")
+            if [ -n "${RUN_ID:-}" ]; then break; fi
+            echo "The backup run has not appeared yet (attempt ${attempt}/20)."
+          done
+
+          if [ -z "${RUN_ID:-}" ]; then
+            echo "::error title=Backup did not start::A backup was requested but no run appeared. Deployment stopped rather than migrating without one."
+            exit 1
+          fi
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}"
+          echo "Backup run: ${RUN_URL}"
+
+          # A dump of this database takes a couple of minutes; 20 is generous without hanging a release.
+          for attempt in $(seq 1 40); do
+            STATUS=$(gh run view "$RUN_ID" --json status,conclusion --jq '.status + "/" + (.conclusion // "")')
+            echo "Backup status: ${STATUS} (check ${attempt}/40)"
+            case "$STATUS" in
+              completed/success)
+                {
+                  echo "### Backup gate"
+                  echo ""
+                  echo "This deployment changes the database schema, so a fresh backup was taken first."
+                  echo ""
+                  echo "- Backup run: ${RUN_URL}"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              completed/*)
+                echo "::error title=Backup failed::The pre-deployment backup did not succeed (${STATUS}). See ${RUN_URL}. Deployment stopped rather than migrating without a usable backup."
+                exit 1
+                ;;
+            esac
+            sleep 30
+          done
+
+          echo "::error title=Backup did not finish::The pre-deployment backup was still running after 20 minutes. See ${RUN_URL}. Deployment stopped rather than migrating on an unverified backup."
+          exit 1
+
   deploy:
     name: Build and deploy production images
-    needs: verify
+    needs: [verify, backup-gate]
     runs-on: ubuntu-latest
     environment:
       name: production

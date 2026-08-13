@@ -355,8 +355,28 @@ These cannot be answered by reading code.
 - **Hide or soft-delete an OR number** so a withdrawn receipt stops being reported as missing.
 - **The Backups page** has two different sections both headed "Recent backups" — one for in-app restore points, one for CI
   runs. Confusing to read. `Backups.razor:824-826` also contradicts `BackupController.cs:37-43`.
-- **No pre-deploy backup gate**: a deployment can migrate before a fresh backup exists.
-- **`restore.yml` does not quiesce the API** during a restore, so writes can land mid-restore.
+- **A pre-deploy backup gate now exists** (was: a deployment could migrate before a fresh backup existed). Added
+  2026-08-14 as a `backup-gate` job in `deploy-production.yml`, between the test gate and the deployment:
+  - It asks one question — does this deployment change the database schema? — by diffing the pushed range against
+    `EEMOCantilanSDS.Infrastructure/Migrations`. Migrations are applied on API startup, so a deployment carrying one reshapes
+    the office's data before anyone can check it.
+  - If it does, `backup.yml` is dispatched and WAITED for. Success is a precondition of deploying; a failed or slow backup
+    stops the release rather than migrating without one.
+  - Deliberately conditional. Most deployments carry no migration, and demanding a dump for every one would add minutes to
+    every release and teach the office to ignore the gate.
+  - Deliberately unconditional WITHIN that case: no "only if the last backup is older than N hours". A schema change is
+    rare, a dump takes minutes, and threshold arithmetic is one more thing to get wrong in the job whose only job is to be
+    trustworthy.
+  - It fails SAFE. When the range cannot be determined — a manual run, a force-push, a parent missing from the clone — it
+    treats the deployment as a schema change and takes the backup. Being wrong that way costs one dump.
+  - Verified before pushing: all six workflow files parse; the deploy job's dependency on the gate is asserted; and the
+    detection script was run against real history — a code-only range answers "no", the last real migration commit answers
+    "yes, 3 files", and all three unknowable cases fail safe.
+  - NOT yet exercised end to end, because `.github/**` is path-ignored for deployments, so this commit does not itself
+    deploy. The non-schema path runs on the next ordinary release; the schema path runs on the next migration.
+
+- **`restore.yml` does not quiesce the API** during a restore, so writes can land mid-restore. Still open, and now the
+  larger of the two backup risks.
 - **`Profile` "Earlier Terms" card** has no component test (no fixture existed when it was written).
 - **"Same payor" matching is free-text name comparison** — there is no payor entity behind it.
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
