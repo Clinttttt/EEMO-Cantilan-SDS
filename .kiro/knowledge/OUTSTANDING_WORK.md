@@ -375,8 +375,25 @@ These cannot be answered by reading code.
   - NOT yet exercised end to end, because `.github/**` is path-ignored for deployments, so this commit does not itself
     deploy. The non-schema path runs on the next ordinary release; the schema path runs on the next migration.
 
-- **`restore.yml` does not quiesce the API** during a restore, so writes can land mid-restore. Still open, and now the
-  larger of the two backup risks.
+- **`restore.yml` now quiesces the API** (was: writes could land mid-restore). Added 2026-08-14:
+  - The API is stopped before anything is touched, because it is the only writer — the portal and the collectors' app both
+    go through it. Left running, it would accept collections while the restore replaced the very rows they land in, and
+    those receipts would be gone with nobody told. It also fixes what the file already warned about: a pool of open
+    connections can block the transactional `--clean`, so a restore could fail on a busy morning for no visible reason.
+  - The pre-restore snapshot is now taken AFTER the stop, so the one artifact meant to undo the run is actually the state
+    the run replaced.
+  - Remaining sessions are closed before restoring (own session excluded), since a forgotten psql or pgAdmin window is
+    enough to fail the `--clean` after the office is already committed.
+  - The API is restarted with `if: always()` and its health asserted, so a failed restore cannot leave the office with an
+    outage on top of the problem they were recovering from. A rehearsal skips the stop, the disconnect and the health
+    assertion — it never stopped anything.
+  - The portal is deliberately left running: it writes nothing, a Head who just triggered a restore should see a site
+    reporting trouble rather than a dead one, and it recovers by itself when the API returns.
+  - Verified before pushing: all six workflows parse, and the STEP ORDER is asserted programmatically rather than eyeballed
+    (stop before snapshot, disconnect between stop and restore, restart after restore and unconditional).
+  - NOT exercised end to end: the stop and disconnect steps run only for a production restore, and the only way to
+    exercise those is to replace the live database. The rehearsal path (`target_database`) can be run any time and would
+    exercise everything except those two steps.
 - **`Profile` "Earlier Terms" card** has no component test (no fixture existed when it was written).
 - **"Same payor" matching is free-text name comparison** — there is no payor entity behind it.
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a

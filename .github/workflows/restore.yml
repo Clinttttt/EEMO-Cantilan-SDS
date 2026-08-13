@@ -6,14 +6,17 @@ name: Database restore
 # their password AND types the RESTORE confirmation phrase (verified server-side).
 #
 # SAFETY DESIGN
-#   1. Takes a fresh "pre-restore" pg_dump FIRST and uploads it as an artifact — so the exact
-#      state before the restore is always recoverable if anything goes wrong.
-#   2. Restores inside a SINGLE TRANSACTION (--single-transaction --exit-on-error): if any part
-#      fails, the whole restore rolls back and the database is left unchanged.
-#   3. Uses the same temporary single-IP firewall pattern as the backup workflow, always removed.
+#   1. Stops the API first, so nothing writes while the database is being replaced — and so the pre-restore
+#      snapshot below is actually the state being replaced. Restarted unconditionally at the end.
+#   2. Takes a fresh "pre-restore" pg_dump as an artifact — so the exact state before the restore is always
+#      recoverable if anything goes wrong.
+#   3. Closes any remaining sessions, because a transactional --clean cannot run alongside them.
+#   4. Restores inside a SINGLE TRANSACTION (--single-transaction --exit-on-error): if any part fails, the
+#      whole restore rolls back and the database is left unchanged.
+#   5. Uses the same temporary single-IP firewall pattern as the backup workflow, always removed.
 #
-# Best run when the system is idle (a deliberate maintenance action); active connections can
-# block the transactional --clean.
+# The API is down for the duration — a minute or two. That is the point: a restore is a maintenance action,
+# and the alternative is collections taken during it being silently discarded.
 
 on:
   workflow_dispatch:
@@ -102,6 +105,30 @@ jobs:
             --start-ip-address "${{ steps.ip.outputs.ip }}" \
             --end-ip-address "${{ steps.ip.outputs.ip }}"
 
+      - name: Stop the API so nothing writes during the restore
+        if: steps.target.outputs.is_drill == 'false'
+        env:
+          API_APP_NAME: stalltrack-api-cly-2026
+        # WHY
+        #   The API is the only thing that writes to this database — the portal and the collectors' app both
+        #   go through it. Left running, it accepts collections and receipts while the restore is replacing
+        #   the very rows they land in, and those writes are lost without anyone being told. An office that
+        #   restores a backup at 9am and takes payments at 9:01 would find the 9:01 receipts gone.
+        #
+        #   Stopping it also fixes the problem this file already warned about: "active connections can block
+        #   the transactional --clean". The API holds a pool open, so the drop-and-recreate could fail on a
+        #   busy morning for no reason the office could see.
+        #
+        #   The PORTAL is deliberately left running. It writes nothing, and a Head who has just triggered a
+        #   restore should see a site reporting trouble rather than a dead one; it recovers by itself when the
+        #   API returns. The restart below is if: always(), so a failed restore cannot leave the API stopped.
+        run: |
+          set -euo pipefail
+          az webapp stop --resource-group "$RESOURCE_GROUP" --name "$API_APP_NAME"
+          echo "API stopped. Waiting for its connections to drain..."
+          sleep 15
+          echo "::notice title=API stopped::The API is down for the duration of the restore."
+
       - name: Safety backup BEFORE restoring (pre-restore snapshot)
         env:
           PGHOST: ${{ secrets.PG_HOST }}
@@ -109,6 +136,9 @@ jobs:
           PGUSER: ${{ secrets.PG_USER }}
           PGPASSWORD: ${{ secrets.PG_PASSWORD }}
           PGSSLMODE: require
+        # Taken AFTER the API is stopped, deliberately. A snapshot captured while writes were still arriving
+        # would not be the state the restore replaces, so the one artifact meant to undo this run would be
+        # missing whatever landed in between.
         run: |
           STAMP="$(date -u +%Y%m%d-%H%M)"
           FILE="stalltrack-pre-restore-${STAMP}.dump"
@@ -170,6 +200,25 @@ jobs:
             echo "Created rehearsal database ${TARGET_DB}."
           fi
 
+      - name: Close any remaining connections to the target
+        if: steps.target.outputs.is_drill == 'false'
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+        # Stopping the API removes the writer, but a restore has to be the ONLY session on the database: a
+        # forgotten psql window or a pgAdmin connection is enough to make the transactional --clean fail, and
+        # it fails after the point where the office is already committed to restoring. Our own session is
+        # excluded, or this would disconnect the very connection issuing it.
+        run: |
+          set -euo pipefail
+          TERMINATED=$(psql -t -A -c "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();")
+          echo "Other sessions on ${PGDATABASE}: ${TERMINATED}"
+          psql -q -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" > /dev/null
+          echo "Closed ${TERMINATED} other session(s) before restoring."
+
       - name: Restore (atomic — rolls back entirely on any error)
         env:
           PGHOST: ${{ secrets.PG_HOST }}
@@ -230,6 +279,42 @@ jobs:
             echo ""
             echo "It costs storage on the production server until then."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bring the API back
+        # if: always() and NOT gated on the drill flag being read successfully — this must run whether the
+        # restore succeeded, failed, or the job was cancelled halfway. Leaving the office's API stopped would
+        # turn a failed restore into an outage, which is a worse outcome than the one being recovered from.
+        # Starting an app that is already running is a no-op, so this is safe on a rehearsal too.
+        if: always()
+        env:
+          API_APP_NAME: stalltrack-api-cly-2026
+          API_HEALTH_URL: https://stalltrack-api-cly-2026-axdafcazchhfdvgq.southeastasia-01.azurewebsites.net/health
+        run: |
+          set -uo pipefail
+          az webapp start --resource-group "$RESOURCE_GROUP" --name "$API_APP_NAME" || true
+
+          # On a rehearsal the API was never stopped, so its health is not this run's business — asserting it
+          # would let an unrelated outage fail a drill and teach the office that drills are unreliable.
+          if [ "${{ steps.target.outputs.is_drill }}" = "true" ]; then
+            echo "Rehearsal: the API was not stopped, so no health check is asserted."
+            exit 0
+          fi
+
+          # Reported, not assumed. A restore that finished while the API failed to come back is still an
+          # outage, and the office needs to see that here rather than from a vendor's phone call.
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --output /dev/null "$API_HEALTH_URL"; then
+              echo "::notice title=API is back::The API answered /health after the restore."
+              echo "The API is running again." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "API not healthy yet (attempt ${attempt}/30). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "::error title=API did not come back::The restore finished but the API is not answering /health. Start it from the Azure portal: $API_APP_NAME."
+          echo "**The API did not come back on its own — start \`$API_APP_NAME\` in the Azure portal.**" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Remove the temporary firewall rule
         if: always()
