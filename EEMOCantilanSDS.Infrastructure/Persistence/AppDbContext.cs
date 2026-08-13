@@ -121,8 +121,19 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         /// Applies global query filters per entity (TPH root) type, combining:
         ///  • soft-delete (<c>!IsDeleted</c>) for <see cref="AuditableEntity"/> types, and
         ///  • municipality isolation for <see cref="IMunicipalityOwned"/> types.
-        /// The municipality clause is a no-op while <see cref="CurrentMunicipalityId"/> is empty (unresolved /
-        /// tests), so this cannot change Cantilan's single-tenant results. EF re-evaluates the id per query.
+        ///
+        /// <para>
+        /// Attached by walking the model rather than listing types, so a new tenant-owned entity is isolated the moment it
+        /// is added. <c>TenantFilterCoverageTests</c> asserts that, and reads each filter rather than merely checking one
+        /// exists: a soft-deletable entity always has a filter, so its presence says nothing about LGU isolation.
+        /// </para>
+        ///
+        /// <para>
+        /// The municipality clause FAILS CLOSED. When no accessor is present at all — migrations, tooling, seeding — the
+        /// clause is skipped, which is what lets those paths work. But a context that HAS an accessor and cannot resolve a
+        /// municipality reads nothing rather than everything. It was the other way round once, and the comment here used to
+        /// describe that behaviour long after it changed.
+        /// </para>
         /// </summary>
         private void ApplyQueryFilters(ModelBuilder modelBuilder)
         {

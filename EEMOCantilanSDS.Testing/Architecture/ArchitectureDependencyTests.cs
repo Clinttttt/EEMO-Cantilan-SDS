@@ -36,6 +36,11 @@ public class ArchitectureDependencyTests
         Assert.DoesNotContain("EEMOCantilanSDS.Api", refs);
         Assert.DoesNotContain("EEMOCantilanSDS.Client", refs);
         Assert.DoesNotContain("Microsoft.EntityFrameworkCore", refs);
+
+        // Domain states the rules; it does not dispatch requests. MediatR belongs to Application's pipeline, and a domain
+        // that could publish through it would let entity code reach back into handlers.
+        Assert.DoesNotContain("MediatR", refs);
+        Assert.DoesNotContain("MediatR.Contracts", refs);
     }
 
     [Fact]

@@ -209,11 +209,31 @@ extensions with narrower responsibilities. `AddInfrastructureService` remains la
 payments, security and HTTP clients. Worth doing, but it is a reshuffle of registrations with no test that can prove it
 beyond "the application still starts", so it wants its own session and a careful read of ordering.
 
-### 10. Strengthen the architecture tests — NOT STARTED
+### 10. Strengthen the architecture tests — PARTLY DONE
 
-Assert: Domain free of EF/Identity/MediatR; Application free of EF and ASP.NET; no API-client interfaces in Application; no
-HTTP status codes in Domain; cross-tenant services explicitly named; API policy and Application authorization share one
-authorizer. Keep the existing financial, Cantilan-unchanged and tenancy regression tests.
+DONE:
+
+- **`TenantFilterCoverageTests`** — every tenant-owned entity is filtered BY MUNICIPALITY, no tenant-owned type hides under
+  a non-tenant-owned TPH root (a hole the per-root attachment cannot see), and the model really is largely tenant-owned so
+  the checks cannot pass vacuously. Written first as "has a filter" and it PASSED with a tenant-owned entity deliberately
+  excluded — a soft-deletable entity always has a filter, so the filter has to be READ, not counted. That mistake is worth
+  remembering: it is the difference between a test and the appearance of one.
+- **Domain free of MediatR** added to the existing dependency test; Domain has zero MediatR/EF usings and references
+  neither.
+- **Application free of ASP.NET Identity** and **of AutoMapper** (earlier commits).
+- A third stale tenancy comment corrected, on `ApplyQueryFilters`, which still described the filter as "a no-op while
+  CurrentMunicipalityId is empty".
+
+STILL TO DO, and each is blocked by an unfinished item rather than by effort:
+
+- **Domain free of Identity** — needs item 3's harder half (Domain still hashes in eight places).
+- **No HTTP status codes in Domain** — needs item 4 (`Result<T>` carries them).
+- **Application free of EF** — needs item 5 (`IAppDbContext` exposes `DbSet`).
+- **No API-client interfaces in Application** — needs item 6 (the Contracts project).
+- **Cross-tenant services explicitly named** — the `IgnoreQueryFilters()` residual from item 1.
+- **API policy and Application authorization share one authorizer** — unified behind `PlatformOperatorPolicy` in `8d58fc9`,
+  but asserting it structurally means reading an authorization-policy lambda. Judged too brittle to be worth it; the
+  behavioural tests in `PlatformOperatorGuardTests` cover the rule itself.
 
 ### 11. Reorganize Application into feature folders — NOT STARTED, DO LAST
 
