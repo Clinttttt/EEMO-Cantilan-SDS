@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Collectors.ResetCollectorPassword;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -38,7 +39,7 @@ public class ResetCollectorPasswordCommandHandlerTests
         var head = NewHead();
         var originalHash = collector.PasswordHash;
         var (collectorRepo, adminRepo, user, uow) = Mocks(collector, head);
-        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object);
+        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetCollectorPasswordCommand(collector.Id, "BrandNew123!", "HeadPass123!"), CancellationToken.None);
@@ -55,7 +56,7 @@ public class ResetCollectorPasswordCommandHandlerTests
         var head = NewHead();
         var originalHash = collector.PasswordHash;
         var (collectorRepo, adminRepo, user, uow) = Mocks(collector, head);
-        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object);
+        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetCollectorPasswordCommand(collector.Id, "BrandNew123!", "wrong"), CancellationToken.None);
@@ -71,7 +72,7 @@ public class ResetCollectorPasswordCommandHandlerTests
     {
         var head = NewHead();
         var (collectorRepo, adminRepo, user, uow) = Mocks(null, head);
-        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object);
+        var handler = new ResetCollectorPasswordCommandHandler(collectorRepo.Object, adminRepo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetCollectorPasswordCommand(Guid.NewGuid(), "BrandNew123!", "HeadPass123!"), CancellationToken.None);

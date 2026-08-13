@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -354,15 +355,15 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, email, new FixedClock(DateTime.UtcNow))
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, email, new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.True(result.IsSuccess);
         }
 
         using var verify = new AppDbContext(options);
         var admin = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
-        Assert.True(admin.VerifyPassword("BrandNew123"));
-        Assert.False(admin.VerifyPassword("OldPass123"));
+        Assert.True(admin.Accepts("BrandNew123"));
+        Assert.False(admin.Accepts("OldPass123"));
         Assert.Null(admin.PasswordResetTokenHash);          // single use
         Assert.Null(admin.RefreshToken);                    // existing sessions revoked
         Assert.False(admin.MustChangePassword);             // the user chose this password
@@ -378,14 +379,14 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.False(result.IsSuccess);
         }
 
         using var verify = new AppDbContext(options);
         var admin = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
-        Assert.True(admin.VerifyPassword("OldPass123"));
+        Assert.True(admin.Accepts("OldPass123"));
     }
 
     [Fact]
@@ -395,7 +396,7 @@ public class PasswordResetHandlerTests
         await SeedAdminWithResetTokenAsync(options, DateTime.UtcNow.AddMinutes(30));
 
         using var ctx = new AppDbContext(options);
-        var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
+        var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
             .Handle(new ResetPasswordByTokenCommand("some-other-token", "BrandNew123"), default);
 
         Assert.False(result.IsSuccess);
@@ -410,14 +411,14 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var first = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
+            var first = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.True(first.IsSuccess);
         }
 
         using (var ctx = new AppDbContext(options))
         {
-            var second = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
+            var second = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "Another456"), default);
             Assert.False(second.IsSuccess);
         }
@@ -431,7 +432,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow))
+            var result = await new ResetPasswordByTokenCommandHandler(ctx, new RecordingEmailSender(), new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new ResetPasswordByTokenCommand(RawToken, "BrandNew123"), default);
             Assert.False(result.IsSuccess);
         }
@@ -439,7 +440,7 @@ public class PasswordResetHandlerTests
         using var verify = new AppDbContext(options);
         var admin = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
         Assert.False(admin.IsActive);                        // a reset link can never re-enable an account
-        Assert.True(admin.VerifyPassword("OldPass123"));     // password untouched
+        Assert.True(admin.Accepts("OldPass123"));     // password untouched
         Assert.Null(admin.PasswordResetTokenHash);           // stale token consumed so it cannot be retried
     }
 

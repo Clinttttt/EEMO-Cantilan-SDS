@@ -45,14 +45,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
 
 
-        public void ResetPassword(string newPassword)
-        {
-            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
-            FailedAttempts = 0;
-            LockedUntil = null;
-            UpdatedAt = DateTime.UtcNow;
-            UpdatedBy = "Self-Service";
-        }
 
     }
 }

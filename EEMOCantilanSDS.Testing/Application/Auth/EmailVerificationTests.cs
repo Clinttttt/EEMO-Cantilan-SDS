@@ -62,7 +62,7 @@ public class EmailVerificationTests
         var saved = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
         Assert.True(saved.EmailVerified);
         // Confirming grants nothing else — the password is untouched and the account state is unchanged.
-        Assert.True(saved.VerifyPassword("OldPass123"));
+        Assert.True(saved.Accepts("OldPass123"));
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Security.Cryptography;
 using System.Text;
@@ -40,7 +41,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options))
             {
-                var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
+                var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                     .Handle(new SetAdminPasswordByTokenCommand("tok-123", "NewPass123"), default);
                 Assert.True(result.IsSuccess);
             }
@@ -51,13 +52,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.True(head.IsActive);
                 Assert.False(head.MustChangePassword);
                 Assert.Null(head.ActivationTokenHash);
-                Assert.True(head.VerifyPassword("NewPass123"));
+                Assert.True(head.Accepts("NewPass123"));
             }
 
             // Single-use: the same token no longer works.
             using (var ctx = new AppDbContext(options))
             {
-                var again = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
+                var again = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                     .Handle(new SetAdminPasswordByTokenCommand("tok-123", "Another123"), default);
                 Assert.False(again.IsSuccess);
             }
@@ -70,7 +71,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             await SeedInactiveHeadWithToken(options, "tok-123", DateTime.UtcNow.AddDays(7));
 
             using var ctx = new AppDbContext(options);
-            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
+            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new SetAdminPasswordByTokenCommand("wrong-token", "NewPass123"), default);
 
             Assert.False(result.IsSuccess);
@@ -83,7 +84,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             await SeedInactiveHeadWithToken(options, "tok-123", DateTime.UtcNow.AddDays(-1));
 
             using var ctx = new AppDbContext(options);
-            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow))
+            var result = await new SetAdminPasswordByTokenCommandHandler(ctx, new FixedClock(DateTime.UtcNow), new IdentityPasswordHasher())
                 .Handle(new SetAdminPasswordByTokenCommand("tok-123", "NewPass123"), default);
 
             Assert.False(result.IsSuccess);

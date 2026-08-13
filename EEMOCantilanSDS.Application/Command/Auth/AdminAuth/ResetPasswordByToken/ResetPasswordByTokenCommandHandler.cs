@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System;
 using System.Security.Cryptography;
@@ -20,7 +21,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToke
     /// re-enable a deactivated account. Every existing session is invalidated after the change.
     /// </para>
     /// </summary>
-    public class ResetPasswordByTokenCommandHandler(IAppDbContext context, IEmailSender emailSender, IClock clock)
+    public class ResetPasswordByTokenCommandHandler(IAppDbContext context, IEmailSender emailSender, IClock clock, IPasswordHasher passwordHasher)
         : IRequestHandler<ResetPasswordByTokenCommand, Result<bool>>
     {
         // One message for every failure mode: unknown token, expired token, already-used token, or a
@@ -55,7 +56,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToke
 
             // Domain hashes the password, consumes the token (single use), clears any lockout, and revokes
             // the refresh token so existing sessions are signed out.
-            user.CompletePasswordReset(request.NewPassword);
+            user.CompletePasswordReset(passwordHasher.Hash(request.NewPassword));
             await context.SaveChangesAsync(ct);
 
             // Security notification (OWASP): tell the owner their password changed, so an unauthorized reset

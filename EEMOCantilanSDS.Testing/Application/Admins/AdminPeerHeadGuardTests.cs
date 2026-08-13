@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 using EEMOCantilanSDS.Application.Common.Authorization;
@@ -120,7 +121,7 @@ public class AdminPeerHeadGuardTests
         user.SetupGet(c => c.Username).Returns("acting.head");
         var uow = new Mock<IUnitOfWork>();
 
-        var result = await new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object)
+        var result = await new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object, new IdentityPasswordHasher())
             .Handle(new ResetAdminPasswordCommand(target.Id, "BrandNew123!", "ActingPass1!"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);

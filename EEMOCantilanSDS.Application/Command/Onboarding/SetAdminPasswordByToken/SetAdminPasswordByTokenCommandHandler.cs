@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
 {
-    public class SetAdminPasswordByTokenCommandHandler(IAppDbContext context, IClock clock)
+    public class SetAdminPasswordByTokenCommandHandler(IAppDbContext context, IClock clock, IPasswordHasher passwordHasher)
         : IRequestHandler<SetAdminPasswordByTokenCommand, Result<bool>>
     {
         private const string GenericError = "This activation link is invalid or has expired.";
@@ -62,7 +63,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
             }
 
             // Domain hashes the password and clears the one-time token (single use).
-            user.CompleteActivation(request.NewPassword);
+            user.CompleteActivation(passwordHasher.Hash(request.NewPassword));
             await context.SaveChangesAsync(ct);
 
             return Result<bool>.Success(true);

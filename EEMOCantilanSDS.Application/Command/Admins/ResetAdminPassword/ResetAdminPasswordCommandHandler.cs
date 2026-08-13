@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -9,7 +10,8 @@ namespace EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
 public class ResetAdminPasswordCommandHandler(
     IAdminRepository adminRepo,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<ResetAdminPasswordCommand, Result<bool>>
+    IUnitOfWork uow,
+    IPasswordHasher passwordHasher) : IRequestHandler<ResetAdminPasswordCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ResetAdminPasswordCommand request, CancellationToken cancellationToken)
     {
@@ -17,7 +19,7 @@ public class ResetAdminPasswordCommandHandler(
             return Result<bool>.Unauthorized();
 
         var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
-        if (actor is null || !actor.VerifyPassword(request.ConfirmPassword))
+        if (actor is null || passwordHasher.Check(actor.PasswordHash, request.ConfirmPassword) == PasswordCheck.Failed)
             return Result<bool>.Failure("Your password is incorrect.", 400);
 
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
@@ -28,7 +30,7 @@ public class ResetAdminPasswordCommandHandler(
         if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
             return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
-        admin.ResetPassword(request.NewPassword, currentUser.Username ?? "Admin");
+        admin.ResetPassword(passwordHasher.Hash(request.NewPassword), currentUser.Username ?? "Admin");
 
         await uow.SaveChangesAsync(cancellationToken);
         return Result<bool>.Success(true);

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
@@ -7,7 +8,8 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
 
 public class VerifyMyPasswordQueryHandler(
     IAdminRepository adminRepo,
-    ICurrentUserService currentUser) : IRequestHandler<VerifyMyPasswordQuery, Result<bool>>
+    ICurrentUserService currentUser,
+    IPasswordHasher passwordHasher) : IRequestHandler<VerifyMyPasswordQuery, Result<bool>>
 {
     public async Task<Result<bool>> Handle(VerifyMyPasswordQuery request, CancellationToken cancellationToken)
     {
@@ -17,7 +19,7 @@ public class VerifyMyPasswordQueryHandler(
         var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
         var matched = actor is not null
             && !string.IsNullOrWhiteSpace(request.Password)
-            && actor.VerifyPassword(request.Password);
+            && passwordHasher.Check(actor.PasswordHash, request.Password) != PasswordCheck.Failed;
 
         // Success carries the match result; a wrong password is a valid "false", not an error.
         return Result<bool>.Success(matched);

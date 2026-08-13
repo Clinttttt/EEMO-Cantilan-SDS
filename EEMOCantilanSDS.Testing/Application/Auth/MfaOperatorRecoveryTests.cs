@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Linq;
 using System.Threading;
@@ -73,7 +74,7 @@ public class MfaOperatorRecoveryTests
     }
 
     private static ResetUserMfaCommandHandler Handler(AppDbContext ctx, Guid? actingId, Guid? municipalityId, string? role) =>
-        new(ctx, new FakeCurrentUser(actingId, municipalityId, role), NullLogger<ResetUserMfaCommandHandler>.Instance);
+        new(ctx, new FakeCurrentUser(actingId, municipalityId, role), NullLogger<ResetUserMfaCommandHandler>.Instance, new IdentityPasswordHasher());
 
     // ── Authorization ───────────────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ public class MfaOperatorRecoveryTests
         Assert.Null(head.MfaRecoveryCodeHashes);
         Assert.Null(head.MfaChallengeTokenHash);
         // Nothing else about the account may change — they sign in with their existing password.
-        Assert.True(head.VerifyPassword(TargetPassword));
+        Assert.True(head.Accepts(TargetPassword));
         Assert.True(head.IsActive);
         Assert.Equal(AdminRole.SuperAdmin, head.Role);
     }

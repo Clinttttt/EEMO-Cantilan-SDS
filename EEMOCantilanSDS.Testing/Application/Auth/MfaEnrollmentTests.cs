@@ -65,7 +65,7 @@ public class MfaEnrollmentTests
         var handlers = new MfaCommandHandlers(
             repo.Object, currentUser.Object, municipalityRepo.Object, new FakeProtector(),
             new TotpService(), new QrCodeGenerator(), uow.Object,
-            NullLogger<MfaCommandHandlers>.Instance);
+            NullLogger<MfaCommandHandlers>.Instance, new IdentityPasswordHasher());
 
         return (handlers, user, uow);
     }

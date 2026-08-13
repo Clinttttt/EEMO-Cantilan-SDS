@@ -41,7 +41,25 @@ RESIDUALS — not defects today, but the ways this can quietly regress:
   filter failed `AnUnresolvedTenantReadsNothing` and ONLY that one — the three resolved-tenant cases correctly still
   passed, since that defect opens only the unresolved path. The filter was then restored byte-identical.
 
-### 3. Move password hashing out of Domain — HALF DONE
+### 3. Move password hashing out of Domain — MOSTLY DONE (three `Create` factories left)
+
+Verification (six login/restore sites) went through `IPasswordHasher` in `19085b3`. The password-CHANGING half is now done
+too: `CompletePasswordReset`, `CompleteActivation` and both `ResetPassword` methods take an already-hashed value, and
+`BaseUser.VerifyPassword` — which constructed an Identity hasher inline — is deleted, with its five callers asking the port
+that the login handlers already use. `PayorUser.ResetPassword` was dead and went with it.
+
+The compiler could NOT catch the dangerous part of this change: four callers passed plaintext into parameters that now mean
+a hash, and both are strings. Storing plaintext as a hash would lock that account out permanently. Each was found and fixed
+by hand, and the risk is covered by test: reinstating the plaintext call failed
+`Reset_ValidToken_ChangesPassword_ConsumesToken_AndRevokesSessions`.
+
+Tests hash through the real implementation via `TestPasswords.Hash`/`.Accepts`, because a test that hashed differently from
+production would prove nothing about whether an account can sign in.
+
+STILL TO DO: `AdminUser.Create`, `CollectorUser.Create` and `PayorUser.Create` still hash inline (three sites). Deliberately
+left for its own commit — six production callers but ~102 test call sites, and the same silent plaintext-for-hash hazard
+applies to every one of them. Domain's `Microsoft.Extensions.Identity.Core` reference, and the "Domain free of Identity"
+architecture assertion, can only follow once those three are done.
 
 Shipped in the commit that added `IPasswordHasher` (Application port), `IdentityPasswordHasher` (Infrastructure), and
 migrated the SIX verification call sites: admin, collector and payor login, and the three restore handlers that
@@ -94,7 +112,7 @@ Remaining, in order:
   stated by the compiler. Moving the code into per-capability files is the mechanical follow-up that actually shrinks them —
   and the private arithmetic they share has to be moved deliberately, not duplicated.
 
-### 3. Move password hashing out of Domain — see above (HALF DONE)
+### 3. Move password hashing out of Domain — see above (MOSTLY DONE)
 
 ### 4. Move `Result<T>` and paging models out of Domain — NOT STARTED
 

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -28,7 +29,8 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
         ITotpService totp,
         IQrCodeGenerator qr,
         IUnitOfWork uow,
-        ILogger<MfaCommandHandlers> logger)
+        ILogger<MfaCommandHandlers> logger,
+        IPasswordHasher passwordHasher)
         : IRequestHandler<BeginMfaEnrollmentCommand, Result<MfaEnrollmentDto>>,
           IRequestHandler<ConfirmMfaEnrollmentCommand, Result<MfaRecoveryCodesDto>>,
           IRequestHandler<DisableMfaCommand, Result<bool>>,
@@ -174,7 +176,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             if (user is null)
                 return (null, Result<bool>.NotFound());
 
-            if (string.IsNullOrEmpty(currentPassword) || !user.VerifyPassword(currentPassword))
+            if (string.IsNullOrEmpty(currentPassword) || passwordHasher.Check(user.PasswordHash, currentPassword) == PasswordCheck.Failed)
                 return (null, Result<bool>.Failure(BadPassword, 400));
 
             return (user, null);

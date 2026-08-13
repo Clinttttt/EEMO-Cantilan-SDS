@@ -222,9 +222,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// because the user just chose this password themselves. Domain hashes the password and revokes the
         /// refresh token, so every existing session is signed out after a credential change.
         /// </summary>
-        public void CompletePasswordReset(string newPassword)
+        /// <param name="passwordHash">
+        /// The already-hashed password. Domain states what changes when a password is reset; it does not decide how a
+        /// password is hashed, which is an infrastructure choice — see <c>IPasswordHasher</c>.
+        /// </param>
+        public void CompletePasswordReset(string passwordHash)
         {
-            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            PasswordHash = passwordHash;
             MustChangePassword = false;
             FailedAttempts = 0;
             LockedUntil = null;
@@ -450,9 +454,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// one-time token and the must-change flag (they just chose their own password). Also clears any
         /// lockout so they can sign in immediately.
         /// </summary>
-        public void CompleteActivation(string newPassword)
+        /// <param name="passwordHash">The already-hashed password the user chose. See <c>IPasswordHasher</c>.</param>
+        public void CompleteActivation(string passwordHash)
         {
-            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            PasswordHash = passwordHash;
             IsActive = true;
             MustChangePassword = false;
             FailedAttempts = 0;
@@ -466,16 +471,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
 
         /// <summary>
-        /// Verifies a plaintext password against this user's stored hash. Used for sensitive-action
-        /// re-authentication (e.g. the Head confirming their identity before resetting a password).
+        /// Verifying a password is NOT a domain decision, so there is deliberately no method for it here.
+        ///
+        /// <para>
+        /// It used to live on this type, constructing an ASP.NET Identity hasher inline, which is how Domain came to depend
+        /// on an identity package. Callers ask <c>IPasswordHasher</c> instead — the same port the login handlers use, so
+        /// there is one answer to "is this the right password" rather than one per caller.
+        /// </para>
         /// </summary>
-        public bool VerifyPassword(string password)
-        {
-            if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(PasswordHash))
-                return false;
-
-            return new PasswordHasher<BaseUser>()
-                .VerifyHashedPassword(this, PasswordHash, password) != PasswordVerificationResult.Failed;
-        }
     }
 }

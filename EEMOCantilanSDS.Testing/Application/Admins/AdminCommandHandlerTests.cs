@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
 using EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
 using EEMOCantilanSDS.Application.Command.Admins.ToggleAdminStatus;
@@ -225,7 +226,7 @@ public class AdminCommandHandlerTests
         var originalHash = admin.PasswordHash;
         var (repo, user, uow) = Mocks(admin);
         user.SetupGet(c => c.UserId).Returns(admin.Id); // acting Head confirms with own password
-        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetAdminPasswordCommand(admin.Id, "BrandNew123!", "Secret123!"), CancellationToken.None);
@@ -243,7 +244,7 @@ public class AdminCommandHandlerTests
         var originalHash = admin.PasswordHash;
         var (repo, user, uow) = Mocks(admin);
         user.SetupGet(c => c.UserId).Returns(admin.Id);
-        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetAdminPasswordCommand(admin.Id, "BrandNew123!", "WrongPassword!"), CancellationToken.None);
@@ -266,7 +267,7 @@ public class AdminCommandHandlerTests
         user.SetupGet(c => c.Username).Returns("head");
         user.SetupGet(c => c.UserId).Returns(actor.Id);
         var uow = new Mock<IUnitOfWork>();
-        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object, new IdentityPasswordHasher());
 
         var result = await handler.Handle(
             new ResetAdminPasswordCommand(missingId, "BrandNew123!", "Secret123!"), CancellationToken.None);

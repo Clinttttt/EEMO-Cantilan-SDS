@@ -82,9 +82,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
 
         // Head-initiated password reset. Forces a change on next login and clears any lockout
         // so a forgotten-password account can immediately sign in with the temporary password.
-        public void ResetPassword(string newPassword, string updatedBy)
+        /// <param name="passwordHash">The already-hashed new password. See <c>IPasswordHasher</c>.</param>
+        public void ResetPassword(string passwordHash, string updatedBy)
         {
-            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            PasswordHash = passwordHash;
             MustChangePassword = true;
             FailedAttempts = 0;
             LockedUntil = null;

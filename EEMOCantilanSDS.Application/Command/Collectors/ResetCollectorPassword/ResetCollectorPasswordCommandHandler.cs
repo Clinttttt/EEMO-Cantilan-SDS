@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
@@ -9,7 +10,8 @@ public class ResetCollectorPasswordCommandHandler(
     ICollectorRepository collectorRepo,
     IAdminRepository adminRepo,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<ResetCollectorPasswordCommand, Result<bool>>
+    IUnitOfWork uow,
+    IPasswordHasher passwordHasher) : IRequestHandler<ResetCollectorPasswordCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ResetCollectorPasswordCommand request, CancellationToken cancellationToken)
     {
@@ -18,13 +20,13 @@ public class ResetCollectorPasswordCommandHandler(
             return Result<bool>.Unauthorized();
 
         var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
-        if (actor is null || !actor.VerifyPassword(request.ConfirmPassword))
+        if (actor is null || passwordHasher.Check(actor.PasswordHash, request.ConfirmPassword) == PasswordCheck.Failed)
             return Result<bool>.Failure("Your password is incorrect.", 400);
 
         var collector = await collectorRepo.GetByIdAsync(request.CollectorId, cancellationToken);
         if (collector is null) return Result<bool>.NotFound();
 
-        collector.ResetPassword(request.NewPassword, currentUser.Username ?? "Admin");
+        collector.ResetPassword(passwordHasher.Hash(request.NewPassword), currentUser.Username ?? "Admin");
 
         await uow.SaveChangesAsync(cancellationToken);
         return Result<bool>.Success(true);

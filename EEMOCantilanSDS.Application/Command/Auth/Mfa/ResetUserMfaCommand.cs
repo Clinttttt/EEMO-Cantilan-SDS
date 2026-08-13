@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,7 +31,8 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
     public class ResetUserMfaCommandHandler(
         IAppDbContext context,
         ICurrentUserService currentUser,
-        ILogger<ResetUserMfaCommandHandler> logger)
+        ILogger<ResetUserMfaCommandHandler> logger,
+    IPasswordHasher passwordHasher)
         : IRequestHandler<ResetUserMfaCommand, Result<bool>>
     {
         public async Task<Result<bool>> Handle(ResetUserMfaCommand request, CancellationToken ct)
@@ -50,7 +52,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             if (operatorAccount is null)
                 return Result<bool>.Unauthorized();
 
-            if (string.IsNullOrEmpty(request.OperatorPassword) || !operatorAccount.VerifyPassword(request.OperatorPassword))
+            if (string.IsNullOrEmpty(request.OperatorPassword) || passwordHasher.Check(operatorAccount.PasswordHash, request.OperatorPassword) == PasswordCheck.Failed)
                 return Result<bool>.Failure("Your password is incorrect.", 400);
 
             // Reaching into another municipality is a PLATFORM-OPERATOR power. A dedicated operator account
