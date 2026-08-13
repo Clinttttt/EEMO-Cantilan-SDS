@@ -271,10 +271,13 @@
     color: var(--red);
 }
 
+/* Neutral, like the sibling panel's: the office is told the position, not congratulated in green. Colour is
+   reserved for warnings and errors. This rule is a duplicate of the one in TwoFactorPanel.razor.css because
+   scoped CSS cannot be shared between components; both must stay in step. */
 .mfa-notice-ok {
-    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
-    background: var(--green-bg);
-    color: var(--green);
+    border: 1px solid var(--border);
+    background: var(--bg-icon);
+    color: var(--text);
 }
 
 /* ── Phones ── */

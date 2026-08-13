@@ -157,11 +157,27 @@ public class TwoFactorPanelTests : TestContext
     {
         // A government screen states the position; it does not congratulate the officer in green. Asserted because the
         // green success styling was reintroduced once already.
-        var css = File.ReadAllText(Path.Combine(RepoRoot(), "EEMOCantilanSDS.Client", "Components", "Pages", "Shared", "TwoFactorPanel.razor.css"));
-        var notice = css[css.IndexOf(".mfa-notice-ok", StringComparison.Ordinal)..];
-        notice = notice[..notice.IndexOf('}')];
+        //
+        // Checks EVERY component stylesheet, not just this panel's. Written against one file first, it passed while a
+        // second copy of .mfa-notice-ok — in the recovery panel, which cannot share scoped CSS — was still green. The same
+        // mistake as asserting a query filter merely exists: the assertion has to cover everywhere the rule is written.
+        var componentCss = Directory.EnumerateFiles(
+            Path.Combine(RepoRoot(), "EEMOCantilanSDS.Client", "Components"), "*.css", SearchOption.AllDirectories);
 
-        Assert.DoesNotContain("--green", notice);
+        var green = new List<string>();
+        foreach (var file in componentCss)
+        {
+            var css = File.ReadAllText(file);
+            var at = css.IndexOf(".mfa-notice-ok", StringComparison.Ordinal);
+            if (at < 0) continue;
+
+            var rule = css[at..];
+            rule = rule[..rule.IndexOf('}')];
+            if (rule.Contains("--green", StringComparison.Ordinal))
+                green.Add(Path.GetFileName(file));
+        }
+
+        Assert.True(green.Count == 0, "These stylesheets still colour the success notice green: " + string.Join(", ", green));
     }
 
     /// <summary>Walks up from the test assembly to the repository root, so the CSS assertion works from any bin path.</summary>
