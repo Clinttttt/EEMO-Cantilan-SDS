@@ -53,6 +53,15 @@ public class ArchitectureDependencyTests
     }
 
     [Fact]
+    public void Application_DoesNotDependOn_AutoMapper()
+    {
+        // Removed rather than tidied: the profile was empty and there was not one IMapper, .Map<> or CreateMap call in the
+        // whole solution, so it was a package, a registration and a class that did nothing. Asserted because a dead mapper
+        // is the kind of thing that gets re-added "for consistency" and then quietly becomes load-bearing.
+        Assert.DoesNotContain("AutoMapper", ReferencedNames(Application));
+    }
+
+    [Fact]
     public void Application_DoesNotDependOn_Infrastructure_Or_Api()
     {
         var refs = ReferencedNames(Application);

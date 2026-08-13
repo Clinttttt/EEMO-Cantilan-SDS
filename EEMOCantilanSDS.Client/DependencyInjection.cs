@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Client.Extensions;
 using EEMOCantilanSDS.Client.Securities;
 using EEMOCantilanSDS.HttpClients.ApiClients;
@@ -26,7 +26,7 @@ namespace EEMOCantilanSDS.Client
                     options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB (was 32 KB default)
                 });
 
-            AddPersistence(service, configuration);
+            AddApiHttpClients(service, configuration);
 
             service.AddHttpContextAccessor();
 
@@ -91,7 +91,14 @@ namespace EEMOCantilanSDS.Client
             return service;
         }
 
-        public static IServiceCollection AddPersistence(this IServiceCollection service, IConfiguration configuration)
+        /// <summary>
+        /// Registers the typed HTTP clients the Blazor app talks to the API through.
+        /// </summary>
+        /// <remarks>
+        /// Was called AddPersistence, which described the opposite of what it does: the portal has no database and stores
+        /// nothing. Everything here is an outbound API client.
+        /// </remarks>
+        public static IServiceCollection AddApiHttpClients(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddHttpClient<IAuthApiClient, AuthApiClient>("AuthClient", client =>
             {

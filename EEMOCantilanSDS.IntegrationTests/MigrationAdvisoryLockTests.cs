@@ -26,9 +26,10 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class MigrationAdvisoryLockTests(PostgresFixture db)
 {
-    // The key Program.cs uses. Kept here so a reader sees the real value; the tests below use offsets of it so
-    // that they cannot interfere with each other or with anything else on the server.
-    private const long MigrationLockKey = 8_472_113_509_001L;
+    // The real key the application migrates under, referenced rather than transcribed: a copy that drifted would leave
+    // these tests passing against a lock nothing else takes. The tests use offsets of it so that they cannot interfere
+    // with each other, or with an application actually starting up against the same server.
+    private const long MigrationLockKey = EEMOCantilanSDS.Infrastructure.Persistence.DatabaseStartup.MigrationLockKey;
 
     [SkippableFact]
     public async Task OnlyOneSessionCanHoldTheMigrationLock()

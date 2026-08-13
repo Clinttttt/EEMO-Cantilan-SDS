@@ -182,12 +182,32 @@ STILL TO DO, in the order the review prioritised:
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments. They are mechanical
   and belong with the interceptor; converting them would be a large diff with nothing to assert.
 
-### 9. Split API / Infrastructure / Client registrations — NOT STARTED
+### 9. Split API / Infrastructure / Client registrations — PARTLY DONE
 
-Also found while reading: `Application.DependencyInjection` takes configuration it never uses; AutoMapper is registered
-with an empty profile and no `IMapper` usage was found (verify, then remove); the Client's HTTP registration is misnamed
-`AddPersistence`; migration, seeding and default-tenant initialisation should leave `Program.cs` for an explicit startup
-initializer.
+DONE, and each claim verified against the code first:
+
+- **AutoMapper removed entirely.** The profile was empty and there was not one `IMapper`, `.Map<>` or `CreateMap` call in the
+  solution: a package, a registration and a class that did nothing. Package reference gone; an architecture test asserts
+  Application does not reference it.
+- **`AddApplicationService` no longer takes `IConfiguration`.** It never read it, and the MediatR lambda parameter shadowed
+  it with the same name, so the file looked as though it configured MediatR from app settings.
+- **The Client's `AddPersistence` is now `AddApiHttpClients`.** It registers outbound HTTP clients; the portal has no
+  database and stores nothing.
+- **Startup work moved out of `Program.cs` into `DatabaseStartup` (Infrastructure).** 184 lines down to 74. Migration
+  locking, seeding and default-tenant resolution are persistence concerns and now sit with persistence, and the
+  advisory-lock key is a public constant that `MigrationAdvisoryLockTests` REFERENCES instead of transcribing.
+- **Two false comments corrected.** Both claimed that an unresolved default municipality leaves the tenant filter "a no-op"
+  and lets "token-less writes go unstamped". Neither has been true since the boundary was made to fail closed: token-less
+  reads return nothing and such writes are refused. One of them was an operator-facing WARNING, so it would have pointed
+  ops the wrong way during exactly the incident it exists to describe.
+
+One deliberate behaviour difference: startup logs now use the application's default logger category rather than
+`ILogger<Program>`. Only affects log filtering by category.
+
+STILL TO DO: the review's larger ask of splitting `AddApi`/`AddInfrastructureService`/`ConfigureServices` into layer-owned
+extensions with narrower responsibilities. `AddInfrastructureService` remains large and mixes persistence, caching,
+payments, security and HTTP clients. Worth doing, but it is a reshuffle of registrations with no test that can prove it
+beyond "the application still starts", so it wants its own session and a careful read of ordering.
 
 ### 10. Strengthen the architecture tests — NOT STARTED
 
