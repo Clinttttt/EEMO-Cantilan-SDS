@@ -50,7 +50,10 @@
 
                 <div class="form-group">
                     <label class="form-label">Secret Key</label>
-                    <input class="form-input" type="password" autocomplete="off" placeholder="sk_live_…" @bind="_paySecret" @bind:event="oninput" />
+                    <div class="pw-reveal-wrap">
+                        <input class="form-input" type="@(_showSecret ? "text" : "password")" autocomplete="off" placeholder="sk_live_…" @bind="_paySecret" @bind:event="oninput" />
+                        <PasswordRevealButton Shown="_showSecret" ShownChanged="v => _showSecret = v" />
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Public Key <span class="op-opt">(optional)</span></label>
@@ -58,7 +61,10 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Webhook Secret <span class="op-opt">(optional)</span></label>
-                    <input class="form-input" type="password" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
+                    <div class="pw-reveal-wrap">
+                        <input class="form-input" type="@(_showWebhook ? "text" : "password")" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
+                        <PasswordRevealButton Shown="_showWebhook" ShownChanged="v => _showWebhook = v" />
+                    </div>
                 </div>
 
                 @if (!string.IsNullOrEmpty(_payError))
@@ -353,9 +359,12 @@
                     <p class="op-pw-note">Enter your password to change the online-payment account.</p>
                     <div class="form-group">
                         <label class="form-label">Password</label>
-                        <input class="form-input" type="password" autocomplete="current-password"
-                               @bind="_pwInput" @bind:event="oninput"
-                               @onkeydown="@(e => { if (e.Key == "Enter") { _ = ConfirmConfigureAsync(); } })" />
+                        <div class="pw-reveal-wrap">
+                            <input class="form-input" type="@(_showPwInput ? "text" : "password")" autocomplete="current-password"
+                                   @bind="_pwInput" @bind:event="oninput"
+                                   @onkeydown="@(e => { if (e.Key == "Enter") { _ = ConfirmConfigureAsync(); } })" />
+                            <PasswordRevealButton Shown="_showPwInput" ShownChanged="v => _showPwInput = v" />
+                        </div>
                     </div>
                     @if (!string.IsNullOrEmpty(_pwError))
                     {
@@ -393,8 +402,10 @@
     private bool _showSetup;
     private bool _showHelp;
     private string _paySecret = string.Empty;
+    private bool _showSecret;
     private string _payPublic = string.Empty;
     private string _payWebhook = string.Empty;
+    private bool _showWebhook;
     private bool _paySaving;
     private string? _payMsg;
     private string? _payError;
@@ -402,6 +413,7 @@
     // ── Re-authentication before configuring the payment account ────────────────
     private bool _showPwConfirm;
     private string _pwInput = string.Empty;
+    private bool _showPwInput;
     private bool _pwVerifying;
     private string? _pwError;
 

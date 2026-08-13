@@ -30,7 +30,10 @@
 
         <label class="pp-field">
             <span class="pp-field-label">Create Password</span>
-            <input class="pp-input" type="password" placeholder="At least 8 characters" @bind="Password" />
+            <div class="pw-reveal-wrap">
+                <input class="pp-input" type="@(ShowPassword ? "text" : "password")" placeholder="At least 8 characters" @bind="Password" />
+                <PasswordRevealButton Shown="ShowPassword" ShownChanged="v => ShowPassword = v" />
+            </div>
         </label>
 
         @if (!string.IsNullOrEmpty(Error))
@@ -58,6 +61,7 @@
     private string Code = string.Empty;
     private string Contact = string.Empty;
     private string Password = string.Empty;
+    private bool ShowPassword;
     private string? Error;
     private bool Busy;
 

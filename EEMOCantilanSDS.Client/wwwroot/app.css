@@ -2073,3 +2073,25 @@ a.topbar-admin.account-chip {
         display: none;
     }
 }
+
+
+/* ── Show/hide for masked password fields ─────────────────────────────────────────────────────────
+   The sign-in pages already had .form-input-wrap for this. The dialogs elsewhere — two-factor,
+   restore prompts, payment credentials — use their own input classes (.mfa-input, .bk-input), so
+   they need a positioned wrapper of their own rather than borrowing a form-layout class that also
+   brings an icon slot. Only positioning lives here; the button itself is .form-eye-btn above.
+
+   The padding keeps the text clear of the eye: an input whose value runs under the button is worse
+   than no reveal at all, because the end of a long password becomes unreadable either way. */
+.pw-reveal-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+    /* Only the padding. Width is left to the field's own class on purpose: these wrappers sit in both
+       block contexts (full-width inputs) and flex rows with fixed-width inputs, and forcing a width
+       would collapse one or stretch the other. */
+    .pw-reveal-wrap > input {
+        padding-right: 38px;
+    }

@@ -688,35 +688,14 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="reset-confirm">Confirm With Your Password <span class="req">*</span></label>
-                        @* Same show/hide treatment as the sign-in page, using the shared .form-input-wrap / .form-eye-btn
-                           pair: an officer typing a password they cannot see, into a dialog that refuses on mismatch, has
-                           no way to tell a typo from a wrong password. tabindex="-1" keeps the eye out of the tab order so
-                           Tab still runs label to field to button. *@
+                        @* Same show/hide treatment as the sign-in page. The button lives in PasswordRevealButton so the
+                           icons and their labels are written once for every password field in the portal. *@
                         <div class="form-input-wrap">
                             <input id="reset-confirm" class="form-input form-input-password"
                                    type="@(ShowResetConfirm ? "text" : "password")"
                                    placeholder="Your own account password"
                                    @bind="ResetConfirmValue" @bind:event="oninput" autocomplete="current-password" />
-                            <button type="button" class="form-eye-btn" tabindex="-1"
-                                    title="@(ShowResetConfirm ? "Hide password" : "Show password")"
-                                    aria-label="@(ShowResetConfirm ? "Hide password" : "Show password")"
-                                    @onclick="() => ShowResetConfirm = !ShowResetConfirm"
-                                    @onclick:stopPropagation="true">
-                                @if (ShowResetConfirm)
-                                {
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                                        <line x1="1" y1="1" x2="23" y2="23" />
-                                    </svg>
-                                }
-                                else
-                                {
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                        <circle cx="12" cy="12" r="3" />
-                                    </svg>
-                                }
-                            </button>
+                            <PasswordRevealButton Shown="ShowResetConfirm" ShownChanged="v => ShowResetConfirm = v" />
                         </div>
                     </div>
                     @if (!string.IsNullOrEmpty(ResetError))

@@ -124,7 +124,10 @@
                     </div>
                     <div class="bk-field">
                         <label class="bk-label" for="bk-mine-pass">Step 3 · Confirm your admin password</label>
-                        <input id="bk-mine-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_minePassword" @bind:event="oninput" disabled="@_mineRestoring" />
+                        <div class="pw-reveal-wrap">
+                            <input id="bk-mine-pass" class="bk-input" type="@(_showMinePassword ? "text" : "password")" autocomplete="off" placeholder="Password" @bind="_minePassword" @bind:event="oninput" disabled="@_mineRestoring" />
+                            <PasswordRevealButton Shown="_showMinePassword" ShownChanged="v => _showMinePassword = v" />
+                        </div>
                     </div>
 
                     @if (_mineError is not null)
@@ -719,7 +722,10 @@
                     </div>
                     <div class="bk-field">
                         <label class="bk-label" for="bk-br-pass">Confirm your admin password</label>
-                        <input id="bk-br-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_backupPassword" @bind:event="oninput" disabled="@_backupRestoring" />
+                        <div class="pw-reveal-wrap">
+                            <input id="bk-br-pass" class="bk-input" type="@(_showBackupPassword ? "text" : "password")" autocomplete="off" placeholder="Password" @bind="_backupPassword" @bind:event="oninput" disabled="@_backupRestoring" />
+                            <PasswordRevealButton Shown="_showBackupPassword" ShownChanged="v => _showBackupPassword = v" />
+                        </div>
                     </div>
                     @if (_backupRestoreError is not null)
                     {
@@ -777,9 +783,12 @@
 
                     <div class="bk-field">
                         <label class="bk-label" for="bk-restore-pass">Confirm your admin password</label>
-                        <input id="bk-restore-pass" class="bk-input" type="password" autocomplete="off"
-                               placeholder="Password" @bind="_restorePassword" @bind:event="oninput"
-                               disabled="@_restoreSubmitting" />
+                        <div class="pw-reveal-wrap">
+                            <input id="bk-restore-pass" class="bk-input" type="@(_showRestorePassword ? "text" : "password")" autocomplete="off"
+                                   placeholder="Password" @bind="_restorePassword" @bind:event="oninput"
+                                   disabled="@_restoreSubmitting" />
+                            <PasswordRevealButton Shown="_showRestorePassword" ShownChanged="v => _showRestorePassword = v" />
+                        </div>
                     </div>
 
                     @if (_restoreError is not null)
@@ -967,6 +976,7 @@
     private string? _mineError;
     private string _minePhrase = string.Empty;
     private string _minePassword = string.Empty;
+    private bool _showMinePassword;
     private byte[]? _mineUpload;
     private string? _mineUploadName;
     private const long MineMaxUpload = 40L * 1024 * 1024;
@@ -983,6 +993,7 @@
     private TenantBackupInfo? _restoreBackup;   // the backup chosen for restore (drives the confirm modal)
     private string _backupPhrase = string.Empty;
     private string _backupPassword = string.Empty;
+    private bool _showBackupPassword;
     private bool _backupRestoring;
     private string? _backupRestoreError;
 
@@ -1110,6 +1121,7 @@
     private bool _showRestoreConfirm;
     private string _restorePhrase = string.Empty;
     private string _restorePassword = string.Empty;
+    private bool _showRestorePassword;
     private bool _restoreSubmitting;
     private string? _restoreError;
 

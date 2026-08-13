@@ -128,9 +128,15 @@
                             : "Confirm with your password. Your existing recovery codes will stop working.")
                     </div>
                     <div class="mfa-inline">
-                        <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
-                               placeholder="Current password"
-                               @key="@($"pw-{_formNonce}")" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                        <div class="pw-reveal-wrap">
+                            @* The show flag is deliberately NOT part of @key. This input is uncontrolled (no value binding,
+                               so the browser owns the text); recreating it on reveal would clear whatever had been typed.
+                               Patching the type attribute in place keeps the value. *@
+                            <input class="mfa-input mfa-input-wide" type="@(_showPassword ? "text" : "password")" autocomplete="current-password"
+                                   placeholder="Current password"
+                                   @key="@($"pw-{_formNonce}")" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                            <PasswordRevealButton Shown="_showPassword" ShownChanged="v => _showPassword = v" />
+                        </div>
                         @if (_mode == Mode.Disable)
                         {
                             <input class="mfa-input" inputmode="numeric" autocomplete="one-time-code" maxlength="11"
@@ -238,6 +244,9 @@
     private bool _busy;
     private string? _error;
     private string? _ok;
+
+    /// <summary>Whether the confirm-password field is revealed. Reset with the rest of the prompt state.</summary>
+    private bool _showPassword;
 
     protected override async Task OnInitializedAsync() => await LoadStatusAsync();
 
@@ -452,6 +461,7 @@
         _password = string.Empty;
         _code = string.Empty;
         _error = null;
+        _showPassword = false;      // a dismissed prompt must not leave the next one revealed
         _formNonce++;               // clears the uncontrolled inputs in the DOM
     }
 }

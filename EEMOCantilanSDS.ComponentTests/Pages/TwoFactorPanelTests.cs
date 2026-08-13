@@ -153,6 +153,31 @@ public class TwoFactorPanelTests : TestContext
     }
 
     [Fact]
+    public void TheConfirmPasswordFieldCanBeRevealed()
+    {
+        // The office types a password into this prompt to turn two-factor off or reissue recovery codes, and the prompt
+        // reports only that it was incorrect — so typing blind gives no way to tell a typo from a wrong password, while the
+        // attempts count towards a lockout. The reveal must also NOT clear what was typed, which is why the show flag is
+        // kept out of the input's @key: this field is uncontrolled, so recreating it would lose the text.
+        var (cut, _) = RenderPanel(new MfaStatusDto(Enabled: true, PendingEnrollment: false, EnrolledAt: DateTime.UtcNow, RecoveryCodesRemaining: 8));
+
+        cut.WaitForAssertion(() => Assert.Contains("Turn off", cut.Markup), RenderTimeout);
+        cut.Find("button.mfa-btn-danger").Click();
+
+        var field = cut.WaitForElement("input.mfa-input-wide", RenderTimeout);
+        Assert.Equal("password", field.GetAttribute("type"));
+
+        cut.Find("button.form-eye-btn").Click();
+
+        Assert.Equal("text", cut.Find("input.mfa-input-wide").GetAttribute("type"));
+
+        // Not asserted here, and deliberately so rather than faked: that revealing PRESERVES the typed password. This input
+        // is uncontrolled, so the browser owns its text and bUnit's document never receives it — an assertion on the value
+        // passes or fails for reasons unrelated to the behaviour. The guard is that the reveal flag is kept out of the
+        // input's @key, explained at the markup; including it would recreate the element and lose the password.
+    }
+
+    [Fact]
     public void TheOnNoticeIsNotColourCoded()
     {
         // A government screen states the position; it does not congratulate the officer in green. Asserted because the

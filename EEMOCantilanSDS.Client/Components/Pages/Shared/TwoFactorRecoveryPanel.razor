@@ -97,10 +97,15 @@
                         Confirm with <strong>your</strong> password.
                     </div>
                     <div class="mfa-inline">
-                        <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
-                               placeholder="Your password"
-                               @key="@($"op-pw-{_formNonce}")"
-                               @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                        <div class="pw-reveal-wrap">
+                            @* Show flag intentionally absent from @key: this input is uncontrolled, so recreating it on
+                               reveal would clear what was typed. Patching the type in place keeps the value. *@
+                            <input class="mfa-input mfa-input-wide" type="@(_showPassword ? "text" : "password")" autocomplete="current-password"
+                                   placeholder="Your password"
+                                   @key="@($"op-pw-{_formNonce}")"
+                                   @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                            <PasswordRevealButton Shown="_showPassword" ShownChanged="v => _showPassword = v" />
+                        </div>
                         <button class="mfa-btn mfa-btn-danger" type="button" disabled="@_busy" @onclick="ConfirmResetAsync">
                             @(_busy ? "Clearing…" : "Clear two-factor")
                         </button>
@@ -133,6 +138,9 @@
     private bool _busy;
     private string? _error;
     private string? _ok;
+
+    /// <summary>Whether the operator's password field is revealed. Cleared whenever the form is reset or a target changes.</summary>
+    private bool _showPassword;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -185,6 +193,7 @@
     {
         _selected = account;
         _password = string.Empty;
+        _showPassword = false;   // never carry a revealed field from one account to the next
         _formNonce++;
         _error = null;
         _ok = null;
@@ -194,6 +203,7 @@
     {
         _selected = null;
         _password = string.Empty;
+        _showPassword = false;   // never carry a revealed field from one account to the next
         _formNonce++;
         _error = null;
     }
