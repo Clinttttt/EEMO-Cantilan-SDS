@@ -1,0 +1,151 @@
+name: Drop a rehearsal database
+
+# Removes a scratch database left behind by a restore rehearsal.
+#
+# WHY THIS EXISTS
+#   restore.yml can rehearse into a scratch database, which is what makes the recovery procedure
+#   practisable — it had never been run once because there was no way to try it without dropping the live
+#   database. But the rehearsal leaves the copy behind, and its own summary just tells the operator to drop
+#   it. Nobody could: the database password lives in this repository's secrets and nowhere else, which is
+#   correct, so "drop it when done" meant "ask whoever holds the password". A drill you cannot clean up
+#   after is a drill people stop running.
+#
+# WHY IT IS A SEPARATE FILE
+#   restore.yml is the workflow the office reaches for on its worst day. Adding a DROP DATABASE path to it
+#   would put a destructive branch inside the recovery tool, one input away from the production name. This
+#   cannot touch restore.yml's behaviour at all.
+#
+# THE ONE RULE
+#   It refuses to drop the production database, checked against the secret rather than against a hardcoded
+#   name. Everything else about this workflow is convenience; that check is the whole safety argument.
+
+on:
+  workflow_dispatch:
+    inputs:
+      database:
+        description: 'The rehearsal database to drop (e.g. stalltrack_drill). The production database is refused.'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write          # Azure OIDC, for the temporary firewall rule
+
+concurrency:
+  group: database-restore  # shares the restore group: never run while a restore is in progress
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: stalltrack-prod-rg
+
+jobs:
+  drop:
+    name: Drop the rehearsal copy
+    runs-on: ubuntu-latest
+    environment: production   # OIDC subject match, same as backup/restore/deploy
+
+    steps:
+      - name: Refuse to drop the production database
+        env:
+          PRODUCTION_DB: ${{ secrets.PG_DATABASE }}
+          REQUESTED: ${{ inputs.database }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${REQUESTED// /}" ]; then
+            echo "::error title=No database named::Give the name of the rehearsal database to drop."
+            exit 1
+          fi
+
+          if [ "$REQUESTED" = "$PRODUCTION_DB" ]; then
+            echo "::error title=Refused::That is the production database. This workflow only removes rehearsal copies."
+            exit 1
+          fi
+
+          # A rehearsal copy is created by restore.yml with a name the operator chose. Requiring a marker in
+          # the name keeps a typo from destroying some other database that happens to live on this server.
+          case "$REQUESTED" in
+            *drill*|*rehears*|*test*) ;;
+            *)
+              echo "::error title=Refused::'$REQUESTED' does not look like a rehearsal copy (expected 'drill', 'rehears' or 'test' in the name)."
+              exit 1
+              ;;
+          esac
+
+          echo "Will drop rehearsal database: $REQUESTED"
+
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+
+      - name: Detect runner public IP
+        id: ip
+        run: echo "ip=$(curl -fsSL https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Open a temporary firewall rule for this runner
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghdrop-${GITHUB_RUN_ID}" \
+            --start-ip-address "${{ steps.ip.outputs.ip }}" \
+            --end-ip-address "${{ steps.ip.outputs.ip }}"
+
+      - name: Drop it
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: postgres          # cannot drop the database you are connected to
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+          TARGET: ${{ inputs.database }}
+          PRODUCTION_DB: ${{ secrets.PG_DATABASE }}
+        run: |
+          set -euo pipefail
+
+          # Checked again here, against the secret, immediately before the destructive statement. The first
+          # check could be passed and the input changed by a later edit of this file; this one cannot.
+          if [ "$TARGET" = "$PRODUCTION_DB" ]; then
+            echo "::error title=Refused::Target is the production database."
+            exit 1
+          fi
+
+          EXISTS=$(psql -t -A -c "SELECT count(*) FROM pg_database WHERE datname = '${TARGET}';")
+          if [ "$EXISTS" = "0" ]; then
+            echo "No database named ${TARGET} exists. Nothing to do."
+            echo "\`${TARGET}\` did not exist, so nothing was dropped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # WITH (FORCE) disconnects whatever is still attached; without it one forgotten session blocks the
+          # drop and the rehearsal copy stays for ever.
+          psql -c "DROP DATABASE \"${TARGET}\" WITH (FORCE);"
+          echo "Dropped ${TARGET}."
+
+          # Proven gone, and the production database proven still present — the reassurance that matters after
+          # running a workflow whose name contains the word DROP.
+          psql -c "SELECT datname FROM pg_database WHERE datname IN ('${TARGET}', '${PRODUCTION_DB}') ORDER BY datname;"
+
+          {
+            echo "### Rehearsal copy removed"
+            echo ""
+            echo "Dropped \`${TARGET}\`. The production database was not touched."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the temporary firewall rule
+        if: always()
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghdrop-${GITHUB_RUN_ID}" \
+            --yes || true
