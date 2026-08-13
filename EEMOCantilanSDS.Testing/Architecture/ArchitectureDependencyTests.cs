@@ -50,6 +50,27 @@ public class ArchitectureDependencyTests
         Assert.DoesNotContain("Microsoft.AspNetCore.Identity", refs);
     }
 
+
+    [Fact]
+    public void Domain_KnowsNothingAboutHttp()
+    {
+        // Result<T> used to live in Domain carrying status codes and names like Unauthorized, Conflict and NoContent —
+        // facts about a web API, not about a market, a stall or a receipt. It moved to Application, along with
+        // CursorPagedResult<T>, which is a paging contract rather than a domain concept.
+        //
+        // Asserted by looking for the types rather than for the numbers: a domain type NAMED after an HTTP outcome is the
+        // shape of the mistake. Domain never referenced either of these, so nothing in the rules relied on them.
+        var domainTypes = Domain.GetTypes().Select(t => t.FullName ?? t.Name).ToList();
+
+        Assert.DoesNotContain(domainTypes, n => n.Contains("Domain.Common.Result", StringComparison.Ordinal));
+        Assert.DoesNotContain(domainTypes, n => n.Contains("CursorPagedResult", StringComparison.Ordinal));
+
+        // And they really do exist where they now belong, so this cannot pass by their having been deleted outright.
+        var applicationTypes = Application.GetTypes().Select(t => t.FullName ?? t.Name).ToList();
+        Assert.Contains(applicationTypes, n => n.Contains("Application.Common.Result", StringComparison.Ordinal));
+        Assert.Contains(applicationTypes, n => n.Contains("Application.Common.CursorPagedResult", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Application_DoesNotDependOn_AspNetIdentity()
     {

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
         <TargetFrameworks>net10.0-android</TargetFrameworks>
@@ -104,4 +104,11 @@
       <Folder Include="wwwroot\images\" />
     </ItemGroup>
 
+
+  <ItemGroup>
+    <!-- Result<T> and CursorPagedResult<T> moved from Domain.Common to Application.Common. Declared globally rather
+         than adding one using line to several hundred files: the move is about where the types BELONG, and a diff that
+         touched every handler would have buried that. -->
+    <Using Include="EEMOCantilanSDS.Application.Common" />
+  </ItemGroup>
 </Project>

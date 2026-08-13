@@ -128,11 +128,22 @@ Remaining, in order:
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
-### 4. Move `Result<T>` and paging models out of Domain — NOT STARTED
+### 4. Move `Result<T>` and paging models out of Domain — MOVED (error categories still to do)
 
-`Domain/Common/Result.cs` carries HTTP status codes and `Unauthorized`/`Forbidden`/`NoContent`; Domain does not otherwise
-use the type. `CursorPagedResult<T>` is an application/API contract too. Move to Application with error categories and let
-API translate to HTTP.
+`Result<T>` and `CursorPagedResult<T>` now live in `Application.Common`. Domain never referenced either, so no rule changed;
+what changed is that the domain no longer carries a type named after HTTP outcomes (`Unauthorized`, `Conflict`, `NoContent`)
+or a paging contract. An architecture test asserts both — that they are absent from Domain AND present in Application, so it
+cannot pass by their having been deleted.
+
+497 files use these types. Rather than add a using line to every one, each consumer project declares the namespace globally
+via `<Using Include="EEMOCantilanSDS.Application.Common" />`. The move is about where the types BELONG; a diff touching every
+handler would have buried that. Two accidental usings went with the move (`System.Xml.XPath` and a JS-interop static import
+that had no business in a result type).
+
+STILL TO DO — the half that changes behaviour: `Result<T>` continues to carry HTTP status codes, and the review asks for
+error CATEGORIES with the API translating them. That means changing every handler's failure paths and every controller's
+translation, and it alters the HTTP responses the portal reads, so it needs its own session with the API contract in view. It
+is a redesign, not a move, and bundling it here would have made a mechanical change unreviewable.
 
 ### 5. Replace `IAppDbContext` feature by feature — NOT STARTED
 
@@ -258,7 +269,8 @@ DONE:
 
 STILL TO DO, and each is blocked by an unfinished item rather than by effort:
 
-- **No HTTP status codes in Domain** — needs item 4 (`Result<T>` carries them).
+- **No HTTP status codes in Domain** — DONE. `Domain_KnowsNothingAboutHttp` asserts `Result<T>` and `CursorPagedResult<T>` are
+  absent from Domain AND present in Application, so it cannot pass by their having been deleted.
 - **Application free of EF** — needs item 5 (`IAppDbContext` exposes `DbSet`).
 - **No API-client interfaces in Application** — needs item 6 (the Contracts project).
 - **Cross-tenant services explicitly named** — the `IgnoreQueryFilters()` residual from item 1.

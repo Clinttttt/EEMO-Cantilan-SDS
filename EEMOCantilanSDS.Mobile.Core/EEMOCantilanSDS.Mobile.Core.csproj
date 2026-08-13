@@ -20,4 +20,11 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <!-- Result<T> and CursorPagedResult<T> moved from Domain.Common to Application.Common. Declared globally rather
+         than adding one using line to several hundred files: the move is about where the types BELONG, and a diff that
+         touched every handler would have buried that. -->
+    <Using Include="EEMOCantilanSDS.Application.Common" />
+  </ItemGroup>
 </Project>
