@@ -130,7 +130,8 @@ public class GetFinancialReportQueryHandlerTests
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
-            new EemoCacheOptions());
+            new EemoCacheOptions(),
+            new FixedClock(DateTime.UtcNow));
         return (handler, reports);
     }
 

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Reports;
@@ -23,7 +24,8 @@ public class GetFollowUpQueueQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
-    IUtilityBillRepository utilityBillRepository
+    IUtilityBillRepository utilityBillRepository,
+    IClock clock
 ) : IRequestHandler<GetFollowUpQueueQuery, Result<FollowUpQueueDto>>
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpQueueQuery request, CancellationToken ct)
@@ -61,7 +63,7 @@ public class GetFollowUpQueueQueryHandler(
         // The whole remaining balance is stated, not the period's slice of it, because a closed account's balance is
         // final — nothing further will be billed and there is no later period for the remainder to surface in.
         var periodStart = new DateOnly(year, month, 1);
-        var periodEnd = DomainRules.EarnedThrough(periodStart.AddMonths(1).AddDays(-1), PhilippineTime.Today);
+        var periodEnd = DomainRules.EarnedThrough(periodStart.AddMonths(1).AddDays(-1), clock.PhilippineToday);
         var endedThisPeriod = (await closedRegister.GetClosedStallAccountsAsync(ct))
             .Where(a => a.Uncollected > 0m)
             .Where(a =>
@@ -72,14 +74,14 @@ public class GetFollowUpQueueQueryHandler(
             .ToList();
 
         var dto = FollowUpComposer.Compose(
-            year, month, PhilippineTime.Today,
+            year, month, clock.PhilippineToday,
             delinquency, facilityReports, awaitingOr,
             slaughter, trips, attendance, unreceipted, contracts, utilityBills,
             // This page is the collector's work for the month, and its delinquency figures are a rolling twelve
             // months to the last month that closed — not August's. The rows stay, because the collector must still
             // see who is behind; what changes is that the amount no longer claims to be this month's. The whole
             // account is stated in the Whole-time History.
-            delinquencySpanLabel: RollingYearLabel(year, month),
+            delinquencySpanLabel: RollingYearLabel(year, month, clock.PhilippineToday),
             endedOccupancies: endedThisPeriod);
 
         return Result<FollowUpQueueDto>.Success(dto);
@@ -87,10 +89,9 @@ public class GetFollowUpQueueQueryHandler(
 
     /// <summary>"12 months to July 2026" — the span a rolling delinquency figure actually covers, ending with the
     /// last month that has closed, since a month still in progress is never counted as unpaid.</summary>
-    private static string RollingYearLabel(int year, int month)
+    private static string RollingYearLabel(int year, int month, DateOnly today)
     {
         var anchor = new DateOnly(year, month, 1);
-        var today = PhilippineTime.Today;
         var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
         var end = anchor.AddMonths(-1) < lastElapsed ? anchor.AddMonths(-1) : lastElapsed;
         return $"12 months to {end.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";

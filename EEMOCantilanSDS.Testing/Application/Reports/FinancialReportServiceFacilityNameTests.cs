@@ -39,7 +39,8 @@ public class FinancialReportServiceFacilityNameTests : RepositoryTestBase
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
-            new EemoCacheOptions());
+            new EemoCacheOptions(),
+            new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new GetFinancialReportQuery(ReportPeriod.Monthly, 2024, 6, null), CancellationToken.None);

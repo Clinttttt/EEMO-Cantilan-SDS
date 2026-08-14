@@ -184,7 +184,7 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — STARTED (lockout and token expiry done; ~270 sites remain)
+### 8. Inject time instead of static clocks — STARTED (lockout, token expiry and the report periods done; ~257 sites remain)
 
 `IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
 `UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
@@ -217,11 +217,27 @@ Seven more tests, each asserting the half of the rule that was unassertable: tha
 load-bearing — making activation tokens permanent, and dropping the lockout consultation from refresh, each failed exactly
 the test that describes it.
 
-STILL TO DO, in the order the review prioritised:
-- **Billing eligibility and reporting periods** — the bulk. ~58 `PhilippineTime.Now/Today` reads in Application and ~44 in
-  Infrastructure. These decide which market days are chargeable, whether a term has lapsed, and which month a report
-  covers, so they are the ones that make a suite pass in one month and fail in another. Convert per feature while already
-  changing it, not as a sweep.
+DONE — the reporting periods. The three report handlers (`GetFinancialReport`, `GetFollowUpHistory`, `GetFollowUpQueue`) took
+13 static clock reads between them and now take `IClock`. These decide which month an unqualified monthly report means, how
+far a whole-year snapshot runs, and where a rolling delinquency span ends.
+
+Four of those reads were in STATIC helpers, where a primary-constructor parameter is not available — the compiler said so
+(CS9105). Rather than make the helpers instance methods they now take `DateOnly today`: a static helper that reaches for a
+clock cannot be tested, and passing the date in is the pattern the domain already uses.
+
+Eight new cases assert what was previously unassertable — that the report is dated by the clock it was given, and that a
+rolling span ends with the last CLOSED month, including a future month asked for (clamped, nothing owed yet) and across a
+year boundary. Written first against the wrong field: the span lands on the ROW beside the money, not on the report header,
+and the real values were read from the failure rather than guessed. Proven load-bearing — anchoring the span on today
+instead of the month asked for fails one case and only that one.
+
+STILL TO DO, in this order:
+- **`PaymentRepository`** — 12 reads, the largest concentration and the one deciding billing eligibility. Its own slice: a
+  52KB repository whose constructor is used across many test setups, with the reads threaded through private arithmetic.
+- **`TrmRepository`** (7), the `FacilityReportsRepository` partials (12 across Revenue, Compliance, Trends and the root),
+  `CollectorRepository` (3) and `StallRepository` (3) — each needs a constructor change that ripples into repository tests.
+- **The command handlers** — bulk import (5), `CreateStall` (3), `ToggleStallStatus` (2), NPM settlement (2) and the smaller
+  query handlers. These stamp effective dates and decide what a "current" month is.
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments. They are mechanical
   and belong with the interceptor; converting them would be a large diff with nothing to assert.
 

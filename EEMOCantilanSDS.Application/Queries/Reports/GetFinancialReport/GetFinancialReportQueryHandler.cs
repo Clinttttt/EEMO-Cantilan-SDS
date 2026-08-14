@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -30,7 +31,8 @@ public class GetFinancialReportQueryHandler(
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
-    EemoCacheOptions cacheOptions
+    EemoCacheOptions cacheOptions,
+    IClock clock
 ) : IRequestHandler<GetFinancialReportQuery, Result<FinancialReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
@@ -52,14 +54,14 @@ public class GetFinancialReportQueryHandler(
         {
             var allTimeKey = EemoCacheKeys.FinancialReport(tenantContext.TenantCode, ReportPeriod.Yearly, 0, null, request.Facility);
             var allTimeRegions = EemoCacheRegions.FinancialReportRegions(
-                tenantContext.TenantCode, ReportPeriod.Yearly, PhilippineTime.Today.Year, null, request.Facility);
+                tenantContext.TenantCode, ReportPeriod.Yearly, clock.PhilippineToday.Year, null, request.Facility);
             var allTimeReport = await cache.GetOrCreateAsync(
                 allTimeKey, allTimeRegions, cacheOptions.FinancialReportTtl,
                 token => BuildAllTimeAsync(request, token), ct);
             return Result<FinancialReportDto>.Success(allTimeReport);
         }
 
-        var normalizedRequest = NormalizeRequest(request);
+        var normalizedRequest = NormalizeRequest(request, clock.PhilippineToday);
         var key = EemoCacheKeys.FinancialReport(
             tenantContext.TenantCode,
             normalizedRequest.Period,
@@ -224,7 +226,7 @@ public class GetFinancialReportQueryHandler(
         // paid-on-service facilities are folded into each earlier month too (one cheap query per month).
         // Earlier-YEAR bars stay stall-only to avoid a 12-month × facility query fan-out on the yearly view.
         var trend = new List<ReportTrendPointDto>();
-        foreach (var (label, py, pm, isSelected) in BuildTrendWindow(request))
+        foreach (var (label, py, pm, isSelected) in BuildTrendWindow(request, clock.PhilippineToday))
         {
             decimal periodCollected;
             decimal periodUnpaid;
@@ -335,7 +337,7 @@ public class GetFinancialReportQueryHandler(
             ClosedWithBalanceOutstanding: closedWithBalance.Sum(a => a.Uncollected),
             // The last month of THIS report's period that has closed — the same boundary the delinquency source used,
             // so the page states the span it was actually given rather than naming today's month.
-            AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth));
+            AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth, clock.PhilippineToday));
 
         return dto;
     }
@@ -347,7 +349,7 @@ public class GetFinancialReportQueryHandler(
     private async Task<FinancialReportDto> BuildAllTimeAsync(GetFinancialReportQuery request, CancellationToken ct)
     {
         const int epochYear = 2020;   // system data epoch — no transactions predate this
-        var currentYear = PhilippineTime.Today.Year;
+        var currentYear = clock.PhilippineToday.Year;
 
         // Start where the tenant's records actually start. Building every year back to the epoch meant a whole
         // report per year — each one walking every facility — for years in which the office had no data at all.
@@ -431,9 +433,13 @@ public class GetFinancialReportQueryHandler(
             ClosedWithBalanceOutstanding: latest.ClosedWithBalanceOutstanding);
     }
 
-    private static GetFinancialReportQuery NormalizeRequest(GetFinancialReportQuery request)
+    /// <param name="today">
+    /// Passed in rather than read here. A static helper that reaches for a clock cannot be tested, and this one decides
+    /// which month an unqualified monthly report means — the difference between "this month" and a fixed month.
+    /// </param>
+    private static GetFinancialReportQuery NormalizeRequest(GetFinancialReportQuery request, DateOnly today)
         => request.Period == ReportPeriod.Monthly && request.Month is null
-            ? request with { Month = PhilippineTime.Today.Month }
+            ? request with { Month = today.Month }
             : request;
 
     /// <summary>
@@ -441,10 +447,10 @@ public class GetFinancialReportQueryHandler(
     /// closed if the anchor is still ahead of it. Mirrors the clamp the delinquency source applies, so the page and
     /// the figures cannot describe different spans.
     /// </summary>
-    private static string AttentionSpanLabel(int anchorYear, int anchorMonth)
+    private static string AttentionSpanLabel(int anchorYear, int anchorMonth, DateOnly today)
     {
         var end = new DateOnly(anchorYear, anchorMonth, 1).AddMonths(-1);
-        var lastClosed = new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1).AddMonths(-1);
+        var lastClosed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
         if (end > lastClosed) end = lastClosed;
         return end.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
     }
@@ -470,7 +476,7 @@ public class GetFinancialReportQueryHandler(
     /// The trend window, matching the repo's RevenueTrend: Monthly = last 6 months (label "MMM yyyy"),
     /// Yearly = last 5 years (label "yyyy"), both ending at the selected period (flagged IsSelected).
     /// </summary>
-    private static IReadOnlyList<(string Label, int Year, int? Month, bool IsSelected)> BuildTrendWindow(GetFinancialReportQuery request)
+    private static IReadOnlyList<(string Label, int Year, int? Month, bool IsSelected)> BuildTrendWindow(GetFinancialReportQuery request, DateOnly today)
     {
         var window = new List<(string, int, int?, bool)>();
         if (request.Period == ReportPeriod.Yearly)
@@ -483,7 +489,7 @@ public class GetFinancialReportQueryHandler(
         }
         else
         {
-            var anchorMonth = request.Month ?? PhilippineTime.Today.Month;
+            var anchorMonth = request.Month ?? today.Month;
             for (var i = 5; i >= 0; i--)
             {
                 var d = new DateTime(request.Year, anchorMonth, 1).AddMonths(-i);

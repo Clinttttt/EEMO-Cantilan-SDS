@@ -38,7 +38,8 @@ public class GetFollowUpQueueQueryHandlerTests
     private static GetFollowUpQueueQueryHandler Build(
         IReadOnlyList<UnreceiptedPaymentDto>? cash = null,
         IReadOnlyList<UtilityBill>? utilityBills = null,
-        IReadOnlyList<ClosedStallAccountDto>? closedAccounts = null)
+        IReadOnlyList<ClosedStallAccountDto>? closedAccounts = null,
+        DateOnly? today = null)
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -108,7 +109,8 @@ public class GetFollowUpQueueQueryHandlerTests
             .ReturnsAsync(utilityBills ?? Array.Empty<UtilityBill>());
 
         return new GetFollowUpQueueQueryHandler(
-            reports.Object, closedRegister.Object, attention.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object);
+            reports.Object, closedRegister.Object, attention.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object,
+            new FixedClock((today ?? new DateOnly(2026, 8, 15)).ToDateTime(TimeOnly.MinValue).AddHours(-8)));
     }
 
     [Fact]
@@ -304,5 +306,65 @@ public class GetFollowUpQueueQueryHandlerTests
         // collector's list forever. Older ended accounts are read where they belong — the Whole-time History and the
         // register of inactive accounts.
         Assert.DoesNotContain(dto.Items, i => i.Person == "Jessie Navarro");
+    }
+
+    /// <summary>
+    /// The report's own idea of "today", and the rolling delinquency span, are facts about the day it is run. Neither could
+    /// be asserted before: the handler read <c>PhilippineTime.Today</c> directly, so a test could only repeat the code's own
+    /// arithmetic — proving nothing — or hard-code a month and start failing on the first of the next one.
+    /// </summary>
+    [Theory]
+    [InlineData(2026, 8, 15)]
+    [InlineData(2027, 1, 1)]
+    [InlineData(2026, 12, 31)]
+    public async Task TheReportIsDatedByTheClockItWasGiven(int year, int month, int day)
+    {
+        var today = new DateOnly(year, month, day);
+
+        var result = await Build(today: today).Handle(new GetFollowUpQueueQuery(year, month), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(today, result.Value!.AsOf);
+    }
+
+    /// <summary>
+    /// The office's rule: a month still in progress is never counted as unpaid, so a rolling delinquency figure ends with the
+    /// last month that CLOSED. Out by one month either flatters the collection rate or invents arrears nobody owes yet.
+    /// The span is stated on the ROW, beside the money it describes, which is where a reader would check it.
+    /// </summary>
+    [Theory]
+    // Standing in August, asked about August: the span ends with July, the last month that closed.
+    [InlineData(2026, 8, 2026, 8, "12 months to July 2026")]
+    // Asked about a month well in the past: the span ends the month before THAT, not before today.
+    [InlineData(2026, 8, 2026, 3, "12 months to February 2026")]
+    // Asked about a FUTURE month: still clamped to the last closed month, because nothing is owed yet.
+    [InlineData(2026, 8, 2026, 12, "12 months to July 2026")]
+    // Across a year boundary: in January the last closed month is December of the previous year.
+    [InlineData(2027, 1, 2027, 1, "12 months to December 2026")]
+    public async Task TheDelinquencySpanEndsWithTheLastClosedMonth(
+        int todayYear, int todayMonth, int askedYear, int askedMonth, string expected)
+    {
+        var handler = Build(today: new DateOnly(todayYear, todayMonth, 15));
+
+        var result = await handler.Handle(new GetFollowUpQueueQuery(askedYear, askedMonth), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var delinquent = result.Value!.Items.First(i => i.ReasonKind == "delinquent");
+        Assert.Equal(expected, delinquent.Period);
+    }
+
+    [Fact]
+    public async Task TheSameMonthAnsweredAfterItClosesMovesTheSpanOn()
+    {
+        // The reason the clock is injected rather than read: the answer depends on WHEN it is asked, and that dependence is
+        // now stated by the test instead of hidden in the handler.
+        var askedInAugust = await Build(today: new DateOnly(2026, 8, 20))
+            .Handle(new GetFollowUpQueueQuery(2026, 8), CancellationToken.None);
+
+        var askedInSeptember = await Build(today: new DateOnly(2026, 9, 10))
+            .Handle(new GetFollowUpQueueQuery(2026, 9), CancellationToken.None);
+
+        Assert.Equal("12 months to July 2026", askedInAugust.Value!.Items.First(i => i.ReasonKind == "delinquent").Period);
+        Assert.Equal("12 months to August 2026", askedInSeptember.Value!.Items.First(i => i.ReasonKind == "delinquent").Period);
     }
 }

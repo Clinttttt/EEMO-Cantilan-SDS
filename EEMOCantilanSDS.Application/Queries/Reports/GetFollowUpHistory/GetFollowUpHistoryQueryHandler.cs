@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -38,7 +39,8 @@ public class GetFollowUpHistoryQueryHandler(
     IUtilityBillRepository utilityBillRepository,
     IEemoAppCache cache,
     ITenantContext tenantContext,
-    EemoCacheOptions cacheOptions
+    EemoCacheOptions cacheOptions,
+    IClock clock
 ) : IRequestHandler<GetFollowUpHistoryQuery, Result<FollowUpQueueDto>>
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpHistoryQuery request, CancellationToken ct)
@@ -113,7 +115,7 @@ public class GetFollowUpHistoryQueryHandler(
                     code, ReportPeriod.Monthly, year, month, null, ct);
 
             return FollowUpComposer.Compose(
-                year, month, PhilippineTime.Today,
+                year, month, clock.PhilippineToday,
                 wholeAccountDelinquency,
                 currentMonthReports,
                 Array.Empty<OnlinePaymentAwaitingOrDto>(),
@@ -152,7 +154,7 @@ public class GetFollowUpHistoryQueryHandler(
         // showing one month's items under a whole-year heading.
         var awaitingOr = new List<OnlinePaymentAwaitingOrDto>();
         var utilityBills = new List<UtilityBill>();
-        foreach (var m in MonthsOf(request, year, month))
+        foreach (var m in MonthsOf(request, year, month, clock.PhilippineToday))
         {
             awaitingOr.AddRange(await onlinePaymentRepository.GetAwaitingOrByPeriodAsync(year, m, ct));
             utilityBills.AddRange(await utilityBillRepository.GetForMonthAsync(year, m, ct));
@@ -200,7 +202,7 @@ public class GetFollowUpHistoryQueryHandler(
             periodEnd: periodEnd,
             // A year or month view's delinquency figures are a rolling twelve months to the last closed month, not
             // that heading's span — Nora's row read "January – December 2026" beside a count of 37 months.
-            delinquencySpanLabel: RollingYearLabel(year, month));
+            delinquencySpanLabel: RollingYearLabel(year, month, clock.PhilippineToday));
 
         return dto;
     }
@@ -209,21 +211,20 @@ public class GetFollowUpHistoryQueryHandler(
     /// The months a snapshot covers: every month of the year up to the reference month for a whole-year view (a
     /// future month of the current year holds nothing), or just the one month asked for.
     /// </summary>
-    private static IEnumerable<int> MonthsOf(GetFollowUpHistoryQuery request, int year, int month)
+    private static IEnumerable<int> MonthsOf(GetFollowUpHistoryQuery request, int year, int month, DateOnly today)
     {
         if (!request.WholeYear)
             return new[] { month };
 
-        var last = year == PhilippineTime.Today.Year ? PhilippineTime.Today.Month : 12;
+        var last = year == today.Year ? today.Month : 12;
         return Enumerable.Range(1, Math.Max(1, last));
     }
 
     /// <summary>"12 months to July 2026" — the span a rolling delinquency figure covers, ending with the last month
     /// that closed. Stated on the row so a year heading is never read as the span of the money beside it.</summary>
-    private static string RollingYearLabel(int year, int month)
+    private static string RollingYearLabel(int year, int month, DateOnly today)
     {
         var anchor = new DateOnly(year, month, 1);
-        var today = PhilippineTime.Today;
         var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
         var end = anchor.AddMonths(-1) < lastElapsed ? anchor.AddMonths(-1) : lastElapsed;
         return $"12 months to {end.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";

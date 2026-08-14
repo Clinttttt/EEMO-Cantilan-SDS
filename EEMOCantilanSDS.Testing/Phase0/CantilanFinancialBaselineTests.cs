@@ -81,7 +81,8 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
-            new EemoCacheOptions());
+            new EemoCacheOptions(),
+            new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, Year, Month, null), CancellationToken.None);
 

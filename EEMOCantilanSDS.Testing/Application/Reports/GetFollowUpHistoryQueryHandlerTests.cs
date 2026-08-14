@@ -155,7 +155,8 @@ public class GetFollowUpHistoryQueryHandlerTests
             utilities.Object,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
-            new EemoCacheOptions());
+            new EemoCacheOptions(),
+            new FixedClock(DateTime.UtcNow));
 
         return (handler, closedRegister, attention, online, payments, slaughter);
     }
