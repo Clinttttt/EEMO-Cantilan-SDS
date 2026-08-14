@@ -271,14 +271,17 @@ public class GetFinancialReportQueryHandler(
             : (request.Year + 1, 1);
         var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, anchorYear, anchorMonth, includeClosed: true, wholeAccount: true, ct);
 
-        var delinquent = delinquency
-            .Where(d => d.MonthsUnpaid >= 3)
+        // Split by how many months are unpaid, then CAPPED for display. The cap keeps the payload bounded; the list is
+        // ordered most-overdue first, so what survives it is the part the office would work through first.
+        var delinquentAll = delinquency.Where(d => d.MonthsUnpaid >= 3).ToList();
+        var arrearsAll = delinquency.Where(d => d.MonthsUnpaid is >= 1 and <= 2).ToList();
+
+        var delinquent = delinquentAll
             .Take(AttentionLimit)
             .Select(ToAttention)
             .ToList();
 
-        var arrears = delinquency
-            .Where(d => d.MonthsUnpaid is >= 1 and <= 2)
+        var arrears = arrearsAll
             .Take(AttentionLimit)
             .Select(ToAttention)
             .ToList();
@@ -337,7 +340,12 @@ public class GetFinancialReportQueryHandler(
             ClosedWithBalanceOutstanding: closedWithBalance.Sum(a => a.Uncollected),
             // The last month of THIS report's period that has closed — the same boundary the delinquency source used,
             // so the page states the span it was actually given rather than naming today's month.
-            AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth, clock.PhilippineToday));
+            AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth, clock.PhilippineToday),
+            // Counted over every account, not over the capped lists above. The header states these.
+            DelinquentAccountsTotal: delinquentAll.Count,
+            DelinquentOutstandingTotal: delinquentAll.Sum(d => d.OutstandingBalance),
+            ArrearsAccountsTotal: arrearsAll.Count,
+            ArrearsOutstandingTotal: arrearsAll.Sum(d => d.OutstandingBalance));
 
         return dto;
     }
@@ -430,7 +438,15 @@ public class GetFinancialReportQueryHandler(
             Facilities: facilities,
             RecentRecords: latest.RecentRecords,
             ClosedWithBalanceCount: latest.ClosedWithBalanceCount,
-            ClosedWithBalanceOutstanding: latest.ClosedWithBalanceOutstanding);
+            ClosedWithBalanceOutstanding: latest.ClosedWithBalanceOutstanding,
+            // Carried across with the lists they describe. Delinquency here is the CURRENT position (see the note above),
+            // so its totals are the current year's — dropping them would have left the header at nought accounts and no
+            // money owed while the lists beneath it showed both.
+            AttentionSpanLabel: latest.AttentionSpanLabel,
+            DelinquentAccountsTotal: latest.DelinquentAccountsTotal,
+            DelinquentOutstandingTotal: latest.DelinquentOutstandingTotal,
+            ArrearsAccountsTotal: latest.ArrearsAccountsTotal,
+            ArrearsOutstandingTotal: latest.ArrearsOutstandingTotal);
     }
 
     /// <param name="today">

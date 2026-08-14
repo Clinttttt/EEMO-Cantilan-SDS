@@ -245,7 +245,7 @@
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
-                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) outstanding in full</div>
+                    <div class="section-sub">@FollowUpAccounts accounts need follow-up · @Money(FollowUpOutstanding) outstanding in full</div>
                     @* Each row states its account's whole unsettled position — every month since the occupancy began
                        that has closed, and what those months add up to. This is the same figure the Closed /
                        Inactive register and the whole-time Follow-up History state for the same account. It used to
@@ -257,7 +257,7 @@
                 <div class="attn-col">
                     <div class="attn-col-head">
                         <span class="attn-col-title attn-delinquent">Delinquent accounts</span>
-                        <span class="attn-count attn-count-red">@Model.Delinquent.Count</span>
+                        <span class="attn-count attn-count-red">@Model.DelinquentAccountsTotal</span>
                     </div>
                     <div class="attn-col-note">3 or more unpaid months</div>
                     <div class="attn-search">
@@ -266,7 +266,7 @@
                     </div>
                     <div class="delinq-list">
                         @{ var delinquentRows = Filtered(Model.Delinquent, _delinquentSearch); }
-                        @if (Model.Delinquent.Count == 0)
+                        @if (Model.DelinquentAccountsTotal == 0)
                         {
                             <div class="rpt-empty">No delinquent accounts for @PeriodLabel.</div>
                         }
@@ -296,12 +296,21 @@
                                 </div>
                             </a>
                         }
+                        @if (Model.DelinquentAccountsTotal > Model.Delinquent.Count)
+                        {
+                            @* The list is capped; the count and the money above are not. Said plainly so the page is never
+                               read as the whole register. *@
+                            <div class="attn-capped">
+                                Showing the @Model.Delinquent.Count most overdue of @Model.DelinquentAccountsTotal.
+                                The figures above count every account.
+                            </div>
+                        }
                     </div>
                 </div>
                 <div class="attn-col">
                     <div class="attn-col-head">
                         <span class="attn-col-title attn-arrears">Accounts in arrears</span>
-                        <span class="attn-count attn-count-amber">@Model.Arrears.Count</span>
+                        <span class="attn-count attn-count-amber">@Model.ArrearsAccountsTotal</span>
                     </div>
                     <div class="attn-col-note">1–2 unpaid months</div>
                     <div class="attn-search">
@@ -310,7 +319,7 @@
                     </div>
                     <div class="delinq-list">
                         @{ var arrearsRows = Filtered(Model.Arrears, _arrearsSearch); }
-                        @if (Model.Arrears.Count == 0)
+                        @if (Model.ArrearsAccountsTotal == 0)
                         {
                             <div class="rpt-empty">No accounts in arrears for @PeriodLabel.</div>
                         }
@@ -339,6 +348,13 @@
                                     </div>
                                 </div>
                             </a>
+                        }
+                        @if (Model.ArrearsAccountsTotal > Model.Arrears.Count)
+                        {
+                            <div class="attn-capped">
+                                Showing the @Model.Arrears.Count most overdue of @Model.ArrearsAccountsTotal.
+                                The figures above count every account.
+                            </div>
                         }
                     </div>
                 </div>
@@ -816,6 +832,13 @@
     }
 
     private static string Money(decimal v) => "₱" + v.ToString("N0");
+
+    // The headline follow-up figures. Taken from the report's own totals, NEVER by counting or summing the two lists
+    // beside them: those are capped at the most overdue accounts, so an office with more accounts than the cap was told
+    // it had fewer and owed less — under a heading that says "outstanding in full".
+    private int FollowUpAccounts => Model.DelinquentAccountsTotal + Model.ArrearsAccountsTotal;
+
+    private decimal FollowUpOutstanding => Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal;
 
     // The last month that has actually closed — what the attention figures are counted up to.
     private static string LastClosedMonthLabel =>

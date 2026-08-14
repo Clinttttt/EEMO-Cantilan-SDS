@@ -1749,3 +1749,14 @@
 .rpt-page-space {
     display: none;
 }
+
+/* Shown only when a follow-up list is capped. Restrained on purpose: it is a note about the LIST, not a warning about
+   the money — the figures above it already count every account. */
+.attn-capped {
+    padding: 10px 22px 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-subtle);
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+}

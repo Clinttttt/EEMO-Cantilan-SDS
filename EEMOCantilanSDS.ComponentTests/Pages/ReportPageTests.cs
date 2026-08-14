@@ -63,7 +63,13 @@ public class ReportPageTests : TestContext
         RecentRecords: new List<FinancialRecordDto>
         {
             new("OR-9", "Luz Cano", FacilityCode.NPM, "5", new DateTime(2026, 3, 25), null, "Daily Fee", 930m)
-        });
+        },
+        // Set to agree with the two lists above: below the display cap, the totals and the lists describe the same
+        // accounts. Left at their defaults these would be nought, and the page header states them.
+        DelinquentAccountsTotal: 2,
+        DelinquentOutstandingTotal: 38_100m,   // 4,800 + 33,300
+        ArrearsAccountsTotal: 1,
+        ArrearsOutstandingTotal: 3_600m);
 
     private IRenderedComponent<ReportPage> RenderReport(FinancialReportDto dto)
     {
@@ -192,5 +198,73 @@ public class ReportPageTests : TestContext
         // A term with no match says so rather than showing an empty panel.
         cut.FindAll(".attn-search input")[0].Input("zzzz");
         cut.WaitForAssertion(() => Assert.Contains("No delinquent account matches", cut.Markup), RenderTimeout);
+    }
+
+    [Fact]
+    public void TheFollowUpHeaderStatesTheWholeDebt_NotTheVisibleRows()
+    {
+        // The page lists at most 50 accounts per column. Its header used to count and sum those rows while calling the
+        // result "outstanding in full", so an office past the cap read a smaller number of accounts and less money than it
+        // was owed. The header must come from the report's totals.
+        var report = SampleReport() with
+        {
+            DelinquentAccountsTotal = 63,
+            DelinquentOutstandingTotal = 500_000m,
+            ArrearsAccountsTotal = 12,
+            ArrearsOutstandingTotal = 40_000m,
+        };
+
+        var cut = RenderReport(report);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("75 accounts need follow-up", cut.Markup);   // 63 + 12, not the 3 rows present
+            Assert.Contains("₱540,000 outstanding in full", cut.Markup);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void ACappedListSaysSo()
+    {
+        // Honesty about the list itself: the figures are complete, the rows are not, and the page says which.
+        var report = SampleReport() with
+        {
+            DelinquentAccountsTotal = 63,
+            DelinquentOutstandingTotal = 500_000m,
+        };
+
+        var cut = RenderReport(report);
+
+        cut.WaitForAssertion(() =>
+        {
+            var note = cut.Find(".attn-capped").TextContent;
+            Assert.Contains("63", note);
+            Assert.Contains("2", note);   // the two rows the fixture carries
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void AnUncappedListSaysNothingAboutBeingCapped()
+    {
+        // The ordinary case must stay quiet — a note on every report would be noise, and would train the office to
+        // disregard it on the one report where it matters.
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() => Assert.Contains("Rosa Magbanua", cut.Markup), RenderTimeout);
+        Assert.Empty(cut.FindAll(".attn-capped"));
+    }
+
+    [Fact]
+    public void TheColumnCountsStateEveryAccount()
+    {
+        var report = SampleReport() with { DelinquentAccountsTotal = 63, ArrearsAccountsTotal = 12 };
+
+        var cut = RenderReport(report);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("63", cut.Find(".attn-count-red").TextContent.Trim());
+            Assert.Equal("12", cut.Find(".attn-count-amber").TextContent.Trim());
+        }, RenderTimeout);
     }
 }

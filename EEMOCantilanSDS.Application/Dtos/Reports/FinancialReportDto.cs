@@ -31,6 +31,9 @@ public record FinancialReportDto(
     string? PreviousPeriodLabel,
 
     // ── Attention & follow-up ──
+    // NOTE: these two lists are CAPPED for display (the most overdue accounts first). Never count or sum them to state
+    // how many accounts need follow-up or how much is owed — use the four totals at the end of this record, which are
+    // counted over every account.
     IReadOnlyList<AttentionAccountDto> Delinquent,
     IReadOnlyList<AttentionAccountDto> Arrears,
 
@@ -55,7 +58,25 @@ public record FinancialReportDto(
     /// closed. Carried on the DTO because the page cannot derive it: it was naming the month from today's date, so a
     /// 2024 report read "counted to July 2026". Empty when there is nothing to attend to.
     /// </summary>
-    string AttentionSpanLabel = ""
+    string AttentionSpanLabel = "",
+
+    // ── The TRUE follow-up figures ───────────────────────────────────────────────────────────────────────────────
+    // Counted over EVERY account, which <see cref="Delinquent"/> and <see cref="Arrears"/> cannot do: those are capped
+    // at the most overdue accounts so the payload stays bounded. The report header used to count and sum the capped
+    // lists and label the result "outstanding in full", so an office with more accounts than the cap was shown fewer
+    // accounts and less money than it was owed, on a printed report that claimed to be complete.
+
+    /// <summary>Every account with 3 or more unpaid months, not only those listed in <see cref="Delinquent"/>.</summary>
+    int DelinquentAccountsTotal = 0,
+
+    /// <summary>What all of those accounts owe in full.</summary>
+    decimal DelinquentOutstandingTotal = 0m,
+
+    /// <summary>Every account with 1–2 unpaid months, not only those listed in <see cref="Arrears"/>.</summary>
+    int ArrearsAccountsTotal = 0,
+
+    /// <summary>What all of those accounts owe in full.</summary>
+    decimal ArrearsOutstandingTotal = 0m
 );
 
 /// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing, and

@@ -136,6 +136,84 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task TheFollowUpTotalsCountEveryAccount_EvenWhenTheListsAreCapped()
+    {
+        // The report lists at most 50 accounts per column so the payload stays bounded. The header, though, says
+        // "N accounts need follow-up · ₱X outstanding in full" — and it used to count and sum the CAPPED lists, so an
+        // office with more accounts than the cap was told it had fewer and was owed less, on a printed report that
+        // claimed to be complete. The totals must describe every account; only the lists are shortened.
+        var (handler, reports) = Build();
+
+        // 60 delinquent (3+ unpaid months) and 60 in arrears (1–2) — both past the cap of 50.
+        var many = new List<DelinquentStallDto>();
+        for (var i = 0; i < 60; i++)
+            many.Add(new(FacilityCode.NPM, $"D{i:00}", $"Delinquent {i:00}", 3, 1_000m));
+        for (var i = 0; i < 60; i++)
+            many.Add(new(FacilityCode.NPM, $"A{i:00}", $"Arrears {i:00}", 1, 100m));
+
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(many);
+
+        var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var r = result.Value!;
+
+        // The lists are capped …
+        Assert.Equal(50, r.Delinquent.Count);
+        Assert.Equal(50, r.Arrears.Count);
+
+        // … and the totals are not.
+        Assert.Equal(60, r.DelinquentAccountsTotal);
+        Assert.Equal(60_000m, r.DelinquentOutstandingTotal);   // 60 × ₱1,000
+        Assert.Equal(60, r.ArrearsAccountsTotal);
+        Assert.Equal(6_000m, r.ArrearsOutstandingTotal);       // 60 × ₱100
+
+        // Stated as the office reads it: what the header would show is the whole debt, not the visible part.
+        Assert.Equal(120, r.DelinquentAccountsTotal + r.ArrearsAccountsTotal);
+        Assert.Equal(66_000m, r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
+        Assert.NotEqual(r.Delinquent.Sum(d => d.Balance) + r.Arrears.Sum(a => a.Balance),
+                        r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
+    }
+
+    [Fact]
+    public async Task WithFewerAccountsThanTheCap_TheTotalsAndTheListsAgree()
+    {
+        // The ordinary case, and the one that let the old bug hide: below the cap the two ways of counting give the same
+        // answer, so nothing looked wrong until an office grew past fifty accounts in one bucket.
+        var (handler, _) = Build();   // the default fixture has one delinquent and one in arrears
+
+        var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
+
+        var r = result.Value!;
+
+        Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
+        Assert.Equal(r.Arrears.Count, r.ArrearsAccountsTotal);
+        Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
+        Assert.Equal(r.Arrears.Sum(a => a.Balance), r.ArrearsOutstandingTotal);
+    }
+
+    [Fact]
+    public async Task TheAllTimeViewCarriesTheFollowUpTotalsToo()
+    {
+        // "All time" builds its DTO from the current year's. The totals have to travel with the lists they describe, or the
+        // header reads nought accounts and no money owed above two populated columns.
+        var (handler, _) = Build();
+
+        var result = await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null, AllTime: true), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var r = result.Value!;
+
+        Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
+        Assert.Equal(r.Arrears.Count, r.ArrearsAccountsTotal);
+        Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
+        Assert.Equal(r.Arrears.Sum(a => a.Balance), r.ArrearsOutstandingTotal);
+    }
+
+    [Fact]
     public async Task AllFacilities_TotalsReconcile_RateIsAmountBased()
     {
         var (handler, _) = Build();
