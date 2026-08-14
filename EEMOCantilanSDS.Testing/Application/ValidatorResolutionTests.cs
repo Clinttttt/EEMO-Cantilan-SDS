@@ -1,3 +1,7 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
 using EEMOCantilanSDS.Application;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Infrastructure;
@@ -87,6 +91,28 @@ public class ValidatorResolutionTests
         // Named on its own because twenty-four types now depend on it: if this registration ever disappears, the message
         // should say so rather than leaving a reader to infer it from two dozen failures.
         Assert.Contains(RealRegistrations(), d => d.ServiceType == typeof(IClock));
+    }
+
+    [Theory]
+    [InlineData(typeof(IValidator<GetFacilityHistoryQuery>), typeof(GetFacilityHistoryQueryValidator))]
+    [InlineData(typeof(IValidator<GetFacilityReportsQuery>), typeof(GetFacilityReportsQueryValidator))]
+    [InlineData(typeof(IValidator<GetFinancialReportQuery>), typeof(GetFinancialReportQueryValidator))]
+    public void TheClockTakingValidatorsAreActuallyBuiltByTheContainer(Type serviceType, Type expected)
+    {
+        // The theory above proves the dependencies are REGISTERED. This one proves the container can hand back a working
+        // instance — the step where a lifetime mismatch or a missing public constructor would show up instead. These three
+        // need nothing but the clock, so they can be built without a database; the fourth (CreateStallCommandValidator) also
+        // needs a repository and is covered by the registration check.
+        var services = new ServiceCollection();
+        services.AddApplicationService();
+        services.AddSingleton<IClock, SystemClock>();
+
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        using var scope = provider.CreateScope();
+
+        var resolved = scope.ServiceProvider.GetServices(serviceType);
+
+        Assert.Contains(resolved, v => v is not null && v.GetType() == expected);
     }
 
     [Fact]
