@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
@@ -9,13 +10,13 @@ namespace EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTrmOverview;
 
 public class GetTrmOverviewQueryHandler(
     ITrmRepository trmRepo,
-    IFeeRateResolver feeRateResolver) : IRequestHandler<GetTrmOverviewQuery, Result<TrmOverviewDto>>
+    IFeeRateResolver feeRateResolver, IClock clock) : IRequestHandler<GetTrmOverviewQuery, Result<TrmOverviewDto>>
 {
     public async Task<Result<TrmOverviewDto>> Handle(GetTrmOverviewQuery request, CancellationToken ct)
     {
         var overview = await trmRepo.GetOverviewAsync(ct);
         // Stamp the tenant's resolved per-trip fee (as of today) so the UI shows this LGU's own rate.
-        var tripFee = (await feeRateResolver.GetSnapshotAsync(ct)).Resolve(FeeRateKey.TrmPerTrip, PhilippineTime.Today);
+        var tripFee = (await feeRateResolver.GetSnapshotAsync(ct)).Resolve(FeeRateKey.TrmPerTrip, clock.PhilippineToday);
         return Result<TrmOverviewDto>.Success(overview with { TripFee = tripFee });
     }
 }

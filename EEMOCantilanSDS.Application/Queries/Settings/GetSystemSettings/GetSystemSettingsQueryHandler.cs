@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -13,7 +14,7 @@ public class GetSystemSettingsQueryHandler(
     IMunicipalityRepository municipalityRepository,
     IFacilityRepository facilityRepository,
     ITenantContext tenantContext,
-    IFeeRateResolver feeRateResolver)
+    IFeeRateResolver feeRateResolver, IClock clock)
     : IRequestHandler<GetSystemSettingsQuery, Result<SystemSettingsDto>>
 {
     private const string TimeZoneLabel = "Philippine Standard Time (UTC+8)";
@@ -23,7 +24,7 @@ public class GetSystemSettingsQueryHandler(
         // The fee snapshot resolves each fixed rate to the tenant's own value, falling back to the ordinance
         // constants, so Cantilan is byte-for-byte unchanged.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var asOf = DateOnly.FromDateTime(PhilippineTime.Now);
+        var asOf = DateOnly.FromDateTime(clock.PhilippineNow);
 
         // LGU identity (office label, name, province, receipt line) is sourced from the CURRENT tenant's
         // Municipality record — resolved the same way as the branding endpoint (JWT tenant claim → identifier)
@@ -70,7 +71,7 @@ public class GetSystemSettingsQueryHandler(
             Version: AppInfo.Version,
             Environment: string.IsNullOrWhiteSpace(request.Environment) ? "Unknown" : request.Environment,
             TimeZone: TimeZoneLabel,
-            ServerDate: PhilippineTime.Now);
+            ServerDate: clock.PhilippineNow);
 
         // Only the facilities the current tenant operates are listed — using the tenant's own facility
         // names and resolved rates. Cantilan has all eight seeded (names/rates equal the constants), so its

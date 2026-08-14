@@ -25,10 +25,10 @@ namespace EEMOCantilanSDS.Domain.Common;
 /// ignored. "JUAN DELA CRUZ", "Juan Dela Cruz" and "Juan  dela cruz " are one person.
 /// </para>
 /// <para>
-/// What this deliberately does NOT do is decide that two different people who share a name are one person. Nothing derivable
-/// from a name can tell them apart; that needs a client record the office can distinguish, which is a decision for the
-/// office and not something to infer here. This narrows the fault to genuine namesakes instead of leaving it open to every
-/// stray capital letter.
+/// Within one LGU a name identifies the client: the office confirmed (2026-08-14) that namesakes are a national-scale problem,
+/// not a municipality's, so there is no client entity to add and none is wanted. What a name cannot survive is a genuine
+/// MISSPELLING — "Villaneuva" for "Villanueva" is two clients here, and no rule derived from the name can tell a typo from a
+/// different person. That is corrected by fixing the entry, at which point the transactions rejoin on their own.
 /// </para>
 /// <para>
 /// Canonical form preserves the capitalisation that was typed, because that is what prints on the office's documents. Only

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -11,7 +12,7 @@ public class GetCollectorReportQueryHandler(
     // Both, and honestly so: this one loads the collector's account to know their assigned facilities, then reads their
     // report. The account lookup is not a projection and the projection is not an account.
     ICollectorMobileQueries mobileQueries,
-    ICurrentUserService currentUser) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
+    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
 {
     public async Task<Result<MobileCollectorReportDto>> Handle(GetCollectorReportQuery request, CancellationToken ct)
     {
@@ -37,7 +38,7 @@ public class GetCollectorReportQueryHandler(
 
         var monthStart = new DateOnly(request.Year, request.Month, 1);
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var effectiveEnd = monthStart.Year == today.Year && monthStart.Month == today.Month && today < monthEnd
             ? today
             : monthEnd;

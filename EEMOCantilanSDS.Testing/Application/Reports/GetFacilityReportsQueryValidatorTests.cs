@@ -5,7 +5,7 @@ namespace EEMOCantilanSDS.Testing;
 
 public class GetFacilityReportsQueryValidatorTests
 {
-    private readonly GetFacilityReportsQueryValidator _validator = new();
+    private readonly GetFacilityReportsQueryValidator _validator = new(new FixedClock(DateTime.UtcNow));
 
     private static GetFacilityReportsQuery Weekly(int year, int month, int week) =>
         new(FacilityCode.NPM, ReportPeriod.Weekly, year, month, week);

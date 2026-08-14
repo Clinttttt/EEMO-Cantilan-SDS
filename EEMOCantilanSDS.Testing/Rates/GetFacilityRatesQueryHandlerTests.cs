@@ -58,7 +58,7 @@ namespace EEMOCantilanSDS.Testing.Rates
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(lgu)))
             {
-                var result = await new GetFacilityRatesQueryHandler(ctx).Handle(new GetFacilityRatesQuery(), default);
+                var result = await new GetFacilityRatesQueryHandler(ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetFacilityRatesQuery(), default);
                 Assert.True(result.IsSuccess);
                 var rates = result.Value!;
 

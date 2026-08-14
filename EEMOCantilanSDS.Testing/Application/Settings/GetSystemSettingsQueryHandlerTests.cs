@@ -22,7 +22,8 @@ public class GetSystemSettingsQueryHandlerTests
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
             new FakeFacilityRepository(FacilityCatalog.AllCodes),
             CacheTestDoubles.Tenant,
-            CacheTestDoubles.FeeRateResolver);
+            CacheTestDoubles.FeeRateResolver,
+            new FixedClock(DateTime.UtcNow));
 
     [Fact]
     public async Task Returns_values_sourced_from_the_live_domain_constants()
@@ -86,7 +87,8 @@ public class GetSystemSettingsQueryHandlerTests
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
             new FakeFacilityRepository(FacilityCatalog.AllCodes.Append(FacilityCode.Custom1)),
             CacheTestDoubles.Tenant,
-            CacheTestDoubles.FeeRateResolver);
+            CacheTestDoubles.FeeRateResolver,
+            new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new GetSystemSettingsQuery("Development"), CancellationToken.None);
         var dto = result.Value!;

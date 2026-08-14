@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -9,7 +10,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 public sealed class GetMobileMonthlyCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     IStallMobileQueries mobileQueries,
-    ICurrentUserService currentUser) : IRequestHandler<GetMobileMonthlyCollectionQuery, Result<MobileMonthlyCollectionDto>>
+    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetMobileMonthlyCollectionQuery, Result<MobileMonthlyCollectionDto>>
 {
     public async Task<Result<MobileMonthlyCollectionDto>> Handle(GetMobileMonthlyCollectionQuery request, CancellationToken ct)
     {
@@ -31,7 +32,7 @@ public sealed class GetMobileMonthlyCollectionQueryHandler(
             request.Facility,
             request.Year,
             request.Month,
-            PhilippineTime.Today,
+            clock.PhilippineToday,
             ct);
 
         return Result<MobileMonthlyCollectionDto>.Success(collection);

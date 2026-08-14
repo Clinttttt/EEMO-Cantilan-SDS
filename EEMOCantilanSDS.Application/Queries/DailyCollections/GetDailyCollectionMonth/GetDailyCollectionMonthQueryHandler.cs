@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
@@ -12,7 +13,7 @@ public class GetDailyCollectionMonthQueryHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IStallRepository stallRepository,
     IFeeRateResolver feeRateResolver,
-    INpmMarketClosureRepository marketClosureRepository) : IRequestHandler<GetDailyCollectionMonthQuery, Result<DailyCollectionMonthDto>>
+    INpmMarketClosureRepository marketClosureRepository, IClock clock) : IRequestHandler<GetDailyCollectionMonthQuery, Result<DailyCollectionMonthDto>>
 {
     public async Task<Result<DailyCollectionMonthDto>> Handle(GetDailyCollectionMonthQuery request, CancellationToken ct)
     {
@@ -23,7 +24,7 @@ public class GetDailyCollectionMonthQueryHandler(
         var collections = await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct);
 
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var isCurrentMonth = request.Year == today.Year && request.Month == today.Month;
         var maxDay = isCurrentMonth ? today.Day : daysInMonth;
 

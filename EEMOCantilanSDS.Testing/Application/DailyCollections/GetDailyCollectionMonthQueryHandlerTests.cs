@@ -135,7 +135,7 @@ public class GetDailyCollectionMonthQueryHandlerTests
             dailyCollectionRepository.Object,
             stallRepository.Object,
             CacheTestDoubles.FeeRateResolver,
-            marketClosureRepository.Object);
+            marketClosureRepository.Object, new FixedClock(DateTime.UtcNow));
     }
 
     private static Stall CreateNpmStallWithContract(DateOnly contractDate)

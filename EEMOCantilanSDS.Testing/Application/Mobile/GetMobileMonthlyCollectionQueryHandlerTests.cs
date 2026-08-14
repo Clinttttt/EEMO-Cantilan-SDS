@@ -22,7 +22,7 @@ public class GetMobileMonthlyCollectionQueryHandlerTests
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(u => u.CollectorId).Returns(collectorId);
 
-        return (new GetMobileMonthlyCollectionQueryHandler(collectorRepo.Object, stallRepo.Object, currentUser.Object), stallRepo);
+        return (new GetMobileMonthlyCollectionQueryHandler(collectorRepo.Object, stallRepo.Object, currentUser.Object, new FixedClock(DateTime.UtcNow)), stallRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

@@ -1,15 +1,16 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistoryYears;
 
-public class GetFollowUpHistoryYearsQueryHandler(IFacilityReportsRepository reportsRepository)
+public class GetFollowUpHistoryYearsQueryHandler(IFacilityReportsRepository reportsRepository, IClock clock)
     : IRequestHandler<GetFollowUpHistoryYearsQuery, Result<IReadOnlyList<int>>>
 {
     public async Task<Result<IReadOnlyList<int>>> Handle(GetFollowUpHistoryYearsQuery request, CancellationToken ct)
     {
-        var current = PhilippineTime.Today.Year;
+        var current = clock.PhilippineToday.Year;
         var earliest = await reportsRepository.GetEarliestActivityYearAsync(ct);
         if (earliest > current) earliest = current;
 

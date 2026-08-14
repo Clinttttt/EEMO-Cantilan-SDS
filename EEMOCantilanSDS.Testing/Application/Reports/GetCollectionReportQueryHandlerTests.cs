@@ -71,7 +71,7 @@ public class GetCollectionReportQueryHandlerTests
         facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
-        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, facilities.Object, CacheTestDoubles.FeeRateResolver);
+        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, facilities.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]

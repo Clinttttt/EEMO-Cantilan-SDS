@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -13,7 +14,7 @@ public sealed class GetMobileTrmCollectionQueryHandler(
     ITrmRepository trmRepository,
     ISuggestionRepository suggestionRepository,
     IFeeRateResolver feeRateResolver,
-    ICurrentUserService currentUser) : IRequestHandler<GetMobileTrmCollectionQuery, Result<MobileTrmCollectionDto>>
+    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetMobileTrmCollectionQuery, Result<MobileTrmCollectionDto>>
 {
     public async Task<Result<MobileTrmCollectionDto>> Handle(GetMobileTrmCollectionQuery request, CancellationToken ct)
     {
@@ -42,10 +43,10 @@ public sealed class GetMobileTrmCollectionQueryHandler(
 
         // The per-trip fee shown to the collector is this municipality's current rate (constant fallback).
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var tripFee = rateSnapshot.Resolve(FeeRateKey.TrmPerTrip, PhilippineTime.Today);
+        var tripFee = rateSnapshot.Resolve(FeeRateKey.TrmPerTrip, clock.PhilippineToday);
 
         return Result<MobileTrmCollectionDto>.Success(new MobileTrmCollectionDto(
-            PhilippineTime.Today,
+            clock.PhilippineToday,
             tripFee,
             todayTrips.Count,
             todayTrips.Sum(t => t.Fee),

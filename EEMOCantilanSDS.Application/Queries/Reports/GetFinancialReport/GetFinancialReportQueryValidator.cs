@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
@@ -6,7 +7,7 @@ namespace EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
 
 public class GetFinancialReportQueryValidator : AbstractValidator<GetFinancialReportQuery>
 {
-    public GetFinancialReportQueryValidator()
+    public GetFinancialReportQueryValidator(IClock clock)
     {
         RuleFor(x => x.Period)
             .IsInEnum()
@@ -14,7 +15,7 @@ public class GetFinancialReportQueryValidator : AbstractValidator<GetFinancialRe
 
         RuleFor(x => x.Year)
             .GreaterThan(2000)
-            .LessThanOrEqualTo(PhilippineTime.Today.Year + 1)
+            .LessThanOrEqualTo(clock.PhilippineToday.Year + 1)
             .WithMessage("Year must be between 2000 and next year");
 
         // Facility is optional (null = all facilities); validate only when supplied.

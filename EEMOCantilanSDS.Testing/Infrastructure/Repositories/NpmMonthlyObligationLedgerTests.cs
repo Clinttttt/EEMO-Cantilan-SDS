@@ -513,7 +513,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
                 new DailyCollectionRepository(context),
                 new StallRepository(context),
                 new FeeRateResolver(context),
-                new NpmMarketClosureRepository(context))
+                new NpmMarketClosureRepository(context), new FixedClock(DateTime.UtcNow))
             .Handle(new GetDailyCollectionMonthQuery(stall.Id, 2025, 2), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -18,13 +19,13 @@ namespace EEMOCantilanSDS.Application.Queries.Stalls.GetNpmRates;
 public class GetNpmRatesQueryHandler(
     IFeeRateResolver feeRateResolver,
     ICurrentUserService currentUser,
-    IAppDbContext context)
+    IAppDbContext context, IClock clock)
     : IRequestHandler<GetNpmRatesQuery, Result<NpmRatesDto>>
 {
     public async Task<Result<NpmRatesDto>> Handle(GetNpmRatesQuery request, CancellationToken ct)
     {
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var asOf = DateOnly.FromDateTime(PhilippineTime.Now);
+        var asOf = DateOnly.FromDateTime(clock.PhilippineNow);
         var daily = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var fish = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
 

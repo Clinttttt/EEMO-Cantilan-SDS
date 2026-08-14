@@ -59,7 +59,7 @@ public class GetCollectableDaysQueryHandlerTests
                            .Select(d => NpmMarketClosure.Create(d))
                            .ToList());
 
-        return new GetCollectableDaysQueryHandler(stalls.Object, daily.Object, closureRepo.Object);
+        return new GetCollectableDaysQueryHandler(stalls.Object, daily.Object, closureRepo.Object, new FixedClock(DateTime.UtcNow));
     }
 
     private static DailyCollection Collected(int day)

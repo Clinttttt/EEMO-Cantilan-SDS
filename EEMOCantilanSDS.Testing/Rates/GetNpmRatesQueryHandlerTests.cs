@@ -60,7 +60,7 @@ namespace EEMOCantilanSDS.Testing.Rates
             }
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(lgu));
-            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx).Handle(new GetNpmRatesQuery(), default);
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
 
             Assert.True(result.IsSuccess);
             Assert.Equal(40m, result.Value!.DailyRate);
@@ -75,7 +75,7 @@ namespace EEMOCantilanSDS.Testing.Rates
 
             // No FacilityRate rows for this tenant → the resolver falls back to the ordinance constants.
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
-            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx).Handle(new GetNpmRatesQuery(), default);
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
 
             Assert.True(result.IsSuccess);
             Assert.Equal(FeeRates.NpmDailyFee, result.Value!.DailyRate);   // ₱30

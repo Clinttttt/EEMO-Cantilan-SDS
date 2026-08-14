@@ -53,7 +53,7 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
             utilityRepo.Setup(r => r.GetForMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UtilityBill>());
 
-            return new GetUtilityRegisterQueryHandler(stallRepo.Object, utilityRepo.Object);
+            return new GetUtilityRegisterQueryHandler(stallRepo.Object, utilityRepo.Object, new FixedClock(DateTime.UtcNow));
         }
 
         [Fact]
@@ -114,7 +114,7 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
             utilityRepo.Setup(r => r.GetForMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<UtilityBill> { bill });
 
-            var result = await new GetUtilityRegisterQueryHandler(stallRepo.Object, utilityRepo.Object)
+            var result = await new GetUtilityRegisterQueryHandler(stallRepo.Object, utilityRepo.Object, new FixedClock(DateTime.UtcNow))
                 .Handle(new GetUtilityRegisterQuery(2026, 7, null), CancellationToken.None);
 
             Assert.True(result.IsSuccess);

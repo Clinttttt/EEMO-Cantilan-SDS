@@ -287,10 +287,32 @@ each pass. One line ended with 90 copies. Caught by scanning for lines with more
 restored from git, and those four fixed by hand. `Select-String` counts LINES, not occurrences, so the first check under-
 reported the damage — the count has to be per-match.
 
+DONE — the READ path (2026-08-14). Twenty query handlers and four validators now take `IClock`. Nothing here writes to the
+ledger, but a report that silently disagrees with the office's own idea of "today" is still a wrong answer, and the year bound
+on the report validators ("no later than next year") could not be stated in a test at all while it moved on its own.
+
+Two things worth carrying forward from this slice:
+
+- **A date-pinned test can pass by coincidence.** Pinned first to a fixed date in the CURRENT year, nine of ten year-bound
+  cases still passed with the validators ignoring the injected clock — the static bound happened to agree. Pinning to a year
+  the server's calendar cannot match (2031) made every case load-bearing; five then failed under the reintroduced defect.
+  This is the same family as the earlier vacuous assertions: a green test that cannot fail proves nothing.
+- **A DI-resolved dependency has no compile-time guard.** Validators are assembly-scanned and built per request, so the four
+  that now need `IClock` would have compiled, passed their unit tests (which construct them directly), and failed only when a
+  clerk submitted the form. `Testing/Application/ValidatorResolutionTests.cs` now asserts every constructor parameter of every
+  validator is registered by the real `AddApplicationService` + `AddInfrastructureService`, plus a named test for the clock
+  registration itself. Proven by deleting the registration: the four validators and the named test failed.
+  (Registration is pure — it only reads configuration and hands EF a connection string — so this needs no database.)
+
 STILL TO DO:
-- **~29 reads in Application query handlers and validators.** Read-side: mobile collection screens, collector lists, system
-  settings, a few validators. Same mechanical change, lower stakes than the write path.
-- **2 in Infrastructure outside repositories, 3 in Domain.**
+- **3 in Domain — `Contract.IsExpired`, `IsExpiringSoon` and `Terminate`'s default.** Deliberately left for its own change:
+  an entity cannot be given a constructor dependency, so these want `asOf` parameters, and `IsExpired` alone has ~10 call
+  sites including the follow-up queue and the EF configuration. It decides whether a contract still accrues, so it deserves
+  its own tests rather than being swept in with two dozen mechanical edits.
+- **2 in Infrastructure are `SystemClock` itself** — the implementation of `IClock`. They must stay.
+- **2 remaining in Application are not reads to fix**: a doc comment in `IClock.cs`, and `StallContractStatus`'s parameterless
+  convenience overload, which already delegates to an `IsCurrentVendor(dto, today)` that IS testable. Its one caller is in the
+  Client.
 - **~205 in the Client.** Mostly display defaults and date-picker seeds. Lowest value, and worth judging individually rather
   than sweeping: a date picker defaulting to today is not a rule about money.
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the
@@ -372,6 +394,12 @@ same hazard.
 
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
+
+**Client names identify the client.** Confirmed by the office 2026-08-14: within one LGU there are no namesakes — two
+different people carrying the same name is a national-scale problem, not a municipality's. So a slaughterhouse owner's typed
+name IS their identity, and matching by name (ignoring case and redundant whitespace, per `PersonName`) is sufficient. No
+payor/client entity is required. What a name cannot survive is a genuine misspelling, which is a data-entry correction, not a
+modelling gap.
 
 **OR numbers.** Unique per TRANSACTION within the LGU. The same number must never appear against another vendor, or in
 another module. But one transaction may produce several RECORDS, and those share the one number, because it was one
@@ -491,10 +519,13 @@ These cannot be answered by reading code.
     a pre-existing double-spaced row would have become unreachable through it.
   - Proven against real PostgreSQL, because `Trim().ToLower()` in a predicate is SQL the in-memory provider never has to
     translate — it answers in LINQ and would pass whether or not the SQL works.
-  - **STILL OPEN — the part a name cannot settle:** two genuinely different people who share a name are still one payor, and
-    one person whose name is MISSPELT (not just recapitalised) is still two. Nothing derivable from a name fixes either; that
-    needs a client record the office can distinguish, with its own list and a way to merge duplicates. A decision for the
-    office, not something to infer. The fault is now confined to real namesakes instead of every stray capital letter.
+  - **RESOLVED by the office 2026-08-14: within one LGU there are no namesakes.** Two different people sharing a name is a
+    problem of national scope, not of a municipality's own client list, so a name IS the client's identity here and no payor
+    entity is needed. That closes what was recorded as the remaining half of this item.
+  - What still fragments a client is a genuine MISSPELLING (not a recapitalisation) — "Villanueva" entered once as
+    "Villaneuva" is two clients, and no rule derived from the name can tell a typo from a different person. That is a
+    data-entry correction concern (find and fix the wrong entry), not an identity one, and it needs no schema: the office can
+    correct the name and the transactions rejoin. Worth a duplicate-name warning at entry time if the office ever asks.
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
   static `ConditionalWeakTable` with a stale `asOf`; mobile `_recordsCache`/`_reportCache` are never cleared on logout;
   `FacilityReportsModal.razor` still hardcodes `#4a9eff`; the dashboard computes compliance twice; `Take(AttentionLimit)`

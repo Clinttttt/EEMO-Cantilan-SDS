@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -14,7 +15,7 @@ public sealed class GetMobileTpmCollectionQueryHandler(
     ISuggestionRepository suggestionRepository,
     IFeeRateResolver feeRateResolver,
     ITpmMarketDayProvider marketDayProvider,
-    ICurrentUserService currentUser) : IRequestHandler<GetMobileTpmCollectionQuery, Result<MobileTpmCollectionDto>>
+    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetMobileTpmCollectionQuery, Result<MobileTpmCollectionDto>>
 {
     public async Task<Result<MobileTpmCollectionDto>> Handle(GetMobileTpmCollectionQuery request, CancellationToken ct)
     {
@@ -29,7 +30,7 @@ public sealed class GetMobileTpmCollectionQueryHandler(
             return Result<MobileTpmCollectionDto>.Forbidden();
 
         var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var isMarketDay = today.DayOfWeek == marketDay;
         var marketDate = MostRecentMarketDay(today, marketDay);
 

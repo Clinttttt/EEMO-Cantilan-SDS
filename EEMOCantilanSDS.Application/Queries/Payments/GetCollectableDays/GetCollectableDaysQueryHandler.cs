@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -8,7 +9,7 @@ namespace EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 public class GetCollectableDaysQueryHandler(
     IStallRepository stallRepo,
     IDailyCollectionRepository dailyRepo,
-    INpmMarketClosureRepository closureRepo)
+    INpmMarketClosureRepository closureRepo, IClock clock)
     : IRequestHandler<GetCollectableDaysQuery, Result<CollectableDaysDto>>
 {
     public async Task<Result<CollectableDaysDto>> Handle(GetCollectableDaysQuery request, CancellationToken ct)
@@ -20,7 +21,7 @@ public class GetCollectableDaysQueryHandler(
         if (stall is null)
             return Result<CollectableDaysDto>.NotFound();
 
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
 
         var closures = new HashSet<DateOnly>(

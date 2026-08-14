@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
@@ -5,15 +6,15 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Collectors.GetAllCollectors;
 
-public class GetAllCollectorsQueryHandler(ICollectorReportingQueries collectorRepo) 
+public class GetAllCollectorsQueryHandler(ICollectorReportingQueries collectorRepo, IClock clock) 
     : IRequestHandler<GetAllCollectorsQuery, Result<IReadOnlyList<CollectorListDto>>>
 {
     public async Task<Result<IReadOnlyList<CollectorListDto>>> Handle(
         GetAllCollectorsQuery request, 
         CancellationToken cancellationToken)
     {
-        var currentMonth = PhilippineTime.Now.Month;
-        var currentYear = PhilippineTime.Now.Year;
+        var currentMonth = clock.PhilippineNow.Month;
+        var currentYear = clock.PhilippineNow.Year;
 
         var collectors = await collectorRepo.GetAllCollectorsWithStatsAsync(currentYear, currentMonth, cancellationToken);
 

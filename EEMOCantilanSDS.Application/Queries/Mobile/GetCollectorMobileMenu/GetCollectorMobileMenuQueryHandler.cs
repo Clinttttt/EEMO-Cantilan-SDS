@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -14,7 +15,7 @@ public class GetCollectorMobileMenuQueryHandler(
     IFacilityRepository facilityRepository,
     IMunicipalityRepository municipalityRepository,
     EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext tenantContext,
-    ICurrentUserService currentUser) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
+    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
 {
     public async Task<Result<MobileMenuDto>> Handle(GetCollectorMobileMenuQuery request, CancellationToken cancellationToken)
     {
@@ -60,7 +61,7 @@ public class GetCollectorMobileMenuQueryHandler(
             collector.Id,
             collector.FullName ?? "Collector",
             collector.EmployeeId ?? string.Empty,
-            PhilippineTime.Today,
+            clock.PhilippineToday,
             facilities,
             await BuildBrandingAsync(cancellationToken)));
     }

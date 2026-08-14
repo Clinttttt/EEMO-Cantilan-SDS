@@ -41,7 +41,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var muniRepo = new Mock<IMunicipalityRepository>();
         var tenant = new Mock<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>();
-        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, muniRepo.Object, tenant.Object, currentUser.Object);
+        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, muniRepo.Object, tenant.Object, currentUser.Object, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -84,7 +84,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var handler = new GetCollectorMobileMenuQueryHandler(
             repo.Object, facilityRepo.Object, Mock.Of<IMunicipalityRepository>(),
-            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(), currentUser.Object);
+            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(), currentUser.Object, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -102,7 +102,8 @@ public class GetCollectorMobileMenuQueryHandlerTests
             Mock.Of<IFacilityRepository>(),
             Mock.Of<IMunicipalityRepository>(),
             Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(),
-            Mock.Of<ICurrentUserService>());
+            Mock.Of<ICurrentUserService>(),
+            new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 

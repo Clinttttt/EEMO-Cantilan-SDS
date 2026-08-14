@@ -43,7 +43,7 @@ public class UtilityCommandTests
         bills.Setup(r => r.GetForMonthAsync(2026, 7, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<UtilityBill> { bill });
 
-        var handler = new GetUtilityRegisterQueryHandler(stalls.Object, bills.Object);
+        var handler = new GetUtilityRegisterQueryHandler(stalls.Object, bills.Object, new FixedClock(DateTime.UtcNow));
         var result = await handler.Handle(new GetUtilityRegisterQuery(2026, 7, null), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -83,7 +83,7 @@ public class UtilityCommandTests
         bills.Setup(r => r.GetForMonthAsync(2026, 7, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<UtilityBill>());
 
-        var handler = new GetUtilityRegisterQueryHandler(stalls.Object, bills.Object);
+        var handler = new GetUtilityRegisterQueryHandler(stalls.Object, bills.Object, new FixedClock(DateTime.UtcNow));
         var result = await handler.Handle(new GetUtilityRegisterQuery(2026, 7, null), CancellationToken.None);
 
         var dto = result.Value!;

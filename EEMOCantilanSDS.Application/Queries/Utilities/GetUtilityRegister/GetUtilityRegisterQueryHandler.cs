@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Utilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -8,7 +9,7 @@ namespace EEMOCantilanSDS.Application.Queries.Utilities.GetUtilityRegister;
 
 public class GetUtilityRegisterQueryHandler(
     IStallRegisterQueries stallRegister,
-    IUtilityBillRepository utilityRepository)
+    IUtilityBillRepository utilityRepository, IClock clock)
     : IRequestHandler<GetUtilityRegisterQuery, Result<UtilityRegisterDto>>
 {
     public async Task<Result<UtilityRegisterDto>> Handle(GetUtilityRegisterQuery request, CancellationToken ct)
@@ -22,7 +23,7 @@ public class GetUtilityRegisterQueryHandler(
         // contract that has not expired. Also exclude stalls whose utilities are "locked" (no electricity
         // and no water in their charges) — they aren't metered, so they don't belong on the utility billing
         // report — while never hiding a stall that already has a bill recorded this month.
-        var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now.Date;
+        var now = clock.PhilippineNow.Date;
         var active = stalls.Where(s => s.Status == StallStatus.Active
                 && !IsPlaceholderOccupant(s.ActualOccupant)
                 && !(s.ContractDate is { } cd && s.ContractYears > 0 && cd.AddYears(s.ContractYears).Date < now)

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -8,10 +9,12 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
 public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
 {
     private readonly IStallRepository _stallRepo;
+    private readonly IClock _clock;
 
-    public CreateStallCommandValidator(IStallRepository stallRepo)
+    public CreateStallCommandValidator(IStallRepository stallRepo, IClock clock)
     {
         _stallRepo = stallRepo;
+        _clock = clock;
 
         RuleFor(x => x.StallNo)
             .NotEmpty().WithMessage("Stall number is required")
@@ -72,6 +75,6 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
         var existing = await _stallRepo.FindStallByNumberAsync(
             command.FacilityCode, command.Section, command.CustomSectionName, stallNo, cancellationToken);
 
-        return existing is not null && existing.IsVacant(PhilippineTime.Today);
+        return existing is not null && existing.IsVacant(_clock.PhilippineToday);
     }
 }

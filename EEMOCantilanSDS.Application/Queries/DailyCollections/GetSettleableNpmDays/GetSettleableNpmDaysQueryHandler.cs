@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
@@ -12,7 +13,7 @@ public class GetSettleableNpmDaysQueryHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IStallRepository stallRepository,
     INpmMarketClosureRepository marketClosureRepository,
-    IFeeRateResolver feeRateResolver) : IRequestHandler<GetSettleableNpmDaysQuery, Result<IReadOnlyList<SettleableNpmDayDto>>>
+    IFeeRateResolver feeRateResolver, IClock clock) : IRequestHandler<GetSettleableNpmDaysQuery, Result<IReadOnlyList<SettleableNpmDayDto>>>
 {
     public async Task<Result<IReadOnlyList<SettleableNpmDayDto>>> Handle(GetSettleableNpmDaysQuery request, CancellationToken ct)
     {
@@ -23,7 +24,7 @@ public class GetSettleableNpmDaysQueryHandler(
         if (stall.Facility?.Code != FacilityCode.NPM)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>());
 
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         // Which lessee's days these are. Naming the term is what lets an ended occupancy's arrears be collected at
         // all; without it the stall's current contract answered, so a past lessee's month came back empty.

@@ -43,7 +43,7 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
         context.AddRange(lgu, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
         await context.SaveChangesAsync();
 
-        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context)
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow))
             .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
 
         Assert.Equal(FeeRates.NpmDailyFee, rates.DailyRate);
@@ -63,7 +63,7 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
         context.AddRange(cantilan, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
         await context.SaveChangesAsync();
 
-        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(cantilan.Id), context)
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(cantilan.Id), context, new FixedClock(DateTime.UtcNow))
             .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
 
         Assert.False(rates.NeedsMonthlyRentConfirmation);
@@ -83,7 +83,7 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
             Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
         await context.SaveChangesAsync();
 
-        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(null), context)
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(null), context, new FixedClock(DateTime.UtcNow))
             .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
 
         Assert.True(rates.NeedsMonthlyRentConfirmation);
@@ -99,7 +99,7 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
         context.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty));
         await context.SaveChangesAsync();
 
-        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context)
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow))
             .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
 
         Assert.Equal(35m, rates.DailyRate);
@@ -119,7 +119,7 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
         context.AddRange(lgu, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
         await context.SaveChangesAsync();
 
-        var handler = new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context);
+        var handler = new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow));
         var before = (await handler.Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
 
         context.Add(FacilityRate.Create(

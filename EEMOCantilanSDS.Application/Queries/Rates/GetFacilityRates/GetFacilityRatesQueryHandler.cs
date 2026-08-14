@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -10,12 +11,12 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Rates.GetFacilityRates
 {
-    public class GetFacilityRatesQueryHandler(IAppDbContext context)
+    public class GetFacilityRatesQueryHandler(IAppDbContext context, IClock clock)
         : IRequestHandler<GetFacilityRatesQuery, Result<IReadOnlyList<FacilityRateDto>>>
     {
         public async Task<Result<IReadOnlyList<FacilityRateDto>>> Handle(GetFacilityRatesQuery request, CancellationToken ct)
         {
-            var today = PhilippineTime.Today;
+            var today = clock.PhilippineToday;
 
             // Auto-scoped to the caller's LGU by the global query filter. Take rows effective on/before today.
             var rows = await context.FacilityRates

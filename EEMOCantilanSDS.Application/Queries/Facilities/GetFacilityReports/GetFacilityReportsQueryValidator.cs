@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using FluentValidation;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -6,7 +7,7 @@ namespace EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 
 public class GetFacilityReportsQueryValidator : AbstractValidator<GetFacilityReportsQuery>
 {
-    public GetFacilityReportsQueryValidator()
+    public GetFacilityReportsQueryValidator(IClock clock)
     {
         RuleFor(x => x.FacilityCode)
             .IsInEnum()
@@ -18,7 +19,7 @@ public class GetFacilityReportsQueryValidator : AbstractValidator<GetFacilityRep
         
         RuleFor(x => x.Year)
             .GreaterThan(2000)
-            .LessThanOrEqualTo(PhilippineTime.Today.Year + 1)
+            .LessThanOrEqualTo(clock.PhilippineToday.Year + 1)
             .WithMessage("Year must be between 2000 and next year");
         
         // Weekly requires month and weekNumber

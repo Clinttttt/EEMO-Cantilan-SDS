@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -23,8 +24,8 @@ public class GetCollectionReportQueryHandler(
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
     IFacilityRepository facilityRepository,
-    IFeeRateResolver feeRateResolver
-) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
+    IFeeRateResolver feeRateResolver,
+    IClock clock) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
@@ -117,7 +118,7 @@ public class GetCollectionReportQueryHandler(
             tpmRows.Sum(r => r.Amount), 0m, Array.Empty<CollectionRentalRowDto>(), tpmRows));
 
         var ordered = facilities.Where(f => tenantCodes.Contains(f.Code)).OrderBy(f => f.Code).ToList();
-        return Result<CollectionReportDto>.Success(new CollectionReportDto(periodLabel, PhilippineTime.Today, ordered));
+        return Result<CollectionReportDto>.Success(new CollectionReportDto(periodLabel, clock.PhilippineToday, ordered));
     }
 
     private static string NameOrUnknown(string? name) => string.IsNullOrWhiteSpace(name) ? "Unspecified" : name;
