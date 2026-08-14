@@ -579,5 +579,13 @@ These cannot be answered by reading code.
 - **The router has no `NotFound`.** Any mistyped URL renders a blank page rather than saying anything. Wants wording and a
   small design rather than a redirect, so it was left out of the root-route change.
 
+- **Mojibake in `Accounts.razor.css` comments** (~a dozen lines, e.g. "ACCOUNTS PAGE â€" Toolbar"), from `0f8f3f02`. Comments
+  only — no selector, value or figure affected. Left alone deliberately: rewriting the file to repair comments would bury the
+  diff. Worth fixing if that file is edited substantially for another reason.
+  - Cause worth knowing, because it recurs: `powershell -File` on 5.1 reads a BOM-less script as ANSI, so em dashes inside a
+    script's own string literals reach the files it writes already corrupted. The same thing damaged three comment lines during
+    the `CollectorRepository` split and was repaired in the commit after it. Sweep with
+    `Select-String -Pattern "Ã|â€"` before committing, and STOP when it reports something.
+
 - **Orphaned CSS** in `FollowUpQueue.razor.css` (~157 unreachable lines). Left deliberately: that file has mixed line
   endings and a bulk rewrite would normalise them and bury the diff.

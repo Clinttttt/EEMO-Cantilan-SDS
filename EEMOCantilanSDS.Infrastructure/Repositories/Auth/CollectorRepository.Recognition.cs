@@ -14,7 +14,7 @@ using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
-// Partial of CollectorRepository: the private arithmetic every projection above shares â€” which payments count as recognized
+// Partial of CollectorRepository: the private arithmetic every projection above shares — which payments count as recognized
 // revenue for a date range, how a prepaid daily amount is allocated across collectable days, which days are collectable at
 // all, and the small labelling helpers.
 //

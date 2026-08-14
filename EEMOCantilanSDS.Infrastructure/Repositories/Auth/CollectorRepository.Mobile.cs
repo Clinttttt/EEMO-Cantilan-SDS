@@ -17,7 +17,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // Partial of CollectorRepository: the three projections the collector's own app reads (ICollectorMobileQueries).
 //
 // Separated from the account repository so a handler serving the field app cannot reach an authentication lookup, while the
-// recognition arithmetic these share with the office's reports stays in ONE place (CollectorRepository.Recognition.cs) â€”
+// recognition arithmetic these share with the office's reports stays in ONE place (CollectorRepository.Recognition.cs) —
 // duplicating money arithmetic is how two screens start disagreeing.
 public partial class CollectorRepository
 {

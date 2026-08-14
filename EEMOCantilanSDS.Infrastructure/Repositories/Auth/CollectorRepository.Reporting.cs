@@ -14,7 +14,7 @@ using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
-// Partial of CollectorRepository: what the OFFICE reads about its collectors (ICollectorReportingQueries) â€” the staff list
+// Partial of CollectorRepository: what the OFFICE reads about its collectors (ICollectorReportingQueries) — the staff list
 // with each collector's period figures, and one collector's activity for a month.
 //
 // A different question from what the collector's own app asks, and from an account lookup, which is why the contracts are
