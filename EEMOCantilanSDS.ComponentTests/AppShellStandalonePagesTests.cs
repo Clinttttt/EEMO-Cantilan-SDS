@@ -39,8 +39,17 @@ public class AppShellStandalonePagesTests
     [InlineData("/financial-reports")]
     [InlineData("/audit-trail")]
     [InlineData("/settings")]
-    [InlineData("/")]
     public void TheRestKeepTheAppShell(string path) => Assert.False(AppShell.IsStandalonePage(path));
+
+    [Fact]
+    public void TheRootStandsAlone_ButOnlyTheRoot()
+    {
+        // "/" renders nothing — it forwards to the menu or to sign-in — so the shell must not be drawn around it. It has to be
+        // matched EXACTLY: every path contains "/", so listing it with the substring entries would strip the sidebar from the
+        // whole portal. That is what these two assertions guard, together.
+        Assert.True(AppShell.IsStandalonePage("/"));
+        Assert.False(AppShell.IsStandalonePage("/menu"));
+    }
 
     [Theory]
     [InlineData(null)]

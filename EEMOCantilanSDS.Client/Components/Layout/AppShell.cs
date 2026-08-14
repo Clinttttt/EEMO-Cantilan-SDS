@@ -39,6 +39,13 @@ public static class AppShell
         if (string.IsNullOrWhiteSpace(absolutePath)) return false;
 
         var path = absolutePath.ToLowerInvariant();
+
+        // The root is matched EXACTLY and cannot join the list above: every path contains "/", so a substring entry there
+        // would strip the sidebar from the entire portal. It is standalone because it renders nothing — it decides whether the
+        // caller belongs at the menu or at sign-in and forwards them — and drawing the shell around that shows an officer a
+        // menu for the length of a redirect, or shows one to a visitor who is not signed in at all.
+        if (path is "/") return true;
+
         return StandalonePaths.Any(path.Contains);
     }
 }

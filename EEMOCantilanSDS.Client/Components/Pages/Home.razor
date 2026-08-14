@@ -1,9 +1,32 @@
-﻿@*@page "/"
+@page "/"
+@inject NavigationManager Navigation
 
+<PageTitle>StallTrack</PageTitle>
 
-<PageTitle>StallTrack — Home</PageTitle>
+@*
+    The address the office actually types: console.stalltrack.site, with no path.
 
-<h1>Hello, world!</h1>
+    There was no route for "/" at all — this file held a commented-out sample page — and the router has no NotFound, so the
+    bare domain answered 404. Anyone reaching the portal by its own address was told the page did not exist.
 
-Welcome to your new app.
+    It carries no markup on purpose. A landing page here would be one more screen between an officer and their work, and it
+    would have to be built twice over: signed in and not. The root's only job is to send the caller to the right place.
 *@
+
+@code {
+    /// <summary>Supplied by <c>CascadingAuthenticationState</c> in <c>Routes.razor</c>.</summary>
+    [CascadingParameter] private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Deliberately not decorated with [Authorize]. Letting the authorize view refuse the page would send every visitor to
+        // sign in, including one who is already signed in and simply typed the domain. The decision is made here instead, so
+        // both answers come from one place.
+        var signedIn = AuthenticationStateTask is not null
+            && (await AuthenticationStateTask).User.Identity?.IsAuthenticated == true;
+
+        // replace: true — the root is a junction, not a destination. Leaving it in history means Back returns here and
+        // bounces the caller forward again, which reads as a broken button.
+        Navigation.NavigateTo(signedIn ? "/menu" : "/login", replace: true);
+    }
+}
