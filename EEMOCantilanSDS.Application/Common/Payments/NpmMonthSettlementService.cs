@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
@@ -19,7 +20,7 @@ namespace EEMOCantilanSDS.Application.Common.Payments;
 public sealed class NpmMonthSettlementService(
     IDailyCollectionRepository dailyCollectionRepository,
     INpmMarketClosureRepository marketClosureRepository,
-    IFeeRateResolver feeRateResolver) : INpmMonthSettlementService
+    IFeeRateResolver feeRateResolver, IClock clock) : INpmMonthSettlementService
 {
     public async Task<NpmMonthPayable> ComputePayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
@@ -116,7 +117,7 @@ public sealed class NpmMonthSettlementService(
     {
         if (declaredKilos < 0m)
             return NpmFishDayQuote.NotPayable("Declared kilos can't be negative.");
-        if (day > PhilippineTime.Today)
+        if (day > clock.PhilippineToday)
             return NpmFishDayQuote.NotPayable("That day hasn't happened yet.");
 
         var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
@@ -170,7 +171,7 @@ public sealed class NpmMonthSettlementService(
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, daysInMonth);
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         // The occupancy that answers for this month — the same rule the staff path and every read use — so a month
         // on a stall since re-let is settled for the lessee who held it then, not for whoever holds it now.

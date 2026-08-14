@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -20,7 +21,7 @@ public class SettleNpmDaysCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmDaysCommand request, CancellationToken ct)
     {
@@ -50,7 +51,7 @@ public class SettleNpmDaysCommandHandler(
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
         var orNumber = request.ORNumber?.Trim();
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         // The occupancy windows, computed once. A day is settleable when SOME term answers for it — not only the
         // stall's current one, or arrears left behind by a lessee who has gone could never be collected.
         var occupancies = stall.Occupancies(today);

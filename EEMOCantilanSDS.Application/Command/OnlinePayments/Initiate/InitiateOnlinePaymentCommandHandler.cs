@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
@@ -20,7 +21,7 @@ public class InitiateOnlinePaymentCommandHandler(
     ICurrentUserService currentUser,
     INpmMonthSettlementService npmMonthSettlementService,
     IUtilityBillRepository utilityBillRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
@@ -91,7 +92,7 @@ public class InitiateOnlinePaymentCommandHandler(
         string reference;
         do
         {
-            reference = GenerateReference();
+            reference = GenerateReference(clock.PhilippineNow);
         }
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
@@ -143,7 +144,7 @@ public class InitiateOnlinePaymentCommandHandler(
         string reference;
         do
         {
-            reference = GenerateReference();
+            reference = GenerateReference(clock.PhilippineNow);
         }
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
@@ -189,7 +190,7 @@ public class InitiateOnlinePaymentCommandHandler(
         string reference;
         do
         {
-            reference = GenerateReference();
+            reference = GenerateReference(clock.PhilippineNow);
         }
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
@@ -247,7 +248,7 @@ public class InitiateOnlinePaymentCommandHandler(
         string reference;
         do
         {
-            reference = GenerateReference();
+            reference = GenerateReference(clock.PhilippineNow);
         }
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
@@ -275,6 +276,8 @@ public class InitiateOnlinePaymentCommandHandler(
             new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
     }
 
-    private static string GenerateReference() =>
-        $"EEMO-OP-{PhilippineTime.Now:yyyyMMdd}-{Guid.NewGuid():N}"[..25].ToUpperInvariant();
+    /// <param name="now">Passed in rather than read: the reference carries the date it was issued, and a static helper that
+    /// reaches for a clock cannot be tested.</param>
+    private static string GenerateReference(DateTime now) =>
+        $"EEMO-OP-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..25].ToUpperInvariant();
 }

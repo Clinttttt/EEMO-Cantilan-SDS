@@ -49,7 +49,7 @@ public class CreateStallReassignTests
 
         var handler = new CreateStallCommandHandler(
             stalls.Object, facilities.Object, payors.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         return (handler, stalls, payors, uow);
     }

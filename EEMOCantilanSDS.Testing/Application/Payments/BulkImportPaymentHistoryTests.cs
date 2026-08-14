@@ -71,7 +71,7 @@ public class BulkImportPaymentHistoryTests
 
         return (new BulkImportPaymentHistoryCommandHandler(
             stalls.Object, payments.Object, facilities.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), added);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow)), added);
     }
 
     private static BulkImportPaymentHistoryCommand Command(params ImportPaymentRow[] rows) =>

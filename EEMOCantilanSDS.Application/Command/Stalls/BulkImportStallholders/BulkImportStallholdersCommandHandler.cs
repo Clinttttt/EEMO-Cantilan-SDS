@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -18,7 +19,7 @@ public class BulkImportStallholdersCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<BulkImportStallholdersCommand, Result<BulkImportResultDto>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<BulkImportStallholdersCommand, Result<BulkImportResultDto>>
 {
     private const string Actor = "Admin"; // matches CreateStallCommandHandler (no per-request user attribution)
 
@@ -39,12 +40,12 @@ public class BulkImportStallholdersCommandHandler(
         // Resolve the current municipality's NPM daily fee (falls back to the ordinance constant, so
         // Cantilan seeds the same ₱30 DailyRate). Imported NPM stalls are stamped with this rate.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now));
+        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(clock.PhilippineNow));
 
         // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED
         // stall number renews that stall instead of being rejected, while an ACTIVE stall is protected.
         var existingStalls = await stallRepo.GetStallsWithContractsByFacilityAsync(request.FacilityCode, section, customSectionName, ct);
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         // The daily rate stamped on imported NPM stalls: a custom section uses the rate from the import form
         // (else inherits the section's existing rate, else the ordinance rate); canonical uses the ordinance
@@ -118,7 +119,7 @@ public class BulkImportStallholdersCommandHandler(
             if (isNpm && request.ApplyWater)
                 fees |= ApplicableFees.Water;
             var areaLocation = ParseNccAreaLocation(request.FacilityCode, row.AreaLocation);
-            var effectivity = DateOnly.FromDateTime(row.EffectivityDate ?? PhilippineTime.Now);
+            var effectivity = DateOnly.FromDateTime(row.EffectivityDate ?? clock.PhilippineNow);
             var nameOnContract = string.IsNullOrWhiteSpace(row.NameOnContract) ? null : row.NameOnContract!.Trim();
             var areaSqm = row.AreaSqm.HasValue && row.AreaSqm.Value > 0 ? row.AreaSqm : null;
 

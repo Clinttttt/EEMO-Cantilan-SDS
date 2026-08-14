@@ -55,7 +55,7 @@ namespace EEMOCantilanSDS.Testing.Rates
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(lgu)))
             {
-                var result = await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                var result = await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetFacilityRateCommand(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m), default);
                 Assert.True(result.IsSuccess);
             }
@@ -84,11 +84,11 @@ namespace EEMOCantilanSDS.Testing.Rates
             SeedRate(options, lgu, 30m);
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(lgu)))
-                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetFacilityRateCommand(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m), default);
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(lgu)))
-                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetFacilityRateCommand(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m), default);
 
             using (var verify = new AppDbContext(options, new FixedMunicipality(lgu)))
@@ -113,7 +113,7 @@ namespace EEMOCantilanSDS.Testing.Rates
             SeedRate(options, lguB, 20m); // B's own rate
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(lguA)))
-                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                await new SetFacilityRateCommandHandler(ctx, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow))
                     .Handle(new SetFacilityRateCommand(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m), default);
 
             using (var verifyB = new AppDbContext(options, new FixedMunicipality(lguB)))

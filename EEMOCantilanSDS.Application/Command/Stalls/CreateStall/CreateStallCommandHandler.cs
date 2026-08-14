@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -15,7 +16,7 @@ public class CreateStallCommandHandler(
     IPayorRepository payorRepository,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<CreateStallCommand, Result<StallDto>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<CreateStallCommand, Result<StallDto>>
 {
     public async Task<Result<StallDto>> Handle(CreateStallCommand request, CancellationToken cancellationToken)
     {
@@ -34,7 +35,7 @@ public class CreateStallCommandHandler(
 
             if (existing is not null)
             {
-                if (!existing.IsVacant(PhilippineTime.Today))
+                if (!existing.IsVacant(clock.PhilippineToday))
                     return Result<StallDto>.Failure("That stall is still occupied, so it cannot be reassigned.", 409);
 
                 return await ReassignAsync(existing, request, cancellationToken);
@@ -66,7 +67,7 @@ public class CreateStallCommandHandler(
             stall.Id,
             request.ActualOccupant,
             request.NameOnContract,
-            DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now),
+            DateOnly.FromDateTime(request.ContractDate ?? clock.PhilippineNow),
             request.ContractYears,
             request.MonthlyRate,
             null,
@@ -113,7 +114,7 @@ public class CreateStallCommandHandler(
     {
         const string actor = "Admin";
 
-        var newStart = DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now);
+        var newStart = DateOnly.FromDateTime(request.ContractDate ?? clock.PhilippineNow);
 
         // The outgoing occupancy ended the day before the incoming one begins. Dating it is what keeps each
         // lessee's collections and arrears on their own account once the stall has changed hands.

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -27,7 +28,7 @@ public class BulkImportDailyHistoryCommandHandler(
     IFeeRateResolver feeRateResolver,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext)
+    ITenantContext tenantContext, IClock clock)
     : IRequestHandler<BulkImportDailyHistoryCommand, Result<BulkImportDailyResultDto>>
 {
     /// <summary>
@@ -71,7 +72,7 @@ public class BulkImportDailyHistoryCommandHandler(
             if (no.Length > 0) stallsByNo[no] = stall;
         }
 
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
         var results = new List<BulkImportDailyRowResult>(request.Rows.Count);

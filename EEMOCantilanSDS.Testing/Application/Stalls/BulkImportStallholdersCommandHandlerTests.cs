@@ -39,7 +39,7 @@ public class BulkImportStallholdersCommandHandlerTests
             .ReturnsAsync(stalls);
 
     private BulkImportStallholdersCommandHandler Handler()
-        => new(_stallRepo.Object, _facilityRepo.Object, _payorRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+        => new(_stallRepo.Object, _facilityRepo.Object, _payorRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
     private void SetupFacility(FacilityCode code)
         => _facilityRepo.Setup(r => r.GetByCodeAsync(code, It.IsAny<CancellationToken>()))

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -17,7 +18,7 @@ public class BulkImportPaymentHistoryCommandHandler(
     IFacilityRepository facilityRepo,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<BulkImportPaymentHistoryCommand, Result<BulkImportPaymentResultDto>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<BulkImportPaymentHistoryCommand, Result<BulkImportPaymentResultDto>>
 {
     private const string Actor = "HistoryImport";
 
@@ -82,7 +83,7 @@ public class BulkImportPaymentHistoryCommandHandler(
             // already paid or part-paid, the vendor's own screens still show it as "Soon", and the year's collected
             // total carries money against a period the office's books have nothing to reconcile it to. The current
             // month is allowed - monthly rent falls due when the month opens, so it can genuinely be paid today.
-            var thisMonth = PhilippineTime.Today;
+            var thisMonth = clock.PhilippineToday;
             if (row.BillingYear > thisMonth.Year ||
                 (row.BillingYear == thisMonth.Year && row.BillingMonth > thisMonth.Month))
             {
@@ -116,7 +117,7 @@ public class BulkImportPaymentHistoryCommandHandler(
             // is the rule of record that the register, the reports and the collection dialog all read; the import
             // must answer the same question the same way or it will disagree with every screen that shows it.
             var occupancy = StallOccupancy.AnsweringForMonth(
-                stall.Occupancies(PhilippineTime.Today), row.BillingYear, row.BillingMonth);
+                stall.Occupancies(clock.PhilippineToday), row.BillingYear, row.BillingMonth);
 
             if (occupancy is null || !occupancy.Contract.BillsCalendarMonth(row.BillingYear, row.BillingMonth))
             {

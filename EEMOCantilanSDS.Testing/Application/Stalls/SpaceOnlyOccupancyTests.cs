@@ -95,7 +95,7 @@ public class SpaceOnlyOccupancyTests
 
         var handler = new CreateStallCommandHandler(
             stalls.Object, facilities.Object, payors.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new CreateStallCommand(
             FacilityCode.BBQ, "1", 1_600m, ApplicableFees.BaseRental,

@@ -34,7 +34,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         // Past month (March 2026): ~31 payable days, but the captured amount only covers 3 × ₱30 = ₱90.
         var settled = await svc.SettleUnpaidDaysAsync(
@@ -59,7 +59,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         // Settling "the month" settles what the month owes. March has 31 days, but the space is let for ₱900 a
         // month, so thirty days are marked and the thirty-first stays open for the daily calendar — the office can
@@ -87,7 +87,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var payable = await svc.ComputePayableAsync(stall, 2026, 3, CancellationToken.None);
 
@@ -118,7 +118,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var payable = await svc.ComputePayableAsync(stall, 2026, 3, CancellationToken.None);
 
@@ -142,7 +142,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var payable = await svc.ComputePayableAsync(stall, 2026, 2, CancellationToken.None);
 
@@ -166,7 +166,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var settled = await svc.SettleUnpaidDaysAsync(
             stall, 2026, 2, collectorId: null, recordedBy: "Admin", CancellationToken.None);
@@ -196,7 +196,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var today = PhilippineTime.Today;
         var payable = await svc.ComputePayableAsync(stall, today.Year, today.Month, CancellationToken.None);
@@ -230,7 +230,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         // The month is still quoted its shortfall, with no installments left to pay …
         var payable = await svc.ComputePayableAsync(stall, 2026, 2, CancellationToken.None);
@@ -271,7 +271,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         await svc.SettleUnpaidDaysAsync(stall, 2026, 2, null, "Admin", CancellationToken.None);
         await svc.SettleUnpaidDaysAsync(stall, 2026, 2, null, "Admin", CancellationToken.None);
@@ -317,7 +317,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         // Past, in-term, uncollected fish day + 54 kg → ₱30 base + 54 × ₱1 = ₱84 (ordinance fallback rates).
         var quote = await svc.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, CancellationToken.None);
@@ -345,7 +345,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var quote = await svc.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, CancellationToken.None);
 
@@ -370,7 +370,7 @@ public class NpmMonthSettlementServiceTests
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
 
-        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
 
         var dc = await svc.SettleFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, "Online", CancellationToken.None);
 

@@ -55,7 +55,7 @@ public class SettleNpmDaysCommandHandlerTests
 
         var handler = new SettleNpmDaysCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
-            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new SettleNpmDaysCommand(stall.Id, new[] { d1, d2 }, "OR-DAYS"), CancellationToken.None);
@@ -141,7 +141,7 @@ public class SettleNpmDaysCommandHandlerTests
 
         var handler = new SettleNpmDaysCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
-            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         return (handler, captured, uow);
     }
@@ -161,7 +161,7 @@ public class SettleNpmDaysCommandHandlerTests
         var handler = new SettleNpmDaysCommandHandler(
             new Mock<IDailyCollectionRepository>().Object, new Mock<IPaymentRepository>().Object, stallRepo.Object,
             new Mock<ICollectorRepository>().Object, currentUser.Object, new Mock<INpmMarketClosureRepository>().Object,
-            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new SettleNpmDaysCommand(stall.Id, new[] { new DateOnly(2026, 6, 1) }, null), CancellationToken.None);

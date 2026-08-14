@@ -268,11 +268,33 @@ month closes with nothing paid in between. Proven load-bearing — ignoring the 
 only that one, because the real date is already past the others. That asymmetry is the point: without a stated date, the
 clamp is untestable for most of the year.
 
+DONE — the WRITE path. Eleven commands and services that stamp a date into the ledger permanently now take `IClock`:
+`CreateStall`, `ToggleStallStatus`, both bulk imports plus `BulkImportDailyHistory`, `RecordPayment`, `SetFacilityRate`,
+`SettleNpmDays`, `SettleNpmMonth`, `NpmMonthSettlementService` and `InitiateOnlinePayment` (whose reference number carries the
+issue date). A wrong date here is not a display fault — it is written down and later reconciled against paper.
+
+`InitiateOnlinePayment`'s reference generator was static, so it takes the instant as a parameter rather than becoming an
+instance method: the same pattern used for the report helpers.
+
+Four new tests pin the rate-effective date, which is the clearest case: a rate takes effect the day it was set and NEVER
+before, because re-rating a month whose receipts are already issued would disagree with the paper. Proven load-bearing — all
+four fail when the handler ignores the injected clock.
+
+A scripted edit went wrong here and is worth recording. Driving the additions from the compiler's error positions worked for
+194 sites, then looped on four: where the constructor sits inside a tuple — `return (new Handler(...), mock);` — the script
+found the TUPLE's closing paren, so the argument landed outside the constructor, the error persisted, and it appended again
+each pass. One line ended with 90 copies. Caught by scanning for lines with more than one `new FixedClock(`, the four files
+restored from git, and those four fixed by hand. `Select-String` counts LINES, not occurrences, so the first check under-
+reported the damage — the count has to be per-match.
+
 STILL TO DO:
-- **The command handlers** — bulk import (5), `CreateStall` (3), `ToggleStallStatus` (2), NPM settlement (2) and the smaller
-  query handlers. These stamp effective dates and decide what a "current" month is.
-- **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments. They are mechanical
-  and belong with the interceptor; converting them would be a large diff with nothing to assert.
+- **~29 reads in Application query handlers and validators.** Read-side: mobile collection screens, collector lists, system
+  settings, a few validators. Same mechanical change, lower stakes than the write path.
+- **2 in Infrastructure outside repositories, 3 in Domain.**
+- **~205 in the Client.** Mostly display defaults and date-picker seeds. Lowest value, and worth judging individually rather
+  than sweeping: a date picker defaulting to today is not a rule about money.
+- **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the
+  interceptor.
 
 ### 9. Split API / Infrastructure / Client registrations — PARTLY DONE
 

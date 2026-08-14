@@ -88,7 +88,7 @@ public class BulkImportDailyHistoryTests
         return (new BulkImportDailyHistoryCommandHandler(
             stalls.Object, daily.Object, Mock.Of<IPaymentRepository>(), closureRepo.Object,
             facilities.Object, CacheTestDoubles.FeeRateResolver, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), added);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow)), added);
     }
 
     private static BulkImportDailyHistoryCommand Command(params ImportDailyPaymentRow[] rows) =>

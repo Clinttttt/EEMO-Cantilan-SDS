@@ -58,7 +58,7 @@ public class SettleNpmMonthCommandHandlerTests
 
         var handler = new SettleNpmMonthCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
-            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-777"), CancellationToken.None);
@@ -89,7 +89,7 @@ public class SettleNpmMonthCommandHandlerTests
         var handler = new SettleNpmMonthCommandHandler(
             new Mock<IDailyCollectionRepository>().Object, new Mock<IPaymentRepository>().Object, stallRepo.Object,
             new Mock<ICollectorRepository>().Object, currentUser.Object, new Mock<INpmMarketClosureRepository>().Object,
-            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new SettleNpmMonthCommand(stall.Id, 2026, 6, null), CancellationToken.None);
         Assert.Equal(400, result.StatusCode);
@@ -142,7 +142,7 @@ public class SettleNpmMonthCommandHandlerTests
         var handler = new SettleNpmMonthCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, new Mock<ICollectorRepository>().Object,
             currentUser.Object, closureRepo.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         return (handler, captured, uow);
     }

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -16,7 +17,7 @@ public class RecordPaymentCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<RecordPaymentCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<RecordPaymentCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordPaymentCommand request, CancellationToken ct)
     {
@@ -66,7 +67,7 @@ public class RecordPaymentCommandHandler(
             // history at today's figure. Falls back to the stall's rate when no term covers the month.
             var billingMonthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
             var answerable = stall.OccupanciesOverlapping(
-                    new DateOnly(request.Year, request.Month, 1), billingMonthEnd, PhilippineTime.Today)
+                    new DateOnly(request.Year, request.Month, 1), billingMonthEnd, clock.PhilippineToday)
                 .OrderByDescending(o => o.Start)
                 .FirstOrDefault();
 

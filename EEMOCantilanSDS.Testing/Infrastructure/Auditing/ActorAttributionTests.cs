@@ -36,7 +36,7 @@ public class ActorAttributionTests
         paymentRepo.Setup(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()))
             .Callback<PaymentRecord, CancellationToken>((p, _) => captured = p).Returns(Task.CompletedTask);
 
-        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
         await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 1, PaymentStatus.Paid, null, null), CancellationToken.None);
         return captured!;
     }

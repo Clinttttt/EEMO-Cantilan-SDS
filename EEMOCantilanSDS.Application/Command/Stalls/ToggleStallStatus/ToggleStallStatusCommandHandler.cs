@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -25,7 +26,7 @@ public class ToggleStallStatusCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ToggleStallStatusCommand request, CancellationToken ct)
     {
@@ -37,7 +38,7 @@ public class ToggleStallStatusCommandHandler(
 
         if (request.Close)
         {
-            stall.Close(PhilippineTime.Today, actor);
+            stall.Close(clock.PhilippineToday, actor);
         }
         else
         {
@@ -45,7 +46,7 @@ public class ToggleStallStatusCommandHandler(
             stall.Reopen(actor);
 
             if (closedOn is { } start)
-                await ExcuseClosurePeriodAsync(stall, start, PhilippineTime.Today, actor, ct);
+                await ExcuseClosurePeriodAsync(stall, start, clock.PhilippineToday, actor, ct);
         }
 
         await stallRepository.UpdateAsync(stall, ct);

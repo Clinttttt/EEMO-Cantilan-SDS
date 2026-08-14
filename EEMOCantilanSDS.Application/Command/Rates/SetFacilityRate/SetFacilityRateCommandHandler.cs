@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Caching;
@@ -13,12 +14,12 @@ namespace EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate
     public class SetFacilityRateCommandHandler(
         IAppDbContext context,
         IEemoCacheInvalidator cacheInvalidator,
-        ITenantContext tenantContext) : IRequestHandler<SetFacilityRateCommand, Result<bool>>
+        ITenantContext tenantContext, IClock clock) : IRequestHandler<SetFacilityRateCommand, Result<bool>>
     {
         public async Task<Result<bool>> Handle(SetFacilityRateCommand request, CancellationToken ct)
         {
             // Effective today forward — never retroactive, so elapsed periods stay exactly as billed.
-            var effective = PhilippineTime.Today;
+            var effective = clock.PhilippineToday;
 
             // FacilityRates is auto-scoped to the caller's LGU by the global query filter; a new row is
             // stamped to the caller's LGU by the write interceptor.

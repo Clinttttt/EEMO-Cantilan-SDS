@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -22,7 +23,7 @@ public class SettleNpmMonthCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<SettleNpmMonthCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock) : IRequestHandler<SettleNpmMonthCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmMonthCommand request, CancellationToken ct)
     {
@@ -51,7 +52,7 @@ public class SettleNpmMonthCommandHandler(
 
         var monthStart = new DateOnly(request.Year, request.Month, 1);
         var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         // Whose month this is. A row that names its term settles that term. When none is named, the term that
         // answers for THIS MONTH is what "the month" means — on a stall since re-let the most recent occupancy is
         // a different account, so settling a past month against it collected nothing while reporting success.

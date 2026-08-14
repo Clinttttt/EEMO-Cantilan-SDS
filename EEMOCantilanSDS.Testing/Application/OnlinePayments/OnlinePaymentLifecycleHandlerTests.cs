@@ -76,7 +76,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
-            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, (utilOut ?? new Mock<IUtilityBillRepository>()).Object, uow.Object);
+            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, (utilOut ?? new Mock<IUtilityBillRepository>()).Object, uow.Object, new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]
