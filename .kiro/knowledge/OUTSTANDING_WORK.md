@@ -121,10 +121,28 @@ start disagreeing. Registrations resolve the EXISTING repository instance rather
 instances per request would mean two change trackers, so a read after a write in the same request could miss it.
 
 Remaining, in order:
-- **THE FILE MOVES.** Every slice so far split contracts and left the implementations in place, on purpose. Three files are
-  still oversized (`CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB) and the seams are now
-  stated by the compiler. Moving the code into per-capability files is the mechanical follow-up that actually shrinks them —
-  and the private arithmetic they share has to be moved deliberately, not duplicated.
+- **THE FILE MOVES — `CollectorRepository` DONE, two to go.** Every contract slice split interfaces and left the
+  implementations in place, on purpose. The moves are the mechanical follow-up that actually shrinks the files, and the private
+  arithmetic they share has to be moved deliberately rather than duplicated.
+
+  `CollectorRepository` 81KB → four partial files (2026-08-15): entry 10.7KB (the account repository), `.Mobile.cs` 51.6KB (the
+  three projections the collector's app reads), `.Reporting.cs` 13.8KB (what the office reads about its collectors), and
+  `.Recognition.cs` 9.4KB — the shared arithmetic, deliberately in ONE file, because it decides what a peso is counted as and
+  when, and the office reconciles the app against its own reports by hand.
+
+  How it was done safely, worth repeating for the remaining two:
+  - **Two verified steps, not one.** First the class became `partial` and the primary-constructor parameters were captured into
+    `_context` / `_feeRateResolver` / `_clock` (78 references renamed) — a pure rename, built and fully tested before anything
+    moved. Only then were the blocks moved. A primary-constructor parameter is in scope ONLY in the file that declares it, which
+    is why the capture is required; `FacilityReportsRepository` already carries the same note for the same reason.
+  - **Proved behaviour-neutral by construction, not by hope.** Every code line of the original was compared against the
+    concatenation of the four files, ignoring usings, namespaces, braces and comments: 1,145 lines in, 1,145 out, IDENTICAL. A
+    move that quietly altered a figure could not survive that check, and the three suites passed unchanged.
+  - A PowerShell trap cost one attempt: `@(@(1059,1302))` FLATTENS to `@(1059,1302)`, so the loop read 1059 as a whole range,
+    `$range[1]` was null, and `$lines[1058..-1]` wrapped to produce a 2,364-line file. Ranges need `[int[][]]` with a leading
+    comma. Restored from a copy taken beforehand and redone.
+
+  STILL TO DO: `StallRepository` ~59KB and `PaymentRepository` ~53KB, the same way.
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
