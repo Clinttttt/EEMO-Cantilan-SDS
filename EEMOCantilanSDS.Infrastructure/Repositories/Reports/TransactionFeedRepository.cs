@@ -247,7 +247,10 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .ToListAsync(ct);
 
         return rows
-            .GroupBy(r => new { r.ORNumber, r.OwnerName, r.TransactionDate })
+            // One receipt is one row in the feed. The owner is part of the key because an OR is only shared WITHIN a receipt,
+            // and it is keyed by person rather than by exact spelling: the two animal lines of one receipt may have been
+            // typed with different capitalisation, which must not split the office's receipt into two.
+            .GroupBy(r => new { r.ORNumber, Owner = PersonName.MatchKey(r.OwnerName), r.TransactionDate })
             .Select(g =>
             {
                 // One receipt (OR) may cover multiple animal types — summarize them and sum the fees.

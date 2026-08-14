@@ -216,10 +216,12 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .ToListAsync(ct);
 
         recentRows.AddRange(slhRows
-            .GroupBy(s => new { s.ORNumber, s.OwnerName, s.TransactionDate })
+            // Keyed by person, not by exact spelling, so one receipt stays one entry even if its animal lines were typed with
+            // different capitalisation. The name shown is the one that was typed.
+            .GroupBy(s => new { s.ORNumber, Owner = PersonName.MatchKey(s.OwnerName), s.TransactionDate })
             .Select(g => new RecentRow(
                 g.Key.ORNumber ?? "",
-                g.Key.OwnerName,
+                g.First().OwnerName,
                 FacilityCode.SLH,
                 g.Sum(x => x.Amount),
                 g.First().CollectorId,

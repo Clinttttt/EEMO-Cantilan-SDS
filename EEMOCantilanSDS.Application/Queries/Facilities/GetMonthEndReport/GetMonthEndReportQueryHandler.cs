@@ -166,7 +166,10 @@ public class GetMonthEndReportQueryHandler(
     private static MonthEndFacilityDto BuildSlaughterFacility(IReadOnlyList<SlaughterTransactionDto> transactions)
     {
         var groups = transactions
-            .GroupBy(t => NameOrUnknown(t.OwnerName))
+            // One client is one row on the report. Keyed by person rather than exact spelling: the same client entered as
+            // "Juan Dela Cruz" on one visit and "JUAN DELA CRUZ" on another is one payor, and listing them twice would make
+            // an official month-end report disagree with itself on how many clients the facility served.
+            .GroupBy(t => PersonName.MatchKey(NameOrUnknown(t.OwnerName)))
             .Select(g =>
             {
                 var records = g
@@ -187,7 +190,8 @@ public class GetMonthEndReportQueryHandler(
                     .Select(a => $"{a.Heads} {a.Animal}"));
 
                 return new MonthEndTxnPayorDto(
-                    Payor: g.Key,
+                    // The key is a matching form, never shown; the report prints a name as the office typed it.
+                    Payor: NameOrUnknown(g.First().OwnerName),
                     RecordCount: g.Count(),
                     TotalCollected: g.Sum(x => x.TotalAmount),
                     Records: records,

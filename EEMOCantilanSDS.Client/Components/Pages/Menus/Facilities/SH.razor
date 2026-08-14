@@ -876,7 +876,9 @@
 
     private void EditEntry(SlaughterTransactionDto e)
     {
-        var ownerGroup = GroupedOwnerTransactions.FirstOrDefault(g => g.OwnerName == e.OwnerName);
+        // Matched by person: the group is keyed by client, so a row whose name was typed with different capitalisation still
+        // belongs to it. Comparing the strings exactly would silently select nothing and the dialog would open empty.
+        var ownerGroup = GroupedOwnerTransactions.FirstOrDefault(g => PersonName.Matches(g.OwnerName, e.OwnerName));
         if (ownerGroup != null)
         {
             SelectedGroupEntries = ownerGroup.LatestTransactions.ToList();

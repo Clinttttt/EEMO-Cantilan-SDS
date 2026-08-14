@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -57,7 +57,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 Id = Guid.NewGuid(),
                 FacilityId = facilityId,
                 CollectorId = collectorId,
-                OwnerName = ownerName,
+                OwnerName = PersonName.Canonical(ownerName),
                 AnimalType = AnimalType.Other,
                 CustomAnimalType = customAnimalType,
                 NumberOfHeads = heads,
@@ -84,7 +84,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 Id = Guid.NewGuid(),
                 FacilityId = facilityId,
                 CollectorId = collectorId,
-                OwnerName = ownerName,
+                OwnerName = PersonName.Canonical(ownerName),
                 AnimalType = AnimalType.Hog,
                 NumberOfHeads = heads,
                 RatePerHead = ratePerHead ?? FeeRates.SlhHogTotalPerHead,
@@ -117,7 +117,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 Id = Guid.NewGuid(),
                 FacilityId = facilityId,
                 CollectorId = collectorId,
-                OwnerName = ownerName,
+                OwnerName = PersonName.Canonical(ownerName),
                 AnimalType = animalType,
                 NumberOfHeads = heads,
                 RatePerHead = ratePerHead ?? FeeRates.SlhLargeTotalPerHead,

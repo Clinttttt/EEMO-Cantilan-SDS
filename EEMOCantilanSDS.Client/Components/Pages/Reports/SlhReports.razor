@@ -902,9 +902,9 @@ else
     record OwnerYearGroup(string Owner, int Receipts, int Heads, decimal Total, List<SlaughterTransactionDto> Lines);
     IReadOnlyList<OwnerYearGroup> OwnerYearGroups => YearTxns
         .Where(t => string.IsNullOrWhiteSpace(OwnerSearch) || t.OwnerName.Contains(OwnerSearch.Trim(), StringComparison.OrdinalIgnoreCase))
-        .GroupBy(t => t.OwnerName)
+        .GroupBy(t => PersonName.MatchKey(t.OwnerName))
         .Select(g => new OwnerYearGroup(
-            g.Key,
+            g.First().OwnerName,
             g.Select(x => !string.IsNullOrEmpty(x.ORNumber) ? "OR:" + x.ORNumber : $"NX:{x.TransactionDate:yyyyMMdd}").Distinct().Count(),
             g.Sum(x => x.NumberOfHeads),
             g.Sum(x => x.TotalAmount),

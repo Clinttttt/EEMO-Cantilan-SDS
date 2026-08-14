@@ -471,9 +471,11 @@
     private IEnumerable<OwnerSummary> OwnerSummaries =>
         GetAnimalTransactions(ActiveFilter)
             .Where(MatchSearch)
-            .GroupBy(t => t.OwnerName)
+            // One client is one row: keyed by person so a name typed with different capitalisation on another visit does
+            // not list the same client twice. The name shown is the one the office typed.
+            .GroupBy(t => PersonName.MatchKey(t.OwnerName))
             .Select(g => new OwnerSummary(
-                g.Key,
+                g.First().OwnerName,
                 g.Max(t => t.TransactionDate),
                 g.Sum(t => t.NumberOfHeads),
                 g.Sum(t => t.TotalAmount),
@@ -520,10 +522,10 @@
         var baseTransactions = GetAnimalTransactions(animalType);
         
         return baseTransactions
-            .GroupBy(t => new { t.OwnerName, t.AnimalType, t.CustomAnimalType })
+            .GroupBy(t => new { Owner = PersonName.MatchKey(t.OwnerName), t.AnimalType, t.CustomAnimalType })
             .Select(g => new SlaughterTransactionDto(
                 Guid.NewGuid(),
-                g.Key.OwnerName,
+                g.First().OwnerName,
                 g.Key.AnimalType,
                 g.Key.CustomAnimalType,
                 g.Sum(t => t.NumberOfHeads),

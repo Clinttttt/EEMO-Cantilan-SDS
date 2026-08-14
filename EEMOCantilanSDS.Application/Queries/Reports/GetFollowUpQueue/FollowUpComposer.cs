@@ -227,13 +227,13 @@ public static class FollowUpComposer
         // Grouped by (payor, year, month) so a whole-year view lists one row per month (each opens the
         // right month in Add-OR); a single-month view collapses to one group with the same label as before.
         foreach (var g in slaughter.Where(t => string.IsNullOrWhiteSpace(t.ORNumber))
-                     .GroupBy(t => new { Owner = Named(t.OwnerName), t.TransactionDate.Year, t.TransactionDate.Month }))
+                     .GroupBy(t => new { Owner = PersonName.MatchKey(Named(t.OwnerName)), t.TransactionDate.Year, t.TransactionDate.Month }))
         {
             // A receipt = one visit (owner + date); a visit may span several animal-type rows.
             var receipts = g.Select(t => t.TransactionDate).Distinct().Count();
             items.Add(new FollowUpItemDto(
                 SecOperational, "Normal", "Missing OR", "missingor",
-                FacilityCode.SLH, Model(FacilityCode.SLH), g.Key.Owner,
+                FacilityCode.SLH, Model(FacilityCode.SLH), Named(g.First().OwnerName),
                 $"{receipts} receipt{(receipts == 1 ? "" : "s")}",
                 g.Sum(t => t.TotalAmount), false, MonthLabel(g.Key.Year, g.Key.Month),
                 "Recorded · OR blank", "Add OR", "/slh"));

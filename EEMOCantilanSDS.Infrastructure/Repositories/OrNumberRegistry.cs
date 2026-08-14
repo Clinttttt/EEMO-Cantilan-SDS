@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -79,11 +80,16 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories
 
             // Slaughterhouse: within a single receipt (same owner + same date) the OR may repeat; reject only
             // when it already belongs to a different owner or a different transaction date.
+            //
+            // "Different owner" is judged by person, not by exact spelling. With exact equality, entering the second animal
+            // on a receipt as "Juan dela Cruz" when the first was "Juan Dela Cruz" made the office's own receipt look like
+            // another person's, and the OR the office had already written was refused.
             if (allowSlaughterReceipt is { } receipt)
             {
+                var ownerKey = PersonName.MatchKey(receipt.OwnerName);
                 if (await context.SlaughterTransactions.IgnoreQueryFilters()
                         .AnyAsync(s => (mid == Guid.Empty || s.MunicipalityId == mid) && s.ORNumber == or
-                            && (s.OwnerName != receipt.OwnerName || s.TransactionDate != receipt.Date), ct)) return false;
+                            && (s.OwnerName.Trim().ToLower() != ownerKey || s.TransactionDate != receipt.Date), ct)) return false;
             }
             else
             {

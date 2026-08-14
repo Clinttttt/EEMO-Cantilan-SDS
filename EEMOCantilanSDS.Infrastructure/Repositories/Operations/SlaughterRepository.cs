@@ -83,8 +83,8 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
             .Select(x => x.OwnerName)
             .ToListAsync(ct))
             .Where(o => !string.IsNullOrWhiteSpace(o))
-            .Select(o => o.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(PersonName.Canonical)
+            .Distinct(PersonName.Comparer)
             .OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -109,8 +109,10 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
             .ThenBy(x => x.OwnerName)
             .ToListAsync(ct);
 
+        // Grouped by person: one client is one row in the list, whatever capitalisation each entry happened to use.
+        // The key keeps a typed name so the office still reads the spelling it entered.
         var grouped = allTransactions
-            .GroupBy(x => x.OwnerName)
+            .GroupBy(x => PersonName.Canonical(x.OwnerName), PersonName.Comparer)
             .Select(ownerGroup =>
             {
                 // Group by OR number first
@@ -162,9 +164,12 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
 
     public async Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default)
     {
+        // Matched by person, not by exact spelling: a client's month must total everything they paid, however the name
+        // happened to be capitalised on each entry. Trim/lower is what PostgreSQL can do; stored names are canonical on write.
+        var ownerKey = PersonName.MatchKey(ownerName);
         var transactions = await context.SlaughterTransactions
             .AsNoTracking()
-            .Where(x => x.OwnerName == ownerName && x.TransactionDate.Year == year && x.TransactionDate.Month == month)
+            .Where(x => x.OwnerName.Trim().ToLower() == ownerKey && x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
@@ -315,15 +320,21 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
     }
 
     public async Task<IReadOnlyList<SlaughterTransaction>> GetTransactionsByOwnerDateORAsync(string ownerName, DateOnly date, string orNumber, CancellationToken ct = default)
-        => await context.SlaughterTransactions
-            .Where(x => x.OwnerName == ownerName && x.TransactionDate == date && x.ORNumber == orNumber)
+    {
+        var ownerKey = PersonName.MatchKey(ownerName);
+        return await context.SlaughterTransactions
+            .Where(x => x.OwnerName.Trim().ToLower() == ownerKey && x.TransactionDate == date && x.ORNumber == orNumber)
             .ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<SlaughterTransaction>> GetUnreceiptedByOwnerDateAsync(string ownerName, DateOnly transactionDate, CancellationToken ct = default)
-        => await context.SlaughterTransactions
-            .Where(x => x.OwnerName == ownerName && x.TransactionDate == transactionDate
+    {
+        var ownerKey = PersonName.MatchKey(ownerName);
+        return await context.SlaughterTransactions
+            .Where(x => x.OwnerName.Trim().ToLower() == ownerKey && x.TransactionDate == transactionDate
                      && (x.ORNumber == null || x.ORNumber == ""))
             .ToListAsync(ct);
+    }
 
     public Task RemoveAsync(SlaughterTransaction transaction, CancellationToken ct = default)
     {
@@ -333,9 +344,10 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
 
     public async Task<ClientProfileDto?> GetClientProfileAsync(string ownerName, CancellationToken ct = default)
     {
+        var ownerKey = PersonName.MatchKey(ownerName);
         var transactions = await context.SlaughterTransactions
             .AsNoTracking()
-            .Where(x => x.OwnerName == ownerName)
+            .Where(x => x.OwnerName.Trim().ToLower() == ownerKey)
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync(ct);

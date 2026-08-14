@@ -477,7 +477,24 @@ These cannot be answered by reading code.
   another database on the same server. Both paths were exercised: asked for the production name it refused and SKIPPED every
   later step, and asked for the drill copy it dropped it and proved production still present.
 - **`Profile` "Earlier Terms" card** has no component test (no fixture existed when it was written).
-- **"Same payor" matching is free-text name comparison** — there is no payor entity behind it.
+- **"Same payor" matching NARROWED to genuine namesakes** (was: exact free-text comparison). Resolved 2026-08-14. A
+  slaughterhouse client is the name a clerk typed — there is no client entity — and that name gated the OR-reuse rule. With
+  exact equality, entering the second animal of one receipt as "Juan dela Cruz" when the first was "Juan Dela Cruz" made the
+  office's own receipt look like another person's and **the OR the office had already written was refused**; a client's
+  history and monthly totals also split across spellings. `Domain/Common/PersonName.cs` now defines the rule (trim, collapse
+  internal whitespace, ignore case), stored names are canonical on write, and it is applied at:
+  the OR-reuse check (`OrNumberRegistry`), the four owner lookups in `SlaughterRepository`, the receipt groupings in
+  `DashboardRepository` and `TransactionFeedRepository`, the month-end report, the follow-up "Missing OR" grouping, and the
+  three client report groupings. Capitalisation is preserved in storage and display — only comparison ignores it.
+  - `20260814080342_CanonicaliseSlaughterOwnerNames` canonicalises whitespace in existing rows. Data only, no schema change,
+    idempotent, `Down` deliberately empty. It was **necessary, not tidying**: the owner picker now offers canonical names, so
+    a pre-existing double-spaced row would have become unreachable through it.
+  - Proven against real PostgreSQL, because `Trim().ToLower()` in a predicate is SQL the in-memory provider never has to
+    translate — it answers in LINQ and would pass whether or not the SQL works.
+  - **STILL OPEN — the part a name cannot settle:** two genuinely different people who share a name are still one payor, and
+    one person whose name is MISSPELT (not just recapitalised) is still two. Nothing derivable from a name fixes either; that
+    needs a client record the office can distinguish, with its own list and a way to merge duplicates. A decision for the
+    office, not something to infer. The fault is now confined to real namesakes instead of every stray capital letter.
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
   static `ConditionalWeakTable` with a stale `asOf`; mobile `_recordsCache`/`_reportCache` are never cleared on logout;
   `FacilityReportsModal.razor` still hardcodes `#4a9eff`; the dashboard computes compliance twice; `Take(AttentionLimit)`
