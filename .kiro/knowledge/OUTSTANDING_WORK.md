@@ -142,7 +142,13 @@ Remaining, in order:
     `$range[1]` was null, and `$lines[1058..-1]` wrapped to produce a 2,364-line file. Ranges need `[int[][]]` with a leading
     comma. Restored from a copy taken beforehand and redone.
 
-  STILL TO DO: `StallRepository` ~59KB and `PaymentRepository` ~53KB, the same way.
+  `StallRepository` 59KB → six partial files (2026-08-15): entry 12KB (the aggregate and the ordinary stall reads),
+  `.Attention.cs` 3.8KB (contracts needing attention), `.Mobile.cs` 13KB (the collector app's two rounds), `.Register.cs`
+  13.1KB (the List of Stallholders), `.ClosedAccounts.cs` 21.9KB (the inactive-accounts register), and `.Collectable.cs` 2.3KB
+  — the shared arithmetic deciding which days of a month a space is collectable for, which the mobile rounds and the printed
+  register must answer identically. Same two-step method; 677 code lines in, 677 out, IDENTICAL.
+
+  STILL TO DO: `PaymentRepository` ~53KB, the same way.
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
