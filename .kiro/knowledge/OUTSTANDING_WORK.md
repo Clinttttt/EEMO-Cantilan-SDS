@@ -184,7 +184,7 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — STARTED (lockout, token expiry and the report periods done; ~257 sites remain)
+### 8. Inject time instead of static clocks — STARTED (lockout, tokens, report periods and PaymentRepository done; ~245 remain)
 
 `IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
 `UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
@@ -231,9 +231,21 @@ year boundary. Written first against the wrong field: the span lands on the ROW 
 and the real values were read from the failure rather than guessed. Proven load-bearing — anchoring the span on today
 instead of the month asked for fails one case and only that one.
 
+DONE — `PaymentRepository`, 12 reads. It now takes `IClock`; the test-convenience constructor keeps the real clock and says
+so, and a test that cares which day it is uses the full constructor. Everything this repository decides about eligibility —
+which market days are chargeable, who holds a stall now, which rate applies — is a question about "today".
+
+Four new tests pin the date: the current month is billed only to today, the same month owes more later in the month, a closed
+month bills the office's reference month whatever the calendar length, and a month still in the future is not offered at all.
+The daily rate is DERIVED from a closed month rather than written down, so no Cantilan figure is asserted for every LGU.
+
+Two things learned while proving them load-bearing, both worth keeping:
+- The eligibility bound is enforced TWICE — once on the occupancy window and once per month — so removing either clamp leaves
+  the other and the tests still pass. Redundant guards are good for production and misleading for a defect probe.
+- What the probe must break is the INJECTION: made to ignore the injected clock and read the static one, three of the four
+  fail. That is the assertion that matters, and it is why these tests could not have been written before.
+
 STILL TO DO, in this order:
-- **`PaymentRepository`** — 12 reads, the largest concentration and the one deciding billing eligibility. Its own slice: a
-  52KB repository whose constructor is used across many test setups, with the reads threaded through private arithmetic.
 - **`TrmRepository`** (7), the `FacilityReportsRepository` partials (12 across Revenue, Compliance, Trends and the root),
   `CollectorRepository` (3) and `StallRepository` (3) — each needs a constructor change that ripples into repository tests.
 - **The command handlers** — bulk import (5), `CreateStall` (3), `ToggleStallStatus` (2), NPM settlement (2) and the smaller

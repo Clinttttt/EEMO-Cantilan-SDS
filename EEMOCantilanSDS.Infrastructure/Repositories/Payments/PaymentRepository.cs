@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
@@ -17,11 +19,20 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // reads share private obligation arithmetic with the rest of the file - but the CONTRACTS are, so a caller that only
 // wants to read one account can depend on IStallLedgerQueries and nothing else. Moving the code out is a mechanical
 // follow-up, not a redesign, now that the seam is stated.
-public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
+public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
     : IPaymentRepository, IStallLedgerQueries, IMissingReceiptQueries
 {
-    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public PaymentRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    /// <summary>
+    /// Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants) and reads the real
+    /// clock.
+    ///
+    /// <para>
+    /// A test that cares WHICH DAY it is should use the full constructor and pass a fixed clock. Everything this repository
+    /// decides about eligibility — which market days are chargeable, who holds a stall now, which rate applies — is a
+    /// question about "today", so a test using this overload is agreeing to be asked on whatever day it runs.
+    /// </para>
+    /// </summary>
+    public PaymentRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     public async Task<PaymentRecord?> GetByIdAsync(Guid id, CancellationToken ct)
     {
@@ -171,7 +182,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             .Where(s => stallIds.Contains(s.Id))
             .ToListAsync(ct);
 
-        var directory = OccupantDirectory.From(stalls, PhilippineTime.Today);
+        var directory = OccupantDirectory.From(stalls, clock.PhilippineToday);
 
         return rows
             .Select(r =>
@@ -271,7 +282,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
     public async Task<IReadOnlyList<NpmStallDailyStatusDto>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
@@ -327,7 +338,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
     public async Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct)
     {
-        var now = PhilippineTime.Now;
+        var now = clock.PhilippineNow;
         var startDate = now.AddMonths(-11);
 
         var stall = await context.Stalls
@@ -417,7 +428,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             // month in progress the same way the ledger card above it does. COLLECTIONS still range to the calendar
             // month end, because money the office has taken is never dropped — a vendor who paid a day in advance
             // must still see it. Same asymmetry the collector's report has always carried.
-            var earnedEnd = DomainRules.EarnedThrough(calendarEnd, PhilippineTime.Today);
+            var earnedEnd = DomainRules.EarnedThrough(calendarEnd, clock.PhilippineToday);
             var monthEnd = calendarEnd;
 
             // NPM is let for a MONTHLY rent and collected in ₱30 installments, so the month's obligation is that
@@ -488,7 +499,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
     /// </summary>
     public async Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct)
     {
-        var now = PhilippineTime.Now;
+        var now = clock.PhilippineNow;
         var startDate = now.AddMonths(-11);
 
         var stall = await context.Stalls
@@ -504,7 +515,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
         // This panel is the account of whoever holds the stall now (or last held it) — the same reading every
         // collection screen means by "this stall".
-        var occupancy = stall.ResolveOccupancy(null, PhilippineTime.Today);
+        var occupancy = stall.ResolveOccupancy(null, clock.PhilippineToday);
         if (occupancy is null)
             return new StallLedgerSummaryDto(0, 0, 0m, 0m);
 
@@ -583,7 +594,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             // of the month only four days have been earned. One rule, shared with the reports, the payment dialog,
             // the collector's report and the register — see DomainRules.EarnedThrough. Monthly-billed facilities are
             // untouched: their rent falls due when the month opens.
-            if (isNpm) monthEnd = DomainRules.EarnedThrough(monthEnd, PhilippineTime.Today);
+            if (isNpm) monthEnd = DomainRules.EarnedThrough(monthEnd, clock.PhilippineToday);
 
             if (monthEnd < monthStart)
                 continue;
@@ -672,7 +683,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         if (stall is null)
             return Array.Empty<PaymentHistoryDto>();
 
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         var occupancy = ResolveOccupancy(stall, contractId, forPeriod, today);
 
@@ -717,7 +728,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 var to = mEndFull < windowEnd ? mEndFull : windowEnd;
                 // Never past today: this list is what a clerk can take money for, so offering the whole of an
                 // in-progress month would collect for days the vendor has not yet occupied. Shared rule.
-                to = DomainRules.EarnedThrough(to, PhilippineTime.Today);
+                to = DomainRules.EarnedThrough(to, clock.PhilippineToday);
                 if (to < from) continue;
 
                 // Every day of the window is chargeable to this lessee by construction — the window already stops
@@ -818,14 +829,14 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         if (stall is null)
             return new CursorPagedResult<StallCollectionHistoryRowDto>();
 
-        var occupants = OccupantDirectory.From(new[] { stall }, PhilippineTime.Today);
-        var payorName = stall.ResolveOccupancy(null, PhilippineTime.Today)?.Contract.ActualOccupant ?? "—";
+        var occupants = OccupantDirectory.From(new[] { stall }, clock.PhilippineToday);
+        var payorName = stall.ResolveOccupancy(null, clock.PhilippineToday)?.Contract.ActualOccupant ?? "—";
 
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
             // Resolve the municipality's NPM fish rate (constant fallback → Cantilan unchanged).
             var npmFish = (await feeRateResolver.GetSnapshotAsync(ct))
-                .Resolve(FeeRateKey.NpmFishPerKilo, PhilippineTime.Today);
+                .Resolve(FeeRateKey.NpmFishPerKilo, clock.PhilippineToday);
             // NPM: one row per recorded daily collection (paid or absent), newest first; cursor = date.
             var q = context.DailyCollections.AsNoTracking()
                 .Where(d => d.StallId == stallId && (d.IsPaid || d.IsAbsent));
