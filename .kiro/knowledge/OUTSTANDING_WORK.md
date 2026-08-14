@@ -526,9 +526,40 @@ These cannot be answered by reading code.
     "Villaneuva" is two clients, and no rule derived from the name can tell a typo from a different person. That is a
     data-entry correction concern (find and fix the wrong entry), not an identity one, and it needs no schema: the office can
     correct the name and the transactions rejoin. Worth a duplicate-name warning at entry time if the office ever asks.
+- **The follow-up header stated the VISIBLE rows, not the whole debt** — resolved 2026-08-14 (`372b7a62`). The Financial
+  Report's Attention & Follow-up header read "N accounts need follow-up · ₱X outstanding in full" while counting and summing
+  the two lists beside it, which are capped at 50 accounts each (`AttentionLimit`) to bound the payload. An office with more
+  than fifty accounts in a bucket was therefore shown fewer accounts and less money than it was owed, under a heading that
+  claims completeness; the column counts had the same fault. `FinancialReportDto` now carries `DelinquentAccountsTotal`,
+  `DelinquentOutstandingTotal`, `ArrearsAccountsTotal` and `ArrearsOutstandingTotal`, counted before the cap, and a capped
+  list says so on the page.
+  - It could only appear at scale: below the cap both ways of counting agree, which is why it survived. A test pins that
+    agreement so the two paths cannot quietly diverge again.
+  - The new fields default to nought, which is its own hazard — a construction path that forgets them shows an empty header
+    above a populated list. Both production paths set them (including the All-time view, which builds its DTO from another),
+    and a test covers the All-time path specifically.
+
+- **The bare domain answered 404** — resolved 2026-08-14 (`79b471b5`). There was no route for `/` at all (`Home.razor` held a
+  commented-out sample) and the router carries no `NotFound`, so `console.stalltrack.site` told the office the page did not
+  exist. The root now forwards to `/menu` when signed in and `/login` when not, renders nothing of its own, replaces itself in
+  history, and is standalone so the shell is not drawn around a redirect. `"/"` had to be matched EXACTLY in
+  `AppShell.IsStandalonePage`: every path contains it, so a substring entry would strip the sidebar from the whole portal.
+
 - **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
   static `ConditionalWeakTable` with a stale `asOf`; mobile `_recordsCache`/`_reportCache` are never cleared on logout;
-  `FacilityReportsModal.razor` still hardcodes `#4a9eff`; the dashboard computes compliance twice; `Take(AttentionLimit)`
-  is applied before the header count and sum.
+  `FacilityReportsModal.razor` still hardcodes `#4a9eff`; the dashboard computes compliance twice.
+- **Absolute redirects are scheme-downgraded to `http`.** Found 2026-08-14 while verifying the root route: the live
+  `Location` header is `http://console.stalltrack.site/login`, not `https://`. TLS terminates at Azure's front end, so the app
+  sees `http` and builds absolute redirect URLs with that scheme; there is no `UseForwardedHeaders` in the Client pipeline.
+  HSTS is set (`max-age=31536000`), so a returning browser upgrades internally, and the `http` URL 301s to `https` anyway —
+  but a first-time visitor makes one plaintext request for the URL.
+  - NOT fixed on purpose. The remedy is `UseForwardedHeaders` as the FIRST middleware, and on App Service the usual
+    configuration clears `KnownProxies`/`KnownNetworks` because the proxy address is not fixed — which means trusting
+    `X-Forwarded-*` from any caller. That is spoofable, and it also changes the client IP that rate limiting and the firewall
+    rules see. A trade-off for the office to choose, not one to make quietly.
+
+- **The router has no `NotFound`.** Any mistyped URL renders a blank page rather than saying anything. Wants wording and a
+  small design rather than a redirect, so it was left out of the root-route change.
+
 - **Orphaned CSS** in `FollowUpQueue.razor.css` (~157 unreachable lines). Left deliberately: that file has mixed line
   endings and a bulk rewrite would normalise them and bury the diff.
