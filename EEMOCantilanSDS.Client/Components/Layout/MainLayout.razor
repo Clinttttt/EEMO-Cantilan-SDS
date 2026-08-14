@@ -53,19 +53,14 @@ else
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Which pages stand alone is stated by <see cref="AppShell.IsStandalonePage"/> — a pure rule, so it can be tested in
+    /// both directions rather than only observed on screen.
+    /// </summary>
     private void UpdateSidebarVisibility()
     {
-        var path = new Uri(Navigation.Uri).AbsolutePath.ToLower();
-        showSidebar = !path
-        .Contains("/login") && !path
-        .Contains("/setup") && !path
-        .Contains("account-setup-admin") && !path
-        .Contains("/activate") && !path
-        .Contains("/payor") && !path
-        .Contains("/forgot-password") && !path
-        .Contains("/reset-password") && !path
-        .Contains("/verify-email");
-    
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        showSidebar = !AppShell.IsStandalonePage(path);
     }
     public void Dispose()
     {
