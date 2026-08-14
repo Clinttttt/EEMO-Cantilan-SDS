@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
@@ -10,8 +12,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService) : IPayorRepository
+public class PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService, IClock clock) : IPayorRepository
 {
+    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
+    public PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService)
+        : this(context, npmMonthSettlementService, new SystemClock()) { }
     public async Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default)
     {
         var normalized = contactNumber.Trim();
@@ -175,7 +180,7 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
             .Where(p => stallIds.Contains(p.StallId) && p.Status != PaymentStatus.Paid)
             .ToListAsync(ct);
 
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         int curYear = today.Year, curMonth = today.Month;
 
         // Stalls that already have ANY record for the current month (paid or not) — don't synthesize for these.

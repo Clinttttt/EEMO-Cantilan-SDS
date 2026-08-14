@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -8,8 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDayProvider) : ITpmRepository
+public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDayProvider, IClock clock) : ITpmRepository
 {
+    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
+    public TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDayProvider)
+        : this(context, marketDayProvider, new SystemClock()) { }
     public async Task<TpmVendor?> GetVendorByIdAsync(Guid id, CancellationToken ct = default)
         => await context.TpmVendors.FirstOrDefaultAsync(v => v.Id == id, ct);
 
@@ -175,7 +180,7 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
     /// </summary>
     public async Task<TpmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var firstYear = year - 4;
         var startDate = new DateOnly(firstYear, 1, 1);
         var endDate = new DateOnly(year, 12, 31);

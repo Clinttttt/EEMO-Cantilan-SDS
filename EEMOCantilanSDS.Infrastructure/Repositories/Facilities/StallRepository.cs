@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -19,11 +21,11 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // screens reuse the same private obligation and eligibility arithmetic the register uses, and duplicating that is how two
 // screens start disagreeing about the same peso. The CONTRACTS are separate, so a handler serving the app cannot reach a
 // stall aggregate, and moving the code later is a file operation rather than a redesign.
-public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
+public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
     : IStallRepository, IStallMobileQueries, IClosedStallAccountQueries, IContractAttentionQueries, IStallRegisterQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     /// <summary>
     /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>.
@@ -31,7 +33,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
     /// projected then filtered in memory; expired rows sort first, then by nearest expiry.
     /// </summary>
     public async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct)
-        => await GetContractAttentionAsOfCoreAsync(PhilippineTime.Today, withinMonths, ct);
+        => await GetContractAttentionAsOfCoreAsync(clock.PhilippineToday, withinMonths, ct);
 
     public async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsOfAsync(int year, int month, int withinMonths, CancellationToken ct)
     {
@@ -364,7 +366,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // Cantilan resolves to ₱30 × 30 = ₱900, exactly what it showed before.
         var isDailyBilled = facilityCode == FacilityCode.NPM;
         var rateSnapshot = isDailyBilled ? await feeRateResolver.GetSnapshotAsync(ct) : null;
-        var rateAsOf = DateOnly.FromDateTime(PhilippineTime.Now);
+        var rateAsOf = DateOnly.FromDateTime(clock.PhilippineNow);
         var npmDailyRate = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmDailyStall, rateAsOf) : 0m;
         var npmMonthlyRent = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmMonthlyStall, rateAsOf) : 0m;
 
@@ -701,7 +703,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
     private async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsCoreAsync(
         DateOnly? windowStart, DateOnly? windowEnd, CancellationToken ct)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         // Resolve the municipality's NPM rates as of today (falls back to the ordinance constants, so
         // Cantilan's lifetime/uncollected figures are unchanged).

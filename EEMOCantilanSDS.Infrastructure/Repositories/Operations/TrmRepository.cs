@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
@@ -8,8 +10,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class TrmRepository(AppDbContext context) : ITrmRepository
+public class TrmRepository(AppDbContext context, IClock clock) : ITrmRepository
 {
+    /// <summary>
+    /// Test/non-DI convenience, matching the other repositories: reads the real clock. A test that cares which DAY it is —
+    /// today's trips, this month's collections — should use the full constructor and pass a fixed clock.
+    /// </summary>
+    public TrmRepository(AppDbContext context) : this(context, new SystemClock()) { }
     public async Task<TrmTransporter?> GetTransporterByIdAsync(Guid id, CancellationToken ct = default)
         => await context.TrmTransporters.FirstOrDefaultAsync(t => t.Id == id, ct);
 
@@ -61,7 +68,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<IReadOnlyList<TrmTransporterListDto>> GetTransportersWithTodayTripsAsync(CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
 
         var transporters = await context.TrmTransporters
             .AsNoTracking()
@@ -95,14 +102,14 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<int> GetTodayTripCountForTransporterAsync(Guid transporterId, CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
         return await context.TrmTrips
             .CountAsync(t => t.TransporterId == transporterId && t.RecordedAt >= startUtc && t.RecordedAt < endUtc, ct);
     }
 
     public async Task<int> GetNextTripNumberForTodayAsync(CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
         var maxToday = await context.TrmTrips
             .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .MaxAsync(t => (int?)t.TripNumber, ct);
@@ -114,7 +121,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<TrmOverviewDto> GetOverviewAsync(CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
 
         var todayTrips = await context.TrmTrips
             .AsNoTracking()
@@ -134,7 +141,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<IReadOnlyList<TrmTripDto>> GetTodayTripsAsync(CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
 
         return await context.TrmTrips
             .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
@@ -211,7 +218,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
     /// </summary>
     public async Task<TrmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var firstYear = year - 4;
 
         // Load the UTC instants covering Philippine-time years [firstYear .. year], then attribute
@@ -279,7 +286,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default)
     {
-        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+        var (startUtc, endUtc) = PhilippineTime.DayUtcRange(clock.PhilippineToday);
 
         var transporter = await context.TrmTransporters
             .FirstOrDefaultAsync(t => t.Id == transporterId, ct);

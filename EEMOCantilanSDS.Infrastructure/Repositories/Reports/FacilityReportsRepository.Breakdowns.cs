@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -198,7 +200,7 @@ public partial class FacilityReportsRepository
 
         var monthStart = new DateOnly(startDate.Year, startDate.Month, 1);
         var monthEnd = new DateOnly(startDate.Year, startDate.Month, DateTime.DaysInMonth(startDate.Year, startDate.Month));
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
         var lastAuditableDay = today < monthStart
             ? monthStart.AddDays(-1)
             : today < monthEnd && today.Year == monthStart.Year && today.Month == monthStart.Month

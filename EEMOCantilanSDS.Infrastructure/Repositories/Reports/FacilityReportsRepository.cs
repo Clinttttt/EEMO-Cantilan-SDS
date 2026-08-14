@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -13,13 +15,24 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 // Entry partial of FacilityReportsRepository: public IFacilityReportsRepository methods. Helpers live in sibling FacilityReportsRepository.*.cs partial files.
-public partial class FacilityReportsRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IFacilityReportsRepository
+public partial class FacilityReportsRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : IFacilityReportsRepository
 {
-    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public FacilityReportsRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    /// <summary>
+    /// Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants) and reads the real
+    /// clock. A test that cares WHICH DAY it is should use the full constructor and pass a fixed clock — every occupancy and
+    /// compliance figure below is bounded by "today".
+    /// </summary>
+    public FacilityReportsRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     private readonly AppDbContext _context = context;
     private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
+
+    /// <summary>
+    /// Captured into a field because this class is PARTIAL: a primary-constructor parameter is only in scope in the file
+    /// that declares it, and the reads that need "today" are spread across the Revenue, Compliance, Trends and Breakdowns
+    /// files — the same reason <c>_context</c> exists.
+    /// </summary>
+    private readonly IClock _clock = clock;
 
     // Current municipality's resolved NPM rates for the in-flight report. Initialized to the ordinance
     // constants so any code path resolves to Cantilan's numbers by default (byte-for-byte); each public
@@ -44,7 +57,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
     {
         // Cheap MIN probes across the tenant-scoped sources that carry a period; the year picker just
         // needs the floor. No data yet → falls back to the current year (list becomes a single year).
-        var years = new List<int> { PhilippineTime.Today.Year };
+        var years = new List<int> { _clock.PhilippineToday.Year };
 
         var billing = await _context.PaymentRecords.AsNoTracking()
             .OrderBy(p => p.BillingYear).Select(p => (int?)p.BillingYear).FirstOrDefaultAsync(ct);
@@ -151,7 +164,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         var facility = await _context.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Code == facilityCode, ct)
             ?? throw new InvalidOperationException($"Facility with code {facilityCode} not found");
         var facilityId = facility.Id;
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
 
         await LoadNpmRatesAsync(new DateOnly(year, 12, 31), ct);
 

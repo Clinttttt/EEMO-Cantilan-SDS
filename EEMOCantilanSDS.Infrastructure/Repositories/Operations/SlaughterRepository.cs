@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
@@ -10,8 +12,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
+public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughterRepository
 {
+    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
+    public SlaughterRepository(AppDbContext context) : this(context, new SystemClock()) { }
     public async Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await context.SlaughterTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
 
@@ -223,7 +227,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     /// </summary>
     public async Task<SlaughterHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var firstYear = year - 4;
 
         // One query for the whole 5-year window; group in memory (DateOnly math is not translatable).

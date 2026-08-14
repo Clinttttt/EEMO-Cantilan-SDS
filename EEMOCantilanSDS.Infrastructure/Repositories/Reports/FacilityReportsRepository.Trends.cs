@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -52,7 +54,7 @@ public partial class FacilityReportsRepository
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
 
         // One data point per calendar day in this week's fixed day bucket
         // (week 1 = days 1-7, week 2 = 8-14, ...; a trailing week may be shorter).
@@ -128,7 +130,7 @@ public partial class FacilityReportsRepository
         var occupiedStalls = facilityCode == FacilityCode.NPM
             ? new List<Stall>()
             : await LoadOccupiedStallsAsync(facilityId, ct);
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
 
         // Generate 6 data points (last 6 months)
         for (int i = 5; i >= 0; i--)
@@ -228,7 +230,7 @@ public partial class FacilityReportsRepository
         var occupiedStalls = facilityCode == FacilityCode.NPM
             ? new List<Stall>()
             : await LoadOccupiedStallsAsync(facilityId, ct);
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
 
         // Generate 5 data points (last 5 years)
         for (int i = 4; i >= 0; i--)

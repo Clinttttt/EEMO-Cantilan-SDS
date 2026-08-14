@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -168,7 +170,7 @@ public partial class FacilityReportsRepository
             // person who actually held the stall then, with their own rate. Monthly charges are one indivisible
             // obligation per stall-month in this system, so the occupancy that covered the period's end answers
             // for it; a mid-period handover on a daily-billed stall splits naturally by collection date.
-            var occupancy = s.OccupanciesOverlapping(startDate, endDate, PhilippineTime.Today)
+            var occupancy = s.OccupanciesOverlapping(startDate, endDate, _clock.PhilippineToday)
                 .OrderByDescending(o => o.Start)
                 .FirstOrDefault();
             var contract = occupancy?.Contract ?? s.Contracts.FirstOrDefault(c => c.IsActive);
@@ -375,7 +377,7 @@ public partial class FacilityReportsRepository
         // and the smaller figure is the one that reaches a demand letter. The walk now begins at the tenant's first
         // year of activity and each stall's own account start does the rest of the clamping, so a row states its
         // whole outstanding — 37 months where 37 months are owed. There is no year boundary left to fall over.
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
         var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddDays(-1);
         var end = new DateOnly(year, month, 1).AddDays(-1);
         if (end > lastElapsed) end = lastElapsed;
@@ -541,7 +543,7 @@ public partial class FacilityReportsRepository
             .ToHashSet();
 
         var missed = 0;
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
         for (var cursor = first; cursor <= new DateOnly(endDate.Year, endDate.Month, 1); cursor = cursor.AddMonths(1))
         {
             var monthStart = cursor;

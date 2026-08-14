@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Vendors;
@@ -10,10 +12,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IVendorRepository
+public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : IVendorRepository
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public VendorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    public VendorRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     public async Task<VendorRegistryDto> GetVendorRegistryAsync(
         int year,
@@ -35,7 +37,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
         // Only current vendors belong in the registry: an ACTIVE stall whose contract term has lapsed
         // (today past effectivity + duration) is excluded from BOTH the counts and the list. Closed
         // stalls and stalls without a dated contract are unaffected. Mirrors Contract.IsExpired.
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
         var visibleStalls = stalls.Where(s =>
         {
             if (s.Status != StallStatus.Active) return true;

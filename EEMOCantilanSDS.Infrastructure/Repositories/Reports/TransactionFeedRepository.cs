@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
@@ -18,10 +20,10 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 /// when rows were entered. Computed entity properties (TotalBill, AmountPaid, TotalAmount) are
 /// re-derived in memory from stored columns since they are not translatable to SQL.
 /// </summary>
-public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : ITransactionFeedRepository
+public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : ITransactionFeedRepository
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public TransactionFeedRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    public TransactionFeedRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     // Resolved NPM fish rate for the in-flight feed build; defaults to the ordinance constant so
     // Cantilan is byte-for-byte, refreshed per call in GetRecentTransactionsAsync.
@@ -45,7 +47,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
         // Resolve the municipality's fish rate as of the requested date (falls back to the ordinance
         // constant, so Cantilan's feed amounts are unchanged).
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        _npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, onDate ?? DateOnly.FromDateTime(PhilippineTime.Now));
+        _npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, onDate ?? DateOnly.FromDateTime(clock.PhilippineNow));
 
         // Tenant facility names for TRM/TPM feed rows (whose source tables don't join Facility).
         _facilityNames = await context.Facilities

@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -9,8 +11,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class FacilityRepository(AppDbContext context) : IFacilityRepository
+public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityRepository
 {
+    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
+    public FacilityRepository(AppDbContext context) : this(context, new SystemClock()) { }
     public async Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct)
     {
         return await context.Facilities.FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
@@ -65,7 +69,7 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
 
     public async Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct)
     {
-        var today = PhilippineTime.Today;
+        var today = clock.PhilippineToday;
 
         // Facilities for the caller's tenant (global query filter scopes to the current LGU and excludes
         // soft-deleted rows). Stall count = configured units (0 for per-head/per-trip/weekly facilities).

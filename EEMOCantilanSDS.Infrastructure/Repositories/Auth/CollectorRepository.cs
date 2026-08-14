@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
@@ -18,11 +20,11 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // separate files yet: those projections reuse the same private recognition and obligation arithmetic the office's
 // reports use, and duplicating money arithmetic is how two screens start disagreeing. The CONTRACTS are separate, so a
 // handler serving the app cannot reach an authentication lookup.
-public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver)
+public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
     : ICollectorRepository, ICollectorMobileQueries, ICollectorReportingQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+    public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     // Current municipality's resolved NPM rates for the in-flight query; default to the ordinance
     // constants so Cantilan is byte-for-byte, refreshed per public method via LoadNpmRatesAsync.
@@ -513,7 +515,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 // the office's report and the stall profile apply (DomainRules.EarnedThrough), which is what keeps
                 // the collector's own figure and the office's figure identical.
                 var assessedDays = CountNpmCollectableDays(
-                    s, monthStart, DomainRules.EarnedThrough(collectionEnd, PhilippineTime.Today));
+                    s, monthStart, DomainRules.EarnedThrough(collectionEnd, clock.PhilippineToday));
                 var assessed = DomainRules.DailyBilledMonthObligation(
                     dailyRate,
                     s.ResolveMonthlyRent(npmDaily, npmMonthlyRent),
@@ -962,7 +964,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         // Lifetime figure; resolve the municipality's fish rate as of today (constant fallback → Cantilan
         // unchanged). A local captures cleanly as an EF query parameter.
         var npmFish = (await feeRateResolver.GetSnapshotAsync(cancellationToken))
-            .Resolve(FeeRateKey.NpmFishPerKilo, DateOnly.FromDateTime(PhilippineTime.Now));
+            .Resolve(FeeRateKey.NpmFishPerKilo, DateOnly.FromDateTime(clock.PhilippineNow));
 
         // ── Lifetime collected (recognized) across every facility type this collector handled ──
         var monthlyTotal = await context.PaymentRecords
@@ -1342,7 +1344,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
 
     public async Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default)
     {
-        var currentYear = PhilippineTime.Now.Year;
+        var currentYear = clock.PhilippineNow.Year;
         var mid = context.CurrentMunicipalityId;
 
         // Per-LGU prefix from the tenant's own office acronym (Cantilan = "EEMO"); fallback keeps it

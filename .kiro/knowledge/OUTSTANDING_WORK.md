@@ -184,7 +184,7 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — STARTED (lockout, tokens, report periods and PaymentRepository done; ~245 remain)
+### 8. Inject time instead of static clocks — STARTED (lockout, tokens, report periods and ALL repositories done)
 
 `IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
 `UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
@@ -245,9 +245,30 @@ Two things learned while proving them load-bearing, both worth keeping:
 - What the probe must break is the INJECTION: made to ignore the injected clock and read the static one, three of the four
   fail. That is the assertion that matters, and it is why these tests could not have been written before.
 
-STILL TO DO, in this order:
-- **`TrmRepository`** (7), the `FacilityReportsRepository` partials (12 across Revenue, Compliance, Trends and the root),
-  `CollectorRepository` (3) and `StallRepository` (3) — each needs a constructor change that ripples into repository tests.
+DONE — every repository. `FacilityReportsRepository` (12 reads across four partial files), `TrmRepository` (7),
+`CollectorRepository` and `StallRepository` (3 each), and the six single-read repositories: `PayorRepository`,
+`FacilityRepository`, `VendorRepository`, `SlaughterRepository`, `TpmRepository`, `TransactionFeedRepository`. There are now
+ZERO static clock reads anywhere under `Infrastructure/Repositories`.
+
+Each keeps a test-convenience constructor that supplies the real clock and says so, so none of the ~150 repository test
+setups had to change; a test that cares which day it is passes a fixed clock to the full constructor.
+
+Three things worth remembering from doing it:
+- `FacilityReportsRepository` is PARTIAL, so a primary-constructor parameter is out of scope in the other files. The clock is
+  captured into a field for the same reason `_context` already was.
+- Its occupancy/obligation helpers were STATIC. They became instance methods rather than taking a date through every caller;
+  the memoising `ConditionalWeakTable` stays static, keyed by stall instance, so caching behaviour is unchanged.
+- A blanket text replace turned `PhilippineTime.TodayUtcRange()` into `clock.PhilippineTodayUtcRange()` in `TrmRepository`,
+  because "Today" is a prefix of "TodayUtcRange". Caught by the compiler, fixed to `PhilippineTime.DayUtcRange(clock.
+  PhilippineToday)` — the pure helper, dated by the clock — and the rest of the codebase checked for the same mangling.
+
+Five new tests pin dates on the delinquency arithmetic: arrears count only months that have ENDED, a future anchor is clamped
+to the last closed month (the yearly view offers every month, so this is reachable), and the count rises by exactly one when a
+month closes with nothing paid in between. Proven load-bearing — ignoring the injected clock fails the future-anchor case, and
+only that one, because the real date is already past the others. That asymmetry is the point: without a stated date, the
+clamp is untestable for most of the year.
+
+STILL TO DO:
 - **The command handlers** — bulk import (5), `CreateStall` (3), `ToggleStallStatus` (2), NPM settlement (2) and the smaller
   query handlers. These stamp effective dates and decide what a "current" month is.
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments. They are mechanical

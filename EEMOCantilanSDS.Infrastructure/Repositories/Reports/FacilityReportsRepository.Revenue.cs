@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -57,7 +59,7 @@ public partial class FacilityReportsRepository
             && (occupancyEnd is null || date <= occupancyEnd.Value)
             && (contract.IsActive || occupancyEnd is not null);
 
-    private static bool IsStallCollectableOn(Stall stall, DateOnly date)
+    private bool IsStallCollectableOn(Stall stall, DateOnly date)
         => stall.Status == StallStatus.Active
             && OccupancyWindows(stall).Any(o => o.Start <= date && date <= o.BillableEnd);
 
@@ -65,7 +67,7 @@ public partial class FacilityReportsRepository
     // only requires the stall to have been under an effective contract on that date. A closure is a
     // current-state flag and must never erase already-collected daily fees. Forward-looking
     // obligation/expected math keeps using the status-aware IsStallCollectableOn above.
-    private static bool IsUnderContractOn(Stall stall, DateOnly date)
+    private bool IsUnderContractOn(Stall stall, DateOnly date)
         => OccupancyWindows(stall).Any(o => o.Start <= date && date <= o.BillableEnd);
 
     /// <summary>
@@ -75,10 +77,10 @@ public partial class FacilityReportsRepository
     /// </summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Stall, IReadOnlyList<StallOccupancy>> _occupancyWindows = new();
 
-    private static IReadOnlyList<StallOccupancy> OccupancyWindows(Stall stall) =>
-        _occupancyWindows.GetValue(stall, s => s.Occupancies(PhilippineTime.Today));
+    private IReadOnlyList<StallOccupancy> OccupancyWindows(Stall stall) =>
+        _occupancyWindows.GetValue(stall, s => s.Occupancies(_clock.PhilippineToday));
 
-    private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
+    private int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
     {
         if (endDate < startDate)
             return 0;
@@ -110,7 +112,7 @@ public partial class FacilityReportsRepository
         // ends are already in the past — while the month in progress is charged for the days elapsed and a month
         // still ahead contributes nothing. That is what makes a current-year report year-to-date rather than a
         // projected January-to-December receivable.
-        var asOf = PhilippineTime.Today;
+        var asOf = _clock.PhilippineToday;
 
         var fee = stall.ResolveDailyFee(_npmDailyRate);
         var rent = stall.ResolveMonthlyRent(_npmDailyRate, _npmMonthlyRent);
@@ -402,11 +404,11 @@ public partial class FacilityReportsRepository
     /// in <see cref="CountMissedMonths"/>, so the compliance Balance, Outstanding KPI, Collection
     /// Rate and Missed-months all reconcile (e.g. Balance of an unpaid stall == MissedMonths × rate).
     /// </summary>
-    private static decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end,
+    private decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end,
         IReadOnlySet<(int Year, int Month)>? excusedMonths = null)
     {
         if (end < start) return 0m;
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
         decimal total = 0m;
         var cursor = new DateOnly(start.Year, start.Month, 1);
         var last = new DateOnly(end.Year, end.Month, 1);
@@ -438,7 +440,7 @@ public partial class FacilityReportsRepository
     /// months show a phantom balance). Excused months, and unrecorded months that are not yet due or
     /// outside the active contract, owe ₱0.
     /// </summary>
-    private static decimal CalculateMonthlyRentObligationDue(
+    private decimal CalculateMonthlyRentObligationDue(
         Stall stall, DateOnly start, DateOnly end,
         IReadOnlyList<PaymentRecord> records,
         IReadOnlySet<(int Year, int Month)>? excusedMonths = null)
@@ -450,7 +452,7 @@ public partial class FacilityReportsRepository
             .GroupBy(r => (r.BillingYear, r.BillingMonth))
             .ToDictionary(g => g.Key, g => g.Sum(r => r.BaseRentalAmount));
 
-        var today = PhilippineTime.Today;
+        var today = _clock.PhilippineToday;
         decimal total = 0m;
         var cursor = new DateOnly(start.Year, start.Month, 1);
         var last = new DateOnly(end.Year, end.Month, 1);
@@ -482,7 +484,7 @@ public partial class FacilityReportsRepository
     /// MonthlyRate for every month its active contract is effective within the range. Used as the
     /// "expected" baseline for trend bar scaling so unpaid stalls (which have no record) still count.
     /// </summary>
-    private static decimal CalculateMonthlyRentalObligation(IEnumerable<Stall> occupiedStalls, DateOnly start, DateOnly end)
+    private decimal CalculateMonthlyRentalObligation(IEnumerable<Stall> occupiedStalls, DateOnly start, DateOnly end)
     {
         if (end < start) return 0m;
         decimal total = 0m;
