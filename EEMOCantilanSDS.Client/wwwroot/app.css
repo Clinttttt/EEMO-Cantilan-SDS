@@ -1662,9 +1662,17 @@ a.topbar-admin.account-chip {
 }
 
 /* Eye toggle */
+/* Shared by PasswordRevealButton, which lives in its own component — so this rule must be GLOBAL. A page's scoped
+   .form-eye-btn compiles to .form-eye-btn[b-xxxxx] and never matches another component's markup.
+
+   top/transform are load-bearing. Without them an absolutely positioned element with no vertical offset keeps its STATIC
+   position, which lands below the field in a block wrapper; it only appeared centred where the wrapper happened to be a
+   centring flex container. Stating the offset makes the control sit inside the field's right edge whatever the wrapper is. */
 .form-eye-btn {
     position: absolute;
+    top: 50%;
     right: 10px;
+    transform: translateY(-50%);
     background: none;
     border: none;
     cursor: pointer;

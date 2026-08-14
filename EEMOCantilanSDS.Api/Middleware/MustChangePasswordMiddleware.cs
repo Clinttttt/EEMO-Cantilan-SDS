@@ -34,6 +34,11 @@ public class MustChangePasswordMiddleware(RequestDelegate next)
         "/api/adminauth/current-user",        // the portal renders the shell from this
         "/api/adminauth/refresh-token",       // an expiring session must still be able to refresh
         "/api/adminauth/logout",              // and must always be able to leave
+        // The change-password screen shows the signed-in LGU's own seal and office name. Without this it fell back to the
+        // default municipality's branding, which would have shown one LGU's identity to another's officer. It exposes nothing
+        // new: the same branding is already served ANONYMOUSLY by identifier for the sign-in page
+        // (GET /api/municipalities/{identifier}/branding) — this route only scopes it to the caller's own token instead.
+        "/api/municipalities/current/branding",
         "/health",
     ];
 

@@ -23,6 +23,14 @@ public class BrandingState(IMunicipalitiesApiClient api)
     private MunicipalityBrandingDto? _branding;
     private Task? _loadTask;
 
+    /// <summary>
+    /// True only once an LGU's branding has actually come back. Distinct from "the load finished": every accessor below falls
+    /// back to Cantilan's literals, which is right for the shell (Cantilan stays byte-for-byte unchanged) but wrong anywhere
+    /// a screen would rather show nothing than the wrong municipality's identity — the change-password screen gates its brand
+    /// panel on this.
+    /// </summary>
+    public bool Resolved => _branding is not null;
+
     // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
     // unchanged and other LGUs only briefly show the default before their branding resolves.
     public bool IsDefaultTenant =>

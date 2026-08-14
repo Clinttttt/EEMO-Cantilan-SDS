@@ -1,6 +1,7 @@
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Dtos.Tenancy;
 using EEMOCantilanSDS.Client.Securities;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http;
@@ -28,14 +29,23 @@ public class ChangePasswordTests : TestContext
     private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(10);
 
     private IRenderedComponent<ChangePassword> RenderPage(bool required)
+        => RenderPage(required, branding: null);
+
+    private IRenderedComponent<ChangePassword> RenderPage(bool required, MunicipalityBrandingDto? branding)
     {
         this.AddTestAuthorization().SetAuthorized("cly.sullano");
+
+        var municipalities = new Mock<IMunicipalitiesApiClient>();
+        municipalities.Setup(m => m.GetCurrentBrandingAsync()).ReturnsAsync(
+            branding is null
+                ? Result<MunicipalityBrandingDto>.Failure("no branding")
+                : Result<MunicipalityBrandingDto>.Success(branding));
 
         // Injected into every component by the shared _Imports; stubbed so the page resolves.
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
-        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());   // BrandingState's own dependency
+        Services.AddSingleton(municipalities.Object);                  // BrandingState's own dependency
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
 
         // The page's own dependency. Built from real parts rather than mocked: nothing here calls it, and the tests that do
@@ -52,6 +62,10 @@ public class ChangePasswordTests : TestContext
 
         return RenderComponent<ChangePassword>();
     }
+
+    private static MunicipalityBrandingDto Branding(string code, string name, string officeAcronym, string officeName) =>
+        new(Code: code, TenantCode: code.ToLowerInvariant(), Name: name, Province: "Surigao del Sur",
+            OfficeName: officeName, SealPath: null, Status: "Active", IsActive: true, OfficeAcronym: officeAcronym);
 
     [Theory]
     [InlineData(true)]
@@ -79,6 +93,39 @@ public class ChangePasswordTests : TestContext
             Assert.Equal("text", page.Find("#cp-new").GetAttribute("type"));
             Assert.Equal("password", page.Find("#cp-current").GetAttribute("type"));
             Assert.Equal("password", page.Find("#cp-confirm").GetAttribute("type"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void ThePanelShowsTheSignedInLgu_NotTheDefaultOne()
+    {
+        // Multi-tenancy, on the one screen where it is easiest to get wrong: the branding endpoint is blocked for a session
+        // that must change its password unless it is allow-listed, and BrandingState falls back to Cantilan when unresolved.
+        // An officer of another municipality must never be shown Cantilan's seal, office or name.
+        var page = RenderPage(required: true, Branding("MADRID", "Madrid", "MEEO", "Municipal Economic Enterprise Office"));
+
+        page.WaitForAssertion(() =>
+        {
+            var markup = page.Markup;
+            Assert.Contains("Municipality of Madrid", markup);
+            Assert.Contains("MEEO", markup);
+            Assert.DoesNotContain("Cantilan", markup);
+            Assert.DoesNotContain("LGU_CANTILAN_LOGO", markup);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void WhenBrandingCannotBeResolvedTheLeftPanelClaimsNobodysIdentity()
+    {
+        // A failed load must not fall back to the default LGU's seal and office name here. Neutral is the honest answer: the
+        // form is still usable, and no municipality is misrepresented.
+        var page = RenderPage(required: true, branding: null);
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("LGU_CANTILAN_LOGO", page.Markup);
+            Assert.DoesNotContain("Municipality of Cantilan", page.Markup);
+            Assert.NotNull(page.Find("button.setup-submit"));
         }, RenderTimeout);
     }
 

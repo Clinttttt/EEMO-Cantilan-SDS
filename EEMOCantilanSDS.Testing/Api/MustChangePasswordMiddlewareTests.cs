@@ -52,6 +52,10 @@ public class MustChangePasswordMiddlewareTests
     [InlineData("/api/Reports/financial")]
     [InlineData("/api/Admins")]
     [InlineData("/api/Backup/create")]
+    // The allow-list carries one municipalities route. These prove it did not widen to the controller: the list of LGUs and
+    // another municipality's branding stay refused.
+    [InlineData("/api/municipalities")]
+    [InlineData("/api/municipalities/CANTILAN/branding")]
     public async Task AnAccountThatMustChangeItsPasswordCannotDoAnythingElse(string path)
     {
         var context = await RunAsync(path, authenticated: true, mustChange: true);
@@ -78,6 +82,7 @@ public class MustChangePasswordMiddlewareTests
     [InlineData("/api/AdminAuth/current-user")]         // the portal shell reads this
     [InlineData("/api/AdminAuth/refresh-token")]        // an expiring session must still refresh
     [InlineData("/api/AdminAuth/logout")]               // and must always be able to leave
+    [InlineData("/api/municipalities/current/branding")]  // the screen shows the caller's OWN LGU, never a default one
     [InlineData("/health")]
     [InlineData("/health/ready")]
     public async Task TheWayOutIsNeverBlocked(string path)
