@@ -31,6 +31,27 @@ public class BrandingState(IMunicipalitiesApiClient api)
     /// </summary>
     public bool Resolved => _branding is not null;
 
+    /// <summary>What was loaded, if anything. Exposed so a page can carry it across the prerender boundary.</summary>
+    public MunicipalityBrandingDto? Current => _branding;
+
+    /// <summary>
+    /// Accepts branding the caller already holds, instead of fetching it again.
+    ///
+    /// <para>
+    /// Prerendering is enabled at the interactive root, so a component initialises TWICE: once for the static response and
+    /// again when the circuit starts. A page that persists what the first pass fetched (see <c>[PersistentState]</c>, as
+    /// <c>Routes.razor</c> does for the setup check) can hand it back here, which keeps the second pass from re-fetching and
+    /// from flashing its fallbacks on screen before the answer returns.
+    /// </para>
+    ///
+    /// <para>The load task is marked complete so a later <see cref="EnsureLoadedAsync"/> is a no-op.</para>
+    /// </summary>
+    public void Apply(MunicipalityBrandingDto branding)
+    {
+        _branding = branding;
+        _loadTask = Task.CompletedTask;
+    }
+
     // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
     // unchanged and other LGUs only briefly show the default before their branding resolves.
     public bool IsDefaultTenant =>
