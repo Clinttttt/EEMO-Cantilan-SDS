@@ -300,7 +300,7 @@
                 // Never claim "Off" when the answer is simply unknown — that previously made a protected
                 // account look unprotected (and invited a pointless re-enrolment). Say so instead.
                 _statusUnavailable = true;
-                if (result.StatusCode is 401 or 403)
+                if (result.Status is ResultStatus.Unauthorized or ResultStatus.Forbidden)
                     _error = "Your session has expired. Please sign in again to manage two-factor.";
             }
         }

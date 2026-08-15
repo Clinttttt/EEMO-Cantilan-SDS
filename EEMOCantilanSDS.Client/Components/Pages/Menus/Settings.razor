@@ -547,7 +547,7 @@
                 : result.Error;
 
             // 401 alone means "not authenticated yet"; a 403 is a real permission answer and must not be retried.
-            if (result.StatusCode != 401) break;
+            if (result.Status != ResultStatus.Unauthorized) break;
 
             await Task.Delay(400);
         }

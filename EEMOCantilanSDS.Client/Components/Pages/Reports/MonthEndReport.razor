@@ -519,7 +519,7 @@
 
                 break;
             }
-            if (result.StatusCode is not (401 or 403))
+            if (result.Status is not (ResultStatus.Unauthorized or ResultStatus.Forbidden))
                 break;
             await Task.Delay(400);
         }

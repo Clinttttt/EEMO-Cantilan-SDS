@@ -30,7 +30,7 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
             // A temporarily locked account is told so — the API only answers 423 once the password itself was
             // correct, so relaying this cannot help anyone discover which usernames exist. Everything else
             // stays a blank 401.
-            if (result.StatusCode == 423 && !string.IsNullOrWhiteSpace(result.Error))
+            if (result.Status == ResultStatus.Locked && !string.IsNullOrWhiteSpace(result.Error))
                 return StatusCode(423, new { error = result.Error });
 
             return Unauthorized();

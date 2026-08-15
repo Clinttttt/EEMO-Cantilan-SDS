@@ -303,7 +303,7 @@
                 var result = await task;
                 if (result.IsSuccess && result.Value is not null)
                     loaded[code] = result.Value;
-                else if (result.StatusCode is 401 or 403)
+                else if (result.Status is ResultStatus.Unauthorized or ResultStatus.Forbidden)
                     authPending = true;
             }
 

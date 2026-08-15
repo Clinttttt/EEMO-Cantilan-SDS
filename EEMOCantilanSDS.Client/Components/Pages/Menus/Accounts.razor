@@ -1087,7 +1087,7 @@
                 var cmd = new UpdateAdminCommand(EditingAdminId, AdminForm.FullName.Trim(), AdminForm.Username.Trim(), AdminForm.Email.Trim(), AdminForm.Role);
                 var result = await AdminsApi.UpdateAdminAsync(cmd);
                 if (result.IsSuccess) { await LoadAll(); CloseAdminDrawer(); }
-                else AdminFormError = result.StatusCode == 409
+                else AdminFormError = result.Status == ResultStatus.Conflict
                     ? "That username is already taken."
                     : (result.Error ?? "Failed to update administrator.");
             }
@@ -1096,7 +1096,7 @@
                 var cmd = new CreateAdminCommand(AdminForm.FullName.Trim(), AdminForm.Username.Trim(), AdminForm.Email.Trim(), AdminForm.Password, AdminForm.Role);
                 var result = await AdminsApi.CreateAdminAsync(cmd);
                 if (result.IsSuccess) { await LoadAll(); CloseAdminDrawer(); }
-                else AdminFormError = result.StatusCode == 409
+                else AdminFormError = result.Status == ResultStatus.Conflict
                     ? "That username is already taken."
                     : (result.Error ?? "Failed to create administrator.");
             }
@@ -1187,7 +1187,7 @@
             {
                 // After the client-side checks above, a server rejection means the account is gone
                 // (404) or the Head's confirmation password was wrong (400).
-                ResetError = result.StatusCode == 404
+                ResetError = result.Status == ResultStatus.NotFound
                     ? "That account no longer exists."
                     : "Your password is incorrect — the reset was not applied.";
             }

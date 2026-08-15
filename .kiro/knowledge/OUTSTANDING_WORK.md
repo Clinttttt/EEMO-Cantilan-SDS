@@ -201,9 +201,22 @@ Sequenced so that could be proved rather than hoped:
 
 Proven load-bearing by mis-mapping one category (Conflict to BadRequest): only the 409 case failed.
 
-STILL TO DO, and smaller than it was: `Result<T>.StatusCode` still exists, and ~103 test assertions plus ~25 portal comparisons
-speak in numbers rather than categories. Converting those is mechanical and touches no production behaviour; the layering fault
-the review named is already fixed.
+STILL TO DO, and now only in tests: ~106 test assertions read `Result<T>.StatusCode` as a number. Mechanical, no production
+behaviour involved.
+
+The PORTAL was converted 2026-08-15: all 14 of its comparisons now read the category — `Status == ResultStatus.Conflict` rather
+than `StatusCode == 409` — across Accounts, Menu, Report, Settings, Transactions, ExportData, FollowUpQueue, MonthEndReport,
+PastFollowUpQueue, StallHolderList, TwoFactorPanel and AuthProxyController.
+
+Verified equivalent before converting, not after: every site compared against 409, 404, 401, 403 or 423, and each of those maps
+one-to-one. **The one lossy direction was checked and avoided** — an HTTP status nobody maps (429, which the rate-limited sign-in
+and password-reset endpoints really do return) falls to `Invalid`, so rewriting a `StatusCode == 400` check as
+`Status == Invalid` WOULD silently treat a throttled request as a bad one. No site compared against 400, so none was touched, and
+`ResultStatusMappingTests` now pins that trap explicitly along with both directions of the mapping.
+
+`Result<T>.StatusCode` stays, deliberately: `HttpClients/HandleResponse.cs` builds a Result FROM a real HTTP response, where the
+number is the input. Two remaining `.StatusCode` comparisons in the Client are on `HttpResponseMessage` in a delegating handler —
+genuinely HTTP, correctly left alone.
 
 ### 5. Replace `IAppDbContext` feature by feature — NOT STARTED
 

@@ -319,7 +319,7 @@
                 break;
             }
             _data = null;
-            if (result.StatusCode is not (401 or 403)) break;
+            if (result.Status is not (ResultStatus.Unauthorized or ResultStatus.Forbidden)) break;
             await Task.Delay(400);
         }
         _loading = false;
