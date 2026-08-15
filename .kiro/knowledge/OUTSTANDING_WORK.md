@@ -100,7 +100,7 @@ Corrections to the review worth keeping:
   real hazard was reading Cantilan's data, not everyone's.
 - Production carried ZERO unstamped rows in every tenant-owned table (checked 2026-08-11), so no backfill was needed.
 
-### 2. Split the oversized repositories — IN PROGRESS
+### 2. Split the oversized repositories — DONE
 
 `CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB. They mix aggregate writes, auth lookup,
 mobile projections, reports and uniqueness checks.
@@ -148,7 +148,19 @@ Remaining, in order:
   — the shared arithmetic deciding which days of a month a space is collectable for, which the mobile rounds and the printed
   register must answer identically. Same two-step method; 677 code lines in, 677 out, IDENTICAL.
 
-  STILL TO DO: `PaymentRepository` ~53KB, the same way.
+  `PaymentRepository` 53KB → three partial files (2026-08-15): entry 9.9KB (the payment aggregate, per-facility record reads
+  and the receipt-number availability checks), `.Ledger.cs` 36.2KB (one account's history, summary, outstanding months and
+  collection history, carrying the obligation arithmetic they share) and `.MissingReceipts.cs` 10.6KB (money taken whose OR is
+  still blank). Same two-step method; 615 code lines in, 615 out, IDENTICAL.
+
+  **ITEM 2 IS NOW COMPLETE.** Contracts and implementations are both split. No file among the three exceeds 52KB, and the
+  largest remaining single file is `CollectorRepository.Mobile.cs` — one 620-line method (`GetCollectorReportAsync`) accounts
+  for most of it, and breaking THAT up is a redesign of one query rather than a file move, so it is deliberately not attempted
+  here.
+
+  A note for whoever does the next one: `IsORNumberUniqueAsync` on `PaymentRepository` is public but on no Application
+  contract. It is genuinely used — by `UtilityBillRepository` and the composition tests — so it was left alone, but it is a
+  seam nobody has named.
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
