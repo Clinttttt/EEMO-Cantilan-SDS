@@ -235,6 +235,21 @@ after the last caller goes.
 tests depend on the whole assembly. Correct in principle and the largest single change on the list; do it after the
 boundaries are right.
 
+**Measured 2026-08-16 before starting, and it changed the plan.** Moving the DTOs alone achieves nothing. The consumers use
+`Application.Command` types as heavily as DTOs — 63 references in HttpClients and 61 in the portal — because the portal POSTS
+command types as its request bodies. The commands ARE its wire contract.
+
+So freeing the consumers from Application means separating each command from its handler and from its MediatR
+`IRequest<Result<T>>` binding: either MediatR comes into Contracts, or the portal gets its own request models and something maps
+them. That is a redesign of how the portal talks to the API, not a file move, and no compiler-verified mechanical stage gets there.
+
+Whoever picks this up should decide FIRST which of those two it is. Until then the DTO move on its own is churn with no benefit —
+the consumers would still reference Application for the commands.
+
+One thing that helps and is cheap whenever it happens: the namespaces can stay as they are. `Result<T>` moved to
+`Application.Common` with consumer projects declaring the namespace globally rather than editing 497 files, and the same approach
+keeps a Contracts move reviewable — the assembly changes, the namespace does not.
+
 ### 7. One transaction boundary per command — DONE
 
 Audited every handler that calls `SaveChangesAsync` more than once (nine of them) and separated the two shapes: several
@@ -723,10 +738,10 @@ page was likewise from another project.)
     `GetDelinquentStallsAsync(null, …)` gives rolling-window delinquency across ALL facilities (the overdue list), deliberately
     the same computation the Financial Reports attention list uses so the two agree. They share a helper; they are not the same
     question. Merging them to save a pass would change the figures on one of the two.
-  - **"mobile caches are never cleared on logout" — true, but the consequence was overstated.** Both key on
-    `Session.Menu?.CollectorId`, so two collectors on one device do NOT mix; the comment in `Record.razor` says so and it holds.
-    What remains is staleness for the same collector after a re-login, and unbounded growth for the life of the app process.
-    No privacy fault.
+  - **"mobile caches are never cleared on logout" — true, and CONFIRMED BY THE OFFICE 2026-08-16 as by design.** Both key on
+    `Session.Menu?.CollectorId`, so two collectors on one device do NOT mix. The pattern is cache-then-refresh: the cached view
+    shows instantly and a background fetch replaces it, and keeping the cached view when that fetch fails is deliberate offline
+    resilience for a collector in the field. Clearing on logout would trade that away. Nothing to fix.
 
   - **`FacilityReportsRepository.Revenue.cs`'s occupancy memo was `static`; now an instance field** (2026-08-15). The comment
     claimed "cached for the life of this request", which a process-wide table does not deliver — it only behaved that way

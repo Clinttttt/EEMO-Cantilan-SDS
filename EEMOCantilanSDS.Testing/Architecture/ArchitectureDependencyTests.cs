@@ -10,10 +10,14 @@ namespace EEMOCantilanSDS.Testing.Architecture;
 /// Infrastructure/Api; Infrastructure never references the Api/UI projects). These are dependency-free
 /// reflection checks — they read each assembly's direct references, so a future accidental violation
 /// (e.g. Application using an Infrastructure type) will fail the build instead of silently leaking.
-/// Note: one of the two documented pragmatic leaks is now closed — Application no longer references ASP.NET
-/// Identity, since password hashing moved behind a port. Domain still hashes inline (eight call sites in the
-/// user entities) and Application's IAppDbContext still exposes EF Core DbSets; both remain unasserted on
-/// purpose, and both are recorded in .kiro/knowledge/OUTSTANDING_WORK.md with what closing them would touch.
+///
+/// <para>
+/// Both of the leaks this file used to record as open are now closed. Domain no longer hashes passwords inline — the user
+/// entities take a <c>HashedPassword</c> produced by <c>IPasswordHasher</c> — and Domain no longer names HTTP outcomes.
+/// What remains open is Application's <c>IAppDbContext</c>, which still exposes EF Core <c>DbSet</c>s, so "Application
+/// free of EF" is deliberately unasserted; it is recorded in <c>.kiro/knowledge/OUTSTANDING_WORK.md</c> with what closing
+/// it would touch.
+/// </para>
 /// </summary>
 public class ArchitectureDependencyTests
 {
@@ -69,6 +73,27 @@ public class ArchitectureDependencyTests
         var applicationTypes = Application.GetTypes().Select(t => t.FullName ?? t.Name).ToList();
         Assert.Contains(applicationTypes, n => n.Contains("Application.Common.Result", StringComparison.Ordinal));
         Assert.Contains(applicationTypes, n => n.Contains("Application.Common.CursorPagedResult", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Domain_CarriesNoPackagesAtAll()
+    {
+        // The strongest form of the rule, and it is currently TRUE: the domain project has no package reference and no
+        // project reference, so its whole surface is the framework. Every other assertion in this file names a specific
+        // package that must stay out; this one says nothing may come in without a deliberate decision.
+        //
+        // Why assert the whole set rather than another deny-list: the deny-lists were each written after a package had
+        // already got in — Identity to hash a password, MediatR to publish, EF to hold a DbSet. A list of the mistakes
+        // already made cannot catch the next one.
+        var framework = new[] { "System", "netstandard", "mscorlib", "Microsoft.CSharp" };
+
+        var foreign = ReferencedNames(Domain)
+            .Where(name => !framework.Any(f => name == f || name.StartsWith(f + ".", StringComparison.Ordinal)))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(foreign.Count == 0,
+            "the domain must depend on nothing but the framework, and now depends on: " + string.Join(", ", foreign));
     }
 
     [Fact]
