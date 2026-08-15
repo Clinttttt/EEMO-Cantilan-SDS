@@ -35,6 +35,19 @@ public class GetFollowUpQueueQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
+    /// <summary>
+    /// The day the fixture's handler is standing on. Tests that build dated data MUST use this rather than the real clock: the
+    /// handler is given a FixedClock on this date, and a test whose data comes from today's date instead only agrees with it on
+    /// the one day the two happen to coincide.
+    ///
+    /// <para>
+    /// That is not hypothetical. This suite passed on 15 August 2026 and failed on the 16th, because two tests below built a
+    /// closed account "as of today" while the handler still believed it was the 15th — so the account looked like it had ended
+    /// after the period being asked about, and the row under test disappeared. One stated date, used by both.
+    /// </para>
+    /// </summary>
+    private static readonly DateOnly FixtureToday = new(2026, 8, 15);
+
     private static GetFollowUpQueueQueryHandler Build(
         IReadOnlyList<UnreceiptedPaymentDto>? cash = null,
         IReadOnlyList<UtilityBill>? utilityBills = null,
@@ -110,7 +123,7 @@ public class GetFollowUpQueueQueryHandlerTests
 
         return new GetFollowUpQueueQueryHandler(
             reports.Object, closedRegister.Object, attention.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object,
-            new FixedClock((today ?? new DateOnly(2026, 8, 15)).ToDateTime(TimeOnly.MinValue).AddHours(-8)));
+            new FixedClock((today ?? FixtureToday).ToDateTime(TimeOnly.MinValue).AddHours(-8)));
     }
 
     [Fact]
@@ -256,7 +269,7 @@ public class GetFollowUpQueueQueryHandlerTests
     {
         var stallId = Guid.NewGuid();
         var contractId = Guid.NewGuid();
-        var today = PhilippineTime.Today;
+        var today = FixtureToday;
         var closed = new ClosedStallAccountDto(
             stallId, InactiveAccountState.Closed, FacilityCode.TCC, "Tampak Commercial Center", "04",
             "Bernadette Lim", null,
@@ -287,7 +300,7 @@ public class GetFollowUpQueueQueryHandlerTests
     [Fact]
     public async Task AnAccountClosedInAnEarlierPeriod_StaysOffTheLiveQueue()
     {
-        var today = PhilippineTime.Today;
+        var today = FixtureToday;
         var longClosed = new DateOnly(today.Year - 2, 3, 14);
         var closed = new ClosedStallAccountDto(
             Guid.NewGuid(), InactiveAccountState.Closed, FacilityCode.TCC, "Tampak Commercial Center", "05",
