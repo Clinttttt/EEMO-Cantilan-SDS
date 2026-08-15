@@ -118,7 +118,7 @@ public class MfaOperatorRecoveryTests
                 .Handle(new ResetUserMfaCommand(carmenHeadId, TargetPassword), default);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(403, result.StatusCode);
+            Assert.Equal(ResultStatus.Forbidden, result.Status);
         }
 
         using var verify = new AppDbContext(options);
@@ -137,7 +137,7 @@ public class MfaOperatorRecoveryTests
                 .Handle(new ResetUserMfaCommand(carmenHeadId, "WrongPassword!"), default);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(400, result.StatusCode);
+            Assert.Equal(ResultStatus.Invalid, result.Status);
         }
 
         using var verify = new AppDbContext(options);
@@ -154,7 +154,7 @@ public class MfaOperatorRecoveryTests
         var result = await Handler(ctx, operatorId, cantilanId, "SuperAdmin")
             .Handle(new ResetUserMfaCommand(Guid.NewGuid(), OperatorPassword), default);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class MfaOperatorRecoveryTests
             .Handle(new ResetUserMfaCommand(plainId, OperatorPassword), default);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
     }
 
     // ── Listing ─────────────────────────────────────────────────────────────────────────────────
@@ -209,7 +209,7 @@ public class MfaOperatorRecoveryTests
             .Handle(new GetMfaEnrolledAccountsQuery(), default);
 
         Assert.False(denied.IsSuccess);
-        Assert.Equal(403, denied.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, denied.Status);
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public class MfaOperatorRecoveryTests
             .Handle(new ResetUserMfaCommand(carmenHeadId, OperatorPassword), default);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);   // never confirms an out-of-scope account exists
+        Assert.Equal(ResultStatus.NotFound, result.Status);   // never confirms an out-of-scope account exists
 
         // And the target's second factor is untouched.
         using var verify = new AppDbContext(options);

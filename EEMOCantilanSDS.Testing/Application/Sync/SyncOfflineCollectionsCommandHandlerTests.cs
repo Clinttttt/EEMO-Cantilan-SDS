@@ -36,7 +36,7 @@ public class SyncOfflineCollectionsCommandHandlerTests
         var result = await handler.Handle(
             new SyncOfflineCollectionsCommand(new[] { NpmOp(Guid.NewGuid()) }), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]

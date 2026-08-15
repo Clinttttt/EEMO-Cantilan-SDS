@@ -51,7 +51,7 @@ public class SetFacilityStatusCommandHandlerTests
         var result = await Build(repo, uow).Handle(new SetFacilityStatusCommand("BBQ", false), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -64,7 +64,7 @@ public class SetFacilityStatusCommandHandlerTests
         var result = await Build(repo, uow).Handle(new SetFacilityStatusCommand("ZZZ", false), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         repo.Verify(r => r.GetByCodeAsync(It.IsAny<FacilityCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

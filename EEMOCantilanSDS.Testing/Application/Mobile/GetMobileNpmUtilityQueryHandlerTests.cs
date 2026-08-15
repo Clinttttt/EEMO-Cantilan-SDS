@@ -59,7 +59,7 @@ public class GetMobileNpmUtilityQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileNpmUtilityQuery(2026, 7), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class GetMobileNpmUtilityQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileNpmUtilityQuery(2026, 7), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     /// <summary>

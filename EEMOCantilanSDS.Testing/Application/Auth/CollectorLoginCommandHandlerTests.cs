@@ -63,7 +63,7 @@ public class CollectorLoginCommandHandlerTests
 
         var result = await handler.Handle(new CollectorLoginCommand("juan", "wrong"), CancellationToken.None);
 
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
         Assert.Equal(1, collector.FailedAttempts);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
@@ -78,7 +78,7 @@ public class CollectorLoginCommandHandlerTests
 
         var result = await handler.Handle(new CollectorLoginCommand("juan", Password), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
     }
 
@@ -97,7 +97,7 @@ public class CollectorLoginCommandHandlerTests
 
         var result = await handler.Handle(new CollectorLoginCommand("juan", Password), CancellationToken.None);
 
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
     }
 
@@ -128,7 +128,7 @@ public class CollectorLoginCommandHandlerTests
 
         var result = await handler.Handle(new CollectorLoginCommand("juan", Password, "carrascal"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
     }
 
@@ -141,7 +141,7 @@ public class CollectorLoginCommandHandlerTests
 
         var result = await handler.Handle(new CollectorLoginCommand("juan", Password, "does-not-exist"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
     }
 }

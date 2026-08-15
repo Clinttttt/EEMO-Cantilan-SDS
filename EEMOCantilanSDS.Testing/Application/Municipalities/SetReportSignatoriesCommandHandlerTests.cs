@@ -91,7 +91,7 @@ public class SetReportSignatoriesCommandHandlerTests
             new ReportSignatoryDto("Prepared by", new string('x', 61)),
         }), CancellationToken.None);
 
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Null(lgu.ReportSignatories);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

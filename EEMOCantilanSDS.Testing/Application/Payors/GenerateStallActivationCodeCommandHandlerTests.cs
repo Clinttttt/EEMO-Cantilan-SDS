@@ -64,7 +64,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
         var result = await handler.Handle(
             new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -118,7 +118,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
         var result = await handler.Handle(
             new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -133,7 +133,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
         var result = await handler.Handle(
             new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -107,7 +107,7 @@ public class CachingMobileApiClientTests
         var result = await sut.GetRecordsAsync(null, From, To);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
         Assert.False(cache.Has(RecordsKey));
     }
 
@@ -163,7 +163,7 @@ public class CachingMobileApiClientTests
         var result = await sut.GetRecordsAsync(null, From, To);
 
         Assert.False(result.IsSuccess);  // nothing cached → surface the real failure (don't fake success)
-        Assert.Equal(500, result.StatusCode);
+        Assert.Equal(ResultStatus.Failed, result.Status);
     }
 
     [Fact]

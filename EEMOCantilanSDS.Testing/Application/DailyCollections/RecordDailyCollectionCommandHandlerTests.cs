@@ -182,7 +182,7 @@ public class RecordDailyCollectionCommandHandlerTests
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "DUP-1"),
             CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         dailyRepo.Verify(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -258,7 +258,7 @@ public class RecordDailyCollectionCommandHandlerTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal(firstCollectorId, existing.CollectorId);
         Assert.Equal("OR-A", existing.ORNumber);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);

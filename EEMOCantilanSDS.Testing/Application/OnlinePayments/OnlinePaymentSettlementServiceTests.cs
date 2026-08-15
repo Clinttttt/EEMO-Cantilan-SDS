@@ -99,7 +99,7 @@ public class OnlinePaymentSettlementServiceTests
         var result = await svc.SettleAsync(txn, PaidEvent(amount: 50m));   // underpaid
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.NotEqual(OnlinePaymentStatus.Paid, txn.Status);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }

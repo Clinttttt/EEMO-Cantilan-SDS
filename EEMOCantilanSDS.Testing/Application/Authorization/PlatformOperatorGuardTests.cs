@@ -155,7 +155,7 @@ public class PlatformOperatorGuardTests
 
         // Past authorization is all this asserts: the code names no municipality on record, so the handler fails for
         // THAT reason. Forbidden would mean the operator was turned away at the door.
-        Assert.NotEqual(403, result.StatusCode);
+        Assert.NotEqual(ResultStatus.Forbidden, result.Status);
     }
 
     private sealed class SilentEmail : EEMOCantilanSDS.Application.Common.Interface.Services.IEmailSender

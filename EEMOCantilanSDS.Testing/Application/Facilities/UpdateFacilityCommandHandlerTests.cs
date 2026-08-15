@@ -42,7 +42,7 @@ public class UpdateFacilityCommandHandlerTests
             .Handle(new UpdateFacilityCommand("ICE", "X", "X", null), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -56,7 +56,7 @@ public class UpdateFacilityCommandHandlerTests
             .Handle(new UpdateFacilityCommand("ZZZ", "X", "X", null), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         repo.Verify(r => r.GetByCodeAsync(It.IsAny<FacilityCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

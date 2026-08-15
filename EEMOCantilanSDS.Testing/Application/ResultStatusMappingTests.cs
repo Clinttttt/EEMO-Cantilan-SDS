@@ -70,7 +70,7 @@ public class ResultStatusMappingTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(ResultStatus.Ok, result.Status);
-        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(ResultStatus.Ok, result.Status);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class ResultStatusMappingTests
         });
 
         Assert.Equal(ResultStatus.Invalid, result.Status);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Contains("Amount", result.ValidationErrors!.Keys);
     }
 }

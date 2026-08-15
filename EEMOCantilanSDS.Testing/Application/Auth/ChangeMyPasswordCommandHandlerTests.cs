@@ -82,7 +82,7 @@ public class ChangeMyPasswordCommandHandlerTests
         var result = await handler.Handle(new ChangeMyPasswordCommand("not-the-issued-one", Chosen), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.True(admin.MustChangePassword, "a refused attempt must leave the requirement in place");
     }
 
@@ -128,6 +128,6 @@ public class ChangeMyPasswordCommandHandlerTests
         var result = await handler.Handle(new ChangeMyPasswordCommand(Issued, Chosen), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
     }
 }

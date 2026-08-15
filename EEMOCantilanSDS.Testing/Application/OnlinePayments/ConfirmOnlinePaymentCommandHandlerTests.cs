@@ -122,7 +122,7 @@ public class ConfirmOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
         Assert.Equal(PaymentStatus.Unpaid, record.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -136,7 +136,7 @@ public class ConfirmOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
         gateway.Verify(g => g.RetrievePaymentStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
@@ -163,6 +163,6 @@ public class ConfirmOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 }

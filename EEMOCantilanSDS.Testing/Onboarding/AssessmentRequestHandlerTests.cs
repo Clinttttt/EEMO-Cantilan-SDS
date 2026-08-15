@@ -126,7 +126,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 .Handle(new ApproveAssessmentRequestCommand(requestId, null), default);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(403, result.StatusCode);
+            Assert.Equal(ResultStatus.Forbidden, result.Status);
         }
 
         [Fact]
@@ -174,7 +174,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var forbidden = await new GetAssessmentRequestsQueryHandler(ctx, new FakeCurrentUser(cantilanId, "Admin"))
                 .Handle(new GetAssessmentRequestsQuery(), default);
             Assert.False(forbidden.IsSuccess);
-            Assert.Equal(403, forbidden.StatusCode);
+            Assert.Equal(ResultStatus.Forbidden, forbidden.Status);
         }
     }
 }

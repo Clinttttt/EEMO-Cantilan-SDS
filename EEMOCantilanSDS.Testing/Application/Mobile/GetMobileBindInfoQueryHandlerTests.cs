@@ -33,7 +33,7 @@ public class GetMobileBindInfoQueryHandlerTests
         var result = await Build(null).Handle(new GetMobileBindInfoQuery("nope"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]
@@ -43,6 +43,6 @@ public class GetMobileBindInfoQueryHandlerTests
         var result = await Build(m).Handle(new GetMobileBindInfoQuery("tok"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 }

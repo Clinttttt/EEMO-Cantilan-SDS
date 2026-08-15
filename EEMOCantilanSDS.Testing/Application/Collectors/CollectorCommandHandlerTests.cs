@@ -63,7 +63,7 @@ public class CollectorCommandHandlerTests
 
         var result = await handler.Handle(new ToggleCollectorStatusCommand(Guid.NewGuid(), Activate: true), CancellationToken.None);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]
@@ -139,7 +139,7 @@ public class CollectorCommandHandlerTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal("juan", collector.Username); // unchanged
     }
 

@@ -201,22 +201,27 @@ Sequenced so that could be proved rather than hoped:
 
 Proven load-bearing by mis-mapping one category (Conflict to BadRequest): only the 409 case failed.
 
-STILL TO DO, and now only in tests: ~106 test assertions read `Result<T>.StatusCode` as a number. Mechanical, no production
-behaviour involved.
+DONE (2026-08-16 finished the tail). Nothing outside the API's own boundary speaks in HTTP numbers any more.
 
 The PORTAL was converted 2026-08-15: all 14 of its comparisons now read the category — `Status == ResultStatus.Conflict` rather
 than `StatusCode == 409` — across Accounts, Menu, Report, Settings, Transactions, ExportData, FollowUpQueue, MonthEndReport,
 PastFollowUpQueue, StallHolderList, TwoFactorPanel and AuthProxyController.
 
-Verified equivalent before converting, not after: every site compared against 409, 404, 401, 403 or 423, and each of those maps
-one-to-one. **The one lossy direction was checked and avoided** — an HTTP status nobody maps (429, which the rate-limited sign-in
-and password-reset endpoints really do return) falls to `Invalid`, so rewriting a `StatusCode == 400` check as
-`Status == Invalid` WOULD silently treat a throttled request as a bad one. No site compared against 400, so none was touched, and
-`ResultStatusMappingTests` now pins that trap explicitly along with both directions of the mapping.
+The TESTS followed: 100 assertions across 44 files now assert the category a handler STATED rather than the number it translates
+to. For a handler-produced result the category is the source of truth and the number is derived, so this asserts the thing itself.
 
-`Result<T>.StatusCode` stays, deliberately: `HttpClients/HandleResponse.cs` builds a Result FROM a real HTTP response, where the
-number is the input. Two remaining `.StatusCode` comparisons in the Client are on `HttpResponseMessage` in a delegating handler —
-genuinely HTTP, correctly left alone.
+Three places keep speaking in numbers, deliberately:
+- `HandleResponseContractTests` — it IS the HTTP contract, so it must assert statuses.
+- The middleware tests — those read `HttpContext.Response.StatusCode`, a real HTTP response.
+- `ResultStatusMappingTests` — it pins BOTH directions, including the 429 that has no category.
+
+Verified equivalent before converting, not after: every site compared against a code that maps one-to-one. **The one lossy
+direction was checked and avoided** — an HTTP status nobody maps (429, which the rate-limited sign-in and password-reset
+endpoints really do return) falls to `Invalid`, so rewriting a `StatusCode == 400` check as `Status == Invalid` WOULD silently
+treat a throttled request as a bad one. `ResultStatusMappingTests` pins that trap explicitly.
+
+`Result<T>.StatusCode` stays: `HttpClients/HandleResponse.cs` builds a Result FROM a real HTTP response, where the number is the
+input.
 
 ### 5. Replace `IAppDbContext` feature by feature — NOT STARTED
 

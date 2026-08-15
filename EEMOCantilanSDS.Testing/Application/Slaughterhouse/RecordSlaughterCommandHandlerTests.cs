@@ -54,7 +54,7 @@ public class RecordSlaughterCommandHandlerTests
 
         var result = await handler.Handle(HogCommand(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         slaughterRepo.Verify(r => r.AddAsync(It.IsAny<SlaughterTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

@@ -67,7 +67,7 @@ public class AdminPeerHeadGuardTests
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.Equal("Other Head", target.FullName);                 // untouched
         Assert.Equal("other@eemo.gov", target.Email);
         Assert.Equal(AdminRole.SuperAdmin, target.Role);
@@ -125,7 +125,7 @@ public class AdminPeerHeadGuardTests
             .Handle(new ResetAdminPasswordCommand(target.Id, "BrandNew123!", "ActingPass1!"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.Equal(originalHash, target.PasswordHash);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

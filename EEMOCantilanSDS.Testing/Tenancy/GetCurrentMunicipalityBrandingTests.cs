@@ -86,7 +86,7 @@ namespace EEMOCantilanSDS.Testing.Tenancy
                 .Handle(new GetCurrentMunicipalityBrandingQuery(), default);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(404, result.StatusCode);
+            Assert.Equal(ResultStatus.NotFound, result.Status);
         }
     }
 }

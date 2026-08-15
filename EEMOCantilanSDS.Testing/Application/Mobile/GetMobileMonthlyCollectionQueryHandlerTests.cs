@@ -56,7 +56,7 @@ public class GetMobileMonthlyCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileMonthlyCollectionQuery(FacilityCode.TCC, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class GetMobileMonthlyCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileMonthlyCollectionQuery(FacilityCode.NPM, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -78,6 +78,6 @@ public class GetMobileMonthlyCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileMonthlyCollectionQuery(FacilityCode.TCC, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 }

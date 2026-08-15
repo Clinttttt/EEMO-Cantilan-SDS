@@ -166,6 +166,6 @@ public class SettleNpmDaysCommandHandlerTests
         var result = await handler.Handle(
             new SettleNpmDaysCommand(stall.Id, new[] { new DateOnly(2026, 6, 1) }, null), CancellationToken.None);
 
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
     }
 }

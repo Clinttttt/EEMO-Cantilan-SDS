@@ -87,7 +87,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
             new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, 15, 54m), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -311,7 +311,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
-        Assert.Equal(502, result.StatusCode);
+        Assert.Equal(ResultStatus.UpstreamFailed, result.Status);
         onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
         paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -389,7 +389,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-1"), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         notifier.Verify(n => n.NotifyOrIssuedAsync(It.IsAny<Guid>(), It.IsAny<PayorOrIssuedNotification>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -410,7 +410,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-X"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.NotEqual(OnlinePaymentStatus.Completed, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

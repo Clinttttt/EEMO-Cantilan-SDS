@@ -65,7 +65,7 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "bad-sig"), CancellationToken.None);
 
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
         gateway.Verify(g => g.ParseEvent(It.IsAny<string>()), Times.Never);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
@@ -114,7 +114,7 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);   // not settled
         Assert.Equal(PaymentStatus.Unpaid, record.Status);       // balance untouched
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);

@@ -107,6 +107,6 @@ public class GetCollectorMobileMenuQueryHandlerTests
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 }

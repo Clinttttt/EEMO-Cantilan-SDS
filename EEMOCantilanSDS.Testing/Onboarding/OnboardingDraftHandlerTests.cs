@@ -145,7 +145,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var forbidden = await new GetOnboardingDraftByRequestQueryHandler(ctx, new FakeCurrentUser(Guid.NewGuid(), "SuperAdmin"))
                 .Handle(new GetOnboardingDraftByRequestQuery(requestId), default);
             Assert.False(forbidden.IsSuccess);
-            Assert.Equal(403, forbidden.StatusCode);
+            Assert.Equal(ResultStatus.Forbidden, forbidden.Status);
         }
 
         // Seeds a default LGU + an approved request (Onboarding) + a linked draft with config; returns ids/token.

@@ -68,7 +68,7 @@ public class GetMobileTrmCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileTrmCollectionQuery(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -78,6 +78,6 @@ public class GetMobileTrmCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileTrmCollectionQuery(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 }

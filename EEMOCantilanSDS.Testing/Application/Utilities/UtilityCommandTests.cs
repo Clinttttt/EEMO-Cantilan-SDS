@@ -143,7 +143,7 @@ public class UtilityCommandTests
             new RecordUtilityPaymentCommand(bill.Id, PaymentStatus.Paid, null, PaymentStatus.Paid, null, "OR-DUP", "OR-DUP", null), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.Equal(PaymentStatus.Unpaid, bill.Status); // unchanged
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

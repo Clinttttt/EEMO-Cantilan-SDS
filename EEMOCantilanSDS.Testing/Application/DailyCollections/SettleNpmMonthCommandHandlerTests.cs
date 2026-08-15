@@ -92,7 +92,7 @@ public class SettleNpmMonthCommandHandlerTests
             new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(new SettleNpmMonthCommand(stall.Id, 2026, 6, null), CancellationToken.None);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
     }
 
     // ── A past month on a stall that has since been re-let ────────────────────────────────────────────
@@ -181,7 +181,7 @@ public class SettleNpmMonthCommandHandlerTests
             new SettleNpmMonthCommand(stall.Id, before.Year, before.Month, "OR-1002"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Empty(captured);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }

@@ -67,7 +67,7 @@ public class GetMobileTpmCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileTpmCollectionQuery(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -77,6 +77,6 @@ public class GetMobileTpmCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileTpmCollectionQuery(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 }

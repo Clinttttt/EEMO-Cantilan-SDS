@@ -301,7 +301,7 @@ public class BulkImportStallholdersCommandHandlerTests
         var result = await Handler().Handle(cmd, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]

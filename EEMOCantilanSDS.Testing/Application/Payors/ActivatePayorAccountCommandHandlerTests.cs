@@ -44,7 +44,7 @@ public class ActivatePayorAccountCommandHandlerTests
 
         var result = await handler.Handle(Command(), CancellationToken.None);
 
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         repo.Verify(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -70,7 +70,7 @@ public class ActivatePayorAccountCommandHandlerTests
 
         var result = await handler.Handle(Command(Password), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         repo.Verify(r => r.AddStallLinkAsync(It.IsAny<PayorStallLink>(), It.IsAny<CancellationToken>()), Times.Never);
         repo.Verify(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()), Times.Never);
     }

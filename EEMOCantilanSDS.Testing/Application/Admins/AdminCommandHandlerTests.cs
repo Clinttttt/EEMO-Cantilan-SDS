@@ -78,7 +78,7 @@ public class AdminCommandHandlerTests
 
         var result = await handler.Handle(new ToggleAdminStatusCommand(Guid.NewGuid(), Activate: true), CancellationToken.None);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class AdminCommandHandlerTests
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.True(admin.IsActive);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -124,7 +124,7 @@ public class AdminCommandHandlerTests
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.True(admin.IsActive);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -280,7 +280,7 @@ public class AdminCommandHandlerTests
             new ResetAdminPasswordCommand(admin.Id, "BrandNew123!", "WrongPassword!"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Equal(originalHash, admin.PasswordHash);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -302,6 +302,6 @@ public class AdminCommandHandlerTests
         var result = await handler.Handle(
             new ResetAdminPasswordCommand(missingId, "BrandNew123!", "Secret123!"), CancellationToken.None);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 }

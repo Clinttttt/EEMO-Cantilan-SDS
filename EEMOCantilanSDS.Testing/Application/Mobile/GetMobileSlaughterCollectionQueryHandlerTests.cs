@@ -60,7 +60,7 @@ public class GetMobileSlaughterCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileSlaughterCollectionQuery(2026, 6, 9), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 
     [Fact]
@@ -70,6 +70,6 @@ public class GetMobileSlaughterCollectionQueryHandlerTests
 
         var result = await handler.Handle(new GetMobileSlaughterCollectionQuery(2026, 6, 9), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
     }
 }

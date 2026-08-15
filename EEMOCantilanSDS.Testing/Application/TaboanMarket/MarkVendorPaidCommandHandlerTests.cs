@@ -52,7 +52,7 @@ public class MarkVendorPaidCommandHandlerTests
 
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "OR-1"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         Assert.False(attendance.IsPaid);
     }
 
@@ -88,7 +88,7 @@ public class MarkVendorPaidCommandHandlerTests
         var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, orNumbers.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "DUP-1"), CancellationToken.None);
 
-        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.False(attendance.IsPaid);
     }
 

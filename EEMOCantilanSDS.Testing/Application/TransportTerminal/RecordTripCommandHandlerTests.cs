@@ -53,7 +53,7 @@ public class RecordTripCommandHandlerTests
 
         var result = await handler.Handle(TripCommand(), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         trmRepo.Verify(r => r.AddTripAsync(It.IsAny<TrmTrip>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

@@ -56,7 +56,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
 
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
         Assert.Equal(1, admin.FailedAttempts);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
@@ -74,7 +74,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", Password), CancellationToken.None);
 
-        Assert.Equal(423, result.StatusCode);
+        Assert.Equal(ResultStatus.Locked, result.Status);
         Assert.Contains("locked", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("5 failed sign-in attempts", result.Error);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
@@ -92,7 +92,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
 
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
         Assert.Null(result.Error);
         Assert.Equal(5, admin.FailedAttempts);
         Assert.Equal(lockedUntil, admin.LockedUntil);
@@ -109,7 +109,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
 
-        Assert.Equal(423, result.StatusCode);
+        Assert.Equal(ResultStatus.Locked, result.Status);
         Assert.Contains("15 minutes", result.Error);
         Assert.True(admin.IsLockedOut(DateTime.UtcNow));
         Assert.Equal(5, admin.FailedAttempts);
@@ -124,7 +124,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", Password), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
     }
 
@@ -155,7 +155,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", Password, "carrascal"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
     }
 
@@ -169,7 +169,7 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", Password, "does-not-exist"), CancellationToken.None);
 
-        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
     }
 }

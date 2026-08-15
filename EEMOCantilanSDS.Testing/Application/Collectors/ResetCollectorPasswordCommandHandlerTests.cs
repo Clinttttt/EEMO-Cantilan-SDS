@@ -62,7 +62,7 @@ public class ResetCollectorPasswordCommandHandlerTests
             new ResetCollectorPasswordCommand(collector.Id, "BrandNew123!", "wrong"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(ResultStatus.Invalid, result.Status);
         Assert.Equal(originalHash, collector.PasswordHash);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -77,6 +77,6 @@ public class ResetCollectorPasswordCommandHandlerTests
         var result = await handler.Handle(
             new ResetCollectorPasswordCommand(Guid.NewGuid(), "BrandNew123!", "HeadPass123!"), CancellationToken.None);
 
-        Assert.Equal(404, result.StatusCode);
+        Assert.Equal(ResultStatus.NotFound, result.Status);
     }
 }
