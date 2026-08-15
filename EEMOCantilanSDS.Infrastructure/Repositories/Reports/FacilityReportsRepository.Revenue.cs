@@ -71,11 +71,21 @@ public partial class FacilityReportsRepository
         => OccupancyWindows(stall).Any(o => o.Start <= date && date <= o.BillableEnd);
 
     /// <summary>
-    /// The stall's occupancy timeline, cached for the life of this request. A stall may have been let several
-    /// times, and the per-date predicates above run across whole months, so the windows are derived once per
-    /// stall rather than per day. Keyed by the stall instance, since each request loads its own graph.
+    /// The stall's occupancy timeline, memoised for the life of THIS repository — which is one request, since the repository is
+    /// scoped. A stall may have been let several times, and the per-date predicates above run across whole months, so the
+    /// windows are derived once per stall rather than per day.
+    ///
+    /// <para>
+    /// An INSTANCE field, not a static one. It was static, which made the "life of this request" claim untrue: the table was
+    /// process-wide and relied on entity identity to stay request-scoped. That holds today only because EF hands each request
+    /// its own graph. The memo also has no as-of date in its key while <see cref="Stall.Occupancies"/> takes one, so a second
+    /// caller asking as of a DIFFERENT date would silently receive the first caller's answer. That is harmless as things stand —
+    /// the only field the as-of date affects is <c>IsCurrent</c>, which neither predicate above reads — but it is a trap for
+    /// whoever next needs this repository to answer for a past date, and being an instance field limits it to one request and
+    /// one clock.
+    /// </para>
     /// </summary>
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Stall, IReadOnlyList<StallOccupancy>> _occupancyWindows = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Stall, IReadOnlyList<StallOccupancy>> _occupancyWindows = new();
 
     private IReadOnlyList<StallOccupancy> OccupancyWindows(Stall stall) =>
         _occupancyWindows.GetValue(stall, s => s.Occupancies(_clock.PhilippineToday));

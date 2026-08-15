@@ -696,9 +696,28 @@ page was likewise from another project.)
   history, and is standalone so the shell is not drawn around a redirect. `"/"` had to be matched EXACTLY in
   `AppShell.IsStandalonePage`: every path contains it, so a substring entry would strip the sidebar from the whole portal.
 
-- **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; `FacilityReportsRepository.Revenue.cs` holds a
-  static `ConditionalWeakTable` with a stale `asOf`; mobile `_recordsCache`/`_reportCache` are never cleared on logout;
-  `FacilityReportsModal.razor` still hardcodes `#4a9eff`; the dashboard computes compliance twice.
+- **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; mobile `_recordsCache`/`_reportCache` are never
+  cleared on logout; `FacilityReportsModal.razor` still hardcodes `#4a9eff`.
+
+  Two entries that used to sit in this list were examined on 2026-08-15 and turned out to be misdescribed. Recorded here so
+  nobody "fixes" them into a defect:
+
+  - **"the dashboard computes compliance twice" — it does not.** The two calls answer DIFFERENT questions over different spans:
+    `GetFacilitySnapshotAsync` gives THIS MONTH's compliance for ONE facility (the per-facility cards), while
+    `GetDelinquentStallsAsync(null, …)` gives rolling-window delinquency across ALL facilities (the overdue list), deliberately
+    the same computation the Financial Reports attention list uses so the two agree. They share a helper; they are not the same
+    question. Merging them to save a pass would change the figures on one of the two.
+  - **"mobile caches are never cleared on logout" — true, but the consequence was overstated.** Both key on
+    `Session.Menu?.CollectorId`, so two collectors on one device do NOT mix; the comment in `Record.razor` says so and it holds.
+    What remains is staleness for the same collector after a re-login, and unbounded growth for the life of the app process.
+    No privacy fault.
+
+  - **`FacilityReportsRepository.Revenue.cs`'s occupancy memo was `static`; now an instance field** (2026-08-15). The comment
+    claimed "cached for the life of this request", which a process-wide table does not deliver — it only behaved that way
+    because EF hands each request its own entity graph. The memo also has no as-of date in its key while `Stall.Occupancies`
+    takes one, so a caller asking as of a different date would silently get the first answer. Harmless today (the as-of date
+    affects only `IsCurrent`, which neither predicate there reads) and now limited to one request and one clock, which is what
+    the comment always said.
 - **Absolute redirects are scheme-downgraded to `http`.** Found 2026-08-14 while verifying the root route: the live
   `Location` header is `http://console.stalltrack.site/login`, not `https://`. TLS terminates at Azure's front end, so the app
   sees `http` and builds absolute redirect URLs with that scheme; there is no `UseForwardedHeaders` in the Client pipeline.
