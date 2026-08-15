@@ -19,11 +19,11 @@ public class SaveDailyCollectionOrForDaysCommandHandler(
     {
         var or = (request.ORNumber ?? string.Empty).Trim();
         if (or.Length == 0)
-            return Result<bool>.Failure("OR number is required.", 400);
+            return Result<bool>.Failure("OR number is required.", ResultStatus.Invalid);
 
         var dates = request.Dates.Distinct().OrderBy(d => d).ToList();
         if (dates.Count == 0)
-            return Result<bool>.Failure("Select at least one day.", 400);
+            return Result<bool>.Failure("Select at least one day.", ResultStatus.Invalid);
 
         var updatedBy = currentUser.Username ?? "Admin";
         var monthsTouched = new HashSet<(int Year, int Month)>();
@@ -41,7 +41,7 @@ public class SaveDailyCollectionOrForDaysCommandHandler(
         }
 
         if (applied == 0)
-            return Result<bool>.Failure("None of the selected days could be receipted.", 400);
+            return Result<bool>.Failure("None of the selected days could be receipted.", ResultStatus.Invalid);
 
         await unitOfWork.SaveChangesAsync(ct);   // GetByStallAndDateAsync returns tracked entities
 

@@ -42,7 +42,7 @@ public class BulkImportPaymentHistoryCommandHandler(
         {
             return Result<BulkImportPaymentResultDto>.Failure(
                 $"{facility.Name} is not billed by the month, so its history cannot be imported one month at a time. " +
-                "The market is collected per market day and has its own import.", 400);
+                "The market is collected per market day and has its own import.", ResultStatus.Invalid);
         }
 
         var stalls = await stallRepo.GetStallsWithContractsByFacilityAsync(

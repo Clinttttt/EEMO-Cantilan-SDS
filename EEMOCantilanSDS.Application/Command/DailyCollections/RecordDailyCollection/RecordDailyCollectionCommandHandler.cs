@@ -57,7 +57,7 @@ public class RecordDailyCollectionCommandHandler(
             {
                 return Result<bool>.Failure(
                     "This daily collection was already recorded by another collector. Refresh the record before making changes.",
-                    409);
+                    ResultStatus.Conflict);
             }
 
             // Stamp the offline idempotency key on the UPDATE path too so a lost-ack retry is caught.
@@ -75,7 +75,7 @@ public class RecordDailyCollectionCommandHandler(
                     // Permit re-marking with the OR already on this day; reject a new OR used elsewhere.
                     var alreadyOnThisRecord = string.Equals(existing.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
                     if (!alreadyOnThisRecord && !await orNumbers.IsAvailableAsync(orNumber, ct))
-                        return Result<bool>.Failure("OR number already exists.", 409);
+                        return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
                 }
 
                 existing.MarkPaid(
@@ -113,7 +113,7 @@ public class RecordDailyCollectionCommandHandler(
             else if (request.IsPaid)
             {
                 if (!string.IsNullOrWhiteSpace(orNumber) && !await orNumbers.IsAvailableAsync(orNumber, ct))
-                    return Result<bool>.Failure("OR number already exists.", 409);
+                    return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
 
                 newCollection.MarkPaid(
                     orNumber: orNumber ?? string.Empty,

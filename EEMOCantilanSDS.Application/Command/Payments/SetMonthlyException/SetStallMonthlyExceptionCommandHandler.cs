@@ -31,7 +31,7 @@ public class SetStallMonthlyExceptionCommandHandler(
         // rent. Monthly exceptions apply only to fixed monthly-rental facilities.
         if (stall.Facility?.Code is not { } code || !MonthlyFacilities.Contains(code))
             return Result<bool>.Failure(
-                "Monthly exceptions apply to monthly-rental facilities (TCC / NCC / BBQ / ICE) only.", 400);
+                "Monthly exceptions apply to monthly-rental facilities (TCC / NCC / BBQ / ICE) only.", ResultStatus.Invalid);
 
         var recordedBy = currentUser.Username ?? "Admin";
         var existing = await exceptionRepository.GetAsync(request.StallId, request.Year, request.Month, ct);

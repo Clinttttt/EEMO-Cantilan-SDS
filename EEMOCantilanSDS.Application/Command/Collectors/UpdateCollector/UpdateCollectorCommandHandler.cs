@@ -31,7 +31,7 @@ public class UpdateCollectorCommandHandler(
             if (!string.Equals(newUsername, collector.Username, StringComparison.Ordinal))
             {
                 if (!await collectorRepo.IsUsernameUniqueAsync(newUsername, cancellationToken))
-                    return Result<bool>.Failure("That username is already taken in this municipality.", 409);
+                    return Result<bool>.Failure("That username is already taken in this municipality.", ResultStatus.Conflict);
                 collector.ChangeUsername(newUsername, currentUser.Username ?? "Admin");
             }
         }

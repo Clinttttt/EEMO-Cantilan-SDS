@@ -34,17 +34,17 @@ public class RestoreTenantDataCommandHandler(
             return Result<TenantRestoreResult>.Forbidden();
 
         if (!string.Equals(request.ConfirmationPhrase?.Trim(), "RESTORE", StringComparison.Ordinal))
-            return Result<TenantRestoreResult>.Failure("Type RESTORE to confirm.", 400);
+            return Result<TenantRestoreResult>.Failure("Type RESTORE to confirm.", ResultStatus.Invalid);
 
         var admin = await authRepository.GetAdminByUsernameAsync(username, ct);
         if (admin is null)
             return Result<TenantRestoreResult>.Unauthorized();
 
         if (passwordHasher.Check(admin.PasswordHash, request.Password) == PasswordCheck.Failed)
-            return Result<TenantRestoreResult>.Failure("Password is incorrect.", 401);
+            return Result<TenantRestoreResult>.Failure("Password is incorrect.", ResultStatus.Unauthorized);
 
         if (request.SnapshotJson is null || request.SnapshotJson.Length == 0)
-            return Result<TenantRestoreResult>.Failure("No backup file was provided.", 400);
+            return Result<TenantRestoreResult>.Failure("No backup file was provided.", ResultStatus.Invalid);
 
         TenantRestoreSnapshot? snapshot;
         try
@@ -53,11 +53,11 @@ public class RestoreTenantDataCommandHandler(
         }
         catch
         {
-            return Result<TenantRestoreResult>.Failure("The backup file is not a valid restore snapshot.", 400);
+            return Result<TenantRestoreResult>.Failure("The backup file is not a valid restore snapshot.", ResultStatus.Invalid);
         }
 
         if (snapshot is null)
-            return Result<TenantRestoreResult>.Failure("The backup file is not a valid restore snapshot.", 400);
+            return Result<TenantRestoreResult>.Failure("The backup file is not a valid restore snapshot.", ResultStatus.Invalid);
 
         try
         {
@@ -69,14 +69,14 @@ public class RestoreTenantDataCommandHandler(
         catch (InvalidOperationException ex)
         {
             // Validation/guard failures from the repository (wrong tenant, wrong format, no tenant). Nothing was written.
-            return Result<TenantRestoreResult>.Failure(ex.Message, 400);
+            return Result<TenantRestoreResult>.Failure(ex.Message, ResultStatus.Invalid);
         }
         catch (Exception ex)
         {
             // Any DB error → the transaction rolled back; the municipality's data is unchanged.
             logger.LogError(ex, "Tenant restore failed for {Username}; transaction rolled back.", username);
             return Result<TenantRestoreResult>.Failure(
-                "The restore could not be completed and was rolled back — your data was not changed.", 500);
+                "The restore could not be completed and was rolled back — your data was not changed.", ResultStatus.Failed);
         }
     }
 }

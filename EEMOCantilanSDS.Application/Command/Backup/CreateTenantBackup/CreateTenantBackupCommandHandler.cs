@@ -30,7 +30,7 @@ public class CreateTenantBackupCommandHandler(
         catch (Exception ex)
         {
             logger.LogError(ex, "Tenant backup failed for {User}.", currentUser.Username);
-            return Result<TenantBackupInfo>.Failure("The backup could not be created. Please try again.", 500);
+            return Result<TenantBackupInfo>.Failure("The backup could not be created. Please try again.", ResultStatus.Failed);
         }
     }
 }

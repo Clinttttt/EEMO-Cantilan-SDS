@@ -31,7 +31,7 @@ public class SettleNpmDaysCommandHandler(
 
         // Daily settlement is NPM-only; every other facility is monthly and uses RecordPayment.
         if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by day here.", 400);
+            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by day here.", ResultStatus.Invalid);
 
         // Collectors may only act on an assigned facility (same rule as recording a single daily collection).
         var isCollectorRequest = currentUser.Role == "Collector";
@@ -46,7 +46,7 @@ public class SettleNpmDaysCommandHandler(
 
         var dates = request.Dates.Distinct().OrderBy(d => d).ToList();
         if (dates.Count == 0)
-            return Result<bool>.Failure("Select at least one day.", 400);
+            return Result<bool>.Failure("Select at least one day.", ResultStatus.Invalid);
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
@@ -97,14 +97,14 @@ public class SettleNpmDaysCommandHandler(
         }
 
         if (settled.Count == 0)
-            return Result<bool>.Failure("None of the selected days could be settled (already paid, excused, market closed, or no term owes anything for them).", 400);
+            return Result<bool>.Failure("None of the selected days could be settled (already paid, excused, market closed, or no term owes anything for them).", ResultStatus.Invalid);
 
         // One physical receipt (OR) covers all the selected days — stall-aware uniqueness (same rule as
         // the slaughterhouse's one-receipt-per-visit), so the same OR may repeat across this stall's days.
         if (!string.IsNullOrWhiteSpace(orNumber))
         {
             if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, request.StallId, ct))
-                return Result<bool>.Failure("OR number already exists.", 409);
+                return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
             foreach (var dc in settled)
                 dc.SetOrNumber(orNumber, recordedBy);
         }

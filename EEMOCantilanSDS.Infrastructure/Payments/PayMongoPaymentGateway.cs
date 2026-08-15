@@ -99,7 +99,7 @@ public sealed class PayMongoPaymentGateway(
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(checkoutUrl))
             {
                 logger.LogError("PayMongo checkout session response missing id/checkout_url (status {Status}).", (int)response.StatusCode);
-                return Result<CheckoutSessionResult>.Failure("Payment provider returned an incomplete response.", 502);
+                return Result<CheckoutSessionResult>.Failure("Payment provider returned an incomplete response.", ResultStatus.UpstreamFailed);
             }
 
             return Result<CheckoutSessionResult>.Success(new CheckoutSessionResult(checkoutUrl, id, ProviderName));
@@ -107,7 +107,7 @@ public sealed class PayMongoPaymentGateway(
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             logger.LogError(ex, "PayMongo checkout session creation threw.");
-            return Result<CheckoutSessionResult>.Failure("Unable to reach the payment provider.", 502);
+            return Result<CheckoutSessionResult>.Failure("Unable to reach the payment provider.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -241,7 +241,7 @@ public sealed class PayMongoPaymentGateway(
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(gatewayReference))
-            return Result<PaymentGatewayEvent>.Failure("Missing gateway reference.", 400);
+            return Result<PaymentGatewayEvent>.Failure("Missing gateway reference.", ResultStatus.Invalid);
 
         try
         {
@@ -258,7 +258,7 @@ public sealed class PayMongoPaymentGateway(
                 logger.LogError("PayMongo checkout session retrieve failed ({Status}): {Payload}",
                     (int)response.StatusCode, payload);
                 return Result<PaymentGatewayEvent>.Failure(
-                    $"Payment provider returned {(int)response.StatusCode} while verifying the payment.", 502);
+                    $"Payment provider returned {(int)response.StatusCode} while verifying the payment.", ResultStatus.UpstreamFailed);
             }
 
             using var doc = JsonDocument.Parse(payload);
@@ -309,7 +309,7 @@ public sealed class PayMongoPaymentGateway(
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
             logger.LogError(ex, "PayMongo checkout session retrieve threw.");
-            return Result<PaymentGatewayEvent>.Failure("Unable to reach the payment provider.", 502);
+            return Result<PaymentGatewayEvent>.Failure("Unable to reach the payment provider.", ResultStatus.UpstreamFailed);
         }
     }
 

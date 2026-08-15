@@ -45,7 +45,7 @@ public class HandlePaymentWebhookCommandHandler(
         // 2) Parse into a normalized event.
         var parsed = paymentGateway.ParseEvent(request.Payload);
         if (!parsed.IsSuccess || parsed.Value is null)
-            return Result<bool>.Failure("Malformed webhook payload.", 400);
+            return Result<bool>.Failure("Malformed webhook payload.", ResultStatus.Invalid);
 
         var evt = parsed.Value;
 

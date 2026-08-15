@@ -15,7 +15,7 @@ public class GetCollectableDaysQueryHandler(
     public async Task<Result<CollectableDaysDto>> Handle(GetCollectableDaysQuery request, CancellationToken ct)
     {
         if (request.Month is < 1 or > 12 || request.Year is < 1990 or > 2200)
-            return Result<CollectableDaysDto>.Failure("That is not a real month.", 400);
+            return Result<CollectableDaysDto>.Failure("That is not a real month.", ResultStatus.Invalid);
 
         var stall = await stallRepo.GetByIdAsync(request.StallId, ct);
         if (stall is null)

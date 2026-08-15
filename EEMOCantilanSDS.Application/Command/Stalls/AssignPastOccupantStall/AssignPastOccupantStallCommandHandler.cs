@@ -34,7 +34,7 @@ public class AssignPastOccupantStallCommandHandler(
         var lastContract = PastOccupancyContract.Resolve(previous, request.ContractId);
 
         if (lastContract is null)
-            return Result<StallDto>.Failure("That stall has no contract to read the lessee from.", 409);
+            return Result<StallDto>.Failure("That stall has no contract to read the lessee from.", ResultStatus.Conflict);
 
         // A daily-billed stall must carry a daily rate, and some older records do not. Rather than fail the
         // registration, fall back to the LGU's currently-effective rate — the same figure the Add Vendor form uses.

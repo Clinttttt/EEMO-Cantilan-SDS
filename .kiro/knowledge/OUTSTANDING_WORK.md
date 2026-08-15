@@ -164,7 +164,7 @@ Remaining, in order:
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
-### 4. Move `Result<T>` and paging models out of Domain — MOVED (error categories still to do)
+### 4. Move `Result<T>` and paging models out of Domain — DONE (categories in place; numeric assertions in tests remain)
 
 `Result<T>` and `CursorPagedResult<T>` now live in `Application.Common`. Domain never referenced either, so no rule changed;
 what changed is that the domain no longer carries a type named after HTTP outcomes (`Unauthorized`, `Conflict`, `NoContent`)
@@ -176,10 +176,34 @@ via `<Using Include="EEMOCantilanSDS.Application.Common" />`. The move is about 
 handler would have buried that. Two accidental usings went with the move (`System.Xml.XPath` and a JS-interop static import
 that had no business in a result type).
 
-STILL TO DO — the half that changes behaviour: `Result<T>` continues to carry HTTP status codes, and the review asks for
-error CATEGORIES with the API translating them. That means changing every handler's failure paths and every controller's
-translation, and it alters the HTTP responses the portal reads, so it needs its own session with the API contract in view. It
-is a redesign, not a move, and bundling it here would have made a mechanical change unreviewable.
+DONE for the layer that mattered (2026-08-15): Application and Infrastructure no longer name HTTP status codes.
+
+`ResultStatus` states the KIND of outcome in the office's terms — `Conflict` for "it already exists", `NotFound`, `Forbidden`,
+`Locked`, `UpstreamFailed` for "something we depend on failed" — and `ApiBaseController.HandleResponse` switches on THAT and
+owns the response shape. 133 sites across 48 files lost their bare 400/401/403/404/409/423/500/502, and none remain.
+
+The HTTP responses are unchanged, and that is the point: every one of those statuses is read by something. The portal branches
+on Conflict to say a username is taken, on NotFound to say the account is gone, and treats Unauthorized and Forbidden as "your
+session ended" rather than an error to display; the mobile app and the sync path read them too.
+
+Sequenced so that could be proved rather than hoped:
+
+1. **The characterisation test came first.** `Testing/Api/HandleResponseContractTests.cs` pins every status the API returns,
+   including which failures carry their message in the body and which deliberately say nothing (401 must not hint whether an
+   account exists; 404 has nothing to add), and the per-field shape of validation errors. Written and passing BEFORE the
+   translation moved, so it describes the old behaviour, not the new code's opinion of it.
+2. **`Result<T>` carries the status; `StatusCode` is DERIVED from it.** Nothing that reads the number had to change — and the
+   portal legitimately speaks in numbers, because `HttpClients/HandleResponse.cs` rebuilds a `Result` FROM a real HTTP
+   response. `Result<T>` was never the wire contract, which is what made this safe; had it been serialised, the portal would
+   have needed changing in lockstep.
+3. The numeric `Failure(message, int)` overload remains for exactly those callers, and maps to the same category by the same
+   table, so the two can never disagree.
+
+Proven load-bearing by mis-mapping one category (Conflict to BadRequest): only the 409 case failed.
+
+STILL TO DO, and smaller than it was: `Result<T>.StatusCode` still exists, and ~103 test assertions plus ~25 portal comparisons
+speak in numbers rather than categories. Converting those is mechanical and touches no production behaviour; the layering fault
+the review named is already fixed.
 
 ### 5. Replace `IAppDbContext` feature by feature — NOT STARTED
 

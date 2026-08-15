@@ -33,7 +33,7 @@ public class SettleNpmMonthCommandHandler(
 
         // Daily settlement is NPM-only; every other facility is monthly and uses RecordPayment.
         if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by month here.", 400);
+            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by month here.", ResultStatus.Invalid);
 
         // Collectors may only act on an assigned facility (same rule as recording a single daily collection).
         var isCollectorRequest = currentUser.Role == "Collector";
@@ -67,7 +67,7 @@ public class SettleNpmMonthCommandHandler(
         // what left the office believing money had been recorded when nothing had.
         if (occupancy is null || occupancy.BillableEnd < monthStart || monthEnd < occupancy.Start)
             return Result<bool>.Failure(
-                "No occupancy of this stall answers for that month — open that period's own account to settle it.", 400);
+                "No occupancy of this stall answers for that month — open that period's own account to settle it.", ResultStatus.Invalid);
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct))
             .ToDictionary(dc => dc.CollectionDate);
@@ -176,7 +176,7 @@ public class SettleNpmMonthCommandHandler(
         if (settled.Count > 0 && !string.IsNullOrWhiteSpace(orNumber))
         {
             if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, request.StallId, ct))
-                return Result<bool>.Failure("OR number already exists.", 409);
+                return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
             foreach (var dc in settled)
                 dc.SetOrNumber(orNumber, recordedBy);
         }

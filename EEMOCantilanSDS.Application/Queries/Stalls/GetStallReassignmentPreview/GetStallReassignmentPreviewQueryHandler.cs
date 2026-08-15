@@ -40,7 +40,7 @@ public class GetStallReassignmentPreviewQueryHandler(
         var lastContract = PastOccupancyContract.Resolve(stall, request.ContractId);
 
         if (lastContract is null)
-            return Result<StallReassignmentPreviewDto>.Failure("That stall has no contract to read the lessee from.", 409);
+            return Result<StallReassignmentPreviewDto>.Failure("That stall has no contract to read the lessee from.", ResultStatus.Conflict);
 
         var sectionLabel = stall.Section is { } section
             ? facility.SectionLabel(section) ?? section.ToString()

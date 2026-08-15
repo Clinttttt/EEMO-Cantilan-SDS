@@ -35,7 +35,7 @@ public class TriggerRestoreCommandHandler(
 
         // 3) Exact confirmation phrase — case-SENSITIVE, ordinal. Never trust the client's own check.
         if (!string.Equals(request.ConfirmationPhrase?.Trim(), "RESTORE", StringComparison.Ordinal))
-            return Result<bool>.Failure("Type RESTORE to confirm.", 400);
+            return Result<bool>.Failure("Type RESTORE to confirm.", ResultStatus.Invalid);
 
         // 4) Re-fetch the acting admin to re-verify their password against the stored hash.
         var admin = await authRepository.GetAdminByUsernameAsync(username, cancellationToken);
@@ -44,7 +44,7 @@ public class TriggerRestoreCommandHandler(
 
         // 5) Re-authenticate: verify the password exactly like LoginCommandHandler does.
         if (passwordHasher.Check(admin.PasswordHash, request.Password) == PasswordCheck.Failed)
-            return Result<bool>.Failure("Password is incorrect.", 401);
+            return Result<bool>.Failure("Password is incorrect.", ResultStatus.Unauthorized);
 
         // 6) All guardrails passed — dispatch the destructive restore workflow.
         var result = await backupService.TriggerRestoreAsync(cancellationToken);

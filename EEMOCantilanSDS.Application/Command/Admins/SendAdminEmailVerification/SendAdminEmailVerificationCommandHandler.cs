@@ -26,7 +26,7 @@ namespace EEMOCantilanSDS.Application.Command.Admins.SendAdminEmailVerification
 
             // A Head may not act on a PEER Head's account (only their own, or ordinary Admins).
             if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
-                return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
+                return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, ResultStatus.Forbidden);
 
             if (string.IsNullOrWhiteSpace(admin.Email))
                 return Result<bool>.Failure("This account has no email address to confirm.");

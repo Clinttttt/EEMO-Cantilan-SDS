@@ -46,7 +46,7 @@ public class MarkVendorPaidCommandHandler(
                 // Allow re-marking with the OR already on this attendance; reject a new OR used elsewhere.
                 var alreadyOnThisRecord = string.Equals(attendance.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
                 if (!alreadyOnThisRecord && !await orNumbers.IsAvailableAsync(orNumber, ct))
-                    return Result<bool>.Failure("OR number already exists.", 409);
+                    return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
             }
 
             attendance.MarkPaid(currentUser.CollectorId, updatedBy: recordedBy);

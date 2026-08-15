@@ -52,7 +52,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 return Result<MfaEnrollmentDto>.NotFound();
 
             if (user.MfaEnabled)
-                return Result<MfaEnrollmentDto>.Failure("Two-factor authentication is already switched on.", 400);
+                return Result<MfaEnrollmentDto>.Failure("Two-factor authentication is already switched on.", ResultStatus.Invalid);
 
             // A fresh secret every time enrollment starts, so an abandoned attempt can never be resumed.
             var secret = totp.GenerateSecret();
@@ -83,13 +83,13 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             if (user is null) return Result<MfaRecoveryCodesDto>.NotFound();
 
             if (user.MfaEnabled)
-                return Result<MfaRecoveryCodesDto>.Failure("Two-factor authentication is already switched on.", 400);
+                return Result<MfaRecoveryCodesDto>.Failure("Two-factor authentication is already switched on.", ResultStatus.Invalid);
             if (!user.HasPendingMfaEnrollment || user.MfaSecretCipher is null)
-                return Result<MfaRecoveryCodesDto>.Failure("Start the setup again — no pending enrollment was found.", 400);
+                return Result<MfaRecoveryCodesDto>.Failure("Start the setup again — no pending enrollment was found.", ResultStatus.Invalid);
 
             var secret = protector.Unprotect(user.MfaSecretCipher);
             if (!totp.TryValidate(secret, request.Code, user.MfaLastUsedStep, out var step))
-                return Result<MfaRecoveryCodesDto>.Failure(BadCode, 400);
+                return Result<MfaRecoveryCodesDto>.Failure(BadCode, ResultStatus.Invalid);
 
             var (plain, hashes) = RecoveryCodes.Generate();
             user.ConfirmMfaEnrollment(step, hashes);
@@ -114,7 +114,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
 
             // Turning the second factor OFF must itself require the second factor.
             if (!VerifyCodeOrRecovery(user, request.Code, out var step))
-                return Result<bool>.Failure(BadCode, 400);
+                return Result<bool>.Failure(BadCode, ResultStatus.Invalid);
             if (step is { } used) user.RecordMfaStep(used);
 
             user.DisableMfa();
@@ -129,7 +129,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             if (failure is not null) return Result<MfaRecoveryCodesDto>.Failure(failure.Error!, failure.StatusCode ?? 400);
 
             if (!user!.MfaEnabled)
-                return Result<MfaRecoveryCodesDto>.Failure("Two-factor authentication is not switched on.", 400);
+                return Result<MfaRecoveryCodesDto>.Failure("Two-factor authentication is not switched on.", ResultStatus.Invalid);
 
             var (plain, hashes) = RecoveryCodes.Generate();
             user.ReplaceRecoveryCodes(hashes);          // every previous code stops working
@@ -177,7 +177,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 return (null, Result<bool>.NotFound());
 
             if (string.IsNullOrEmpty(currentPassword) || passwordHasher.Check(user.PasswordHash, currentPassword) == PasswordCheck.Failed)
-                return (null, Result<bool>.Failure(BadPassword, 400));
+                return (null, Result<bool>.Failure(BadPassword, ResultStatus.Invalid));
 
             return (user, null);
         }

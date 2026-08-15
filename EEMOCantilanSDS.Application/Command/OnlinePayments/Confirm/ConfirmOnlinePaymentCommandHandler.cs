@@ -44,7 +44,7 @@ public class ConfirmOnlinePaymentCommandHandler(
         var statusResult = await paymentGateway.RetrievePaymentStatusAsync(transaction.GatewayReference, cancellationToken);
         if (!statusResult.IsSuccess || statusResult.Value is null)
             return Result<ConfirmOnlinePaymentResultDto>.Failure(
-                statusResult.Error ?? "Could not verify the payment with the provider.", 502);
+                statusResult.Error ?? "Could not verify the payment with the provider.", ResultStatus.UpstreamFailed);
 
         var evt = statusResult.Value;
         switch (evt.Type)

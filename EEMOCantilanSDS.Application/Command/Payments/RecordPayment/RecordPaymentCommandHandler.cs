@@ -32,7 +32,7 @@ public class RecordPaymentCommandHandler(
         if (stall.Facility?.Code == FacilityCode.NPM)
             return Result<bool>.Failure(
                 "New Public Market is collected daily — record payments via the daily collection calendar, not a monthly payment.",
-                400);
+                ResultStatus.Invalid);
 
         // Collectors may only record against a facility they are assigned to. Admins/heads
         // (any non-Collector role) record from the web and are not assignment-restricted.
@@ -90,7 +90,7 @@ public class RecordPaymentCommandHandler(
             if (newPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))
             {
                 if (!await paymentRepository.IsMonthlyOrAvailableForStallAsync(orNumber, request.StallId, ct))
-                    return Result<bool>.Failure("OR number already exists.", 409);
+                    return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
                 newPayment.SetOrNumber(orNumber, recordedBy);
             }
             await paymentRepository.AddAsync(newPayment, ct);
@@ -113,7 +113,7 @@ public class RecordPaymentCommandHandler(
             {
                 return Result<bool>.Failure(
                     "This payment was already recorded by another collector. Refresh the record before making changes.",
-                    409);
+                    ResultStatus.Conflict);
             }
                 
             existingPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
@@ -123,7 +123,7 @@ public class RecordPaymentCommandHandler(
                 // only reject when the OR is being introduced and already exists elsewhere.
                 var alreadyOnThisRecord = string.Equals(existingPayment.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
                 if (!alreadyOnThisRecord && !await paymentRepository.IsMonthlyOrAvailableForStallAsync(orNumber, request.StallId, ct))
-                    return Result<bool>.Failure("OR number already exists.", 409);
+                    return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
                 existingPayment.SetOrNumber(orNumber, recordedBy);
             }
             await paymentRepository.UpdateAsync(existingPayment, ct);

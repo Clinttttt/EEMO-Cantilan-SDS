@@ -20,7 +20,7 @@ public class ResetAdminPasswordCommandHandler(
 
         var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
         if (actor is null || passwordHasher.Check(actor.PasswordHash, request.ConfirmPassword) == PasswordCheck.Failed)
-            return Result<bool>.Failure("Your password is incorrect.", 400);
+            return Result<bool>.Failure("Your password is incorrect.", ResultStatus.Invalid);
 
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
         if (admin is null) return Result<bool>.NotFound();
@@ -28,7 +28,7 @@ public class ResetAdminPasswordCommandHandler(
         // A Head may not reset a PEER Head's password (only their own, or ordinary Admins). Re-authentication
         // above proves identity; this proves authority over the target.
         if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
-            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, ResultStatus.Forbidden);
 
         // Resetting YOUR OWN password is choosing it, not being issued one, so it does not then demand a change. The Head
         // who sets their own password would otherwise be marched to the change-password screen on their next sign-in to

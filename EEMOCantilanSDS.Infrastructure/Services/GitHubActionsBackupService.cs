@@ -32,7 +32,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
         catch (Exception)
         {
-            return Result<bool>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<bool>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -50,7 +50,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
         catch (Exception)
         {
-            return Result<bool>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<bool>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -60,13 +60,13 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         {
             var runs = await FetchRunsAsync(options.WorkflowFileName, count, ct);
             if (runs is null)
-                return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent backups.", 502);
+                return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent backups.", ResultStatus.UpstreamFailed);
 
             return Result<IReadOnlyList<BackupRunDto>>.Success(runs);
         }
         catch (Exception)
         {
-            return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -76,13 +76,13 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         {
             var runs = await FetchRunsAsync(options.RestoreWorkflowFileName, count, ct);
             if (runs is null)
-                return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent restores.", 502);
+                return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent restores.", ResultStatus.UpstreamFailed);
 
             return Result<IReadOnlyList<BackupRunDto>>.Success(runs);
         }
         catch (Exception)
         {
-            return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -139,7 +139,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
         catch (Exception)
         {
-            return Result<BackupRunDetailDto>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<BackupRunDetailDto>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 
@@ -149,7 +149,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
             // Look a little deeper than the display count so a run of failures doesn't hide the last good backup.
             var runs = await FetchRunsRawAsync(30, ct);
             if (runs is null)
-                return Result<BackupArtifact>.Failure("Could not load recent backups.", 502);
+                return Result<BackupArtifact>.Failure("Could not load recent backups.", ResultStatus.UpstreamFailed);
 
             // Newest successful run first (the runs endpoint already returns newest-first).
             long? successRunId = null;
@@ -166,7 +166,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
             }
 
             if (successRunId is null)
-                return Result<BackupArtifact>.Failure("No backup artifact available yet.", 404);
+                return Result<BackupArtifact>.Failure("No backup artifact available yet.", ResultStatus.NotFound);
 
             // Artifacts for that run.
             using var artifactsResp = await http.GetAsync(
@@ -179,12 +179,12 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
                 || artifacts.ValueKind != JsonValueKind.Array
                 || artifacts.GetArrayLength() == 0)
             {
-                return Result<BackupArtifact>.Failure("No backup artifact available yet.", 404);
+                return Result<BackupArtifact>.Failure("No backup artifact available yet.", ResultStatus.NotFound);
             }
 
             var first = artifacts[0];
             if (!first.TryGetProperty("id", out var artifactIdEl))
-                return Result<BackupArtifact>.Failure("No backup artifact available yet.", 404);
+                return Result<BackupArtifact>.Failure("No backup artifact available yet.", ResultStatus.NotFound);
 
             var artifactId = artifactIdEl.GetInt64();
             var name = first.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String
@@ -203,7 +203,7 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
         catch (Exception)
         {
-            return Result<BackupArtifact>.Failure("Could not reach the backup service. Please try again.", 502);
+            return Result<BackupArtifact>.Failure("Could not reach the backup service. Please try again.", ResultStatus.UpstreamFailed);
         }
     }
 

@@ -45,7 +45,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
         public async Task<Result<TokenResponseDto>> Handle(VerifyMfaLoginCommand request, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(request.ChallengeToken) || string.IsNullOrWhiteSpace(request.Code))
-                return Result<TokenResponseDto>.Failure(GenericError, 400);
+                return Result<TokenResponseDto>.Failure(GenericError, ResultStatus.Invalid);
 
             var hash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(request.ChallengeToken)));
 
@@ -56,14 +56,14 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 .FirstOrDefaultAsync(u => u.MfaChallengeTokenHash == hash && !u.IsDeleted, ct);
 
             if (user is null || !user.IsMfaChallengeValid(hash, clock.UtcNow))
-                return Result<TokenResponseDto>.Failure(GenericError, 400);
+                return Result<TokenResponseDto>.Failure(GenericError, ResultStatus.Invalid);
 
             // State may have changed between the password step and now.
             if (!user.IsActive || user.IsLockedOut(clock.UtcNow) || !user.MfaEnabled || user.MfaSecretCipher is null)
             {
                 user.ClearMfaChallenge();
                 await context.SaveChangesAsync(ct);
-                return Result<TokenResponseDto>.Failure(GenericError, 400);
+                return Result<TokenResponseDto>.Failure(GenericError, ResultStatus.Invalid);
             }
 
             var secret = protector.Unprotect(user.MfaSecretCipher);
@@ -82,7 +82,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 // Wrong second factor counts as a failed sign-in, so repeated guesses lock the account.
                 user.RecordFailedLogin(clock.UtcNow);
                 await context.SaveChangesAsync(ct);
-                return Result<TokenResponseDto>.Failure(GenericError, 400);
+                return Result<TokenResponseDto>.Failure(GenericError, ResultStatus.Invalid);
             }
 
             // Success: consume the challenge and clear any failed-attempt streak, then mint the session.

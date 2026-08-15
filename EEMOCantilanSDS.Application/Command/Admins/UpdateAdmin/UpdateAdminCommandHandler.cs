@@ -24,7 +24,7 @@ public class UpdateAdminCommandHandler(
 
         // A Head may not edit a PEER Head's account (only their own, or ordinary Admins).
         if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
-            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, ResultStatus.Forbidden);
 
         // Guard: never demote the last remaining active SuperAdmin (would lock everyone out of
         // account management). This covers demoting yourself or the only other Head.

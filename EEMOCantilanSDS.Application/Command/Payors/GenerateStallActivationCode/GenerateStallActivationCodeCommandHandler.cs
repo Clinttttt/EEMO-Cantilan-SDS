@@ -51,12 +51,12 @@ public class GenerateStallActivationCodeCommandHandler(
                 ownsThisStall
                     ? "This stall is already linked to an activated payor account."
                     : "This mobile number is already registered to a payor account. Use a different number.",
-                409);
+                ResultStatus.Conflict);
         }
 
         if (await payorRepository.ActiveCodeExistsForContactOnOtherStallAsync(contactNumber, stall.Id, cancellationToken))
             return Result<StallActivationCodeDto>.Failure(
-                "This mobile number already has a pending activation code for another stall.", 409);
+                "This mobile number already has a pending activation code for another stall.", ResultStatus.Conflict);
 
         // One activation record per stall: remove any prior code(s) so re-issuing REPLACES the old
         // instead of accumulating a new row each time. Only the newest code is ever redeemable.

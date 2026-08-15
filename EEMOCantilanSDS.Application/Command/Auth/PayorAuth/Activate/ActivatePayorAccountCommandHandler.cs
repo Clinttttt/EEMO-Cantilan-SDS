@@ -25,7 +25,7 @@ public class ActivatePayorAccountCommandHandler(
 
         // Validate the code without revealing which specific check failed (anti-enumeration).
         if (code is null || !code.CanBeRedeemedBy(contactNumber))
-            return Result<TokenResponseDto>.Failure("Invalid or expired activation code.", 400);
+            return Result<TokenResponseDto>.Failure("Invalid or expired activation code.", ResultStatus.Invalid);
 
         // Activation is anonymous, so this request would otherwise resolve to the DEFAULT tenant (Cantilan).
         // Pin it to the code's OWN municipality so the new payor account + stall link are stamped (and
@@ -41,7 +41,7 @@ public class ActivatePayorAccountCommandHandler(
         var existing = await payorRepository.GetByContactNumberAsync(contactNumber, cancellationToken);
         if (existing is not null)
             return Result<TokenResponseDto>.Failure(
-                "This mobile number is already activated. Please sign in instead.", 409);
+                "This mobile number is already activated. Please sign in instead.", ResultStatus.Conflict);
 
         var payor = PayorUser.Create(request.FullName!.Trim(), contactNumber, passwordHasher.Hash(request.Password!));
         await payorRepository.AddPayorAsync(payor, cancellationToken);

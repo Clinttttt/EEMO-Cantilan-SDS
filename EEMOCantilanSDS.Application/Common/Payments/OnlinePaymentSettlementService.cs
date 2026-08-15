@@ -30,7 +30,7 @@ public sealed class OnlinePaymentSettlementService(
 
         // Amount integrity — never settle on a mismatch.
         if (Math.Round(evt.Amount, 2) != Math.Round(transaction.Amount, 2))
-            return Result<bool>.Failure("Payment amount does not match the initiated amount.", 409);
+            return Result<bool>.Failure("Payment amount does not match the initiated amount.", ResultStatus.Conflict);
 
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
 
@@ -48,7 +48,7 @@ public sealed class OnlinePaymentSettlementService(
 
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
-            return Result<bool>.Failure("Linked payment record not found.", 500);
+            return Result<bool>.Failure("Linked payment record not found.", ResultStatus.Failed);
 
         // Cross-channel safety: between initiation and now, this period may already have been settled by
         // another channel (an offline collection, or a duplicate online transaction). The gateway has
@@ -109,11 +109,11 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
 
         var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
         if (stall is null)
-            return Result<bool>.Failure("Linked stall not found.", 500);
+            return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
 
         await npmMonthSettlementService.SettleUnpaidDaysAsync(
             stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken, maxAmount: transaction.Amount);
@@ -151,11 +151,11 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
 
         var bill = await utilityBillRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken);
         if (bill is null)
-            return Result<bool>.Failure("Linked utility bill not found.", 500);
+            return Result<bool>.Failure("Linked utility bill not found.", ResultStatus.Failed);
 
         if (bill.Status != PaymentStatus.Paid)
         {
@@ -225,11 +225,11 @@ public sealed class OnlinePaymentSettlementService(
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month
             || transaction.TargetDay is not { } day)
-            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", 500);
+            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", ResultStatus.Failed);
 
         var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
         if (stall is null)
-            return Result<bool>.Failure("Linked stall not found.", 500);
+            return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
 
         var date = new DateOnly(year, month, day);
         await npmMonthSettlementService.SettleFishDayAsync(

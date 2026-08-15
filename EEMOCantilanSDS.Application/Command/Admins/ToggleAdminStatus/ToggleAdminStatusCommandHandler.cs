@@ -23,7 +23,7 @@ public class ToggleAdminStatusCommandHandler(
 
         // A Head may not enable/disable a PEER Head's account (only their own, or ordinary Admins).
         if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
-            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, ResultStatus.Forbidden);
 
         if (!request.Activate)
         {

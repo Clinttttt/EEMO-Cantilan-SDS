@@ -44,7 +44,7 @@ public class InitiateOnlinePaymentCommandHandler(
         var periodEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         if (!stall.Contracts.Any(c => c.OverlapsPeriod(periodStart, periodEnd)))
             return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "This billing period isn't covered by an active contract for this stall.", 409);
+                "This billing period isn't covered by an active contract for this stall.", ResultStatus.Conflict);
 
         // NPM is daily-billed (no monthly record). Online pays a whole month of the base ₱30 daily fee —
         // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
@@ -75,7 +75,7 @@ public class InitiateOnlinePaymentCommandHandler(
 
         // Only an outstanding balance is payable (full balance — no partial online payments in v1).
         if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", 409);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
 
         // If the payor already has an unfinished checkout for this period (e.g. they backed out), send
         // them back to the SAME session rather than opening a duplicate — this is the double-payment guard.
@@ -110,7 +110,7 @@ public class InitiateOnlinePaymentCommandHandler(
 
         if (!checkout.IsSuccess || checkout.Value is null)
             return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", 502);
+                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
 
         // Persist only after the gateway accepted the session.
         if (isNewRecord)
@@ -133,7 +133,7 @@ public class InitiateOnlinePaymentCommandHandler(
         // An amount with no days is legitimate: a closed short month whose every day was collected still owes its
         // month-end adjustment, and refusing it would leave the payor no way to settle the month online.
         if (payable.Amount <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", 409);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", ResultStatus.Conflict);
 
         // Resume an unfinished checkout for the same stall+month rather than opening a duplicate.
         var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmDailyMonth, cancellationToken);
@@ -163,7 +163,7 @@ public class InitiateOnlinePaymentCommandHandler(
 
         if (!checkout.IsSuccess || checkout.Value is null)
             return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", 502);
+                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
 
         transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
         await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
@@ -180,7 +180,7 @@ public class InitiateOnlinePaymentCommandHandler(
     {
         var bill = await utilityBillRepository.GetByStallAndMonthAsync(stall.Id, request.Year, request.Month, cancellationToken);
         if (bill is null || bill.BalanceDue <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding utility balance.", 409);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding utility balance.", ResultStatus.Conflict);
 
         var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmUtilityBill, cancellationToken);
         if (resumable is { IsResumable: true })
@@ -210,7 +210,7 @@ public class InitiateOnlinePaymentCommandHandler(
 
         if (!checkout.IsSuccess || checkout.Value is null)
             return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", 502);
+                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
 
         transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
         await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
@@ -228,16 +228,16 @@ public class InitiateOnlinePaymentCommandHandler(
     {
         if (request.Day is not { } dayOfMonth
             || dayOfMonth < 1 || dayOfMonth > DateTime.DaysInMonth(request.Year, request.Month))
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick a valid day to pay for.", 400);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick a valid day to pay for.", ResultStatus.Invalid);
         if (request.FishKilos is not { } kilos || kilos < 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Enter the kilos for that day.", 400);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Enter the kilos for that day.", ResultStatus.Invalid);
 
         var day = new DateOnly(request.Year, request.Month, dayOfMonth);
         var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, day, kilos, cancellationToken);
         if (!quote.IsPayable)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(quote.Error ?? "That day can't be paid online.", 409);
+            return Result<InitiateOnlinePaymentResultDto>.Failure(quote.Error ?? "That day can't be paid online.", ResultStatus.Conflict);
         if (quote.Amount <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This day has no outstanding balance.", 409);
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This day has no outstanding balance.", ResultStatus.Conflict);
 
         // Resume an unfinished checkout for the SAME stall + exact day rather than opening a duplicate.
         var resumable = await onlinePaymentRepository.GetResumableNpmFishDayTransactionAsync(stall.Id, request.Year, request.Month, dayOfMonth, cancellationToken);
@@ -266,7 +266,7 @@ public class InitiateOnlinePaymentCommandHandler(
 
         if (!checkout.IsSuccess || checkout.Value is null)
             return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", 502);
+                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
 
         transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
         await onlinePaymentRepository.AddAsync(transaction, cancellationToken);

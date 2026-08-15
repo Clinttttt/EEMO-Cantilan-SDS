@@ -37,7 +37,7 @@ public class CollectorLoginCommandHandler(
             // A single active LGU (Cantilan today) keeps the global lookup — the golden tenant is unchanged.
             var activeCount = (await municipalityRepository.GetAllAsync(cancellationToken)).Count(m => m.IsActive);
             if (activeCount > 1)
-                return Result<TokenResponseDto>.Failure("Please select your municipality to sign in.", 400);
+                return Result<TokenResponseDto>.Failure("Please select your municipality to sign in.", ResultStatus.Invalid);
         }
 
         var collector = scopeMunicipalityId is { } mid

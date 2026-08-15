@@ -56,7 +56,7 @@ public class BulkImportDailyHistoryCommandHandler(
         {
             return Result<BulkImportDailyResultDto>.Failure(
                 $"{facility.Name} is not collected per market day. A facility billed by the month has its own " +
-                "import, where one row is one month's payment.", 400);
+                "import, where one row is one month's payment.", ResultStatus.Invalid);
         }
 
         var stalls = await stallRepo.GetStallsWithContractsByFacilityAsync(

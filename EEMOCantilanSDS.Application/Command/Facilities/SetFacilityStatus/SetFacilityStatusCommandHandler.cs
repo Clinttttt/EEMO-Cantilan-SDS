@@ -16,7 +16,7 @@ public class SetFacilityStatusCommandHandler(
     public async Task<Result<bool>> Handle(SetFacilityStatusCommand request, CancellationToken ct)
     {
         if (!Enum.TryParse<FacilityCode>(request.Code, ignoreCase: true, out var code) || !Enum.IsDefined(code))
-            return Result<bool>.Failure("Unknown facility type.", 400);
+            return Result<bool>.Failure("Unknown facility type.", ResultStatus.Invalid);
 
         var facility = await facilityRepository.GetByCodeAsync(code, ct);
         if (facility is null)

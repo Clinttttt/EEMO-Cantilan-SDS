@@ -26,12 +26,12 @@ public class ChangeMyPasswordCommandHandler(
         // required: an office-issued password may have been written down and handed over, so the person typing it is not
         // proven to be its owner until they can produce it.
         if (passwordHasher.Check(admin.PasswordHash, request.CurrentPassword) == PasswordCheck.Failed)
-            return Result<TokenResponseDto>.Failure("Your current password is incorrect.", 400);
+            return Result<TokenResponseDto>.Failure("Your current password is incorrect.", ResultStatus.Invalid);
 
         // Refused rather than accepted quietly: a required change that changes nothing leaves the account on a password
         // the office knows, which is the thing the requirement exists to end.
         if (passwordHasher.Check(admin.PasswordHash, request.NewPassword) != PasswordCheck.Failed)
-            return Result<TokenResponseDto>.Failure("Your new password must be different from your current one.", 400);
+            return Result<TokenResponseDto>.Failure("Your new password must be different from your current one.", ResultStatus.Invalid);
 
         admin.ChangeOwnPassword(passwordHasher.Hash(request.NewPassword));
 

@@ -53,7 +53,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
                 return Result<bool>.Unauthorized();
 
             if (string.IsNullOrEmpty(request.OperatorPassword) || passwordHasher.Check(operatorAccount.PasswordHash, request.OperatorPassword) == PasswordCheck.Failed)
-                return Result<bool>.Failure("Your password is incorrect.", 400);
+                return Result<bool>.Failure("Your password is incorrect.", ResultStatus.Invalid);
 
             // Reaching into another municipality is a PLATFORM-OPERATOR power. A dedicated operator account
             // (the console) may rescue any LGU's Head. The backward-compatible fallback — the default
@@ -78,7 +78,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             }
 
             if (!target.MfaEnabled && !target.HasPendingMfaEnrollment)
-                return Result<bool>.Failure("That account does not have two-factor authentication set up.", 400);
+                return Result<bool>.Failure("That account does not have two-factor authentication set up.", ResultStatus.Invalid);
 
             target.DisableMfa();          // clears secret, recovery codes, replay marker and any challenge
             await context.SaveChangesAsync(ct);

@@ -43,11 +43,11 @@ public class RecordUtilityPaymentCommandHandler(
         // utilities of this bill) is allowed; reject an OR already used on another bill.
         if (request.ElecStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(elecOr)
             && !await orNumbers.IsAvailableForUtilityBillAsync(elecOr, bill.Id, ct))
-            return Result<UtilityBillDto>.Failure("Electricity OR number already exists.", 409);
+            return Result<UtilityBillDto>.Failure("Electricity OR number already exists.", ResultStatus.Conflict);
 
         if (request.WaterStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(waterOr)
             && !await orNumbers.IsAvailableForUtilityBillAsync(waterOr, bill.Id, ct))
-            return Result<UtilityBillDto>.Failure("Water OR number already exists.", 409);
+            return Result<UtilityBillDto>.Failure("Water OR number already exists.", ResultStatus.Conflict);
 
         bill.RecordPayment(
             elecOr, waterOr, currentUser.CollectorId,

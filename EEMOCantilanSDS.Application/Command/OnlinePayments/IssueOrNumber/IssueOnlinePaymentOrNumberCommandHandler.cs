@@ -30,7 +30,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
             return Result<bool>.NotFound();
 
         if (transaction.Status != OnlinePaymentStatus.Paid)
-            return Result<bool>.Failure("Only an online payment awaiting OR can be receipted.", 409);
+            return Result<bool>.Failure("Only an online payment awaiting OR can be receipted.", ResultStatus.Conflict);
 
         // NPM daily-month: the OR is stamped across the month's settled days, not a monthly record.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
@@ -46,7 +46,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
 
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
-            return Result<bool>.Failure("Linked payment record not found.", 500);
+            return Result<bool>.Failure("Linked payment record not found.", ResultStatus.Failed);
 
         // A collector may only receipt an online payment for a facility they are assigned to; admins/heads are
         // unrestricted. Mirrors the collector guard on utility/collection payments (prevents a collector from
@@ -110,7 +110,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
 
         // Collector facility guard (same as the monthly path): a collector may only receipt for a facility
         // they're assigned to; admins/heads are unrestricted.
@@ -132,7 +132,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
 
         // Stall-aware OR uniqueness — a single receipt may cover many days of the SAME stall.
         if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, stallId, cancellationToken))
-            return Result<bool>.Failure("OR number already exists.", 409);
+            return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
 
         var days = (await dailyCollectionRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken))
             .Where(dc => dc.IsPaid && string.IsNullOrWhiteSpace(dc.ORNumber))
@@ -174,7 +174,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
 
         if (string.Equals(currentUser.Role, "Collector", StringComparison.OrdinalIgnoreCase))
         {
@@ -194,10 +194,10 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
 
         var bill = await utilityBillRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken);
         if (bill is null)
-            return Result<bool>.Failure("Linked utility bill not found.", 500);
+            return Result<bool>.Failure("Linked utility bill not found.", ResultStatus.Failed);
 
         if (!await orNumbers.IsAvailableForUtilityBillAsync(orNumber, bill.Id, cancellationToken))
-            return Result<bool>.Failure("OR number already exists.", 409);
+            return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
 
         // Preserve an already-receipted side's OR (paid in person); stamp the new OR only on blank sides.
         var elecOr = string.IsNullOrWhiteSpace(bill.ElecORNumber) ? orNumber : null;
@@ -243,7 +243,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month
             || transaction.TargetDay is not { } day)
-            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", 500);
+            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", ResultStatus.Failed);
 
         if (string.Equals(currentUser.Role, "Collector", StringComparison.OrdinalIgnoreCase))
         {
@@ -262,12 +262,12 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         var orNumber = request.ORNumber.Trim();
 
         if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, stallId, cancellationToken))
-            return Result<bool>.Failure("OR number already exists.", 409);
+            return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
 
         var date = new DateOnly(year, month, day);
         var dc = await dailyCollectionRepository.GetByStallAndDateAsync(stallId, date, cancellationToken);
         if (dc is null || !dc.IsPaid)
-            return Result<bool>.Failure("The fish day to receipt is not settled.", 409);
+            return Result<bool>.Failure("The fish day to receipt is not settled.", ResultStatus.Conflict);
 
         dc.SetOrNumber(orNumber, actor);
         transaction.CompleteWithOr(orNumber, actor);

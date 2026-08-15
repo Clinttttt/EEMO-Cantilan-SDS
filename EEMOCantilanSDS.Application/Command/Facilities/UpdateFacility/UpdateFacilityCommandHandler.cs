@@ -16,7 +16,7 @@ public class UpdateFacilityCommandHandler(
     public async Task<Result<bool>> Handle(UpdateFacilityCommand request, CancellationToken ct)
     {
         if (!Enum.TryParse<FacilityCode>(request.Code, ignoreCase: true, out var code) || !Enum.IsDefined(code))
-            return Result<bool>.Failure("Unknown facility type.", 400);
+            return Result<bool>.Failure("Unknown facility type.", ResultStatus.Invalid);
 
         // Tenant-scoped: GetByCodeAsync only returns the caller LGU's own facility (tracked, so the edit
         // persists on save). A facility the tenant hasn't configured cannot be edited.

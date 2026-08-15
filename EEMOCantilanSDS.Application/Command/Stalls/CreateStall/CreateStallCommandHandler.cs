@@ -36,7 +36,7 @@ public class CreateStallCommandHandler(
             if (existing is not null)
             {
                 if (!existing.IsVacant(clock.PhilippineToday))
-                    return Result<StallDto>.Failure("That stall is still occupied, so it cannot be reassigned.", 409);
+                    return Result<StallDto>.Failure("That stall is still occupied, so it cannot be reassigned.", ResultStatus.Conflict);
 
                 return await ReassignAsync(existing, request, cancellationToken);
             }

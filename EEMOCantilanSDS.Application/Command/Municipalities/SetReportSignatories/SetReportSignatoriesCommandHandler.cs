@@ -37,7 +37,7 @@ public class SetReportSignatoriesCommandHandler(
             .ToList();
 
         if (cleaned.Any(s => s.Caption.Length > MaxLength || s.Name.Length > MaxLength))
-            return Result<bool>.Failure($"A signatory caption or name may be at most {MaxLength} characters.", 400);
+            return Result<bool>.Failure($"A signatory caption or name may be at most {MaxLength} characters.", ResultStatus.Invalid);
 
         // No lines at all = "use the office's default trio", stored as null rather than an empty array so the
         // meaning is unambiguous in the database.

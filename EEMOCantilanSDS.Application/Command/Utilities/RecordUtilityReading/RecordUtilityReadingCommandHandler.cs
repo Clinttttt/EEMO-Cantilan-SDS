@@ -26,7 +26,7 @@ public class RecordUtilityReadingCommandHandler(
 
         // Meter-based utility billing is an NPM concept only.
         if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<UtilityBillDto>.Failure("Utility billing applies to New Public Market stalls only.", 400);
+            return Result<UtilityBillDto>.Failure("Utility billing applies to New Public Market stalls only.", ResultStatus.Invalid);
 
         var actor = currentUser.Username ?? "Admin";
 
@@ -49,7 +49,7 @@ public class RecordUtilityReadingCommandHandler(
                     request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
                     request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter))
                 return Result<UtilityBillDto>.Failure(
-                    "Readings can't be changed after a payment has been recorded for this bill. Reverse the payment first.", 409);
+                    "Readings can't be changed after a payment has been recorded for this bill. Reverse the payment first.", ResultStatus.Conflict);
 
             bill.UpdateReadings(
                 request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,

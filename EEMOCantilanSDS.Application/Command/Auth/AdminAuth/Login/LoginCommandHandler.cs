@@ -50,7 +50,7 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
             return Result<TokenResponseDto>.Failure(
                 $"This account is temporarily locked after {DomainRules.MaxFailedLoginAttempts} failed sign-in attempts. " +
                 $"Please try again in {minutes} minute{(minutes == 1 ? "" : "s")}, or ask the office Head to reset your password.",
-                423);
+                ResultStatus.Locked);
         }
 
         if (!passwordOk)
@@ -64,7 +64,7 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
                 return Result<TokenResponseDto>.Failure(
                     $"This account is now locked for {DomainRules.LockoutMinutes} minutes after " +
                     $"{DomainRules.MaxFailedLoginAttempts} failed sign-in attempts.",
-                    423);
+                    ResultStatus.Locked);
 
             return Result<TokenResponseDto>.Unauthorized();
         }

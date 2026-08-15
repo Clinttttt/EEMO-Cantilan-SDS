@@ -11,12 +11,12 @@ public sealed class SendCollectorNotificationCommandHandler(IPushSender pushSend
     {
         if (request.CollectorId == Guid.Empty)
         {
-            return Result<int>.Failure("A collector id is required.", 400);
+            return Result<int>.Failure("A collector id is required.", ResultStatus.Invalid);
         }
 
         if (string.IsNullOrWhiteSpace(request.Title))
         {
-            return Result<int>.Failure("A notification title is required.", 400);
+            return Result<int>.Failure("A notification title is required.", ResultStatus.Invalid);
         }
 
         var reached = await pushSender.SendToCollectorAsync(

@@ -33,7 +33,7 @@ public class SoftDeleteStallCommandHandler(
         if (!isClosed && !isExpired)
             return Result<bool>.Failure(
                 "Only closed or expired accounts can be removed. This stall is still active.",
-                409);
+                ResultStatus.Conflict);
 
         // Soft-delete: hidden from every list + uniqueness (the number frees up), history retained.
         stall.SoftDelete(currentUser.Username ?? "Admin");

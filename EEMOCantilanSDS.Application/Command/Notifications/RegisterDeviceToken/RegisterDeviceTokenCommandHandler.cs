@@ -19,7 +19,7 @@ public sealed class RegisterDeviceTokenCommandHandler(
 
         if (string.IsNullOrWhiteSpace(request.Token))
         {
-            return Result<bool>.Failure("A device token is required.", 400);
+            return Result<bool>.Failure("A device token is required.", ResultStatus.Invalid);
         }
 
         await tokenRepository.UpsertAsync(

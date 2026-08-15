@@ -21,7 +21,7 @@ public class ResetCollectorPasswordCommandHandler(
 
         var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
         if (actor is null || passwordHasher.Check(actor.PasswordHash, request.ConfirmPassword) == PasswordCheck.Failed)
-            return Result<bool>.Failure("Your password is incorrect.", 400);
+            return Result<bool>.Failure("Your password is incorrect.", ResultStatus.Invalid);
 
         var collector = await collectorRepo.GetByIdAsync(request.CollectorId, cancellationToken);
         if (collector is null) return Result<bool>.NotFound();
