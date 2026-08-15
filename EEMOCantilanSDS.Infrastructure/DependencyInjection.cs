@@ -18,17 +18,40 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http.Headers;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Infrastructure
 {
+    /// <summary>
+    /// Infrastructure's composition root.
+    ///
+    /// <para>
+    /// One entry point, <see cref="AddInfrastructureService"/>, over seven groups that each register ONE concern. It was a
+    /// single 150-line method mixing persistence, caching, tenancy, repositories, security, payments and outbound HTTP, so
+    /// nothing could be read or changed without reading all of it, and a dropped line looked like every other line.
+    /// </para>
+    ///
+    /// <para>
+    /// The groups are called in the order the registrations were originally written, and the resulting container is identical:
+    /// same service types, same lifetimes, same implementations. <c>CompositionRootTests</c> holds that — it resolves every
+    /// service this codebase registers, all 550 of them, including every MediatR handler and validator, so a group left
+    /// uncalled is a failing test rather than a 500 on the one page that needed it.
+    /// </para>
+    /// </summary>
     public static class DependencyInjection
     {
         public static IServiceCollection AddInfrastructureService(this IServiceCollection service, IConfiguration configuration)
+            => service
+                .AddPersistence(configuration)
+                .AddEemoCaching()
+                .AddTenancyAndRates()
+                .AddRepositories()
+                .AddInfrastructureServices(configuration)
+                .AddOnlinePayments(configuration)
+                .AddBackupGateway(configuration);
+
+        /// <summary>The database itself: the context, the interceptors that stamp every write, and the unit of work.</summary>
+        private static IServiceCollection AddPersistence(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddScoped<AuditSaveChangesInterceptor>();
             service.AddSingleton<MunicipalityStampInterceptor>();
@@ -40,42 +63,71 @@ namespace EEMOCantilanSDS.Infrastructure
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
+            return service;
+        }
+
+        /// <summary>The in-process report cache and the invalidator that clears it when money moves.</summary>
+        private static IServiceCollection AddEemoCaching(this IServiceCollection service)
+        {
             var eemoCacheOptions = new EemoCacheOptions();
             service.AddMemoryCache(options => options.SizeLimit = eemoCacheOptions.SizeLimit);
             service.AddSingleton(eemoCacheOptions);
             service.AddSingleton<MemoryEemoCacheInvalidator>();
             service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
             service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();
+            return service;
+        }
+
+        /// <summary>
+        /// Which LGU a request belongs to, and the figures that vary by LGU.
+        ///
+        /// <para>
+        /// Grouped together because they answer the same question from different angles: the tenant context says WHOSE data
+        /// this is, and the rate and market-day resolvers say what that LGU's own ordinance charges. Both read the tenant's
+        /// records and both fall back to the constants so the default municipality is byte-for-byte unchanged.
+        /// </para>
+        /// </summary>
+        private static IServiceCollection AddTenancyAndRates(this IServiceCollection service)
+        {
             service.AddScoped<ITenantContext, ClaimTenantContext>();
             // Optional per-request tenant override (anonymous webhook settles under the transaction's LGU).
             // Empty by default, so ordinary requests resolve their tenant exactly as before.
             service.AddScoped<IRequestTenantScope, RequestTenantScope>();
-            // Per-request tenant resolution (Phase 5): the default municipality (Cantilan) lives in a
-            // process-wide singleton, populated once at startup; the accessor resolves per-request off the
-            // authenticated user, falling back to that default. The stamp interceptor stays a singleton —
-            // it reads the resolved id off the DbContext, not via DI.
+            // Per-request tenant resolution: the default municipality lives in a process-wide singleton, populated once at
+            // startup; the accessor resolves per-request off the authenticated user, falling back to that default. The stamp
+            // interceptor stays a singleton — it reads the resolved id off the DbContext, not via DI.
             service.AddSingleton<DefaultMunicipalityStore>();
             service.AddScoped<ICurrentMunicipalityAccessor, CurrentMunicipalityAccessor>();
-            // Per-LGU fixed-rate resolution (Phase 4B): reads the current municipality's FacilityRate rows,
-            // falling back to the FeeRates constants so Cantilan is byte-for-byte unchanged.
+            // Per-LGU fixed-rate resolution: reads the current municipality's FacilityRate rows, falling back to the
+            // FeeRates constants.
             service.AddScoped<IFeeRateResolver, FeeRateResolver>();
             // Per-LGU Tabo-an market weekday (defaults to Friday) — reads the tenant's Municipality record.
             service.AddScoped<ITpmMarketDayProvider, TpmMarketDayProvider>();
- 
-            
-            // Repositories
+            return service;
+        }
+
+        /// <summary>
+        /// The repositories, and the narrow query contracts served by the same instances.
+        ///
+        /// <para>
+        /// Where a repository also answers a narrower contract, that contract is a FACTORY over the wide registration rather
+        /// than a second <c>AddScoped</c> of the same type: one request then shares one instance and one change tracker, where
+        /// a second registration would build two for no reason.
+        /// </para>
+        /// </summary>
+        private static IServiceCollection AddRepositories(this IServiceCollection service)
+        {
             service.AddScoped<IAuthRepository, AuthRepository>();
             service.AddScoped<ISetupRepository, SetupRepository>();
             service.AddScoped<IAdminRepository, AdminRepository>();
+
             service.AddScoped<ICollectorRepository, CollectorRepository>();
-            // Same instance, one change tracker per request — see the IStallLedgerQueries registration below.
             service.AddScoped<ICollectorMobileQueries>(sp => (CollectorRepository)sp.GetRequiredService<ICollectorRepository>());
             service.AddScoped<ICollectorReportingQueries>(sp => (CollectorRepository)sp.GetRequiredService<ICollectorRepository>());
             service.AddScoped<ICollectorDeviceTokenRepository, CollectorDeviceTokenRepository>();
             service.AddScoped<IPushSender, EEMOCantilanSDS.Infrastructure.Services.FcmPushSender>();
+
             service.AddScoped<IStallRepository, StallRepository>();
-            // Same instance, one change tracker per request. See the IStallLedgerQueries registration below for why this
-            // is a factory over the existing registration rather than a second AddScoped of the same type.
             service.AddScoped<IStallMobileQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IClosedStallAccountQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IContractAttentionQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
@@ -87,14 +139,14 @@ namespace EEMOCantilanSDS.Infrastructure
 
             // The clock is stateless, so a singleton: every caller reads the same real time.
             service.AddSingleton<IClock, SystemClock>();
+
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
+
             service.AddScoped<IPaymentRepository, PaymentRepository>();
-            // The same instance answers the narrow per-stall ledger reads, so one request shares one repository and one
-            // change tracker. Registered as a factory over the wide registration rather than as a second AddScoped of
-            // the same type, which would build two instances per request for no reason.
             service.AddScoped<IStallLedgerQueries>(sp => (PaymentRepository)sp.GetRequiredService<IPaymentRepository>());
             service.AddScoped<IMissingReceiptQueries>(sp => (PaymentRepository)sp.GetRequiredService<IPaymentRepository>());
+
             service.AddScoped<IStallMonthlyExceptionRepository, StallMonthlyExceptionRepository>();
             service.AddScoped<INpmMarketClosureRepository, NpmMarketClosureRepository>();
             service.AddScoped<IVendorRepository, VendorRepository>();
@@ -111,6 +163,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IOnlinePaymentRepository, OnlinePaymentRepository>();
             service.AddScoped<ISyncRepository, SyncRepository>();
             service.AddScoped<IAuditRepository, AuditRepository>();
+
             service.AddScoped<IDatabaseHealthRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.DatabaseHealthRepository>();
             service.AddHttpClient<EEMOCantilanSDS.Application.Common.Interface.Services.IComputeMetricsProvider,
                 EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.AzureComputeMetricsProvider>();
@@ -118,9 +171,12 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITenantExportRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantExportRepository>();
             service.AddScoped<ITenantRestoreRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantRestoreRepository>();
             service.AddScoped<ITenantBackupRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantBackupRepository>();
+            return service;
+        }
 
-
-            // Services
+        /// <summary>Who the caller is, how a password is stored, how a session is issued, and how the office is emailed.</summary>
+        private static IServiceCollection AddInfrastructureServices(this IServiceCollection service, IConfiguration configuration)
+        {
             service.AddScoped<ICurrentUserService, CurrentUserService>();
             // The one place that knows how a password is stored. Singleton: it holds no state beyond the hasher itself,
             // and the format must be identical everywhere or existing accounts stop verifying.
@@ -133,26 +189,34 @@ namespace EEMOCantilanSDS.Infrastructure
             configuration.GetSection("Email").Bind(emailOptions);
             service.AddSingleton(emailOptions);
             service.AddScoped<IEmailSender, EEMOCantilanSDS.Infrastructure.Services.SmtpEmailSender>();
+
             // Two-factor: RFC 6238 TOTP + QR rendering. Stateless, so singletons are fine.
             service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.ITotpService,
                 EEMOCantilanSDS.Infrastructure.Security.TotpService>();
             service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.IQrCodeGenerator,
                 EEMOCantilanSDS.Infrastructure.Security.QrCodeGenerator>();
+
             // Issues + emails one-time email-confirmation links (used on admin create, email change, and
             // Head-triggered resend). Lives in Application; registered here beside the SMTP sender it uses.
             service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IEmailVerificationSender,
                 EEMOCantilanSDS.Application.Common.Services.EmailVerificationSender>();
+            return service;
+        }
 
-            // Per-LGU payment credentials (Option A): AES-GCM protector for secrets at rest + a resolver that
-            // returns the current tenant's PayMongo account, falling back to the global config (Cantilan default).
+        /// <summary>
+        /// Online payments: each LGU's own gateway account, and the protector that keeps its secrets at rest.
+        /// </summary>
+        private static IServiceCollection AddOnlinePayments(this IServiceCollection service, IConfiguration configuration)
+        {
+            // Per-LGU payment credentials: AES-GCM protector for secrets at rest + a resolver that returns the current
+            // tenant's PayMongo account, falling back to the global config (default LGU).
             service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.ICredentialProtector,
                 EEMOCantilanSDS.Infrastructure.Security.AesCredentialProtector>();
             service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IPayMongoCredentialResolver,
                 EEMOCantilanSDS.Infrastructure.Payments.PayMongoCredentialResolver>();
 
-            // Online payment gateway (PayMongo hosted checkout). Auth is applied PER-REQUEST by the gateway
-            // from the tenant's resolved credentials (IPayMongoCredentialResolver), so each LGU hits its own
-            // account and the default LGU (Cantilan) uses the global config — no default Authorization here.
+            // PayMongo hosted checkout. Auth is applied PER-REQUEST by the gateway from the tenant's resolved credentials,
+            // so each LGU hits its own account and the default LGU uses the global config — no default Authorization here.
             var payMongo = configuration.GetSection("PayMongo");
             service.AddHttpClient<IPaymentGateway, PayMongoPaymentGateway>(client =>
             {
@@ -162,9 +226,15 @@ namespace EEMOCantilanSDS.Infrastructure
                 client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
+            return service;
+        }
 
-            // GitHub Actions backup gateway. The token is bound from configuration and applied once here
-            // as a Bearer default header — it stays server-side and is never returned to the client.
+        /// <summary>
+        /// The GitHub Actions backup gateway. The token is bound from configuration and applied once here as a Bearer
+        /// default header — it stays server-side and is never returned to the client.
+        /// </summary>
+        private static IServiceCollection AddBackupGateway(this IServiceCollection service, IConfiguration configuration)
+        {
             var gitHubBackup = new GitHubBackupOptions();
             configuration.GetSection("GitHubBackup").Bind(gitHubBackup);
             service.AddSingleton(gitHubBackup);
@@ -177,9 +247,7 @@ namespace EEMOCantilanSDS.Infrastructure
                 if (!string.IsNullOrWhiteSpace(gitHubBackup.Token))
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", gitHubBackup.Token);
             });
-
             return service;
-
         }
     }
 }

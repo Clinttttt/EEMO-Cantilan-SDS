@@ -379,7 +379,7 @@ STILL OPEN, and deliberately not changed:
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the
   interceptor.
 
-### 9. Split API / Infrastructure / Client registrations — PARTLY DONE
+### 9. Split API / Infrastructure / Client registrations — DONE
 
 DONE, and each claim verified against the code first:
 
@@ -401,10 +401,32 @@ DONE, and each claim verified against the code first:
 One deliberate behaviour difference: startup logs now use the application's default logger category rather than
 `ILogger<Program>`. Only affects log filtering by category.
 
-STILL TO DO: the review's larger ask of splitting `AddApi`/`AddInfrastructureService`/`ConfigureServices` into layer-owned
-extensions with narrower responsibilities. `AddInfrastructureService` remains large and mixes persistence, caching,
-payments, security and HTTP clients. Worth doing, but it is a reshuffle of registrations with no test that can prove it
-beyond "the application still starts", so it wants its own session and a careful read of ordering.
+DONE (2026-08-15 completed the reshuffle). `AddInfrastructureService` is now a seven-line composition over seven groups that
+each register ONE concern: `AddPersistence`, `AddEemoCaching`, `AddTenancyAndRates`, `AddRepositories`,
+`AddInfrastructureServices`, `AddOnlinePayments`, `AddBackupGateway`. It was a single 150-line method mixing all of them, so
+nothing could be changed without reading all of it and a dropped line looked like every other line.
+
+**The blocker recorded here — "no test can prove it beyond the application still starts" — was removed first, deliberately, then
+the reshuffle was done against it.** `Testing/Infrastructure/CompositionRootTests.cs`:
+
+- **Resolves every service this codebase registers** — 550 of them, including every MediatR handler and every validator — from
+  the real composition, built in the same order as `Program.cs` (`AddApi` + `AddInfrastructureService` + `AddApplicationService`).
+  A group left uncalled is a failing test rather than a 500 on the one page that needed it. Proven by deleting the `IClock`
+  registration: 66 of 549 services became unbuildable.
+- **Asserts no service type is registered twice.** This is what makes moving registrations between groups SAFE: with each type
+  registered once, order cannot decide which registration wins, nor what `IEnumerable<T>` yields. Had there been a duplicate, a
+  reshuffle could have altered the application with every other test still green.
+- Deliberately NOT `ValidateOnBuild` over the whole container: that also walks the framework's descriptors (SignalR's
+  connection dispatcher, MVC's result executors, Swagger's options), which need pieces only a real `WebApplication` provides.
+  Stubbing those would chase a moving target and prove nothing about this codebase.
+
+The reshuffle itself was verified by comparing the container before and after: 551 registrations, same service types, same
+lifetimes, same implementations — IDENTICAL. (Done with a temporary snapshot test, removed once it had served.)
+
+One finding, recorded not fixed: **the PayMongo gateway throws at RESOLUTION when `PayMongo:BaseUrl` is unset**, and three
+online-payment handlers depend on it. In a deployment missing that key those three endpoints fail at request time rather than at
+startup — fail-late where fail-fast would be kinder. The composition test supplies the key so it represents a configured
+deployment; making startup refuse instead is a separate decision.
 
 ### 10. Strengthen the architecture tests — PARTLY DONE
 
