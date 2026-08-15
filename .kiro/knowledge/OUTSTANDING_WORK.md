@@ -696,8 +696,19 @@ page was likewise from another project.)
   history, and is standalone so the shell is not drawn around a redirect. `"/"` had to be matched EXACTLY in
   `AppShell.IsStandalonePage`: every path contains it, so a substring entry would strip the sidebar from the whole portal.
 
-- **Known small duplications**: `SettleNpmMonthCommandHandler` repeats logic; mobile `_recordsCache`/`_reportCache` are never
-  cleared on logout; `FacilityReportsModal.razor` still hardcodes `#4a9eff`.
+- **Known small duplications**: mobile `_recordsCache`/`_reportCache` are never cleared on logout;
+  `FacilityReportsModal.razor` still hardcodes `#4a9eff`.
+
+  - **`SettleNpmMonthCommandHandler`'s repeated logic — resolved 2026-08-15.** What the two settle handlers actually shared was a
+    16-line prologue, and the part of it that mattered was the AUTHORISATION rule: a collector may settle only where they are
+    assigned. An authorisation rule kept in two copies is one that eventually gets fixed in only one of them, and this one decides
+    who may record that the office received money. Both now call `Common/Authorization/NpmSettlementAccess`.
+    - **Neither copy had ever been tested**: every existing test for these handlers runs as an administrator, so the collector
+      branch never executed. Six cases now cover it from BOTH entry points — a rule kept in one place still needs proving at each
+      door that uses it — including the other direction, so the guard cannot pass by refusing everyone. Proven load-bearing by
+      dropping the assignment requirement: the two "not assigned" cases failed, one per handler.
+    - One dead condition went with it: the old guard also tested `stall.Facility is null`, which cannot be true there because the
+      preceding line returns unless `stall.Facility?.Code == NPM`.
 
   Two entries that used to sit in this list were examined on 2026-08-15 and turned out to be misdescribed. Recorded here so
   nobody "fixes" them into a defect:

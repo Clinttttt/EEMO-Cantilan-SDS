@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -33,16 +34,11 @@ public class SettleNpmDaysCommandHandler(
         if (stall.Facility?.Code != FacilityCode.NPM)
             return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by day here.", ResultStatus.Invalid);
 
-        // Collectors may only act on an assigned facility (same rule as recording a single daily collection).
+        // Collectors may only act on an assigned facility (same rule as recording a single daily collection). One rule for both
+        // settle paths - see NpmSettlementAccess for why it is not written out here.
         var isCollectorRequest = currentUser.Role == "Collector";
-        if (isCollectorRequest)
-        {
-            if (currentUser.CollectorId is not { } actingCollectorId || stall.Facility is null)
-                return Result<bool>.Forbidden();
-            var collector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
-            if (collector is null || !collector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM))
-                return Result<bool>.Forbidden();
-        }
+        if (!await NpmSettlementAccess.MaySettleMarketCollectionsAsync(currentUser, collectorRepository, ct))
+            return Result<bool>.Forbidden();
 
         var dates = request.Dates.Distinct().OrderBy(d => d).ToList();
         if (dates.Count == 0)
