@@ -643,7 +643,19 @@ page was likewise from another project.)
   against the secret rather than a hardcoded name, and the target must look like a rehearsal copy so a typo cannot destroy
   another database on the same server. Both paths were exercised: asked for the production name it refused and SKIPPED every
   later step, and asked for the drill copy it dropped it and proved production still present.
-- **`Profile` "Earlier Terms" card** has no component test (no fixture existed when it was written).
+- **`Profile` "Earlier Terms" card — now tested** (2026-08-15). It had no test because no fixture existed to render the profile;
+  there is one now (`ComponentTests/Pages/ProfileEarlierTermsTests.cs`), built against a NON-market facility deliberately, since
+  the NPM profile also builds a daily heat-map and fetches resolved rates that this card never touches.
+  Seven cases, and the ones that matter are about money belonging to the right lessee: a stranger's ENDED term must not offer
+  "record payment on this term" (it would invite the clerk to post the present lessee's money onto the previous lessee's
+  account), a LAPSED term must offer it (that term is still the one in force), and a re-let stall's two rows must each state
+  their own collected and uncollected. Proven load-bearing by loosening the guard to `Uncollected > 0`: only the stranger case
+  failed.
+  - **Found while writing it, and NOT changed:** the card decides "same lessee as now" with
+    `string.Equals(prior.Occupant?.Trim(), Stall.ActualOccupant.Trim(), OrdinalIgnoreCase)` — it does not use `PersonName`,
+    so unlike the slaughterhouse it does not collapse INTERNAL whitespace. "Kim  Chui" and "Kim Chui" are the same person to one
+    and different to the other. Aligning them would make this money gate offer collection in a case it currently withholds it,
+    which is a behaviour change on a money path: the office should say so first. Recorded rather than decided.
 - **"Same payor" matching NARROWED to genuine namesakes** (was: exact free-text comparison). Resolved 2026-08-14. A
   slaughterhouse client is the name a clerk typed — there is no client entity — and that name gated the OR-reuse rule. With
   exact equality, entering the second animal of one receipt as "Juan dela Cruz" when the first was "Juan Dela Cruz" made the
