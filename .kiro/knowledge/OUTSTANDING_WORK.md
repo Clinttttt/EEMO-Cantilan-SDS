@@ -534,6 +534,12 @@ These cannot be answered by reading code.
 
 ## Deferred product work
 
+**Out of scope — not StallTrack.** Screenshots of a "Console Ops / Deployment Control Center" page were sent during this work
+and carried in the notes as outstanding UI work. It is a DIFFERENT product: its own screenshots list Spinner API, AMYL and
+StockPilot alongside StallTrack as rows in a multi-project deployment dashboard. The office confirmed 2026-08-15 to stick to
+StallTrack. Recorded here only so nobody picks it up again. (An earlier screenshot of a "Staff Accounts / Bookings / Pickup"
+page was likewise from another project.)
+
 - **`MustChangePassword` is now ENFORCED** (was: set but never enforced). Resolved 2026-08-14 at the office's decision:
   - `ChangeMyPasswordCommand` — the signed-in administrator replaces their own password, re-authenticating first (an
     office-issued password may have been handed over on paper) and refusing a new password equal to the old one, which would
@@ -557,7 +563,20 @@ These cannot be answered by reading code.
     tokens and non-admin accounts are never caught by it.
 
 
-- **NPM daily history for CUSTOM sections** is reachable through the section chooser but has no end-to-end test.
+- **NPM daily history for CUSTOM sections — now tested end to end** (2026-08-15). The path was CORRECT; what was missing was
+  any test that could tell. The existing import tests mock the stall lookup with `It.IsAny<MarketSection?>()`, so whatever
+  section is asked for, the mock hands back the same stall — dropping the section entirely could not fail them.
+  `BulkImportDailyHistoryCustomSectionTests` uses the real repository over a real context and seeds the same space NUMBER in
+  three sections (Vegetable Area, "Sari Sari", "Carinderia"), because the market numbers spaces independently per section and
+  the only thing between one lessee's money and another's account is that the section is carried through and matched.
+  - **A weakness found while proving the tests bite, and worth keeping in mind:** with the filter dropped, one import test
+    failed and its MIRROR passed by luck. `BulkImportDailyHistoryCommandHandler` keys matched stalls into a dictionary by
+    number (`stallsByNo[no] = stall`), so when two same-numbered spaces come back the second silently OVERWRITES the first, and
+    which lessee is credited depends on the order rows are returned in. The section filter means it never happens today. The
+    test that cannot be lucky is the repository-level one, which counts what the filter returned.
+  - **NOT fixed, because it is a decision:** whether the handler should REFUSE an ambiguous number rather than pick one. Today
+    nothing detects the ambiguity. Refusing changes behaviour for a case that cannot currently arise; guarding it is cheap but
+    the office should say whether a row it cannot place unambiguously is an error or a best-effort.
 - **Hide or soft-delete an OR number** so a withdrawn receipt stops being reported as missing.
 - **The Backups page** has two different sections both headed "Recent backups" — one for in-app restore points, one for CI
   runs. Confusing to read. `Backups.razor:824-826` also contradicts `BackupController.cs:37-43`.
