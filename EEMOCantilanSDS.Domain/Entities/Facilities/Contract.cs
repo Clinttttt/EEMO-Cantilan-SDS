@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using System;
@@ -71,9 +71,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
 
         public decimal WholeYearRental => MonthlyRentalRate * 12;
-        public bool IsExpired => PhilippineTime.Today > ExpiryDate;
-        public bool IsExpiringSoon => !IsExpired &&
-                                         ExpiryDate <= PhilippineTime.Today.AddMonths(3);
+
+        /// <summary>
+        /// True when the term had already run out on <paramref name="asOf"/>.
+        ///
+        /// <para>
+        /// Takes the date rather than reading a clock. This decides whether a contract still accrues, and the office asks it of
+        /// past dates as well as today — a register for June cannot be answered with August's opinion. As a property reading
+        /// the static clock it could only ever answer for the machine's today, and no test could state a different one.
+        /// </para>
+        /// </summary>
+        public bool IsExpiredOn(DateOnly asOf) => asOf > ExpiryDate;
+
+        /// <summary>
+        /// True when the term has not run out on <paramref name="asOf"/> but does within
+        /// <see cref="DomainRules.ExpiringSoonMonths"/> months of it — the window the office follows up for renewal.
+        /// </summary>
+        public bool IsExpiringSoonOn(DateOnly asOf) =>
+            !IsExpiredOn(asOf) && ExpiryDate <= asOf.AddMonths(DomainRules.ExpiringSoonMonths);
 
         /// <summary>
         /// Collection eligibility for a specific business date: the contract must be active AND its term
@@ -163,13 +178,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public DateOnly? EndedOn { get; private set; }
 
         /// <summary>
-        /// Ends this occupancy, keeping it as history. <paramref name="endedOn"/> is the last day the lessee held
-        /// the stall; when omitted, today is used (an early termination always ends on the day it is done).
+        /// Ends this occupancy, keeping it as history. <paramref name="endedOn"/> is the last day the lessee held the stall.
+        ///
+        /// <para>
+        /// Stated by the caller, never defaulted to today. The end date decides which months belong to the outgoing lessee and
+        /// which to the incoming one, so it is nearly always the day BEFORE the handover rather than the day the clerk does the
+        /// paperwork — every caller already passed one, and the old default was dead.
+        /// </para>
         /// </summary>
-        public void Terminate(string updatedBy, DateOnly? endedOn = null)
+        public void Terminate(string updatedBy, DateOnly endedOn)
         {
             IsActive = false;
-            EndedOn = endedOn ?? PhilippineTime.Today;
+            EndedOn = endedOn;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

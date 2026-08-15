@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -13,7 +14,8 @@ public class SoftDeleteStallCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<SoftDeleteStallCommand, Result<bool>>
+    ITenantContext tenantContext,
+    IClock clock) : IRequestHandler<SoftDeleteStallCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SoftDeleteStallCommand request, CancellationToken ct)
     {
@@ -26,7 +28,7 @@ public class SoftDeleteStallCommandHandler(
         // contract is never removable here. Uses the central Stall.IsContractExpired rule (same as the
         // closed-accounts register + roster), so what's shown as removable is exactly what's removable.
         var isClosed = stall.Status == StallStatus.Closed;
-        var isExpired = stall.IsContractExpired();
+        var isExpired = stall.IsContractExpired(clock.PhilippineToday);
 
         if (!isClosed && !isExpired)
             return Result<bool>.Failure(

@@ -41,8 +41,12 @@ public class SpaceOnlyOccupancyTests
     {
         var contract = SpaceOnly(Guid.NewGuid());
 
-        Assert.False(contract.IsExpired);
-        Assert.False(contract.IsExpiringSoon);
+        // Effective 1 January 2024 with an open-ended term. Asked of dates rather than of "now", which is what lets the claim
+        // in this test's name actually be tested: not merely unexpired today, but still unexpired a working lifetime later.
+        Assert.False(contract.IsExpiredOn(new DateOnly(2024, 1, 1)));
+        Assert.False(contract.IsExpiringSoonOn(new DateOnly(2024, 1, 1)));
+        Assert.False(contract.IsExpiredOn(new DateOnly(2050, 12, 31)));
+        Assert.False(contract.IsExpiringSoonOn(new DateOnly(2050, 12, 31)));
         Assert.Equal(DomainRules.OpenEndedTermYears, contract.DurationYears);
     }
 
@@ -112,7 +116,7 @@ public class SpaceOnlyOccupancyTests
         Assert.Equal(OccupancyArrangement.SpaceOnly, saved!.Arrangement);
         Assert.Null(saved.NameOnContract);
         Assert.Equal(1_600m, saved.MonthlyRentalRate);
-        Assert.False(saved.IsExpired);
+        Assert.False(saved.IsExpiredOn(new DateOnly(2050, 12, 31)));
     }
 
     [Fact]

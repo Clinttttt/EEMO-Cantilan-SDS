@@ -51,7 +51,7 @@ public partial class StallRepository
         // already lapsed — as well as Closed (frozen) ones. Uses the same central rule (Stall.IsContractExpired)
         // as the closed-accounts register and the remove-inactive guard, so they can never diverge.
         // Expired/closed rows still appear in the transaction/collection history — just not on this roster.
-        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired()).ToList();
+        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired(_clock.PhilippineToday)).ToList();
 
         // ── The monetary columns must state what the stall is actually billed ──
         // A daily-collected facility (NPM) has no monthly contract rate. The official form's "Monthly

@@ -220,7 +220,7 @@ followed by its own return.
 handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
 bugs for no benefit. If a future command needs it, that is the moment to add it.
 
-### 8. Inject time instead of static clocks — STARTED (lockout, tokens, report periods and ALL repositories done)
+### 8. Inject time instead of static clocks — DONE on the server (Client display defaults remain)
 
 `IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
 `UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
@@ -340,15 +340,40 @@ Two things worth carrying forward from this slice:
   registration itself. Proven by deleting the registration: the four validators and the named test failed.
   (Registration is pure — it only reads configuration and hands EF a connection string — so this needs no database.)
 
-STILL TO DO:
-- **3 in Domain — `Contract.IsExpired`, `IsExpiringSoon` and `Terminate`'s default.** Deliberately left for its own change:
-  an entity cannot be given a constructor dependency, so these want `asOf` parameters, and `IsExpired` alone has ~10 call
-  sites including the follow-up queue and the EF configuration. It decides whether a contract still accrues, so it deserves
-  its own tests rather than being swept in with two dozen mechanical edits.
-- **2 in Infrastructure are `SystemClock` itself** — the implementation of `IClock`. They must stay.
-- **2 remaining in Application are not reads to fix**: a doc comment in `IClock.cs`, and `StallContractStatus`'s parameterless
-  convenience overload, which already delegates to an `IsCurrentVendor(dto, today)` that IS testable. Its one caller is in the
-  Client.
+DONE for the whole SERVER (2026-08-15). Domain now reads the static clock in ZERO places.
+
+The last three were `Contract.IsExpired`, `Contract.IsExpiringSoon` and `Terminate`'s default end date. An entity cannot be given
+a constructor dependency, so the two properties became methods taking the date — `IsExpiredOn(DateOnly asOf)` and
+`IsExpiringSoonOn(DateOnly asOf)` — and `Stall.IsContractExpired()` took a date with them, since it delegates.
+
+Why methods rather than a convenience property that reads the clock: this decides whether a contract still ACCRUES, and the
+office asks it of past months as well as of today. A register for June cannot be answered with August's opinion, and while it
+was a property no test could state a date at all. 14 new tests pin the boundary the office's own paper takes — a term effective
+the 7th runs THROUGH the 7th N years on — plus the renewal window, that expired and expiring-soon are never both true, and that
+an open-ended space never quietly falls due. Proven load-bearing: making the method ignore its parameter failed 7 of the 14.
+
+Smaller findings from the same pass:
+
+- **The blast radius was a tenth of what it looked like.** A search for `.IsExpired` returns ~30 hits, but almost all are
+  `ContractAttentionDto.IsExpired` (already computed as-of a date by the repository) or `OnboardingDraft.IsExpired` (a token,
+  different type). Only `Stall.IsContractExpired` and three test assertions actually used the entity's property. Worth checking
+  the receiver's TYPE before sizing a change like this.
+- **`Terminate`'s `?? PhilippineTime.Today` default was dead.** All 29 call sites already passed an explicit date, so the
+  parameter is now required. The end date decides which months belong to the outgoing lessee and which to the incoming one, so
+  defaulting it to "the day the clerk did the paperwork" was never right.
+- **The two EF `builder.Ignore` lines for these properties were removed** — a method cannot be mapped, so the model is
+  unchanged and no migration is involved.
+- **`AddMonths(3)` in the entity is now `DomainRules.ExpiringSoonMonths`**, which is 3. The handlers already passed that
+  constant to the repository while the entity hardcoded the number.
+
+STILL OPEN, and deliberately not changed:
+- **Two expressions of the expiry rule.** `Contract.IsExpiredOn(asOf)` is `asOf > ExpiryDate`; `DomainRules.TermHasExpired`
+  additionally guards `durationYears > 0` and `!= OpenEndedTermYears`. They agree on every contract `Create` produces, but they
+  DISAGREE for a signed term of zero years: the entity calls it expired the day after it starts, the rule calls it not expired.
+  A zero-year signed term is a data error, and `MonthOwesRent` treats it as owing nothing — so which answer is right is a
+  decision for the office, not a refactor. Unifying them without that answer would silently change one.
+- `StallContractStatus`'s parameterless `IsCurrentVendor(dto)` overload still reads the static clock. It delegates to an
+  `IsCurrentVendor(dto, today)` that IS testable, and its single caller is in the Client — so it belongs with the Client bucket.
 - **~205 in the Client.** Mostly display defaults and date-picker seeds. Lowest value, and worth judging individually rather
   than sweeping: a date picker defaulting to today is not a rule about money.
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the

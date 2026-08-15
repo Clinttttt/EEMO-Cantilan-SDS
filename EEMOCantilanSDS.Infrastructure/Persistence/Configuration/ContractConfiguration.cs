@@ -55,8 +55,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.Ignore(x => x.ExpiryDate);
             builder.Ignore(x => x.WholeYearRental);
-            builder.Ignore(x => x.IsExpired);
-            builder.Ignore(x => x.IsExpiringSoon);
+            // IsExpiredOn/IsExpiringSoonOn need no Ignore: they take a date and are methods, so EF never considered
+            // mapping them. They were properties reading a static clock until 2026-08-15.
 
             builder.Property(x => x.CreatedAt).IsRequired();
             builder.Property(x => x.CreatedBy).HasMaxLength(100);

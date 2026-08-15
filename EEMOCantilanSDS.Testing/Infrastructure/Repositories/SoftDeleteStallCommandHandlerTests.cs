@@ -27,7 +27,7 @@ public class SoftDeleteStallCommandHandlerTests : RepositoryTestBase
 
         return new SoftDeleteStallCommandHandler(
             new StallRepository(context), currentUser.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]
