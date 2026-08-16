@@ -567,3 +567,21 @@
     transition: transform .16s ease;
 }
 .login-network-link:hover .login-network-arrow { transform: translateX(4px); }
+
+/* ── Waiting seal slot ───────────────────────────────────────────────────────
+   The card keeps its place for a municipality that has not uploaded its seal yet - onboarding is where that is
+   filled in - so this only has to look like an empty slot rather than a seal. It used to be filled with
+   StallTrack's own mark under the LGU's name, which is the fault this replaces.
+   Sized to sit inside the 96px circle with room to breathe, and drawn in the muted text colour so it recedes
+   instead of competing with the seal beside it. No new colour is introduced. */
+.seal-placeholder {
+    /* Filling the card and padding inwards centres the glyph by geometry. The card is not a flex container, and making it
+       one would change how the real seal sits in every other municipality's card - so the centring is done here, where it
+       affects nothing else. */
+    width: 100%;
+    height: 100%;
+    padding: 27px;
+    box-sizing: border-box;
+    color: var(--text-muted, #6a8aa0);
+    opacity: 0.45;
+}

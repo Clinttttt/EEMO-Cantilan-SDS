@@ -3,6 +3,7 @@
 
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 @using EEMOCantilanSDS.Client.Securities
+@using EEMOCantilanSDS.Application.Common.Onboarding
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
 @using Microsoft.AspNetCore.WebUtilities
 @inject AuthService AuthService
@@ -21,20 +22,30 @@
     <div class="setup-left @(_isDefaultBrand ? "" : "setup-left--neutral")">
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
-                @* The municipality's seal, and ONLY when it has one.
-                   An LGU that has not uploaded a seal used to get StallTrack's own seal in this slot, labelled
-                   "@MunicipalityName seal" - so Carrascal's sign-in page showed the product's mark twice, once of them
-                   describing itself, in a screen reader, as a seal belonging to the municipality. Confirmed live before
-                   this change: /login?lgu=CARRASCAL served /images/stalltrack-seal.png with alt="Carrascal seal".
-                   A vendor's mark does not stand in for a government seal, and an empty slot is more honest than a
-                   borrowed one - so the card is omitted and the StallTrack card beside it stands alone.
-                   Cantilan keeps its seal exactly as before; it is the fallback for the office that owns this system. *@
-                @if (HasOwnSeal)
-                {
-                    <div class="government-logo-card">
+                @* The municipality's own seal. The CARD always stands - onboarding is where an LGU uploads its seal, so the slot
+                   is kept for it to fill - but it is not filled with somebody else's mark in the meantime.
+                   Confirmed live before this change: /login?lgu=CARRASCAL served /images/stalltrack-seal.png with
+                   alt="Carrascal seal", so the product's mark appeared twice and one of them told a screen reader it was a seal
+                   belonging to the municipality. A vendor's mark does not stand in for a government seal.
+                   Cantilan keeps its seal exactly as before; it is the office this system belongs to. *@
+                <div class="government-logo-card">
+                    @if (HasOwnSeal)
+                    {
                         <img src="@SealPath" alt="@MunicipalityName seal" />
-                    </div>
-                }
+                    }
+                    else
+                    {
+                        @* Plainly a waiting slot, not a seal: an outline of a municipal hall in the current text colour, adding no
+                           image and no colour of its own. *@
+                        <svg class="seal-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                             stroke-linecap="round" stroke-linejoin="round" role="img"
+                             aria-label="@MunicipalityName has not uploaded its official seal yet">
+                            <path d="M3 21h18" />
+                            <path d="M5 21V10l7-5 7 5v11" />
+                            <path d="M9 21v-6h6v6" />
+                        </svg>
+                    }
+                </div>
                 <div class="government-logo-card stalltrack-logo">
                     <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
                 </div>
@@ -547,6 +558,7 @@
             {
                 LguParam = lgu;
                 _lguLocked = true;
+                var notOnboarded = false;
                 try
                 {
                     var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(lgu);
@@ -555,9 +567,29 @@
                         _brandedIdentifier = lgu.ToLowerInvariant();
                         ApplyBranding(branding.Value);
                         PersistBrand();
+                        notOnboarded = !branding.Value.IsActive;
                     }
                 }
                 catch { /* keep default branding on any failure */ }
+
+                // A municipality that has not been activated has NOTHING to sign in with: no office, no accounts, no seal. It
+                // was still shown a full sign-in form, because this page read the branding for its name and ignored the status
+                // that came with it — so the office typed credentials that could not exist and got a bare 401 telling it
+                // nothing. Onboarding is where that LGU belongs until it is activated.
+                //
+                // OUTSIDE the try/catch, and that is not tidiness. NavigateTo signals a redirect during static rendering by
+                // THROWING NavigationException, so the first version of this sat inside the catch above and was swallowed
+                // silently: the page carried on and served the form. It looked correct in review and did nothing at all.
+                //
+                // Only on the ?lgu= path, which is the municipality selector's own link. Typing a username is NOT enough to send
+                // anybody off the page — branding resolves from what has been typed so far, and forwarding on a half-finished
+                // username would throw somebody out of a login they were in the middle of. A failed branding fetch cannot
+                // trigger it either: the flag stays false, so this can never be the reason the office cannot reach its sign-in.
+                if (notOnboarded)
+                {
+                    Navigation.NavigateTo(OnboardingLinks.Base, forceLoad: true);
+                    return;
+                }
             }
         }
 

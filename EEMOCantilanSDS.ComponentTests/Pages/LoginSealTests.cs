@@ -42,10 +42,12 @@ public class LoginSealTests
     }
 
     [Fact]
-    public void AnLGUWithoutASealShowsNOSealCard()
+    public void AnLGUWithoutASealKeepsTheSlotButBorrowsNOBODYSMark()
     {
-        // The behaviour itself: HasOwnSeal is false exactly when the seal path is the neutral placeholder, and the markup omits
-        // the card on that basis.
+        // The office's instruction: the CARD stays, because onboarding is where an LGU uploads its seal and the slot is kept for
+        // it to fill. What must not happen is filling it with StallTrack's mark under the municipality's name, which is what
+        // production served for Carrascal. So the card renders either the LGU's own seal or a plainly empty slot — never a
+        // borrowed one.
         var page = (EEMOCantilanSDS.Client.Components.Pages.Login)Activator.CreateInstance(LoginPage)!;
         var sealPath = LoginPage.GetField("SealPath", BindingFlags.NonPublic | BindingFlags.Instance)!;
         var hasOwnSeal = LoginPage.GetProperty("HasOwnSeal", BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -56,8 +58,42 @@ public class LoginSealTests
         sealPath.SetValue(page, "data:image/png;base64,AAAA");     // another LGU's uploaded seal
         Assert.True((bool)hasOwnSeal.GetValue(page)!);
 
-        sealPath.SetValue(page, Constant("NeutralSealPath"));      // an LGU with none
+        sealPath.SetValue(page, Constant("NeutralSealPath"));      // an LGU with none — the waiting slot
         Assert.False((bool)hasOwnSeal.GetValue(page)!);
+    }
+
+    [Fact]
+    public void TheMarkupNeverPutsSTALLTRACKSSealUnderAMunicipalitysName()
+    {
+        // Asserted against the markup, because that is where the fault was: an <img> whose src was the neutral placeholder and
+        // whose alt named the municipality. The seal image may only ever be rendered when the LGU has one of its own, and the
+        // waiting slot must be a placeholder rather than a picture.
+        var markup = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "EEMOCantilanSDS.Client", "Components", "Pages", "Login.razor"));
+
+        Assert.Contains("@if (HasOwnSeal)", markup);
+        Assert.Contains("seal-placeholder", markup);
+
+        // The constant itself stays — it is the sentinel that MEANS "this LGU has no seal", and the branding fallback assigns it.
+        // What must never exist again is that path inside an <img>: that was the fault, an image of StallTrack's seal carrying an
+        // alt attribute naming the municipality.
+        var borrowed = markup
+            .Split('\n')
+            .Where(l => l.Contains("<img", StringComparison.OrdinalIgnoreCase)
+                        && l.Contains("stalltrack-seal", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.Empty(borrowed);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "EEMOCantilanSDS.slnx")))
+            dir = dir.Parent;
+
+        Assert.NotNull(dir);
+        return dir!.FullName;
     }
 
     [Fact]
