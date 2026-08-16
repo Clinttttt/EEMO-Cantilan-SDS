@@ -55,12 +55,23 @@ public class PageNotFoundTests : TestContext
     [Fact]
     public void ItOffersAWayBack()
     {
-        // The whole point. A 404 the office cannot leave is the fault being fixed, so the action is asserted to exist and to
-        // be actionable rather than decorative.
-        var button = Render().Find("button");
+        // The whole point: a 404 the office cannot leave is the fault being fixed.
+        var link = Render().Find("a");
 
-        Assert.False(button.HasAttribute("disabled"));
-        Assert.Contains("Go to", button.TextContent);
+        Assert.Contains("Go to", link.TextContent);
+        Assert.False(string.IsNullOrWhiteSpace(link.GetAttribute("href")));
+    }
+
+    [Fact]
+    public void TheWayBackIsALINKAndNotAClickHandler()
+    {
+        // Load-bearing, not stylistic. The server re-executes to this page for a mistyped address and that render is STATIC —
+        // there is no circuit — so an @onclick would be wired to nothing and the only way off the page would silently do
+        // nothing. An href works with no interactivity at all, and is the right element for navigating besides.
+        var page = Render();
+
+        Assert.Empty(page.FindAll("button"));
+        Assert.Single(page.FindAll("a[href]"));
     }
 
     [Fact]
@@ -68,12 +79,9 @@ public class PageNotFoundTests : TestContext
     {
         // No token, so nothing is known about them: they cannot be dropped into a menu they may have no right to, and the
         // component must not guess a role. Also the case that fails softly if TokenService ever returns null.
-        var page = Render();
-        var navigation = Services.GetRequiredService<NavigationManager>();
+        var link = Render().Find("a");
 
-        page.Find("button").Click();
-
-        Assert.EndsWith("/login", navigation.Uri);
+        Assert.Equal("/login", link.GetAttribute("href"));
     }
 
     [Fact]

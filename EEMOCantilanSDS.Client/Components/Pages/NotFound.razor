@@ -1,0 +1,16 @@
+@page "/not-found"
+@using EEMOCantilanSDS.Client.Components.Shared
+
+@* The address the server re-executes to when nothing matched, which is what actually fixes a mistyped URL: endpoint routing
+   rejects an unknown path before any component renders, so the router's <NotFound> branch never sees it. Registered as a real
+   route because re-execution runs the pipeline again against a path, not against a component.
+
+   No [Authorize]. A wrong address must be answerable to anyone, including a visitor who is not signed in - requiring
+   authentication here would turn a plain "no such page" into a redirect to sign in, which tells them nothing about what
+   happened. The page shows no data, so there is nothing to protect.
+
+   The response keeps its 404: re-execution replaces the body and leaves the status alone. That matters for anything reading
+   this system's responses rather than looking at them. *@
+<PageTitle>Page not found</PageTitle>
+
+<PageNotFound />

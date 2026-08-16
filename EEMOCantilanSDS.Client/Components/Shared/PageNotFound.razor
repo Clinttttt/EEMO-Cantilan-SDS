@@ -1,4 +1,3 @@
-@inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Client.Securities.TokenService Tokens
 @using EEMOCantilanSDS.Client.Utilities
 
@@ -14,7 +13,13 @@
     @* A real heading, not a styled div: this is the page's only title, and it is what a screen reader announces. *@
     <h1 class="empty-title">Page not found</h1>
     <p class="empty-sub">The address you opened does not exist on this system.</p>
-    <button class="btn-primary" type="button" @onclick="GoBack">@_actionLabel</button>
+
+    @* An ANCHOR, not a button with a click handler, for two reasons that happen to agree.
+       Semantically this navigates, so a link is the right element and gets keyboard and middle-click behaviour for free.
+       Practically it must work with no interactivity at all: the server re-executes to this page for a mistyped address, and
+       that render is STATIC - no circuit, so an @@onclick would be wired to nothing and the only way out of the page would
+       silently do nothing. AccessDenied can afford a button because it only ever renders inside a live circuit. *@
+    <a class="btn-primary" href="@_target">@_actionLabel</a>
 </div>
 
 @code {
@@ -24,6 +29,8 @@
     // Sent to where the visitor actually belongs, which is not knowable without looking at who they are: a signed-in
     // clerk is returned to their menu rather than made to sign in again, a payor to the payor area, and anyone else to
     // the sign-in page. Read from the token the same way AccessDenied does, so there is one answer to this question.
+    //
+    // Runs on the server in both render modes, so the link is correct even on the static render a mistyped address gets.
     protected override void OnInitialized()
     {
         var token = Tokens.GetToken();
@@ -35,6 +42,4 @@
         _target = principal.IsInRole("Payor") ? "/payor" : "/menu";
         _actionLabel = "Go to your menu";
     }
-
-    private void GoBack() => Navigation.NavigateTo(_target, forceLoad: true);
 }

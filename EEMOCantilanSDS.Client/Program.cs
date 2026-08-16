@@ -84,6 +84,21 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// A mistyped address used to answer 404 with an EMPTY body: a blank white page stating nothing and offering no way back.
+// Verified against production, which is also how the first attempt at this was caught — the Blazor router's <NotFound> branch
+// alone is NOT enough. In a Blazor Web App endpoint routing rejects an unmatched path before any component renders, so
+// <NotFound> only ever covers navigation that happens INSIDE an already-running circuit. The server needs its own answer, and
+// re-execution is the one that keeps the address in the browser's bar and the 404 in the response, rather than redirecting and
+// pretending the page exists somewhere else.
+//
+// SCOPED AWAY FROM /api DELIBERATELY, and this is the part that would have broken sign-in. UseStatusCodePagesWithReExecute
+// answers EVERY status code that has no body, not just 404 — and AuthProxyController returns a bare Unauthorized() for a wrong
+// password and for a refused token refresh. Unscoped, those 401s would have come back carrying a "Page not found" HTML page for
+// the sign-in form to parse as its error.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/api"),
+    branch => branch.UseStatusCodePagesWithReExecute("/not-found"));
+
 
 
 app.UseStaticFiles();
