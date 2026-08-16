@@ -30,7 +30,7 @@ public class LoginInactiveMunicipalityTests
         var markup = LoginMarkup();
 
         var catchIndex = markup.IndexOf("catch { /* keep default branding on any failure */ }", StringComparison.Ordinal);
-        var redirectIndex = markup.IndexOf("Navigation.NavigateTo(OnboardingLinks.Base", StringComparison.Ordinal);
+        var redirectIndex = markup.IndexOf("Navigation.NavigateTo(LandingSiteLinks.MunicipalityPage", StringComparison.Ordinal);
 
         Assert.True(catchIndex > 0, "The branding fetch's catch block was not found; this test needs rewriting.");
         Assert.True(redirectIndex > 0, "The onboarding redirect was not found.");
@@ -40,12 +40,24 @@ public class LoginInactiveMunicipalityTests
     }
 
     [Fact]
-    public void TheDestinationIsTheSharedOnboardingLink()
+    public void TheDestinationIsTheMunicipalitysOWNPageAndNotTheOnboardingStem()
     {
-        // Not a literal URL. OnboardingLinks already owns this address and is environment-driven (ONBOARDING_LINK_BASE), so a
-        // deployment pointing elsewhere moves this redirect with it instead of leaving one page behind on the old domain.
-        Assert.Contains("OnboardingLinks.Base", LoginMarkup());
-        Assert.DoesNotContain("www.stalltrack.site/onboarding", LoginMarkup());
+        // The order this system actually follows, confirmed against the API and the landing site's route table:
+        //
+        //   1. the municipality's public page          municipalities/:code   → POST /api/assessment/requests [AllowAnonymous]
+        //   2. the operator reviews and approves       POST /api/assessment/requests/{id}/approve
+        //   3. the LGU fills in its workspace          onboarding/:token      → PUT/POST /api/onboarding/{token}
+        //   4. the operator validates                  POST /api/onboarding/by-request/{id}/approve-validation
+        //   5. activation, and only THEN can it sign in
+        //
+        // An unactivated municipality belongs at step 1. Sending it to the onboarding stem was wrong because that address is only
+        // ever the beginning of a TOKEN link — the landing site routes "onboarding/:token" and nothing else, so a token-less
+        // redirect fell through its wildcard route and rendered the marketing home page. The office saw exactly that.
+        var markup = LoginMarkup();
+
+        Assert.Contains("LandingSiteLinks.MunicipalityPage", markup);
+        Assert.DoesNotContain("OnboardingLinks.Base", markup);
+        Assert.DoesNotContain("www.stalltrack.site", markup);
     }
 
     [Fact]
@@ -57,7 +69,7 @@ public class LoginInactiveMunicipalityTests
         var markup = LoginMarkup();
 
         var lguBranch = markup.IndexOf("query.TryGetValue(\"lgu\"", StringComparison.Ordinal);
-        var redirect = markup.IndexOf("Navigation.NavigateTo(OnboardingLinks.Base", StringComparison.Ordinal);
+        var redirect = markup.IndexOf("Navigation.NavigateTo(LandingSiteLinks.MunicipalityPage", StringComparison.Ordinal);
         var usernameHandler = markup.IndexOf("async Task OnUsernameChanged()", StringComparison.Ordinal);
 
         Assert.True(lguBranch > 0 && redirect > lguBranch,

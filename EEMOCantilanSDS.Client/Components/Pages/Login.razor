@@ -361,7 +361,7 @@
 
             @if (!IsFromSetup)
             {
-                <div class="login-divider"><span>or</span></div>                <a class="login-network-link" href="https://www.stalltrack.site/select-municipality" aria-label="Access the CARCANMADCARLAN municipal network">
+                <div class="login-divider"><span>or</span></div>                <a class="login-network-link" href="@($"{LandingSiteLinks.Base}/select-municipality")" aria-label="Access the CARCANMADCARLAN municipal network">
                     <span class="login-network-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                             <path d="M3 9.5 12 4l9 5.5" />
@@ -575,7 +575,12 @@
                 // A municipality that has not been activated has NOTHING to sign in with: no office, no accounts, no seal. It
                 // was still shown a full sign-in form, because this page read the branding for its name and ignored the status
                 // that came with it — so the office typed credentials that could not exist and got a bare 401 telling it
-                // nothing. Onboarding is where that LGU belongs until it is activated.
+                // nothing.
+                //
+                // Sent to the municipality's OWN page on the landing site, which is where its status is shown and where an
+                // assessment can be requested. NOT to the onboarding base: that address is only the stem of a token link, the
+                // landing site routes "onboarding/:token" and nothing else, so a token-less redirect fell through its wildcard
+                // and rendered the marketing home page. The office reported that, and the site's own route table confirmed it.
                 //
                 // OUTSIDE the try/catch, and that is not tidiness. NavigateTo signals a redirect during static rendering by
                 // THROWING NavigationException, so the first version of this sat inside the catch above and was swallowed
@@ -587,7 +592,7 @@
                 // trigger it either: the flag stays false, so this can never be the reason the office cannot reach its sign-in.
                 if (notOnboarded)
                 {
-                    Navigation.NavigateTo(OnboardingLinks.Base, forceLoad: true);
+                    Navigation.NavigateTo(LandingSiteLinks.MunicipalityPage(LguParam), forceLoad: true);
                     return;
                 }
             }
