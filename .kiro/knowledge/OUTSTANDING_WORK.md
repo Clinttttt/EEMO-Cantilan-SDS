@@ -830,20 +830,37 @@ And for item 6: **the portal gets its own request models** rather than continuin
     `X-Forwarded-*` from any caller. That is spoofable, and it also changes the client IP that rate limiting and the firewall
     rules see. A trade-off for the office to choose, not one to make quietly.
 
-- **The router's `NotFound` — DONE 2026-08-16.** Any mistyped URL rendered a blank page. Confirmed live before the fix: a 404
-  with a body of ZERO bytes, so the office saw white space with no statement and no way back; the status code was already
-  correct. `Components/Shared/PageNotFound.razor` now answers it, wired into `Routes.razor`'s new `<NotFound>` branch.
-  - Reuses app.css's global `.empty-state`/`.empty-title`/`.empty-sub` — the platform's existing "there is nothing here"
-    language. No new CSS and no new colour: a wrong address is not an alarm. The `ad-*` classes from `AccessDenied` could NOT be
-    reused, being scoped CSS, which is the same trap `.form-eye-btn` fell into.
-  - No layout is wrapped around it. The address is unknown, so there is no telling whose chrome would be right, and a visitor
-    who is not signed in must not be shown navigation. The action reads the token exactly as `AccessDenied` does: a clerk
-    returns to `/menu`, a payor to `/payor`, anyone else to `/login`.
-  - An `<h1>`, not a styled div — the router's own `FocusOnNavigate` selects `"h1"`, so a page whose only title is a div gives
-    focus nothing to land on.
-  - `PageNotFoundTests` pins the copy, the way back, and that NO tenant is named on a page that renders on every LGU's host.
-    The fifth test renders the real `Routes` component, because the first four all passed with the `<NotFound>` branch deleted —
-    verified by deleting it. The defect was never the page; it was that nothing asked for one.
+- **The router's `NotFound` — DONE 2026-08-16, on the third mechanism.** Any mistyped URL rendered a blank page. Confirmed live
+  before the fix: 404 with a body of ZERO bytes, so the office saw white space with no statement and no way back; the status code
+  was already correct. Now answered by a **terminal fallback endpoint** in `Client/Program.cs`, rendering
+  `Components/Pages/NotFoundDocument.razor` with a 404. Verified live: 726 bytes, styled, no app shell, no tenant named.
+  - **Three mechanisms were tried and two shipped uselessly. Do not try them again.**
+    1. The router's `<NotFound>` markup. The framework documents it as **ineffective in a Blazor Web App** — and it is. Worse,
+       **bUnit honours it**, so the test asserting it PASSED while production stayed blank. A test that lied.
+    2. `Router.NotFoundPage`, the .NET 10 replacement. Correct for navigation inside a running circuit; never consulted for a
+       typed address. It is still wired up, for that case.
+    3. `UseStatusCodePagesWithReExecute`. Ruled out **by evidence**: an unmatched undotted path returns an explicit
+       `Content-Length: 0`, and `StatusCodePagesMiddleware` does nothing when a length is already set. Comparing a dotted path
+       (no Content-Length) with an undotted one (Content-Length: 0) is what revealed it.
+  - The fallback's shape carries three decisions: the `:nonfile` constraint so a missing asset still fails as a missing file;
+    `/api` excluded because those callers are code, not people (the sign-in form and token refresh read those responses, and
+    handing them HTML to parse is how "wrong password" becomes a parse error); and it renders a whole DOCUMENT, because a fallback
+    renders a component with nothing to supply the page around it — the first working version answered with 219 bytes of bare
+    unstyled markup.
+  - `NotFoundDocument` is deliberately lighter than `App.razor`, not a copy: no Blazor script, no circuit, no splash, no SignalR.
+    The page shows nothing that changes and its only control is a link. `app.css` alone carries `.empty-state`, `.btn-primary` and
+    the colour variables.
+  - The way back is an `<a href>`, not a button — load-bearing, because this render is STATIC, so an `@onclick` would be wired to
+    nothing and the only way off the page would silently do nothing. `AccessDenied` can afford a button; it only renders inside a
+    live circuit.
+  - `/not-found` uses `MinimalLayout` (the page declares it, as `PayorLayout` pages do). On a not-found render the path IS the
+    mistyped address, so `MainLayout`'s path-based sidebar rule would have drawn the full app shell around it — a menu offered to
+    a visitor who may not be signed in. Listing `/not-found` in `AppShell` was tried and reverted: it implies the path governs,
+    when the page does.
+  - **The lesson worth keeping: run the built portal locally before deploying.** Three deploys were spent verifying in production
+    because it was treated as the only way to see the truth. Starting the Release DLL on a spare port takes seconds, and it is what
+    caught the missing document — as well as confirming a missing `.css`, an unknown `/api` path, sign-in, and the SignalR
+    handshake were all still correct.
 
 - **Mojibake in `Accounts.razor.css` comments** (~a dozen lines, e.g. "ACCOUNTS PAGE â€" Toolbar"), from `0f8f3f02`. Comments
   only — no selector, value or figure affected. Left alone deliberately: rewriting the file to repair comments would bury the
