@@ -76,8 +76,13 @@ public class BackupsOperatorDecisionTests
     [Fact]
     public void ThePortalHoldsNoMUNICIPALITYCODEOfItsOwn()
     {
-        // The multi-tenancy guard, asserted against the source because that is where the fault lived. One LGU's code sitting in
-        // the portal is how another LGU's screen ends up answering to it.
+        // The multi-tenancy guard, asserted against the source because that is where the fault lived.
+        //
+        // Scoped to the TENANT CODE deliberately, and the distinction is the office's own (2026-08-16): Cantilan's name, seal and
+        // office acronym ARE the intended fallbacks on shared screens — it is the office this system belongs to, and the login
+        // page's defaults are sanctioned. What must never be hardcoded is the tenant code used to DECIDE something: permissions,
+        // capabilities, which controls appear. A branding default that reads wrong is a cosmetic fault; a decision keyed on a
+        // tenant string is one that grants or withholds.
         var portal = Path.Combine(RepositoryRoot(), "EEMOCantilanSDS.Client");
         var offenders = Directory
             .EnumerateFiles(portal, "*.*", SearchOption.AllDirectories)
