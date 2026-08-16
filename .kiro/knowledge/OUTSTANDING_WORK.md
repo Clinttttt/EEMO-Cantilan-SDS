@@ -31,10 +31,25 @@ RESIDUALS — not defects today, but the ways this can quietly regress:
   projects. Nothing stops one being added. Making the constructor `internal` with `InternalsVisibleTo` would let the
   compiler enforce it; NOT done because `dotnet ef` design-time behaviour was not verified and a broken migration workflow
   is a poor trade for a guardrail. A source-scanning test was considered and rejected as brittle across CI paths.
-- **`IgnoreQueryFilters()` is still free to call anywhere.** The review wanted cross-tenant reads expressed through named
-  cross-tenant ports instead. Today roughly a dozen call sites use it legitimately (login, seeders, backup, the OR
-  registry, platform-operator paths), and each is commented — but a new one can be added silently, and it bypasses the
-  boundary completely. An architecture test could pin the allowed list.
+- **`IgnoreQueryFilters()` is now PINNED — `CrossTenantReadsAreNamedTests`, 2026-08-16.** It was free to call anywhere: nothing
+  failed and nothing warned, and the mistake would not look like one, because a query returning MORE rows than it should reads
+  exactly like a query that works. The allowed set is now stated as an allow-list of FILES, each grouped under the pattern it
+  belongs to. A new file reaching across tenants fails the build until somebody adds it deliberately, with a reason — the decision
+  becomes visible in a diff instead of arriving inside a repository nobody re-reads.
+  - **This note said "roughly a dozen" call sites. There are 86, across 37 files.** Every one was read before being pinned.
+  - Six legitimate patterns: PRE-AUTH IDENTITY (login, activation, reset, verification, refresh and device tokens — no tenant is
+    resolved yet, so the LGU is derived FROM the record found, each looked up by a globally unique secret and pinned by the handler
+    afterwards); PLATFORM OPERATOR (gated by `PlatformOperatorPolicy` before reading); GLOBAL REFERENCE DATA (`Municipalities` is
+    not tenant-owned — a municipality cannot be scoped to itself — read by the caller's own id or code); SEEDING AND STARTUP (no
+    tenant exists yet); SOFT-DELETE ONLY (`OrNumberRegistry`, `AdminRepository`, `CollectorRepository` re-apply
+    `MunicipalityId == mid` BY HAND — a cancelled receipt's OR number is still spent, a deleted account's username still taken);
+    and WHOLE-DATABASE WORK (export/restore, operator-only by definition).
+  - Granularity is per FILE, not per line or count. Line numbers churn on every edit and counts invite blind bumping; a file is
+    either an established cross-tenant boundary or it is not.
+  - Three assertions, each proven load-bearing by reintroducing the defect: an unnamed file is caught (with file and line named in
+    the message); a DEAD allow-list entry fails, because a name outliving its reason silently re-permits the next read added to
+    that file; and the scan itself must find the audited volume, because a test that finds nothing passes as quietly as one that
+    finds nothing wrong — the lesson `TenantFilterCoverageTests` taught when it passed with an entity deliberately excluded.
 - **Tenant isolation IS now proven against real Postgres** (`TenantIsolationTests`, four cases: each tenant sees only its
   own; an unresolved tenant sees nothing while the rows demonstrably exist; another tenant's row is unreachable by primary
   key; a write is stamped with the writer's tenant). Proven load-bearing on 2026-08-12: reinstating the old fail-open
@@ -544,7 +559,8 @@ STILL TO DO, and each is blocked by an unfinished item rather than by effort:
   absent from Domain AND present in Application, so it cannot pass by their having been deleted.
 - **Application free of EF** — needs item 5 (`IAppDbContext` exposes `DbSet`).
 - **No API-client interfaces in Application** — needs item 6 (the Contracts project).
-- **Cross-tenant services explicitly named** — the `IgnoreQueryFilters()` residual from item 1.
+- **Cross-tenant services explicitly named** — DONE. `CrossTenantReadsAreNamedTests` pins the 86 `IgnoreQueryFilters()` call
+  sites, by file, each under the pattern that justifies it. See item 1's residuals for the audit.
 - **API policy and Application authorization share one authorizer** — unified behind `PlatformOperatorPolicy` in `8d58fc9`,
   but asserting it structurally means reading an authorization-policy lambda. Judged too brittle to be worth it; the
   behavioural tests in `PlatformOperatorGuardTests` cover the rule itself.
