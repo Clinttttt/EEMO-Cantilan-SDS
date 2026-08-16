@@ -66,12 +66,52 @@ is shown and where the assessment request is made.
 | `officeName` | `""` | e.g. `Economic Enterprise & Management Office` |
 | `sealPath`, `officeAcronym`, `address`, `reportSignatories` | `null` | filled in during onboarding |
 
-As of 2026-08-16: **Cantilan is Active. Carrascal, Carmen, Lanuza and Madrid are `Upcoming` placeholders** with every field empty —
-the shape of a municipality that has never been onboarded. **Landing on `/login` is NOT evidence that a municipality holds data**;
-the page rendered a form for any `?lgu=` code before this was fixed.
+As of 2026-08-16, **verified directly against the production database**, not inferred: Cantilan is Active; **Carrascal, Carmen,
+Lanuza and Madrid are untouched `Upcoming` placeholders.**
 
-Whether an unactivated LGU has any *accounts* cannot be told from outside: sign-in answers a bare `401`, which correctly refuses
-to distinguish "no such account" from "wrong password". Answering that needs database access.
+| Checked | Result |
+|---|---|
+| Every table carrying `MunicipalityId` (33 of them) | rows exist for **CANTILAN only** — 72 audit logs, 8 facilities, 6 stalls, 6 contracts, 6 rates, 4 payment records, 3 daily collections, 2 users, 1 each of device token, facility assignment, utility bill, tenant backup |
+| Every other municipality, every table | **0 rows** |
+| `AssessmentRequests` | **0 rows** (the whole table) |
+| `OnboardingDrafts` | **0 rows** (the whole table) |
+| The four placeholder rows themselves | `Status = 0` (Upcoming), `IsActive = false`, `IsDeleted = false`, empty `OfficeName`, and `NULL` acronym, address, seal, market day, PayMongo keys and secrets, signatories, bind token |
+
+**So nothing needed deleting.** The office asked for the non-Cantilan data to be cleared so onboarding could be tested from the
+beginning; the database was already in exactly that state. A cleanup was prepared and then not run, because looking first showed
+there was nothing to remove — which is the reason to look first.
+
+Two things that reading the database settled, which no amount of poking from outside could:
+
+- **Cantilan's own `SealPath` is NULL.** Its seal on screen comes from the bundled `LGU_CANTILAN_LOGO.jpg` fallback, not from the
+  database. Uploading a logo through Office Profile would populate the column; until then the fallback is what shows. Not a defect,
+  but worth knowing before anybody "fixes" a seal that is already correct.
+- **No accounts exist for the four.** Sign-in answers a bare 401 whether an account is missing or the password is wrong, so this
+  could only ever be answered from the database side.
+
+**Landing on `/login` is NOT evidence that a municipality holds data**; the page rendered a form for any `?lgu=` code before this
+was fixed.
+
+Whether an unactivated LGU has accounts cannot be told from outside: sign-in answers a bare `401`, which correctly refuses to
+distinguish "no such account" from "wrong password". Answering that needs database access — see the note below on how.
+
+## Reaching the database, when it is genuinely necessary
+
+The connection string lives in the API app's settings (`ConnectionStrings__DefaultConnection`), readable with `az webapp config
+appsettings list`. The Postgres firewall does **not** allow arbitrary clients: it carries
+`AllowAllAzureServicesAndResourcesWithinAzureIps` (how the API and the backup workflow connect) plus a couple of stale client-IP
+rules. A one-off inspection therefore needs a temporary rule for the current address.
+
+The sequence used on 2026-08-16, and the one to repeat:
+
+1. **Take a fresh backup first** — `gh workflow run backup.yml`, and wait for `success`.
+2. Add a firewall rule for the current IP, named so it is obviously temporary.
+3. Inspect. `psql` via the `postgres:17-alpine` container avoids installing anything.
+4. Change nothing until the counts are on screen.
+5. **Remove the temporary rule**, and delete any local file holding the connection string.
+
+Two stale client-IP rules (`180.194.5.178`, `180.195.158.234`) remain open indefinitely and belong to no current machine. Removing
+them is the office's call, but they are standing exposure for no benefit.
 
 ## Branding on a page reached before sign-in
 
@@ -87,6 +127,20 @@ The office's rule, confirmed 2026-08-16:
 
 The same borrowed-seal fallback still exists in `AccountSetup`, `ForgotPassword`, `ResetPassword`, `VerifyEmail` and
 `BrandingState` (which serves the signed-in portal). **Not yet fixed.**
+
+## What lives on the landing site, and therefore cannot be changed from here
+
+Requests about the following belong to the landing site's own repository, not this one. Recorded so they are not lost, and so
+nobody looks for them in this codebase:
+
+- **"Carrascal is live on StallTrack / Enter the official portal … / Enter Portal"** on `municipalities/:code` — reported as
+  redundant, to be removed.
+- **The StallTrack seal and the product footer** on the same page (the "A GovTech SaaS platform…" blurb, Product / Features /
+  AI Roadmap / Use Cases / Product Preview / Security / Company / Founder / Contact / Privacy Policy / Terms of Service) — also to
+  be removed.
+- **The selector shows every municipality as "Active"**, including the four that are `Upcoming` and inactive according to
+  `GET /api/municipalities`. Its badges do not reflect the API. The same page also says an unactivated municipality is "live",
+  which is what led the office to expect Carrascal to have a portal at all.
 
 ## Links belong in one place
 
