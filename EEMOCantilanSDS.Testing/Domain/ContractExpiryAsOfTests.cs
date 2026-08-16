@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -66,6 +67,115 @@ public class ContractExpiryAsOfTests
 
         Assert.True(contract.IsExpiredOn(wellPast));
         Assert.False(contract.IsExpiringSoonOn(wellPast));
+    }
+
+    // ── The office's ruling of 2026-08-16: a signed contract of nought years is invalid. ──────────────────────────────────
+    //
+    // The two ways the platform expressed expiry used to disagree about exactly that row: the entity computed it from
+    // ExpiryDate and called the term expired the day after it began, while DomainRules.TermHasExpired said a term stating no
+    // years had not run out. Both readings were defensible, which is why the office was asked. Now the state is refused at
+    // entry, and the entity delegates to the shared rule so there is only one answer to disagree about.
+
+    [Fact]
+    public void ASignedContractOfNoughtYearsIsRefused()
+    {
+        var refused = Assert.Throws<ArgumentOutOfRangeException>(() => Contract.Create(
+            Guid.NewGuid(), "Merlita A. Abuso", "Merlita A. Abuso",
+            Start, durationYears: 0, monthlyRate: 900m));
+
+        // The message has to tell the office what to do instead, because there IS a right way to record this.
+        Assert.Contains("space-only", refused.Message);
+    }
+
+    [Fact]
+    public void ASignedContractCannotBeCORRECTEDToNoughtYearsEither()
+    {
+        // The door this actually came through. The edit form's validator allowed nought while every other path required at
+        // least one year, and UpdateTerms refused only negatives — so an existing, valid contract could be edited into the
+        // invalid state even though none could be created in it.
+        var contract = ThreeYearTerm();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => contract.UpdateTerms(Start, 0, "Admin"));
+        Assert.Equal(3, contract.DurationYears);        // and the refusal left the contract untouched
+    }
+
+    [Fact]
+    public void CorrectingASpaceOnlyOccupancysDateKeepsItOpenEnded()
+    {
+        // Nought years is legitimate HERE — it means no term was stated — so this correction must not be refused, and the
+        // occupancy must not come back with a nought-year term either. It keeps the open-ended sentinel, which is what keeps
+        // it out of expiry and renewal work.
+        var contract = OpenEnded();
+        var corrected = Start.AddDays(-30);
+
+        contract.UpdateTerms(corrected, 0, "Admin");
+
+        Assert.Equal(corrected, contract.EffectivityDate);
+        Assert.Equal(DomainRules.OpenEndedTermYears, contract.DurationYears);
+        Assert.False(contract.IsExpiredOn(Start.AddYears(50)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(10)]
+    public void TheEntityAndTheSharedRuleGiveTHESAMEAnswer(int years)
+    {
+        // Pinned so the two expressions cannot drift apart again: whatever the entity says about expiry, DomainRules must say
+        // too, on both sides of the boundary and on the boundary itself.
+        var contract = Contract.Create(
+            Guid.NewGuid(), "Merlita A. Abuso", "Merlita A. Abuso",
+            Start, durationYears: years, monthlyRate: 900m);
+
+        foreach (var asOf in new[]
+                 {
+                     Start, Start.AddDays(1), contract.ExpiryDate.AddDays(-1),
+                     contract.ExpiryDate, contract.ExpiryDate.AddDays(1), contract.ExpiryDate.AddYears(5)
+                 })
+        {
+            Assert.Equal(
+                DomainRules.TermHasExpired(contract.EffectivityDate, contract.DurationYears, asOf),
+                contract.IsExpiredOn(asOf));
+        }
+    }
+
+    [Fact]
+    public void AStoredRowWithNoStatedTerm_GetsTHESAMEAnswerFromBoth()
+    {
+        // The one row the two rules actually disagreed about, and the only way it can still arrive: written before the
+        // invariant existed and read straight back out by EF, which never consults the factory. The entity said "expired the
+        // day after it began"; the shared rule said a term stating no years has not run out.
+        //
+        // They now agree, and they agree on NOT expired — the safe reading for a row the office may still hold. A space with no
+        // stated term owes nothing (ContractBillingMonthsTests) and must not be reported as an expired contract needing
+        // renewal, because there is no term to have run out and none to renew.
+        var storedRow = StoredRowWithNoStatedTerm(Start);
+
+        Assert.Equal(0, storedRow.DurationYears);
+
+        foreach (var asOf in new[] { Start, Start.AddDays(1), Start.AddYears(1), Start.AddYears(20) })
+        {
+            Assert.Equal(
+                DomainRules.TermHasExpired(storedRow.EffectivityDate, storedRow.DurationYears, asOf),
+                storedRow.IsExpiredOn(asOf));
+
+            Assert.False(storedRow.IsExpiredOn(asOf));
+        }
+    }
+
+    /// <summary>
+    /// A contract as the database hands one back: materialised, not constructed. Deliberately does NOT go through
+    /// <c>Contract.Create</c>, whose invariants such a row predates.
+    /// </summary>
+    private static Contract StoredRowWithNoStatedTerm(DateOnly start)
+    {
+        var row = (Contract)Activator.CreateInstance(typeof(Contract), nonPublic: true)!;
+        Set(nameof(Contract.EffectivityDate), start);
+        Set(nameof(Contract.DurationYears), 0);
+        return row;
+
+        void Set(string property, object value) =>
+            typeof(Contract).GetProperty(property)!.SetValue(row, value);
     }
 
     [Fact]

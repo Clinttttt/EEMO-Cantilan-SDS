@@ -80,8 +80,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// past dates as well as today — a register for June cannot be answered with August's opinion. As a property reading
         /// the static clock it could only ever answer for the machine's today, and no test could state a different one.
         /// </para>
+        ///
+        /// <para>
+        /// Delegates to <see cref="DomainRules.TermHasExpired"/> so there is ONE expiry rule. There were two: this used to be
+        /// <c>asOf &gt; ExpiryDate</c>, which agreed with the shared rule on every contract the platform can now create but
+        /// disagreed on a term of zero years — calling it expired the day after it began, where the shared rule said a term
+        /// that states no years has not run out. That state is now refused at both entry points, and the two answers can no
+        /// longer differ because there is only one.
+        /// </para>
         /// </summary>
-        public bool IsExpiredOn(DateOnly asOf) => asOf > ExpiryDate;
+        public bool IsExpiredOn(DateOnly asOf) => DomainRules.TermHasExpired(EffectivityDate, DurationYears, asOf);
 
         /// <summary>
         /// True when the term has not run out on <paramref name="asOf"/> but does within
@@ -117,6 +125,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         {
             var signed = arrangement == OccupancyArrangement.SignedContract;
 
+            // A signed contract of nought years is not a contract, and the office confirmed (2026-08-16) that it is invalid.
+            // Every caller already refused it — the create form's validator, the stallholder import, assigning a past occupant,
+            // renewal — but the entity did not, so the one state the platform cannot answer for consistently was still
+            // constructible. Refused here so it is unrepresentable rather than merely unreached.
+            //
+            // Zero remains legitimate for an occupancy WITHOUT a signed contract, where it means "no term was stated": such a
+            // row is given the open-ended sentinel just below, which is why it is not treated as expired.
+            if (signed && durationYears < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(durationYears),
+                    "A signed contract must run for at least one year. Record it as a space-only occupancy if there is no " +
+                    "signed term.");
+            }
+
             return new Contract
             {
                 Id = Guid.NewGuid(),
@@ -147,16 +169,39 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
 
         /// <summary>
-        /// Updates the contract effectivity date and duration (e.g. when an admin corrects
-        /// contract terms from the Vendor Registry edit form).
+        /// Updates the contract effectivity date and duration (e.g. when an admin corrects contract terms from the Vendor
+        /// Registry edit form).
+        ///
+        /// <para>
+        /// A SIGNED contract must run at least one year: a term of zero years is not a contract, and it is the state the
+        /// office confirmed (2026-08-16) to be invalid. It was reachable — the edit form's validator allowed nought while
+        /// every other path required one, and this method only refused negatives — and it produced a row the platform could
+        /// not agree with itself about: expiry computed from the term said "expired the day after it began", while the shared
+        /// rule in <see cref="DomainRules.TermHasExpired"/> said the term had not run out at all.
+        /// </para>
+        ///
+        /// <para>
+        /// An UNSIGNED occupancy has no term to state. Whatever number arrives, it keeps the open-ended sentinel, because a
+        /// space let without a contract runs until the office ends it — the same decision <see cref="Create"/> makes. Refusing
+        /// instead would break correcting a space-only occupancy's effectivity date, which is a legitimate thing to do.
+        /// </para>
         /// </summary>
         public void UpdateTerms(DateOnly effectivityDate, int durationYears, string updatedBy)
         {
             if (durationYears < 0)
                 throw new ArgumentOutOfRangeException(nameof(durationYears), "Contract duration cannot be negative.");
 
+            var signed = Arrangement == OccupancyArrangement.SignedContract;
+
+            if (signed && durationYears == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(durationYears),
+                    "A signed contract must run for at least one year. Record it as a space-only occupancy if there is no " +
+                    "signed term.");
+            }
+
             EffectivityDate = effectivityDate;
-            DurationYears = durationYears;
+            DurationYears = signed ? durationYears : DomainRules.OpenEndedTermYears;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

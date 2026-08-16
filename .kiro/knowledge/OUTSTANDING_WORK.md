@@ -164,7 +164,7 @@ Remaining, in order:
 
 ### 3. Move password hashing out of Domain — see above (DONE)
 
-### 4. Move `Result<T>` and paging models out of Domain — DONE (categories in place; numeric assertions in tests remain)
+### 4. Move `Result<T>` and paging models out of Domain — DONE
 
 `Result<T>` and `CursorPagedResult<T>` now live in `Application.Common`. Domain never referenced either, so no rule changed;
 what changed is that the domain no longer carries a type named after HTTP outcomes (`Unauthorized`, `Conflict`, `NoContent`)
@@ -423,12 +423,29 @@ Smaller findings from the same pass:
 - **`AddMonths(3)` in the entity is now `DomainRules.ExpiringSoonMonths`**, which is 3. The handlers already passed that
   constant to the repository while the entity hardcoded the number.
 
-STILL OPEN, and deliberately not changed:
-- **Two expressions of the expiry rule.** `Contract.IsExpiredOn(asOf)` is `asOf > ExpiryDate`; `DomainRules.TermHasExpired`
-  additionally guards `durationYears > 0` and `!= OpenEndedTermYears`. They agree on every contract `Create` produces, but they
-  DISAGREE for a signed term of zero years: the entity calls it expired the day after it starts, the rule calls it not expired.
-  A zero-year signed term is a data error, and `MonthOwesRent` treats it as owing nothing — so which answer is right is a
-  decision for the office, not a refactor. Unifying them without that answer would silently change one.
+RESOLVED 2026-08-16 on the office's ruling, and now ONE rule:
+- **Two expressions of the expiry rule — unified.** `Contract.IsExpiredOn(asOf)` was `asOf > ExpiryDate` while
+  `DomainRules.TermHasExpired` additionally guarded `durationYears > 0` and `!= OpenEndedTermYears`. They agreed on every
+  contract `Create` produced but DISAGREED on a signed term of zero years: the entity called it expired the day after it began,
+  the rule called it not expired. The office ruled such a contract INVALID, so the state is refused at entry and the entity now
+  DELEGATES to `DomainRules.TermHasExpired` — there is no longer a second answer to disagree with.
+  - Refused in three places, each for a different reason. `Contract.Create` and `Contract.UpdateTerms` refuse a signed term of
+    nought years so the state is unrepresentable rather than merely unreached. `UpdateStallCommandHandler` answers the same case
+    with a stated reason, because a domain exception would reach the office as a server error — and it is the only screen that
+    could ever have set an existing term to nought.
+  - **NOT in the validator, and that is deliberate.** Requiring at least one year there was tried first and would have broken a
+    legitimate edit: the stall DTO reports `activeContract?.DurationYears ?? 0`, so a stall with NO active contract reports
+    nought years, and both edit forms pass whatever they were handed straight back. The command does not carry the arrangement,
+    so a validator cannot tell "no term to state" from "a term of nought years". `UpdateStallContractYearsTests` pins the
+    validator's acceptance of nought so it cannot be tidied away.
+  - An occupancy WITHOUT a signed contract keeps the open-ended sentinel whatever number arrives, so correcting a space-only
+    row's effectivity date is still possible and cannot leave it holding a nought-year term.
+  - **Stored rows written before the invariant remain possible** and are handled safely: EF materialises them without the
+    factory, and both rules now say NOT expired, while `BillsCalendarMonth` still says they owe nothing. So such a row generates
+    no demand and is not reported as an expired contract needing renewal. Production was NOT queried for them — the database
+    password is only in CI secrets — but every application path already refused nought-year signed terms before this change
+    (create form, stallholder import, renewal, assigning a past occupant), so the only way one could exist is a hand-written row.
+    **If the office ever reports a contract showing no term, that is the row to look for.**
 - `StallContractStatus`'s parameterless `IsCurrentVendor(dto)` overload still reads the static clock. It delegates to an
   `IsCurrentVendor(dto, today)` that IS testable, and its single caller is in the Client — so it belongs with the Client bucket.
 - **~205 in the Client.** Mostly display defaults and date-picker seeds. Lowest value, and worth judging individually rather

@@ -65,6 +65,31 @@ public class ContractBillingMonthsTests
     {
         // Rather than guess a length: a term with no years recorded is a data fault, and inventing rent for it would
         // put a figure on a demand letter that no contract supports.
-        Assert.False(Term(new DateOnly(2024, 1, 1), 0).BillsCalendarMonth(2024, 1));
+        //
+        // Built the way EF DOES, bypassing the factory, because that is now the only way this state can arrive. Contract.Create
+        // and UpdateTerms refuse a signed term of nought years — the office ruled it invalid on 2026-08-16 — so nothing the
+        // platform writes from today can be in this state. But a row WRITTEN BEFORE that invariant existed is read straight back
+        // out of the database into these properties, with the factory never consulted, and it would still be asked what it owes.
+        // That is what this guards. Constructing it through Create would have meant deleting the test along with the protection
+        // it proves.
+        var storedRow = StoredRowWithNoStatedTerm(new DateOnly(2024, 1, 1));
+
+        Assert.Equal(0, storedRow.DurationYears);       // the state really is the one under test
+        Assert.False(storedRow.BillsCalendarMonth(2024, 1));
+    }
+
+    /// <summary>
+    /// A contract as the database hands one back: materialised, not constructed. Deliberately does NOT go through
+    /// <c>Contract.Create</c>, whose invariants such a row predates.
+    /// </summary>
+    private static Contract StoredRowWithNoStatedTerm(DateOnly start)
+    {
+        var row = (Contract)Activator.CreateInstance(typeof(Contract), nonPublic: true)!;
+        Set(nameof(Contract.EffectivityDate), start);
+        Set(nameof(Contract.DurationYears), 0);
+        return row;
+
+        void Set(string property, object value) =>
+            typeof(Contract).GetProperty(property)!.SetValue(row, value);
     }
 }
