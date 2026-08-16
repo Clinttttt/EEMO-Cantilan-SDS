@@ -166,6 +166,63 @@ public class BulkImportDailyHistoryCustomSectionTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task TwoSpacesSharingANumberMakeTheRowUNPLACEABLE_SoItIsRefused()
+    {
+        // The office's ruling: refuse. Two spaces in the SAME section both numbered "7" — nothing in the row says which one
+        // was collected from, and settling against either would record the money on an account the office did not name while
+        // reporting the row as done.
+        //
+        // This is not hypothetical arithmetic: the lookup used to be a dictionary assignment, so the second space silently
+        // replaced the first and which lessee got credited depended on the order the repository returned them in.
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        context.Add(facility);
+        await context.SaveChangesAsync();
+
+        context.AddRange(
+            Space(facility.Id, "7", null, SariSari),
+            Space(facility.Id, "7", null, SariSari));
+        await context.SaveChangesAsync();
+
+        var result = await Handler(context).Handle(
+            new BulkImportDailyHistoryCommand(
+                FacilityCode.NPM,
+                Section: null,
+                Rows: new[] { new ImportDailyPaymentRow(1, "7", "Lessee", Past.Year, Past.Month, 4, "OR-4001") },
+                CustomSectionName: SariSari),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);                 // the batch reports per row rather than failing wholesale
+        Assert.Equal(1, result.Value!.RejectedCount);
+        Assert.Empty(await context.DailyCollections.AsNoTracking().ToListAsync());
+
+        // The reason has to name the number and say what to do about it: the office is the only party that knows which space
+        // it meant.
+        var row = result.Value!.Results.Single();
+        Assert.Contains("7", row.Error!);
+        Assert.Contains("distinct numbers", row.Error!);
+    }
+
+    [Fact]
+    public async Task AnUnambiguousNumberIsStillSettledNormally()
+    {
+        // The other direction, so the refusal cannot be passing by rejecting everything.
+        var (context, _, sari, _) = await SeedThreeSpacesCalledOne();
+
+        var result = await Handler(context).Handle(
+            new BulkImportDailyHistoryCommand(
+                FacilityCode.NPM,
+                Section: null,
+                Rows: new[] { new ImportDailyPaymentRow(1, "1", "Lessee", Past.Year, Past.Month, 2, "OR-4002") },
+                CustomSectionName: SariSari),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.Value!.RejectedCount);
+        Assert.Equal(2, (await context.DailyCollections.AsNoTracking().ToListAsync()).Count(d => d.StallId == sari.Id));
+    }
+
+    [Fact]
     public async Task ANumberThatExistsOnlyInAnotherSectionIsRejected_NotSilentlyMatched()
     {
         // A clerk who picks the wrong section must be told, not have the money recorded against a space they did not name.

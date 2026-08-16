@@ -54,9 +54,14 @@ public class BulkImportStallholdersCommandHandler(
             ? (request.CustomDailyRate is { } cr && cr > 0m ? cr : (existingStalls.FirstOrDefault()?.DailyRate ?? npmDailyRate))
             : npmDailyRate;
 
-        var existingByNo = new Dictionary<string, Stall>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in existingStalls)
-            existingByNo[s.StallNo] = s;
+        // Grouped rather than keyed, so a number that two existing spaces share is DETECTED. It used to be a dictionary
+        // assignment, where the second space silently replaced the first — so a row would have renewed, reopened or re-rated
+        // whichever space the query happened to return last. Such a row is refused below: this import decides which occupancy
+        // a lessee is being recorded against, and it must not guess.
+        var existingByNo = existingStalls
+            .Where(s => !string.IsNullOrWhiteSpace(s.StallNo))
+            .GroupBy(s => s.StallNo!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
         // Occupants with a CURRENT active contract — re-importing one would duplicate a live payor, so skip.
         var activeOccupants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -123,8 +128,21 @@ public class BulkImportStallholdersCommandHandler(
             var nameOnContract = string.IsNullOrWhiteSpace(row.NameOnContract) ? null : row.NameOnContract!.Trim();
             var areaSqm = row.AreaSqm.HasValue && row.AreaSqm.Value > 0 ? row.AreaSqm : null;
 
-            if (existingByNo.TryGetValue(stallNo, out var existing))
+            if (existingByNo.TryGetValue(stallNo, out var existingMatches))
             {
+                // Two existing spaces carry this number, so the row does not say which occupancy it belongs to. Refused on
+                // the office's instruction rather than applied to one of them: renewing the wrong space would move a lessee
+                // onto an account that is not theirs, and the row would report success.
+                if (existingMatches.Count > 1)
+                {
+                    results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false,
+                        $"{existingMatches.Count} spaces here are numbered {stallNo}, so this row does not say which one " +
+                        "this lessee holds. Give the duplicates distinct numbers, then import again."));
+                    usedStallNos.Add(stallNo);
+                    continue;
+                }
+
+                var existing = existingMatches[0];
                 // An active contract still occupies this stall — cannot import over it.
                 if (IsActivelyOccupied(existing, today))
                 {

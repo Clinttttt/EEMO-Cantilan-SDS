@@ -51,12 +51,14 @@ public class BulkImportPaymentHistoryCommandHandler(
         // Matched on the number WITHIN the facility and section, never on the number alone: the market has three
         // spaces called "1", and a facility-and-number key is the mistake this codebase has had to correct
         // repeatedly.
-        var stallsByNo = new Dictionary<string, Stall>(StringComparer.OrdinalIgnoreCase);
-        foreach (var stall in stalls)
-        {
-            var no = (stall.StallNo ?? string.Empty).Trim();
-            if (no.Length > 0) stallsByNo[no] = stall;
-        }
+        //
+        // GROUPED rather than keyed, so a number that two spaces in the same section share is DETECTED. It used to be a
+        // dictionary assignment, where the second space silently replaced the first — which lessee's account a row's money
+        // landed on then depended on the order the repository returned them in. Such a row is refused below.
+        var stallsByNo = stalls
+            .Where(s => !string.IsNullOrWhiteSpace(s.StallNo))
+            .GroupBy(s => s.StallNo!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
         var results = new List<BulkImportPaymentRowResult>(request.Rows.Count);
         var created = new List<PaymentRecord>();
@@ -101,12 +103,25 @@ public class BulkImportPaymentHistoryCommandHandler(
                 continue;
             }
 
-            if (!stallsByNo.TryGetValue(stallNo, out var stall))
+            if (!stallsByNo.TryGetValue(stallNo, out var matches))
             {
                 Reject($"No stall {stallNo} in this facility{(request.Section.HasValue ? " and section" : "")}. " +
                        "Import the stallholders first.");
                 continue;
             }
+
+            // Two spaces in the same section carrying the same number: refused, on the office's instruction. Recording the
+            // payment against either would put it on an account the office did not name, and the row would be reported as
+            // done. The office knows which space it meant; nothing here does.
+            if (matches.Count > 1)
+            {
+                Reject($"{matches.Count} spaces in this facility{(request.Section.HasValue ? " and section" : "")} are " +
+                       $"numbered {stallNo}, so this row does not say which one paid. Give the duplicates distinct numbers, " +
+                       "then import again.");
+                continue;
+            }
+
+            var stall = matches[0];
 
             // The occupancy ANSWERING for the month being paid for, not merely a contract whose term spans it.
             //

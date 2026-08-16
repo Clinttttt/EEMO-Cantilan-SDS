@@ -607,9 +607,16 @@ page was likewise from another project.)
     number (`stallsByNo[no] = stall`), so when two same-numbered spaces come back the second silently OVERWRITES the first, and
     which lessee is credited depends on the order rows are returned in. The section filter means it never happens today. The
     test that cannot be lucky is the repository-level one, which counts what the filter returned.
-  - **NOT fixed, because it is a decision:** whether the handler should REFUSE an ambiguous number rather than pick one. Today
-    nothing detects the ambiguity. Refusing changes behaviour for a case that cannot currently arise; guarding it is cheap but
-    the office should say whether a row it cannot place unambiguously is an error or a best-effort.
+  - **RESOLVED 2026-08-16 on the office's ruling: an ambiguous row is REFUSED.** All three imports keyed matched spaces into a
+    dictionary by number, so when two spaces shared one the second silently replaced the first and which lessee was credited
+    depended on the order the repository returned them in. They now GROUP, and a row naming a number that more than one space
+    carries is rejected with a reason that names the number and says what to do — the office is the only party that knows which
+    space it meant.
+    - Applied to all three, because it is one rule: the daily-history import (which day's money), the payment-history import
+      (which account paid), and the stallholders import (which occupancy a lessee holds — there, guessing would have renewed,
+      reopened or re-rated the wrong space).
+    - Proven load-bearing by disabling the refusal: only the ambiguous-row test failed, and the unambiguous case still settles
+      normally, so the refusal cannot be passing by rejecting everything.
 - **Hiding or soft-deleting an OR — RETIRED 2026-08-16, there is no such thing.** The office states that once an Official
   Receipt is issued it stays part of the record; there is no withdrawal step in the actual workflow. So nothing was built, and
   the queue is already right: "Missing OR" flags only records whose OR is BLANK, which is exactly a collection taken but not yet
