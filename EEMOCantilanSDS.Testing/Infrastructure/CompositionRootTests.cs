@@ -124,6 +124,41 @@ public class CompositionRootTests
     }
 
     [Fact]
+    public void AMissingPaymentGatewayAddressStopsTheApplicationStarting()
+    {
+        // The office asked for fail-fast here, and this is what that means concretely: registration itself throws, so a
+        // deployment missing the key never reaches the point of serving.
+        //
+        // It used to be read inside the HttpClient configuration callback, which runs when the gateway is first RESOLVED — so
+        // the application started clean and then failed on the three online-payment endpoints, in front of whoever was on
+        // shift. The message names the setting, because the person reading it at that moment is trying to fix a deployment.
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var withoutGateway = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=unused;Username=unused;Password=unused",
+            })
+            .Build();
+
+        var thrown = Assert.Throws<InvalidOperationException>(
+            () => services.AddInfrastructureService(withoutGateway));
+
+        Assert.Contains("PayMongo", thrown.Message);
+        Assert.Contains("BaseUrl", thrown.Message);
+    }
+
+    [Fact]
+    public void AConfiguredGatewayAddressStartsNormally()
+    {
+        // The other direction, so the check above cannot pass by refusing every configuration.
+        var services = RealRegistrations();
+
+        Assert.NotEmpty(services);
+    }
+
+    [Fact]
     public void NoServiceTypeIsRegisteredTwice()
     {
         // Why this matters beyond tidiness: with each service type registered exactly once, the ORDER of the registration

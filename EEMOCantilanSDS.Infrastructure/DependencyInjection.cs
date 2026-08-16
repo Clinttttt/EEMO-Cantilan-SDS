@@ -217,13 +217,29 @@ namespace EEMOCantilanSDS.Infrastructure
 
             // PayMongo hosted checkout. Auth is applied PER-REQUEST by the gateway from the tenant's resolved credentials,
             // so each LGU hits its own account and the default LGU uses the global config — no default Authorization here.
-            var payMongo = configuration.GetSection("PayMongo");
+            //
+            // The base address is read HERE, at startup, and a missing one stops the application.
+            //
+            // It used to be read inside the client-configuration callback, which runs the first time the gateway is resolved —
+            // so a deployment without PayMongo:BaseUrl started perfectly and then failed on the three online-payment endpoints,
+            // in front of whoever was on shift, with an exception rather than an explanation. A configuration fault should be
+            // discovered by the deployment, not by a payor. Read once, checked once, and the callback is left with nothing that
+            // can throw.
+            var baseUrl = configuration.GetSection("PayMongo")["BaseUrl"];
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                throw new InvalidOperationException(
+                    "PayMongo:BaseUrl is not configured. Online payments cannot be served without it, so the application is " +
+                    "refusing to start rather than failing later on the payment endpoints. Set PayMongo__BaseUrl (for example " +
+                    "https://api.paymongo.com/v1/).");
+            }
+
+            // Ensure relative request paths (e.g. "checkout_sessions") resolve under the version segment.
+            var gatewayBase = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+
             service.AddHttpClient<IPaymentGateway, PayMongoPaymentGateway>(client =>
             {
-                var baseUrl = payMongo["BaseUrl"] ?? throw new InvalidOperationException("PayMongo BaseUrl not configured");
-
-                // Ensure relative request paths (e.g. "checkout_sessions") resolve under the version segment.
-                client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+                client.BaseAddress = gatewayBase;
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
             return service;

@@ -41,6 +41,10 @@ public class ValidatorResolutionTests
             {
                 // Never connected to. Present because registration reads it.
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=unused;Username=unused;Password=unused",
+                // Registration now REFUSES to complete without this, by the office's decision: a deployment missing it should
+                // be stopped at startup rather than failing later on the payment endpoints. Supplied so this fixture
+                // represents a configured deployment; CompositionRootTests covers the missing case deliberately.
+                ["PayMongo:BaseUrl"] = "https://api.paymongo.test/v1/",
             })
             .Build();
 

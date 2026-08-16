@@ -610,7 +610,33 @@ page was likewise from another project.)
   - **NOT fixed, because it is a decision:** whether the handler should REFUSE an ambiguous number rather than pick one. Today
     nothing detects the ambiguity. Refusing changes behaviour for a case that cannot currently arise; guarding it is cheap but
     the office should say whether a row it cannot place unambiguously is an error or a best-effort.
-- **Hide or soft-delete an OR number** so a withdrawn receipt stops being reported as missing.
+- **Hiding or soft-deleting an OR — RETIRED 2026-08-16, there is no such thing.** The office states that once an Official
+  Receipt is issued it stays part of the record; there is no withdrawal step in the actual workflow. So nothing was built, and
+  the queue is already right: "Missing OR" flags only records whose OR is BLANK, which is exactly a collection taken but not yet
+  receipted.
+  - Verified the correction paths the office DOES use already exist, as the office pointed out: `SetStallMonthlyException` and
+    `ClearStallMonthlyException` excuse or un-excuse a past billing month (₱0 owed, never counted unpaid), `RecordPayment`
+    records money against a past month, and `SettleNpmDays`/`SettleNpmMonth` settle past market days. Correcting a past period
+    is therefore a matter of marking it, not of unmaking a receipt.
+
+## Rulings from the office, 2026-08-16
+
+Seven questions that had been blocking work were answered. Recorded here with what each one settles, because the reasoning is
+the part that gets lost.
+
+1. **An issued OR is never withdrawn.** See above — retired rather than built.
+2. **Forwarded headers: accept, trusted as tightly as Azure allows.** So absolute redirects stop being scheme-downgraded to
+   `http`.
+3. **A signed contract of zero years is INVALID.** Zero years is only legitimate for a space-only occupancy, which is why such
+   a row is not treated as expired — it carries the open-ended sentinel instead. The two expiry rules must be made to agree.
+4. **PayMongo: fail fast at startup** rather than three endpoints failing at request time.
+5. **An import row naming a number two spaces share is REFUSED**, not placed on a best guess.
+6. **The Earlier Terms occupant match reuses `PersonName`** — same name, however spelled or spaced, is the same person, which
+   is the rule the office already confirmed for the slaughterhouse.
+7. **Section colours reuse the three existing colours cyclically** — no new hues, and every section distinguishable whatever an
+   LGU calls its own.
+
+And for item 6: **the portal gets its own request models** rather than continuing to post command types.
 - **The Backups page** has two different sections both headed "Recent backups" — one for in-app restore points, one for CI
   runs. Confusing to read. `Backups.razor:824-826` also contradicts `BackupController.cs:37-43`.
 - **A pre-deploy backup gate now exists** (was: a deployment could migrate before a fresh backup existed). Added
