@@ -142,6 +142,37 @@ public class ProfileEarlierTermsTests : TestContext
         Assert.Contains("Lessee of record on the current term", page.Markup);
     }
 
+    [Theory]
+    [InlineData("Rosa  Magbanua")]      // typed with a double space
+    [InlineData("  Rosa Magbanua ")]    // padded, as pasted
+    [InlineData("ROSA MAGBANUA")]       // all caps
+    [InlineData("rosa magbanua")]       // all lower
+    public void TheSamePersonSpelledDifferentlyIsStillTheSamePerson(string asTypedOnTheEarlierTerm)
+    {
+        // The office's rule (2026-08-16): within one LGU a name identifies the client, however it is spelled or spaced. This
+        // used to be a trim-and-compare, so an internal double space made the earlier balance uncollectable from the person
+        // standing in the stall — the same pair of names the slaughterhouse already treated as one client.
+        var page = RenderProfile("Rosa Magbanua", Term(asTypedOnTheEarlierTerm, 4_800m));
+
+        page.WaitForAssertion(
+            () => Assert.Single(page.FindAll("button.prof-prior-pay")), RenderTimeout);
+        Assert.Contains("Lessee of record on the current term", page.Markup);
+    }
+
+    [Theory]
+    [InlineData("Rosa Magbanua Jr")]    // a different person on the same family name
+    [InlineData("Rosa Magbanuo")]       // one letter apart
+    [InlineData("RosaMagbanua")]        // a missing space is a different string, not a spelling variant
+    public void ADifferentNameIsStillADifferentPerson(string other)
+    {
+        // The relaxation must not become "any similar name will do": this gate decides whether the office may post money to a
+        // term the present lessee does not hold.
+        var page = RenderProfile("Rosa Magbanua", Term(other, 4_800m));
+
+        page.WaitForAssertion(() => Assert.Contains(other, page.Markup), RenderTimeout);
+        Assert.Empty(page.FindAll("button.prof-prior-pay"));
+    }
+
     [Fact]
     public void ATermWithNothingOwedIsNotListedAtAll()
     {

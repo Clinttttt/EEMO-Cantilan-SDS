@@ -916,15 +916,24 @@
         || _occupiedSpans.Any(s => day >= s.Start && day <= s.End);
 
     /// <summary>
-    /// Whether the name on an earlier term reads the same as the name on the term in force. It is deliberately NOT
-    /// a claim that they are the same person: occupancies carry occupant names as free text, with no payor record
-    /// behind them, which is how the word "Closed" came to be stored as a person's name on three market stalls. So
-    /// the tag states what was compared and leaves the identification to the clerk.
+    /// Whether the name on an earlier term is the same person as the name on the term in force.
+    ///
+    /// <para>
+    /// Uses the platform's one rule for that — <see cref="PersonName.Matches"/> — so it agrees with the slaughterhouse rather
+    /// than having its own opinion. It was a trim-and-compare, which meant "Kim  Chui" and "Kim Chui" were the same person to
+    /// one screen and different people to another. The office confirmed (2026-08-16) that within one LGU a name identifies the
+    /// client, however it happens to be spelled or spaced.
+    /// </para>
+    ///
+    /// <para>
+    /// It is still not a claim that the office has verified an identity. Occupancies carry occupant names as free text with no
+    /// payor record behind them — which is how the word "Closed" came to be stored as a person's name on three market stalls —
+    /// so the tag states what was compared and leaves the identification to the clerk.
+    /// </para>
     /// </summary>
     private bool OccupantNameMatchesCurrentTerm(ClosedStallAccountDto prior)
         => Stall is not null
-        && !string.IsNullOrWhiteSpace(Stall.ActualOccupant)
-        && string.Equals(prior.Occupant?.Trim(), Stall.ActualOccupant.Trim(), StringComparison.OrdinalIgnoreCase);
+        && PersonName.Matches(prior.Occupant, Stall.ActualOccupant);
 
     /// <summary>The earlier term a collection is being recorded against, or null when the dialog is closed.</summary>
     private ClosedStallAccountDto? _priorTermPayment;
