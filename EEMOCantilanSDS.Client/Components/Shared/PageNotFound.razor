@@ -1,0 +1,40 @@
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Securities.TokenService Tokens
+@using EEMOCantilanSDS.Client.Utilities
+
+@* Shown when no route matches. Until this existed the router had a <Found> branch and nothing else, so a mistyped
+   address rendered an empty document: the office got a blank white page, with no statement of what happened and no way
+   back. The response was already a correct 404 - only the body was missing.
+
+   Deliberately plain, and deliberately reusing app.css's .empty-state language rather than introducing anything: this
+   is the same "there is nothing here" the rest of the platform speaks, and a wrong address does not warrant a new
+   colour or an alarm. No layout is wrapped around it either. The address is unknown, so there is no telling which
+   area's chrome would be right, and a visitor who is not signed in must not be shown navigation at all. *@
+<div class="empty-state">
+    @* A real heading, not a styled div: this is the page's only title, and it is what a screen reader announces. *@
+    <h1 class="empty-title">Page not found</h1>
+    <p class="empty-sub">The address you opened does not exist on this system.</p>
+    <button class="btn-primary" type="button" @onclick="GoBack">@_actionLabel</button>
+</div>
+
+@code {
+    private string _actionLabel = "Go to sign in";
+    private string _target = "/login";
+
+    // Sent to where the visitor actually belongs, which is not knowable without looking at who they are: a signed-in
+    // clerk is returned to their menu rather than made to sign in again, a payor to the payor area, and anyone else to
+    // the sign-in page. Read from the token the same way AccessDenied does, so there is one answer to this question.
+    protected override void OnInitialized()
+    {
+        var token = Tokens.GetToken();
+        var principal = string.IsNullOrWhiteSpace(token) ? null : JwtParser.ParseToken(token);
+
+        if (principal is null)
+            return;
+
+        _target = principal.IsInRole("Payor") ? "/payor" : "/menu";
+        _actionLabel = "Go to your menu";
+    }
+
+    private void GoBack() => Navigation.NavigateTo(_target, forceLoad: true);
+}

@@ -246,6 +246,27 @@ them. That is a redesign of how the portal talks to the API, not a file move, an
 Whoever picks this up should decide FIRST which of those two it is. Until then the DTO move on its own is churn with no benefit —
 the consumers would still reference Application for the commands.
 
+**The office chose option (b) — the portal gets its own request models — and a further measurement 2026-08-16 shows that option
+carries a condition that must be decided with it.**
+
+`[FromBody]` binds the COMMAND TYPE ITSELF on 70 API endpoints (31 others already bind a purpose-made request type). That is what
+makes the wire contract compile-checked end to end today: add a parameter to a command and the portal stops building, before
+anything is deployed. It is accidental, but it is real protection on a money path.
+
+Giving the portal its own request models while the API goes on binding commands would REMOVE that check and replace it with
+nothing. The two shapes would then agree only by convention, and drift would appear at runtime as a field the API silently
+ignores, a required record parameter arriving absent as a 400, or — worst and quietest — a decimal defaulting to zero. A rate, a
+duration or an amount could go missing on a form that still reports success.
+
+So option (b) is only safe if the API binds the SAME request models the portal posts, with the handler mapping request → command.
+That is the whole 70 endpoints, and it is what makes the change worth doing rather than merely tidy: it separates the wire
+contract from the MediatR message, which is the actual coupling.
+
+**Decision needed before any code moves:** does the API bind the new request models too (safe, ~70 endpoints touched, compile-time
+checking preserved on both sides), or does the portal define models the API does not share (smaller, and silently
+drift-prone — not recommended)? If the answer is the first, this can be staged one controller at a time, each stage compiling and
+testable, which is the only way a change this size stays verifiable.
+
 One thing that helps and is cheap whenever it happens: the namespaces can stay as they are. `Result<T>` moved to
 `Application.Common` with consumer projects declaring the namespace globally rather than editing 497 files, and the same approach
 keeps a Contracts move reviewable — the assembly changes, the namespace does not.
@@ -809,8 +830,20 @@ And for item 6: **the portal gets its own request models** rather than continuin
     `X-Forwarded-*` from any caller. That is spoofable, and it also changes the client IP that rate limiting and the firewall
     rules see. A trade-off for the office to choose, not one to make quietly.
 
-- **The router has no `NotFound`.** Any mistyped URL renders a blank page rather than saying anything. Wants wording and a
-  small design rather than a redirect, so it was left out of the root-route change.
+- **The router's `NotFound` — DONE 2026-08-16.** Any mistyped URL rendered a blank page. Confirmed live before the fix: a 404
+  with a body of ZERO bytes, so the office saw white space with no statement and no way back; the status code was already
+  correct. `Components/Shared/PageNotFound.razor` now answers it, wired into `Routes.razor`'s new `<NotFound>` branch.
+  - Reuses app.css's global `.empty-state`/`.empty-title`/`.empty-sub` — the platform's existing "there is nothing here"
+    language. No new CSS and no new colour: a wrong address is not an alarm. The `ad-*` classes from `AccessDenied` could NOT be
+    reused, being scoped CSS, which is the same trap `.form-eye-btn` fell into.
+  - No layout is wrapped around it. The address is unknown, so there is no telling whose chrome would be right, and a visitor
+    who is not signed in must not be shown navigation. The action reads the token exactly as `AccessDenied` does: a clerk
+    returns to `/menu`, a payor to `/payor`, anyone else to `/login`.
+  - An `<h1>`, not a styled div — the router's own `FocusOnNavigate` selects `"h1"`, so a page whose only title is a div gives
+    focus nothing to land on.
+  - `PageNotFoundTests` pins the copy, the way back, and that NO tenant is named on a page that renders on every LGU's host.
+    The fifth test renders the real `Routes` component, because the first four all passed with the `<NotFound>` branch deleted —
+    verified by deleting it. The defect was never the page; it was that nothing asked for one.
 
 - **Mojibake in `Accounts.razor.css` comments** (~a dozen lines, e.g. "ACCOUNTS PAGE â€" Toolbar"), from `0f8f3f02`. Comments
   only — no selector, value or figure affected. Left alone deliberately: rewriting the file to repair comments would bury the

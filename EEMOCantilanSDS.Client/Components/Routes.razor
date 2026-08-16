@@ -1,4 +1,4 @@
-﻿@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Components.Shared
 
 @inject NavigationManager Navigation
 @inject ISetupApiClient SetupApi
@@ -23,6 +23,11 @@
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="routeData" Selector="h1" />
         </Found>
+        @* Without this branch a mistyped address rendered an empty document - a correct 404 with no body, so the office
+           saw a blank page and had no way back. *@
+        <NotFound>
+            <PageNotFound />
+        </NotFound>
     </Router>
 </CascadingAuthenticationState>
 
