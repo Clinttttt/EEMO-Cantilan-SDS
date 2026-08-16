@@ -97,12 +97,33 @@ public class PageNotFoundTests : TestContext
     }
 
     [Fact]
-    public void TheROUTERActuallyShowsItForAnUnmatchedAddress()
+    public void ItRendersWithNoAppChrome()
     {
-        // The assertion that covers the FIX rather than the component. Every test above passes with the router's <NotFound>
-        // branch deleted — verified by deleting it — because they render the page directly. The defect was never the page; it
-        // was that nothing asked for one. So this renders the real Routes component, navigates to an address no page claims,
-        // and requires the message to appear.
+        // The page declares MinimalLayout, so its surroundings do not depend on the address in the bar. That matters here more
+        // than anywhere: on a not-found render the path IS the mistyped address, so MainLayout's path-based sidebar rule would
+        // have drawn the whole application shell around it — a menu offered to a visitor who may not be signed in, and a choice
+        // of whose chrome to show for an address belonging to no area. Caught while wiring the router, not by inspection.
+        Assert.Equal(
+            typeof(EEMOCantilanSDS.Client.Components.Layout.MinimalLayout),
+            Attribute.GetCustomAttribute(
+                typeof(EEMOCantilanSDS.Client.Components.Pages.NotFound),
+                typeof(Microsoft.AspNetCore.Components.LayoutAttribute)) is Microsoft.AspNetCore.Components.LayoutAttribute a
+                ? a.LayoutType
+                : null);
+    }
+
+    [Fact]
+    public void TheROUTERIsWiredToItForAnUnmatchedAddress()
+    {
+        // Asserts the WIRING, not a render, and deliberately so. The tests above all pass whether or not the router knows this
+        // page exists — they render it directly — and the original defect was precisely that nothing pointed at it.
+        //
+        // A render cannot be asserted honestly here. The framework states that <NotFound> markup "isn't effective" in a Blazor
+        // Web App, and production proved it: that markup shipped and a mistyped address still answered 404 with an empty body,
+        // because endpoint routing rejects an unmatched path before any component renders. bUnit does honour the markup, so a
+        // render-based test PASSED while the live site stayed blank — a test that lied. The .NET 10 mechanism is
+        // Router.NotFoundPage, which needs real server-side routing, so what is checked here is that it is set and points at the
+        // right page. The live 404 response is what confirms the behaviour.
         this.AddTestAuthorization();
 
         var setup = new Mock<ISetupApiClient>();
@@ -113,11 +134,19 @@ public class PageNotFoundTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton(new TokenService());
+        // MainLayout renders the loading bar for every page, standalone or not, so the router test needs it even though this
+        // page shows nothing that loads.
+        Services.AddSingleton<UiLoadingService>();
 
+        // Pointed at an address no page claims, so the router does not render a real page and drag its whole layout chain
+        // (and every service that chain injects) into a test about one parameter.
         Services.GetRequiredService<NavigationManager>().NavigateTo("/an-address-no-page-claims");
 
-        var app = RenderComponent<EEMOCantilanSDS.Client.Components.Routes>();
+        var router = RenderComponent<EEMOCantilanSDS.Client.Components.Routes>()
+            .FindComponent<Microsoft.AspNetCore.Components.Routing.Router>();
 
-        Assert.Contains("Page not found", app.Markup);
+        Assert.Equal(
+            typeof(EEMOCantilanSDS.Client.Components.Pages.NotFound),
+            router.Instance.NotFoundPage);
     }
 }

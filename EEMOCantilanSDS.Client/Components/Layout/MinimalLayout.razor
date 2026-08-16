@@ -1,0 +1,9 @@
+@inherits LayoutComponentBase
+
+@* No chrome at all: the body and nothing else.
+   For pages whose surroundings must not depend on the address in the bar. MainLayout decides on the sidebar by asking
+   AppShell.IsStandalonePage about the current path, which is the right rule for every ordinary page and the wrong one for a page
+   that answers for an address the platform does not recognise: on a not-found render the path IS the mistyped address, so a
+   path-based rule would draw the full application shell around it - offering a menu to a visitor who may not be signed in, and
+   picking whose chrome to show for an address that belongs to no area. Declaring the layout on the page removes the question. *@
+@Body

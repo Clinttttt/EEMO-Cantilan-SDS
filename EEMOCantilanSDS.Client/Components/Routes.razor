@@ -7,7 +7,15 @@
 
 
 <CascadingAuthenticationState>
-    <Router AppAssembly="typeof(Program).Assembly">
+    @* NotFoundPage, not <NotFound> markup. The framework documents plainly that "Blazor Web Apps don't use the NotFound
+       parameter... placing the markup doesn't result in an exception, but using the markup isn't effective either" - it is kept
+       only for backward compatibility. That was verified the hard way: the <NotFound> branch shipped, and production still
+       answered a mistyped address with 404 and an empty body, because endpoint routing rejects an unmatched path before any
+       component renders.
+
+       NotFoundPage is the .NET 10 mechanism for the same intent and, unlike the markup, it is designed to work together with
+       status-code re-execution middleware - which Program.cs adds for the requests that never reach Blazor at all. *@
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(EEMOCantilanSDS.Client.Components.Pages.NotFound)">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
                 <NotAuthorized>
@@ -23,11 +31,6 @@
             </AuthorizeRouteView>
             <FocusOnNavigate RouteData="routeData" Selector="h1" />
         </Found>
-        @* Without this branch a mistyped address rendered an empty document - a correct 404 with no body, so the office
-           saw a blank page and had no way back. *@
-        <NotFound>
-            <PageNotFound />
-        </NotFound>
     </Router>
 </CascadingAuthenticationState>
 
