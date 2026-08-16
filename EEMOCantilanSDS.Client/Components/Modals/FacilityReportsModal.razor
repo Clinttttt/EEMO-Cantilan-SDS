@@ -750,7 +750,7 @@
         {
             if (ReportData?.SectionBreakdown != null && ReportData.SectionBreakdown.Any())
             {
-                return ReportData.SectionBreakdown.Select(s => new SectionData
+                return ReportData.SectionBreakdown.Select((s, index) => new SectionData
                 {
                     Name = s.SectionName,
                     Revenue = s.Revenue,
@@ -759,21 +759,13 @@
                     ActiveStalls = s.ActiveStalls,
                     ClosedStalls = s.ClosedStalls,
                     NoContractStalls = s.NoContractStalls,
-                    Color = GetSectionColor(s.SectionName)
+                    Color = SectionColorAt(index)
                 }).ToList();
             }
 
             return new List<SectionData>();
         }
     }
-
-    private string GetSectionColor(string sectionName) => sectionName switch
-    {
-        "Vegetable Area" or "Corner Stalls" => "#2d7a5f",
-        "Fish Area" or "Extension Area" => "#4a9eff",
-        "Meat Area" => "#c8a84b",
-        _ => "#2d7a5f"
-    };
 
     private DailyCollectionStreakDto? DailyCollectionStreak
         => ReportData?.DailyCollectionStreak;
@@ -803,6 +795,31 @@
             .Select(row => row with { Width = maxAmount > 0 ? ClampPercent((row.Amount / maxAmount) * 100m) : 0m })
             .ToList();
     }
+
+    /// <summary>
+    /// The three colours this chart has always used, applied in the order the sections are listed.
+    ///
+    /// <para>
+    /// They used to be chosen by matching the section's name against a fixed list. The canonical sections always matched — the
+    /// server sends canonical names and the tenant's own label is applied later, for display — but every section an LGU adds of
+    /// its OWN fell through to the default and was drawn in the first colour. So an LGU with two or more custom sections saw
+    /// them all in one colour, indistinguishable in a chart whose whole job is to separate them.
+    /// </para>
+    ///
+    /// <para>
+    /// Assigned by POSITION instead, cycling these three. No new colours were invented — the office asked for a restrained
+    /// palette — and the order the server sends is canonical sections first (Vegetable, Fish, Meat) then custom ones
+    /// alphabetically, so those three keep exactly the colours they had and Cantilan's report is unchanged.
+    /// </para>
+    ///
+    /// <para>
+    /// Three colours cannot separate more than three sections: a fourth repeats the first. That is the office's stated
+    /// preference over adding hues, and it is no worse than before — a fourth section was already drawn in the first colour.
+    /// </para>
+    /// </summary>
+    private static readonly string[] SectionColors = ["#2d7a5f", "#4a9eff", "#c8a84b"];
+
+    private static string SectionColorAt(int index) => SectionColors[index % SectionColors.Length];
 
     private string GetShortSectionName(string sectionName)
     {
