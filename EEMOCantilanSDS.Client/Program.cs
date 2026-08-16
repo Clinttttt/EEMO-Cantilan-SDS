@@ -39,6 +39,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+// HSTS must be configured, not left to its default, and this was learned the hard way: honouring the forwarded protocol made
+// UseHsts start emitting — it had been skipping every request while the app believed it was serving HTTP — and its default
+// policy OVERWROTE the explicit header below with a weaker one. The live response went from
+// "max-age=31536000; includeSubDomains" to "max-age=2592000", a year down to thirty days with subdomains dropped, purely as a
+// side effect of fixing the scheme. Set here so both writers state the same policy and it cannot matter which runs last.
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+});
+
 var app = builder.Build();
 
 // First in the pipeline, before anything reads the scheme — the security headers below and UseHttpsRedirection further down
