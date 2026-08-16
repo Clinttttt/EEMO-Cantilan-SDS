@@ -1,5 +1,8 @@
 @page "/settings/backups"
 @using Microsoft.AspNetCore.Authorization
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Authorization
+@using EEMOCantilanSDS.Application.Common.Tenancy
 @using EEMOCantilanSDS.Application.Dtos.Backup
 @using EEMOCantilanSDS.Application.Requests.Backup
 @using EEMOCantilanSDS.Domain.Common
@@ -378,13 +381,13 @@
         </div>
     </section>
 
-    <!-- ── Recent backups ── -->
+    <!-- ── Whole-database backup runs (operator only — the platform's own backup, every municipality at once) ── -->
     <section class="set-card">
         <div class="set-card-head">
             <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg></div>
             <div class="set-card-titles">
-                <div class="set-card-title">Recent backups</div>
-                <div class="set-card-sub">The latest backup runs</div>
+                <div class="set-card-title">Whole-database backup runs</div>
+                <div class="set-card-sub">The latest backup runs — every municipality at once, not this office alone</div>
             </div>
             <button class="set-link bk-refresh" @onclick="() => LoadRunsAsync()" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
         </div>
@@ -440,13 +443,13 @@
         }
     </section>
 
-    <!-- ── Recent restores ── -->
+    <!-- ── Whole-database restore runs (operator only — NOT this office's restore history above) ── -->
     <section class="set-card">
         <div class="set-card-head">
             <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
             <div class="set-card-titles">
-                <div class="set-card-title">Recent restores</div>
-                <div class="set-card-sub">The latest restore runs</div>
+                <div class="set-card-title">Whole-database restore runs</div>
+                <div class="set-card-sub">The latest restore runs — every municipality at once, not this office alone</div>
             </div>
             <button class="set-link bk-refresh" @onclick="() => LoadRestoreRunsAsync()" disabled="@_loadingRestoreRuns">Refresh<span class="set-link-arrow">↻</span></button>
         </div>
@@ -1149,11 +1152,26 @@
             return;
         }
 
-        // Every LGU Head uses the per-municipality section below. Whole-database backup/restore stays
-        // platform-operator (Cantilan Head) only — those API calls are PlatformOperator-gated, so only load
-        // them for the operator (a per-LGU Head would just get 403s).
-        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
-        _isOperator = string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase);
+        // Every LGU Head uses the per-municipality section below. The whole-database sections are platform-operator
+        // only — those API calls are PlatformOperator-gated, so they are loaded only for the operator (a per-LGU Head
+        // would just get 403s).
+        //
+        // WHO that is comes from PlatformOperatorPolicy: the same function the API's "PlatformOperator" policy calls.
+        // This page used to decide for itself, comparing the municipality claim with one LGU's code written straight into
+        // the markup — a third opinion on a rule that class exists to hold, and an incomplete one. It implemented only
+        // the backward-compatible fallback clause, so a DEDICATED operator account, which is the intended mechanism, was
+        // shown none of the controls the API already permits it. It also put a municipality's code in the portal, where
+        // no LGU's value belongs.
+        //
+        // The comparisons mirror the API's exactly, case for case. Being looser here would offer controls the API then
+        // refuses; being stricter would hide controls it allows.
+        _isOperator = PlatformOperatorPolicy.IsOperator(
+            isDedicatedOperator: string.Equals(
+                state.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true", StringComparison.OrdinalIgnoreCase),
+            role: isSuperAdmin ? PlatformOperatorPolicy.SuperAdminRole : null,
+            isDefaultTenant: string.Equals(
+                state.User.FindFirst(AppClaimTypes.Municipality)?.Value, TenantConstants.DefaultTenantCode,
+                StringComparison.Ordinal));
 
         if (_isOperator)
         {

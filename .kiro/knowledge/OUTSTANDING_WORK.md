@@ -682,8 +682,27 @@ the part that gets lost.
    LGU calls its own.
 
 And for item 6: **the portal gets its own request models** rather than continuing to post command types.
-- **The Backups page** has two different sections both headed "Recent backups" — one for in-app restore points, one for CI
-  runs. Confusing to read. `Backups.razor:824-826` also contradicts `BackupController.cs:37-43`.
+- **The Backups page's duplicate headings — DONE 2026-08-16, and it turned up something worse.** Four cards, not two: a platform
+  operator saw **two** headed "Recent backups" and **two** headed "Recent restores". The first pair is this LGU's own saved data
+  ("the most recent 15 are kept"); the second, inside `@if (_isOperator)`, is the whole-database workflow runs. Only an operator
+  sees both, which is why it survived — but an operator is exactly who must never confuse one municipality's restore with every
+  municipality's. Renamed to **"Whole-database backup runs"** and **"Whole-database restore runs"**, each subtitled "every
+  municipality at once, not this office alone". The office-facing pair keeps its plain wording. The old line numbers in this note
+  were stale; the titles were at 162/245/386/448.
+  - **The real find: the portal decided who the platform operator is BY ITSELF**, comparing the municipality claim against the
+    default tenant's code written straight into the markup. `PlatformOperatorPolicy` exists specifically to stop that — its own
+    summary says the rule once "lived in three" places and "they disagreed, and not harmlessly" — and the portal was a fourth.
+  - It carried only the documented FALLBACK clause (default tenant + SuperAdmin) and ignored the `IsPlatformOperator` account flag
+    entirely. So **a dedicated operator account — the intended mechanism, and what a fresh deployment gets — was shown none of the
+    whole-database controls the API already permits it**, while any SuperAdmin of the default tenant saw them.
+  - **Not a security hole:** every endpoint on `BackupController` is `[Authorize(Policy = "PlatformOperator")]`, checked before
+    concluding anything. The UI flag decided only what was DISPLAYED. Verified endpoint by endpoint.
+  - Now calls `PlatformOperatorPolicy.IsOperator` with the three facts from the claims, exactly as the API's policy does, using
+    `AppClaimTypes` and `TenantConstants.DefaultTenantCode` instead of literals. The comparisons mirror the API's case sensitivity
+    deliberately: looser would offer controls the API then refuses, stricter would hide ones it allows.
+  - `BackupsOperatorDecisionTests` states the decision for every combination that matters, and asserts **no file in the portal
+    contains the default tenant's code at all** — the multi-tenancy guard, asserted against the source because that is where the
+    fault lived. Both were proven load-bearing by reintroducing the old line.
 - **A pre-deploy backup gate now exists** (was: a deployment could migrate before a fresh backup existed). Added
   2026-08-14 as a `backup-gate` job in `deploy-production.yml`, between the test gate and the deployment:
   - It asks one question — does this deployment change the database schema? — by diffing the pushed range against
