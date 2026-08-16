@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Client;
 using EEMOCantilanSDS.Client.Components;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -85,19 +86,11 @@ if (!app.Environment.IsDevelopment())
 }
 
 // A mistyped address used to answer 404 with an EMPTY body: a blank white page stating nothing and offering no way back.
-// Verified against production, which is also how the first attempt at this was caught — the Blazor router's <NotFound> branch
-// alone is NOT enough. In a Blazor Web App endpoint routing rejects an unmatched path before any component renders, so
-// <NotFound> only ever covers navigation that happens INSIDE an already-running circuit. The server needs its own answer, and
-// re-execution is the one that keeps the address in the browser's bar and the 404 in the response, rather than redirecting and
-// pretending the page exists somewhere else.
+// The answer is a fallback ENDPOINT, at the bottom of this file, after the routes it must not compete with.
 //
-// SCOPED AWAY FROM /api DELIBERATELY, and this is the part that would have broken sign-in. UseStatusCodePagesWithReExecute
-// answers EVERY status code that has no body, not just 404 — and AuthProxyController returns a bare Unauthorized() for a wrong
-// password and for a refused token refresh. Unscoped, those 401s would have come back carrying a "Page not found" HTML page for
-// the sign-in form to parse as its error.
-app.UseWhen(
-    context => !context.Request.Path.StartsWithSegments("/api"),
-    branch => branch.UseStatusCodePagesWithReExecute("/not-found"));
+// Status-code re-execution middleware was tried here first and removed: production showed an unmatched path returning an explicit
+// Content-Length of 0, and StatusCodePagesMiddleware does nothing when a length is already set, so it could never have fired. It
+// is worth knowing it was ruled out by evidence rather than left out by oversight.
 
 
 
@@ -114,5 +107,31 @@ app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
    .AddInteractiveServerRenderMode();
+
+// The address nothing claimed. A TERMINAL ENDPOINT, which is the third mechanism tried here and the first that does not depend on
+// framework behaviour this app cannot observe.
+//
+// What was tried and did not work, recorded so it is not tried again: the router's <NotFound> markup, which the framework itself
+// documents as ineffective in a Blazor Web App; Router.NotFoundPage, the .NET 10 replacement; and status-code re-execution
+// middleware. Each shipped, and production went on answering a mistyped address with 404 and zero bytes. Live responses showed
+// why the middleware could not work: an unmatched path without a dot comes back with an explicit Content-Length of 0, and
+// StatusCodePagesMiddleware deliberately does nothing when a length is already set.
+//
+// A fallback endpoint has no such condition. It matches when nothing else did, renders the same component every other route
+// would, and states the 404 itself.
+//
+//   - The :nonfile constraint keeps genuine asset requests out of it. A missing stylesheet or image must fail as a missing file,
+//     not answer a browser with a page of HTML.
+//   - /api is excluded because those callers are code, not people: the sign-in form and the token refresh read these responses,
+//     and handing them a page to parse instead of an empty 404 is how a "wrong password" turns into a parse error.
+//   - It renders NotFoundDocument, not the page itself. A fallback renders a COMPONENT, with nothing to supply the surrounding
+//     document, so rendering the page alone answered with bare unstyled markup - caught locally, before deploying.
+app.MapFallback("/{*path:nonfile}", (HttpContext context) =>
+    context.Request.Path.StartsWithSegments("/api")
+        ? Results.NotFound()
+        : new RazorComponentResult<EEMOCantilanSDS.Client.Components.Pages.NotFoundDocument>
+        {
+            StatusCode = StatusCodes.Status404NotFound,
+        });
 
 app.Run();

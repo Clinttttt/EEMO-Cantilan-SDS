@@ -113,6 +113,35 @@ public class PageNotFoundTests : TestContext
     }
 
     [Fact]
+    public void TheFallbackDocumentIsAWHOLEPageAndCarriesTheStylesheet()
+    {
+        // The fallback endpoint renders a COMPONENT, and nothing supplies the document around it. The first working version
+        // answered a mistyped address with 219 bytes of bare markup, which a browser shows as unstyled black text on white -
+        // caught by running the app locally rather than by any test, which is why this one exists.
+        //
+        // app.css is the only stylesheet asserted because it is the only one this page needs: .empty-state, .btn-primary and the
+        // colour variables all live in it.
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(new TokenService());
+
+        var markup = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.NotFoundDocument>().Markup;
+
+        Assert.Contains("<!DOCTYPE html>", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("</html>", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("app.css", markup);
+        Assert.Contains("Page not found", markup);          // the shared component really is inside it
+        Assert.Contains("href=\"/login\"", markup);
+
+        // No Blazor script: the page has nothing that changes and its only control is a link, so it must not depend on a circuit
+        // connecting - which is also why the way back is an anchor.
+        Assert.DoesNotContain("blazor.web.js", markup);
+    }
+
+    [Fact]
     public void TheROUTERIsWiredToItForAnUnmatchedAddress()
     {
         // Asserts the WIRING, not a render, and deliberately so. The tests above all pass whether or not the router knows this

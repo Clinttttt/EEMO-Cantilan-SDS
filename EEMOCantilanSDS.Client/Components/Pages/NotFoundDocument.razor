@@ -1,0 +1,33 @@
+@using EEMOCantilanSDS.Client.Components.Shared
+
+@* A COMPLETE document for the one case that has none: an address nothing claimed.
+
+   The fallback endpoint renders a component directly, not the application root, so nothing supplies the surrounding page - the
+   first working version answered with 219 bytes of bare markup, which a browser would have shown as unstyled black text. Verified
+   locally before it left the machine.
+
+   Deliberately minimal, and lighter than App.razor rather than a copy of it. No Blazor script, no circuit, no boot splash, no
+   SignalR: this page shows nothing that changes and its only control is a link, so it needs no interactivity and should not pay
+   for any. app.css alone carries everything it uses - .empty-state, .btn-primary and the colour variables all live there - and it
+   is requested through Assets so the fingerprinted, cache-correct URL is used.
+
+   The routable /not-found page stays separate and stays a fragment, because when Blazor is already running the document exists
+   and a second <html> inside it would be invalid. Same page, two frames: this one supplies the frame, that one does not need to. *@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="icon" type="image/png" href="/images/stalltrack-final-logo-transparent.png" />
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <title>Page not found</title>
+</head>
+
+<body>
+    <PageNotFound />
+</body>
+
+</html>
