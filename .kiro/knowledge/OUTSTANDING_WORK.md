@@ -500,8 +500,28 @@ RESOLVED 2026-08-16 on the office's ruling, and now ONE rule:
     **If the office ever reports a contract showing no term, that is the row to look for.**
 - `StallContractStatus`'s parameterless `IsCurrentVendor(dto)` overload still reads the static clock. It delegates to an
   `IsCurrentVendor(dto, today)` that IS testable, and its single caller is in the Client — so it belongs with the Client bucket.
-- **~205 in the Client.** Mostly display defaults and date-picker seeds. Lowest value, and worth judging individually rather
-  than sweeping: a date picker defaulting to today is not a rule about money.
+- **The Client's clock reads — AUDITED 2026-08-17, and the audit is the answer.** The count was **241 sites in 62 files**, not ~205:
+  `PhilippineTime.Now` 147, `PhilippineTime.Today` 58, `ToPhilippineTime` 29, plus 7 raw `DateTime.*`. Every one was classified before
+  anything was changed, and **only one was a defect**. Converting the rest would be churn.
+  - **The reason most of them are fine is worth stating, because it is easy to forget: this is Blazor SERVER.** All of it runs on the
+    server, so `PhilippineTime.Now` is the server's clock in Philippine time — there is no browser clock to distrust, and none of
+    these is the "untestable static clock" problem the server-side work was about.
+  - **80 display or formatting** (`ToString`, interpolation, year/month labels). **114 field and property initialisers** — form
+    defaults and date-picker seeds, e.g. a slaughter transaction's date defaulting to today. **Calendar and navigation seeds**
+    (`DailyCollectionCalendar`, `Report`, `CollectionExceptions`, `LiveClock`, `Transactions`' future-date clamp) legitimately want
+    the real today. **2 API arguments**, both asking for the current month's view in `Profile`. All correct as they stand.
+  - **7 raw `DateTime` sites, none a defect.** Four are UTC-to-UTC comparisons that must stay UTC (JWT expiry ×2, a health span, a
+    backup trigger timestamp). `FacilityPaymentModal`'s `SavedAt` is written and **never read anywhere** — dead. `PayorDemoData` uses
+    `DateTime.Now` but the whole class is **referenced nowhere** — dead code, and worth deleting on its own merits.
+  - **7 sites evaluate contract expiry in the portal** (`DomainRules.TermHasExpired` in six facility pages and one import screen).
+    Left alone deliberately: they call the SHARED domain rule, so there is no second opinion — only a display badge computed from it.
+  - **THE ONE DEFECT: "Expiring soon" on the stall profile.** It wrote the renewal window as a literal `3` months AND omitted the
+    "not already expired" half of the rule, so **a term that ran out two years ago was badged "Expiring soon"** — the one thing that
+    badge exists to distinguish. `Vendor.razor` had the logic right but also hardcoded the 3. Both now use
+    `DomainRules.ExpiringSoonMonths`, and the profile matches `Contract.IsExpiringSoonOn`.
+    - `ExpiringSoonWindowTests` pins the rule at its boundaries AND asserts against the markup that neither screen holds its own
+      copy — the domain tests alone stayed green while the page mislabelled an expired term, which is why the source assertions
+      exist. Both faults proven caught by reintroducing each one.
 - **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the
   interceptor.
 

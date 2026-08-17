@@ -1,6 +1,7 @@
 @page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject IJSRuntime JS
@@ -269,7 +270,7 @@
                                                 {
                                                     var expiry = v.ContractDate.Value.AddYears(v.ContractYears);
                                                     var expired = expiry < _now;
-                                                    var soon = !expired && expiry <= _now.AddMonths(3);
+                                                    var soon = !expired && expiry <= _now.AddMonths(DomainRules.ExpiringSoonMonths);
                                                     <div class="contract-term">@v.ContractYears yr@(v.ContractYears > 1 ? "s" : "")</div>
                                                     <div class="contract-exp @(expired ? "exp-bad" : soon ? "exp-soon" : "exp-ok")">
                                                         @(expired ? "expired " : "exp ")@expiry.ToString("MMM yyyy")

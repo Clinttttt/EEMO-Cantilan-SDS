@@ -1,6 +1,7 @@
 @page "/profile/{FacilityId}/{StallKey}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @inject IStallsApiClient StallsApi
@@ -275,9 +276,23 @@
                             </div>
                             <div class="prof-field">
                                 <span class="prof-field-label">Contract Expiry</span>
-                                <span class="prof-field-val @(Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < PhilippineTime.Now.AddMonths(3) ? "text-warn" : "")">
-                                    @(Stall.ContractExpiry.HasValue? Stall.ContractExpiry.Value.ToString("MMMM d, yyyy") : "—")
-                                    @if (Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < PhilippineTime.Now.AddMonths(3))
+                                @* "Expiring soon" is the office's renewal window, and it is the DOMAIN's rule - not this page's.
+                                   Two faults were here. The window was written as a literal 3 months, so changing
+                                   DomainRules.ExpiringSoonMonths would have left this badge disagreeing with every other screen
+                                   and with the server. And the "not already expired" half of the rule was missing, so a term that
+                                   ran out two years ago was labelled "Expiring soon" rather than expired - the one thing the badge
+                                   exists to distinguish. Contract.IsExpiringSoonOn states it as
+                                   "!IsExpiredOn(asOf) && ExpiryDate <= asOf.AddMonths(ExpiringSoonMonths)"; this now says the same,
+                                   in the same shape the vendor registry uses, and is computed once instead of twice inline. *@
+                                @{
+                                    var expiry = Stall.ContractExpiry;
+                                    var expired = expiry.HasValue && expiry.Value < PhilippineTime.Now;
+                                    var expiringSoon = expiry.HasValue && !expired
+                                        && expiry.Value <= PhilippineTime.Now.AddMonths(DomainRules.ExpiringSoonMonths);
+                                }
+                                <span class="prof-field-val @(expiringSoon ? "text-warn" : "")">
+                                    @(expiry.HasValue ? expiry.Value.ToString("MMMM d, yyyy") : "—")
+                                    @if (expiringSoon)
                                     {
                                         <span class="prof-expiry-warn">Expiring soon</span>
                                     }
