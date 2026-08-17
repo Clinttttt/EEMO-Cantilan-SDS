@@ -16,8 +16,25 @@
     <div class="setup-left @(_isDefaultBrand ? "" : "setup-left--neutral")">
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
+                @* The municipality's own seal, and only when it has one. The CARD always stands, because onboarding is where an LGU
+                   uploads its seal and the slot is kept for it to fill. It is simply not filled with StallTrack's mark under the
+                   LGU's name meanwhile: a vendor's mark does not stand in for a government seal, and the alt text would have told a
+                   screen reader it did. Cantilan's seal is unaffected. *@
                 <div class="government-logo-card">
-                    <img src="@SealPath" alt="@MunicipalityName seal" />
+                    @if (HasOwnSeal)
+                    {
+                        <img src="@SealPath" alt="@MunicipalityName seal" />
+                    }
+                    else
+                    {
+                        <svg class="seal-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                             stroke-linecap="round" stroke-linejoin="round" role="img"
+                             aria-label="@MunicipalityName has not uploaded its official seal yet">
+                            <path d="M3 21h18" />
+                            <path d="M5 21V10l7-5 7 5v11" />
+                            <path d="M9 21v-6h6v6" />
+                        </svg>
+                    }
                 </div>
                 <div class="government-logo-card stalltrack-logo">
                     <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
@@ -301,6 +318,10 @@
     const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
     const string NeutralSealPath = "/images/stalltrack-seal.png";
     string SealPath = DefaultSealPath;
+
+    // Whether the seal shown actually belongs to the municipality named beside it. False only when this LGU has none of
+    // its own, in which case the card renders an empty slot rather than borrowing StallTrack's mark.
+    bool HasOwnSeal => SealPath != NeutralSealPath;
     string MunicipalityName = "Cantilan";
     string OfficeAcronym = "EEMO";
     string OfficeName = "Economic Enterprise and Management Office";

@@ -125,8 +125,25 @@ The office's rule, confirmed 2026-08-16:
 - **A tenant code must never decide anything in the portal.** Branding defaults are cosmetic; a decision keyed on a tenant string
   grants or withholds. See `BackupsOperatorDecisionTests`.
 
-The same borrowed-seal fallback still exists in `AccountSetup`, `ForgotPassword`, `ResetPassword`, `VerifyEmail` and
-`BrandingState` (which serves the signed-in portal). **Not yet fixed.**
+The same borrowed-seal fallback existed in five more places and is now **FIXED across all of them (2026-08-17)**. The full set was three
+components that render a municipal seal — `Login` (fixed first), the shared `AuthBrandPanel` behind forgot-password, reset-password and
+verify-email, and `AccountSetup` — plus `BrandingState`, which serves the signed-in portal. `AdminActivate` was checked and renders only
+the StallTrack card, so it had nothing to borrow.
+
+- **`BrandingState` was the serious one.** Its `SealPath` is rendered at **31 places in 22 files, most of them PRINTED** — official
+  reports, the collection receipt, the stallholder list, a payor's history. An LGU with no seal on file was **issuing documents carrying
+  the vendor's emblem, labelled as its own seal**. A private company's mark does not belong on a government document.
+  - Fixed at the source rather than across 22 files: the fallback is now `WaitingSealPath`, a faint municipal-hall outline inline as a
+    data URI. Every render site is correct without being touched, no asset was added, and it scales cleanly in print because it is
+    vector. `HasOwnSeal` is exposed for any screen that would rather omit the seal than show a placeholder.
+- The placeholder rule moved from `Login.razor.css` into **app.css**, because three components need it and Blazor's scoped CSS never
+  crosses a component. Keeping a copy per stylesheet is how the four existing copies of `.government-logo-card` came to exist, and how
+  they will drift.
+- Cantilan is unaffected throughout: it keeps its own seal, as the office this system belongs to.
+- Verified locally on each screen — Cantilan keeps its seal, and forgot-password, reset-password and verify-email show the waiting slot
+  for an LGU without one. `/account-setup-admin` could not be seen rendered because that route 302s once setup is complete; its fix is
+  in place for a genuine first-time setup.
+- `LoginSealTests` now asserts across all three markup files AND against `BrandingState`, each proven by reintroducing the fault.
 
 ## What lives on the landing site, and therefore cannot be changed from here
 

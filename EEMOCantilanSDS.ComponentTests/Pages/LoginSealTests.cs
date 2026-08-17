@@ -86,6 +86,57 @@ public class LoginSealTests
         Assert.Empty(borrowed);
     }
 
+    [Fact]
+    public void NoSCREENPutsStallTracksSealUnderAMunicipalitysName()
+    {
+        // Login was fixed first, and the same fallback turned out to be in four more places. Asserted across all of them, by
+        // markup, because that is where the fault lives: an <img> whose src is the neutral sentinel and whose alt names the
+        // municipality.
+        //
+        // AuthBrandPanel is the shared panel behind forgot-password, reset-password and verify-email, so one fix covered three
+        // screens. AdminActivate was checked and renders only the StallTrack card, with no municipal seal to borrow.
+        foreach (var page in new[]
+                 {
+                     Path.Combine("Components", "Pages", "Login.razor"),
+                     Path.Combine("Components", "Pages", "AccountSetup.razor"),
+                     Path.Combine("Components", "Pages", "Shared", "AuthBrandPanel.razor"),
+                 })
+        {
+            var markup = File.ReadAllText(Path.Combine(RepositoryRoot(), "EEMOCantilanSDS.Client", page));
+
+            Assert.Contains("HasOwnSeal", markup);
+            Assert.Contains("seal-placeholder", markup);
+
+            var borrowed = markup
+                .Split('\n')
+                .Where(l => l.Contains("<img", StringComparison.OrdinalIgnoreCase)
+                            && l.Contains("stalltrack-seal", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            Assert.Empty(borrowed);
+        }
+    }
+
+    [Fact]
+    public void THEPRINTEDDocumentsDoNotCarryTheVendorsMarkEither()
+    {
+        // The worst of it, and the reason this went beyond the sign-in pages. BrandingState.SealPath is rendered at 31 places, most
+        // of them PRINTED - official reports, the collection receipt, the stallholder list, a payor's history. An LGU with no seal
+        // on file was issuing documents carrying StallTrack's emblem, labelled as its own seal.
+        //
+        // Fixed at the source rather than across 22 files: the fallback is now a waiting slot, so every one of those render sites is
+        // correct without being touched.
+        var branding = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "EEMOCantilanSDS.Client", "Services", "BrandingState.cs"));
+
+        Assert.DoesNotContain("stalltrack-seal.png", branding);
+        Assert.Contains("WaitingSealPath", branding);
+        Assert.Contains("data:image/svg+xml;base64,", branding);
+
+        // Cantilan's own seal is untouched — the office this system belongs to keeps its mark.
+        Assert.Contains("LGU_CANTILAN_LOGO.jpg", branding);
+    }
+
     private static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

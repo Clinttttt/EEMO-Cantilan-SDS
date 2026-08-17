@@ -2103,3 +2103,31 @@ a.topbar-admin.account-chip {
     .pw-reveal-wrap > input {
         padding-right: 38px;
     }
+
+/* ══════════════════════════════════════════
+   WAITING SEAL SLOT
+══════════════════════════════════════════ */
+/* Shown in the municipal seal card of a municipality that has not uploaded its seal yet. Onboarding is where that
+   is filled in, so the card keeps its place; this only has to look like an empty slot rather than a seal.
+
+   It used to be filled with StallTrack's own seal under the LGU's name - the product's mark twice over, one of
+   them labelled as a municipal seal - which is the fault this replaces.
+
+   GLOBAL, not scoped, and deliberately so: three components render that card (the sign-in page, the shared
+   AuthBrandPanel behind forgot/reset/verify, and account setup), and Blazor's scoped CSS never crosses a
+   component boundary. A copy per stylesheet is how the four existing copies of .government-logo-card came to
+   exist, and how they will drift.
+
+   Sized to sit inside the 96px circle with room to breathe, and drawn in the muted text colour so it recedes
+   instead of competing with the StallTrack mark beside it. No new colour is introduced. */
+.seal-placeholder {
+    /* Filling the card and padding inwards centres the glyph by geometry. The card is not a flex container, and
+       making it one would change how the real seal sits in every other municipality's card - so the centring is
+       done here, where it affects nothing else. */
+    width: 100%;
+    height: 100%;
+    padding: 27px;
+    box-sizing: border-box;
+    color: var(--text-muted, #6a8aa0);
+    opacity: 0.45;
+}

@@ -15,8 +15,28 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public const string DefaultOfficeName = "Economic Enterprise & Management Office";
     public const string DefaultOfficeAcronym = "EEMO";
     public const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
-    // Neutral platform seal for a non-default LGU that hasn't uploaded its own — never Cantilan's.
-    public const string NeutralSealPath = "/images/stalltrack-seal.png";
+
+    /// <summary>
+    /// What stands in the seal's place for an LGU that has not uploaded one yet.
+    ///
+    /// <para>
+    /// This used to be StallTrack's own seal, and the consequence was worse than a login page looking odd: <c>SealPath</c> is
+    /// rendered at 31 places, and most of them are PRINTED - official reports, the collection receipt, the stallholder list, the
+    /// payor's history. A municipality with no seal on file was therefore issuing documents with the VENDOR's mark on them, labelled
+    /// as its own seal. A private company's emblem does not belong on a government document.
+    /// </para>
+    ///
+    /// <para>
+    /// A faint outline of a municipal hall, inline as a data URI so no consumer changes and no asset is added. It reads plainly as
+    /// "no seal yet", which is the truth until onboarding collects one, and it scales cleanly in print because it is vector.
+    /// Cantilan is unaffected: it keeps <see cref="DefaultSealPath"/>.
+    /// </para>
+    /// </summary>
+    public const string WaitingSealPath =
+        "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0i" +
+        "bm9uZSIgc3Ryb2tlPSIjNmE4YWEwIiBzdHJva2Utd2lkdGg9IjEuNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5k" +
+        "IiBvcGFjaXR5PSIwLjQ1Ij48cGF0aCBkPSJNMyAyMWgxOCIvPjxwYXRoIGQ9Ik01IDIxVjEwbDctNSA3IDV2MTEiLz48cGF0aCBkPSJNOSAyMXYtNmg2" +
+        "djYiLz48L3N2Zz4=";
     public const string DefaultMunicipality = "Cantilan";
     public const string DefaultProvince = "Surigao del Sur";
 
@@ -66,10 +86,17 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public string OfficeAcronym =>
         !string.IsNullOrWhiteSpace(_branding?.OfficeAcronym) ? _branding!.OfficeAcronym!
         : IsDefaultTenant ? DefaultOfficeAcronym : Municipality;
-    // A set seal wins; otherwise Cantilan keeps its own logo and every other LGU gets the neutral seal.
+    // A set seal wins; otherwise Cantilan keeps its own logo and every other LGU gets the waiting slot - never StallTrack's mark,
+    // which is what this used to hand to 31 render sites, most of them printed documents.
     public string SealPath =>
         !string.IsNullOrWhiteSpace(_branding?.SealPath) ? _branding!.SealPath!
-        : IsDefaultTenant ? DefaultSealPath : NeutralSealPath;
+        : IsDefaultTenant ? DefaultSealPath : WaitingSealPath;
+
+    /// <summary>
+    /// Whether the seal on screen actually belongs to the municipality named beside it. For a screen that would rather omit the seal
+    /// entirely than show a placeholder - a printed document, say - this is the question to ask.
+    /// </summary>
+    public bool HasOwnSeal => SealPath != WaitingSealPath;
     public string Municipality => Nonempty(_branding?.Name, DefaultMunicipality);
     public string Province => Nonempty(_branding?.Province, DefaultProvince);
 
