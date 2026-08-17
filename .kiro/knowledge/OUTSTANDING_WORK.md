@@ -606,7 +606,7 @@ online-payment handlers depend on it. In a deployment missing that key those thr
 startup — fail-late where fail-fast would be kinder. The composition test supplies the key so it represents a configured
 deployment; making startup refuse instead is a separate decision.
 
-### 10. Strengthen the architecture tests — PARTLY DONE
+### 10. Strengthen the architecture tests — DONE, with two deliberate gaps
 
 DONE:
 
@@ -628,14 +628,39 @@ STILL TO DO, and each is blocked by an unfinished item rather than by effort:
 - **Application free of EF** — answered as a BOUNDARY, not an absence: `ApplicationEfBoundaryTests` pins the 38 files that use EF and
   fails when a 39th appears. The full absence still needs item 5's per-feature conversion, which was measured and declined as a sweep;
   the reasoning and the evidence are under item 5. The allow-list emptying is what would make the original test free.
-- **No API-client interfaces in Application** — needs item 6 (the Contracts project).
+- **No API-client interfaces in Application** — will not be built. It needed item 6, which the office closed: the portal keeps posting
+  command types because that is what makes the wire contract compile-checked across 70 endpoints. A deliberate gap, not pending work.
 - **Cross-tenant services explicitly named** — DONE. `CrossTenantReadsAreNamedTests` pins the 86 `IgnoreQueryFilters()` call
   sites, by file, each under the pattern that justifies it. See item 1's residuals for the audit.
 - **API policy and Application authorization share one authorizer** — unified behind `PlatformOperatorPolicy` in `8d58fc9`,
   but asserting it structurally means reading an authorization-policy lambda. Judged too brittle to be worth it; the
   behavioural tests in `PlatformOperatorGuardTests` cover the rule itself.
 
-### 11. Reorganize Application into feature folders — NOT STARTED, DO LAST
+### 11. Reorganize Application into feature folders — CLOSED 2026-08-18, the office decided the current structure stands
+
+**Decision: keep it. This is CQRS over Clean Architecture, not vertical slices, and the current layout is the coherent expression of
+that.** Feature folders are a vertical-slice idiom; adopting them here would half-adopt an architecture this system does not use.
+
+Checked before agreeing, because "leave it" deserves evidence as much as a change does:
+
+- `Command/` (262 files) and `Queries/` (275) are **already grouped by feature** — Auth, Onboarding, Payments, Rates, Collectors,
+  DailyCollections, Municipalities, and so on.
+- Each use case **already has its own folder** holding its command, handler and validator together, e.g.
+  `Command/Payments/BulkImportDailyHistory/` contains exactly `BulkImportDailyHistoryCommand.cs`,
+  `…CommandHandler.cs`, `…CommandValidator.cs`.
+- `Dtos/` (107 files) **mirrors the same feature names** — `Dtos/Auth`, `Dtos/Onboarding`, `Dtos/Payments`.
+
+So the shape is layer → feature → use case, and a use case is already co-located. The only thing a vertical slice would add is putting
+each DTO in the same folder as its handler — and since the DTOs are already grouped under the same feature names, that is a small gain
+against moving roughly **660 files** and changing every namespace in the layer.
+
+**What would change this.** If the team ever moves to vertical slices deliberately, this is the change to make, and it should be made
+wholesale rather than as a partial migration that leaves two conventions side by side. Short of that, the current structure is not a
+compromise — it is the right answer for the architecture in use.
+
+**The architecture backlog is now closed.** Items 1, 2, 3, 4, 7, 8, 9 done; item 5 answered as a pinned boundary with per-feature
+conversion left as opportunistic work; items 6 and 11 closed as decisions with their reasoning recorded; item 10 done except the two
+tests that 5 and 6 would have unlocked, which are now deliberate gaps rather than pending work.
 
 `Command`/`Queries`/`Dtos`/`Requests` scatter each capability. File moves only, no behaviour. Last, because it churns
 every path and would bury a real change in the diff.
