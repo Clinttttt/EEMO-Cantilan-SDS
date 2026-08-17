@@ -239,7 +239,33 @@ treat a throttled request as a bad one. `ResultStatusMappingTests` pins that tra
 `Result<T>.StatusCode` stays: `HttpClients/HandleResponse.cs` builds a Result FROM a real HTTP response, where the number is the
 input.
 
-### 5. Replace `IAppDbContext` feature by feature — NOT STARTED
+### 5. Replace `IAppDbContext` feature by feature — BOUNDARY PINNED 2026-08-17; the sweep is deliberately NOT done
+
+**What was done: `ApplicationEfBoundaryTests`.** EF sits in **38 of Application's 790 files**, and it can no longer spread to a 39th
+without somebody adding the name deliberately. That is the part of "Application free of EF" that carries the architectural value, and it
+carries none of the risk.
+
+**Why the conversion itself was measured and then declined as a sweep.** The obvious move — point each of the 35 handlers at the
+repository interface that already exists — is NOT a swap. The clearest case proves it:
+
+| | Query |
+|---|---|
+| `GetMyOfficeProfileQueryHandler` | `context.Municipalities.IgnoreQueryFilters().FirstOrDefaultAsync(...)` |
+| `IMunicipalityRepository.GetByIdAsync` | `context.Municipalities.AsNoTracking().FirstOrDefaultAsync(...)` |
+
+They differ on the query filter, and **`Municipality` IS soft-deletable**, so the filter is real: the handler finds a soft-deleted
+municipality and the repository does not. Swapping them would quietly turn a loaded office profile into a 404. Verified, not assumed —
+`ApplyQueryFilters` applies `!IsDeleted` to every `AuditableEntity`.
+
+Every one of the 35 needs that comparison made, and they cluster in **auth, account recovery and onboarding** — where a silent behaviour
+change is worst and least visible. Against a benefit that is architectural rather than behavioural, a sweep is the wrong trade.
+
+**It is still worth doing per feature**, when a feature is being changed anyway and its queries are being read properly. The allow-list
+makes that progress visible: convert a handler, and `TheAllowedSetHasNoDEADEntries` tells you to remove its name. When the list empties,
+the EF package reference can come out of Application and the review's original test becomes free.
+
+The clusters, for whoever picks one up: onboarding/assessment (12), auth/recovery/MFA (11), rates and OR series (6), municipality profile
+and payment settings (4), platform operator (2), online payments (2), plus the seam itself and the paging helper.
 
 37 call sites, 38 EF imports in Application. Do NOT run as a campaign: convert a feature only while already changing it.
 Each one risks a behaviour change in authentication or onboarding. Remove the EF package reference from Application only
@@ -599,7 +625,9 @@ STILL TO DO, and each is blocked by an unfinished item rather than by effort:
 
 - **No HTTP status codes in Domain** — DONE. `Domain_KnowsNothingAboutHttp` asserts `Result<T>` and `CursorPagedResult<T>` are
   absent from Domain AND present in Application, so it cannot pass by their having been deleted.
-- **Application free of EF** — needs item 5 (`IAppDbContext` exposes `DbSet`).
+- **Application free of EF** — answered as a BOUNDARY, not an absence: `ApplicationEfBoundaryTests` pins the 38 files that use EF and
+  fails when a 39th appears. The full absence still needs item 5's per-feature conversion, which was measured and declined as a sweep;
+  the reasoning and the evidence are under item 5. The allow-list emptying is what would make the original test free.
 - **No API-client interfaces in Application** — needs item 6 (the Contracts project).
 - **Cross-tenant services explicitly named** — DONE. `CrossTenantReadsAreNamedTests` pins the 86 `IgnoreQueryFilters()` call
   sites, by file, each under the pattern that justifies it. See item 1's residuals for the audit.
