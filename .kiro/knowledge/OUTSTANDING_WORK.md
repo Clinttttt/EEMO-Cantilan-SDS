@@ -510,9 +510,15 @@ RESOLVED 2026-08-16 on the office's ruling, and now ONE rule:
     defaults and date-picker seeds, e.g. a slaughter transaction's date defaulting to today. **Calendar and navigation seeds**
     (`DailyCollectionCalendar`, `Report`, `CollectionExceptions`, `LiveClock`, `Transactions`' future-date clamp) legitimately want
     the real today. **2 API arguments**, both asking for the current month's view in `Profile`. All correct as they stand.
-  - **7 raw `DateTime` sites, none a defect.** Four are UTC-to-UTC comparisons that must stay UTC (JWT expiry ×2, a health span, a
-    backup trigger timestamp). `FacilityPaymentModal`'s `SavedAt` is written and **never read anywhere** — dead. `PayorDemoData` uses
-    `DateTime.Now` but the whole class is **referenced nowhere** — dead code, and worth deleting on its own merits.
+  - **7 raw `DateTime` sites, now 4, none ever a defect.** The four that remain are UTC-to-UTC comparisons that must stay UTC (JWT
+    expiry ×2, a health span, a backup trigger timestamp). The other three went with the dead code below.
+  - **Both dead spots DELETED 2026-08-17**, for the same reason the admin console's seeded records went: dead data that reads as real
+    is worse than dead data.
+    - `PaymentSubmitDto.SavedAt` was stamped with `DateTime.UtcNow` and read by nobody — no consumer of `OnSave` ever looked at it, so
+      it recorded a time that answered no question. When a payment is recorded is the server's to stamp, not a modal's.
+    - `PayorDemoData` was **referenced nowhere** and fabricated a named payor with outstanding balances (₱2,400 unpaid, ₱1,200
+      partial) and a payment history carrying **OR numbers** — 124533, 120114, 118402 — against a REAL facility, Tampak Commercial
+      Center. Invented receipt numbers have no business sitting in a revenue system's source, even unreferenced.
   - **7 sites evaluate contract expiry in the portal** (`DomainRules.TermHasExpired` in six facility pages and one import screen).
     Left alone deliberately: they call the SHARED domain rule, so there is no second opinion — only a display badge computed from it.
   - **THE ONE DEFECT: "Expiring soon" on the stall profile.** It wrote the renewal window as a literal `3` months AND omitted the

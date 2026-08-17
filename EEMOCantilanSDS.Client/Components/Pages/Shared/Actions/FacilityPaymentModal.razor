@@ -396,8 +396,7 @@
                     {
                         StallId = GetStallId(Stall!),
                         OrNumber = OrNumber.Trim(),
-                        Remarks = Remarks,
-                        SavedAt = DateTime.UtcNow
+                        Remarks = Remarks
                     });
                 }
             }
@@ -478,6 +477,8 @@
         public object? StallId { get; set; }
         public string OrNumber { get; set; } = string.Empty;
         public string? Remarks { get; set; }
-        public DateTime SavedAt { get; set; } = DateTime.UtcNow;
+        // No SavedAt. It was stamped here with DateTime.UtcNow and read by nobody - no consumer of OnSave ever
+        // looked at it - so it recorded a time that never answered a question. The moment a payment is recorded
+        // is the server's to stamp, not this modal's.
     }
 }
