@@ -1,10 +1,10 @@
-﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Settings â€” system configuration overview. Government-restrained: neutral
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Settings — system configuration overview. Government-restrained: neutral
    white cards, navy headers, gold accent. Reuses the app design tokens and the
    shared vs-hero stat strip (vs-hero is defined per page, so it lives here too).
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
-/* â”€â”€ Hero banner + KPI strip â”€â”€ */
+/* ── Hero banner + KPI strip ── */
 .vs-hero {
     position: relative;
     background: var(--navy);
@@ -65,7 +65,7 @@
 @media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
 @media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
 
-/* â”€â”€ Cards â”€â”€ */
+/* ── Cards ── */
 .set-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -106,7 +106,7 @@
 .set-card-title { font-size: 14.5px; font-weight: 800; color: var(--navy); }
 .set-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
-/* â”€â”€ Facility rules table â”€â”€ */
+/* ── Facility rules table ── */
 .set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .set-table thead th {
     text-align: left;
@@ -131,7 +131,7 @@
 }
 .set-td-r { color: var(--text-muted); font-weight: 600; }
 
-/* â”€â”€ Key/value rows â”€â”€ */
+/* ── Key/value rows ── */
 .set-rows { display: flex; flex-direction: column; }
 .set-row {
     display: flex; align-items: center; justify-content: space-between; gap: 14px;
@@ -162,10 +162,10 @@
 .set-link-arrow { transition: transform .14s ease; }
 .set-link:hover .set-link-arrow { transform: translateX(3px); }
 
-/* â”€â”€ Footer â”€â”€ */
+/* ── Footer ── */
 .set-foot { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11.5px; line-height: 1.9; color: var(--text-subtle); }
 
-/* â”€â”€ Loading / error states â”€â”€ */
+/* ── Loading / error states ── */
 .set-state {
     display: flex;
     flex-direction: column;
@@ -204,7 +204,7 @@
 @media (max-width: 900px) { .set-grid { grid-template-columns: 1fr; } }
 
 
-/* â”€â”€ Session / sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Session / sign out ─────────────────────────────────── */
 .set-session {
     display: flex;
     align-items: center;
@@ -270,7 +270,7 @@
 }
 
 
-/* â”€â”€ Skeleton helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── Skeleton helpers ───────────────────────────────────────
    The page keeps its shell (topbar + hero + card frames/headers) visible at all
    times; only the data regions swap in the shared <Skeleton> shimmer while loading.
    These helpers center hero-stat placeholders and right-align table-cell ones. */

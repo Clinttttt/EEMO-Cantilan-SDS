@@ -177,7 +177,8 @@ Remaining, in order:
   contract. It is genuinely used — by `UtilityBillRepository` and the composition tests — so it was left alone, but it is a
   seam nobody has named.
 
-### 3. Move password hashing out of Domain — see above (DONE)
+**Item 3 (password hashing out of Domain) is recorded above**, in the position it was actually done in. It appeared here a second
+time as a duplicate `### 3` heading, which made the list read as though there were two item 3s.
 
 ### 4. Move `Result<T>` and paging models out of Domain — DONE
 
@@ -244,7 +245,22 @@ input.
 Each one risks a behaviour change in authentication or onboarding. Remove the EF package reference from Application only
 after the last caller goes.
 
-### 6. Extract a Contracts project — NOT STARTED
+### 6. Extract a Contracts project — CLOSED 2026-08-17, the office decided the current setup stands
+
+**Decision: leave it as it is. The portal keeps posting command types, and the compile-time wire check is the reason.**
+
+The measurement below is what the decision rests on, so it is kept rather than deleted. `[FromBody]` binds the COMMAND TYPE itself on
+70 endpoints, which is what makes the portal's wire contract checked by the compiler end to end: add a parameter to a command and the
+portal stops building, before anything is deployed. Accidental, but real protection on a money path.
+
+Giving the portal its own request models while the API went on binding commands would have removed that check and replaced it with
+nothing — drift appearing at runtime as a field the API silently ignores, a required record parameter arriving absent as a 400, or a
+decimal quietly defaulting to zero. Doing it safely meant the API binding the same models across all 70 endpoints: a large change
+whose main benefit was tidiness, weighed against a guarantee that already works.
+
+**If this is ever reopened**, it is only worth doing in that safe form — shared request models bound by BOTH sides, staged one
+controller at a time — and never as "the portal gets its own models" alone. The architecture test that wanted this (no API-client
+interfaces in Application) stays unbuilt for the same reason; that is now a deliberate gap, not an oversight.
 
 ~107 DTOs, 29 typed API-client interfaces and 19 request files sit in Application, so HttpClients, Blazor, MAUI and the
 tests depend on the whole assembly. Correct in principle and the largest single change on the list; do it after the
@@ -614,8 +630,11 @@ only the market days elapsed as of the report date.
 
 These cannot be answered by reading code.
 
-1. **Two Postgres firewall rules** (`ClientIPAddress_2026-7-6...`, `ClientIPAddress_2026-7-17...`) open specific IPs
-   indefinitely. Flagged; keeping or removing them is the office's call.
+1. **Two Postgres firewall rules — REMOVED 2026-08-17** on the office's instruction. They opened `180.194.5.178` and
+   `180.195.158.234` indefinitely, for machines nobody uses. `AllowAllAzureServicesAndResourcesWithinAzureIps` remains, which is how
+   the API and the backup workflow reach the database — verified straight after removal by `/health/ready` answering `ready` and
+   `/api/municipalities` still reading. A one-off inspection now needs a temporary rule for the current address, which is the
+   sequence recorded in `ONBOARDING_FLOW.md`.
 
 ---
 
@@ -897,13 +916,35 @@ And for item 6: **the portal gets its own request models** rather than continuin
     caught the missing document — as well as confirming a missing `.css`, an unknown `/api` path, sign-in, and the SignalR
     handshake were all still correct.
 
-- **Mojibake in `Accounts.razor.css` comments** (~a dozen lines, e.g. "ACCOUNTS PAGE â€" Toolbar"), from `0f8f3f02`. Comments
-  only — no selector, value or figure affected. Left alone deliberately: rewriting the file to repair comments would bury the
-  diff. Worth fixing if that file is edited substantially for another reason.
+- **Mojibake in five stylesheet comment blocks — REPAIRED 2026-08-17.** `Accounts`, `Collector`, `FacilityConfiguration`, `Menu`
+  and `Settings`. Comments only, and that was PROVEN rather than assumed: with every `/* … */` block stripped, the remaining CSS in
+  all five files is byte-identical before and after. Line endings were preserved per file (they differ — `Accounts` is all CRLF,
+  `FacilityConfiguration` is almost all LF), so the diff is 39 lines and no more.
+  - Three distinct manglings, each restored to what it was meant to be: `â€"` → `—` (em dash), `â"€` → `─`, and a six-character
+    run → `═`. The last had been through CP437 rather than CP1252, which is why it looked nothing like the others.
+  - **The sweep I had been using was BLIND to two of the three.** `Select-String -Pattern "Ã|â€"` matches the em-dash form but
+    NOT the mangled `─` or `═`, because neither contains the byte pair it looks for. It reported these files as clean while they
+    held 238 corrupt sequences — the check said what I wanted to hear. Use this instead, which looks for all three:
+
+    ```powershell
+    $bad = @([string]([char]226)+[char]8364+[char]8221,   # em dash, via CP1252
+             [string]([char]226)+[char]8221+[char]8364,   # box light horizontal
+             [string]([char]206)+[char]8220+[char]195+[char]178+[char]195+[char]8240)  # box double, via CP437
+    # plus the generic markers: "Ã" and "â€"
+    ```
   - Cause worth knowing, because it recurs: `powershell -File` on 5.1 reads a BOM-less script as ANSI, so em dashes inside a
     script's own string literals reach the files it writes already corrupted. The same thing damaged three comment lines during
-    the `CollectorRepository` split and was repaired in the commit after it. Sweep with
-    `Select-String -Pattern "Ã|â€"` before committing, and STOP when it reports something.
+    the `CollectorRepository` split and was repaired in the commit after it. Sweep BEFORE committing, and STOP when it reports.
+  - A further trap found while repairing these: PowerShell **silently drops console output** for lines containing these bytes, so
+    a scan can appear to find nothing when it found plenty. Print line NUMBERS and an ASCII-folded rendering, never the raw line.
 
-- **Orphaned CSS** in `FollowUpQueue.razor.css` (~157 unreachable lines). Left deliberately: that file has mixed line
-  endings and a bulk rewrite would normalise them and bury the diff.
+- **Orphaned CSS in `FollowUpQueue.razor.css` — REMOVED 2026-08-17.** 184 lines of dead rules: `.fq-intro*`, `.fq-scope*` and the
+  whole `.fq-pay-*` monthly-payment-modal block. Confirmed dead by scanning the ENTIRE Client: those tokens appear nowhere except
+  that stylesheet. The diff is `0 insertions, 184 deletions` — a pure removal.
+  - **Seven classes looked orphaned and were NOT.** `.fq-pri-critical/high/normal/review` and `.fq-sec-critical/high/review` never
+    appear literally in the markup because they are composed at runtime — `fq-pri-@PriClass(it.Priority)` and
+    `fq-sec-@grp.Section.Tone`. A name-by-name search called all 25 candidates unused; deleting the seven would have silently
+    stripped the priority and severity colour-coding off a screen the office uses to chase money. **Search by PREFIX, and read the
+    markup, before deleting a class.**
+  - The "mixed line endings" hazard recorded here was a working-copy illusion: `.gitattributes` sets `* text=auto`, so the file is
+    stored with LF whatever the checkout looks like, and the diff stayed clean.

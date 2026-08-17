@@ -1,5 +1,5 @@
-﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   ACCOUNTS PAGE â€” Toolbar
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   ACCOUNTS PAGE — Toolbar
    (mirrors the scoped styles used by the Collectors page so the
     shared class names render correctly on this page too)
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
@@ -597,7 +597,7 @@
         stroke-linejoin: round;
     }
 
-/* Registry table â€” comfortable, divided, official rows */
+/* Registry table — comfortable, divided, official rows */
 .data-table.registry-table {
     border-collapse: separate;
     border-spacing: 0;
@@ -724,7 +724,7 @@
     white-space: nowrap;
 }
 
-/* Role badge â€” refined, official, on-palette */
+/* Role badge — refined, official, on-palette */
 .role-badge {
     display: inline-flex;
     align-items: center;
@@ -762,7 +762,7 @@
         border-color: var(--border);
     }
 
-/* Role selector â€” segmented control in the create/edit drawer */
+/* Role selector — segmented control in the create/edit drawer */
 .role-select {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -806,7 +806,7 @@
         border-color: color-mix(in srgb, var(--gold) 55%, transparent);
     }
 
-/* Status â€” compact dot + label */
+/* Status — compact dot + label */
 .acct-status-cell {
     display: flex;
     flex-direction: column;
@@ -846,7 +846,7 @@
         background: var(--text-muted);
     }
 
-/* Password-reset flag â€” subtle gold, not alarming */
+/* Password-reset flag — subtle gold, not alarming */
 .acct-flag {
     display: inline-flex;
     align-items: center;
@@ -877,7 +877,7 @@
     justify-content: flex-end;
 }
 
-/* Responsive â€” drop secondary columns before forcing horizontal scroll */
+/* Responsive — drop secondary columns before forcing horizontal scroll */
 @media (max-width: 1024px) {
     .registry-table .cell-email {
         display: none;
@@ -1174,7 +1174,7 @@
 
 
 
-/* â”€â”€ Table-level loading skeleton (keeps tab chrome + panel visible) â”€â”€ */
+/* ── Table-level loading skeleton (keeps tab chrome + panel visible) ── */
 .accounts-table-loading {
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -1239,7 +1239,7 @@
 }
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   RESET PASSWORD â€” success confirmation
+   RESET PASSWORD — success confirmation
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .reset-success {
     display: flex;

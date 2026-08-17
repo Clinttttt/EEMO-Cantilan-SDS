@@ -1,5 +1,5 @@
-﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   DASHBOARD / MENU â€” Facility grid & Bottom row
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   DASHBOARD / MENU — Facility grid & Bottom row
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .facility-grid {
     display: grid;
@@ -108,7 +108,7 @@
     letter-spacing: .2px;
 }
 
-/* Paid-on-service indicator (SLH/TRM/TPM) replaces the rate progress bar â€” kept slim so it doesn't
+/* Paid-on-service indicator (SLH/TRM/TPM) replaces the rate progress bar — kept slim so it doesn't
    bloat the card relative to the stall cards' thin progress row. */
 .facility-onservice {
     display: inline-flex;
@@ -612,7 +612,7 @@ a.dashboard-report-tab:hover {
 
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   RESPONSIVE â€” dashboard (mobile/tablet â‰¤768px)
+   RESPONSIVE — dashboard (mobile/tablet â‰¤768px)
    Desktop (â‰¥769px) is untouched: these rules only exist below the breakpoint.
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 768px) {
@@ -669,7 +669,7 @@ a.dashboard-report-tab:hover {
     /* Recent Transactions (OR#/Payor/Facility/Amount/Recorded By/Time) doesn't fit a phone width even
        scrolled. Drop the least essential columns (1st = OR#, last = Time) and tighten padding so the
        remaining ones (Payor, Facility, Amount, Recorded By) read cleanly with no wrapped multi-line cells.
-       Scoped to THIS page's table only â€” other pages' data-tables are untouched. */
+       Scoped to THIS page's table only — other pages' data-tables are untouched. */
     .panel .data-table th:first-child,
     .panel .data-table td:first-child,
     .panel .data-table th:last-child,

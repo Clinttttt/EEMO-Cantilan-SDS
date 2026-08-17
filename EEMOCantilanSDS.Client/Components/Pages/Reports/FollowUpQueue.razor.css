@@ -6,30 +6,6 @@
    patterns (search field, dropdown-with-backdrop) for consistency.
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Hero strip ── */
-.fq-intro {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
-    color: #fff;
-    border-radius: 14px;
-    padding: 18px 22px;
-    margin-bottom: 16px;
-    box-shadow: 0 6px 18px rgba(13, 33, 55, .16);
-}
-.fq-intro-title { font-size: 17px; font-weight: 800; letter-spacing: .2px; }
-.fq-intro-sub { font-size: 12.5px; color: rgba(255, 255, 255, .76); margin-top: 3px; max-width: 560px; }
-.fq-intro-scope { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.fq-scope-pill {
-    background: rgba(200, 168, 75, .22); color: var(--gold-light);
-    border: 1px solid rgba(200, 168, 75, .4); border-radius: 999px;
-    padding: 5px 14px; font-size: 12px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
-}
-.fq-scope-note { font-size: 10.5px; color: rgba(255, 255, 255, .6); letter-spacing: .04em; text-transform: uppercase; }
-
 /* ── Filter choices header (chips) + search ── */
 .fq-filterbar {
     display: flex;
@@ -189,7 +165,6 @@
 
 /* ── Responsive ── */
 @media (max-width: 640px) {
-    .fq-intro-scope { align-items: flex-start; }
     .fq-search { flex-basis: 100%; }
     .fq-table { font-size: 12px; }
     .fq-sec-sub { display: none; }
@@ -338,165 +313,6 @@
 .fq-or-confirm-no:disabled { opacity: .6; cursor: default; }
 
 .fq-or-rowerr { grid-column: 1 / 4; font-size: 11.5px; color: var(--red); margin-top: 2px; }
-
-/* Monthly payment modal */
-.fq-pay-modal { max-width: 560px; }
-
-.fq-pay-note {
-    font-size: 12.5px;
-    color: var(--text-muted);
-    line-height: 1.55;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 14px;
-}
-
-.fq-pay-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-    font-size: 12.5px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.fq-pay-field em {
-    font-style: normal;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-.fq-pay-field small {
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--text-muted);
-    line-height: 1.45;
-}
-
-.fq-pay-select,
-.fq-pay-input {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--bg-card);
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
-    padding: 9px 11px;
-}
-
-.fq-pay-select:focus,
-.fq-pay-input:focus {
-    outline: none;
-    border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(200, 168, 75, .14);
-}
-
-.fq-pay-summary {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin: 10px 0 12px;
-}
-
-.fq-pay-summary > div {
-    background: var(--bg);
-    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-    border-radius: 10px;
-    padding: 10px 12px;
-}
-
-.fq-pay-summary span {
-    display: block;
-    font-size: 10.5px;
-    font-weight: 700;
-    color: var(--text-subtle);
-    text-transform: uppercase;
-    letter-spacing: .04em;
-}
-
-.fq-pay-summary strong {
-    display: block;
-    margin-top: 4px;
-    font-size: 15px;
-    color: var(--navy);
-    font-variant-numeric: tabular-nums;
-}
-
-.fq-pay-summary .fq-pay-due { color: var(--red); }
-
-.fq-pay-status-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.fq-pay-status {
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    background: var(--bg-card);
-    color: var(--text-muted);
-    padding: 9px 12px;
-    font-size: 12.5px;
-    font-weight: 750;
-    cursor: pointer;
-}
-
-.fq-pay-status:hover:not(:disabled) {
-    border-color: var(--gold);
-    color: var(--navy);
-}
-
-.fq-pay-status.on {
-    background: var(--navy);
-    border-color: var(--navy);
-    color: #fff;
-}
-
-.fq-pay-error {
-    background: var(--red-bg);
-    color: var(--red);
-    border-radius: 9px;
-    padding: 9px 11px;
-    font-size: 12.5px;
-    margin-top: 4px;
-}
-
-.fq-pay-confirm {
-    margin-top: 10px;
-    border: 1px solid rgba(200, 168, 75, .45);
-    background: rgba(200, 168, 75, .12);
-    border-radius: 10px;
-    padding: 10px 12px;
-    color: var(--navy);
-}
-
-.fq-pay-confirm strong {
-    display: block;
-    font-size: 13px;
-    margin-bottom: 3px;
-}
-
-.fq-pay-confirm span {
-    display: block;
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.45;
-}
-
-.fq-pay-foot { gap: 8px; }
-
-@media (max-width: 640px) {
-    .fq-pay-summary,
-    .fq-pay-status-row {
-        grid-template-columns: 1fr;
-    }
-}
-
 
 /* ── Load skeleton (mirrors the section + 5-column table) ── */
 .fq-skeleton .fq-section { pointer-events: none; }
