@@ -513,21 +513,52 @@ else if (ShowUtilityStatements)
             <button type="button" class="utility-secondary-btn" @onclick="CloseUtilityStatements">
                 Back to billing
             </button>
+
+            @* The same search and section filter as the billing table, bound to the same fields - so a section the
+               office was working through stays selected when it comes here to print, and narrowing here narrows
+               there. One filter, two views. *@
+            <div class="statement-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search payor or stall no." value="@_utilSearch"
+                       aria-label="Search payor or stall number"
+                       @oninput="e => _utilSearch = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            <div class="utility-section-tabs">
+                @foreach (var sec in UtilitySections)
+                {
+                    <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")"
+                            aria-pressed="@(_utilSection == sec)"
+                            @onclick="() => _utilSection = sec">@sec</button>
+                }
+            </div>
+
+            @* One table for the office, or a sheet per payor to hand over. *@
+            <div class="utility-section-tabs statement-mode-tabs">
+                <button type="button" class="utility-section-tab @(_statementMode == "Summary" ? "active" : "")"
+                        aria-pressed="@(_statementMode == "Summary")"
+                        @onclick="@(() => _statementMode = "Summary")">Summary</button>
+                <button type="button" class="utility-section-tab @(_statementMode == "PerPayor" ? "active" : "")"
+                        aria-pressed="@(_statementMode == "PerPayor")"
+                        @onclick="@(() => _statementMode = "PerPayor")">Per payor</button>
+            </div>
+
             <div class="statement-actions-note">
                 @if (StatementRows.Count > 0)
                 {
-                    <span>@StatementRows.Count statement@(StatementRows.Count == 1 ? "" : "s") for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" · {_utilSection}")</span>
+                    <span>@StatementRows.Count payor@(StatementRows.Count == 1 ? "" : "s") · @CurrentDate.ToString("MMMM yyyy")</span>
                 }
                 @if (UnbilledOnScreen > 0)
                 {
                     @* Said plainly rather than left to be noticed: a payor with no reading recorded cannot be
                        issued a statement, and the office needs to know which ones are still waiting on a reading. *@
                     <span class="statement-actions-warn">
-                        @UnbilledOnScreen payor@(UnbilledOnScreen == 1 ? "" : "s") on screen @(UnbilledOnScreen == 1 ? "has" : "have") no reading recorded and @(UnbilledOnScreen == 1 ? "is" : "are") not included.
+                        @UnbilledOnScreen with no reading, not included
                     </span>
                 }
             </div>
-            <button type="button" class="btn-primary" disabled="@(StatementRows.Count == 0)" @onclick="PrintPage">
+
+            <button type="button" class="utility-secondary-btn statement-print-btn" disabled="@(StatementRows.Count == 0)" @onclick="PrintPage">
                 Print
             </button>
         </div>
@@ -539,6 +570,74 @@ else if (ShowUtilityStatements)
                     No utility bill has been recorded for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" in {_utilSection}")@(string.IsNullOrWhiteSpace(_utilSearch) ? "" : $" matching \"{_utilSearch}\"").
                     A statement can only be issued once a reading is entered.
                 </p>
+            </section>
+        }
+        else if (_statementMode == "Summary")
+        {
+            @* One sheet, every payor on screen. This is the office's own copy - what it reads down, reconciles and
+               files - so it carries the same letterhead and signatories as any other sheet it issues, and a totals
+               row that must agree with the register's summary cards. *@
+            <section class="print-report-sheet statement-sheet">
+
+                <header class="print-report-header">
+                    <img class="print-report-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+                    <div class="print-republic">Republic of the Philippines</div>
+                    <h2>@Branding.OfficeName</h2>
+                    <p>Municipality of @Branding.Municipality, @Branding.Province</p>
+                    <div class="print-report-title">Statement of Utility Charges</div>
+                </header>
+
+                <div class="print-report-meta">
+                    <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.NPM)</strong></div>
+                    <div><span>Section</span><strong>@(_utilSection == "All" ? "All sections" : _utilSection)</strong></div>
+                    <div><span>Billing Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
+                    <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+                </div>
+
+                <table class="statement-table statement-summary-table">
+                    <thead>
+                        <tr>
+                            <th>Stall</th>
+                            <th>Payor</th>
+                            <th>Section</th>
+                            <th>Electricity</th>
+                            <th>Water</th>
+                            <th class="statement-amount">Charges</th>
+                            <th class="statement-amount">Paid</th>
+                            <th class="statement-amount">Due</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in StatementRows)
+                        {
+                            <tr>
+                                <td>@row.StallNo</td>
+                                <td>@row.Occupant</td>
+                                <td>@row.Section</td>
+                                @* Consumption and the rate together, so a queried line can be checked without pulling
+                                   the individual sheet. A utility the stall has no meter for prints as a dash rather
+                                   than a nought, which would read as "used nothing" instead of "not metered". *@
+                                <td>@(row.HasElectricity ? $"{row.ElecConsumption:N2} kWh @ ₱{row.ElecRatePerKwh:N2}" : "—")</td>
+                                <td>@(row.HasWater ? $"{row.WaterConsumption:N2} cu.m @ ₱{row.WaterRatePerCubicMeter:N2}" : "—")</td>
+                                <td class="statement-amount">&#8369;@row.TotalCharge.ToString("N2")</td>
+                                <td class="statement-amount">&#8369;@((row.TotalCharge - row.BalanceDue).ToString("N2"))</td>
+                                <td class="statement-amount">&#8369;@row.BalanceDue.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr class="statement-total">
+                            <td colspan="5">Total for @StatementRows.Count payor@(StatementRows.Count == 1 ? "" : "s")</td>
+                            <td class="statement-amount">&#8369;@StatementRows.Sum(r => r.TotalCharge).ToString("N2")</td>
+                            <td class="statement-amount">&#8369;@StatementRows.Sum(r => r.TotalCharge - r.BalanceDue).ToString("N2")</td>
+                            <td class="statement-amount">&#8369;@StatementRows.Sum(r => r.BalanceDue).ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="print-report-signatures">
+                    <SignatureStrip />
+                </div>
             </section>
         }
         else
@@ -1449,6 +1548,13 @@ else
     string ActivePeriod = "Monthly";
     bool ShowUtilityBilling = false;
     bool ShowUtilityStatements = false;
+
+    /// <summary>
+    /// Which shape the statements are shown in. "Summary" is one table covering every payor on screen - what the
+    /// office reads and files. "PerPayor" is one sheet each, which is what gets handed over. Same figures, same
+    /// filter; only the arrangement differs, so the office can produce either from the same screen.
+    /// </summary>
+    string _statementMode = "Summary";
     bool ShowPrintReport = false;
     bool ShowHistory = false;
     DateTime CurrentDate = PhilippineTime.Now;

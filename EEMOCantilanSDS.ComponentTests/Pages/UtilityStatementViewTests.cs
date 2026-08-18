@@ -31,6 +31,17 @@ public class UtilityStatementViewTests : TestContext
 {
     private const string BilledPayor = "Merlita A. Abuso";
     private const string UnbilledPayor = "Diego Brando";
+    private const string OtherSectionPayor = "Rosalinda M. Cruz";
+
+    private static UtilityRegisterRowDto OtherSection() => new(
+        StallId: Guid.NewGuid(), StallNo: "22", Occupant: OtherSectionPayor, Section: "Fish Area",
+        BillId: Guid.NewGuid(), HasBill: true,
+        ElecPreviousReading: 500m, ElecCurrentReading: 510m, ElecConsumption: 10m, ElecCharge: 115m,
+        WaterPreviousReading: 0m, WaterCurrentReading: 0m, WaterConsumption: 0m, WaterCharge: 0m,
+        TotalCharge: 115m, Status: "Unpaid", BalanceDue: 115m,
+        ElecStatus: "Unpaid", WaterStatus: "Unbilled",
+        HasElectricity: true, HasWater: false,
+        ElecRatePerKwh: 11.50m, WaterRatePerCubicMeter: 0m);
 
     private static UtilityRegisterRowDto Billed() => new(
         StallId: Guid.NewGuid(), StallNo: "14", Occupant: BilledPayor, Section: "Vegetable Area",
@@ -104,30 +115,70 @@ public class UtilityStatementViewTests : TestContext
         return page;
     }
 
+    private static void SwitchTo(IRenderedComponent<NpmReports> page, string label) =>
+        page.FindAll("button").First(b => b.TextContent.Trim() == label).Click();
+
     [Fact]
-    public void ItStatesTheReadingsTheRateAndTheAmountDue()
+    public void TheSUMMARYListsEveryPayorOnOneSheetWithATotal()
+    {
+        // The office's own copy: one table it can read down and reconcile. This is the default, because it is what
+        // the office looks at; the per-payor sheets are what it hands over.
+        var page = RenderStatements(Billed());
+        var markup = page.Markup;
+
+        Assert.Contains("Statement of Utility Charges", markup);
+        Assert.Contains(BilledPayor, markup);
+
+        // Consumption and the rate together, so a queried line can be checked without pulling the payor's own sheet.
+        Assert.Contains("120.00 kWh", markup);
+        Assert.Contains("8.00 cu.m", markup);
+
+        // Charges, paid and due — and a total that must agree with the register.
+        Assert.Contains("1,580.00", markup);
+        Assert.Contains("1,000.00", markup);
+        Assert.Contains("580.00", markup);
+        Assert.Single(page.FindAll(".statement-summary-table"));
+    }
+
+    [Fact]
+    public void PerPAYORGivesEachOneItsOwnSheetWithTheReadings()
     {
         var page = RenderStatements(Billed());
+        SwitchTo(page, "Per payor");
         var markup = page.Markup;
 
         Assert.Contains("Statement of Account", markup);
         Assert.Contains(BilledPayor, markup);
 
-        // Electricity: 1,000 → 1,120 = 120 kWh at ₱11.50 = ₱1,380.00
+        // The readings themselves appear only here: 1,000 → 1,120 = 120 kWh at ₱11.50 = ₱1,380.00
         Assert.Contains("1,000.00", markup);
         Assert.Contains("1,120.00", markup);
         Assert.Contains("120.00 kWh", markup);
         Assert.Contains("11.50", markup);
         Assert.Contains("1,380.00", markup);
 
-        // Water: 40 → 48 = 8 cu.m at ₱25.00 = ₱200.00
-        Assert.Contains("8.00 cu.m", markup);
+        Assert.Contains("40.00", markup);
+        Assert.Contains("48.00", markup);
         Assert.Contains("200.00", markup);
-
-        // Total ₱1,580.00, paid ₱1,000.00 (total less balance), due ₱580.00.
-        Assert.Contains("1,580.00", markup);
-        Assert.Contains("1,000.00", markup);
         Assert.Contains("580.00", markup);
+    }
+
+    [Fact]
+    public void ASectionFilterNarrowsBOTHViews()
+    {
+        // One filter, two views: narrowing here is the same field the billing table uses, so a section the office was
+        // working through stays selected when it comes to print.
+        var page = RenderStatements(Billed(), OtherSection());
+
+        Assert.Contains(OtherSectionPayor, page.Markup);
+
+        SwitchTo(page, "Vegetable Area");
+        Assert.DoesNotContain(OtherSectionPayor, page.Markup);
+        Assert.Contains(BilledPayor, page.Markup);
+
+        SwitchTo(page, "Per payor");
+        Assert.DoesNotContain(OtherSectionPayor, page.Markup);
+        Assert.Single(page.FindAll(".statement-sheet"));
     }
 
     [Fact]
@@ -138,7 +189,11 @@ public class UtilityStatementViewTests : TestContext
 
         Assert.Contains(BilledPayor, markup);
         Assert.DoesNotContain(UnbilledPayor, markup);       // no statement may be issued for them
-        Assert.Contains("no reading recorded", markup);      // and the office is told why
+        Assert.Contains("no reading", markup);               // and the office is told why
+
+        // Still excluded when the sheets are produced, not just in the summary.
+        SwitchTo(page, "Per payor");
+        Assert.DoesNotContain(UnbilledPayor, page.Markup);
         Assert.Single(page.FindAll(".statement-sheet"));
     }
 
@@ -159,5 +214,33 @@ public class UtilityStatementViewTests : TestContext
 
         Assert.Contains("Republic of the Philippines", markup);
         Assert.Contains("print-report-signatures", markup);
+    }
+
+    [Fact]
+    public void APRINTEDSheetCarriesNoAppChrome()
+    {
+        // The fault this replaces: the topbar and the period bar survived printing with only their background
+        // stripped, so a sheet handed to a payor began with "FACILITY · NPM · REPORTS / New Public Market Reports /
+        // August 2026" and the period dropdown — and that chrome took a page of its own before the document started.
+        //
+        // Asserted against the stylesheet because a print rule cannot be observed from rendered markup. Each sheet
+        // carries its own letterhead inside .print-report-header, so the screen's navigation is noise on paper.
+        var css = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "NpmReports.razor.css"));
+
+        var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
+
+        Assert.Matches(@"\.rpt-topbar,\s*\r?\n\s*\.rpt-period-bar \{\s*\r?\n\s*display: none", print);
+        Assert.Contains("statement-sheet:not(:last-child)", print);   // one payor per page, no trailing blank
+    }
+
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "EEMOCantilanSDS.slnx")))
+            dir = dir.Parent;
+
+        Assert.NotNull(dir);
+        return dir!.FullName;
     }
 }

@@ -1310,6 +1310,39 @@
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 700;
+    /* It read as a label because it had none of these: no pointer, no hover, no press. A control that does
+       something has to look like it will. Matches .utility-section-tab, which is the interactive control beside it. */
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+
+.utility-secondary-btn:hover:not(:disabled) {
+    background: #fff;
+    border-color: color-mix(in srgb, var(--navy) 32%, var(--border));
+    color: var(--navy);
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .08);
+}
+
+.utility-secondary-btn:active:not(:disabled) {
+    background: color-mix(in srgb, var(--navy) 6%, #fff);
+    box-shadow: inset 0 1px 2px rgba(13, 33, 55, .12);
+}
+
+.utility-secondary-btn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--navy) 55%, transparent);
+    outline-offset: 2px;
+}
+
+/* Disabled says "not now", not "broken": the same shape, plainly inert. */
+.utility-secondary-btn:disabled {
+    cursor: not-allowed;
+    opacity: .55;
 }
 .utility-table-wrap {
     overflow-x: auto;
@@ -1711,11 +1744,14 @@
         background: white !important;
     }
 
+    /* App chrome does not belong on an issued document. The topbar and the period bar used to survive printing with
+       only their background stripped, which is why a printed sheet began with "FACILITY · NPM · REPORTS / New Public
+       Market Reports / August 2026" and the period dropdown - and why that chrome took a page of its own before the
+       document started. Every sheet here carries its own letterhead inside .print-report-header, so the screen's
+       navigation is noise on paper. */
     .rpt-topbar,
     .rpt-period-bar {
-        background: white !important;
-        border: none !important;
-        box-shadow: none !important;
+        display: none !important;
     }
 
     .rpt-topbar-right,
@@ -2861,22 +2897,66 @@
 .statement-actions {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 16px;
-    padding: 12px 14px;
+    padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--bg);
+}
+
+/* Search sized to share the line rather than claim it: it gives way first when the row runs out of room, so the
+   controls either side stay put instead of wrapping. */
+.statement-search {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1 1 190px;
+    min-width: 150px;
+    max-width: 300px;
+    padding: 0 10px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.statement-search svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--text-subtle);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.statement-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 12.5px;
+    color: var(--navy);
+}
+
+.statement-mode-tabs {
+    flex-shrink: 0;
+}
+
+/* Pushed to the end of the row so Print is always in the same place, whatever the filters do. */
+.statement-print-btn {
+    margin-left: auto;
 }
 
 .statement-actions-note {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    flex: 1 1 auto;
     min-width: 0;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
 }
 
@@ -2941,6 +3021,21 @@
     margin: 0 0 18px;
     font-size: 11.5px;
     color: #4b5563;
+}
+
+/* The summary carries eight columns, so it is set tighter than a single payor's sheet and the two identifying
+   columns are allowed to take the slack. */
+.statement-summary-table {
+    font-size: 11px;
+}
+
+.statement-summary-table th,
+.statement-summary-table td {
+    padding: 6px 8px;
+}
+
+.statement-summary-table td:nth-child(2) {
+    font-weight: 700;
 }
 
 @media print {
