@@ -42,11 +42,16 @@ public class Municipality : AuditableEntity
     /// so existing behaviour and Phase-0 goldens are unchanged; other LGUs set their own day at activation.</summary>
     public DayOfWeek? TpmMarketDay { get; private set; }
 
-    // ── Per-LGU PayMongo credentials (Option A: each LGU settles to its own account) ────────────────────
+    // ── Per-LGU PayMongo credentials (each LGU settles to its own account) ──────────────────────────────
     // The secret + webhook secret are stored ENCRYPTED at rest (the application layer protects/unprotects);
-    // the public key is not secret, so it is stored plain. When these are absent, the online-payment gateway
-    // falls back to the GLOBAL PayMongo config — which is exactly how the default LGU (Cantilan, the primary
-    // client) keeps running byte-for-byte on the primary account.
+    // the public key is not secret, so it is stored plain.
+    //
+    // When these are absent, online payments are SHUT for this LGU - unless it is the default municipality, whose own
+    // merchant account the global PayMongo configuration is, so the primary client keeps running unchanged.
+    //
+    // That exception used to apply to everyone: an absent account fell back to the global config for any tenant, which
+    // read as a harmless default and was not one. A freshly activated LGU looked as though online payments worked, and
+    // its vendors' money would have settled into the default municipality's account.
     public string? PayMongoSecretKeyEnc { get; private set; }
     public string? PayMongoPublicKey { get; private set; }
     public string? PayMongoWebhookSecretEnc { get; private set; }

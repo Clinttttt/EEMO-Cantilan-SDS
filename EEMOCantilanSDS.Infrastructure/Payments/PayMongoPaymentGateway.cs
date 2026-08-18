@@ -34,6 +34,18 @@ public sealed class PayMongoPaymentGateway(
         CreateCheckoutSessionRequest request,
         CancellationToken cancellationToken = default)
     {
+        // Refused here, not only on the screen. An LGU with no account of its own must not be able to open a checkout at
+        // all: without this the request would carry the DEFAULT LGU's key and their vendor's money would settle into
+        // another municipality's account. The screen hides the button, but the screen is not the boundary.
+        var resolved = await credentialResolver.ResolveAsync(cancellationToken);
+        if (!resolved.IsConfigured)
+        {
+            logger.LogWarning("Online payment refused: this LGU has no PayMongo account configured.");
+            return Result<CheckoutSessionResult>.Failure(
+                "Online payments are not set up for this LGU yet. Configure the office's own PayMongo account first.",
+                ResultStatus.Invalid);
+        }
+
         // PayMongo works in centavos (smallest unit). Convert pesos → integer centavos.
         var amountCentavos = (long)Math.Round(request.Amount * 100m, MidpointRounding.AwayFromZero);
 
@@ -73,7 +85,7 @@ public sealed class PayMongoPaymentGateway(
             using var content = new StringContent(
                 JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
 
-            var credentials = await credentialResolver.ResolveAsync(cancellationToken);
+            var credentials = resolved;
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "checkout_sessions")
             {
                 Content = content,
@@ -246,6 +258,14 @@ public sealed class PayMongoPaymentGateway(
         try
         {
             var credentials = await credentialResolver.ResolveAsync(cancellationToken);
+            if (!credentials.IsConfigured)
+            {
+                // Nothing of this LGU's can exist at PayMongo, so there is nothing to verify - and asking with another
+                // municipality's key could confirm a payment that was never theirs.
+                return Result<PaymentGatewayEvent>.Failure(
+                    "Online payments are not set up for this LGU.", ResultStatus.Invalid);
+            }
+
             using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"checkout_sessions/{gatewayReference}")
             {
                 Headers = { Authorization = BasicAuth(credentials.SecretKey) }

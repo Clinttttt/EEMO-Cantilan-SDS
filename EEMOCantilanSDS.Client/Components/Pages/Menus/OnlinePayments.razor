@@ -31,7 +31,18 @@
 <div class="content-area">
 
     @* Per-LGU online-payment account (Head only): first-time setup, or a compact status once configured. *@
-    @if (_isHead && _paymentLoaded && _showSetup)
+    @if (_paymentLoaded && !CanAcceptOnlinePayments && !_isHead)
+    {
+        @* Not a Head, so there is nothing for this user to configure - but a dashboard of zeros would still read as
+           "online payments are running", which is the impression this whole screen was giving. *@
+        <div class="section-card">
+            <div class="op-empty">
+                Online payments are not set up for this office yet, so none can be received.
+                The Head of Office can connect the municipality's own PayMongo account.
+            </div>
+        </div>
+    }
+    else if (_isHead && _paymentLoaded && _showSetup)
     {
         <div class="op-setup">
             <div class="op-setup-card">
@@ -184,9 +195,15 @@
             @if (_isHead && _paymentLoaded)
             {
                 <button class="op-config-btn" type="button"
-                        title="@(_payment?.HasOwnAccount == true ? "Settling to your own PayMongo account — click to configure" : "Using the platform default account — click to configure")"
+                        title="@(_payment?.HasOwnAccount == true
+                                    ? "Settling to your own PayMongo account — click to configure"
+                                    : CanAcceptOnlinePayments
+                                        ? "Settling to this office's PayMongo account — click to configure"
+                                        : "Online payments are not set up — click to configure")"
                         @onclick="RequestConfigure">
-                    <span class="op-config-status @(_payment?.HasOwnAccount == true ? "is-own" : "")">@(_payment?.HasOwnAccount == true ? "Own account" : "Default account")</span>
+                    @* "Default account" is no longer said to an LGU that has none: the default account is another
+                       municipality's, and calling it theirs is how this looked configured when it was not. *@
+                    <span class="op-config-status @(_payment?.HasOwnAccount == true ? "is-own" : "")">@(_payment?.HasOwnAccount == true ? "Own account" : CanAcceptOnlinePayments ? "Office account" : "Not set up")</span>
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
                 </button>
             }
@@ -396,6 +413,12 @@
 
     // ── Per-LGU online-payment account (Head only) ──────────────────────────────
     private PaymentSettingsDto? _payment;
+
+    /// <summary>
+    /// Whether online payments actually work for this office. An LGU with no account of its own cannot take them: the
+    /// platform's own configuration is the DEFAULT municipality's merchant account, not a shared one.
+    /// </summary>
+    private bool CanAcceptOnlinePayments => _payment?.CanAcceptOnlinePayments == true;
     private bool _paymentLoaded;
     private bool _isHead;
     private bool _isDefaultTenant;
@@ -524,11 +547,17 @@
         {
             _payment = result.Value;
             _payPublic = _payment.PublicKey ?? string.Empty;
-            // No longer force the first-time setup card: the normal dashboard shows for every LGU (an
-            // unconfigured non-default LGU still receives on the platform default account), and the Head
-            // opens configuration on demand via the gear button (password-gated). Prevents the setup card
-            // from masking the payments dashboard/loading state for LGUs like Carmen.
-            _showSetup = false;
+
+            // An LGU that cannot take online payments is asked to set them up, and is not shown a dashboard.
+            //
+            // This used to be forced to false for everyone, on the stated grounds that an unconfigured LGU still
+            // received on the platform default account. It did - and that was the defect, not the reassurance: the
+            // default account belongs to ONE municipality, so a freshly activated office was shown a working payments
+            // screen while its vendors' money would have settled to another LGU.
+            //
+            // The Head can still open configuration on demand through the gear button, so a configured office is never
+            // made to look at a setup form it does not need.
+            _showSetup = !_payment.CanAcceptOnlinePayments;
         }
         _paymentLoaded = true;
     }

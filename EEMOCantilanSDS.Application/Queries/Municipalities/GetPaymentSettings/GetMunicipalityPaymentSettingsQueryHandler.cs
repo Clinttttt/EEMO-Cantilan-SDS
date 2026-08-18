@@ -23,6 +23,11 @@ public class GetMunicipalityPaymentSettingsQueryHandler(
             return Result<PaymentSettingsDto>.NotFound();
 
         return Result<PaymentSettingsDto>.Success(
-            new PaymentSettingsDto(municipality.HasOwnPayMongoAccount, municipality.PayMongoPublicKey));
+            new PaymentSettingsDto(
+                municipality.HasOwnPayMongoAccount,
+                municipality.PayMongoPublicKey,
+                // The global configuration is the DEFAULT municipality's own merchant account, so only they can take
+                // payments without configuring one. Every other LGU has to bring its own, or online payments stay shut.
+                CanAcceptOnlinePayments: municipality.HasOwnPayMongoAccount || municipality.IsDefault));
     }
 }
