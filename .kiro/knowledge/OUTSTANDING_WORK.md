@@ -719,6 +719,17 @@ These cannot be answered by reading code.
 
 ## Deferred product work
 
+- **Eight report stylesheets still print edge-to-edge, awaiting a go-ahead.** `Bbq`, `Custom`, `Ice`, `Ncc`, `Slh`, `Tcc`, `Tpm`,
+  `Trm` each carry `.print-report-sheet { padding: 0 !important }` in their own scoped stylesheet, so their sheets print hard
+  against the paper edge. `NpmReports.razor.css` had the identical line and was fixed to `12mm` on 2026-08-18; the other eight are
+  the same one-line change each. The office has been told and has not yet said to proceed, which is why they are recorded rather
+  than done.
+  - The mechanism, since it is not obvious: `print.css` loads LAST and sets `@page { margin: 0 }` deliberately, so the browser has
+    no margin box in which to print its own date, URL and page numbers. **Each sheet therefore supplies its own padding.** A
+    component stylesheet saying `padding: 0` is not overriding a default — it is removing the only margin the page has.
+  - And it wins even though `print.css` is later and also `!important`: scoped CSS compiles `.print-report-sheet` to
+    `.print-report-sheet[b-xxxxx]`, and the attribute selector outranks the bare class on specificity.
+
 **Out of scope — not StallTrack.** Screenshots of a "Console Ops / Deployment Control Center" page were sent during this work
 and carried in the notes as outstanding UI work. It is a DIFFERENT product: its own screenshots list Spinner API, AMYL and
 StockPilot alongside StallTrack as rows in a multi-project deployment dashboard. The office confirmed 2026-08-15 to stick to
