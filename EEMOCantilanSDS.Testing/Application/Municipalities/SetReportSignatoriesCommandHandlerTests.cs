@@ -10,8 +10,18 @@ using Moq;
 namespace EEMOCantilanSDS.Testing;
 
 /// <summary>
-/// The signatory lines an LGU prints at the foot of its official sheets. Tenant-scoped, presentation-only, and
-/// always recoverable: clearing the list restores the office's default trio rather than printing nothing.
+/// The signatory lines an LGU prints at the foot of its official sheets. Tenant-scoped and presentation-only.
+///
+/// <para>
+/// THREE intentions, and the two empty ones are not the same. Null restores the office's default trio; an empty list
+/// means the office wants no signatory lines at all; a populated list is those lines. They used to share one value, so
+/// removing the last line put three back and an office could not choose to print a sheet without a footer.
+/// </para>
+///
+/// <para>
+/// The stored value is an object carrying the lines AND their alignment, so one save writes one value and the two cannot
+/// disagree. Values written before alignment existed are bare arrays and the reader still understands them.
+/// </para>
 /// </summary>
 public class SetReportSignatoriesCommandHandlerTests
 {
@@ -42,8 +52,7 @@ public class SetReportSignatoriesCommandHandlerTests
         }), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var saved = JsonSerializer.Deserialize<List<ReportSignatoryDto>>(lgu.ReportSignatories!,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var saved = Stored(lgu);
         Assert.Equal(2, saved.Count);
         Assert.Equal("Prepared by", saved[0].Caption);
         Assert.Equal("Ana Reyes", saved[0].Name);
@@ -51,17 +60,71 @@ public class SetReportSignatoriesCommandHandlerTests
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task AnEmptyList_RestoresTheOfficeDefault()
+    /// <summary>Reads the lines back out of the stored object, which is what the column now holds.</summary>
+    private static List<ReportSignatoryDto> Stored(Municipality lgu)
     {
-        // Stored as null, not "[]" — the sheets must fall back to the standard trio, never print an empty foot.
+        using var doc = JsonDocument.Parse(lgu.ReportSignatories!);
+        return JsonSerializer.Deserialize<List<ReportSignatoryDto>>(
+            doc.RootElement.GetProperty("Lines").GetRawText(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+    }
+
+    [Fact]
+    public async Task NULLRestoresTheOfficeDefault()
+    {
+        // Stored as null, so the sheets fall back to the standard trio. This is the "I did not mean to customise this"
+        // case, and it is the ONLY one that clears the column.
         var (handler, lgu, _) = Build();
         lgu.SetReportSignatories("[{\"caption\":\"Prepared by\",\"name\":\"Someone\"}]");
 
-        var result = await handler.Handle(new SetReportSignatoriesCommand(Array.Empty<ReportSignatoryDto>()), CancellationToken.None);
+        var result = await handler.Handle(new SetReportSignatoriesCommand(null), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Null(lgu.ReportSignatories);
+    }
+
+    [Fact]
+    public async Task AnEMPTYListMeansNoSignatoriesAtAll()
+    {
+        // The state that did not exist before: an office that wants a sheet with no footer. It is STORED - not cleared -
+        // because clearing means "use the trio", and the two must stay tellable apart.
+        var (handler, lgu, _) = Build();
+        lgu.SetReportSignatories("[{\"caption\":\"Prepared by\",\"name\":\"Someone\"}]");
+
+        var result = await handler.Handle(
+            new SetReportSignatoriesCommand(Array.Empty<ReportSignatoryDto>()), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(lgu.ReportSignatories);
+        Assert.Empty(Stored(lgu));
+    }
+
+    [Fact]
+    public async Task TheALIGNMENTIsStoredWithTheLines()
+    {
+        var (handler, lgu, _) = Build();
+
+        var result = await handler.Handle(new SetReportSignatoriesCommand(
+            new[] { new ReportSignatoryDto("Received by", "Authorized Representative") },
+            Align: "center"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        using var doc = JsonDocument.Parse(lgu.ReportSignatories!);
+        Assert.Equal("center", doc.RootElement.GetProperty("Align").GetString());
+        Assert.Single(Stored(lgu));
+    }
+
+    [Fact]
+    public async Task AnUnknownAlignmentFallsBackToLeft()
+    {
+        // Anything the sheet cannot lay out becomes "left", so a bad value can never produce a footer nobody expects.
+        var (handler, lgu, _) = Build();
+
+        await handler.Handle(new SetReportSignatoriesCommand(
+            new[] { new ReportSignatoryDto("Received by", "Rep") }, Align: "diagonal"), CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(lgu.ReportSignatories!);
+        Assert.Equal("left", doc.RootElement.GetProperty("Align").GetString());
     }
 
     [Fact]
@@ -75,8 +138,7 @@ public class SetReportSignatoriesCommandHandlerTests
         var result = await handler.Handle(new SetReportSignatoriesCommand(many), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var saved = JsonSerializer.Deserialize<List<ReportSignatoryDto>>(lgu.ReportSignatories!,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        var saved = Stored(lgu);
         Assert.Equal(SetReportSignatoriesCommandHandler.MaxSignatories, saved.Count);
         Assert.Equal("Caption 1", saved[0].Caption);           // the blank line was dropped, not counted
     }

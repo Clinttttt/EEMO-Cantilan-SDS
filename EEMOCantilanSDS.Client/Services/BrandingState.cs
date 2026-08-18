@@ -129,6 +129,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public record Signatory(string Caption, string Name);
 
     private IReadOnlyList<Signatory>? _signatories;
+    private string? _alignment;
 
     /// <summary>The office's default trio, used until an LGU sets its own.</summary>
     public IReadOnlyList<Signatory> DefaultSignatories => new[]
@@ -138,50 +139,111 @@ public class BrandingState(IMunicipalitiesApiClient api)
         new Signatory("Received by", "Authorized Representative"),
     };
 
-    /// <summary>This LGU's signatory lines, falling back to the default trio.</summary>
+    /// <summary>Where the strip sits on the sheet. Stored with the lines; "left" unless the office asks otherwise.</summary>
+    public string SignatoryAlignment => _alignment ?? ParseStored().Alignment;
+
+    /// <summary>True when the office has deliberately chosen to print no signatory lines at all.</summary>
+    public bool HasNoSignatories => Signatories.Count == 0;
+
+    /// <summary>
+    /// True when this LGU has set nothing of its own, so its sheets carry the office's default trio. Distinct from
+    /// having chosen no lines: that is a choice, this is the absence of one, and only the second can be "restored".
+    /// </summary>
+    public bool SignatoriesAreOfficeDefault => _signatories is null && ParseStored().Lines is null;
+
+    /// <summary>This LGU's signatory lines. Null storage falls back to the default trio; an empty array means none.</summary>
     public IReadOnlyList<Signatory> Signatories
     {
         get
         {
             if (_signatories is not null) return _signatories;
-
-            var json = _branding?.ReportSignatories;
-            if (string.IsNullOrWhiteSpace(json)) return DefaultSignatories;
-
-            try
-            {
-                var parsed = System.Text.Json.JsonSerializer.Deserialize<List<Signatory>>(json!,
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (parsed is { Count: > 0 })
-                    return _signatories = parsed;
-            }
-            catch
-            {
-                // A stored value we cannot read must never blank the footer of an official sheet.
-            }
-
-            return DefaultSignatories;
+            return ParseStored().Lines ?? DefaultSignatories;
         }
     }
 
     /// <summary>
-    /// Replaces this LGU's signatory lines. An empty list restores the office's default trio. The local copy
+    /// Reads the stored value, which may be either shape:
+    ///
+    /// <list type="bullet">
+    ///   <item><c>null</c> or unreadable — the office's default trio, so a sheet never loses its footer to a bad value.</item>
+    ///   <item>a bare ARRAY — the lines, left-aligned. This is what was stored before alignment existed, so it must keep
+    ///         meaning exactly what it meant then.</item>
+    ///   <item>an OBJECT <c>{ "align": "...", "lines": [...] }</c> — the lines and where they sit.</item>
+    /// </list>
+    ///
+    /// An empty <c>lines</c> array is "no signatories", which is why this returns null-for-default separately from an
+    /// empty list: the two used to be the same value and could not be told apart.
+    /// </summary>
+    private (IReadOnlyList<Signatory>? Lines, string Alignment) ParseStored()
+    {
+        var json = _branding?.ReportSignatories;
+        if (string.IsNullOrWhiteSpace(json)) return (null, "left");
+
+        var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        try
+        {
+            var trimmed = json!.TrimStart();
+
+            if (trimmed.StartsWith('{'))
+            {
+                var stored = System.Text.Json.JsonSerializer.Deserialize<StoredSignatories>(json!, options);
+                if (stored is not null)
+                    return (stored.Lines ?? new List<Signatory>(),
+                            string.Equals(stored.Align, "center", StringComparison.OrdinalIgnoreCase) ? "center" : "left");
+            }
+            else
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<List<Signatory>>(json!, options);
+                if (parsed is not null) return (parsed, "left");
+            }
+        }
+        catch
+        {
+            // A stored value we cannot read must never blank the footer of an official sheet.
+        }
+
+        return (null, "left");
+    }
+
+    private sealed record StoredSignatories(string? Align, List<Signatory>? Lines);
+
+    /// <summary>
+    /// Replaces this LGU's signatory lines and where they sit. An EMPTY list means the office wants no signatory lines
+    /// at all; to go back to the office's default trio call <see cref="RestoreDefaultSignatoriesAsync"/>. The local copy
     /// is updated on success so every open document redraws with the new footer immediately.
     /// </summary>
     public async Task<string?> SaveSignatoriesAsync(
-        ISettingsApiClient settingsApi, IReadOnlyList<Signatory> signatories)
+        ISettingsApiClient settingsApi, IReadOnlyList<Signatory> signatories, string alignment = "left")
     {
         var payload = signatories
             .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name))
             .ToList();
 
-        var result = await settingsApi.SaveReportSignatoriesAsync(payload);
+        // Alignment rides with the lines rather than in a column of its own, so one save writes one value and the two
+        // can never disagree about what the footer should look like.
+        var result = await settingsApi.SaveReportSignatoriesAsync(payload, alignment);
         if (!result.IsSuccess)
             return string.IsNullOrWhiteSpace(result.Error) ? "Couldn't save the signatories." : result.Error;
 
-        _signatories = signatories.Count == 0 ? null : signatories;
-        if (signatories.Count == 0 && _branding is not null)
-            _branding = _branding with { ReportSignatories = null };
+        _signatories = signatories;
+        _alignment = alignment;
+        return null;
+    }
+
+    /// <summary>
+    /// Clears this LGU's own lines so its sheets carry the office's default trio again. Distinct from saving an empty
+    /// list, which means "print no signatory lines".
+    /// </summary>
+    public async Task<string?> RestoreDefaultSignatoriesAsync(ISettingsApiClient settingsApi)
+    {
+        var result = await settingsApi.SaveReportSignatoriesAsync(null, null);
+        if (!result.IsSuccess)
+            return string.IsNullOrWhiteSpace(result.Error) ? "Couldn't restore the default signatories." : result.Error;
+
+        _signatories = null;
+        _alignment = null;
+        if (_branding is not null) _branding = _branding with { ReportSignatories = null };
 
         return null;
     }

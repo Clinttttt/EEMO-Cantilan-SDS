@@ -217,3 +217,94 @@
         display: none !important;
     }
 }
+
+
+/* ══════════════════════════════════════════
+   CENTRED STRIP
+══════════════════════════════════════════ */
+/* By default .sig-strip is `display: contents`, so the host footer lays the slots out and every sheet keeps the
+   footer it has always had. Centring is the one case where the strip has to take that over: `display: contents`
+   removes the box, so there is nothing to centre until it has one. It becomes its own row, centred, and the slots
+   stop stretching so they group in the middle instead of spreading across the sheet.
+   This is only reachable when the office asks for it, per LGU. */
+.sig-strip--center {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 42px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.sig-strip--center .sig-slot {
+    flex: 0 1 auto;
+    min-width: 150px;
+}
+
+/* ══════════════════════════════════════════
+   EDITING TOOLS (screen only)
+══════════════════════════════════════════ */
+/* Add a line, centre the strip, restore the office trio. It lives OUTSIDE the strip because the office can now
+   remove every line, and a way back that lived inside a line would vanish with the last one.
+   Spans the full row in either kind of host: `1 / -1` for the grid footers, `100%` for the flex ones, so adding it
+   never pushes a signatory into a new column. It is .no-print in the markup - on paper the strip stands alone. */
+.sig-tools {
+    grid-column: 1 / -1;
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.sig-tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px dashed var(--border, #cfd6de);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-subtle, #6a8aa0);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.sig-tool:hover:not(:disabled) {
+    background: rgba(255, 255, 255, .7);
+    border-color: var(--navy, #0d2137);
+    color: var(--navy, #0d2137);
+}
+
+.sig-tool:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--navy, #0d2137) 55%, transparent);
+    outline-offset: 2px;
+}
+
+.sig-tool:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.sig-tool svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* The pencil and the plus read as one affordance: "edit the lines, and add one". */
+.sig-tool-plus {
+    font-size: 13px;
+    line-height: 1;
+    margin-left: -2px;
+}
+
+.sig-tool-error {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--red, #8b3a3a);
+}

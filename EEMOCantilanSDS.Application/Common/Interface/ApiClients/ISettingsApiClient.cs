@@ -24,9 +24,14 @@ public interface ISettingsApiClient
     Task<Result<bool>> UpdateOfficeProfileAsync(string officeName, string? officeAcronym, string? address, string? sealPath);
 
     /// <summary>
-    /// Replace the signatory lines this LGU prints at the foot of its official sheets. An empty list restores
-    /// the office's default trio.
+    /// Replace the signatory lines this LGU prints at the foot of its official sheets, and where they sit.
+    ///
+    /// <para>
+    /// <paramref name="signatories"/> null restores the office's default trio; an EMPTY list prints no signatory lines
+    /// at all. Those are different intentions, and they used to share one value.
+    /// </para>
     /// </summary>
     Task<Result<bool>> SaveReportSignatoriesAsync(
-        IReadOnlyList<Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories);
+        IReadOnlyList<Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? signatories,
+        string? align = null);
 }
