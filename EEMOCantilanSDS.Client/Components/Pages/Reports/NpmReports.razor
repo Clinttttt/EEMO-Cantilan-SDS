@@ -544,14 +544,11 @@ else if (ShowUtilityStatements)
             </div>
 
             <div class="statement-actions-note">
-                @if (StatementRows.Count > 0)
-                {
-                    <span>@StatementRows.Count payor@(StatementRows.Count == 1 ? "" : "s") · @CurrentDate.ToString("MMMM yyyy")</span>
-                }
                 @if (UnbilledOnScreen > 0)
                 {
-                    @* Said plainly rather than left to be noticed: a payor with no reading recorded cannot be
-                       issued a statement, and the office needs to know which ones are still waiting on a reading. *@
+                    @* The count of payors is on the button itself, so it is not repeated here. What is NOT obvious
+                       anywhere else is who has been left out: a payor with no reading recorded cannot be issued a
+                       statement, and the office needs to know some are still waiting on a reading. *@
                     <span class="statement-actions-warn">
                         @UnbilledOnScreen with no reading, not included
                     </span>
@@ -615,10 +612,12 @@ else if (ShowUtilityStatements)
                                 <td>@row.Occupant</td>
                                 <td>@row.Section</td>
                                 @* Consumption and the rate together, so a queried line can be checked without pulling
-                                   the individual sheet. A utility the stall has no meter for prints as a dash rather
-                                   than a nought, which would read as "used nothing" instead of "not metered". *@
-                                <td>@(row.HasElectricity ? $"{row.ElecConsumption:N2} kWh @ ₱{row.ElecRatePerKwh:N2}" : "—")</td>
-                                <td>@(row.HasWater ? $"{row.WaterConsumption:N2} cu.m @ ₱{row.WaterRatePerCubicMeter:N2}" : "—")</td>
+                                   the individual sheet. Written with a multiplication sign rather than "@", which
+                                   reads as an address on a printed government form. A utility the stall has no meter
+                                   for prints as a dash rather than a nought, which would read as "used nothing"
+                                   instead of "not metered". *@
+                                <td>@(row.HasElectricity ? $"{row.ElecConsumption:N2} kWh × ₱{row.ElecRatePerKwh:N2}" : "—")</td>
+                                <td>@(row.HasWater ? $"{row.WaterConsumption:N2} cu.m × ₱{row.WaterRatePerCubicMeter:N2}" : "—")</td>
                                 <td class="statement-amount">&#8369;@row.TotalCharge.ToString("N2")</td>
                                 <td class="statement-amount">&#8369;@((row.TotalCharge - row.BalanceDue).ToString("N2"))</td>
                                 <td class="statement-amount">&#8369;@row.BalanceDue.ToString("N2")</td>

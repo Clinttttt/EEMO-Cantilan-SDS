@@ -1303,12 +1303,17 @@
     font-size: 12px;
 }
 .utility-secondary-btn {
-    padding: 8px 12px;
-    border-radius: 8px;
+    /* Matched to the SECTION TABS RAIL beside it, not to the tabs inside it: that rail is 1px border + 4px padding +
+       a 32px tab, twice over, so its outer height is 42px. A button of any other height leaves the row looking
+       accidental, which is what "All / Vegetable Area / ..." sitting taller than "Generate Billing Statement" was.
+       Radius follows the rail's 9px for the same reason. */
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 9px;
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     /* It read as a label because it had none of these: no pointer, no hover, no press. A control that does
        something has to look like it will. Matches .utility-section-tab, which is the interactive control beside it. */
@@ -1767,7 +1772,13 @@
     .print-report-sheet {
         width: 100% !important;
         min-height: auto !important;
-        padding: 0 !important;
+        /* 12mm, NOT 0 - the page margin is deliberately nought so the browser has no margin box to print its
+           automatic date, URL and page numbers into, which means the SHEET supplies the whitespace. print.css says
+           exactly that and sets `.print-report-sheet { padding: 12mm }`, but CSS isolation compiles this rule to
+           `.print-report-sheet[b-xxxxx]`, and a class-plus-attribute selector outranks a bare class even when both
+           are !important. So this rule quietly won and printed every sheet on this page hard against the paper edge.
+           Matching the convention here is what fixes it, for the statements and for the Status Report alike. */
+        padding: 12mm !important;
         border: none !important;
         box-shadow: none !important;
     }
@@ -2915,10 +2926,10 @@
     flex: 1 1 190px;
     min-width: 150px;
     max-width: 300px;
-    padding: 0 10px;
-    height: 34px;
+    padding: 0 12px;
+    height: 42px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 9px;
     background: #fff;
 }
 
