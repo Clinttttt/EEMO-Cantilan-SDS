@@ -224,30 +224,41 @@
 ══════════════════════════════════════════ */
 /* By default .sig-strip is `display: contents`, so the host footer lays the slots out and every sheet keeps the
    footer it has always had. Centring is the one case where the strip has to take that over: `display: contents`
-   removes the box, so there is nothing to centre until it has one. It becomes its own row, centred, and the slots
-   stop stretching so they group in the middle instead of spreading across the sheet.
-   This is only reachable when the office asks for it, per LGU. */
+   removes the box, so there is nothing to centre until it has one.
+
+   SPANNING THE WHOLE FOOTER IS THE POINT. The hosts are `grid-template-columns: repeat(3, 1fr)`, so the moment the
+   strip has a box it becomes ONE grid item in ONE of three columns - and centring inside a third of the sheet reads as
+   "not centred at all", which is exactly what it did. `1 / -1` spans every column, `flex-basis: 100%` does the same for
+   the flex hosts, so the strip is as wide as the sheet before anything is centred within it.
+
+   The border and padding reset matter for the same reason: the hosts style `.print-report-signatures div`, which a
+   box-less strip never picked up. With a box it would draw a rule across the whole footer. */
 .sig-strip--center {
+    grid-column: 1 / -1;
+    flex: 1 1 100%;
     display: flex;
     justify-content: center;
     align-items: flex-start;
     gap: 42px;
     flex-wrap: wrap;
     width: 100%;
+    border-top: 0;
+    padding-top: 0;
 }
 
+/* The slots stop stretching so they group in the middle instead of spreading across the sheet. */
 .sig-strip--center .sig-slot {
     flex: 0 1 auto;
     min-width: 150px;
 }
 
 /* ══════════════════════════════════════════
-   EDITING TOOLS (screen only)
+   THE WAY BACK (screen only, empty strip only)
 ══════════════════════════════════════════ */
-/* Add a line, centre the strip, restore the office trio. It lives OUTSIDE the strip because the office can now
-   remove every line, and a way back that lived inside a line would vanish with the last one.
-   Spans the full row in either kind of host: `1 / -1` for the grid footers, `100%` for the flex ones, so adding it
-   never pushes a signatory into a new column. It is .no-print in the markup - on paper the strip stands alone. */
+/* One button, and it appears only when the strip has no lines left. Everything else a Head does to the footer lives in
+   the modal, so a finished document carries nothing but its per-line pencils.
+   Spans the full row in either kind of host: `1 / -1` for the grid footers, `100%` for the flex ones. It is .no-print
+   in the markup - on paper the strip stands alone. */
 .sig-tools {
     grid-column: 1 / -1;
     flex: 1 1 100%;
