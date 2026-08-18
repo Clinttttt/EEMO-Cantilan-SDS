@@ -1740,9 +1740,16 @@
 }
 
 @media print {
-    @page {
+    /* No unnamed @page here, deliberately. CSS isolation does NOT scope @page, so an unnamed one declared in a
+       component stylesheet leaks to EVERY printable page in the app - print.css says so at the top, and
+       StallHolderList.razor.css carries the same warning. This page used to declare `@page { size: A4 portrait;
+       margin: 12mm }`, which fought print.css's authoritative `@page { size: auto; margin: 0 }` and left the print
+       dialog's own Portrait/Landscape choice with no consistent answer: picking Landscape produced a portrait-shaped
+       page, and picking Portrait again did not put it back.
+       print.css owns the unnamed page box. A NAMED page is safe, because it applies only to what asks for it. */
+    @page statement-page {
         size: A4 portrait;
-        margin: 12mm;
+        margin: 0;
     }
 
     body {
@@ -3050,6 +3057,15 @@
 }
 
 @media print {
+    /* A statement is a portrait document: one payor's charges, or a register of them, read down a page. print.css
+       binds every .print-report-sheet to its `report-landscape` page because a facility report's wide multi-column
+       grids need the width - but a statement does not, and inheriting that was what made Landscape look wrong and
+       Portrait impossible to get back to. Naming its own page settles the orientation for good, so the sheet prints
+       the same shape whatever the dialog is set to. Scoped, so it outranks print.css's assignment. */
+    .statement-sheet {
+        page: statement-page;
+    }
+
     /* One statement per page. Each is handed to a different payor, so two on a sheet would have to be cut apart -
        and the last one must NOT force a trailing blank page, which is what :not(:last-child) is for. */
     .statement-sheet {

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -232,6 +233,27 @@ public class UtilityStatementViewTests : TestContext
 
         Assert.Matches(@"\.rpt-topbar,\s*\r?\n\s*\.rpt-period-bar \{\s*\r?\n\s*display: none", print);
         Assert.Contains("statement-sheet:not(:last-child)", print);   // one payor per page, no trailing blank
+    }
+
+    [Fact]
+    public void TheSheetsOrientationIsSETTLEDByANamedPage()
+    {
+        // The bug this fixes: choosing Landscape in the print dialog produced a portrait-shaped page, and choosing
+        // Portrait again did not put it back. Two rules were fighting - print.css binds every .print-report-sheet to a
+        // LANDSCAPE named page for the wide facility reports, while this stylesheet leaked an unnamed
+        // "@page { size: A4 portrait }" to every printable page in the app, because CSS isolation does not scope @page.
+        //
+        // A statement is a portrait document, so it now names its own page and binds to that. The dialog's toggle stops
+        // mattering, which is the point: an issued document has one correct shape.
+        var css = File.ReadAllText(Path.Combine(
+            RepositoryRoot(), "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "NpmReports.razor.css"));
+
+        // Comments stripped first: this file DISCUSSES the rule it must not contain, and a naive search finds the prose.
+        var rules = Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+
+        Assert.DoesNotMatch(@"@page\s*\{", rules);          // no unnamed page box - print.css owns that
+        Assert.Contains("@page statement-page", rules);     // a named one is safe: only what asks for it gets it
+        Assert.Contains("page: statement-page", rules);
     }
 
     private static string RepositoryRoot()
