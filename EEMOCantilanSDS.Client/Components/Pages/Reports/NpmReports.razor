@@ -38,8 +38,8 @@
     <div class="rpt-period-tabs">
         @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
         {
-            <button type="button" class="rpt-period-tab @(!ShowUtilityBilling && !ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
-                    aria-pressed="@(!ShowUtilityBilling && !ShowPrintReport && !ShowHistory && ActivePeriod == p)"
+            <button type="button" class="rpt-period-tab @(!ShowUtilityBilling && !ShowUtilityStatements && !ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
+                    aria-pressed="@(!ShowUtilityBilling && !ShowUtilityStatements && !ShowPrintReport && !ShowHistory && ActivePeriod == p)"
                     @onclick="() => SetPeriod(p)">@p</button>
         }
         <button type="button" class="rpt-period-tab rpt-document-tab @(ShowPrintReport ? "active" : "")"
@@ -71,9 +71,9 @@
         </button>
     </div>
     <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
-                     Yearly="@(!ShowUtilityBilling && !ShowPrintReport && (ShowHistory || ActivePeriod == "Yearly"))"
-                     Label="@(ShowUtilityBilling ? UtilityBillingPeriodLabel : ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())"
-                     UtilityMode="@(ShowUtilityBilling || ShowPrintReport || ShowHistory)"
+                     Yearly="@(!ShowUtilityBilling && !ShowUtilityStatements && !ShowPrintReport && (ShowHistory || ActivePeriod == "Yearly"))"
+                     Label="@(ShowUtilityBilling || ShowUtilityStatements ? UtilityBillingPeriodLabel : ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())"
+                     UtilityMode="@(ShowUtilityBilling || ShowUtilityStatements || ShowPrintReport || ShowHistory)"
                      OnPrev="PrevPeriod" OnNext="NextPeriod"
                      OnPick="PickPeriod" OnToday="JumpToCurrent" />
 </div>
@@ -332,7 +332,20 @@ else if (ShowUtilityBilling)
                                 <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")" @onclick="() => _utilSection = sec">@sec</button>
                             }
                         </div>
-                        <button type="button" class="utility-secondary-btn" disabled>Generate Billing Statement</button>
+                        @* Produces a statement for the payors currently on screen - the section tab and the search
+                           both narrow it. Disabled only when there is nothing to state: a payor with no reading
+                           recorded has no charge, and a statement saying nought is due would be a false one. *@
+                        <button type="button" class="utility-secondary-btn"
+                                disabled="@(StatementRows.Count == 0)"
+                                title="@(StatementRows.Count == 0
+                                          ? "No utility bill has been recorded for the payors shown, so there is nothing to state yet."
+                                          : $"Statement of account for {StatementRows.Count} payor{(StatementRows.Count == 1 ? "" : "s")}"
+                                            + (UnbilledOnScreen > 0
+                                               ? $"; {UnbilledOnScreen} on screen have no reading recorded and are left out."
+                                               : ""))"
+                                @onclick="ShowUtilityStatementsView">
+                            Generate Billing Statement@(StatementRows.Count > 0 ? $" ({StatementRows.Count})" : "")
+                        </button>
                     </div>
                 </div>
 
@@ -480,6 +493,147 @@ else if (ShowUtilityBilling)
             }
 
         </div>
+    </div>
+}
+else if (ShowUtilityStatements)
+{
+    @* ── Statements of account for utility charges ──────────────────────────────────────────────────────────
+       One sheet per payor, for the period and the payors currently on screen: the section tab and the search box
+       both narrow this, so the office prints for the section it is working through rather than the whole market.
+
+       Every figure comes from the register already loaded - no second fetch, so a statement cannot disagree with
+       the register it was produced from. Each line shows previous and current reading, consumption, the RATE the
+       bill was charged at, and the resulting charge, which is what lets the stallholder check the arithmetic. The
+       same columns the per-stall history uses, so the office reads one shape everywhere.
+    ── *@
+    <div class="rpt-content print-document-content">
+        @* Screen-only controls. `no-print` keeps them off the paper, so what prints is the statements and nothing
+           else - the same rule the signature strip's edit pencils follow. *@
+        <div class="statement-actions no-print">
+            <button type="button" class="utility-secondary-btn" @onclick="CloseUtilityStatements">
+                Back to billing
+            </button>
+            <div class="statement-actions-note">
+                @if (StatementRows.Count > 0)
+                {
+                    <span>@StatementRows.Count statement@(StatementRows.Count == 1 ? "" : "s") for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" · {_utilSection}")</span>
+                }
+                @if (UnbilledOnScreen > 0)
+                {
+                    @* Said plainly rather than left to be noticed: a payor with no reading recorded cannot be
+                       issued a statement, and the office needs to know which ones are still waiting on a reading. *@
+                    <span class="statement-actions-warn">
+                        @UnbilledOnScreen payor@(UnbilledOnScreen == 1 ? "" : "s") on screen @(UnbilledOnScreen == 1 ? "has" : "have") no reading recorded and @(UnbilledOnScreen == 1 ? "is" : "are") not included.
+                    </span>
+                }
+            </div>
+            <button type="button" class="btn-primary" disabled="@(StatementRows.Count == 0)" @onclick="PrintPage">
+                Print
+            </button>
+        </div>
+
+        @if (!StatementRows.Any())
+        {
+            <section class="print-report-sheet">
+                <p class="print-empty">
+                    No utility bill has been recorded for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" in {_utilSection}")@(string.IsNullOrWhiteSpace(_utilSearch) ? "" : $" matching \"{_utilSearch}\"").
+                    A statement can only be issued once a reading is entered.
+                </p>
+            </section>
+        }
+        else
+        {
+            @foreach (var row in StatementRows)
+            {
+                <section class="print-report-sheet statement-sheet">
+
+                    <header class="print-report-header">
+                        <img class="print-report-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+                        <div class="print-republic">Republic of the Philippines</div>
+                        <h2>@Branding.OfficeName</h2>
+                        <p>Municipality of @Branding.Municipality, @Branding.Province</p>
+                        <div class="print-report-title">Statement of Account &mdash; Utility Charges</div>
+                    </header>
+
+                    <div class="print-report-meta">
+                        <div><span>Payor</span><strong>@row.Occupant</strong></div>
+                        <div><span>Stall</span><strong>@row.StallNo@(string.IsNullOrWhiteSpace(row.Section) ? "" : $" · {row.Section}")</strong></div>
+                        <div><span>Billing Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
+                        <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+                    </div>
+
+                    <table class="statement-table">
+                        <thead>
+                            <tr>
+                                <th>Charge</th>
+                                <th>Previous</th>
+                                <th>Current</th>
+                                <th>Consumption</th>
+                                <th>Rate</th>
+                                <th class="statement-amount">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @* Only the utilities this stall is metered for. A line reading zero for a utility the
+                               stall does not have would invite the payor to query a charge that was never made. *@
+                            @if (row.HasElectricity)
+                            {
+                                <tr>
+                                    <td>Electricity</td>
+                                    <td>@row.ElecPreviousReading.ToString("N2")</td>
+                                    <td>@row.ElecCurrentReading.ToString("N2")</td>
+                                    <td>@row.ElecConsumption.ToString("N2") kWh</td>
+                                    <td>&#8369;@row.ElecRatePerKwh.ToString("N2") / kWh</td>
+                                    <td class="statement-amount">&#8369;@row.ElecCharge.ToString("N2")</td>
+                                </tr>
+                            }
+                            @if (row.HasWater)
+                            {
+                                <tr>
+                                    <td>Water</td>
+                                    <td>@row.WaterPreviousReading.ToString("N2")</td>
+                                    <td>@row.WaterCurrentReading.ToString("N2")</td>
+                                    <td>@row.WaterConsumption.ToString("N2") cu.m</td>
+                                    <td>&#8369;@row.WaterRatePerCubicMeter.ToString("N2") / cu.m</td>
+                                    <td class="statement-amount">&#8369;@row.WaterCharge.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="statement-total">
+                                <td colspan="5">Total charges for the period</td>
+                                <td class="statement-amount">&#8369;@row.TotalCharge.ToString("N2")</td>
+                            </tr>
+                            @* Paid is stated as the bill computes it - total less balance - so the statement can never
+                               disagree with the receipt the office already issued. *@
+                            <tr>
+                                <td colspan="5">Less payments received</td>
+                                <td class="statement-amount">&#8369;@((row.TotalCharge - row.BalanceDue).ToString("N2"))</td>
+                            </tr>
+                            <tr class="statement-balance">
+                                <td colspan="5">Amount due</td>
+                                <td class="statement-amount">&#8369;@row.BalanceDue.ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <p class="statement-note">
+                        @if (row.BalanceDue <= 0m)
+                        {
+                            <span>Settled in full for this period. This statement is issued for the payor's record.</span>
+                        }
+                        else
+                        {
+                            <span>Please settle at the @Branding.OfficeAcronym Office. Present this statement when paying.</span>
+                        }
+                    </p>
+
+                    <div class="print-report-signatures">
+                        <SignatureStrip />
+                    </div>
+                </section>
+            }
+        }
     </div>
 }
 else
@@ -1294,6 +1448,7 @@ else
     // ── Period state ──────────────────────────────────────────────
     string ActivePeriod = "Monthly";
     bool ShowUtilityBilling = false;
+    bool ShowUtilityStatements = false;
     bool ShowPrintReport = false;
     bool ShowHistory = false;
     DateTime CurrentDate = PhilippineTime.Now;
@@ -1356,7 +1511,9 @@ else
 
     private bool TryApplyCachedReport()
     {
-        if (ShowUtilityBilling)
+        // The utility views read the utility register, not the cached collection report. Statements are that same
+        // register on letterhead, so they bypass the cache for the same reason.
+        if (ShowUtilityBilling || ShowUtilityStatements)
             return false;
 
         var period = ShowPrintReport
@@ -1432,7 +1589,7 @@ else
     {
         if (ShowHistory)   { CurrentDate = CurrentDate.AddYears(-1); await LoadHistoryAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(-1); await LoadAsync(); return; }
-        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(-1); await LoadUtilityRegisterAsync(); return; }
+        if (ShowUtilityBilling || ShowUtilityStatements) { CurrentDate = CurrentDate.AddMonths(-1); await LoadUtilityRegisterAsync(); return; }
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(-7),
@@ -1445,7 +1602,7 @@ else
     {
         if (ShowHistory)   { CurrentDate = CurrentDate.AddYears(1); await LoadHistoryAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(1); await LoadAsync(); return; }
-        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(1); await LoadUtilityRegisterAsync(); return; }
+        if (ShowUtilityBilling || ShowUtilityStatements) { CurrentDate = CurrentDate.AddMonths(1); await LoadUtilityRegisterAsync(); return; }
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(7),
@@ -1470,14 +1627,14 @@ else
     {
         CurrentDate = new DateTime(p.Year, p.Month, 1);
         if (ShowHistory) await LoadHistoryAsync();
-        else if (ShowUtilityBilling) await LoadUtilityRegisterAsync();
+        else if (ShowUtilityBilling || ShowUtilityStatements) await LoadUtilityRegisterAsync();
         else await LoadAsync();
     }
     async Task JumpToCurrent()
     {
         CurrentDate = PhilippineTime.Now;
         if (ShowHistory) await LoadHistoryAsync();
-        else if (ShowUtilityBilling) await LoadUtilityRegisterAsync();
+        else if (ShowUtilityBilling || ShowUtilityStatements) await LoadUtilityRegisterAsync();
         else await LoadAsync();
     }
 
@@ -1579,6 +1736,51 @@ else
                 || r.Payor.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)
                 || r.StallNo.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)))
         .ToList();
+
+    // ── Statements of account for utility charges ──────────────────────────────────────────────────────────
+    // Read straight off the register DTO rather than the display rows, because a statement needs figures the
+    // display does not carry: consumption, the rate charged, the total and the balance. Taking them from the same
+    // response the register was drawn from is what stops a statement disagreeing with the screen it came from.
+    //
+    // Filtered the same way as the table, so "generate" means the payors the office is looking at.
+    //
+    // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no reading entered has no
+    // charge, and a statement for it would state an amount due of nought - a false statement over the office's own
+    // letterhead, and one a payor could reasonably wave at a later bill. The count is reported on the button's own
+    // line so the office can see it decided that rather than losing a payor silently.
+    IReadOnlyList<UtilityRegisterRowDto> StatementRows =>
+        (UtilityRegister?.Rows ?? Array.Empty<UtilityRegisterRowDto>())
+        .Where(r => r.HasBill)
+        .Where(r =>
+            (_utilSection == "All" || r.Section == _utilSection)
+            && (string.IsNullOrWhiteSpace(_utilSearch)
+                || r.Occupant.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)
+                || r.StallNo.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(r => r.Section, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(r => r.StallNo, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    /// <summary>How many of the payors on screen cannot be issued a statement yet, because no reading is recorded.</summary>
+    int UnbilledOnScreen =>
+        FilteredUtilityRows.Count(r => r.Status == "Unbilled");
+
+    async Task ShowUtilityStatementsView()
+    {
+        // No fetch: the register for this period is already loaded, and the statements are that same data on
+        // letterhead. Re-fetching would only create the chance of the two disagreeing.
+        ShowUtilityStatements = true;
+        ShowUtilityBilling = false;
+        ShowPrintReport = false;
+        ShowHistory = false;
+        StateHasChanged();
+    }
+
+    void CloseUtilityStatements()
+    {
+        ShowUtilityStatements = false;
+        ShowUtilityBilling = true;
+        StateHasChanged();
+    }
 
     bool ShowUtilHistory = false;
     UtilityBillingRow? HistoryRow = null;

@@ -63,7 +63,9 @@ public class GetUtilityRegisterQueryHandler(
                     // bill was raised; hiding it then would drop a real balance out of the sheet while the
                     // summary totals still counted it, so the report would no longer reconcile.
                     s.HasElectricity || b.ElecCharge > 0m || b.ElecConsumption > 0m,
-                    s.HasWater || b.WaterCharge > 0m || b.WaterConsumption > 0m));
+                    s.HasWater || b.WaterCharge > 0m || b.WaterConsumption > 0m,
+                    // The rates this bill was actually charged at, so a statement can show consumption × rate = charge.
+                    b.ElecRatePerKwh, b.WaterRatePerCubicMeter));
             }
             else
             {
