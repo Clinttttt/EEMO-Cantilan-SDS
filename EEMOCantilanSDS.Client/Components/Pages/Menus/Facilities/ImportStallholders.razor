@@ -413,8 +413,10 @@
                                         else
                                         {
                                             @* The stall-number box is named so a test can read it without counting
-                                               columns. Selecting cells by position is what failed a deployment once. *@
-                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @(col.Key == "stallNo" ? "imp-stallno" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
+                                               columns. Selecting cells by position is what failed a deployment once.
+                                               CellHook does the same for the rest, so every column can be reached by
+                                               name rather than by index. *@
+                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @CellHook(col.Key) @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
                                                    type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
                                                    value="@GetCell(row, col.Key)"
                                                    placeholder="@col.Placeholder"
@@ -500,6 +502,21 @@
     /// </summary>
     private readonly HashSet<Dictionary<string, string>> _screenAssigned = new();
 
+    /// <summary>
+    /// The rows whose Whole Year Rental THIS SCREEN derives, rather than reading it off the office's list.
+    ///
+    /// <para>Only rows invented here qualify. On an uploaded row the stated whole-year is the office's own figure and
+    /// the evidence the reconciliation check runs against - deriving it would make that check compare a number with
+    /// itself and always agree, quietly retiring the safeguard that caught a three-year term stating 37 months' rent.
+    /// A row typed in on this screen has no paper behind it, so there is nothing to reconcile and nothing to protect.</para>
+    ///
+    /// <para>Deliberately NOT <see cref="_screenAssigned"/>, which looks like the same idea: that set is cleared and
+    /// rebuilt by every numbering pass, so provenance recorded in it would not survive adding a row.</para>
+    ///
+    /// <para>Reference identity, so editing a row's cells does not change its provenance.</para>
+    /// </summary>
+    private readonly HashSet<Dictionary<string, string>> _derivedWholeYear = new();
+
     /// <summary>Numbers held by active stalls in this facility, kept so a removal can re-sequence without asking the
     /// server again.</summary>
     private HashSet<string> _activeNumbers = new(StringComparer.OrdinalIgnoreCase);
@@ -579,6 +596,16 @@
     private static string GetCell(Dictionary<string, string> row, string key)
         => row.TryGetValue(key, out var v) ? v : string.Empty;
 
+    /// <summary>
+    /// A stable class per column, so a cell can be found by the name of its column instead of its position in the row.
+    /// <c>imp-stallno</c> keeps the name it already had, because tests and stylesheets refer to it.
+    /// </summary>
+    private static string CellHook(string key) => key switch
+    {
+        "stallNo" => "imp-stallno",
+        _ => "imp-col-" + key.ToLowerInvariant(),
+    };
+
     private void SetCell(Dictionary<string, string> row, string key, string? value)
     {
         row[key] = value ?? string.Empty;
@@ -588,6 +615,35 @@
         // screen would quietly overwrite what they had just typed, which is the same fault as renumbering an
         // uploaded list, only slower to notice.
         if (key == "stallNo") _screenAssigned.Remove(row);
+
+        // The same rule for the whole-year figure: once the clerk states it themselves, this screen stops deriving it
+        // and never writes over it again. Otherwise the next keystroke in the rent column would erase what they typed.
+        if (key == "wholeYear") _derivedWholeYear.Remove(row);
+
+        // Twelve months of the rent, kept in step as the rent is typed - on rows this screen derives it for. The office
+        // does this multiplication by hand on every list; there is no reason to ask them to do it again for a row they
+        // are inventing here, and no reason for them to be queried about their own arithmetic on it.
+        if (key is "monthly" or "actualMonthly") DeriveWholeYear(row);
+    }
+
+    /// <summary>
+    /// Writes twelve months of the row's rent into its Whole Year Rental cell, when that cell is this screen's to fill.
+    ///
+    /// <para>The rent it multiplies is the ACTUAL monthly where one is stated, falling back to the contract rate - the
+    /// same precedence the reconciliation check uses, so the derived figure agrees with the way the office reads the
+    /// row. A row with no rent yet is left blank rather than reading ₱0.00, which would state a figure nobody meant.</para>
+    /// </summary>
+    private void DeriveWholeYear(Dictionary<string, string> row)
+    {
+        if (!_derivedWholeYear.Contains(row)) return;
+
+        var monthly = SheetNumber.ToDecimal(GetCell(row, "actualMonthly")) is { } am && am > 0m
+            ? am
+            : SheetNumber.ToDecimal(GetCell(row, "monthly")) ?? 0m;
+
+        row["wholeYear"] = monthly > 0m
+            ? (monthly * 12m).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     // NPM imports one section at a time (each section is a separate physical list).
@@ -609,6 +665,7 @@
     {
         _section = null;
         _rows = new();
+        _derivedWholeYear.Clear();
         _loaded = false;
         _fileName = string.Empty;
         _uploadError = null;
@@ -641,6 +698,10 @@
         if (_facility is null) return;
         var row = NewRow(_facility);
         _rows.Add(row);
+
+        // Invented here, so its whole-year is this screen's to work out from the rent as it is typed. An uploaded row
+        // never joins this set: there the figure is the office's own, and the check against it is the point.
+        _derivedWholeYear.Add(row);
 
         // Its number is this screen's to give, and to move again if a row is later removed. Allocated through the
         // shared rule so it steps over the office's own numbers instead of colliding with one.
@@ -838,6 +899,7 @@
         var removed = _rows[index];
         _rows.RemoveAt(index);
         _screenAssigned.Remove(removed);
+        _derivedWholeYear.Remove(removed);
 
         // Only the numbers this screen handed out are closed up. The office's own numbers stay exactly as written -
         // renumbering the whole batch is what once overwrote the physical stall numbers a facility is keyed on.
@@ -940,6 +1002,11 @@
         _fileName = string.Empty;
         _uploadError = null;
         _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
+
+        // The sample states its own whole-year figures, because it teaches the FORMAT of the office's list - including
+        // that column. Nothing here is derived, so the sample reads exactly like a sheet.
+        _derivedWholeYear.Clear();
+
         _loaded = true;
         await ApplyContinuedNumberingAsync();
 
@@ -964,7 +1031,13 @@
         if (_facility is null) return;
         _fileName = "Entered by hand";
         _uploadError = null;
-        _rows = new List<Dictionary<string, string>> { NewRow(_facility) };
+        var first = NewRow(_facility);
+        _rows = new List<Dictionary<string, string>> { first };
+
+        // The starting row is entered by hand like every row that follows it, so it derives its whole-year the same way.
+        _derivedWholeYear.Clear();
+        _derivedWholeYear.Add(first);
+
         _loaded = true;
         await ApplyContinuedNumberingAsync();
     }
@@ -1014,6 +1087,11 @@
             }
 
             _rows = rows;
+
+            // Every row here came off the office's list, so every whole-year figure on screen is theirs. None is
+            // derived, which is what keeps the reconciliation check meaningful.
+            _derivedWholeYear.Clear();
+
             _loaded = true;
             await ApplyContinuedNumberingAsync();
         }
@@ -1357,6 +1435,7 @@
     private void ResetAll()
     {
         _rows = new();
+        _derivedWholeYear.Clear();
         _loaded = false;
         _saved = false;
         _fileName = string.Empty;
