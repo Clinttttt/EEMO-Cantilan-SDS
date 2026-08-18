@@ -24,6 +24,12 @@ namespace EEMOCantilanSDS.ComponentTests;
 /// in an initialise path that reaches the API and the request's cookies, and the properties that matter here are
 /// structural - which branch runs when, and what it is forbidden to touch.
 /// </para>
+///
+/// <para>
+/// Only this repository's own files. An earlier version of this file also asserted that the admin console had stopped
+/// pre-filling "{municipality}.head", by reading activation.ts out of the sibling platform repository. It passed here and
+/// failed in CI, which checks out this repository alone - so the assertion belongs to the repository that owns the file.
+/// </para>
 /// </summary>
 public class LoginIdentityTests
 {
@@ -119,18 +125,6 @@ public class LoginIdentityTests
 
         Assert.Contains("string? Code", query);
         Assert.Contains("m.Code", handler);
-    }
-
-    [Fact]
-    public void TheConsoleNoLongerInventsAUsernameToCarryTheBranding()
-    {
-        // The activation screen pre-filled "{municipality}.head" solely so the login page could theme itself from the
-        // typed username. That is no longer how the page knows, so the office chooses its own Head username.
-        var activation = File.ReadAllText(Path.Combine(
-            RepositoryRoot(), "..", "platform", "apps", "admin", "src", "app", "pages", "activation", "activation.ts"));
-
-        Assert.DoesNotContain("defaultHeadUsername", activation);
-        Assert.Contains("this.headUsername.set('')", activation);
     }
 
     [Fact]
