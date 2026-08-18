@@ -352,7 +352,7 @@
                                 <td class="iph-td-payor">
                                     <PayorPicker Payors="_payors"
                                                  StallNo="@row.StallNo"
-                                                 StallNoChanged="v => row.StallNo = v"
+                                                 StallNoChanged="v => OnPayorChanged(row, v)"
                                                  OccupantChanged="v => row.Occupant = v" />
                                 </td>
                                 @* Capped in the markup as well as checked on save. A cell with no limit accepted a
@@ -373,7 +373,7 @@
                                     @* Days, not an amount. The market's books record a count of days against a
                                        receipt; the money follows from the facility's own daily fee for the days
                                        settled, which is why there is nothing here for the office to total. *@
-                                    <td><input class="iph-input iph-input-num iph-days @(DaysIsBad(row.DaysPaid) ? "iph-input-bad" : null)" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => SyncDates(row)" maxlength="2" inputmode="numeric" placeholder="12" aria-label="Days paid" /></td>
+                                    <td><input class="iph-input iph-input-num iph-days @(DaysIsBad(row.DaysPaid) ? "iph-input-bad" : null)" @bind="row.DaysPaid" @bind:event="oninput" @bind:after="() => OnDaysChanged(row)" maxlength="2" inputmode="numeric" placeholder="12" aria-label="Days paid" /></td>
                                     @* Optional once the days carry their own receipts, which is how the market is
                                        actually collected. The placeholder says so rather than implying a figure the
                                        office's sheet may not keep. *@
@@ -568,10 +568,29 @@
         public List<DateOnly> Chargeable { get; } = new();
 
         /// <summary>
-        /// The month this row's dates were last fetched for, so a keystroke that does not change the month does not
-        /// clear them or ask the server again.
+        /// The payor's UNCOLLECTED days for this month, as the server last stated them.
+        ///
+        /// <para>Kept so that claiming another day dates it at once, from what the server has already said, instead of
+        /// leaving a blank box until somebody presses a button. Growing the count is not new information about the
+        /// month - it is the same month, one more line - so it needs no second question.</para>
         /// </summary>
-        public (int Year, int Month) DatesFetchedFor { get; set; }
+        public List<DateOnly> Available { get; } = new();
+
+        /// <summary>
+        /// The payor and month these dates were fetched for, so a keystroke that changes neither does not clear them or
+        /// ask the server again.
+        ///
+        /// <para>The PAYOR is part of the key, not just the month. Which days a vendor owes depends on the vendor, so
+        /// dates fetched for one and left standing on a row that now names another are simply wrong - and the import
+        /// would refuse them, one row at a time, for days that payor does not owe.</para>
+        /// </summary>
+        public (Guid? Stall, int Year, int Month) DatesFetchedFor { get; set; }
+
+        /// <summary>How many of this month's days the payor has already been collected for, as last stated.</summary>
+        public int AlreadyCollected { get; set; }
+
+        /// <summary>True when the month's days could not be read, so the office is told to enter them by hand.</summary>
+        public bool DaysUnreadable { get; set; }
         public string OrNumber { get; set; } = string.Empty;
         public DateTime? DatePaid { get; set; }
     }
@@ -808,20 +827,73 @@
     private async Task OnPeriodChanged(EditableRow row)
     {
         NormalisePeriod(row);
+        await EnsureDatesAsync(row);
+    }
 
+    /// <summary>
+    /// Dates whatever is undated on a row, asking the server only when the answer could have changed.
+    ///
+    /// <para>This is the one way in. Every path that can alter what a row's days should be - its period, its payor, how
+    /// many days it claims - comes through here, because each of them used to need the office to press something
+    /// afterwards. Claiming another day left a blank box; choosing the payor after typing the days left the row saying
+    /// "choose the payor first" with nothing filled in when they had just done so. The only cures were the "Fill the
+    /// blanks" link or closing and reopening the exact-dates grid, which is a refresh dressed up as a choice.</para>
+    ///
+    /// <para>The guard is the same lesson the period box already carried: bound to oninput this runs on every keystroke,
+    /// so typing 2-0-2-6-0-8 must not ask the server six times or clear a date the office entered by hand. The fetch
+    /// happens when the PAYOR or the MONTH is new; anything else is dated from what the server has already said.</para>
+    ///
+    /// <para>A row with no payor or no readable period is left alone rather than guessed at: which days a vendor owes
+    /// depends on the vendor, and offering the month's first days as though they were owed is how this went wrong
+    /// before.</para>
+    /// </summary>
+    private async Task EnsureDatesAsync(EditableRow row)
+    {
         if (!_showDates) return;
 
         var (year, month) = ParsePeriod(row.Period ?? string.Empty);
         if (year == 0 || month == 0) return;                    // half-typed: nothing to fetch for yet
-        if (row.DatesFetchedFor == (year, month)) return;        // same month: leave what is there alone
 
-        row.DatesFetchedFor = (year, month);
+        var stall = StallIdFor(row.StallNo);
+        var key = (stall, year, month);
 
-        // The dates already shown belong to the month that was there before, so they are cleared rather than carried
-        // into a month they do not fall in - the import would refuse them by name, one row at a time.
-        foreach (var day in row.Days) day.Date = null;
+        if (row.DatesFetchedFor != key)
+        {
+            // A different payor or a different month, so the dates on screen belong to neither. They are cleared rather
+            // than carried across - the import would refuse them by name, for days this payor does not owe or days that
+            // do not fall in this month.
+            foreach (var day in row.Days) day.Date = null;
 
-        await FillDaysAsync(row);
+            await FetchDaysAsync(row, stall, year, month);
+            row.DatesFetchedFor = key;
+        }
+
+        FillFromAvailable(row);
+        Explain(row);
+    }
+
+    /// <summary>
+    /// Dates the undated lines from the days already fetched, earliest first, skipping any day the row already states.
+    ///
+    /// <para>No server call: claiming one more day is the same month asked about twice.</para>
+    /// </summary>
+    private static void FillFromAvailable(EditableRow row)
+    {
+        var taken = row.Days.Where(d => d.Date.HasValue)
+                            .Select(d => DateOnly.FromDateTime(d.Date!.Value))
+                            .ToHashSet();
+
+        var queue = row.Available.Where(d => !taken.Contains(d)).ToList();
+
+        var next = 0;
+        foreach (var day in row.Days)
+        {
+            if (day.Date.HasValue) continue;
+            if (next >= queue.Count) break;
+
+            day.Date = queue[next].ToDateTime(TimeOnly.MinValue);
+            next++;
+        }
     }
     /// <summary>
     /// Whether a row names a month that has not started yet.
@@ -1059,7 +1131,7 @@
         foreach (var row in _rows)
         {
             SyncDates(row);
-            await FillDaysAsync(row);
+            await EnsureDatesAsync(row);
         }
     }
 
@@ -1077,6 +1149,30 @@
     }
 
     /// <summary>
+    /// Claiming a different number of days: resize the lines, then date whatever is now blank.
+    ///
+    /// <para>The dating is the part that was missing. A new line arrived empty and stayed empty until the office pressed
+    /// "Fill the blanks" or closed and reopened the grid, even though the screen already knew which days that payor
+    /// owed.</para>
+    /// </summary>
+    private async Task OnDaysChanged(EditableRow row)
+    {
+        SyncDates(row);
+        await EnsureDatesAsync(row);
+    }
+
+    /// <summary>
+    /// Choosing or changing the payor: their days are not the last payor's, so the row is re-dated for whoever it now
+    /// names. This is the case the office met most often - typing the days first, then picking the payor, and being left
+    /// looking at "choose the payor first" with empty boxes after doing exactly that.
+    /// </summary>
+    private async Task OnPayorChanged(EditableRow row, string stallNo)
+    {
+        row.StallNo = stallNo;
+        await EnsureDatesAsync(row);
+    }
+
+    /// <summary>
     /// Dates the undated lines from the payor's OWN uncollected days in that month, earliest first.
     ///
     /// <para>It filled consecutive days from the first of the month before, which offered days the vendor did not owe:
@@ -1086,62 +1182,82 @@
     ///
     /// <para>A row with no payor or no readable period is left alone rather than guessed at.</para>
     /// </summary>
-    private async Task FillDaysAsync(EditableRow row)
+    /// <summary>
+    /// Asks the server which of this month's days the payor still owes, and remembers them on the row.
+    ///
+    /// <para>It once filled consecutive days from the first of the month, which offered days the vendor did not owe: a
+    /// space let on the 9th owes nothing for the 1st, and a day already collected cannot be collected again. The server
+    /// decides, because the server holds the rules - the term windows, the closures, the days already collected or
+    /// excused - the same rules the import will apply when it accepts these days.</para>
+    /// </summary>
+    private async Task FetchDaysAsync(EditableRow row, Guid? stall, int year, int month)
+    {
+        row.Available.Clear();
+        row.Chargeable.Clear();
+        row.AlreadyCollected = 0;
+        row.DaysUnreadable = false;
+
+        if (stall is null) return;
+
+        var res = await PaymentsApi.GetCollectableDaysAsync(stall.Value, year, month);
+        if (!res.IsSuccess || res.Value is null)
+        {
+            row.DaysUnreadable = true;
+            return;
+        }
+
+        row.Available.AddRange(res.Value.Uncollected.OrderBy(d => d));
+        row.AlreadyCollected = res.Value.AlreadyCollected;
+
+        // The payor's own market days for this month, so a line can be labelled by which of THEIR days it is.
+        row.Chargeable.AddRange((res.Value.Chargeable ?? res.Value.Uncollected).OrderBy(d => d));
+    }
+
+    /// <summary>
+    /// Says what the payor's own record shows, in the office's terms, rather than leaving empty boxes to be puzzled over.
+    /// </summary>
+    private void Explain(EditableRow row)
     {
         row.DaysNote = null;
-        row.Chargeable.Clear();
 
-        var (year, month) = ParsePeriod(row.Period);
-        if (year == 0 || month == 0 || row.Days.Count == 0) return;
+        if (row.Days.Count == 0) return;
 
-        // Recorded by every path that fetches, so a later keystroke on the same month knows there is nothing to do.
-        row.DatesFetchedFor = (year, month);
-
-        var stallId = StallIdFor(row.StallNo);
-        if (stallId is null)
+        if (StallIdFor(row.StallNo) is null)
         {
             row.DaysNote = "Choose the payor first, and their uncollected days will be filled in.";
             return;
         }
 
-        var res = await PaymentsApi.GetCollectableDaysAsync(stallId.Value, year, month);
-        if (!res.IsSuccess || res.Value is null)
+        if (row.DaysUnreadable)
         {
             row.DaysNote = "That month's days could not be read. Enter the dates by hand.";
             return;
         }
 
-        var available = res.Value.Uncollected
-            .Where(d => !row.Days.Any(x => x.Date.HasValue && DateOnly.FromDateTime(x.Date!.Value) == d))
-            .ToList();
-
-        // The payor's own market days for this month, so a line can be labelled by which of THEIR days it is.
-        row.Chargeable.AddRange((res.Value.Chargeable ?? res.Value.Uncollected).OrderBy(d => d));
-
-        var next = 0;
-        foreach (var day in row.Days)
-        {
-            if (day.Date.HasValue) continue;
-            if (next >= available.Count) break;
-
-            day.Date = available[next].ToDateTime(TimeOnly.MinValue);
-            next++;
-        }
-
-        // Said plainly, in the office's own terms, rather than leaving empty boxes to be puzzled over.
         var dated = row.Days.Count(d => d.Date.HasValue);
-        if (res.Value.Uncollected.Count == 0)
+
+        if (row.Available.Count == 0)
         {
-            row.DaysNote = res.Value.AlreadyCollected > 0
-                ? $"Paid up to date — all {res.Value.AlreadyCollected} market {(res.Value.AlreadyCollected == 1 ? "day" : "days")} this month are already collected."
+            row.DaysNote = row.AlreadyCollected > 0
+                ? $"Paid up to date — all {row.AlreadyCollected} market {(row.AlreadyCollected == 1 ? "day" : "days")} this month are already collected."
                 : "No day of this month is owed by this payor: the space was not let, or the market did not open.";
         }
         else if (dated < row.Days.Count)
         {
-            row.DaysNote = $"Only {res.Value.Uncollected.Count} " +
-                           $"{(res.Value.Uncollected.Count == 1 ? "day is" : "days are")} uncollected this month, " +
+            row.DaysNote = $"Only {row.Available.Count} " +
+                           $"{(row.Available.Count == 1 ? "day is" : "days are")} uncollected this month, " +
                            $"so {row.Days.Count - dated} of the {row.Days.Count} claimed could not be dated.";
         }
+    }
+
+    /// <summary>
+    /// The "Fill the blanks" link. Everything fills itself now, so this remains only for the row the office has emptied
+    /// by hand and wants filled again - it asks the same question through the same one way in.
+    /// </summary>
+    private async Task FillDaysAsync(EditableRow row)
+    {
+        row.DatesFetchedFor = default;      // ask again, whatever was asked before
+        await EnsureDatesAsync(row);
     }
 
     /// <summary>The stall a row names, matched within the section already chosen. Null when nothing matches.</summary>

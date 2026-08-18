@@ -298,6 +298,131 @@ public class ImportPaymentHistoryTests : TestContext
         Assert.Equal(firstBefore, cut.FindAll("input.iph-date-slot")[0].GetAttribute("value"));
     }
 
+    /// <summary>Sets up a market row with a payor, a past period and the exact-dates grid open.</summary>
+    private (IRenderedComponent<ImportPaymentHistory> Cut, DateOnly Past) DailyRowWithPayor(string days = "2")
+    {
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input(days);
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+        cut.Find("button.iph-dates-toggle").Click();
+
+        return (cut, past);
+    }
+
+    private static List<string> Slots(IRenderedComponent<ImportPaymentHistory> cut) =>
+        cut.FindAll("input.iph-date-slot").Select(s => s.GetAttribute("value") ?? string.Empty).ToList();
+
+    [Fact]
+    public void CLAIMINGAnotherDayDatesItAtOnce()
+    {
+        // It arrived blank and stayed blank. The only cures were the "Fill the blanks" link or closing and reopening the
+        // grid - a refresh dressed up as a choice - even though the screen already knew which days that payor owed.
+        var (cut, past) = DailyRowWithPayor("2");
+        Assert.All(Slots(cut), s => Assert.False(string.IsNullOrEmpty(s)));
+
+        cut.Find("input.iph-days").Input("3");
+
+        var slots = Slots(cut);
+        Assert.Equal(3, slots.Count);
+        Assert.All(slots, s => Assert.False(string.IsNullOrEmpty(s)));
+        Assert.Contains($"{past.Year:0000}-{past.Month:00}-11", slots[2]);   // the payor's third uncollected day
+    }
+
+    [Fact]
+    public void ClaimingAnotherDayDoesNotAskTheServerAgain()
+    {
+        // Same payor, same month: one more line is not new information about it. Bound to oninput, asking again per
+        // keystroke is exactly how the period box once cleared a date the office had entered by hand.
+        var (cut, _) = DailyRowWithPayor("2");
+        _payments.Invocations.Clear();
+
+        cut.Find("input.iph-days").Input("3");
+
+        _payments.Verify(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public void CHOOSINGThePayorAfterTypingTheDaysFillsTheDates()
+    {
+        // The case the office met most often: type the days, open the grid, be told to choose the payor - and then, after
+        // doing exactly that, still be looking at empty boxes.
+        var cut = Render("npm");
+        cut.FindAll("button.iph-pick-card")[0].Click();
+        cut.Find("button.iph-enter-manually").Click();
+
+        var past = PhilippineTime.Today.AddMonths(-3);
+        cut.Find("input.iph-period").Input($"{past.Year:0000}-{past.Month:00}");
+        cut.Find("input.iph-days").Input("2");
+        cut.Find("button.iph-dates-toggle").Click();
+
+        Assert.Contains("Choose the payor first", cut.Markup);
+        Assert.All(Slots(cut), s => Assert.True(string.IsNullOrEmpty(s)));
+
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("Ackerman Tril")).Click();
+
+        Assert.All(Slots(cut), s => Assert.False(string.IsNullOrEmpty(s)));
+        Assert.DoesNotContain("Choose the payor first", cut.Markup);
+    }
+
+    [Fact]
+    public void CHANGINGThePayorRedatesTheRowForWhoeverItNowNames()
+    {
+        // Which days a vendor owes depends on the vendor, so one payor's days left standing on a row that now names
+        // another are simply wrong - and the import would refuse them by name, for days that payor does not owe.
+        var (cut, past) = DailyRowWithPayor("2");
+        Assert.Contains($"{past.Year:0000}-{past.Month:00}-09", Slots(cut)[0]);
+
+        // The other payor owes a different part of the month.
+        _payments.Setup(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+                 .ReturnsAsync((Guid _, int y, int m) => Result<CollectableDaysDto>.Success(new CollectableDaysDto(
+                     Stall1, y, m,
+                     Uncollected: [new DateOnly(y, m, 20), new DateOnly(y, m, 21)],
+                     AlreadyCollected: 0, Excused: 0, ClosedOrOutsideTerm: 0,
+                     Chargeable: [new DateOnly(y, m, 20), new DateOnly(y, m, 21)])));
+
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("George Giovanna")).Click();
+
+        var slots = Slots(cut);
+        Assert.Contains($"{past.Year:0000}-{past.Month:00}-20", slots[0]);
+        Assert.DoesNotContain(slots, s => s.Contains($"{past.Year:0000}-{past.Month:00}-09"));
+    }
+
+    [Fact]
+    public void ChangingThePayorDOESAskTheServerAgain()
+    {
+        // The other half of the guard: a new payor is new information, so it must not be answered from the last one's days.
+        var (cut, _) = DailyRowWithPayor("2");
+        _payments.Invocations.Clear();
+
+        cut.Find("button.pp-field").Click();
+        cut.FindAll("button.pp-opt").First(o => o.InnerHtml.Contains("George Giovanna")).Click();
+
+        _payments.Verify(p => p.GetCollectableDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void AMonthWithFewerUncollectedDaysThanClaimedStillSaysSo()
+    {
+        // Filling from what the server already said must not lose the sentence that explains a half-filled grid.
+        var (cut, _) = DailyRowWithPayor("2");
+
+        cut.Find("input.iph-days").Input("5");      // only three days are uncollected
+
+        Assert.Equal(5, cut.FindAll("input.iph-date-slot").Count);
+        Assert.Equal(3, Slots(cut).Count(s => !string.IsNullOrEmpty(s)));
+        Assert.Contains("could not be dated", cut.Markup);
+    }
+
     [Fact]
     public void WhenTheOfficeStatesNoDates_NoneAreSent()
     {

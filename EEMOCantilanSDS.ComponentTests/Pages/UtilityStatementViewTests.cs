@@ -113,11 +113,29 @@ public class UtilityStatementViewTests : TestContext
         page.WaitForState(() => page.Markup.Contains("Generate Billing Statement"), TimeSpan.FromSeconds(5));
         page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement")).Click();
 
+        // Waited for, not assumed. Reading the markup straight after the click passed on a warm run and failed on a cold
+        // one - the statements had not been rendered yet, so the assertions were racing the second click.
+        //
+        // The toolbar is the marker, not a sheet title: with nothing billed there is no sheet, and waiting for one would
+        // hang the very test that checks the screen says so.
+        page.WaitForState(() => page.FindAll(".statement-actions").Count > 0, TimeSpan.FromSeconds(5));
+
         return page;
     }
 
-    private static void SwitchTo(IRenderedComponent<NpmReports> page, string label) =>
+    /// <summary>
+    /// Clicks one of the two view buttons, waiting for it to exist first.
+    ///
+    /// <para>Selecting it with First() on an unsettled page throws rather than fails, which is how this reported itself
+    /// as an assertion about readings that were simply not on screen yet.</para>
+    /// </summary>
+    private static void SwitchTo(IRenderedComponent<NpmReports> page, string label)
+    {
+        page.WaitForState(() => page.FindAll("button").Any(b => b.TextContent.Trim() == label),
+            TimeSpan.FromSeconds(5));
+
         page.FindAll("button").First(b => b.TextContent.Trim() == label).Click();
+    }
 
     [Fact]
     public void TheSUMMARYListsEveryPayorOnOneSheetWithATotal()
