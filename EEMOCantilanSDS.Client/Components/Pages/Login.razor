@@ -11,6 +11,7 @@
 @inject IMunicipalitiesApiClient MunicipalitiesApi
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>StallTrack — Administrator Login</PageTitle>
 
@@ -595,6 +596,34 @@
                     Navigation.NavigateTo(LandingSiteLinks.MunicipalityPage(LguParam), forceLoad: true);
                     return;
                 }
+            }
+        }
+        else if (string.IsNullOrEmpty(PBrandName))
+        {
+            // No LGU in the address, so fall back to the one that last signed in ON THIS BROWSER. This is what makes a
+            // bookmarked /login, or the morning after, show the office's own seal rather than the default LGU's - the
+            // case a link carrying ?lgu= cannot cover, and the one the office reported after signing out.
+            //
+            // BRANDING ONLY. It is deliberately NOT assigned to LguParam and does NOT lock the panel: doing so would
+            // scope the sign-in to a remembered municipality, so a clerk from another LGU sharing this browser would be
+            // refused against a tenant they never chose. Typing a username can still re-theme, and the API lookup stays
+            // exactly as it was. The worst a stale or tampered value can do is paint the wrong crest on a sign-in page.
+            var remembered = HttpContextAccessor.HttpContext?.Request
+                .Cookies[Controllers.AuthProxyController.LastMunicipalityCookie];
+
+            if (!string.IsNullOrWhiteSpace(remembered))
+            {
+                try
+                {
+                    var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(remembered!);
+                    if (branding.IsSuccess && branding.Value is { IsActive: true })
+                    {
+                        _brandedIdentifier = remembered!.ToLowerInvariant();
+                        ApplyBranding(branding.Value);
+                        PersistBrand();
+                    }
+                }
+                catch { /* keep the defaults on any failure - this must never block a sign-in */ }
             }
         }
 

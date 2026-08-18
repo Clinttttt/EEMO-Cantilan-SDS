@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System.Text.Json;
@@ -141,6 +142,11 @@ public class AuthService(
 
     public async Task LogoutAsync()
     {
+        // Read the LGU being signed out of BEFORE the session is torn down, so the login page it lands on carries that
+        // municipality's own identity. Signing out used to return everyone to a bare /login, which falls back to the
+        // default LGU's seal, name and office - so a Madrid clerk logged out of Madrid and was shown Cantilan.
+        var tenantCode = await CurrentTenantCodeAsync();
+
         try
         {
             await js.InvokeVoidAsync("fetch", "/api/authproxy/logout", new { method = "POST" });
@@ -155,7 +161,30 @@ public class AuthService(
             // tokens and force a full reload so the circuit (and its TokenService) is torn down.
             tokenService.Clear();
             await authStateProvider.MarkUserAsLoggedOut();
-            navigation.NavigateTo("/login", forceLoad: true);
+
+            var target = string.IsNullOrWhiteSpace(tenantCode)
+                ? "/login"
+                : $"/login?lgu={Uri.EscapeDataString(tenantCode!)}";
+
+            navigation.NavigateTo(target, forceLoad: true);
+        }
+    }
+
+    /// <summary>
+    /// The tenant code of the signed-in session, from its own claim. Null when there is nothing to read, in which case
+    /// the caller falls back to the unscoped login rather than guessing at a municipality.
+    /// </summary>
+    private async Task<string?> CurrentTenantCodeAsync()
+    {
+        try
+        {
+            var state = await authStateProvider.GetAuthenticationStateAsync();
+            return state.User.FindFirst(AppClaimTypes.Municipality)?.Value;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not read the tenant code while signing out; using the unscoped login page.");
+            return null;
         }
     }
 }

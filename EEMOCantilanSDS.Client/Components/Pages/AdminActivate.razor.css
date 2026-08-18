@@ -204,19 +204,17 @@
 
 .setup-right::-webkit-scrollbar { width: 0; height: 0; }
 
-/* ── Activated (Done) state: fill the panel with the municipality backdrop so the confirmation
-   doesn't float in empty whitespace. A deep navy wash keeps the white card fully legible. ── */
-.setup-right-activated {
-    background-image:
-        linear-gradient(135deg, rgba(11, 40, 70, 0.90) 0%, rgba(7, 31, 56, 0.94) 100%),
-        url('/images/municipality-page-background.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-}
+/* ── Activated (Done) state ───────────────────────────────────────────────────────────────────────
+   No background of its own: the panel keeps the same light surface as the password step before it, and as
+   the login page the button leads to. Inheriting rather than restating it means there is no third colour to
+   keep in step later.
 
+   It used to be washed in deep navy over the municipality backdrop, to stop the confirmation floating in
+   whitespace. It did stop that, at the cost of the one screen in the sequence looking like a different
+   product: the office set a password on a light panel, pressed Save, landed on a dark one, and went on to a
+   light login. Whitespace around a confirmation is not worth that. ── */
 .setup-right-activated .login-card {
-    box-shadow: 0 30px 70px rgba(5, 20, 38, 0.45), 0 2px 6px rgba(5, 20, 38, 0.25);
+    box-shadow: 0 18px 44px rgba(15, 42, 71, 0.10), 0 1px 3px rgba(15, 42, 71, 0.06);
 }
 
 .activated-icon {

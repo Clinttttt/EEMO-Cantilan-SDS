@@ -382,7 +382,16 @@
         }
     }
 
-    void GoToLogin() => Navigation.NavigateTo("/login?activated=1");
+    // Hands the login page the LGU this account belongs to, so the panel it lands on carries that municipality's own
+    // seal, name and office. A bare /login falls back to the default LGU's identity, which is how an office finished
+    // activating Madrid and was greeted by Cantilan. `activated=1` is kept so the page can still say the account is ready.
+    void GoToLogin()
+    {
+        var code = Context?.Code;
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(code)
+            ? "/login?activated=1"
+            : $"/login?activated=1&lgu={Uri.EscapeDataString(code!)}");
+    }
 
     int GetPasswordStrength(string pw)
     {

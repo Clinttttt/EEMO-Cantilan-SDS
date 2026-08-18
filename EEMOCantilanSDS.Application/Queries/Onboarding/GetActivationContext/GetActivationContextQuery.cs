@@ -12,5 +12,16 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
     public record GetActivationContextQuery(string Token) : IRequest<Result<ActivationContextDto>>;
 
     /// <summary>Identity shown on the activation page for a valid, unused token.</summary>
-    public record ActivationContextDto(string FullName, string Username, string Municipality, string? OfficeName, string? OfficeAcronym);
+    /// <param name="Code">
+    /// The municipality's own code, so the "Continue to sign in" button can hand the login page the LGU it belongs to.
+    /// Without it that button led to a bare /login, which falls back to the default LGU's seal and office - an office
+    /// finished activating Madrid and was greeted by Cantilan.
+    /// </param>
+    public record ActivationContextDto(
+        string FullName,
+        string Username,
+        string Municipality,
+        string? OfficeName,
+        string? OfficeAcronym,
+        string? Code = null);
 }

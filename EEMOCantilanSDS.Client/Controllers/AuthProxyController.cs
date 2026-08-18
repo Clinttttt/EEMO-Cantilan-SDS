@@ -132,7 +132,44 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(claimsIdentity),
             authProperties);
+
+        RememberMunicipality(jwtToken.Claims);
     }
+
+    /// <summary>
+    /// Remembers which LGU last signed in on THIS BROWSER, so a later visit to a bare /login shows that
+    /// municipality's own seal, name and office instead of the default LGU's.
+    ///
+    /// <para>
+    /// Branding only, and never authorisation: every request is still scoped by the caller's own token, and the login
+    /// itself still checks the account against whichever LGU it is signing into. The worst a tampered value can do is
+    /// paint the wrong crest on a sign-in page.
+    /// </para>
+    ///
+    /// <para>
+    /// Not HttpOnly-sensitive and deliberately readable at prerender, which is where the login panel is composed. It is
+    /// what makes a bookmarked /login, or the morning after, land on the office's own identity - the case a link
+    /// carrying ?lgu= cannot cover.
+    /// </para>
+    /// </summary>
+    private void RememberMunicipality(IEnumerable<Claim> tokenClaims)
+    {
+        var code = tokenClaims.FirstOrDefault(c => c.Type == AppClaimTypes.Municipality)?.Value;
+        if (string.IsNullOrWhiteSpace(code)) return;
+
+        Response.Cookies.Append(LastMunicipalityCookie, code, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = true,
+            SameSite = SameSiteMode.Lax,
+            IsEssential = true,
+            Expires = DateTimeOffset.UtcNow.AddDays(365),
+            Path = "/"
+        });
+    }
+
+    /// <summary>The browser's memory of the last LGU signed in here. Read by the login page when no ?lgu is supplied.</summary>
+    public const string LastMunicipalityCookie = "stalltrack_lgu";
 
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
