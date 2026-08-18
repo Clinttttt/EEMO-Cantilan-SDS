@@ -42,6 +42,27 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     /// <summary>
+    /// Sign-in for the ADMIN CONSOLE (admin.stalltrack.site), which admits the dedicated platform operator only.
+    ///
+    /// <para>
+    /// Its own endpoint rather than a flag on the wire, so the requirement is the endpoint's promise and a client cannot
+    /// ask for the lax variant by mistake. Everything else - lockout, MFA, the LGU boundary - is the same command, so
+    /// there is one login to reason about rather than two.
+    /// </para>
+    /// </summary>
+    [HttpPost("console-login")]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<TokenResponseDto>> ConsoleLoginAsync([FromBody] LoginCommand request)
+    {
+        var result = await Sender.Send(request with { RequirePlatformOperator = true });
+
+        if (result.IsSuccess && result.Value is { MfaRequired: false })
+            CookieHelper.SetAuthCookies(Response, result.Value!.AccessToken, result.Value.RefreshToken);
+
+        return HandleResponse(result);
+    }
+
+    /// <summary>
     /// The signed-in administrator replaces their own password, and receives a fresh session.
     ///
     /// <para>
