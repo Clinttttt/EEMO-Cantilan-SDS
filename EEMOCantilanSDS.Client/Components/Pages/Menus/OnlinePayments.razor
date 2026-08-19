@@ -7,6 +7,7 @@
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject ISettingsApiClient SettingsApi
 @inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
 
 <PageTitle>StallTrack — Online Payments</PageTitle>
 
@@ -52,8 +53,25 @@
                     </div>
                     <div class="op-setup-head-text">
                         <div class="op-setup-title">Set up your online payment account</div>
-                        <div class="op-setup-sub">Connect your municipality's PayMongo account so collections settle to you.</div>
+                        <div class="op-setup-sub">Connect your municipality's PayMongo account so online collections settle to your account.</div>
                     </div>
+
+                    @* What the office needs to know before it reads the form: whether this connection actually works, and
+                       whether the key it pasted is a live one. Stated rather than implied by an empty field. *@
+                    <dl class="op-conn">
+                        <div class="op-conn-row">
+                            <dt>Connection status</dt>
+                            <dd class="op-conn-@ConnectionTone">@ConnectionStatus</dd>
+                        </div>
+                        <div class="op-conn-row">
+                            <dt>Mode</dt>
+                            <dd>@(_payment?.Mode ?? "—")</dd>
+                        </div>
+                        <div class="op-conn-row">
+                            <dt>Last verification</dt>
+                            <dd>@(_payment?.LastVerifiedAtUtc is { } at ? PhilippineTime.ToPhilippineTime(at).ToString("MMM d, yyyy h:mm tt") : "—")</dd>
+                        </div>
+                    </dl>
                     <button type="button" class="op-help-btn" title="How to set this up" @onclick="() => _showHelp = true">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
                     </button>
@@ -66,17 +84,46 @@
                         <PasswordRevealButton Shown="_showSecret" ShownChanged="v => _showSecret = v" />
                     </div>
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label">Public Key <span class="op-opt">(optional)</span></label>
-                    <input class="form-input" type="text" autocomplete="off" placeholder="pk_live_…" @bind="_payPublic" @bind:event="oninput" />
+                    <label class="form-label">Webhook endpoint</label>
+                    @* Read-only and composed by the server, PER LGU. The tenant-less endpoint verifies against the
+                       platform configuration - the default municipality's secret - so an office pointed at it would have
+                       every notification refused. Nobody should be assembling this by hand. *@
+                    <div class="op-copy-row">
+                        <input class="form-input op-copy-input" type="text" readonly value="@(_payment?.WebhookUrl ?? "")" aria-label="Webhook endpoint for this office" />
+                        <button type="button" class="btn-ghost op-copy-btn" @onclick="CopyWebhookUrlAsync" disabled="@string.IsNullOrEmpty(_payment?.WebhookUrl)">
+                            @(_copied ? "Copied" : "Copy")
+                        </button>
+                    </div>
+                    <div class="op-field-hint">Paste this into PayMongo → Developers → Webhooks, subscribing to <code>checkout_session.payment.paid</code>, <code>payment.paid</code> and <code>payment.failed</code>.</div>
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label">Webhook Secret <span class="op-opt">(optional)</span></label>
+                    <label class="form-label">Webhook signing secret</label>
                     <div class="pw-reveal-wrap">
                         <input class="form-input" type="@(_showWebhook ? "text" : "password")" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
                         <PasswordRevealButton Shown="_showWebhook" ShownChanged="v => _showWebhook = v" />
                     </div>
+                    @* No longer called optional. Payments can be TAKEN without it, but nothing confirms them unless the
+                       payor returns to the portal or the office reconciles - and PayMongo does not re-send missed events. *@
+                    <div class="op-field-hint">
+                        PayMongo shows this once, when the webhook is saved. Without it, payments can be received but
+                        cannot confirm themselves.
+                    </div>
                 </div>
+
+                <details class="op-advanced">
+                    <summary>Advanced (optional)</summary>
+                    <div class="form-group">
+                        <label class="form-label">Public key</label>
+                        <input class="form-input" type="text" autocomplete="off" placeholder="pk_live_…" @bind="_payPublic" @bind:event="oninput" />
+                        @* Kept because it is already stored for offices that entered one, and hidden because this
+                           integration is hosted checkout: the payor is redirected to PayMongo's own page, so nothing here
+                           ever sends a publishable key. Asking for it up front made setup look harder than it is. *@
+                        <div class="op-field-hint">Not used by this integration. Hosted checkout authenticates with the secret key alone.</div>
+                    </div>
+                </details>
 
                 @if (!string.IsNullOrEmpty(_payError))
                 {
@@ -568,6 +615,47 @@
         _payMsg = null;
         _showSetup = true;
     }
+
+    /// <summary>
+    /// Puts this office's own webhook address on the clipboard, so it is pasted into PayMongo rather than retyped.
+    /// A clipboard refusal is not reported as an error: the field is readable and selectable either way.
+    /// </summary>
+    private async Task CopyWebhookUrlAsync()
+    {
+        var url = _payment?.WebhookUrl;
+        if (string.IsNullOrWhiteSpace(url)) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            _copied = true;
+        }
+        catch
+        {
+            _copied = false;
+        }
+    }
+
+    private bool _copied;
+
+    /// <summary>
+    /// What the office is told about its connection, in three honest states rather than a badge that only says yes or no.
+    ///
+    /// <para>
+    /// "Ready" needs BOTH halves: an account to settle into and a signing secret to authenticate PayMongo's notifications.
+    /// With only the first, payments can be taken but nothing confirms them on its own - so it is called incomplete, which
+    /// is what it is, instead of connected.
+    /// </para>
+    /// </summary>
+    private string ConnectionStatus =>
+        !CanAcceptOnlinePayments ? "Not connected"
+        : _payment?.HasWebhookSecret == true ? "Ready"
+        : "Setup incomplete";
+
+    private string ConnectionTone =>
+        !CanAcceptOnlinePayments ? "off"
+        : _payment?.HasWebhookSecret == true ? "ok"
+        : "warn";
 
     private async Task SavePaymentAsync()
     {

@@ -394,11 +394,6 @@
     line-height: 1.55;
 }
 
-.op-opt {
-    color: var(--text-subtle);
-    font-weight: 400;
-}
-
 .op-setup-actions {
     display: flex;
     gap: 10px;
@@ -645,4 +640,110 @@
     .op-kpis {
         grid-template-columns: 1fr;
     }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Connection state, the webhook address, and the advanced disclosure.
+
+   Added when the webhook signing secret stopped being described as optional: an office needs to see whether
+   its connection can actually confirm a payment, and to copy its OWN webhook address rather than assemble
+   one. Restrained on purpose - a status line, a read-only field, and a disclosure.
+   ══════════════════════════════════════════════════════════════════════ */
+.op-conn {
+    margin: 0;
+    min-width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.op-conn-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--border);
+}
+
+.op-conn-row:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.op-conn dt {
+    margin: 0;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-subtle, #6a8aa0);
+}
+
+.op-conn dd {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    text-align: right;
+}
+
+/* Three states, and only the incomplete one is coloured: "ready" is the expected case and does not need
+   announcing, while "not connected" is already plain from the form beneath it. */
+.op-conn-warn { color: var(--gold-ink, #8a6d1f); }
+
+.op-conn-off { color: var(--text-subtle, #6a8aa0); font-weight: 600; }
+
+/* ── The office's own webhook address ── */
+.op-copy-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.op-copy-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    background: color-mix(in srgb, var(--border) 26%, #fff);
+    color: var(--navy);
+}
+
+.op-copy-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.op-field-hint {
+    margin-top: 5px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--text-subtle, #6a8aa0);
+}
+
+.op-field-hint code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--navy);
+}
+
+/* ── Advanced: the public key this integration does not use ── */
+.op-advanced {
+    margin: 4px 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 0 12px;
+    background: color-mix(in srgb, var(--border) 16%, #fff);
+}
+
+.op-advanced > summary {
+    cursor: pointer;
+    padding: 10px 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.op-advanced[open] > summary {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
 }

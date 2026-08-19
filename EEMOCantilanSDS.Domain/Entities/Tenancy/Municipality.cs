@@ -60,6 +60,17 @@ public class Municipality : AuditableEntity
     public bool HasOwnPayMongoAccount => !string.IsNullOrWhiteSpace(PayMongoSecretKeyEnc);
 
     /// <summary>
+    /// True when this LGU has its own webhook signing secret, so PayMongo's notifications can be authenticated.
+    ///
+    /// <para>
+    /// Without it, an LGU can still take payments - but nothing can confirm them except the payor returning to the portal
+    /// or the office reconciling by hand, because an unsigned notification is refused. It is reported so the office can
+    /// see that difference rather than discover it.
+    /// </para>
+    /// </summary>
+    public bool HasPayMongoWebhookSecret => !string.IsNullOrWhiteSpace(PayMongoWebhookSecretEnc);
+
+    /// <summary>
     /// Opaque, LGU-scoped token embedded in the collector-app bind link (…/a/{token}). It binds a freshly
     /// installed generic app to THIS municipality (branding + login scope) — it is NOT a security boundary
     /// (login + LGU-scoped accounts remain the real gate). Rotatable if leaked.
