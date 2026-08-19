@@ -130,7 +130,20 @@
                     <div class="op-banner op-banner-error">@_payError</div>
                 }
 
+                @* _payMsg was assigned in five places and rendered in none, so "Saved", "Reverted" and now the result of a
+                   connection test all happened silently. Found while adding the test button, which would otherwise have
+                   reported success by showing nothing at all. *@
+                @if (!string.IsNullOrEmpty(_payMsg))
+                {
+                    <div class="op-banner op-banner-ok">@_payMsg</div>
+                }
+
                 <div class="op-setup-actions">
+                    @* Test before Save, deliberately: the office finds out whether the key is right while it is still in the
+                       box, rather than saving something wrong and discovering it when a vendor tries to pay. *@
+                    <button class="btn-ghost" disabled="@(_paySaving || _payTesting)" @onclick="TestPaymentAsync">
+                        @(_payTesting ? "Testing…" : "Test connection")
+                    </button>
                     <button class="btn-primary" disabled="@_paySaving" @onclick="SavePaymentAsync">@(_paySaving ? "Saving…" : "Save")</button>
                     @if (_payment?.HasOwnAccount == true || _isDefaultTenant)
                     {
@@ -637,6 +650,47 @@
     }
 
     private bool _copied;
+    private bool _payTesting;
+
+    /// <summary>
+    /// Asks PayMongo whether the credentials work, testing the key in the box when there is one and the stored key otherwise.
+    ///
+    /// <para>
+    /// The result is reported where the other messages already appear, and the settings are re-read afterwards so the
+    /// verification stamp and mode on the status rail come from the server rather than from what this page assumed.
+    /// </para>
+    /// </summary>
+    private async Task TestPaymentAsync()
+    {
+        _payTesting = true;
+        _payError = null;
+        _payMsg = null;
+
+        try
+        {
+            var result = await SettingsApi.TestPaymentConnectionAsync(
+                string.IsNullOrWhiteSpace(_paySecret) ? null : _paySecret);
+
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _payError = string.IsNullOrWhiteSpace(result.Error)
+                    ? "Could not test the connection."
+                    : result.Error;
+                return;
+            }
+
+            if (result.Value.Ok) _payMsg = result.Value.Message;
+            else _payError = result.Value.Message;
+
+            // Re-read rather than patch: a successful test may have stamped the verification server-side, and the rail
+            // should show what was recorded, not what this page hoped was.
+            await LoadPaymentAsync();
+        }
+        finally
+        {
+            _payTesting = false;
+        }
+    }
 
     /// <summary>
     /// What the office is told about its connection, in three honest states rather than a badge that only says yes or no.

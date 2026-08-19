@@ -48,6 +48,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.PayMongoPublicKey).HasColumnType("text");
             builder.Property(x => x.PayMongoWebhookSecretEnc).HasColumnType("text");
 
+            // The registered webhook's id (hook_...) is an identifier rather than a secret, so it is stored plain. It
+            // exists so the same webhook is updated instead of a second one being created on every save.
+            builder.Property(x => x.PayMongoWebhookId).HasMaxLength(120);
+
             // Collector-app bind token (opaque, URL-safe). Unique when set; Postgres allows multiple NULLs.
             builder.Property(x => x.MobileBindToken).HasMaxLength(64);
             builder.HasIndex(x => x.MobileBindToken).IsUnique();

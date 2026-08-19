@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Command.Municipalities.TestPaymentConnection;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -20,6 +21,11 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
         await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand, bool>(
             "api/municipality-profile/payment",
             new EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand(secretKey, publicKey, webhookSecret));
+
+    public async Task<Result<PaymentConnectionTestDto>> TestPaymentConnectionAsync(string? secretKey) =>
+        await PostAsync<TestPaymentConnectionCommand, PaymentConnectionTestDto>(
+            "api/municipality-profile/payment/test",
+            new TestPaymentConnectionCommand(secretKey));
 
     public async Task<Result<bool>> VerifyMyPasswordAsync(string password) =>
         await PostAsync<object, bool>("api/municipality-profile/verify-password", new { Password = password });

@@ -90,6 +90,10 @@ public class CrossTenantReadsAreNamedTests
         "UpdateOfficeProfileCommandHandler.cs",
         "GetMunicipalityPaymentSettingsQueryHandler.cs",
         "SetMunicipalityPaymentCredentialsCommandHandler.cs",
+        // Reads the CALLER'S OWN municipality to test its payment credentials, scoped by currentUser.MunicipalityId, the
+        // same pattern as the two entries above it. The Municipalities table is filtered, so a handler that has to look at
+        // the row it belongs to must say so here.
+        "TestPaymentConnectionCommandHandler.cs",
         "TpmMarketDayProvider.cs",
         "SetupRepository.cs",
 

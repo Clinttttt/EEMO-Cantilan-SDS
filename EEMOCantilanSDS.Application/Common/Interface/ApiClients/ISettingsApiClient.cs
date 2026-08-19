@@ -15,6 +15,12 @@ public interface ISettingsApiClient
 
     /// <summary>Re-authentication: verify the current user's own password before a sensitive change
     /// (e.g. changing the online-payment account). True when the password matches.</summary>
+    /// <summary>
+    /// Ask PayMongo whether this office's credentials work. Pass the key being entered to test THAT one; pass null to test
+    /// whatever is already stored, which is a different question - "is what I just typed right" versus "does this still work".
+    /// </summary>
+    Task<Result<Command.Municipalities.TestPaymentConnection.PaymentConnectionTestDto>> TestPaymentConnectionAsync(string? secretKey);
+
     Task<Result<bool>> VerifyMyPasswordAsync(string password);
 
     /// <summary>The caller Head's current office/LGU branding (to pre-fill the profile edit form).</summary>

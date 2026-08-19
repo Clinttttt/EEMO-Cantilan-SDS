@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories;
 using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetOfficeProfile;
+using EEMOCantilanSDS.Application.Command.Municipalities.TestPaymentConnection;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Settings;
@@ -61,6 +62,20 @@ public class MunicipalityProfileController : ApiBaseController
     }
 
     /// <summary>Status of the LGU's online-payment account (never returns the secret).</summary>
+    /// <summary>
+    /// Asks PayMongo whether this office's credentials work. A success is recorded; a failure leaves the last known-good
+    /// verification alone, because that is the fact somebody diagnosing a problem needs.
+    ///
+    /// <para>Head-only through the controller's own SuperAdmin requirement, like saving the credentials it tests.</para>
+    /// </summary>
+    [HttpPost("payment/test")]
+    public async Task<ActionResult<PaymentConnectionTestDto>> TestPaymentAsync(
+        [FromBody] TestPaymentConnectionCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
     [HttpGet("payment")]
     public async Task<ActionResult<PaymentSettingsDto>> GetPaymentAsync()
     {

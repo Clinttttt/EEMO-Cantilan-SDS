@@ -56,6 +56,28 @@ public class Municipality : AuditableEntity
     public string? PayMongoPublicKey { get; private set; }
     public string? PayMongoWebhookSecretEnc { get; private set; }
 
+    /// <summary>
+    /// The PayMongo webhook this LGU's notifications arrive through (<c>hook_…</c>), when StallTrack registered it.
+    ///
+    /// <para>
+    /// An identifier, not a secret, so it is stored plain. Kept so the same webhook can be found and updated instead of a
+    /// second one being created every time the office saves its keys - PayMongo would happily hold both, and the office
+    /// would have no way of telling which one signs what.
+    /// </para>
+    /// </summary>
+    public string? PayMongoWebhookId { get; private set; }
+
+    /// <summary>
+    /// When this connection was last confirmed against PayMongo. Null until it has been.
+    ///
+    /// <para>
+    /// Recorded so the office can see that its account answered at some point, rather than trusting a form it filled in
+    /// once. PayMongo disables a webhook after repeated delivery failures, so "it worked when we saved it" is not the same
+    /// as "it works now".
+    /// </para>
+    /// </summary>
+    public DateTime? PayMongoLastVerifiedAtUtc { get; private set; }
+
     /// <summary>True when this LGU has its own PayMongo secret configured (so it settles to its own account).</summary>
     public bool HasOwnPayMongoAccount => !string.IsNullOrWhiteSpace(PayMongoSecretKeyEnc);
 
@@ -170,12 +192,54 @@ public class Municipality : AuditableEntity
         UpdatedBy = updatedBy;
     }
 
-    /// <summary>Removes this LGU's own PayMongo credentials, reverting it to the global fallback account.</summary>
+    /// <summary>
+    /// Records the webhook StallTrack registered for this LGU and its signing secret, and marks the connection verified.
+    ///
+    /// <para>
+    /// Separate from <see cref="SetPayMongoCredentials"/> because it is a different act: the office supplies the secret
+    /// key, and this is what the system found out by asking PayMongo. Keeping them apart means a failed provisioning
+    /// attempt cannot quietly discard the key the office just entered.
+    /// </para>
+    /// </summary>
+    public void SetPayMongoWebhook(string? webhookId, string? webhookSecretEnc, DateTime verifiedAtUtc, string updatedBy)
+    {
+        PayMongoWebhookId = string.IsNullOrWhiteSpace(webhookId) ? null : webhookId.Trim();
+
+        // Only replaces the stored secret when a new one was actually obtained. PayMongo reveals a webhook's secret when
+        // it is created; asking about an existing webhook does not necessarily return it, and overwriting a working secret
+        // with nothing would silently stop every notification from being believed.
+        if (!string.IsNullOrWhiteSpace(webhookSecretEnc))
+            PayMongoWebhookSecretEnc = webhookSecretEnc;
+
+        PayMongoLastVerifiedAtUtc = verifiedAtUtc;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    /// <summary>Records that this LGU's account answered PayMongo successfully, without changing any credential.</summary>
+    public void RecordPayMongoVerified(DateTime verifiedAtUtc, string updatedBy)
+    {
+        PayMongoLastVerifiedAtUtc = verifiedAtUtc;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    /// <summary>
+    /// Removes this LGU's own PayMongo credentials.
+    ///
+    /// <para>
+    /// Everything goes, including the registered webhook and the verification stamp - they describe an account this LGU no
+    /// longer uses, and leaving them would report a connection that is not there. Only the DEFAULT municipality can still
+    /// take payments afterwards, because the platform configuration is its own account.
+    /// </para>
+    /// </summary>
     public void ClearPayMongoCredentials(string updatedBy)
     {
         PayMongoSecretKeyEnc = null;
         PayMongoPublicKey = null;
         PayMongoWebhookSecretEnc = null;
+        PayMongoWebhookId = null;
+        PayMongoLastVerifiedAtUtc = null;
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

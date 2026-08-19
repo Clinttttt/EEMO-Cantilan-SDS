@@ -242,6 +242,15 @@ namespace EEMOCantilanSDS.Infrastructure
                 client.BaseAddress = gatewayBase;
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
+
+            // The same base address, because it is the same provider - but its own client, because this one authenticates
+            // with a key the office is in the middle of entering rather than with the current tenant's stored credentials.
+            service.AddHttpClient<IPayMongoAccountVerifier, PayMongoAccountVerifier>(client =>
+            {
+                client.BaseAddress = gatewayBase;
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            });
+
             return service;
         }
 

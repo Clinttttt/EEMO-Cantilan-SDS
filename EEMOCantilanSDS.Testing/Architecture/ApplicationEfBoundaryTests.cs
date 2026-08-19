@@ -79,6 +79,9 @@ public class ApplicationEfBoundaryTests
         "UpdateOfficeProfileCommandHandler.cs",
         "GetMunicipalityPaymentSettingsQueryHandler.cs",
         "SetMunicipalityPaymentCredentialsCommandHandler.cs",
+        // Tests an LGU's payment credentials against PayMongo and records the result on its own municipality row - the same
+        // table, through the same context, as the two handlers above.
+        "TestPaymentConnectionCommandHandler.cs",
 
         // Rates and the OR series.
         "GetFacilityRatesQueryHandler.cs",
