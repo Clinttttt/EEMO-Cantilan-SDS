@@ -41,8 +41,8 @@
     <!-- ── Hero Banner ── -->
     <FacilityHero
         Code="FacilityCode.TPM"
-        Eyebrow="FACILITY · TPM"
-        Title="Tabo-an Public Market"
+        Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.TPM)}")'
+        Title="@FacilityCatalog.NameOf(FacilityCode.TPM)"
         Icon="@TpmIcon"
         Stats="@HeroStats"
         ShowProgress="true"

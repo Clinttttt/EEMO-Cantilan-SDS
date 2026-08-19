@@ -998,18 +998,22 @@
 
     private sealed record FilterDef(string Key, string Label);
 
-    private static readonly FilterDef[] Filters =
-    {
+    /// <summary>
+    /// The reason filters. An INSTANCE property rather than a static array, because one of the labels names the LGU's own
+    /// daily market - it read "NPM Daily" for every tenant, which is Cantilan's acronym on another municipality's queue.
+    /// </summary>
+    private FilterDef[] Filters =>
+    [
         new("all", "All"),
         new("delinquent", "Delinquent"),
         new("arrears", "Arrears"),
         new("missingor", "Missing OR"),
         new("current", "Current-period"),
         new("contract", "Contract"),
-        new("npm", "NPM Daily"),
+        new("npm", $"{FacilityCatalog.ShortNameOf(FacilityCode.NPM)} Daily"),
         new("excused", "Excused Review"),
         new("misc", "Miscellaneous"),
-    };
+    ];
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
     private int TotalItems => Filtered().Count;

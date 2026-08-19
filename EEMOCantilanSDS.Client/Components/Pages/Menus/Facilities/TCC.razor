@@ -45,8 +45,8 @@
             <!-- ── Hero Banner ── -->
             <FacilityHero 
                 Code="FacilityCode.TCC"
-                Eyebrow="FACILITY · TCC"
-                Title="Tampak Commercial Center"
+                Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.TCC)}")'
+                Title="@FacilityCatalog.NameOf(FacilityCode.TCC)"
                 Icon="@TccIcon"
                 Stats="@HeroStats"
                 ShowProgress="true"
@@ -107,7 +107,7 @@
      PAYMENT RECEIPT MODAL (branded — consistent with NPM & the other facilities)
 ══════════════════════════════════════════════ -->
 <CollectionReceiptModal Show="ShowPayment"
-                        FacilityName="Tampak Commercial Center"
+                        FacilityName="@FacilityCatalog.NameOf(FacilityCode.TCC)"
                         PeriodLabel="@PhilippineTime.Now.ToString("MMMM yyyy")"
                         StallNo="@(PaymentStall?.StallNo ?? string.Empty)"
                         PayorName="@(PaymentStall?.ActualOccupant ?? string.Empty)"

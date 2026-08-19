@@ -40,8 +40,8 @@
 
         <!-- -- SLH Hero Banner -- -->
         <FacilityHero Code="FacilityCode.SLH"
-                      Eyebrow="FACILITY · SLH"
-                      Title="Slaughterhouse"
+                      Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.SLH)}")'
+                      Title="@FacilityCatalog.NameOf(FacilityCode.SLH)"
                       Icon="@SlhIcon"
                       Stats="@HeroStats"
                       ShowProgress="true"

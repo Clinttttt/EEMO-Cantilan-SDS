@@ -391,18 +391,12 @@
         return f.Rentals;
     }
 
-    private static string FacilityName(FacilityCode code) => code switch
-    {
-        FacilityCode.NPM => "New Public Market",
-        FacilityCode.TCC => "Tampak Commercial Center",
-        FacilityCode.NCC => "New Commercial Center",
-        FacilityCode.BBQ => "Barbecue Stand",
-        FacilityCode.ICE => "Iceplant",
-        FacilityCode.SLH => "Slaughterhouse",
-        FacilityCode.TRM => "Transport Terminal",
-        FacilityCode.TPM => "Tabo-an Public Market",
-        _ => code.ToString()
-    };
+    /// <summary>
+    /// The LGU's own name for a facility. Was a hardcoded table of Cantilan's names, which is what an export headed
+    /// "New Public Market" for Madrid came from; the tenant catalog answers it now, and falls back to the code rather
+    /// than to another municipality's words.
+    /// </summary>
+    private string FacilityName(FacilityCode code) => Facilities.NameOf(code);
 
     // Landscape for both paths: the collection report is a wide sheet and portrait squeezed the figures.
     // js/print.js injects the @page rule immediately before printing.

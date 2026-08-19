@@ -45,8 +45,8 @@
             <!-- ── NPM Hero Banner ── -->
             <FacilityHero 
                 Code="FacilityCode.NPM"
-                Eyebrow="FACILITY · NPM"
-                Title="New Public Market"
+                Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.NPM)}")'
+                Title="@FacilityCatalog.NameOf(FacilityCode.NPM)"
                 Icon="@NpmIcon"
                 Stats="@HeroStats"
                 ShowProgress="true"
@@ -266,7 +266,7 @@
      COLLECTION RECEIPT MODAL (NPM is daily-only — no monthly payment to encode)
 ══════════════════════════════════════════════ -->
 <CollectionReceiptModal Show="ShowPayment"
-                        FacilityName="New Public Market"
+                        FacilityName="@FacilityCatalog.NameOf(FacilityCode.NPM)"
                         PeriodLabel="@PhilippineTime.Now.ToString("MMMM yyyy")"
                         StallNo="@(PaymentStall?.StallNo ?? string.Empty)"
                         PayorName="@(PaymentStall?.ActualOccupant ?? string.Empty)"

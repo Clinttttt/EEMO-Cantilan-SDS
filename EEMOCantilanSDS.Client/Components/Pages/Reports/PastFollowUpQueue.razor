@@ -897,16 +897,21 @@
     /// <summary>True for the cumulative view: outstanding accounts with their whole balances, no period scope.</summary>
     private bool _allTime;
 
-    private static readonly (string Key, string Label)[] ReasonFilters =
-    {
+    /// <summary>
+    /// The reason filters. An INSTANCE property rather than a static array, because one label names the LGU's own daily
+    /// market - it read "NPM Daily" for every tenant, which is Cantilan's acronym on another municipality's queue.
+    /// </summary>
+    private (string Key, string Label)[] ReasonFilters =>
+    [
         ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"), ("missingor", "Missing OR"),
-        ("current", "Current-period"), ("contract", "Contract"), ("npm", "NPM Daily"), ("excused", "Excused"),
+        ("current", "Current-period"), ("contract", "Contract"),
+        ("npm", $"{FacilityCatalog.ShortNameOf(FacilityCode.NPM)} Daily"), ("excused", "Excused"),
         ("misc", "Miscellaneous"),
         // The register of closed and expired accounts, whole time. It answers a question no period can — "which
         // accounts are inactive, and what did they leave behind" — so it deliberately ignores the year and month
         // above; each row still states its own span in Period & Status.
         ("closed", "Closed"),
-    };
+    ];
 
     private static readonly FacilityCode[] AllFacilities = System.Array.Empty<FacilityCode>();
 
@@ -1198,7 +1203,7 @@
         && (_facility is null || r.Facility == _facility)
         && MatchesSearch(r));
 
-    private static string ReasonLabel(string key) =>
+    private string ReasonLabel(string key) =>
         ReasonFilters.FirstOrDefault(f => f.Key == key).Label is { Length: > 0 } label ? label : "matching";
 
     /// <summary>Puts the reason, facility and search back to everything, so a filter chosen for one period cannot

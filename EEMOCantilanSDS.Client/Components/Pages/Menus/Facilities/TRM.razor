@@ -42,8 +42,8 @@
 
         <!-- ── Hero Banner ── -->
         <FacilityHero Code="FacilityCode.TRM"
-                      Eyebrow="FACILITY · TRM"
-                      Title="Transport Terminal"
+                      Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.TRM)}")'
+                      Title="@FacilityCatalog.NameOf(FacilityCode.TRM)"
                       Icon="@TrmIcon"
                       Stats="@HeroStats"
                       ShowProgress="false" />

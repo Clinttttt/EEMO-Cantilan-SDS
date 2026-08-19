@@ -470,18 +470,10 @@
         }
     }
 
-    private static string FacilityName(FacilityCode code) => code switch
-    {
-        FacilityCode.NPM => "New Public Market",
-        FacilityCode.TCC => "Tampak Commercial Center",
-        FacilityCode.NCC => "New Commercial Center",
-        FacilityCode.BBQ => "Barbecue Stand",
-        FacilityCode.ICE => "Iceplant",
-        FacilityCode.SLH => "Slaughterhouse",
-        FacilityCode.TRM => "Transport Terminal",
-        FacilityCode.TPM => "Tabo-an Public Market",
-        _ => code.ToString()
-    };
+        /// <summary>
+    /// The LGU's own name for a facility. Was a hardcoded table of Cantilan's names, which is how another
+    /// municipality's report carried Cantilan's wording; the tenant catalog answers it now.
+    /// </summary>    private string FacilityName(FacilityCode code) => Facilities.NameOf(code);
 
     private string PeriodLabel => new DateTime(Year, Month, 1).ToString("MMMM yyyy");
 
