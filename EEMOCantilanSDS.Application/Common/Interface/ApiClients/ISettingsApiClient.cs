@@ -11,7 +11,7 @@ public interface ISettingsApiClient
     Task<Result<PaymentSettingsDto>> GetPaymentSettingsAsync();
 
     /// <summary>Set (or clear, when secretKey is null/empty) the LGU's own PayMongo credentials.</summary>
-    Task<Result<bool>> SavePaymentCredentialsAsync(string? secretKey, string? publicKey, string? webhookSecret);
+    Task<Result<Dtos.Settings.PaymentSetupResultDto>> SavePaymentCredentialsAsync(string? secretKey, string? publicKey, string? webhookSecret);
 
     /// <summary>Re-authentication: verify the current user's own password before a sensitive change
     /// (e.g. changing the online-payment account). True when the password matches.</summary>

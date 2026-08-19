@@ -7,7 +7,9 @@ namespace EEMOCantilanSDS.Infrastructure.Payments;
 /// Builds payor-portal return URLs from configured base URL (<c>OnlinePayments:PortalBaseUrl</c>),
 /// so the gateway redirect targets are controlled server-side, not by the client.
 /// </summary>
-public sealed class OnlinePaymentUrlBuilder(IConfiguration configuration) : IOnlinePaymentUrlBuilder
+public sealed class OnlinePaymentUrlBuilder(
+    IConfiguration configuration,
+    Microsoft.AspNetCore.Http.IHttpContextAccessor? httpContextAccessor = null) : IOnlinePaymentUrlBuilder
 {
     /// <summary>
     /// The public payor-portal origin. Resolved from <c>OnlinePayments:PortalBaseUrl</c>. This MUST be
@@ -52,4 +54,67 @@ public sealed class OnlinePaymentUrlBuilder(IConfiguration configuration) : IOnl
 
     public string BuildCancelUrl(string reference) =>
         $"{PortalBaseUrl}/payor/payment/cancelled?ref={Uri.EscapeDataString(reference)}";
+
+    public string BuildWebhookUrl(string tenantCode)
+    {
+        if (string.IsNullOrWhiteSpace(tenantCode))
+            throw new InvalidOperationException(
+                "A webhook URL cannot be built without a tenant code. The tenant-less endpoint verifies against the " +
+                "platform configuration, which is the default municipality's signing secret, so it must never be handed " +
+                "to another LGU.");
+
+        return $"{WebhookBaseUrl}/api/onlinepayments/webhook/{Uri.EscapeDataString(tenantCode.Trim())}";
+    }
+
+    /// <summary>
+    /// The public origin of THIS API, which is what PayMongo has to be able to reach.
+    ///
+    /// <para>
+    /// <c>OnlinePayments:WebhookBaseUrl</c> when set, so a deployment can pin it; otherwise the current request's own
+    /// origin, which is this API answering on its public host. Deliberately not the payor portal's base URL - that serves
+    /// the return screens, and pointing PayMongo at it would send every notification somewhere that cannot verify one.
+    /// </para>
+    ///
+    /// <para>
+    /// Fail-closed in the same way as the portal URL: a localhost origin outside Development throws, because a webhook
+    /// registered against localhost is registered against nothing, and PayMongo would report it as failing forever.
+    /// </para>
+    /// </summary>
+    private string WebhookBaseUrl
+    {
+        get
+        {
+            var configured = configuration["OnlinePayments:WebhookBaseUrl"];
+
+            var baseUrl = !string.IsNullOrWhiteSpace(configured)
+                ? configured!.TrimEnd('/')
+                : RequestOrigin();
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                throw new InvalidOperationException(
+                    "Could not determine this API's public address for a PayMongo webhook. Set " +
+                    "OnlinePayments:WebhookBaseUrl (for example https://api.stalltrack.site).");
+
+            var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? "Production";
+            var isDevelopment = string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+
+            if (!isDevelopment
+                && (baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                    || baseUrl.Contains("127.0.0.1", StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException(
+                    $"The webhook base URL is '{baseUrl}' in environment '{environment}'. PayMongo cannot reach a " +
+                    "localhost address, so the LGU's payments would never confirm themselves. Set " +
+                    "OnlinePayments:WebhookBaseUrl to this API's public address.");
+            }
+
+            return baseUrl;
+        }
+    }
+
+    private string RequestOrigin()
+    {
+        var request = httpContextAccessor?.HttpContext?.Request;
+        return request is null ? string.Empty : $"{request.Scheme}://{request.Host}";
+    }
 }

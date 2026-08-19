@@ -22,4 +22,24 @@ public interface IPayMongoAccountVerifier
     /// </para>
     /// </summary>
     Task<Common.Result<bool>> VerifyAsync(string secretKey, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Makes sure PayMongo will notify us about this LGU's payments, and reports what it took.
+    ///
+    /// <para>
+    /// Finds an existing webhook for the same address before creating one, so an office that saves its keys twice does not
+    /// end up with two webhooks for the same URL - PayMongo would hold both, and nobody could tell which secret signs what.
+    /// A webhook it finds disabled is switched back on, because PayMongo disables one after repeated delivery failures and
+    /// that is a normal thing to come back to.
+    /// </para>
+    ///
+    /// <para>
+    /// The signing secret is only revealed when a webhook is CREATED. Finding one returns no secret, which does not mean
+    /// there is none - it means the one already stored is still the right one.
+    /// </para>
+    /// </summary>
+    Task<Common.Result<Common.Payments.PayMongoWebhookRegistration>> EnsureWebhookAsync(
+        string secretKey,
+        string webhookUrl,
+        CancellationToken cancellationToken = default);
 }

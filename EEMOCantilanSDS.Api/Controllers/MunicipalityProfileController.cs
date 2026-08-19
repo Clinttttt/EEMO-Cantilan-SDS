@@ -100,7 +100,7 @@ public class MunicipalityProfileController : ApiBaseController
 
     /// <summary>Set (or clear, when the secret is empty) the LGU's own PayMongo credentials.</summary>
     [HttpPut("payment")]
-    public async Task<ActionResult<bool>> UpdatePaymentAsync([FromBody] SetMunicipalityPaymentCredentialsCommand command)
+    public async Task<ActionResult<PaymentSetupResultDto>> UpdatePaymentAsync([FromBody] SetMunicipalityPaymentCredentialsCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

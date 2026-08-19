@@ -734,8 +734,14 @@
                 _paySecret = string.Empty;
                 _payWebhook = string.Empty;
                 await LoadPaymentAsync();
-                _showSetup = false;
-                _payMsg = "Saved. Online payments now settle to your own PayMongo account.";
+
+                // Kept OPEN when the webhook could not be registered, so the office is looking at the address it now has to
+                // paste into PayMongo rather than at a closed card and a message about something it can no longer see.
+                var registered = result.Value?.WebhookRegistered == true;
+                _showSetup = !registered;
+
+                // The server's own words: it knows whether the webhook was created, already there, re-enabled, or refused.
+                _payMsg = result.Value?.Message ?? "Saved.";
             }
             else
             {

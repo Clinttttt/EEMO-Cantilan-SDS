@@ -17,8 +17,8 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
     public async Task<Result<PaymentSettingsDto>> GetPaymentSettingsAsync() =>
         await GetAsync<PaymentSettingsDto>("api/municipality-profile/payment");
 
-    public async Task<Result<bool>> SavePaymentCredentialsAsync(string? secretKey, string? publicKey, string? webhookSecret) =>
-        await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand, bool>(
+    public async Task<Result<PaymentSetupResultDto>> SavePaymentCredentialsAsync(string? secretKey, string? publicKey, string? webhookSecret) =>
+        await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand, PaymentSetupResultDto>(
             "api/municipality-profile/payment",
             new EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand(secretKey, publicKey, webhookSecret));
 
