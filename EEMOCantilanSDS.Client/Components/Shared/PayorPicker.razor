@@ -53,7 +53,7 @@
                     @* Searches the name as well as the number, which is the only way to reach a vendor the office does
                        not number. *@
                     <input class="pp-search-input" @ref="_searchBox" @bind="_query" @bind:event="oninput"
-                           placeholder="Search name or stall no." aria-label="Search payors" />
+                           placeholder="@(SpaceOnly ? "Search name" : "Search name or stall no.")" aria-label="Search payors" />
                 </div>
 
                 <div class="pp-list" role="listbox" aria-label="Payors">
@@ -83,9 +83,11 @@
                 </div>
 
                 <div class="pp-foot">
-                    @* The escape hatch, stated plainly rather than hidden. *@
-                    <input class="pp-manual" @bind="_manual" @bind:event="oninput" placeholder="Or type a stall no."
-                           aria-label="Type a stall or space number" />
+                    @* The escape hatch, stated plainly rather than hidden. On a space-only facility it does not offer to take
+                       a stall number, because that facility has none - its spaces carry their own identifiers. *@
+                    <input class="pp-manual" @bind="_manual" @bind:event="oninput"
+                           placeholder="@(SpaceOnly ? "Or type a space (SP-1)" : "Or type a stall no.")"
+                           aria-label="@(SpaceOnly ? "Type a space identifier" : "Type a stall or space number")" />
                     <button class="pp-manual-btn" type="button" @onclick="UseTyped" disabled="@(_manual.Trim().Length == 0)">Use</button>
                 </div>
             </div>
@@ -101,6 +103,16 @@
     [Parameter] public string StallNo { get; set; } = string.Empty;
 
     [Parameter] public EventCallback<string> StallNoChanged { get; set; }
+
+    /// <summary>
+    /// True on a facility let ONLY as spaces the office does not number - a barbecue stand, an ice-plant space.
+    ///
+    /// <para>
+    /// It changes what this control ASKS FOR, not what it stores. Offering to "type a stall no." on such a facility invites
+    /// a number that does not exist there, and its sheet has no column for one; the occupancy is identified by the lessee.
+    /// </para>
+    /// </summary>
+    [Parameter] public bool SpaceOnly { get; set; }
 
     /// <summary>The occupant name written onto the row when a payor is chosen.</summary>
     [Parameter] public EventCallback<string> OccupantChanged { get; set; }

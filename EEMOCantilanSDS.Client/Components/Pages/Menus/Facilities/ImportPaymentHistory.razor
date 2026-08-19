@@ -146,7 +146,7 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Stall / Space No.</th>
+                            <th>@StallColumnLabel</th>
                             <th>Period</th>
                             <th class="iph-c">Days claimed</th>
                             <th class="iph-c">Days settled</th>
@@ -200,7 +200,7 @@
                         <thead>
                             <tr>
                                 <th class="iph-th-num">#</th>
-                                <th>Stall / Space</th>
+                                <th>@StallColumnLabel</th>
                                 <th>Period</th>
                                 <th class="iph-c">Amount</th>
                                 <th>Reason</th>
@@ -321,7 +321,7 @@
                     <thead>
                         <tr>
                             <th class="iph-th-num">#</th>
-                            <th>Stall / Space No.</th>
+                            <th>@StallColumnLabel</th>
                             <th>Actual Occupant</th>
                             <th>Period (YYYY-MM)</th>
                             @if (IsDaily)
@@ -352,6 +352,7 @@
                                 <td class="iph-td-payor">
                                     <PayorPicker Payors="_payors"
                                                  StallNo="@row.StallNo"
+                                                 SpaceOnly="IsSpaceOnly"
                                                  StallNoChanged="v => OnPayorChanged(row, v)"
                                                  OccupantChanged="v => row.Occupant = v" />
                                 </td>
@@ -511,7 +512,33 @@
     private static readonly string[] DailyColumnNames =
         ["Stall / Space No.", "Actual Occupant", "Period (YYYY-MM)", "Days Paid", "OR No."];
 
-    private string[] Columns => IsDaily ? DailyColumnNames : ColumnNames;
+    /// <summary>
+    /// The facilities let ONLY as spaces the office does not number - a barbecue stand, an ice-plant space. Their sheets
+    /// have no stall-number column at all: the occupancy is identified by the lessee.
+    /// </summary>
+    private static readonly FacilityCode[] SpaceOnlyFacilities = [FacilityCode.BBQ, FacilityCode.ICE];
+
+    private bool IsSpaceOnly => Code is { } code && SpaceOnlyFacilities.Contains(code);
+
+    /// <summary>
+    /// What the first column is called. On a space-only facility it is a SPACE, because there is no stall to number and
+    /// asking for one describes a numbering the office does not keep.
+    /// </summary>
+    private string StallColumnLabel => IsSpaceOnly ? "Space" : "Stall / Space No.";
+
+    /// <summary>
+    /// The columns, with the first named for what this facility actually lets. Parsing an uploaded file is POSITIONAL, so
+    /// the label is presentation only and renaming it cannot change how a sheet is read.
+    /// </summary>
+    private string[] Columns
+    {
+        get
+        {
+            var names = (string[])(IsDaily ? DailyColumnNames : ColumnNames).Clone();
+            names[0] = StallColumnLabel;
+            return names;
+        }
+    }
 
     /// <summary>
     /// An editable row. Held as text, like the stallholder import's rows, so a clerk can correct a cell in place and

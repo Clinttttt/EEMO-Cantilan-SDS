@@ -424,6 +424,49 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void ASPACEONLYFacilityAsksForASpaceRatherThanAStallNumber()
+    {
+        // A barbecue stand and an ice-plant space are let as spaces the office does not number - its sheet has no
+        // stall-number column at all, and the occupancy is identified by the lessee. Asking for a "Stall / Space No."
+        // there invites a number that does not exist.
+        // No section step: sections belong to the market, and a barbecue stand has none.
+        var cut = Render("bbq");
+        cut.Find("button.iph-enter-manually").Click();
+
+        var headers = cut.FindAll("th").Select(h => h.TextContent.Trim()).ToList();
+
+        Assert.Contains("Space", headers);
+        Assert.DoesNotContain("Stall / Space No.", headers);
+    }
+
+    [Fact]
+    public void AFacilityWithNumberedStallsStillAsksForOne()
+    {
+        // The other half: nothing changes where the office does keep numbers, which is most facilities.
+        var cut = Render("tcc");
+        cut.Find("button.iph-enter-manually").Click();
+
+        var headers = cut.FindAll("th").Select(h => h.TextContent.Trim()).ToList();
+
+        Assert.Contains("Stall / Space No.", headers);
+    }
+
+    [Fact]
+    public void ThePayorPickerDoesNotOfferAStallNumberOnASpaceOnlyFacility()
+    {
+        // The escape hatch beneath the picker offered to take a typed stall number. On these facilities that is a number
+        // nobody has, so it asks for the space identifier instead.
+        var cut = Render("bbq");
+        cut.Find("button.iph-enter-manually").Click();
+        cut.Find("button.pp-field").Click();
+
+        var manual = cut.Find("input.pp-manual").GetAttribute("placeholder") ?? string.Empty;
+
+        Assert.Contains("space", manual, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("stall no", manual, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void WhenTheOfficeStatesNoDates_NoneAreSent()
     {
         var cut = Render("npm");
