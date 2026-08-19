@@ -235,9 +235,15 @@
                         @* Uncontrolled input: deliberately NO value= binding. Blazor Server sends every
                            keystroke to the server; if the server also writes the value back, a slow or
                            unstable connection makes characters revert and the caret jump. Omitting value
-                           lets the browser own the text while the server just records it. @key resets the
-                           element when the show/hide toggle flips or the field is cleared in code. *@
-                        <input @key="@($"pw-{ShowPassword}-{FormNonce}")"
+                           lets the browser own the text while the server just records it.
+
+                           The @key therefore must NOT vary with the show/hide toggle. It used to, which
+                           destroyed and rebuilt the element on every reveal - and because nothing writes the
+                           value back, the browser's own text went with it: clicking the eye emptied the box
+                           mid-sign-in. Flipping only the type attribute keeps the same element, and every
+                           browser preserves an input's value across that change. FormNonce stays, so clearing
+                           the field in code still works. *@
+                        <input @key="@($"pw-{FormNonce}")"
                                id="login-password"
                                @oninput="@((e) => Password = e.Value?.ToString() ?? string.Empty)"
                                @onkeydown="HandleKeyDown"
@@ -448,6 +454,22 @@
     [PersistentState] public string? PBrandAcronym { get; set; }
     [PersistentState] public string? PBrandOffice { get; set; }
     [PersistentState] public bool? PBrandIsDefault { get; set; }
+
+    /// <summary>
+    /// WHICH LGU the persisted branding above belongs to, so the interactive pass can fetch the one thing that is not
+    /// persisted: the seal.
+    ///
+    /// <para>
+    /// The seal is deliberately left out of persistent state because a municipality's uploaded seal is a large base64 data
+    /// URI, and putting one there can exceed the circuit's message limit. That was fine while the only unscoped path was
+    /// Cantilan's, whose seal is a file. It stopped being fine once a remembered LGU could be branded from a cookie: the
+    /// cookie is unreadable from a live circuit (there is no HTTP request), so nothing re-fetched the seal and the slot
+    /// stayed empty under the municipality's own name - which is exactly what the office saw after a deploy.
+    /// </para>
+    ///
+    /// <para>A short identifier, so persisting it costs nothing.</para>
+    /// </summary>
+    [PersistentState] public string? PBrandId { get; set; }
     string _brandedIdentifier = string.Empty;
     CancellationTokenSource? _brandingCts;
 
@@ -518,6 +540,9 @@
         PBrandAcronym = OfficeAcronym;
         PBrandOffice = OfficeName;
         PBrandIsDefault = _isDefaultBrand;
+
+        // Carried so the interactive pass can re-fetch the seal, which is not persisted.
+        PBrandId = _brandedIdentifier;
     }
 
     void ResetBranding()
@@ -597,6 +622,24 @@
                     return;
                 }
             }
+        }
+        else if (!string.IsNullOrEmpty(PBrandId) && string.IsNullOrEmpty(_brandedIdentifier))
+        {
+            // The INTERACTIVE pass, arriving with the prerender's branding already applied but without its seal - persistent
+            // state deliberately excludes it, and the cookie that identified this LGU cannot be read from a live circuit.
+            //
+            // Without this the municipality's own name sat above an empty seal slot, which is what the office reported after
+            // a deploy: the page reloads, signs out, and lands on a remembered LGU whose crest never comes back.
+            try
+            {
+                var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(PBrandId!);
+                if (branding.IsSuccess && branding.Value is { IsActive: true })
+                {
+                    _brandedIdentifier = PBrandId!;
+                    ApplyBranding(branding.Value);
+                }
+            }
+            catch { /* keep what the prerender established - a missing seal must never block a sign-in */ }
         }
         else if (string.IsNullOrEmpty(PBrandName))
         {

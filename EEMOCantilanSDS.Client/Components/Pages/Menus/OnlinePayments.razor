@@ -96,20 +96,21 @@
                             @(_copied ? "Copied" : "Copy")
                         </button>
                     </div>
-                    <div class="op-field-hint">Paste this into PayMongo → Developers → Webhooks, subscribing to <code>checkout_session.payment.paid</code>, <code>payment.paid</code> and <code>payment.failed</code>.</div>
+                    <div class="op-field-hint">Registered automatically when you save. Shown here in case you ever need to add it in PayMongo by hand, subscribing to <code>checkout_session.payment.paid</code>, <code>payment.paid</code> and <code>payment.failed</code>.</div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Webhook signing secret</label>
+                    <label class="form-label">Webhook signing secret <span class="op-auto">filled in automatically</span></label>
                     <div class="pw-reveal-wrap">
                         <input class="form-input" type="@(_showWebhook ? "text" : "password")" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
                         <PasswordRevealButton Shown="_showWebhook" ShownChanged="v => _showWebhook = v" />
                     </div>
-                    @* No longer called optional. Payments can be TAKEN without it, but nothing confirms them unless the
-                       payor returns to the portal or the office reconciles - and PayMongo does not re-send missed events. *@
+                    @* Not called "optional", which would read as "not needed". It IS needed - it is what proves a notification
+                       came from PayMongo - and saving normally obtains it, so the office only types one when that could not
+                       be done. Leaving it blank never discards a secret already held. *@
                     <div class="op-field-hint">
-                        PayMongo shows this once, when the webhook is saved. Without it, payments can be received but
-                        cannot confirm themselves.
+                        Leave blank and saving will obtain it. Type one only if this office already has a webhook in
+                        PayMongo, which shows its signing secret once, when it is created.
                     </div>
                 </div>
 
