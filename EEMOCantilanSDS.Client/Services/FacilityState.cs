@@ -64,30 +64,73 @@ public class FacilityState(IFacilitiesApiClient api)
 
     public static bool IsRental(FacilityCode code) => RentalCodes.Contains(code);
 
-    // Canonical Cantilan display names/acronyms — used as the fallback before the tenant catalog loads (and
-    // for any facility not in the catalog), so the default LGU renders byte-for-byte identically to the old
-    // hardcoded values and never flickers a bare code. A loaded tenant catalog always wins.
-    private static readonly Dictionary<FacilityCode, (string Name, string ShortName)> Canonical = new()
+    // Cantilan's names are NOT kept here any more. They were the display fallback for every tenant, which is how another
+    // municipality's office name reached Madrid's reports; the fallback is now the facility CODE, and Cantilan's own names
+    // reach its pages the same way every other LGU's do - from its catalog. The canonical defaults still exist once, in
+    // the Domain's FacilityCatalog, where seeding uses them.
+
+    /// <summary>
+    /// The tenant's own name for a facility.
+    ///
+    /// <para>
+    /// Falls back to the CODE when this LGU has no record for it - not to Cantilan's name. Madrid's market is the Madrid
+    /// Public Market; calling it the New Public Market on Madrid's own reports states something untrue about their office.
+    /// The one exception is the LGU those names belong to, whose catalog carries them anyway.
+    /// </para>
+    /// </summary>
+    public string NameOf(FacilityCode code)
     {
-        [FacilityCode.NPM] = ("New Public Market", "NPM"),
-        [FacilityCode.TCC] = ("Tampak Commercial Center", "TCC"),
-        [FacilityCode.NCC] = ("New Commercial Center", "NCC"),
-        [FacilityCode.BBQ] = ("Barbecue Stand", "BBQ"),
-        [FacilityCode.ICE] = ("Iceplant", "ICE"),
-        [FacilityCode.SLH] = ("Slaughterhouse", "SLH"),
-        [FacilityCode.TRM] = ("Transport Terminal", "TRM"),
-        [FacilityCode.TPM] = ("Tabo-an Public Market", "TPM"),
-    };
+        var own = _facilities?.FirstOrDefault(f => f.Code == code)?.Name;
+        return string.IsNullOrWhiteSpace(own) ? code.ToString() : own!;
+    }
 
-    /// <summary>The tenant's own name for a facility (fallback = the canonical Cantilan name, then the code).</summary>
-    public string NameOf(FacilityCode code) =>
-        _facilities?.FirstOrDefault(f => f.Code == code)?.Name
-        ?? (Canonical.TryGetValue(code, out var c) ? c.Name : code.ToString());
+    /// <summary>
+    /// The tenant's own acronym for a facility.
+    ///
+    /// <para>
+    /// When the LGU has a facility but no acronym recorded, one is DERIVED from its own name - "Madrid Public Market"
+    /// becomes MPM - by the same rule the activation console uses, so a derived value agrees with what activation would
+    /// have stored. Only a facility this LGU has no record of falls back to the bare code.
+    /// </para>
+    /// </summary>
+    public string ShortNameOf(FacilityCode code)
+    {
+        var facility = _facilities?.FirstOrDefault(f => f.Code == code);
+        if (facility is null) return code.ToString();
 
-    /// <summary>The tenant's own short acronym for a facility (fallback = the canonical Cantilan acronym, then the code).</summary>
-    public string ShortNameOf(FacilityCode code) =>
-        _facilities?.FirstOrDefault(f => f.Code == code)?.ShortName
-        ?? (Canonical.TryGetValue(code, out var c) ? c.ShortName : code.ToString());
+        if (!string.IsNullOrWhiteSpace(facility.ShortName)) return facility.ShortName;
+
+        var derived = DeriveAcronym(facility.Name);
+        return string.IsNullOrWhiteSpace(derived) ? code.ToString() : derived;
+    }
+
+    /// <summary>
+    /// An acronym from a facility's own name: initials of its significant words, or the first three letters of a
+    /// single-word name. Mirrors the activation console's own derivation so the two cannot disagree.
+    /// </summary>
+    private static string DeriveAcronym(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+
+        var stop = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "of", "the", "and", "for", "a", "an", "de", "del", "y" };
+
+        var words = name
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(w => new string(w.Where(char.IsLetter).ToArray()))
+            .Where(w => w.Length > 0 && !stop.Contains(w))
+            .ToList();
+
+        if (words.Count >= 2)
+        {
+            var initials = string.Concat(words.Select(w => char.ToUpperInvariant(w[0])));
+            return initials.Length > 4 ? initials[..4] : initials;
+        }
+
+        return words.Count == 1
+            ? words[0][..Math.Min(3, words[0].Length)].ToUpperInvariant()
+            : string.Empty;
+    }
 
     // Canonical market-section labels — the logical key used across the app. Custom tenant labels only
     // change what is DISPLAYED (via SectionLabelOf); the enum + these canonical strings remain the key.
