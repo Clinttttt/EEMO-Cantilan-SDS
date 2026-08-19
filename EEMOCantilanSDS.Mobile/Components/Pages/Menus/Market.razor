@@ -80,9 +80,28 @@
                 </div>
             </div>
 
-            <div class="search-wrap">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
+            <div class="search-row">
+                <div class="search-wrap">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                    <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
+                </div>
+
+                @* Days already gone by that are still collectable. Shown as its own control rather than another section tab,
+                   because it answers a different question: the tabs ask WHERE a payor is, this asks WHO is behind. The count
+                   is the number of payors with an outstanding day this period, so a collector can see at a glance whether
+                   there is anything to chase before opening anybody. *@
+                <button class="owed-btn @(ShowOwedOnly ? "on" : "")" type="button"
+                        aria-pressed="@ShowOwedOnly"
+                        title="@(ShowOwedOnly ? "Show all payors" : "Show only payors with days still owed")"
+                        @onclick="() => ShowOwedOnly = !ShowOwedOnly">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                    </svg>
+                    @if (OwedPayorCount > 0)
+                    {
+                        <span class="owed-count">@OwedPayorCount</span>
+                    }
+                </button>
             </div>
 
             <div class="seg-filter">
@@ -97,8 +116,18 @@
             @if (!FilteredStalls.Any())
             {
                 <div class="state-card">
+                    @* Said differently when the owed filter is the reason the list is empty, because "nobody is behind" is good
+                   news and "no match" reads as a mistake. *@
+                @if (ShowOwedOnly && OwedPayorCount == 0)
+                {
+                    <div class="state-title">Nothing outstanding</div>
+                    <div class="state-text">Every payor is settled or excused for the days gone by this period.</div>
+                }
+                else
+                {
                     <div class="state-title">No matching stalls</div>
                     <div class="state-text">Try another search or filter.</div>
+                }
                 </div>
             }
             else
@@ -722,10 +751,36 @@
                 _ => true
             };
 
-            return matchesSearch && matchesFilter;
+            return matchesSearch && matchesFilter && (!ShowOwedOnly || OwedDays(s).Count > 0);
         })
         .OrderBy(s => s.Section)
         .ThenBy(s => s.StallNo);
+
+    /// <summary>
+    /// The elapsed days this payor still owes this period, as the server worked them out.
+    ///
+    /// <para>
+    /// Not DaysMissed, which is a span subtraction that knows nothing about market closures and so can count days nobody
+    /// owes. An older build of the app - or a cached round from one - carries no list, and then this is empty rather than
+    /// guessed at: an invented day is worse than no day.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<DateOnly> OwedDays(MobileNpmStallCollectionDto stall) =>
+        stall.UncollectedDays ?? Array.Empty<DateOnly>();
+
+    /// <summary>Whether this payor has a day gone by that can still be collected.</summary>
+    private static bool HasOwedDays(MobileNpmStallCollectionDto stall) => OwedDays(stall).Count > 0;
+
+    /// <summary>
+    /// How many payors are behind this period. The badge on the search row, so the number is visible before anybody is
+    /// opened - counted over the WHOLE round rather than the current section, because a collector wants to know if there is
+    /// anything outstanding at all.
+    /// </summary>
+    private int OwedPayorCount =>
+        (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Count(HasOwedDays);
+
+    /// <summary>Showing only the payors who are behind.</summary>
+    private bool ShowOwedOnly;
 
     private string MonthLabel =>
         new DateTime(SelectedYear, SelectedMonth, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);

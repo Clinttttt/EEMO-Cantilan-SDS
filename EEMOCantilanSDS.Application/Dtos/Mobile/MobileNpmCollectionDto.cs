@@ -33,4 +33,12 @@ public sealed record MobileNpmStallCollectionDto(
     int CollectableDays,
     decimal MonthCollectedAmount,
     bool IsAbsentToday = false,
-    bool IsCollectableToday = false);
+    bool IsCollectableToday = false,
+    // The elapsed days of this month this payor still owes, earliest first.
+    //
+    // The DATES, not a count, because a collector settling a day the office missed has to say WHICH day the money answers
+    // for. DaysMissed above is a plain subtraction that knows nothing about market closures, so it can be larger than this
+    // list; these days are the ones actually owed - within a term that covers them, not closed, and neither collected nor
+    // excused already.
+    IReadOnlyList<DateOnly>? UncollectedDays = null);
+

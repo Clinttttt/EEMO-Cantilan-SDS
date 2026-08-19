@@ -577,6 +577,71 @@ html, body, #app {
             color: var(--text-nav);
         }
 
+/* ─────────────────────────────────────────────
+   Search row: the search box, and beside it the control for payors who are behind.
+
+   The button sits on the row rather than among the section tabs because it answers a different question - the tabs ask
+   where a payor is, this asks who still owes a day gone by. Its own height matches the search box so the row reads as
+   one control strip.
+───────────────────────────────────────────── */
+.search-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+    /* The search box already carries the row's bottom margin, so the row does not add another. */
+    .search-row .search-wrap {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+.owed-btn {
+    position: relative;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-nav);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+}
+
+    .owed-btn svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    /* On: the list is narrowed to the payors who are behind, so the control states plainly that a filter is in force. */
+    .owed-btn.on {
+        color: var(--gold-primary);
+        border-color: var(--gold-primary);
+    }
+
+/* The number of payors behind. Absent entirely when nobody is, rather than showing a zero - a badge reading 0 invites a
+   second look at nothing. */
+.owed-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--gold-primary);
+    color: #10233b;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+}
+
 
 /* ─────────────────────────────────────────────
    9. FILTER TABS
