@@ -87,9 +87,10 @@ public sealed class PayMongoAccountVerifier(HttpClient httpClient, ILogger<PayMo
 
                 return Result<PayMongoWebhookRegistration>.Success(new PayMongoWebhookRegistration(
                     found.Id,
-                    // Deliberately not carried over. PayMongo reveals a secret when a webhook is CREATED; what is returned
-                    // when listing is not to be relied on, and handing back an empty one must never overwrite a working
-                    // stored secret.
+                    // Carried over WHEN PayMongo includes it. The webhook resource does contain secret_key, so an existing
+                    // webhook can still yield the secret and spare the office a manual copy. When it is absent this is null,
+                    // and the caller must treat that as "no NEW secret" rather than "no secret" - overwriting a working
+                    // stored one with a blank would quietly stop every notification from being believed.
                     SigningSecret: found.SecretKey,
                     AlreadyExisted: true,
                     WasReEnabled: reEnabled));

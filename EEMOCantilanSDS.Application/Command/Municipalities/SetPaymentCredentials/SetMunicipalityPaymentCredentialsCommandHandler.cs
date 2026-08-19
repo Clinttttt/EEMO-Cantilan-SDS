@@ -62,12 +62,29 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
         var secretPlain = request.SecretKey.Trim();
         var secretEnc = protector.Protect(secretPlain);
 
+        // Whether this is the SAME PayMongo account as before decides what happens to the signing secret already stored.
+        var accountChanged = !string.Equals(StoredSecret(municipality.PayMongoSecretKeyEnc), secretPlain, StringComparison.Ordinal);
+
         // A webhook secret the office typed itself is theirs, and provisioning must not overwrite it further down.
         var suppliedWebhook = !string.IsNullOrWhiteSpace(request.WebhookSecret);
-        var webhookEnc = suppliedWebhook ? protector.Protect(request.WebhookSecret!.Trim()) : null;
+
+        // The signing secret is PRESERVED when the office leaves the field blank and the account has not changed.
+        //
+        // This field is optional now, because provisioning fills it in - so a Head who re-saves their key without retyping
+        // it would otherwise have wiped a working signing secret and had no idea why notifications stopped being believed.
+        // When the account HAS changed the old secret is dropped, because it belongs to the other account's webhook and
+        // keeping it would let the screen claim a connection that cannot be authenticated.
+        var webhookEnc = suppliedWebhook
+            ? protector.Protect(request.WebhookSecret!.Trim())
+            : accountChanged ? null : municipality.PayMongoWebhookSecretEnc;
+
         var publicKey = string.IsNullOrWhiteSpace(request.PublicKey) ? null : request.PublicKey.Trim();
 
         municipality.SetPayMongoCredentials(secretEnc, publicKey, webhookEnc, actor);
+
+        // The registered webhook and the verification stamp describe the PREVIOUS account, so they go with it.
+        if (accountChanged)
+            municipality.ForgetPayMongoWebhookRegistration(actor);
 
         await context.SaveChangesAsync(ct);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
@@ -76,6 +93,20 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
         var registration = await TryRegisterWebhookAsync(municipality, secretPlain, suppliedWebhook, actor, ct);
 
         return Result<PaymentSetupResultDto>.Success(registration);
+    }
+
+    /// <summary>
+    /// The stored secret key in plain form, or null when there is none or it cannot be read.
+    ///
+    /// <para>
+    /// An unreadable stored key is treated as "different", which is the safe direction: the webhook secret beside it is
+    /// dropped rather than kept on the assumption that it still matches something nobody can decrypt.
+    /// </para>
+    /// </summary>
+    private string? StoredSecret(string? enc)
+    {
+        if (string.IsNullOrWhiteSpace(enc)) return null;
+        try { return protector.Unprotect(enc!); } catch { return null; }
     }
 
     /// <summary>

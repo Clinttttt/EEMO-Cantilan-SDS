@@ -182,12 +182,36 @@ public class Municipality : AuditableEntity
         UpdatedBy = updatedBy;
     }
 
-    /// <summary>Stores this LGU's own PayMongo credentials (secret + webhook already encrypted; public key plain).</summary>
+    /// <summary>
+    /// Stores this LGU's own PayMongo credentials (secret + webhook already encrypted; public key plain).
+    ///
+    /// <para>
+    /// <paramref name="webhookSecretEnc"/> is written as given, including null. The CALLER decides whether a blank means
+    /// "clear it" or "leave what is there" - it knows whether the account itself changed, and this entity does not.
+    /// </para>
+    /// </summary>
     public void SetPayMongoCredentials(string secretKeyEnc, string? publicKey, string? webhookSecretEnc, string updatedBy)
     {
         PayMongoSecretKeyEnc = secretKeyEnc;
         PayMongoPublicKey = publicKey;
         PayMongoWebhookSecretEnc = webhookSecretEnc;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    /// <summary>
+    /// Forgets which webhook was registered and when the connection last answered, WITHOUT touching the signing secret.
+    ///
+    /// <para>
+    /// For when the LGU points at a different PayMongo account: the old <c>hook_…</c> belongs to that other account, and a
+    /// verification recorded against it says nothing about this one. Reporting either would describe a connection that is
+    /// not there.
+    /// </para>
+    /// </summary>
+    public void ForgetPayMongoWebhookRegistration(string updatedBy)
+    {
+        PayMongoWebhookId = null;
+        PayMongoLastVerifiedAtUtc = null;
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

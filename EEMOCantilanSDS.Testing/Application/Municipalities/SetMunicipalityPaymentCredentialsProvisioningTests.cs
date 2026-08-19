@@ -182,6 +182,91 @@ public class SetMunicipalityPaymentCredentialsProvisioningTests
     }
 
     [Fact]
+    public async Task RESAVINGTheSameKeyKeepsTheSigningSecretAlreadyStored()
+    {
+        // The bug this guards. The signing secret field is optional now, because provisioning fills it in - so a Head who
+        // re-saves their key without retyping it would have wiped a working secret and had no idea why notifications
+        // stopped being believed. Nothing on the screen would have said so either: the field is blank by design.
+        //
+        // The SEQUENCE is what makes this test mean anything. The second save must find the webhook already registered and
+        // be told no new secret, which is the realistic case - PayMongo reveals a secret when a webhook is created. With a
+        // mock that hands back a fresh secret every time, a wiped secret is silently rewritten and the test proves nothing.
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+
+        var lgu = Municipality.Create("MADRID", "Madrid", "Surigao del Sur", MunicipalityStatus.Active, "madrid");
+        await using (var seed = new AppDbContext(options))
+        {
+            seed.Municipalities.Add(lgu);
+            await seed.SaveChangesAsync();
+        }
+
+        await using var ctx = new AppDbContext(options);
+
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(u => u.MunicipalityId).Returns(lgu.Id);
+        user.SetupGet(u => u.Username).Returns("head");
+
+        var protector = new Mock<ICredentialProtector>();
+        protector.Setup(p => p.Protect(It.IsAny<string>())).Returns((string plain) => "enc:" + plain);
+        protector.Setup(p => p.Unprotect(It.IsAny<string>()))
+                 .Returns((string enc) => enc.StartsWith("enc:") ? enc[4..] : enc);
+
+        var tenant = new Mock<ITenantContext>();
+        tenant.SetupGet(t => t.TenantCode).Returns("madrid");
+
+        var verifier = new Mock<IPayMongoAccountVerifier>();
+        verifier.SetupSequence(v => v.EnsureWebhookAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<PayMongoWebhookRegistration>.Success(
+                    new PayMongoWebhookRegistration("hook_1", "whsk_created", AlreadyExisted: false, WasReEnabled: false)))
+                .ReturnsAsync(Result<PayMongoWebhookRegistration>.Success(
+                    new PayMongoWebhookRegistration("hook_1", null, AlreadyExisted: true, WasReEnabled: false)));
+
+        var urls = new Mock<IOnlinePaymentUrlBuilder>();
+        urls.Setup(u => u.BuildWebhookUrl(It.IsAny<string>())).Returns(WebhookUrl);
+
+        var handler = new SetMunicipalityPaymentCredentialsCommandHandler(
+            ctx, user.Object, protector.Object, Mock.Of<IEemoCacheInvalidator>(), tenant.Object,
+            verifier.Object, urls.Object, new FixedClock(Now));
+
+        await handler.Handle(new SetMunicipalityPaymentCredentialsCommand(Secret, null, null), CancellationToken.None);
+        Assert.Equal("enc:whsk_created", (await Reload(ctx, lgu.Id)).PayMongoWebhookSecretEnc);
+
+        // Same key, signing secret field blank, and nothing new revealed.
+        await handler.Handle(new SetMunicipalityPaymentCredentialsCommand(Secret, null, null), CancellationToken.None);
+
+        Assert.Equal("enc:whsk_created", (await Reload(ctx, lgu.Id)).PayMongoWebhookSecretEnc);
+    }
+
+    [Fact]
+    public async Task POINTINGATADIFFERENTAccountDropsTheOldWebhookAndItsSecret()
+    {
+        // The other direction, and it matters just as much: a signing secret belongs to ONE account's webhook. Carrying it
+        // to a different account would let the screen report a connection that cannot be authenticated, and the hook id and
+        // verification stamp would describe an account this LGU no longer uses.
+        var (handler, lgu, ctx) = await BuildAsync();
+        await using var _ctx = ctx;
+
+        await handler.Handle(new SetMunicipalityPaymentCredentialsCommand(Secret, null, null), CancellationToken.None);
+
+        // A different account, and provisioning cannot be reached this time - so nothing new replaces what was there.
+        var stale = await Reload(ctx, lgu.Id);
+        Assert.True(stale.HasPayMongoWebhookSecret);
+
+        var (handler2, lgu2, ctx2) = await BuildAsync(
+            Result<PayMongoWebhookRegistration>.Failure("unreachable", ResultStatus.UpstreamFailed));
+        await using var _ctx2 = ctx2;
+
+        await handler2.Handle(new SetMunicipalityPaymentCredentialsCommand("sk_live_a_different_account", null, null), CancellationToken.None);
+
+        var after = await Reload(ctx2, lgu2.Id);
+        Assert.True(after.HasOwnPayMongoAccount);        // the new key is stored
+        Assert.False(after.HasPayMongoWebhookSecret);    // the old account's secret is not kept
+        Assert.Null(after.PayMongoWebhookId);
+        Assert.Null(after.PayMongoLastVerifiedAtUtc);
+    }
+
+    [Fact]
     public async Task ClearingTheKeyRemovesTheWebhookItDescribed()
     {
         // The webhook id and the verification stamp describe an account this LGU no longer uses; leaving them would report a
