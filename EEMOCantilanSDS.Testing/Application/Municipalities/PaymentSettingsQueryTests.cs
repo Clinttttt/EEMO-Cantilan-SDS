@@ -59,7 +59,13 @@ public class PaymentSettingsQueryTests
             protector.Setup(p => p.Unprotect(It.IsAny<string>()))
                      .Returns((string enc) => enc.StartsWith("enc:") ? enc[4..] : enc);
 
-        return (new GetMunicipalityPaymentSettingsQueryHandler(ctx, user.Object, protector.Object), lgu, ctx);
+        // The builder is what composes the webhook address now, so the test states the address it is expected to produce
+        // rather than reimplementing the shape here.
+        var urls = new Mock<IOnlinePaymentUrlBuilder>();
+        urls.Setup(u => u.BuildWebhookUrl(It.IsAny<string>()))
+            .Returns((string code) => $"https://api.stalltrack.site/api/onlinepayments/webhook/{code}");
+
+        return (new GetMunicipalityPaymentSettingsQueryHandler(ctx, user.Object, protector.Object, urls.Object), lgu, ctx);
     }
 
     private static async Task<PaymentSettingsDto> Read(GetMunicipalityPaymentSettingsQueryHandler handler)
@@ -105,8 +111,9 @@ public class PaymentSettingsQueryTests
 
         var dto = await Read(handler);
 
-        Assert.Equal($"/api/onlinepayments/webhook/{lgu.TenantCode}", dto.WebhookUrl);
-        Assert.NotEqual("/api/onlinepayments/webhook", dto.WebhookUrl);
+        Assert.Equal($"https://api.stalltrack.site/api/onlinepayments/webhook/{lgu.TenantCode}", dto.WebhookUrl);
+        Assert.EndsWith("/webhook/" + lgu.TenantCode, dto.WebhookUrl);
+        Assert.StartsWith("https://", dto.WebhookUrl);      // PayMongo will not call an http address
     }
 
     [Theory]

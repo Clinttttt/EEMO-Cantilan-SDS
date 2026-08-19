@@ -236,11 +236,15 @@
 .op-setup {
     display: flex;
     justify-content: center;
-    padding: 24px 0 8px;
+    /* Room beneath the card. It used to be 8px, which was fine for a short form; the card now carries a status rail, the
+       webhook address and two actions, so on a laptop viewport the buttons ended up flush against the bottom edge. */
+    padding: 24px 0 32px;
 }
 
 .op-setup-card {
-    width: min(560px, 100%);
+    /* Widened from 560px because the head now holds the connection status beside the title. At 560 the two competed: the
+       title wrapped onto two lines and the description was squeezed into a narrow column beside a rail of figures. */
+    width: min(720px, 100%);
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -266,6 +270,9 @@
     align-items: flex-start;
     gap: 14px;
     margin-bottom: 20px;
+    /* The status rail drops BELOW the title on a narrow card rather than crushing it. Without this the description was
+       compressed into a column a few words wide while the rail kept its own width. */
+    flex-wrap: wrap;
 }
 
 .op-setup-badge {
@@ -292,7 +299,8 @@
 
 .op-setup-head-text {
     flex: 1;
-    min-width: 0;
+    /* A floor rather than 0: below this the title is not worth reading, so the rail wraps underneath instead. */
+    min-width: 240px;
 }
 
 .op-setup-title {

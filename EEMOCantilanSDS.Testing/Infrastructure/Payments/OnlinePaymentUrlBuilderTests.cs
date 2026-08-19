@@ -83,3 +83,98 @@ public class OnlinePaymentUrlBuilderTests
             builder.BuildCancelUrl("EEMO-OP/1"));
     }
 }
+
+
+/// <summary>
+/// The webhook address PayMongo is asked to call, which is a different address from the payor's return URL and must not be
+/// confused with it: the return URL is the portal, this is the API.
+///
+/// <para>
+/// Two things have to hold. It must carry the LGU's own tenant code, because the tenant-less endpoint verifies against the
+/// platform configuration - the DEFAULT municipality's signing secret - so any other LGU pointed at it would have every
+/// notification refused. And it must be https, because PayMongo will not call an http address.
+/// </para>
+/// </summary>
+public class OnlinePaymentWebhookUrlTests
+{
+    private static OnlinePaymentUrlBuilder Build(
+        string? webhookBaseUrl, string? environment, string? requestScheme = null, string? requestHost = null)
+    {
+        var config = new Mock<IConfiguration>();
+        config.Setup(c => c["OnlinePayments:WebhookBaseUrl"]).Returns(webhookBaseUrl);
+        config.Setup(c => c["ASPNETCORE_ENVIRONMENT"]).Returns(environment);
+
+        Microsoft.AspNetCore.Http.IHttpContextAccessor? accessor = null;
+        if (requestHost is not null)
+        {
+            var ctx = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            ctx.Request.Scheme = requestScheme ?? "http";
+            ctx.Request.Host = new Microsoft.AspNetCore.Http.HostString(requestHost);
+
+            var mock = new Mock<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
+            mock.SetupGet(a => a.HttpContext).Returns(ctx);
+            accessor = mock.Object;
+        }
+
+        return new OnlinePaymentUrlBuilder(config.Object, accessor);
+    }
+
+    [Fact]
+    public void TheAddressCarriesTheLGUsOwnTenantCode()
+    {
+        var builder = Build("https://api.stalltrack.site", "Production");
+
+        Assert.Equal("https://api.stalltrack.site/api/onlinepayments/webhook/madrid",
+            builder.BuildWebhookUrl("madrid"));
+    }
+
+    [Fact]
+    public void WithoutATenantCodeItREFUSESToBuildOne()
+    {
+        // Silently producing the tenant-less endpoint would hand one LGU an address verified against another's secret.
+        var builder = Build("https://api.stalltrack.site", "Production");
+
+        Assert.Throws<InvalidOperationException>(() => builder.BuildWebhookUrl(" "));
+    }
+
+    [Fact]
+    public void APLAINHTTPRequestStillYieldsAnHttpsAddress()
+    {
+        // The defect the office saw: the portal reaches this API server-to-server, so the scheme on the request is not
+        // necessarily the public one, and http was shown as the address to paste into PayMongo.
+        var builder = Build(webhookBaseUrl: null, environment: "Production",
+            requestScheme: "http", requestHost: "api.stalltrack.site");
+
+        Assert.Equal("https://api.stalltrack.site/api/onlinepayments/webhook/madrid",
+            builder.BuildWebhookUrl("madrid"));
+    }
+
+    [Fact]
+    public void ConfigurationWinsOverTheRequestsOwnOrigin()
+    {
+        var builder = Build("https://api.stalltrack.site", "Production",
+            requestScheme: "https", requestHost: "internal.example");
+
+        Assert.StartsWith("https://api.stalltrack.site/", builder.BuildWebhookUrl("madrid"));
+    }
+
+    [Fact]
+    public void ALocalhostAddressIsRefusedOutsideDevelopment()
+    {
+        // A webhook registered against localhost is registered against nothing, and PayMongo would report it failing
+        // forever - the same fail-closed rule the portal URL beside it follows.
+        var builder = Build("https://localhost:5001", "Production");
+
+        Assert.Throws<InvalidOperationException>(() => builder.BuildWebhookUrl("madrid"));
+    }
+
+    [Fact]
+    public void ALocalhostAddressIsAllowedInDevelopment()
+    {
+        var builder = Build(webhookBaseUrl: null, environment: "Development",
+            requestScheme: "http", requestHost: "localhost:5099");
+
+        Assert.Equal("http://localhost:5099/api/onlinepayments/webhook/madrid",
+            builder.BuildWebhookUrl("madrid"));
+    }
+}

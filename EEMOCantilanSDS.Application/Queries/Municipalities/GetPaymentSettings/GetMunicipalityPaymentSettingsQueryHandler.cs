@@ -10,7 +10,8 @@ namespace EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
 public class GetMunicipalityPaymentSettingsQueryHandler(
     IAppDbContext context,
     ICurrentUserService currentUser,
-    ICredentialProtector protector) : IRequestHandler<GetMunicipalityPaymentSettingsQuery, Result<PaymentSettingsDto>>
+    ICredentialProtector protector,
+    IOnlinePaymentUrlBuilder urlBuilder) : IRequestHandler<GetMunicipalityPaymentSettingsQuery, Result<PaymentSettingsDto>>
 {
     public async Task<Result<PaymentSettingsDto>> Handle(GetMunicipalityPaymentSettingsQuery request, CancellationToken ct)
     {
@@ -32,13 +33,26 @@ public class GetMunicipalityPaymentSettingsQueryHandler(
                 CanAcceptOnlinePayments: municipality.HasOwnPayMongoAccount || municipality.IsDefault,
                 HasWebhookSecret: municipality.HasPayMongoWebhookSecret,
 
-                // The path only. The API composes the absolute address, because only it knows the origin PayMongo must
-                // call. PER LGU by its tenant code: the tenant-less endpoint verifies against the platform configuration,
-                // which is the default municipality's secret, so another LGU pointed at it would have every notification
-                // refused - the same fault as sharing a webhook secret, arriving by a different route.
-                WebhookUrl: $"/api/onlinepayments/webhook/{municipality.TenantCode}",
+                // The SAME builder that registers the webhook composes the address shown here, so what the office is told
+                // to paste and what this system would register can never differ. It used to be assembled from a path by the
+                // controller, which is how an http address reached the screen.
+                WebhookUrl: WebhookUrlOrNull(municipality.TenantCode),
 
                 Mode: ModeOf(municipality.PayMongoSecretKeyEnc)));
+    }
+
+    /// <summary>
+    /// This LGU's webhook address, or null when the server cannot say what its own public address is.
+    ///
+    /// <para>
+    /// Null rather than a throw: an unconfigured public address is a deployment matter, and it must not be the reason a Head
+    /// cannot open the payment settings screen at all.
+    /// </para>
+    /// </summary>
+    private string? WebhookUrlOrNull(string tenantCode)
+    {
+        try { return urlBuilder.BuildWebhookUrl(tenantCode); }
+        catch { return null; }
     }
 
     /// <summary>

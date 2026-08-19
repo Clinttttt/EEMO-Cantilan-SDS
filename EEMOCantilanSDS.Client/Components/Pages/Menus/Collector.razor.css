@@ -972,8 +972,19 @@
 }
 
 /* The password sits beside the username, so it must be exactly as wide: the eye button is positioned over
-   the field rather than taking part in the row's layout. */
+   the field rather than taking part in the row's layout.
+
+   position AND the input's width belong here, at the top level. They existed only inside the 768px media query, so on a
+   desktop the field fell back to an input's intrinsic ~20 characters - visibly narrower than the username beside it - and
+   the absolutely positioned eye had no positioned ancestor to sit against, so it was not over the field at all. */
 .pw-field {
     display: block;
     width: 100%;
+    position: relative;
 }
+
+    .pw-field .form-input {
+        width: 100%;
+        padding-right: 40px;
+        box-sizing: border-box;
+    }

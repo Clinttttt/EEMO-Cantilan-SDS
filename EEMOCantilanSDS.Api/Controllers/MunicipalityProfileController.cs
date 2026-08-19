@@ -79,22 +79,9 @@ public class MunicipalityProfileController : ApiBaseController
     [HttpGet("payment")]
     public async Task<ActionResult<PaymentSettingsDto>> GetPaymentAsync()
     {
+        // No URL assembly here any more: the query composes the webhook address through the same builder that registers it,
+        // so the address shown and the address registered are the same string by construction.
         var result = await Sender.Send(new GetMunicipalityPaymentSettingsQuery());
-
-        // The handler supplies the PATH; the absolute address is composed here, where the origin PayMongo has to call is
-        // actually known. Preferring configuration when it is set, and otherwise this request's own origin, so the office
-        // is never shown a blank field and a deployment can pin the value without a code change.
-        if (result.IsSuccess && result.Value is { WebhookUrl: { Length: > 0 } path } settings
-            && path.StartsWith('/'))
-        {
-            var configured = _configuration["OnlinePayments:WebhookBaseUrl"];
-            var origin = string.IsNullOrWhiteSpace(configured)
-                ? $"{Request.Scheme}://{Request.Host}"
-                : configured!.TrimEnd('/');
-
-            return HandleResponse(Result<PaymentSettingsDto>.Success(settings with { WebhookUrl = origin + path }));
-        }
-
         return HandleResponse(result);
     }
 

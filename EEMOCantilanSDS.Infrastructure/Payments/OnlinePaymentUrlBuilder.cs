@@ -115,6 +115,17 @@ public sealed class OnlinePaymentUrlBuilder(
     private string RequestOrigin()
     {
         var request = httpContextAccessor?.HttpContext?.Request;
-        return request is null ? string.Empty : $"{request.Scheme}://{request.Host}";
+        if (request is null) return string.Empty;
+
+        var host = request.Host.ToString();
+
+        // HTTPS unless this is a local loopback. PayMongo will not call an http address, and the scheme seen here is not
+        // necessarily the public one: the portal reaches this API server-to-server, so a plain-http internal hop would
+        // otherwise be handed to the office as the address to register - which the office saw.
+        var isLocal = host.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                   || host.Contains("127.0.0.1", StringComparison.Ordinal);
+
+        var scheme = isLocal ? request.Scheme : "https";
+        return $"{scheme}://{host}";
     }
 }

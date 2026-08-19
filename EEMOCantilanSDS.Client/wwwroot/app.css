@@ -2097,10 +2097,17 @@ a.topbar-admin.account-chip {
     align-items: center;
 }
 
-    /* Only the padding. Width is left to the field's own class on purpose: these wrappers sit in both
-       block contexts (full-width inputs) and flex rows with fixed-width inputs, and forcing a width
-       would collapse one or stretch the other. */
+    /* The input FILLS the wrapper, and the eye sits inside its right edge.
+       It used to be left without a width, on the reasoning that these wrappers appear both in block contexts and in
+       flex rows with fixed-width inputs. But the wrapper itself is the flex item in those rows, so the input needs to
+       fill whatever the wrapper was given - and without that it fell back to an input's intrinsic ~20 characters while
+       the absolutely positioned button stayed at the wrapper's right edge. The result was a short box with the eye
+       floating a long way from it, which is what the office reported.
+       `flex` rather than `width: 100%` so the padding-right below is not added on top of a full width, and min-width: 0
+       so a long value cannot push the wrapper wider than its column. */
     .pw-reveal-wrap > input {
+        flex: 1 1 auto;
+        min-width: 0;
         padding-right: 38px;
     }
 
