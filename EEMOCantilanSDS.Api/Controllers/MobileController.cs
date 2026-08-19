@@ -102,7 +102,10 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     {
         var command = new RecordDailyCollectionCommand(
             request.StallId,
-            PhilippineTime.Today,
+            // The day the collector says the money answers for, and today when the app does not say. A day that went
+            // uncollected stays owed, so a collector catching a payor the next morning has to be able to settle YESTERDAY
+            // rather than record it against today and leave yesterday open. A future date is refused by the validator.
+            request.CollectionDate ?? PhilippineTime.Today,
             request.IsPaid,
             request.FishKilos,
             request.ORNumber,

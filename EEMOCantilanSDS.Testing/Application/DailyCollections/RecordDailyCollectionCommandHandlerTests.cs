@@ -461,6 +461,32 @@ public class RecordDailyCollectionCommandHandlerTests
     }
 
     [Fact]
+    public void Validator_RejectsPaidForAFutureDate()
+    {
+        // Money cannot be collected for a day that has not happened. Nothing enforced this while the collector's app only
+        // ever sent today; it matters now the day can be chosen, because a mistyped year would file real money under a date
+        // no report looks at.
+        var validator = new RecordDailyCollectionCommandValidator();
+        var result = validator.Validate(new RecordDailyCollectionCommand(
+            Guid.NewGuid(), PhilippineTime.Today.AddDays(1), IsPaid: true, ORNumber: "OR-1"));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("has not happened", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validator_AllowsPaidForAPastDay()
+    {
+        // The point of the whole change: a day that went uncollected stays owed, so the collector who catches the payor the
+        // next morning settles YESTERDAY rather than recording it against today and leaving yesterday open.
+        var validator = new RecordDailyCollectionCommandValidator();
+        var result = validator.Validate(new RecordDailyCollectionCommand(
+            Guid.NewGuid(), PhilippineTime.Today.AddDays(-1), IsPaid: true, ORNumber: "OR-1"));
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
     public void Validator_AllowsAbsentForFutureDate_ScheduledExcused()
     {
         // Future "Absent" is now permitted — it records an admin-approved scheduled excused
