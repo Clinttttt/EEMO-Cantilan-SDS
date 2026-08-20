@@ -2,8 +2,10 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
 
 <!-- Topbar -->
 <header class="topbar">
@@ -44,7 +46,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="slh-hero-eyebrow">Facility · SLH</div>
+                        <div class="slh-hero-eyebrow">Facility · @FacilityCatalog.ShortNameOf(FacilityCode.SLH)</div>
                         <div class="slh-hero-title">@OwnerName</div>
                         <div class="slh-hero-sub">Slaughterhouse Client · Municipality of @Branding.Municipality</div>
                     </div>

@@ -1,4 +1,4 @@
-@page "/trm/reports"
+﻿@page "/trm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Facilities
@@ -6,7 +6,7 @@
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>StallTrack — TRM Reports</PageTitle>
+<PageTitle>StallTrack — @FacilityCatalog.ShortNameOf(FacilityCode.TRM) Reports</PageTitle>
 
 <!-- ══ Topbar ══ -->
 <div class="rpt-topbar">

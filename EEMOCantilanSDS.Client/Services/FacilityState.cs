@@ -30,8 +30,29 @@ public class FacilityState(IFacilitiesApiClient api)
     private IReadOnlyList<FacilitySidebarSummaryDto>? _facilities;
     private Task? _loadTask;
 
+    /// <summary>
+    /// Raised when the office's facility record has been re-read, so anything already on screen can show the
+    /// new wording without the page being reloaded. Renaming a facility, or naming its market areas, used to
+    /// reach only the screens rendered AFTER the save: the catalogue is cached once per circuit, so the Public
+    /// Market page and the sidebar kept the old name until the office reloaded the browser.
+    /// </summary>
+    public event Action? Changed;
+
     /// <summary>Loads the tenant's facilities once per circuit; concurrent callers share the in-flight task.</summary>
     public Task EnsureLoadedAsync() => _loadTask ??= LoadAsync();
+
+    /// <summary>
+    /// Re-reads the office's facility record and tells the screen. Call this after the office changes a
+    /// facility's name, acronym or market-area labels. A failed re-read leaves the previous names in place
+    /// rather than emptying the catalogue, which is what <see cref="LoadAsync"/> already guarantees.
+    /// </summary>
+    public async Task ReloadAsync()
+    {
+        var refreshed = LoadAsync();
+        _loadTask = refreshed;
+        await refreshed;
+        Changed?.Invoke();
+    }
 
     private async Task LoadAsync()
     {

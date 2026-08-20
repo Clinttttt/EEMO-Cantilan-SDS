@@ -1,4 +1,4 @@
-@page "/import/{Facility}"
+﻿@page "/import/{Facility}"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
@@ -12,6 +12,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Constants
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
 @inject IFacilitiesApiClient FacilitiesApi
@@ -60,7 +61,7 @@
     {
         <div class="imp-state">
             <div class="imp-state-title">Import not available</div>
-            <div class="imp-state-text">Bulk import is only supported for NPM, TCC, NCC, BBQ and ICE.</div>
+            <div class="imp-state-text">Bulk import is only supported for @ImportableFacilityList.</div>
             <a class="imp-btn imp-btn-primary" href="/menu">Back to dashboard</a>
         </div>
     }
@@ -469,6 +470,25 @@
 
 @code {
     [Parameter] public string Facility { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The importable facilities, named as the office names them. This sentence listed the platform's canonical
+    /// codes, so an office was told to import into facilities it does not call by those names.
+    /// </summary>
+    private string ImportableFacilityList
+    {
+        get
+        {
+            var names = Configs.Values
+                .Select(c => c.Code)
+                .Distinct()
+                .Select(code => FacilityCatalog.ShortNameOf(code))
+                .ToList();
+            return names.Count > 1
+                ? string.Join(", ", names.Take(names.Count - 1)) + " and " + names[^1]
+                : string.Concat(names);
+        }
+    }
 
     private FacilityImportConfig? _facility;
     private List<Dictionary<string, string>> _rows = new();

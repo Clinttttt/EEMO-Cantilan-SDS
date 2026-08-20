@@ -1,7 +1,11 @@
-@using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+﻿@using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Domain.Enums
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
+@* The office's own weekly market, named by the office. This label carried the reference municipality's acronym
+   and the name of ITS market — so another LGU's charts were headed "TPM - TABO-AN WEEKLY MARKET". *@
 <div class="tpmrc-section-label">
-    <span>TPM – TABO-AN WEEKLY MARKET</span>
+    <span>@FacilityCatalog.ShortNameOf(FacilityCode.TPM) – @FacilityCatalog.NameOf(FacilityCode.TPM).ToUpperInvariant()</span>
 </div>
 
 <div class="tpmrc-row">
@@ -9,7 +13,7 @@
     @* ── LEFT: Market-day Attendance Trend ── *@
     <div class="tpmrc-card">
         <div class="tpmrc-card-header">
-            <div class="tpmrc-tag">TPM – ATTENDANCE</div>
+            <div class="tpmrc-tag">@FacilityCatalog.ShortNameOf(FacilityCode.TPM) – ATTENDANCE</div>
             <div class="tpmrc-card-title">Market day attendance trend</div>
         </div>
 
@@ -99,7 +103,7 @@
     @* ── RIGHT: Market Day Breakdown ── *@
     <div class="tpmrc-card">
         <div class="tpmrc-card-header">
-            <div class="tpmrc-tag">TPM – MARKET DAYS</div>
+            <div class="tpmrc-tag">@FacilityCatalog.ShortNameOf(FacilityCode.TPM) – MARKET DAYS</div>
             <div class="tpmrc-card-title">Per-market-day breakdown</div>
         </div>
 

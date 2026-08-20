@@ -1,11 +1,11 @@
-@page "/bbq/reports"
+﻿@page "/bbq/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>StallTrack — BBQ Reports</PageTitle>
+<PageTitle>StallTrack — @FacilityCatalog.ShortNameOf(FacilityCode.BBQ) Reports</PageTitle>
 
 <!-- ══ Topbar ══ -->
 <div class="rpt-topbar">

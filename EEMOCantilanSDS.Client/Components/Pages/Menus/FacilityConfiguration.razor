@@ -8,6 +8,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject ITpmApiClient TpmApi
 @inject ITrmApiClient TrmApi
 @inject ISlaughterApiClient SlaughterApi
@@ -171,17 +172,20 @@
                                 }
                                 else
                                 {
-                                    @* The summary lists the rates the office has actually stated. A rate it has not
-                                       set is left off HERE and remains on the configure screen behind this card,
-                                       where it can be set - the summary is a statement of what is in force, and a
-                                       market's monthly rent that nobody has stated is not in force: the month is
-                                       thirty of the daily fee printed a line above, so the line said "Monthly stall
-                                       rent … Not set" on a facility that has no monthly rent to speak of.
+                                    @* The summary lists the rates the office has actually STATED, which is what
+                                       IsCustom means: a rate row of its own exists. Filtering on the amount was
+                                       not the same test and did not do it, because a rate an office has never
+                                       stated still arrives carrying the platform's fallback figure. So this card
+                                       showed the reference municipality's amounts as though they were in force
+                                       here: a market whose daily fee is ₱40 was shown a ₱900 monthly rent, while
+                                       a month with no stated rent actually resolves to thirty daily fees, ₱1,200.
+                                       The card contradicted the arithmetic behind it and named a figure the
+                                       office never set.
 
-                                       The metered utilities are the reason this is a filter rather than a rule about
-                                       one key: electricity and water are entered per bill, and printing them here as
-                                       unset invited the reading that the space came with neither. *@
-                                    @foreach (var r in f.Rates.Where(r => r.Amount > 0m))
+                                       An unstated rate is not hidden from the office, only from this statement of
+                                       what is in force: the configure screen behind this card lists every rate
+                                       that applies to the facility, so any of them can still be set there. *@
+                                    @foreach (var r in f.Rates.Where(r => r.IsCustom && r.Amount > 0m))
                                     {
                                         <div class="fac-rate">
                                             <span class="fac-rate-label">@r.Label</span>
@@ -190,10 +194,12 @@
                                         </div>
                                     }
 
-                                    @if (f.Rates.Count > 0 && f.Rates.All(r => r.Amount <= 0m))
+                                    @if (f.Rates.Count > 0 && !f.Rates.Any(r => r.IsCustom && r.Amount > 0m))
                                     {
                                         @* Said plainly rather than leaving the card blank, which reads as a loading
-                                           failure rather than as work still to do. *@
+                                           failure rather than as work still to do. Must test the same thing the list
+                                           above filters on, or a facility carrying only fallback figures would show
+                                           an empty list and no explanation for it. *@
                                         <div class="fac-rate fac-rate-none">No ordinance rates set yet</div>
                                     }
                                 }
@@ -851,6 +857,12 @@
 
         _busy = false;
         await LoadAsync();
+
+        // The office's own names for this facility and its market areas are shown all over the portal from a
+        // catalogue cached once per circuit. Re-read it here so the sidebar, the facility's own page and the
+        // reports show the new wording immediately, instead of the office having to reload the browser to see
+        // the name it just entered.
+        await FacilityCatalog.ReloadAsync();
 
         // Re-bind the drawer to the refreshed facility so labels + amounts + default tags update.
         _cfgFacility = _model?.Configured.FirstOrDefault(x => string.Equals(x.Code, code.ToString(), StringComparison.OrdinalIgnoreCase));

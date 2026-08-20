@@ -56,11 +56,11 @@
         @if (_facility == FacilityCode.NPM)
         {
             <div class="ex-control-block">
-                <span class="ex-control-label">NPM Section</span>
+                <span class="ex-control-label">@Facilities.ShortNameOf(FacilityCode.NPM) Section</span>
                 <div class="ex-filter">
                     @foreach (var sec in NpmSections)
                     {
-                        <button class="ex-chip @(_npmSection == sec ? "ex-chip-active" : "")" type="button" @onclick="@(() => _npmSection = sec)">@sec</button>
+                        <button class="ex-chip @(_npmSection == sec ? "ex-chip-active" : "")" type="button" @onclick="@(() => _npmSection = sec)">@SectionChip(sec)</button>
                     }
                 </div>
             </div>
@@ -274,6 +274,15 @@
     public ExportDataPageState? CachedExportData { get; set; }
 
     private static readonly string[] NpmSections = { "All Sections", "Vegetable Area", "Fish Area", "Meat Area" };
+
+    /// <summary>
+    /// The office's own name for a market area, for the chips and the sheet's divider rows. The VALUES in
+    /// <see cref="NpmSections"/> stay canonical — they are what the filter and the server are written against,
+    /// and what the CSV's Section column carries so a re-import still recognises its own file. Only the words
+    /// on screen come from the office's record; a custom section already carries its own name.
+    /// </summary>
+    private string SectionChip(string canonical) =>
+        canonical == "All Sections" ? canonical : Facilities.SectionLabelOf(FacilityCode.NPM, canonical);
 
     private string PeriodLabel => _data?.PeriodLabel ?? new DateTime(_year, _month, 1).ToString("MMMM yyyy");
     private string ScopeName =>
@@ -595,7 +604,7 @@
                 {
                     var secRows = rows.Where(r => r.Section == sec).ToList();
                     if (secRows.Count == 0) continue;
-                    <tr class="ex-sec-row"><td colspan="@span">@sec<span class="ex-sec-count">@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span></td></tr>
+                    <tr class="ex-sec-row"><td colspan="@span">@SectionChip(sec)<span class="ex-sec-count">@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span></td></tr>
                     @foreach (var r in secRows)
                     {
                         <tr>

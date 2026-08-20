@@ -1,6 +1,7 @@
-@using System.Security.Claims
+﻿@using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
@@ -245,6 +246,11 @@
             ApplyFacilitySummaries(result.Value.ToList());
         }
 
+        // The nav names each facility as the office named it. The nav stays mounted while the office edits
+        // those names in Facility Configuration, so it listens for the catalogue being re-read instead of
+        // waiting for a browser reload to show the name that was just entered.
+        FacilityCatalog.Changed += OnFacilityCatalogChanged;
+
         if (OnlinePaymentsAwaitingOr is not null)
         {
             _onlinePaymentsAwaitingOr = OnlinePaymentsAwaitingOr.Value;
@@ -283,8 +289,25 @@
     // LABEL always comes from the tenant's own facility name (f.Name), so only the glyph is generic.
     private const string DefaultFacilityIcon = """<svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>""";
 
+    /// <summary>
+    /// The office's facility record was re-read (a rename, a new acronym, new market-area labels). Re-fetch the
+    /// summaries this nav renders from, so the new wording appears without a reload. Presentation only: a failed
+    /// re-fetch leaves the names already on screen.
+    /// </summary>
+    private void OnFacilityCatalogChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            var refreshed = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
+            if (refreshed.IsSuccess && refreshed.Value is not null)
+                ApplyFacilitySummaries(refreshed.Value.ToList());
+            StateHasChanged();
+        });
+    }
+
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
+        FacilityCatalog.Changed -= OnFacilityCatalogChanged;
     }
 }

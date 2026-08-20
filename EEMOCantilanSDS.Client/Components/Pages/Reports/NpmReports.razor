@@ -1,4 +1,4 @@
-@page "/npm/reports"
+﻿@page "/npm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
@@ -8,7 +8,7 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @using EEMOCantilanSDS.Application.Dtos.Utilities
 
-<PageTitle>StallTrack — NPM Reports</PageTitle>
+<PageTitle>StallTrack — @FacilityCatalog.ShortNameOf(FacilityCode.NPM) Reports</PageTitle>
 
 <!-- ══ Page Header ══ -->
 <header class="rpt-topbar">
@@ -900,7 +900,7 @@ else
                     No section revenue recorded for @GetPeriodLabel().
                 </div>
             }
-            <div class="audit-caption">Grouped by NPM section; daily entries are not double-counted when a monthly payment exists.</div>
+            <div class="audit-caption">Grouped by @FacilityCatalog.ShortNameOf(FacilityCode.NPM) section; daily entries are not double-counted when a monthly payment exists.</div>
         </div>
 
         <div class="audit-card audit-card-wide audit-card-payor">
