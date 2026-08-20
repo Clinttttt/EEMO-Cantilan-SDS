@@ -189,11 +189,12 @@
         <div class="mfa-notice mfa-notice-ok">@_ok</div>
     }
 
-    @* ── Platform-operator recovery, folded into this same dialog ──
+    @* ── Two-factor recovery, folded into this same dialog ──
        Kept here rather than in a separate Settings card: it is the same subject (two-factor) seen from the
-       operator's side, and a government portal reads better with one authoritative place per topic. Only the
-       platform operator ever sees this section; the API enforces that independently. *@
-    @if (ShowOperatorRecovery)
+       administering side, and a government portal reads better with one authoritative place per topic. Shown
+       to a Head, who administers their own office's staff; the API decides the scope independently — an
+       office's own accounts, or every LGU's for the platform operator. *@
+    @if (ShowRecoveryTool)
     {
         <div class="mfa-divider"></div>
         <TwoFactorRecoveryPanel Flat="true" @ref="_recoveryPanel" />
@@ -220,10 +221,10 @@
     [Parameter] public bool ShowIntro { get; set; } = true;
 
     /// <summary>
-    /// Renders the platform-operator recovery section inside this dialog. The host decides (it knows whether
-    /// the signed-in user is the operator); the API enforces the rule regardless.
+    /// Renders the two-factor recovery section inside this dialog. The host decides whether to offer it (it
+    /// knows the signed-in user's role); the API enforces both the role and the scope regardless.
     /// </summary>
-    [Parameter] public bool ShowOperatorRecovery { get; set; }
+    [Parameter] public bool ShowRecoveryTool { get; set; }
 
     /// <summary>
     /// The nested recovery list, so it can be re-read when this panel changes what it lists. Without this it initialises

@@ -15,16 +15,16 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts
 {
     /// <summary>
-    /// Lists accounts with two-factor enabled for the recovery tool. A DEDICATED platform operator (the
-    /// console) sees every municipality, because rescuing a Head of any LGU is its job. The
-    /// backward-compatible fallback operator — the default municipality's Head — sees only its own
-    /// municipality, so one LGU's portal never displays another's accounts.
+    /// Lists accounts with two-factor enabled for the recovery tool. A Head sees the accounts of their OWN
+    /// municipality — the staff they administer. A DEDICATED platform operator (the console) sees every
+    /// municipality, because rescuing an office whose only Head is locked out is its job. One LGU's portal
+    /// therefore never displays another's usernames or work e-mail addresses.
     /// </summary>
     public record GetMfaEnrolledAccountsQuery : IRequest<Result<IReadOnlyList<MfaEnrolledAccountDto>>>;
 
     /// <summary>
-    /// Platform-operator only (same guard as onboarding/activation). Exposes identity and state only — never
-    /// a secret, a recovery code, or a challenge.
+    /// Heads and the dedicated platform operator. Exposes identity and state only — never a secret, a
+    /// recovery code, or a challenge.
     /// </summary>
     public class GetMfaEnrolledAccountsQueryHandler(IAppDbContext context, ICurrentUserService currentUser)
         : IRequestHandler<GetMfaEnrolledAccountsQuery, Result<IReadOnlyList<MfaEnrolledAccountDto>>>
@@ -32,15 +32,15 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts
         public async Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> Handle(
             GetMfaEnrolledAccountsQuery request, CancellationToken ct)
         {
-            if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
-                return Result<IReadOnlyList<MfaEnrolledAccountDto>>.Forbidden();
-
             // Cross-tenant listing is a PLATFORM-OPERATOR power, not a Head's. A dedicated operator account
             // (the IsPlatformOperator flag, used by the console) keeps the full view because rescuing any
-            // LGU's Head is its job. The backward-compatible fallback — the default municipality's Head, who
-            // is a municipal officer first — is scoped to its OWN municipality: another LGU's Head usernames
-            // and work emails have no business appearing inside one municipality's portal.
+            // LGU's Head is its job. Every other Head — a municipal officer first — is scoped to their OWN
+            // municipality: another LGU's Head usernames and work emails have no business appearing inside
+            // one municipality's portal.
             var seesEveryMunicipality = await PlatformOperatorGuard.IsDedicatedOperatorAsync(context, currentUser, ct);
+            var isHead = string.Equals(currentUser.Role, PlatformOperatorPolicy.SuperAdminRole, StringComparison.OrdinalIgnoreCase);
+            if (!seesEveryMunicipality && !isHead)
+                return Result<IReadOnlyList<MfaEnrolledAccountDto>>.Forbidden();
 
             var enrolled = context.AdminUsers
                 .AsNoTracking()

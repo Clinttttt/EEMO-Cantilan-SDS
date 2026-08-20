@@ -719,6 +719,29 @@ These cannot be answered by reading code.
 
 ## Deferred product work
 
+- **The platform-operator fallback clause is still in force, and cannot be retired yet — BLOCKED on a dedicated operator
+  existing.** `PlatformOperatorPolicy.IsOperator` returns true for `isDedicatedOperator || (isDefaultTenant && role ==
+  SuperAdmin)`. The second clause is why the DEFAULT municipality's Head is the platform operator, and therefore why one
+  municipality's Head can trigger `POST api/backup/restore` — a destructive restore over the whole shared database, every LGU's
+  records included. The office raised this itself (2026-08-20): a single LGU should hold no destructive power over another's data.
+  The policy's own remarks already name this clause as the one to delete once a deployment has a dedicated operator.
+
+  Verified 2026-08-20 that it cannot be deleted yet: `GET api/platform-setup/status` answers `{"isSetupRequired":true}`, so NO
+  account carries `IsPlatformOperator`. Deleting the clause today would leave nobody able to satisfy the policy at all — no
+  onboarding, no activation, no whole-database backup.
+
+  The sequence, in order: (1) the office creates its operator at `admin.stalltrack.site/setup`; (2) that account is verified to
+  sign in and to be accepted by the API (the console's own `console-login` already requires the flag); (3) only then delete the
+  clause. What the default office's Head loses at that point, verified by reading every caller: `BackupController` (6 endpoints),
+  `AdminAuthController`'s two MFA endpoints, and the nine `PlatformOperatorGuard.IsCurrentAsync` call sites — the onboarding
+  pipeline (assessment approve/decline, validation approve, return-to-draft, activation) and the two operator queries. It keeps
+  its own per-LGU backup and restore, exactly like every other Head.
+
+  One thing to change WITH the clause, or the portal will contradict the API: `Settings.razor:506` still decides
+  `_isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant` locally instead of calling `PlatformOperatorPolicy.IsOperator`
+  the way `Backups.razor` now does. Left as it is, the default office's Head would still be shown whole-database controls that the
+  API refuses, and a dedicated operator signing into the portal would be shown none that it allows.
+
 - **Eight report stylesheets still print edge-to-edge, awaiting a go-ahead.** `Bbq`, `Custom`, `Ice`, `Ncc`, `Slh`, `Tcc`, `Tpm`,
   `Trm` each carry `.print-report-sheet { padding: 0 !important }` in their own scoped stylesheet, so their sheets print hard
   against the paper edge. `NpmReports.razor.css` had the identical line and was fixed to `12mm` on 2026-08-18; the other eight are

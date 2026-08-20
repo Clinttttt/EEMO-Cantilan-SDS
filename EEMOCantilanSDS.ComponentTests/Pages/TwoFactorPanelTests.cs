@@ -139,7 +139,7 @@ public class TwoFactorPanelTests : TestContext
 
         var cut = RenderComponent<TwoFactorPanel>(p => p
             .Add(c => c.Flat, true)
-            .Add(c => c.ShowOperatorRecovery, true));
+            .Add(c => c.ShowRecoveryTool, true));
 
         cut.WaitForAssertion(() => Assert.True(enrolledCalls >= 1, "the recovery list never loaded"), RenderTimeout);
         var afterFirstLoad = enrolledCalls;

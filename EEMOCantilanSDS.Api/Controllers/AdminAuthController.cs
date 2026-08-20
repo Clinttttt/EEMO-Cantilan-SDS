@@ -224,20 +224,22 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
         => HandleResponse(await Sender.Send(command));
 
     /// <summary>
-    /// Platform-operator two-factor recovery. Lists every MFA-enrolled account across all LGUs so the
-    /// operator can find the right one. Gated by the PlatformOperator policy AND re-checked in the handler.
+    /// Two-factor recovery. Lists the MFA-enrolled accounts the caller administers: their own municipality's
+    /// staff for a Head, or every LGU's for the dedicated platform operator. The scoping is decided in the
+    /// handler, which is the only place that can see whose account is whose.
     /// </summary>
     [HttpGet("mfa/enrolled-accounts")]
-    [Authorize(Policy = "PlatformOperator")]
+    [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync()
         => HandleResponse(await Sender.Send(new GetMfaEnrolledAccountsQuery()));
 
     /// <summary>
-    /// Clears two-factor on an account whose owner lost both their device and their recovery codes — the only
-    /// rescue path for a Head, who has nobody above them in their own LGU. Requires the operator's password.
+    /// Clears two-factor on an account whose owner lost both their device and their recovery codes. A Head may
+    /// do this for their own office's Admin accounts; a locked-out Head, who has nobody above them in their own
+    /// LGU, is the platform operator's rescue. Requires the caller's own password, re-verified server-side.
     /// </summary>
     [HttpPost("mfa/reset-user")]
-    [Authorize(Policy = "PlatformOperator")]
+    [Authorize(Roles = "SuperAdmin")]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<bool>> ResetUserMfaAsync([FromBody] ResetUserMfaCommand command)
         => HandleResponse(await Sender.Send(command));

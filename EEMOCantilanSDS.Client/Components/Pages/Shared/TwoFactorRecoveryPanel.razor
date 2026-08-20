@@ -3,17 +3,21 @@
 @inject IMfaApiClient MfaApi
 
 @*
-    Platform-operator two-factor recovery (Settings → operator tools).
+    Two-factor recovery (Settings → Security).
 
     This is the rescue path for an account whose owner lost BOTH their authenticator device and their recovery
-    codes. It matters most for a HEAD: peer Heads are blocked from each other's accounts and self-service
-    recovery restores a password, not a second factor — so without this a Head would be locked out forever.
+    codes: self-service recovery restores a password, not a second factor.
+
+    An office administers its own staff — a Head sees their own municipality's enrolled accounts and may clear
+    the second factor on an Admin account. A locked-out HEAD is the one case an office cannot solve alone,
+    because peer Heads are blocked from each other's accounts; that remains the platform operator's rescue, and
+    the operator is also the only caller who sees more than one LGU here.
 
     Clearing only removes the second factor. It never changes the target's password, role or active state:
     the owner signs in with their existing password and enrols again.
 
-    Cross-tenant by design (the operator serves every LGU), and gated three ways: the PlatformOperator policy
-    on the endpoint, the same guard re-checked in the handler, and the operator's own password here.
+    Gated three ways: the endpoint's role requirement, the scoping re-decided in the handler (own municipality
+    plus the peer-Head rule, or every LGU for the operator), and the caller's own password here.
 *@
 
 <section class="mfa-card @(Flat ? "mfa-card-flat" : "")">
@@ -177,7 +181,7 @@
                 _error = result.StatusCode switch
                 {
                     401 => "Your session has expired. Please sign in again.",
-                    403 => "Only the platform operator can use two-factor recovery.",
+                    403 => "Only a Head can use two-factor recovery.",
                     _ => null
                 };
             }
@@ -233,7 +237,12 @@
                 _error = result.StatusCode switch
                 {
                     401 => "Your session has expired. Please sign in again.",
-                    403 => "Only the platform operator can clear two-factor.",
+                    // A refusal here has a reason worth reading — most often that the target is another Head,
+                    // whose account only that Head or the platform operator may act on. Keep the server's
+                    // wording; a generic line would tell the office the wrong thing about its own security.
+                    403 => string.IsNullOrWhiteSpace(result.Error)
+                        ? "You can't clear two-factor on that account."
+                        : result.Error!,
                     404 => "That account no longer exists.",
                     429 => "Too many attempts. Please wait a minute and try again.",
                     _ => string.IsNullOrWhiteSpace(result.Error) ? "We couldn't clear two-factor." : result.Error!

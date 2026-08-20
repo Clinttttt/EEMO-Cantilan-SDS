@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Auth.Mfa;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
@@ -17,12 +18,18 @@ using Xunit;
 namespace EEMOCantilanSDS.Testing.Application.Auth;
 
 /// <summary>
-/// Platform-operator two-factor recovery (Slice 3A).
+/// Two-factor recovery: who may clear a second factor, and whose.
 /// <para>
-/// This is the ONLY rescue path for a Head who lost both their authenticator device and their recovery codes:
-/// peer Heads are blocked from each other's accounts, and self-service recovery restores a password, not a
-/// second factor. These tests pin who may use it, what it requires, and that it clears the second factor
-/// WITHOUT touching the target's password, role or active state.
+/// An office administers its own staff. A Head clears the second factor for accounts in their OWN
+/// municipality, under the ordinary peer-Head rule — their own account and Admin accounts, never another
+/// Head's. Requiring platform-operator for this left every LGU but the default one unable to help its own
+/// clerk who lost a phone.
+/// </para>
+/// <para>
+/// A locked-out HEAD is the one case an office cannot solve alone, and self-service recovery restores a
+/// password, not a second factor — so reaching across municipalities remains the dedicated platform
+/// operator's rescue. These tests pin both halves, what the action requires, and that it clears the second
+/// factor WITHOUT touching the target's password, role or active state.
 /// </para>
 /// </summary>
 public class MfaOperatorRecoveryTests
@@ -104,18 +111,94 @@ public class MfaOperatorRecoveryTests
         Assert.Equal(AdminRole.SuperAdmin, head.Role);
     }
 
-    /// <summary>A per-LGU Head is NOT the platform operator and must never clear anyone else's second factor.</summary>
+    /// <summary>
+    /// An office administers its own staff: its Head clears the second factor on its own Admin account. This
+    /// is what used to be refused — every LGU except the default one had to ask the platform to unlock a clerk.
+    /// </summary>
     [Fact]
-    public async Task Reset_ByNonOperatorHead_IsForbidden()
+    public async Task Reset_ByItsOwnHead_ClearsAStaffAccountOfThatOffice()
     {
         var options = Options();
         var (_, carmenHeadId, _, carmenId) = await SeedAsync(options);
 
+        // A Carmen clerk with two-factor on, who has lost their phone and their codes.
+        Guid clerkId;
+        using (var seed = new AppDbContext(options))
+        {
+            var clerk = AdminUser.Create("Carmen Clerk", "carmen.clerk", "clerk@carmen.gov.ph",
+                TestPasswords.Hash("ClerkPass1!"), AdminRole.Admin, carmenId);
+            clerk.BeginMfaEnrollment("enc:SECRET");
+            clerk.ConfirmMfaEnrollment(100, Array.Empty<string>());
+            seed.AdminUsers.Add(clerk);
+            await seed.SaveChangesAsync();
+            clerkId = clerk.Id;
+        }
+
         using (var ctx = new AppDbContext(options))
         {
-            // Acting as a Carmen SuperAdmin (not the default LGU, no operator flag).
+            // Carmen's own Head, no operator flag, not the default municipality.
             var result = await Handler(ctx, carmenHeadId, carmenId, "SuperAdmin")
-                .Handle(new ResetUserMfaCommand(carmenHeadId, TargetPassword), default);
+                .Handle(new ResetUserMfaCommand(clerkId, TargetPassword), default);
+
+            Assert.True(result.IsSuccess);
+        }
+
+        using var verify = new AppDbContext(options);
+        var clerkAfter = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == clerkId);
+        Assert.False(clerkAfter.MfaEnabled);
+        Assert.Null(clerkAfter.MfaSecretCipher);
+        // Nothing else about the account changes — they sign in with their existing password and enrol again.
+        Assert.True(clerkAfter.Accepts("ClerkPass1!"));
+        Assert.True(clerkAfter.IsActive);
+        Assert.Equal(AdminRole.Admin, clerkAfter.Role);
+    }
+
+    /// <summary>
+    /// A Head may not clear a PEER Head's second factor, in their own office or anywhere else — the same
+    /// peer-Head rule that governs every other admin-management action. That case is the operator's rescue.
+    /// </summary>
+    [Fact]
+    public async Task Reset_ByAHead_OnAPeerHeadOfTheSameOffice_IsRefused()
+    {
+        var options = Options();
+        var (_, carmenHeadId, _, carmenId) = await SeedAsync(options);
+
+        Guid secondHeadId;
+        using (var seed = new AppDbContext(options))
+        {
+            var peer = AdminUser.Create("Carmen Second Head", "carmen.head2", "head2@carmen.gov.ph",
+                TestPasswords.Hash("Head2Pass1!"), AdminRole.SuperAdmin, carmenId);
+            seed.AdminUsers.Add(peer);
+            await seed.SaveChangesAsync();
+            secondHeadId = peer.Id;
+        }
+
+        using var ctx = new AppDbContext(options);
+        var result = await Handler(ctx, carmenHeadId, carmenId, "SuperAdmin")
+            .Handle(new ResetUserMfaCommand(secondHeadId, TargetPassword), default);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Forbidden, result.Status);
+        Assert.Equal(AdminManagementGuard.PeerHeadDenied, result.Error);
+    }
+
+    /// <summary>An ordinary Admin administers nobody's second factor, not even in their own office.</summary>
+    [Fact]
+    public async Task Reset_ByAnOrdinaryAdmin_IsForbidden()
+    {
+        var options = Options();
+        var (_, carmenHeadId, _, carmenId) = await SeedAsync(options);
+
+        Guid staffId;
+        using (var ctx = new AppDbContext(options))
+        {
+            staffId = (await ctx.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Username == "staff")).Id;
+        }
+
+        using (var ctx = new AppDbContext(options))
+        {
+            var result = await Handler(ctx, staffId, carmenId, "Admin")
+                .Handle(new ResetUserMfaCommand(carmenHeadId, "StaffPass1!"), default);
 
             Assert.False(result.IsSuccess);
             Assert.Equal(ResultStatus.Forbidden, result.Status);
@@ -198,14 +281,44 @@ public class MfaOperatorRecoveryTests
     }
 
     [Fact]
-    public async Task EnrolledAccounts_NonOperatorHead_IsDenied()
+    public async Task EnrolledAccounts_ByAHead_ShowsOnlyItsOwnOffice()
     {
-        // A Head of a non-default municipality is not an operator at all.
+        // A Head administers their own staff, so they see their own municipality's enrolled accounts — and
+        // only those. Another LGU's usernames and work e-mails have no business inside this portal.
         var options = Options();
-        var (_, carmenHeadId, _, carmenId) = await SeedAsync(options);
+        var (_, carmenHeadId, cantilanId, carmenId) = await SeedAsync(options);
+
+        using (var seed = new AppDbContext(options))
+        {
+            var cantilanAdmin = AdminUser.Create("Cantilan Clerk", "cantilan.clerk", "clerk@cantilan.gov.ph",
+                TestPasswords.Hash("ClerkPass1!"), AdminRole.Admin, cantilanId);
+            cantilanAdmin.BeginMfaEnrollment("enc:SECRET");
+            cantilanAdmin.ConfirmMfaEnrollment(100, Array.Empty<string>());
+            seed.AdminUsers.Add(cantilanAdmin);
+            await seed.SaveChangesAsync();
+        }
 
         using var ctx = new AppDbContext(options);
-        var denied = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(carmenHeadId, carmenId, "SuperAdmin"))
+        var result = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(carmenHeadId, carmenId, "SuperAdmin"))
+            .Handle(new GetMfaEnrolledAccountsQuery(), default);
+
+        Assert.True(result.IsSuccess);
+        var account = Assert.Single(result.Value!);
+        Assert.Equal("carmen.head", account.Username);
+        Assert.DoesNotContain(result.Value!, a => a.Username == "cantilan.clerk");
+    }
+
+    [Fact]
+    public async Task EnrolledAccounts_ByAnOrdinaryAdmin_IsDenied()
+    {
+        // The recovery list names accounts and their two-factor state; it is for whoever administers them.
+        var options = Options();
+        var (_, _, _, carmenId) = await SeedAsync(options);
+
+        using var ctx = new AppDbContext(options);
+        var staffId = (await ctx.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Username == "staff")).Id;
+
+        var denied = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(staffId, carmenId, "Admin"))
             .Handle(new GetMfaEnrolledAccountsQuery(), default);
 
         Assert.False(denied.IsSuccess);
@@ -213,11 +326,11 @@ public class MfaOperatorRecoveryTests
     }
 
     [Fact]
-    public async Task EnrolledAccounts_FallbackOperator_SeesOnlyItsOwnMunicipality()
+    public async Task EnrolledAccounts_TheDefaultOfficesHead_SeesOnlyItsOwnOffice()
     {
-        // The Cantilan Head is a municipal officer who merely INHERITS operator powers (no
-        // IsPlatformOperator flag). Regression: the recovery list showed every LGU's Head — Carrascal's and
-        // Madrid's usernames and work emails appeared inside Cantilan's own portal.
+        // The default municipality's Head is a municipal officer like any other, whatever powers that office
+        // has inherited. Regression: the recovery list showed every LGU's Head — Carrascal's and Madrid's
+        // usernames and work emails appeared inside Cantilan's own portal.
         var options = Options();
         var (fallbackHeadId, _, cantilanId, _) = await SeedAsync(options, operatorFlag: false);
 
@@ -243,10 +356,10 @@ public class MfaOperatorRecoveryTests
     }
 
     [Fact]
-    public async Task Reset_FallbackOperator_CannotClearAnotherMunicipalitysHead()
+    public async Task Reset_ByAHead_CannotReachAnotherMunicipality()
     {
         // Scoping the list is not enough on its own: the reset takes an account id, so the same confinement
-        // has to hold on the write path.
+        // has to hold on the write path. Only a DEDICATED operator crosses municipalities.
         var options = Options();
         var (fallbackHeadId, carmenHeadId, cantilanId, _) = await SeedAsync(options, operatorFlag: false);
 
