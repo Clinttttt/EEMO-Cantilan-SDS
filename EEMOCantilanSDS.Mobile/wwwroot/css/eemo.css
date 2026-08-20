@@ -578,6 +578,51 @@ html, body, #app {
         }
 
 /* ─────────────────────────────────────────────
+   Day being settled: the payor's outstanding days, chosen as chips.
+
+   Chips rather than a date field on purpose. A typed date could land on a market closure, outside the payor's term, or on a
+   day already settled - each of which leaves the office a collection it cannot reconcile. Only days the server says are owed
+   appear here, so the control cannot express a wrong one.
+───────────────────────────────────────────── */
+.day-choose {
+    margin-bottom: 12px;
+}
+
+.day-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.day-chip {
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+}
+
+    .day-chip.on {
+        border-color: var(--gold-primary);
+        background: rgba(212, 175, 55, 0.12);
+        color: var(--text-primary);
+    }
+
+/* How many days are still owed. Stated only when there is more than one, because "1 day still owed" beside a single chip
+   repeats what the chip already says. */
+.day-note {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-nav);
+}
+
+/* ─────────────────────────────────────────────
    Search row: the search box, and beside it the control for payors who are behind.
 
    The button sits on the row rather than among the section tabs because it answers a different question - the tabs ask

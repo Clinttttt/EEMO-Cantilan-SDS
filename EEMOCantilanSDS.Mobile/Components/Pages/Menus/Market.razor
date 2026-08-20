@@ -1,4 +1,4 @@
-﻿@page "/market"
+@page "/market"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
@@ -187,7 +187,17 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Record Daily Collection</div>
-            <div class="sheet-sub">Update today's collection status for this stall.</div>
+            <div class="sheet-sub">
+                @if (IsSettlingPastDay)
+                {
+                    @* Says which day, because the money is answering for a day that has passed and the receipt will too. *@
+                    <text>Settling @SelectedDate.ToDateTime(TimeOnly.MinValue).ToString("dddd, MMMM d", CultureInfo.InvariantCulture) for this stall.</text>
+                }
+                else
+                {
+                    <text>Update today's collection status for this stall.</text>
+                }
+            </div>
 
             <div class="sheet-preview">
                 <div class="preview-num">@SelectedStall.StallNo</div>
@@ -196,6 +206,30 @@
                     <div class="preview-detail">@SelectedStall.SectionName - @FormatCurrency(SelectedStall.DailyRate)</div>
                 </div>
             </div>
+
+            @if (ShowDayChooser)
+            {
+                @* The days this payor still owes. Chips rather than a date field: a typed date could fall on a closure,
+                   outside the term, or on a day already settled, and the office would be left with a figure it cannot
+                   reconcile. Only days the server says are owed appear here. *@
+                <div class="day-choose">
+                    <div class="form-label">Day being settled</div>
+                    <div class="day-chips">
+                        @foreach (var day in SettleDays)
+                        {
+                            <button class="day-chip @(SelectedDate == day ? "on" : "")" type="button"
+                                    aria-pressed="@(SelectedDate == day)"
+                                    @onclick="() => SelectedDate = day">
+                                @DayChipLabel(day)
+                            </button>
+                        }
+                    </div>
+                    @if (SettleDays.Count > 1)
+                    {
+                        <div class="day-note">@SettleDays.Count days still owed this period.</div>
+                    }
+                </div>
+            }
 
             <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SetStatus(true, false)">
                 <div class="status-option-icon paid-icon-sm">
@@ -782,6 +816,49 @@
     /// <summary>Showing only the payors who are behind.</summary>
     private bool ShowOwedOnly;
 
+    /// <summary>
+    /// Today, as this page already establishes it: the session's server-issued date, falling back to the device clock only
+    /// when there is none. Used rather than the device's own date so a phone with a wrong clock cannot decide which day a
+    /// collection answers for.
+    /// </summary>
+    private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+
+    /// <summary>
+    /// The market day the sheet is settling. Today for the ordinary round; an earlier day when the collector is catching up
+    /// one the office missed.
+    /// </summary>
+    private DateOnly SelectedDate;
+
+    /// <summary>
+    /// The days this sheet may settle, earliest first - the payor's outstanding days as the server worked them out.
+    ///
+    /// <para>
+    /// Only days actually owed, never a free date field. A collector typing a date could record money against a day the
+    /// market was closed, a day outside the payor's term, or a day already settled; each of those is a figure the office
+    /// then cannot reconcile. Today appears here when today is owed, which is the ordinary case.
+    /// </para>
+    /// </summary>
+    private IReadOnlyList<DateOnly> SettleDays =>
+        SelectedStall is null ? Array.Empty<DateOnly>() : OwedDays(SelectedStall);
+
+    /// <summary>
+    /// True when the collector is settling a day that has already passed, so the sheet can say so rather than talking about
+    /// "today" while recording something else.
+    /// </summary>
+    private bool IsSettlingPastDay => SelectedDate < Today;
+
+    /// <summary>
+    /// Whether to offer the choice at all. One owed day that IS today needs no chooser - the sheet already says today - and
+    /// a row of one chip would be furniture on the screen a collector uses most.
+    /// </summary>
+    private bool ShowDayChooser =>
+        SettleDays.Count > 1 || (SettleDays.Count == 1 && SettleDays[0] != Today);
+
+    private string DayChipLabel(DateOnly date) =>
+        date == Today
+            ? "Today"
+            : date.ToDateTime(TimeOnly.MinValue).ToString("MMM d", CultureInfo.InvariantCulture);
+
     private string MonthLabel =>
         new DateTime(SelectedYear, SelectedMonth, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
@@ -835,6 +912,16 @@
     private void OpenCollectionSheet(MobileNpmStallCollectionDto stall)
     {
         SelectedStall = stall;
+
+        // Which day this sheet answers for. Today when today is owed, which is the ordinary round; otherwise the OLDEST
+        // outstanding day, matching the rule already stated on this screen for utility arrears - the oldest is settled
+        // first. Falls back to today when the round carries no list at all (an older build, or a cached round from one),
+        // because that is exactly what the app did before it could choose.
+        var owed = OwedDays(stall);
+        SelectedDate = owed.Contains(Today)
+            ? Today
+            : owed.Count > 0 ? owed[0] : Today;
+
         // A capture waiting to sync is this stall's answer for the day, so the sheet opens on it. Reading the
         // server's "not collected" instead put the tick on Not Collected for a stall the same screen had just
         // marked "Queued" — and re-confirming it queued a second operation that could overrule the first.
@@ -911,7 +998,9 @@
             await Sync.EnqueueAsync(new PendingOperation
             {
                 Kind = OfflineOperationKind.NpmDaily,
-                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+                // The day the collector chose, not the day the phone happens to be switched on. The sync endpoint records
+                // against this date, so a day settled offline stays the day it answered for when it replays.
+                BusinessDate = SelectedDate,
                 StallId = SelectedStall.StallId,
                 IsPaid = SelectedIsPaid,
                 IsAbsent = SelectedIsAbsent,
@@ -923,7 +1012,11 @@
                 Amount = SelectedIsAbsent ? 0m : SelectedStall.DailyRate
             });
 
-            QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
+            // The card's "Queued" marker speaks for the ROUND'S day, so it is only set when that is the day just captured.
+            // Queueing an earlier day would otherwise claim today was queued - and the next refresh, which matches on the
+            // round's date, would quietly drop it again.
+            if (Collection is not null && SelectedDate == Collection.CollectionDate)
+                QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
             CloseCollectionSheet();
             IsSaving = false;
             return;
@@ -934,7 +1027,10 @@
             SelectedIsPaid,
             SelectedIsPaid ? ORNumber : null,
             SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
-            SelectedIsAbsent);
+            SelectedIsAbsent,
+            // The day being settled. The server refuses a paid day dated ahead, so a stale sheet cannot file money
+            // in the future.
+            SelectedDate);
 
         var result = await MobileApi.RecordNpmCollectionAsync(request);
         if (!result.IsSuccess)
@@ -1059,6 +1155,7 @@
         SelectedStall = null;
         SelectedIsPaid = false;
         SelectedIsAbsent = false;
+        SelectedDate = Today;
         FishKilos = null;
         ORNumber = string.Empty;
         SelectedIsMisc = false;
