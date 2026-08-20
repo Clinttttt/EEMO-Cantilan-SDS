@@ -139,7 +139,111 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             {
                 var r2 = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher()).Handle(cmd, default);
                 Assert.False(r2.IsSuccess); // second run refused
+                Assert.Equal(ResultStatus.Conflict, r2.Status);
+                // A bare 409 carries no wording, so the console had to invent it — and it told the office
+                // that setup was finished for every conflict, including the ones below.
+                Assert.False(string.IsNullOrWhiteSpace(r2.Error));
+                Assert.Contains("already exists", r2.Error!, StringComparison.OrdinalIgnoreCase);
             }
+        }
+
+        /// <summary>
+        /// The e-mail address is subject to the same unique index as the username, and was never checked.
+        ///
+        /// <para>
+        /// Reported from use: the office entered the address its own Head already holds. The insert reached
+        /// Postgres, raised a unique violation, the middleware turned that into a 409, and the console reads
+        /// any 409 as "a platform operator already exists" — so the operator was told setup was finished while
+        /// the status endpoint kept correctly reporting that no operator existed at all.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public async Task CreateFirstConsoleAdmin_EmailAlreadyUsed_SaysSo_AndIsNotAConflict()
+        {
+            var options = Options();
+            var cantilanId = await SeedDefaultAsync(options);
+
+            using (var seed = new AppDbContext(options))
+            {
+                seed.AdminUsers.Add(AdminUser.Create("Cantilan Head", "head", "office@cantilan.gov.ph",
+                    TestPasswords.Hash("HeadPass1!"), AdminRole.SuperAdmin, cantilanId));
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options);
+            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "office@cantilan.gov.ph", "Passw0rd1"), default);
+
+            Assert.False(result.IsSuccess);
+            // NOT a conflict: nothing about an operator existing is true, and calling it one is what misled.
+            Assert.NotEqual(ResultStatus.Conflict, result.Status);
+            Assert.Contains("e-mail", result.Error!, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("operator already exists", result.Error!, StringComparison.OrdinalIgnoreCase);
+
+            // And no half-made account was left behind.
+            Assert.False(await ctx.AdminUsers.IgnoreQueryFilters().AnyAsync(u => u.IsPlatformOperator));
+        }
+
+        /// <summary>
+        /// The unique indexes on (MunicipalityId, Username) and (MunicipalityId, Email) are not filtered on
+        /// soft-delete, so a removed account still holds both. The checks must read the database the same way,
+        /// or the request passes them and fails in the insert with nothing the office can act on.
+        /// </summary>
+        [Fact]
+        public async Task CreateFirstConsoleAdmin_ARemovedAccountStillHoldsItsUsernameAndEmail()
+        {
+            var options = Options();
+            var cantilanId = await SeedDefaultAsync(options);
+
+            using (var seed = new AppDbContext(options))
+            {
+                var removed = AdminUser.Create("Former Clerk", "console.admin", "former@cantilan.gov.ph",
+                    TestPasswords.Hash("OldPass1!"), AdminRole.Admin, cantilanId);
+                removed.SoftDelete("test");
+                seed.AdminUsers.Add(removed);
+                await seed.SaveChangesAsync();
+            }
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var byUsername = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                    .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "operator@stalltrack.site", "Passw0rd1"), default);
+                Assert.False(byUsername.IsSuccess);
+                Assert.Contains("username", byUsername.Error!, StringComparison.OrdinalIgnoreCase);
+            }
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var byEmail = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                    .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "operator", "former@cantilan.gov.ph", "Passw0rd1"), default);
+                Assert.False(byEmail.IsSuccess);
+                Assert.Contains("e-mail", byEmail.Error!, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>An address another municipality holds is no obstacle — the operator lives in the default one.</summary>
+        [Fact]
+        public async Task CreateFirstConsoleAdmin_AnAddressHeldByAnotherMunicipality_IsAccepted()
+        {
+            var options = Options();
+            var cantilanId = await SeedDefaultAsync(options);
+
+            using (var seed = new AppDbContext(options))
+            {
+                var madrid = Municipality.Create("MADRID", "Madrid", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "madrid");
+                seed.Municipalities.Add(madrid);
+                await seed.SaveChangesAsync();
+
+                seed.AdminUsers.Add(AdminUser.Create("Madrid Head", "madridhead", "shared@example.gov.ph",
+                    TestPasswords.Hash("HeadPass1!"), AdminRole.SuperAdmin, madrid.Id));
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options);
+            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "shared@example.gov.ph", "Passw0rd1"), default);
+
+            Assert.True(result.IsSuccess);
         }
     }
 }
