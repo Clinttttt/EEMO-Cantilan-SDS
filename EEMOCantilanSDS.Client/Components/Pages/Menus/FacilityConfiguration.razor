@@ -172,20 +172,18 @@
                                 }
                                 else
                                 {
-                                    @* The summary lists the rates the office has actually STATED, which is what
-                                       IsCustom means: a rate row of its own exists. Filtering on the amount was
-                                       not the same test and did not do it, because a rate an office has never
-                                       stated still arrives carrying the platform's fallback figure. So this card
-                                       showed the reference municipality's amounts as though they were in force
-                                       here: a market whose daily fee is ₱40 was shown a ₱900 monthly rent, while
-                                       a month with no stated rent actually resolves to thirty daily fees, ₱1,200.
-                                       The card contradicted the arithmetic behind it and named a figure the
-                                       office never set.
+                                    @* The card is a short statement of the rates in force. A daily-stall market's
+                                       MONTHLY rent is left off it: the facility is let by the day, the office reads
+                                       the daily fee on the line above, and the month follows from it. Its label also
+                                       had to carry the month-length convention in a parenthesis, which was longer
+                                       than the card and pushed the amount off the edge. It stays on the configure
+                                       screen behind this card, where an office whose ordinance states a monthly rent
+                                       can set one.
 
-                                       An unstated rate is not hidden from the office, only from this statement of
-                                       what is in force: the configure screen behind this card lists every rate
-                                       that applies to the facility, so any of them can still be set there. *@
-                                    @foreach (var r in f.Rates.Where(r => r.IsCustom && r.Amount > 0m))
+                                       The metered utilities are the reason the amount is filtered too: electricity
+                                       and water are entered per bill, and printing them here as unset invited the
+                                       reading that the space came with neither. *@
+                                    @foreach (var r in f.Rates.Where(ShownOnCard))
                                     {
                                         <div class="fac-rate">
                                             <span class="fac-rate-label">@r.Label</span>
@@ -194,12 +192,12 @@
                                         </div>
                                     }
 
-                                    @if (f.Rates.Count > 0 && !f.Rates.Any(r => r.IsCustom && r.Amount > 0m))
+                                    @if (f.Rates.Count > 0 && !f.Rates.Any(ShownOnCard))
                                     {
                                         @* Said plainly rather than leaving the card blank, which reads as a loading
-                                           failure rather than as work still to do. Must test the same thing the list
-                                           above filters on, or a facility carrying only fallback figures would show
-                                           an empty list and no explanation for it. *@
+                                           failure rather than as work still to do. Tests the same predicate the list
+                                           above filters on, so the two cannot disagree and leave the card empty with
+                                           nothing to explain it. *@
                                         <div class="fac-rate fac-rate-none">No ordinance rates set yet</div>
                                     }
                                 }
@@ -634,6 +632,16 @@
 @code {
     private FacilityConfigurationDto? _model;
     private string? _error;
+
+    /// <summary>
+    /// Whether a rate belongs on the facility CARD. The card is a short statement of what is in force, so a
+    /// metered utility with no amount is left off, and so is a daily-stall market's monthly rent: the facility
+    /// is let by the day, and that row's label carried the month-length convention in a parenthesis that ran
+    /// wider than the card and pushed the amount off its edge. Both remain on the configure screen.
+    /// </summary>
+    private static bool ShownOnCard(ConfiguredRateDto r) =>
+        r.Amount > 0m
+        && !string.Equals(r.Key, nameof(FeeRateKey.NpmMonthlyStall), StringComparison.OrdinalIgnoreCase);
 
     private enum DrawerMode { None, Add, Configure }
     private DrawerMode _drawer = DrawerMode.None;
