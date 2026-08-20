@@ -31,7 +31,8 @@ namespace EEMOCantilanSDS.Application.Queries.Municipalities.GetCurrentMunicipal
                 m.IsActive,
                 m.OfficeAcronym,
                 m.Address,
-                m.ReportSignatories));
+                m.ReportSignatories,
+                m.IsDefault));
         }
     }
 }

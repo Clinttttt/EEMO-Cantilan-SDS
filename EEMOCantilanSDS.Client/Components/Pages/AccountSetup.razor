@@ -317,6 +317,12 @@
     // (…/account-setup-admin?lgu={code}) themes the panel to that municipality. Any failure keeps defaults.
     const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
     const string NeutralSealPath = "/images/stalltrack-seal.png";
+
+    // The DEFAULT municipality's own office wording, used only when that municipality's record has not stated it. Named as
+    // defaults rather than written inline at the point of use, so it is plain that they belong to one LGU and are not a
+    // generic placeholder for any other.
+    const string DefaultOfficeAcronym = "EEMO";
+    const string DefaultOfficeName = "Economic Enterprise and Management Office";
     string SealPath = DefaultSealPath;
 
     // Whether the seal shown actually belongs to the municipality named beside it. False only when this LGU has none of
@@ -381,14 +387,24 @@
 
     void ApplyBranding(MunicipalityBrandingDto b)
     {
-        var isCantilan = string.Equals(b.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase);
-        _isDefaultBrand = isCantilan;
+        // From the record, not from its code. This compared the code to the literal "CANTILAN", which is a tenant code
+        // deciding behaviour - and it decided whose backdrop, seal, name and office appeared on the page.
+        _isDefaultBrand = b.IsDefault;
+
         SealPath = !string.IsNullOrWhiteSpace(b.SealPath) ? b.SealPath!
-            : isCantilan ? DefaultSealPath : NeutralSealPath;
-        MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
+            : b.IsDefault ? DefaultSealPath : NeutralSealPath;
+
+        // A blank name shows the CODE, never another municipality's name. This said "Cantilan", so an LGU whose record was
+        // incomplete was activated under Cantilan's name on the very screen where its Head sets their password.
+        MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? b.Code : b.Name;
+
         OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
-            : isCantilan ? "EEMO" : MunicipalityName;
-        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+            : b.IsDefault ? DefaultOfficeAcronym : MunicipalityName;
+
+        // Same rule for the office line: the default LGU's own office name is its own, and is not lent to anybody whose
+        // record has yet to state one.
+        OfficeName = !string.IsNullOrWhiteSpace(b.OfficeName) ? b.OfficeName!
+            : b.IsDefault ? DefaultOfficeName : string.Empty;
     }
 
     void PersistBrand()

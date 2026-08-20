@@ -30,4 +30,14 @@ public record MunicipalityBrandingDto(
     string? OfficeAcronym = null,
     string? Address = null,
     /// <summary>Signatory lines for this LGU's official sheets, as JSON; null = the office's default trio.</summary>
-    string? ReportSignatories = null);
+    string? ReportSignatories = null,
+    /// <summary>
+    /// True for the platform's DEFAULT municipality.
+    ///
+    /// <para>
+    /// Carried as data because two screens were deciding it by comparing <c>Code</c> to the literal "CANTILAN" - a tenant
+    /// code used to decide behaviour, which is the pattern this system does not allow. The municipality row already knows,
+    /// so it says so here instead.
+    /// </para>
+    /// </summary>
+    bool IsDefault = false);

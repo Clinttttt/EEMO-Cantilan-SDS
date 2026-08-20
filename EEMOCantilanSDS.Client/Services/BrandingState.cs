@@ -74,8 +74,16 @@ public class BrandingState(IMunicipalitiesApiClient api)
 
     // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
     // unchanged and other LGUs only briefly show the default before their branding resolves.
-    public bool IsDefaultTenant =>
-        _branding is null || string.Equals(_branding.Code, "CANTILAN", System.StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// The platform's DEFAULT municipality, from the branding record itself.
+    ///
+    /// <para>
+    /// It used to compare the code to the literal "CANTILAN" - a tenant code deciding behaviour. The municipality row already
+    /// carries the fact, so it is read rather than inferred. Before branding loads the answer is unknown, and true is kept
+    /// deliberately: that is what it answered before, and the default LGU is the one whose pages would otherwise flicker.
+    /// </para>
+    /// </summary>
+    public bool IsDefaultTenant => _branding is null || _branding.IsDefault;
 
     /// <summary>The signed-in LGU's tenant code (empty until branding loads / for the default). Used to
     /// build this LGU's per-account webhook URL.</summary>
