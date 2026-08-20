@@ -21,15 +21,9 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 /// </summary>
 public class TenantRestoreRepository(AppDbContext context, ICurrentUserService currentUser) : ITenantRestoreRepository
 {
-    // The vetted set of restorable tenant tables — MUST mirror the export (credentials, users and the
-    // append-only audit log are intentionally excluded). Order here is irrelevant; FK order is derived.
-    private static readonly HashSet<string> RestorableTables = new(StringComparer.Ordinal)
-    {
-        "Facilities", "FacilityRates", "OrSeriesConfigs", "Stalls", "Contracts", "PaymentRecords",
-        "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures",
-        "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "TpmVendors",
-        "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "CollectorFacilityAssignments",
-    };
+    // The vetted set of restorable tenant tables, and the reasoned exclusions, live in TenantDataTables —
+    // one statement of what an LGU's backup consists of, held to the model by TenantBackupCoverageTests.
+    private static IReadOnlySet<string> RestorableTables => TenantDataTables.Restorable;
 
     public async Task<TenantRestoreSnapshot> CreateSnapshotAsync(CancellationToken ct)
     {

@@ -10,8 +10,9 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 ///  1. the AppDbContext global tenant filter (MunicipalityId == CurrentMunicipalityId), AND
 ///  2. an explicit <c>MunicipalityId == mid</c> predicate here (defense-in-depth for this high-stakes read).
 /// If the tenant is unresolved (<see cref="Guid.Empty"/>) the export is EMPTY — it never falls back to an
-/// unscoped read of the shared database. Credential material (user accounts, payor activation codes) is
-/// deliberately excluded; the export covers operational/financial data + the audit trail.
+/// unscoped read of the shared database. What the archive holds, and what it deliberately leaves out with
+/// the reason for each, is stated once in <see cref="TenantDataTables"/>; the tables listed here must match
+/// it, which <c>TenantBackupCoverageTests</c> asserts rather than trusting a comment to be obeyed.
 /// </summary>
 public class TenantExportRepository(AppDbContext context) : ITenantExportRepository
 {
