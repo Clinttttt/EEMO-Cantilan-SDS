@@ -1,5 +1,6 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* ══════════════════════════════════════════════════════════════════════
    AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
@@ -891,15 +892,20 @@
         StateHasChanged();
     }
 
-    // Options for the custom Section / Contract-duration dropdowns. NPM custom sections (passed by the host)
-    // appear as selectable "existing:{name}" options, followed by the "＋ Custom section…" add-new sentinel.
+    // Options for the custom Section / Contract-duration dropdowns. The three collection areas of the daily
+    // market carry the office's own names for them (an LGU that calls its vegetable area "Gulayan" sees
+    // "Gulayan"); the option VALUES stay the canonical keys the form and server are written against. NPM
+    // custom sections (passed by the host) appear as selectable "existing:{name}" options, followed by the
+    // "＋ Custom section…" add-new sentinel.
     private IReadOnlyList<(string Value, string Label)> SectionOptions
     {
         get
         {
             var opts = new List<(string, string)>
             {
-                ("Vegetable", "Vegetable Area"), ("Fish", "Fish Area"), ("Meat", "Meat Area"),
+                ("Vegetable", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.VegetableArea)),
+                ("Fish", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)),
+                ("Meat", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.MeatSection)),
             };
             foreach (var name in CustomSectionNames)
                 opts.Add(($"existing:{name}", name));

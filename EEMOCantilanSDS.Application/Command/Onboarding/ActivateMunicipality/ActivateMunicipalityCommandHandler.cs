@@ -75,19 +75,25 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             //    live portal — so any StallGroups on the command are intentionally ignored.
             var stallsCreated = 0;
             Facility? npmFacility = null;
+            ActivationSectionLabels? npmSectionLabels = null;
             foreach (var f in request.Facilities)
             {
                 var facility = Facility.Create(
                     f.Code, f.Name.Trim(), f.ShortName.Trim(), archetype: f.Archetype, municipalityId: municipality.Id);
                 context.Facilities.Add(facility);
-                if (f.Code == FacilityCode.NPM) npmFacility = facility;
+                if (f.Code == FacilityCode.NPM)
+                {
+                    npmFacility = facility;
+                    npmSectionLabels = f.SectionLabels;
+                }
             }
 
-            // Seed the NPM market-section display labels from the LGU's onboarding config (e.g. "Gulayan"
-            // for the vegetable area) so the tenant name shows without re-entry. Best-effort: a missing or
-            // oddly-shaped config never blocks activation — the Head can still set the labels in the portal.
+            // Name the daily market's collection areas as the LGU named them (e.g. "Gulayan" for the vegetable
+            // area), so its own wording shows on its sheets without re-entry. The LGU declared which area each
+            // of its sections is during onboarding, so nothing here interprets those names. An area the LGU
+            // left unnamed keeps the platform's canonical wording until its Head sets one in the portal.
             if (npmFacility is not null)
-                await TrySeedNpmSectionLabelsAsync(npmFacility, municipality.Name, ct);
+                await ApplyNpmSectionLabelsAsync(npmFacility, npmSectionLabels, municipality.Name, ct);
 
             // 3) Fixed ordinance rates for the LGU.
             foreach (var r in request.Rates)
@@ -163,66 +169,91 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 orSeriesConfigured));
         }
 
-        // Seeds the NPM market-section display labels from the LGU's onboarding config (the daily-stall
-        // facility's freeform section names). Classification mirrors the onboarding workspace's own rule:
-        // a section named for fish (or carrying the per-kilo fee) → FishSection; "meat" → MeatSection; the
-        // first remaining section → VegetableArea. The MarketSection enum stays the key — this only labels.
-        private async Task TrySeedNpmSectionLabelsAsync(Facility npm, string municipalityName, CancellationToken ct)
+        // Names the daily market's three collection areas as the LGU named them.
+        //
+        // The LGU declares, during onboarding, which collection area each of its market sections is; its
+        // section names are its own labels, in its own language, and carry no meaning to the platform. This
+        // used to classify those names by English keyword ("fish", "meat") and take whatever was left as the
+        // vegetable area, which meant an LGU writing "Gulayan, Isda, Karne" had its fish and meat areas
+        // dropped and rendered under the platform's canonical wording instead of its own.
+        //
+        // Labels come from the activation command. Where a command carries none (an older console build), the
+        // LGU's saved onboarding draft is read for the area each section was declared to be. Nothing is ever
+        // inferred from a section's wording: an area with no declaration keeps the canonical label, which the
+        // Head can correct in the facility Configuration drawer.
+        private async Task ApplyNpmSectionLabelsAsync(
+            Facility npm, ActivationSectionLabels? labels, string municipalityName, CancellationToken ct)
         {
+            if (labels is not null && (labels.Vegetable ?? labels.Fish ?? labels.Meat) is not null)
+            {
+                npm.SetSectionLabels(labels.Vegetable, labels.Fish, labels.Meat, "Activation");
+                return;
+            }
+
             try
             {
-                var configJson = await context.OnboardingDrafts
-                    .IgnoreQueryFilters()
-                    .Where(d => d.Municipality == municipalityName)
-                    .OrderByDescending(d => d.CreatedAt)
-                    .Select(d => d.ConfigJson)
-                    .FirstOrDefaultAsync(ct);
-                if (string.IsNullOrWhiteSpace(configJson))
-                    return;
-
-                using var doc = JsonDocument.Parse(configJson);
-                if (!doc.RootElement.TryGetProperty("facilities", out var facs) || facs.ValueKind != JsonValueKind.Array)
-                    return;
-
-                foreach (var fac in facs.EnumerateArray())
-                {
-                    var catalogKey = fac.TryGetProperty("catalogKey", out var ck) ? ck.GetString() : null;
-                    var archetype = fac.TryGetProperty("archetype", out var at) ? at.GetString() : null;
-                    var isDailyStall = string.Equals(catalogKey, "public_market", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(archetype, "DailyStall", StringComparison.OrdinalIgnoreCase);
-                    if (!isDailyStall)
-                        continue;
-                    if (!fac.TryGetProperty("sections", out var secs) || secs.ValueKind != JsonValueKind.Array)
-                        return;
-
-                    string? veg = null, fish = null, meat = null;
-                    foreach (var sec in secs.EnumerateArray())
-                    {
-                        var name = (sec.TryGetProperty("name", out var n) ? n.GetString() : null)?.Trim();
-                        if (string.IsNullOrWhiteSpace(name))
-                            continue;
-
-                        var hasFees = sec.TryGetProperty("fees", out var fees)
-                            && fees.ValueKind == JsonValueKind.Array && fees.GetArrayLength() > 0;
-
-                        if (name.Contains("fish", StringComparison.OrdinalIgnoreCase) || hasFees)
-                            fish ??= name;                       // fish carries the per-kilo fee
-                        else if (name.Contains("meat", StringComparison.OrdinalIgnoreCase))
-                            meat ??= name;
-                        else
-                            veg ??= name;                        // first remaining section = vegetable area
-                    }
-
-                    if (veg is not null || fish is not null || meat is not null)
-                        npm.SetSectionLabels(veg, fish, meat, "Activation");
-                    return;                                      // only the first daily-stall facility carries sections
-                }
+                var declared = await ReadDeclaredSectionLabelsFromDraftAsync(municipalityName, ct);
+                if (declared is not null)
+                    npm.SetSectionLabels(declared.Vegetable, declared.Fish, declared.Meat, "Activation");
             }
             catch
             {
-                // Best-effort only: never block activation on config parsing — labels default to canonical
-                // and the Head can set them in the facility Configuration drawer.
+                // Best-effort only: never block activation on reading a saved draft. Labels stay canonical
+                // and the Head sets them in the facility Configuration drawer.
             }
+        }
+
+        // Reads the collection area each market section was declared to be from the LGU's saved onboarding
+        // draft. Only an explicit declaration counts; a section without one is skipped.
+        private async Task<ActivationSectionLabels?> ReadDeclaredSectionLabelsFromDraftAsync(
+            string municipalityName, CancellationToken ct)
+        {
+            var configJson = await context.OnboardingDrafts
+                .IgnoreQueryFilters()
+                .Where(d => d.Municipality == municipalityName)
+                .OrderByDescending(d => d.CreatedAt)
+                .Select(d => d.ConfigJson)
+                .FirstOrDefaultAsync(ct);
+            if (string.IsNullOrWhiteSpace(configJson))
+                return null;
+
+            using var doc = JsonDocument.Parse(configJson);
+            if (!doc.RootElement.TryGetProperty("facilities", out var facs) || facs.ValueKind != JsonValueKind.Array)
+                return null;
+
+            foreach (var fac in facs.EnumerateArray())
+            {
+                var catalogKey = fac.TryGetProperty("catalogKey", out var ck) ? ck.GetString() : null;
+                var archetype = fac.TryGetProperty("archetype", out var at) ? at.GetString() : null;
+                var isDailyStall = string.Equals(catalogKey, "public_market", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(archetype, "DailyStall", StringComparison.OrdinalIgnoreCase);
+                if (!isDailyStall)
+                    continue;
+                if (!fac.TryGetProperty("sections", out var secs) || secs.ValueKind != JsonValueKind.Array)
+                    return null;
+
+                string? veg = null, fish = null, meat = null;
+                foreach (var sec in secs.EnumerateArray())
+                {
+                    var name = (sec.TryGetProperty("name", out var n) ? n.GetString() : null)?.Trim();
+                    var kind = (sec.TryGetProperty("kind", out var k) ? k.GetString() : null)?.Trim();
+                    if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(kind))
+                        continue;
+
+                    // The draft's values are the MarketSection names verbatim.
+                    if (string.Equals(kind, nameof(MarketSection.VegetableArea), StringComparison.OrdinalIgnoreCase))
+                        veg ??= name;
+                    else if (string.Equals(kind, nameof(MarketSection.FishSection), StringComparison.OrdinalIgnoreCase))
+                        fish ??= name;
+                    else if (string.Equals(kind, nameof(MarketSection.MeatSection), StringComparison.OrdinalIgnoreCase))
+                        meat ??= name;
+                }
+
+                // Only the first daily-stall facility carries the market's sections.
+                return (veg ?? fish ?? meat) is null ? null : new ActivationSectionLabels(veg, fish, meat);
+            }
+
+            return null;
         }
 
         // A url-safe, cryptographically-random one-time activation token; only its SHA-256 hash is stored.

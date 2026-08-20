@@ -159,6 +159,31 @@ nobody looks for them in this codebase:
   `GET /api/municipalities`. Its badges do not reflect the API. The same page also says an unactivated municipality is "live",
   which is what led the office to expect Carrascal to have a portal at all.
 
+## What a market section is, and who names it
+
+A public-market daily sheet is organised into three collection areas. The platform keys everything on the three
+`MarketSection` values (`VegetableArea`, `FishSection`, `MeatSection`); the LGU supplies its own NAME for each area, in
+its own language, and that name is display only. Both sides travel end to end:
+
+| Where | Carries |
+|---|---|
+| Landing onboarding (`onboarding-workspace.ts`) | each section's `kind` (declared by the LGU) + `name` (its own words) |
+| Admin console (`market-sections.ts`, `activation.mapper.ts`) | reads `kind`; sends `sectionLabels` on the NPM facility and derives `NpmFishPerKilo` from the declared fish area |
+| API (`ActivateMunicipalityCommand`) | `ActivationFacility.SectionLabels` → `Facility.SetSectionLabels` |
+| Portal (`FacilityState.SectionLabelOf`) | the LGU's label, or the canonical wording when it named none |
+
+The `kind` values are the `MarketSection` names verbatim, in all three codebases, so no translation table exists to
+disagree with itself.
+
+**Nothing reads meaning out of a section's wording.** Until 2026-08-20 it did: the console decided the fish area by
+`/fish/` on the section name and the weighing fee by `/kilo|fish/` on the fee's own name, and the API classified by
+English keyword and took whatever was left as the vegetable area. Madrid entered **Gulayan, Isda, Karne** and so:
+its fish and meat areas were dropped and rendered as "Fish Area" / "Meat Area", and — the part that costs money —
+its per-kilo weighing fee was never offered in the form, so no `NpmFishPerKilo` rate was seeded at all. An area an
+LGU has not named keeps the canonical wording, which states nothing about anybody, and its Head can set the name in
+the facility Configuration drawer. A draft saved before the question was asked has its areas filled in the order the
+LGU entered them — on screen, before the operator commits, and warned about in the mapper's `warnings`.
+
 ## Links belong in one place
 
 | Class | Gives | Environment variable |

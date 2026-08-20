@@ -37,7 +37,16 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         string Name,
         string ShortName,
         BillingArchetype Archetype,
-        IReadOnlyList<ActivationStallGroup>? StallGroups = null);
+        IReadOnlyList<ActivationStallGroup>? StallGroups = null,
+        ActivationSectionLabels? SectionLabels = null);
+
+    /// <summary>
+    /// The LGU's own names for the three collection areas of its public-market daily sheet, as it declared
+    /// them during onboarding (e.g. Vegetable = "Gulayan", Fish = "Isda", Meat = "Karne"). The LGU states
+    /// which area each of its market sections is, so no name is ever interpreted here. An area left null
+    /// keeps the platform's canonical wording until the LGU's Head sets one in its portal.
+    /// </summary>
+    public record ActivationSectionLabels(string? Vegetable, string? Fish, string? Meat);
 
     /// <summary>
     /// A block of like stalls to provision for a facility — e.g. a market section (Fish · 40 stalls) or a

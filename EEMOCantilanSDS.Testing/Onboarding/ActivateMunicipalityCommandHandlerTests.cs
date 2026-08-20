@@ -84,19 +84,60 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 new(FacilityCode.SLH, FeeRateKey.SlhHogPerHead, 200m),
             });
 
+        // Carmen's config with the LGU's own names for its market's collection areas carried on the command.
+        private static ActivateMunicipalityCommand CarmenConfigWithSectionLabels(ActivationSectionLabels labels)
+        {
+            var baseConfig = CarmenConfig();
+            return baseConfig with
+            {
+                Facilities = new List<ActivationFacility>
+                {
+                    new(FacilityCode.NPM, "Carmen Public Market", "CPM", BillingArchetype.DailyStall, null, labels),
+                    new(FacilityCode.SLH, "Carmen Slaughterhouse", "CSLH", BillingArchetype.PerHead),
+                }
+            };
+        }
+
         [Fact]
-        public async Task Activate_SeedsNpmSectionLabels_FromOnboardingConfig()
+        public async Task Activate_NamesSectionAreas_AsTheLguNamedThem()
         {
             var options = Options();
             var (cantilanId, carmenId) = await SeedRegistryAsync(options);
 
-            // Stage Carmen's onboarding config with tenant section names (freeform daily-stall sections).
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var command = CarmenConfigWithSectionLabels(new ActivationSectionLabels("Gulayan", "Isda", "Karne"));
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+                Assert.True(result.IsSuccess);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                // The office's own words, in its own language, stored verbatim against the area it named.
+                var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
+                Assert.Equal("Gulayan", npm.VegetableSectionLabel);
+                Assert.Equal("Isda", npm.FishSectionLabel);
+                Assert.Equal("Karne", npm.MeatSectionLabel);
+            }
+        }
+
+        [Fact]
+        public async Task Activate_NamesSectionAreas_FromTheDraftDeclaration_WhenCommandCarriesNone()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            // The LGU declared which collection area each of its sections is; the names are its own and are
+            // not English. Guessing from the wording is what dropped "Isda" and "Karne" for Madrid.
             using (var seed = new AppDbContext(options))
             {
                 var draft = EEMOCantilanSDS.Domain.Entities.Onboarding.OnboardingDraft.Create(
                     System.Guid.NewGuid(), "Carmen", "Surigao del Sur", "tok-carmen", System.DateTime.UtcNow.AddDays(7));
                 draft.UpdateConfig(
-                    "{\"facilities\":[{\"catalogKey\":\"public_market\",\"archetype\":\"DailyStall\",\"sections\":[{\"name\":\"Gulayan\"},{\"name\":\"Fish Vendors\"},{\"name\":\"Meat Section\"}]}]}",
+                    "{\"facilities\":[{\"catalogKey\":\"public_market\",\"archetype\":\"DailyStall\",\"sections\":["
+                    + "{\"name\":\"Gulayan\",\"kind\":\"VegetableArea\"},"
+                    + "{\"name\":\"Isda\",\"kind\":\"FishSection\"},"
+                    + "{\"name\":\"Karne\",\"kind\":\"MeatSection\"}]}]}",
                     "LGU");
                 seed.OnboardingDrafts.Add(draft);
                 await seed.SaveChangesAsync();
@@ -111,9 +152,68 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
             {
                 var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
-                Assert.Equal("Gulayan", npm.VegetableSectionLabel);        // first non-fish/non-meat = vegetable
-                Assert.Equal("Fish Vendors", npm.FishSectionLabel);
-                Assert.Equal("Meat Section", npm.MeatSectionLabel);
+                Assert.Equal("Gulayan", npm.VegetableSectionLabel);
+                Assert.Equal("Isda", npm.FishSectionLabel);
+                Assert.Equal("Karne", npm.MeatSectionLabel);
+            }
+        }
+
+        [Fact]
+        public async Task Activate_NeverReadsASectionsMeaning_FromItsWording()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            // A draft saved before the LGU was asked which area each section is. The wording says "Fish" and
+            // "Meat" in plain English, and it is still not evidence: an undeclared area keeps the platform's
+            // canonical wording, which the Head corrects in the facility Configuration drawer.
+            using (var seed = new AppDbContext(options))
+            {
+                var draft = EEMOCantilanSDS.Domain.Entities.Onboarding.OnboardingDraft.Create(
+                    System.Guid.NewGuid(), "Carmen", "Surigao del Sur", "tok-carmen", System.DateTime.UtcNow.AddDays(7));
+                draft.UpdateConfig(
+                    "{\"facilities\":[{\"catalogKey\":\"public_market\",\"archetype\":\"DailyStall\",\"sections\":["
+                    + "{\"name\":\"Vegetables\"},{\"name\":\"Fish Vendors\"},{\"name\":\"Meat Section\"}]}]}",
+                    "LGU");
+                seed.OnboardingDrafts.Add(draft);
+                await seed.SaveChangesAsync();
+            }
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+                Assert.True(result.IsSuccess);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
+                Assert.Null(npm.VegetableSectionLabel);
+                Assert.Null(npm.FishSectionLabel);
+                Assert.Null(npm.MeatSectionLabel);
+            }
+        }
+
+        [Fact]
+        public async Task Activate_LeavesAnUnnamedAreaCanonical()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                // The LGU named only its fish area; the other two keep the canonical wording.
+                var command = CarmenConfigWithSectionLabels(new ActivationSectionLabels(null, "Isda", null));
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+                Assert.True(result.IsSuccess);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
+                Assert.Null(npm.VegetableSectionLabel);
+                Assert.Equal("Isda", npm.FishSectionLabel);
+                Assert.Null(npm.MeatSectionLabel);
             }
         }
 

@@ -32,6 +32,9 @@ public class AddVendorModalReuseOfferTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        // The form reads the office's own facility record for its market's area names; this test is about
+        // something else, so no record is loaded and the canonical wording stands.
+        Services.AddSingleton(FacilityCatalogFixture.WithNoRecord());
 
         var form = new AddVendorModal.VendorModalForm { FacilityCode = "TCC", StallNo = "12" };
 
