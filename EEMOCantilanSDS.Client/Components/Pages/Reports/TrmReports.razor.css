@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════════════════
    TrmReports.razor.css — Transport Terminal Reports
    Visual language mirrors TccReports / SlhReports. All tokens from app.css.
    TRM-specific: per-trip ₱30 fee, OR compliance, organization breakdown.
@@ -218,5 +218,10 @@
     .rpt-topbar-right, .rpt-period-tabs, .rpt-date-nav, .rpt-back-btn, .print-report-actions { display: none !important; }
     .rpt-content { padding: 0 !important; }
     .print-document-content { display: block !important; background: white !important; }
-    .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
+    /* 12mm, NOT 0 - the page margin is deliberately nought so the browser has no margin box to print its automatic
+       date, URL and page numbers into, which means the SHEET supplies the whitespace. print.css says exactly that and
+       sets `.print-report-sheet { padding: 12mm }`, but CSS isolation compiles this rule to
+       `.print-report-sheet[b-xxxxx]`, and a class-plus-attribute selector outranks a bare class even when both are
+       !important. So this rule quietly won and printed the sheet hard against the paper edge. */
+    .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 12mm !important; border: none !important; box-shadow: none !important; }
 }
