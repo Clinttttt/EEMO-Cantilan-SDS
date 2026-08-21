@@ -130,7 +130,7 @@
                 var secBalance   = rows.Sum(r => r.Balance);
                 var secFollowUp  = rows.Count(r => r.Balance > 0);
                 <div class="print-section-block">
-                    <div class="print-section-heading">@sec</div>
+                    <div class="print-section-heading">@SectionDisplay(sec)</div>
                     <div class="print-section-summary">
                         <div><span>Stalls</span><strong>@rows.Count</strong></div>
                         <div><span>Collected</span><strong>&#8369;@secCollected.ToString("N2")</strong></div>
@@ -329,7 +329,7 @@ else if (ShowUtilityBilling)
                         <div class="utility-section-tabs">
                             @foreach (var sec in UtilitySections)
                             {
-                                <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")" @onclick="() => _utilSection = sec">@sec</button>
+                                <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")" @onclick="() => _utilSection = sec">@SectionDisplay(sec)</button>
                             }
                         </div>
                         @* Produces a statement for the payors currently on screen - the section tab and the search
@@ -371,7 +371,7 @@ else if (ShowUtilityBilling)
                                         <strong class="utility-payor-name">@row.Payor</strong>
                                         <span class="utility-payor-note">@row.Note</span>
                                     </td>
-                                    <td>@row.Section</td>
+                                    <td>@SectionDisplay(row.Section)</td>
                                     @* Only the utilities this stall is metered for. A stall billed for water
                                        alone has no electricity meter, so a reading and a status there would be
                                        reporting on a service the vendor does not have. *@
@@ -529,7 +529,7 @@ else if (ShowUtilityStatements)
                 {
                     <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")"
                             aria-pressed="@(_utilSection == sec)"
-                            @onclick="() => _utilSection = sec">@sec</button>
+                            @onclick="() => _utilSection = sec">@SectionDisplay(sec)</button>
                 }
             </div>
 
@@ -564,7 +564,7 @@ else if (ShowUtilityStatements)
         {
             <section class="print-report-sheet">
                 <p class="print-empty">
-                    No utility bill has been recorded for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" in {_utilSection}")@(string.IsNullOrWhiteSpace(_utilSearch) ? "" : $" matching \"{_utilSearch}\"").
+                    No utility bill has been recorded for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" in {SectionDisplay(_utilSection)}")@(string.IsNullOrWhiteSpace(_utilSearch) ? "" : $" matching \"{_utilSearch}\"").
                     A statement can only be issued once a reading is entered.
                 </p>
             </section>
@@ -586,7 +586,7 @@ else if (ShowUtilityStatements)
 
                 <div class="print-report-meta">
                     <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.NPM)</strong></div>
-                    <div><span>Section</span><strong>@(_utilSection == "All" ? "All sections" : _utilSection)</strong></div>
+                    <div><span>Section</span><strong>@(_utilSection == "All" ? "All sections" : SectionDisplay(_utilSection))</strong></div>
                     <div><span>Billing Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
                     <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
                 </div>
@@ -610,7 +610,7 @@ else if (ShowUtilityStatements)
                             <tr>
                                 <td>@row.StallNo</td>
                                 <td>@row.Occupant</td>
-                                <td>@row.Section</td>
+                                <td>@SectionDisplay(row.Section)</td>
                                 @* Consumption and the rate together, so a queried line can be checked without pulling
                                    the individual sheet. Written with a multiplication sign rather than "@", which
                                    reads as an address on a printed government form. A utility the stall has no meter
@@ -920,7 +920,7 @@ else
                 <div class="audit-bar-plot">
                     @foreach (var b in AuditPayorBars)
                     {
-                        <div class="audit-payor-bar" title="@b.Section — &#8369;@b.Amount.ToString("N2")">
+                        <div class="audit-payor-bar" title="@SectionDisplay(NormalizeSectionName(b.Section)) — &#8369;@b.Amount.ToString("N2")">
                             <strong class="audit-payor-value">&#8369;@b.ShortValue</strong>
                             <div class="audit-payor-track">
                                 <div class="audit-payor-stack @(b.IsZero ? "is-zero" : "")">
@@ -1429,7 +1429,7 @@ else
                     <tr>
                         <td class="stall-no">@SpaceNumber.Display(row.StallNo)</td>
                         <td>@row.Occupant</td>
-                        <td>@row.Section</td>
+                        <td>@SectionDisplay(row.Section)</td>
                         <td><span class="status-badge @row.StatusCss">@row.Status</span></td>
                         <td>
                             <span class="missed-badge @(row.MissedMonths >= 3 ? "critical" : "warn")">
@@ -2019,6 +2019,13 @@ else
         _ => n
     };
     static string GetShort(string n) => n.Replace(" Section", "").Replace(" Area", "");
+
+    /// <summary>
+    /// The office's own name for a market area. The canonical key stays the key: the printed blocks and the
+    /// compliance rows are grouped and matched on it, and a custom section already carries its own name, which
+    /// <c>SectionLabelOf</c> returns unchanged.
+    /// </summary>
+    string SectionDisplay(string canonical) => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, canonical);
     static string SectionColor(string n) => NormalizeSectionName(n) switch
     {
         "Vegetable Area" => "#2d7a5f",
@@ -2109,10 +2116,15 @@ else
                 var paidRent = rentCompliance?.Paid ?? 0m;
                 var balance = rentCompliance?.Balance ?? 0m;
                 var sectionAssessed = paidRent + balance;
+                // The canonical name above is the KEY the breakdown and the compliance rows are matched on. What
+                // the chart shows is the office's own name for that area, which is the step this chart was missing:
+                // its axis labels and tooltips read "Vegetable / Fish / Meat" on a market that calls them
+                // otherwise, while the card beside it already showed the office's words.
+                var label = FacilityCatalog.SectionLabelOf(FacilityCode.NPM, name);
                 return new
                 {
-                    Name = name,
-                    ShortName = GetShort(name),
+                    Name = label,
+                    ShortName = GetShort(label),
                     CollectionRatePct = ClampPct(s.Percentage),
                     ActiveSharePct = activeTotal > 0 ? ClampPct(s.ActiveStalls * 100m / activeTotal) : 0,
                     BalanceRatePct = sectionAssessed > 0m ? ClampPct(balance / sectionAssessed * 100m) : 0
