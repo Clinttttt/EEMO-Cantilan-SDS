@@ -370,33 +370,25 @@
                         The market is held on a @_cfgMarketDay. Moving it starts on a date you choose and changes
                         nothing before that date, so the weeks already collected stay as they were held.
                     </div>
-                    <label class="fac-field">
+                    @* Not a <label> wrapper, unlike the plain input fields in this drawer: FhSelect's trigger is a
+                       button, a label forwards its own clicks to a nested button, and the dropdown would toggle
+                       twice on one click and appear not to open at all. The field's own label is a sibling, which
+                       is how AddVendorModal already pairs the two. *@
+                    <div class="fac-field">
                         <span class="fac-field-label">Held on</span>
-                        <select class="fac-input" value="@_newMarketDay" @onchange="OnMarketDayPicked">
-                            @foreach (var day in WeekDays)
-                            {
-                                <option value="@day">@day</option>
-                            }
-                        </select>
-                    </label>
-                    <label class="fac-field">
+                        <FhSelect Block="true" Caption="" AriaLabel="Held on" Value="@_newMarketDay.ToString()"
+                                  Options="WeekDayOptions" ValueChanged="OnMarketDayPicked" />
+                    </div>
+                    <div class="fac-field">
                         <span class="fac-field-label">First @_newMarketDay it is held on</span>
-                        <select class="fac-input" value="@(_newMarketDayFrom?.ToString("yyyy-MM-dd"))" @onchange="OnMarketDayStartPicked">
-                            @foreach (var group in _marketDayStartChoices.GroupBy(d => new DateOnly(d.Year, d.Month, 1)))
-                            {
-                                <optgroup label="@group.Key.ToString("MMMM yyyy")">
-                                    @foreach (var choice in group)
-                                    {
-                                        <option value="@choice.ToString("yyyy-MM-dd")">@choice.ToString("MMMM d, yyyy")</option>
-                                    }
-                                </optgroup>
-                            }
-                        </select>
+                        <FhSelect Block="true" Caption="" AriaLabel="@($"First {_newMarketDay} it is held on")"
+                                  Value="@(_newMarketDayFrom?.ToString("yyyy-MM-dd") ?? string.Empty)"
+                                  Options="MarketDayStartOptions" ValueChanged="OnMarketDayStartPicked" />
                         <span class="cfg-field-note">
                             Every @_newMarketDay still to come this month and next. The market keeps its present day
                             until the date you choose here.
                         </span>
-                    </label>
+                    </div>
                     @if (_marketDayError is not null)
                     {
                         <div class="cfg-error">@_marketDayError</div>
@@ -709,15 +701,30 @@
     private string? _marketDaySaved;
 
     /// <summary>
+    /// The weekdays, for the "Held on" dropdown. Rendered through <c>FhSelect</c>, the portal's own dropdown, so the
+    /// drawer does not mix a browser default list in among fields that are styled: a native option panel draws in the
+    /// operating system's own colours, which on an official record reads as something the office cannot rely on.
+    /// </summary>
+    private static IReadOnlyList<(string Value, string Label)> WeekDayOptions =>
+        WeekDays.Select(d => (d.ToString(), d.ToString())).ToList();
+
+    /// <summary>
+    /// The dates the change may start on. Each label carries its own month, so the list needs no month headings to be
+    /// read correctly, which also keeps it a plain list of choices rather than a grouped one.
+    /// </summary>
+    private IReadOnlyList<(string Value, string Label)> MarketDayStartOptions =>
+        _marketDayStartChoices.Select(d => (d.ToString("yyyy-MM-dd"), d.ToString("MMMM d, yyyy"))).ToList();
+
+    /// <summary>
     /// The office picked a weekday, so the start field offers every one of those days still to come. It used to
     /// offer a single filled-in date, which answered the question the office had not been asked: whether the change
     /// starts this week or in three weeks is theirs to decide, and a typed date is a chance to enter one that is not
     /// that weekday at all, which the server then refuses. A stale message is cleared at the same time, since the
     /// form used to keep saying "choose the first Saturday" after the office had moved on to a Wednesday.
     /// </summary>
-    private void OnMarketDayPicked(ChangeEventArgs e)
+    private void OnMarketDayPicked(string value)
     {
-        if (!Enum.TryParse<DayOfWeek>(e.Value?.ToString(), out var picked)) return;
+        if (!Enum.TryParse<DayOfWeek>(value, out var picked)) return;
 
         _newMarketDay = picked;
         RefreshMarketDayStartChoices();
@@ -726,9 +733,9 @@
     }
 
     /// <summary>The office chose which of those days the new arrangement begins on.</summary>
-    private void OnMarketDayStartPicked(ChangeEventArgs e)
+    private void OnMarketDayStartPicked(string value)
     {
-        if (!DateOnly.TryParse(e.Value?.ToString(), out var picked)) return;
+        if (!DateOnly.TryParse(value, out var picked)) return;
 
         _newMarketDayFrom = picked;
         _marketDayError = null;

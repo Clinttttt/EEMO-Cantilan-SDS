@@ -478,6 +478,49 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent);
 }
 
+/* ── The market day dropdowns ──────────────────────────────────────────────────────────────────────────
+   These use FhSelect, the portal's own dropdown, rather than a browser <select>: a native option panel is
+   drawn by the operating system, in its colours and its type, which in the middle of a styled government
+   form reads as something borrowed from elsewhere.
+
+   FhSelect is built for the Follow-up History pickers, which stand alone on a toolbar, so its trigger is
+   slightly taller and heavier than a field in this drawer: 42px against 40px, a 1.5px border against 1px,
+   and its value set in bold navy where an input's is regular ink. Sitting under "Held on", beside the rate
+   fields, that difference reads as two kinds of control rather than one form. Matched here, in this
+   drawer only, so the component keeps its own look everywhere else it is used. Geometry only: the panel,
+   the chevron and the checkmark are the component's. */
+.fac-field ::deep .fh-dd-trigger {
+    height: 40px;
+    border-width: 1px;
+    border-radius: 9px;
+    padding: 0 12px;
+}
+
+.fac-field ::deep .fh-dd-val {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text);
+    margin-top: 0;
+}
+
+/* The focus ring the rest of the drawer uses, so tabbing through the form does not change colour partway. */
+.fac-field ::deep .fh-dd-trigger.open {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent);
+}
+
+/* Matched to the fields, and capped in height: a date list runs to eight or nine choices, which at full
+   height would overrun the drawer, so the panel scrolls at roughly six, where the next month's dates begin. */
+.fac-field ::deep .fh-dd-menu {
+    border-width: 1px;
+    border-radius: 9px;
+    max-height: 236px;
+}
+
+.fac-field ::deep .fh-dd-name {
+    font-size: 13px;
+}
+
 .fac-addform-error {
     margin-top: 12px;
     font-size: 12.5px;

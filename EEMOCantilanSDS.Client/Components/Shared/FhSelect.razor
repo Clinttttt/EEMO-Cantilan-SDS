@@ -1,11 +1,11 @@
-@*
+﻿@*
     FhSelect — a custom dropdown styled to match the Follow-up History year/month pickers:
     a trigger showing a small caption + the selected value + chevron, opening a panel with a
     header and a checkmark on the active option. Drop-in replacement for a small <select>.
 *@
 
 <div class="fh-dd @(Block ? "fh-dd-block" : "") @(_open ? "open" : "")">
-    <button type="button" class="fh-dd-trigger @(_open ? "open" : "")" @onclick="Toggle" aria-haspopup="listbox" aria-expanded="@_open">
+    <button type="button" class="fh-dd-trigger @(_open ? "open" : "")" @onclick="Toggle" aria-haspopup="listbox" aria-expanded="@_open" aria-label="@AccessibleName">
         <span class="fh-dd-body">
             @if (!string.IsNullOrEmpty(Caption))
             {
@@ -19,7 +19,7 @@
     @if (_open)
     {
         <div class="fh-dd-backdrop" @onclick="Close"></div>
-        <div class="fh-dd-menu @(RightAlign ? "fh-dd-menu-right" : "")" role="listbox" aria-label="@Caption">
+        <div class="fh-dd-menu @(RightAlign ? "fh-dd-menu-right" : "")" role="listbox" aria-label="@AccessibleName">
             @if (!string.IsNullOrEmpty(Caption))
             {
                 <div class="fh-dd-header">@Caption</div>
@@ -48,7 +48,24 @@
     /// <summary>Render full-width (for form fields) rather than inline.</summary>
     [Parameter] public bool Block { get; set; }
 
+    /// <summary>
+    /// What this dropdown is for, for a screen reader, when the field's label is printed outside the component.
+    ///
+    /// <para>
+    /// The trigger otherwise announces only the selected value, so a form of these reads as "Thursday, button" and
+    /// "August 27 2026, button" with nothing saying which is the day and which is the date. Falls back to
+    /// <see cref="Caption"/>, which is the visible label when the caller uses one, so every existing caller keeps
+    /// exactly the name it had.
+    /// </para>
+    /// </summary>
+    [Parameter] public string? AriaLabel { get; set; }
+
     private bool _open;
+
+    private string? AccessibleName =>
+        string.IsNullOrWhiteSpace(AriaLabel)
+            ? (string.IsNullOrWhiteSpace(Caption) ? null : Caption)
+            : AriaLabel;
 
     private string SelectedLabel => Options.FirstOrDefault(o => o.Value == Value).Label ?? Value;
 
