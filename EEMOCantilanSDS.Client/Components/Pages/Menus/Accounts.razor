@@ -1,4 +1,4 @@
-@page "/accounts"
+﻿@page "/accounts"
 
 @using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin
 @using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin
@@ -601,8 +601,12 @@
 ══════════════════════════════════════════════ -->
 @if (ShowReset)
 {
-    <div class="eemo-modal-overlay" @onclick="CloseReset">
-        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+    @* No @onclick on the overlay, unlike the other dialogs on this page, and deliberately: this one holds a typed
+       password AND the officer's own password confirming it. A stray click on the backdrop discarded both with no
+       warning and no way back, which is a poor trade for a convenience. It closes by the cross or by Cancel, which
+       are the two places somebody looks when they mean to leave. *@
+    <div class="eemo-modal-overlay">
+        <div class="eemo-modal eemo-modal-sm">
             <div class="eemo-modal-header">
                 <div class="modal-head">
                     <div class="modal-head-icon is-gold">

@@ -770,6 +770,16 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **Thirty eight other dialogs still close when their backdrop is clicked, and some of them hold typed work.** The rule the
+  office's report established (2026-08-21, Reset Password on Staff Accounts): a dialog holding text somebody typed must not be
+  dismissed by a stray click on the backdrop, because there is no warning, no undo, and nothing to recover it from. A confirm
+  prompt holding no input may keep the convenience. Reset Password was fixed and pinned by
+  `AccountsResetPasswordTests.TheBackdropIsInert_SoAStrayClickCannotDiscardTheTypedPasswords`; the remaining overlays were
+  counted (39 `modal-overlay` elements carrying a click handler) but not swept, because the ones that hold a form and the ones
+  that hold a confirmation have to be told apart by reading each, and a blanket change would make every confirm prompt harder
+  to leave. The candidates worth reading first are the ones with typed input: `Collector.razor` (3), `Backups.razor` (6),
+  `Accounts.razor`'s two remaining prompts, and the facility forms in `NPM`, `TPM` and `TRM`.
+
 - **The Tabo-an weekly trend still expands one weekday across a month.** `TpmReports.razor`'s `MarketDaysOfMonth` plots each
   occurrence of `_marketDay`, and `_marketDay` is inferred from the first attendance record of the month. In a month the office
   moved its market day, that plots one weekday only: for a Friday to Thursday move starting 27 August it would draw bars for 7, 14,

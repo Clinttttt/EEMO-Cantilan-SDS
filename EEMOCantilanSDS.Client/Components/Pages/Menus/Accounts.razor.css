@@ -982,10 +982,15 @@
     display: flex;
     gap: 8px;
     align-items: stretch;
+    /* Wraps rather than squeezing. At this dialog's width, and narrower still where it becomes a bottom sheet on a
+       phone, holding the pair on one line pressed the field down to a few visible characters while the button kept
+       its full size. Reading the password back is the whole purpose of showing it. */
+    flex-wrap: wrap;
 }
 
     .input-with-action .form-input {
-        flex: 1;
+        /* A floor of roughly ten monospace characters before the button is allowed to drop below instead. */
+        flex: 1 1 190px;
         min-width: 0;
     }
 
@@ -1303,6 +1308,11 @@
     font-weight: 700;
     color: var(--navy, #0d2137);
     letter-spacing: 1px;
+    /* Wraps instead of running past the dashed box. The generated password is ten characters and always fitted, but
+       a password typed by hand can be any length, and the end of it disappearing is the one part that must not. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
 }
 
 /* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */

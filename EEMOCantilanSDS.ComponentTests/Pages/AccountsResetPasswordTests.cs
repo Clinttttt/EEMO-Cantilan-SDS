@@ -120,4 +120,42 @@ public class AccountsResetPasswordTests : TestContext
         Assert.Contains("Give this password to the account holder", cut.Markup);
         Assert.DoesNotContain("your own account", cut.Markup);
     }
+
+    [Fact]
+    public void TheBackdropIsInert_SoAStrayClickCannotDiscardTheTypedPasswords()
+    {
+        // Reported from use. Every other dialog on this page closes when the backdrop is clicked, and for a confirm
+        // prompt that is a convenience. This one holds a new password AND the officer's own password confirming it, so
+        // the same gesture threw both away with no warning, mid-task, with nothing to recover them from.
+        //
+        // Asserted as the ABSENCE of a handler rather than by clicking and checking it survived: bUnit refuses to
+        // dispatch a click to an element that handles none, so the refusal IS the assertion, and it cannot pass by the
+        // dialog happening to reopen.
+        var cut = RenderAccounts();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Markup), RenderTimeout);
+
+        OpenResetFor(cut, "Ana Reyes");
+        cut.WaitForElement("#reset-confirm", RenderTimeout);
+        cut.Find("#reset-confirm").Input("my-own-password");
+
+        Assert.Throws<Bunit.MissingEventHandlerException>(() => cut.Find(".eemo-modal-overlay").Click());
+
+        // Still open, and still holding what was typed.
+        Assert.Equal("my-own-password", cut.Find("#reset-confirm").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void TheCrossStillCloses_SoLeavingIsStillPossible()
+    {
+        // The other half: refusing the backdrop must not leave the officer stuck in the dialog.
+        var cut = RenderAccounts();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Markup), RenderTimeout);
+
+        OpenResetFor(cut, "Ana Reyes");
+        cut.WaitForElement("#reset-confirm", RenderTimeout);
+
+        cut.Find("button.eemo-modal-close").Click();
+
+        Assert.Empty(cut.FindAll("#reset-confirm"));
+    }
 }
