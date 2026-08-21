@@ -68,18 +68,21 @@ namespace EEMOCantilanSDS.Testing.Rates
         }
 
         [Fact]
-        public async Task FallsBack_To_Ordinance_Constants_For_A_Tenant_With_No_Rows()
+        public async Task ChargesNothing_ForATenantThatHasStatedNoRates()
         {
             var options = Options();
             var cantilan = Guid.NewGuid();
 
-            // No FacilityRate rows for this tenant → the resolver falls back to the ordinance constants.
+            // No FacilityRate rows for this tenant. It charges nothing rather than another municipality's amounts,
+            // which is what the screens then show, and what the recording paths refuse to bill on.
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
             var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
 
             Assert.True(result.IsSuccess);
-            Assert.Equal(FeeRates.NpmDailyFee, result.Value!.DailyRate);   // ₱30
-            Assert.Equal(FeeRates.NpmFishFeePerKilo, result.Value!.FishRate); // ₱1
+            Assert.Equal(0m, result.Value!.DailyRate);
+            Assert.Equal(0m, result.Value!.FishRate);
+            Assert.NotEqual(FeeRates.NpmDailyFee, result.Value!.DailyRate);
+            Assert.NotEqual(FeeRates.NpmFishFeePerKilo, result.Value!.FishRate);
         }
     }
 }

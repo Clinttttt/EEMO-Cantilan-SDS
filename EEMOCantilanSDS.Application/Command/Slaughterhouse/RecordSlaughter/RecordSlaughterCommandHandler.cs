@@ -43,10 +43,21 @@ public class RecordSlaughterCommandHandler(
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
 
-        // Resolve this municipality's per-head rates as of the transaction date (constant fallback, so
-        // Cantilan stamps the same ₱250 hog / ₱365 large totals). The audit breakdown stays as the ordinance
-        // components; only the per-head total is data-driven in Phase 4B.
+        // This municipality's own per-head rates as of the transaction date. A rate this office has not stated
+        // is not borrowed from anywhere: a slaughter fee it never set cannot be raised against an owner, so the
+        // record is refused and the office is told which rate to set. The audit breakdown stays as the ordinance
+        // components; only the per-head total is data-driven.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+
+        var perHeadKey = request.AnimalType switch
+        {
+            AnimalType.Hog => FeeRateKey.SlhHogPerHead,
+            AnimalType.Carabao or AnimalType.Cow => FeeRateKey.SlhLargePerHead,
+            _ => (FeeRateKey?)null,      // a custom animal carries its own rate from the LGU's registry
+        };
+
+        if (perHeadKey is { } required && rateSnapshot.ResolveOrNull(required, request.TransactionDate) is null)
+            return Result<bool>.Failure(FeeRateMessages.NotStated(required));
 
         SlaughterTransaction transaction = request.AnimalType switch
         {

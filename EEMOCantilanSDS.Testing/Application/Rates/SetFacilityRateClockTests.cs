@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate;
+﻿using EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -39,7 +39,9 @@ public class SetFacilityRateClockTests : RepositoryTestBase
 
         Assert.True(result.IsSuccess);
 
-        var rate = await context.FacilityRates.AsNoTracking().SingleAsync(r => r.RateKey == FeeRateKey.NpmDailyStall);
+        // The office states its ordinance rates before it bills, so the context already holds one for this key.
+        // This is the row the command has just written.
+        var rate = await context.FacilityRates.AsNoTracking().SingleAsync(r => r.RateKey == FeeRateKey.NpmDailyStall && r.Amount == 35m);
         Assert.Equal(today, rate.EffectiveDate);
     }
 
@@ -60,7 +62,9 @@ public class SetFacilityRateClockTests : RepositoryTestBase
         await new SetFacilityRateCommandHandler(context, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, clock)
             .Handle(new SetFacilityRateCommand(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m), CancellationToken.None);
 
-        var rate = await context.FacilityRates.AsNoTracking().SingleAsync(r => r.RateKey == FeeRateKey.NpmDailyStall);
+        // The office states its ordinance rates before it bills, so the context already holds one for this key.
+        // This is the row the command has just written.
+        var rate = await context.FacilityRates.AsNoTracking().SingleAsync(r => r.RateKey == FeeRateKey.NpmDailyStall && r.Amount == 35m);
 
         Assert.False(rate.EffectiveDate < today, "a rate must never take effect before the day it was set");
         Assert.Equal(new DateOnly(2026, 6, 15), rate.EffectiveDate);

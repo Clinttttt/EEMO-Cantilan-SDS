@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -40,7 +40,8 @@ public class BulkImportStallholdersCommandHandler(
         // Resolve the current municipality's NPM daily fee (falls back to the ordinance constant, so
         // Cantilan seeds the same ₱30 DailyRate). Imported NPM stalls are stamped with this rate.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(clock.PhilippineNow));
+        if (rateSnapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(clock.PhilippineNow)) is not { } npmDailyRate)
+            return Result<BulkImportResultDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED
         // stall number renews that stall instead of being rejected, while an ACTIVE stall is protected.

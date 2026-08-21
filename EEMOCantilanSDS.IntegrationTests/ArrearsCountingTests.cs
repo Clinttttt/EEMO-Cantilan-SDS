@@ -366,11 +366,19 @@ public class ArrearsCountingTests(PostgresFixture db)
             section: MarketSection.VegetableArea, municipalityId: municipality.Id);
         var contract = Contract.Create(stall.Id, "Dante Revilla", "Dante Revilla", contractStart, 3, 900m);
 
+        // The office's own daily fee, stated. A month here is thirty of it, which is where the ₱900 comes from.
+        // This used to be left unsaid and taken from an ordinance constant, which is how one municipality's
+        // figures came to be billed in another's name; an office that states nothing now charges nothing, so a
+        // test about what is owed has to say what the office charges.
+        var dailyFee = FacilityRate.Create(
+            FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1), municipality.Id);
+
         await using (var tenant = db.CreateContext(municipality.Id))
         {
             tenant.Facilities.Add(facility);
             tenant.Stalls.Add(stall);
             tenant.Contracts.Add(contract);
+            tenant.FacilityRates.Add(dailyFee);
             await tenant.SaveChangesAsync();
         }
 

@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Caching;
+﻿using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -59,7 +59,8 @@ public class AddVendorToMarketDayCommandHandler(
         // Resolve this municipality's per-vendor market-day fee as of the market date (constant fallback,
         // so Cantilan stamps the same ₱100).
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var vendorFee = rateSnapshot.Resolve(FeeRateKey.TpmVendorDay, request.MarketDate);
+        if (rateSnapshot.ResolveOrNull(FeeRateKey.TpmVendorDay, request.MarketDate) is not { } vendorFee)
+            return Result<TpmVendorAttendanceDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.TpmVendorDay));
 
         var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate, fee: vendorFee, marketDay: marketDay);
 

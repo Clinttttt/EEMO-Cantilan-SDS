@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Caching;
+﻿using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -59,7 +59,8 @@ public class RecordTripCommandHandler(
         var tripBusinessDate = occurredAt.Kind == DateTimeKind.Utc
             ? PhilippineTime.ToPhilippineTime(occurredAt)
             : occurredAt;
-        var tripFee = rateSnapshot.Resolve(FeeRateKey.TrmPerTrip, DateOnly.FromDateTime(tripBusinessDate));
+        if (rateSnapshot.ResolveOrNull(FeeRateKey.TrmPerTrip, DateOnly.FromDateTime(tripBusinessDate)) is not { } tripFee)
+            return Result<TrmTripDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.TrmPerTrip));
 
         var trip = TrmTrip.Create(
             request.TransporterId,

@@ -56,7 +56,7 @@ namespace EEMOCantilanSDS.Testing.Fees
         }
 
         [Fact]
-        public async Task Does_Not_See_Another_Municipalitys_Rates_And_Falls_Back_To_Constants()
+        public async Task Does_Not_See_Another_Municipalitys_Rates_And_Charges_Nothing_Of_Its_Own()
         {
             var options = Options();
             var carmen = Guid.NewGuid();
@@ -69,13 +69,14 @@ namespace EEMOCantilanSDS.Testing.Fees
                 await seed.SaveChangesAsync();
             }
 
-            // A context scoped to Cantilan (no rows of its own) must not see Carmen's rate — it falls back
-            // to the ordinance constant.
+            // A context scoped to the other municipality must not see Carmen's rate, and must not substitute one
+            // either: an office that has stated nothing charges nothing, and is told so where it tries to bill.
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
             var snapshot = await new FeeRateResolver(ctx).GetSnapshotAsync();
 
-            Assert.Equal(FeeRates.NpmDailyFee, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
-            Assert.Equal(30m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
+            Assert.Null(snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, AsOf));
+            Assert.Equal(0m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
+            Assert.NotEqual(25m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
         }
     }
 }

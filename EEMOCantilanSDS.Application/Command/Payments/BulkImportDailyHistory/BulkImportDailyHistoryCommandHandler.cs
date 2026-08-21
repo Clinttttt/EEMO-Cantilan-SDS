@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -76,6 +76,11 @@ public class BulkImportDailyHistoryCommandHandler(
 
         var today = clock.PhilippineToday;
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+
+        // An import writes settled days at the office's own daily fee. A fee it has never stated cannot be
+        // imported against, and taking it as zero would file a batch of days as collected for nothing.
+        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, today) is null)
+            return Result<BulkImportDailyResultDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         var results = new List<BulkImportDailyRowResult>(request.Rows.Count);
         var touchedMonths = new HashSet<(int Year, int Month)>();

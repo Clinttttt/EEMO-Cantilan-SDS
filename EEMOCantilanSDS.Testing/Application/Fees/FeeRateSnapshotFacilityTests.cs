@@ -22,7 +22,9 @@ public class FeeRateSnapshotFacilityTests
             new FeeRateEntry(FacilityCode.SLH, FeeRateKey.NpmDailyStall, 999m, new DateOnly(2026, 1, 1)),
         });
 
-        Assert.Equal(FeeRateDefaults.For(FeeRateKey.NpmDailyStall), snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
+        // Not that key's rate, so as far as the market is concerned the office has stated nothing.
+        Assert.Null(snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, AsOf));
+        Assert.Equal(0m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
     }
 
     [Fact]

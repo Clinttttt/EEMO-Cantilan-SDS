@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Authorization;
+﻿using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -52,6 +52,11 @@ public class SettleNpmDaysCommandHandler(
         // stall's current one, or arrears left behind by a lessee who has gone could never be collected.
         var occupancies = stall.Occupancies(today);
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        // The office's own daily fee, or nothing to settle with. A fee it has never stated cannot be raised
+        // against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
+        // will reconcile against by hand.
+        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, clock.PhilippineToday) is null)
+            return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // Load existing collections + facility closures for every month the selected dates span.
         var months = dates.Select(d => (d.Year, d.Month)).Distinct().ToList();

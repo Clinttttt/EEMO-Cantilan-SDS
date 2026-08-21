@@ -106,13 +106,15 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
 
         return facilities.Select(f =>
         {
-            // Every applicable key for this facility, showing its current effective amount — a customised
-            // row if present, otherwise the ordinance default — so the config view is complete, not just
-            // the keys that happen to have a row. Monthly-rental facilities have no fixed keys.
+            // Every applicable key for this facility, so the config view is complete rather than only the keys
+            // that happen to have a row. An amount the office has NOT stated shows as nothing: the drawer used to
+            // display the reference municipality's constant here, tagged as a default, which read as a rate in
+            // force in this office and was in fact the figure it was being billed. Monthly-rental facilities have
+            // no fixed keys.
             var lines = FacilityRateKeys.For(f.Code).Select(key =>
             {
                 var row = currentRates.FirstOrDefault(r => r.FacilityCode == f.Code && r.RateKey == key);
-                var amount = row?.Amount ?? FeeRateDefaults.For(key);
+                var amount = row?.Amount ?? 0m;
                 return new ConfiguredRateDto(key.ToString(), FacilityDisplay.RateLabel(key), amount, row is not null);
             }).ToList();
 

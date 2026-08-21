@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Authorization;
+﻿using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -72,6 +72,11 @@ public class SettleNpmMonthCommandHandler(
             .ToHashSet();
 
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        // The office's own daily fee, or nothing to settle with. A fee it has never stated cannot be raised
+        // against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
+        // will reconcile against by hand.
+        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, clock.PhilippineToday) is null)
+            return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // The month's own ledger: its contractual rent (₱900 for a month held in full, whatever the calendar gave
         // it), the days nothing is owed for, and what is already in. One act of "settle the month" collects what the

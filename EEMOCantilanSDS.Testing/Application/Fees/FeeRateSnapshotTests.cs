@@ -1,15 +1,19 @@
 using System;
 using EEMOCantilanSDS.Application.Common.Fees;
-using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Xunit;
 
 namespace EEMOCantilanSDS.Testing.Application.Fees
 {
     /// <summary>
-    /// Phase 4B slice 0 — the fee-rate snapshot. Proves that (a) with no rows the snapshot returns the exact
-    /// ordinance constants (so Cantilan is byte-for-byte unchanged before any rewire), (b) a data row overrides
-    /// the constant, and (c) effective-dating returns the latest rate on or before a date.
+    /// The fee-rate snapshot: what an office charges, and what it means for an office to have stated nothing.
+    ///
+    /// <para>
+    /// A rate an office has not stated used to fall back to a <c>FeeRates</c> constant. Those constants are the
+    /// reference municipality's own ordinance, so the fallback billed one LGU's figures to another: Madrid, which
+    /// had never stated a per-kilo weighing fee, was charging Cantilan's ₱1.00 per kilo on its own vendors' fish.
+    /// Each LGU collects under its own ordinance, so an unstated rate now resolves to nothing at all.
+    /// </para>
     /// </summary>
     public class FeeRateSnapshotTests
     {
@@ -22,34 +26,40 @@ namespace EEMOCantilanSDS.Testing.Application.Fees
         [InlineData(FeeRateKey.SlhLargePerHead)]
         [InlineData(FeeRateKey.TpmVendorDay)]
         [InlineData(FeeRateKey.TrmPerTrip)]
-        public void EmptySnapshot_FallsBackToOrdinanceConstant(FeeRateKey key)
+        public void AnUnstatedRateIsNothing_NotAnotherMunicipalitysFigure(FeeRateKey key)
         {
             var snapshot = new FeeRateSnapshot(Array.Empty<FeeRateEntry>());
 
-            Assert.Equal(FeeRateDefaults.For(key), snapshot.Resolve(key, AsOf));
+            Assert.Null(snapshot.ResolveOrNull(key, AsOf));
+            Assert.Equal(0m, snapshot.Resolve(key, AsOf));
         }
 
         [Fact]
-        public void Fallback_ReproducesTodaysCantilanAmounts()
+        public void NoneOfTheReferenceMunicipalitysAmountsReachAnOfficeThatStatedNothing()
         {
+            // Named for the amounts themselves, because these are the figures that were being charged elsewhere:
+            // ₱30 a day, ₱1 a kilo, ₱250 a hog, ₱365 a large animal, ₱100 a market-day vendor, ₱30 a trip.
             var snapshot = new FeeRateSnapshot(Array.Empty<FeeRateEntry>());
 
-            Assert.Equal(30.00m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
-            Assert.Equal(1.00m, snapshot.Resolve(FeeRateKey.NpmFishPerKilo, AsOf));
-            Assert.Equal(250.00m, snapshot.Resolve(FeeRateKey.SlhHogPerHead, AsOf));
-            Assert.Equal(365.00m, snapshot.Resolve(FeeRateKey.SlhLargePerHead, AsOf));
-            Assert.Equal(100.00m, snapshot.Resolve(FeeRateKey.TpmVendorDay, AsOf));
-            Assert.Equal(30.00m, snapshot.Resolve(FeeRateKey.TrmPerTrip, AsOf));
+            foreach (var key in new[]
+                     {
+                         FeeRateKey.NpmDailyStall, FeeRateKey.NpmFishPerKilo, FeeRateKey.SlhHogPerHead,
+                         FeeRateKey.SlhLargePerHead, FeeRateKey.TpmVendorDay, FeeRateKey.TrmPerTrip,
+                     })
+            {
+                Assert.Equal(0m, snapshot.Resolve(key, AsOf));
+            }
         }
 
         [Fact]
-        public void SeededRow_OverridesTheConstant()
+        public void AStatedRateIsWhatTheOfficeCharges()
         {
             var snapshot = new FeeRateSnapshot(new[]
             {
                 new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 25.00m, new DateOnly(2020, 1, 1)),
             });
 
+            Assert.Equal(25.00m, snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, AsOf));
             Assert.Equal(25.00m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
         }
 
@@ -69,15 +79,17 @@ namespace EEMOCantilanSDS.Testing.Application.Fees
         }
 
         [Fact]
-        public void Resolve_IgnoresFutureEffectiveDates()
+        public void ARateThatTakesEffectLaterIsNotInForceYet()
         {
             var snapshot = new FeeRateSnapshot(new[]
             {
                 new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 99.00m, new DateOnly(2030, 1, 1)),
             });
 
-            // The only row is not yet effective -> fall back to the constant, not the future amount.
-            Assert.Equal(FeeRateDefaults.For(FeeRateKey.NpmDailyStall), snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
+            // The office has stated a rate, but not for this date. Nothing is in force, and the future amount is
+            // certainly not: billing today at a rate that begins in 2030 would charge what nobody has approved.
+            Assert.Null(snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, AsOf));
+            Assert.Equal(0m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
         }
     }
 }

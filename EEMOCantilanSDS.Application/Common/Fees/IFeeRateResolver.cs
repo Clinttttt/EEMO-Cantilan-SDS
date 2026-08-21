@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -12,9 +12,15 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     /// Resolves the fixed ordinance fee rates for the <b>current municipality</b> (Phase 4B). Loads the
     /// tenant's <c>FacilityRate</c> rows once (already scoped by the global query filter) into an immutable
     /// <see cref="FeeRateSnapshot"/>; callers read amounts from the snapshot as plain locals so the values can
-    /// be embedded in EF LINQ. When a tenant has no row for a key, the snapshot falls back to the
-    /// <see cref="FeeRateDefaults"/> constant, so Cantilan (seeded from those constants) is byte-for-byte
-    /// unchanged.
+    /// be embedded in EF LINQ.
+    ///
+    /// <para>
+    /// A rate an office has not stated is NOT borrowed from anywhere. It used to fall back to a
+    /// <see cref="FeeRateDefaults"/> constant, and those constants are the reference municipality's own
+    /// ordinance: Madrid, which had never stated a per-kilo weighing fee, was therefore charging Cantilan's
+    /// ₱1.00 per kilo. Each LGU bills under its own ordinance, so an unstated rate now resolves to nothing at
+    /// all, and the paths that would create a charge from one refuse instead of inventing a figure.
+    /// </para>
     /// </summary>
     public interface IFeeRateResolver
     {
@@ -25,9 +31,14 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     public readonly record struct FeeRateEntry(FacilityCode Facility, FeeRateKey Key, decimal Amount, DateOnly EffectiveDate);
 
     /// <summary>
-    /// Immutable point-in-time view of the current tenant's fixed rates. <see cref="Resolve"/> returns the
-    /// amount in effect on a date (the latest row with <c>EffectiveDate</c> on or before it), or the
-    /// <see cref="FeeRateDefaults"/> constant when the tenant has no row for that key.
+    /// Immutable point-in-time view of the current tenant's fixed rates.
+    ///
+    /// <para>
+    /// <see cref="ResolveOrNull"/> answers what the office has STATED, and nothing where it has stated nothing,
+    /// which is the distinction every money decision needs. <see cref="Resolve"/> is the same reading with an
+    /// unstated rate read as zero, for the screens and reports that must show a figure: zero states plainly that
+    /// the office charges nothing under this head, where the old fallback stated another municipality's amount.
+    /// </para>
     /// </summary>
     public sealed class FeeRateSnapshot
     {
@@ -36,8 +47,12 @@ namespace EEMOCantilanSDS.Application.Common.Fees
         public FeeRateSnapshot(IEnumerable<FeeRateEntry> entries)
             => _entries = entries?.ToList() ?? new List<FeeRateEntry>();
 
-        /// <summary>The amount for a fixed rate key as of a date, falling back to the ordinance constant.</summary>
-        public decimal Resolve(FeeRateKey key, DateOnly asOf)
+        /// <summary>
+        /// The amount this office has STATED for a rate key as of a date (the latest row with
+        /// <c>EffectiveDate</c> on or before it), or <c>null</c> where it has stated none. Anything that would
+        /// create a charge asks this and refuses on null, rather than billing a figure the office never set.
+        /// </summary>
+        public decimal? ResolveOrNull(FeeRateKey key, DateOnly asOf)
         {
             var owner = FacilityRateKeys.OwnerOf(key);
 
@@ -56,7 +71,19 @@ namespace EEMOCantilanSDS.Application.Common.Fees
                     bestDate = e.EffectiveDate;
                 }
             }
-            return match ?? FeeRateDefaults.For(key);
+            return match;
         }
+
+        /// <summary>
+        /// The stated amount, or zero where this office has stated none.
+        ///
+        /// <para>
+        /// Zero, and deliberately not a constant. The constants are the reference municipality's ordinance, and
+        /// returning one here is how another LGU came to charge Cantilan's per-kilo weighing fee. Zero says the
+        /// office charges nothing under this head, which is the truth about an office that has stated nothing.
+        /// Callers that must not proceed on nothing use <see cref="ResolveOrNull"/>.
+        /// </para>
+        /// </summary>
+        public decimal Resolve(FeeRateKey key, DateOnly asOf) => ResolveOrNull(key, asOf) ?? 0m;
     }
 }
