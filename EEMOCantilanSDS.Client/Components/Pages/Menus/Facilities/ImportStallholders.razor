@@ -281,9 +281,20 @@
                     </div>
                 </div>
                 <div class="imp-review-actions">
-                    <button class="imp-btn imp-btn-ghost imp-add-row" @onclick="AddRow">
+                    @* Two bases, two buttons. A space let without a signed contract is not numbered by the office, so
+                       it cannot be added by the same action as a contracted stall: one row needs the facility's next
+                       stall number and the other must never be given one. A single "Add row" could only assume, and
+                       assumed the contract, which is how a barbecue or ice-plant list — where every occupancy is a
+                       space — got stall numbers the office does not issue. *@
+                    <button class="imp-btn imp-btn-ghost imp-add-row" @onclick="() => AddRow(false)"
+                            title="A stall let under a signed contract. Takes the facility's next stall number.">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Add row
+                        Add row (contract)
+                    </button>
+                    <button class="imp-btn imp-btn-ghost imp-add-space-row" @onclick="() => AddRow(true)"
+                            title="A space let without a signed contract. The office issues no stall number for these.">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add row (space only)
                     </button>
                     <button class="imp-btn imp-btn-outline" @onclick="ResetAll">Discard</button>
                 </div>
@@ -325,7 +336,18 @@
                                 none of the facility's stall numbers.
                             </text>
                         }
-                        Every other number is exactly as your list had it. You can still edit any Stall / Space No. below.
+                        Every other number is exactly as your list had it.
+                        @if (_numberedSpaces > 0)
+                        {
+                            <text>
+                                You can edit any stall number below. The identifier of a space is the system's own and
+                                is not editable; it follows the basis written in that row's contract column.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>You can still edit any Stall / Space No. below.</text>
+                        }
                     </span>
                 </div>
             }
@@ -416,12 +438,22 @@
                                             @* The stall-number box is named so a test can read it without counting
                                                columns. Selecting cells by position is what failed a deployment once.
                                                CellHook does the same for the rest, so every column can be reached by
-                                               name rather than by index. *@
-                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @CellHook(col.Key) @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
+                                               name rather than by index.
+
+                                               A space the office does not number shows its identifier but does not
+                                               let it be typed over. The identifier is the system's own: it is what
+                                               the occupancy is keyed, linked and routed on, and editing "SP-2" into
+                                               anything else would either collide with the facility's numbering or
+                                               leave the row identified by nothing. The basis is changed in the
+                                               contract column, and the identifier follows from it. *@
+                                            var isSpaceIdentifier = col.Key == "stallNo" && !RowIsContracted(row);
+                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @CellHook(col.Key) @(isSpaceIdentifier ? "imp-cell-locked" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
                                                    type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
                                                    value="@GetCell(row, col.Key)"
                                                    placeholder="@col.Placeholder"
-                                                   title="@(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "This occupant is already an active stallholder in this facility." : null)"
+                                                   readonly="@isSpaceIdentifier"
+                                                   tabindex="@(isSpaceIdentifier ? "-1" : null)"
+                                                   title="@(isSpaceIdentifier ? "The office issues no number for a space held without a signed contract. This identifier is the system's own; change the basis in the contract column instead." : col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "This occupant is already an active stallholder in this facility." : null)"
                                                    @oninput="e => SetCell(row, col.Key, e.Value?.ToString())" />
                                         }
                                     </td>
@@ -713,10 +745,31 @@
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
     };
 
-    private void AddRow()
+    /// <summary>
+    /// What the office writes in the contract column for a space it lets without a signed contract. The basis is
+    /// read back from this cell by <see cref="ArrangementFromContractCell"/>, which is why a row added for such a
+    /// space has to carry it: an empty cell reads as a signed contract, and the numbering then issues the space one
+    /// of the facility's stall numbers.
+    /// </summary>
+    private const string SpaceOnlyContractCell = "No contract (space only)";
+
+    /// <summary>
+    /// Whether this row is a stall held under a signed contract, which is what decides whether the office issues it a
+    /// number at all. Read from the row's own contract column, so it follows the basis the office typed there.
+    /// </summary>
+    private bool RowIsContracted(Dictionary<string, string> row) =>
+        ArrangementFromContractCell(GetCell(row, "contractName")) == OccupancyArrangement.SignedContract;
+
+    private void AddRow(bool spaceOnly = false)
     {
         if (_facility is null) return;
         var row = NewRow(_facility);
+
+        // A space held without a signed contract is not numbered by the office. Saying so in the row's own contract
+        // column is what makes the shared numbering rule hand it a space identifier instead of the facility's next
+        // stall number — which is what a blank cell got, because blank means "per signed contract".
+        if (spaceOnly) row["contractName"] = SpaceOnlyContractCell;
+
         _rows.Add(row);
 
         // Invented here, so its whole-year is this screen's to work out from the rent as it is typed. An uploaded row

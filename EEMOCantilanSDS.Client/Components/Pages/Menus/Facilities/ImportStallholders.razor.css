@@ -226,6 +226,13 @@
 .imp-cell:focus { outline: none; border-color: var(--gold); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(200, 168, 75, .14); }
 .imp-cell-num { text-align: center; font-variant-numeric: tabular-nums; }
 
+/* A space the office does not number: the identifier is shown, because the row has to be identifiable on
+   screen, but it is the system's own and is not the office's to type over. It reads as settled rather than
+   disabled - the muted ink already in use, and none of the hover or focus affordances that invite typing. */
+.imp-cell-locked { color: var(--text-muted); cursor: default; }
+.imp-cell-locked:hover { background: transparent; }
+.imp-cell-locked:focus { outline: none; border-color: transparent; background: transparent; box-shadow: none; }
+
 /* Dropdown — native arrow removed; a single overlay caret (.imp-select-caret) is positioned by
    the wrapping .imp-select-wrap, so there's exactly one caret regardless of browser. */
 .imp-cell-select {
