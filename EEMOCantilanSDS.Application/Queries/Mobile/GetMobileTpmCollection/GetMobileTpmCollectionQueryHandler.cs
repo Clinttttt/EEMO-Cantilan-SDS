@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -29,8 +29,8 @@ public sealed class GetMobileTpmCollectionQueryHandler(
         if (!collector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.TPM))
             return Result<MobileTpmCollectionDto>.Forbidden();
 
-        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
         var today = clock.PhilippineToday;
+        var marketDay = await marketDayProvider.GetMarketDayAsync(today, ct);
         var isMarketDay = today.DayOfWeek == marketDay;
         var marketDate = MostRecentMarketDay(today, marketDay);
 

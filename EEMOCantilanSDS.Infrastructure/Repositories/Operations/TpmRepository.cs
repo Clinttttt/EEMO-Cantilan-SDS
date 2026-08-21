@@ -66,12 +66,18 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
         var paidCount = attendances.Count(a => a.IsPaid);
         var totalAttendances = attendances.Count;
 
-        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
+        // The month's market dates, and the day in force at the end of it. A month the office moved its day in
+        // has market days on both weekdays, so the count comes from the dates themselves rather than from one
+        // weekday multiplied out; the headline day is the arrangement the month finishes under, which is what the
+        // office is operating now.
+        var marketDates = await marketDayProvider.GetMarketDatesAsync(year, month, ct);
+        var marketDay = await marketDayProvider.GetMarketDayAsync(
+            new DateOnly(year, month, 1).AddMonths(1).AddDays(-1), ct);
 
         return new TpmOverviewDto
         {
             CollectedThisMonth = attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
-            FridaysThisMonth = GetMarketDaysInMonth(year, month, marketDay).Count,
+            FridaysThisMonth = marketDates.Count,
             VendorEntriesThisMonth = totalAttendances,
             CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0,
             MarketDay = marketDay

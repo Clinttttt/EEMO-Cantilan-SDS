@@ -165,8 +165,19 @@ public class Municipality : AuditableEntity
         UpdatedBy = updatedBy;
     }
 
-    public void MarkUpcoming()
+    /// <summary>
+    /// The weekday the office holds its weekly market on NOW. Its history lives in the office's own market-day
+    /// schedule, which is what dates are validated against; this is the current arrangement, for the settings
+    /// screen and for an office that has never moved its day.
+    /// </summary>
+    public void SetTpmMarketDay(DayOfWeek day, string updatedBy)
     {
+        TpmMarketDay = day;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    public void MarkUpcoming()    {
         Status = MunicipalityStatus.Upcoming;
         IsActive = false;
     }

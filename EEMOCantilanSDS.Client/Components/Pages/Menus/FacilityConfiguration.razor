@@ -1,8 +1,9 @@
-@page "/settings/facilities"
+﻿@page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
 @using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
@@ -361,6 +362,40 @@
                     </label>
                 }
 
+                @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "TPM", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="cfg-section-label">Market day</div>
+                    <div class="cfg-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                        The market is held on a @_cfgMarketDay. Moving it starts on a date you choose and changes
+                        nothing before that date, so the weeks already collected stay as they were held.
+                    </div>
+                    <label class="fac-field">
+                        <span class="fac-field-label">Held on</span>
+                        <select class="fac-input" @bind="_newMarketDay">
+                            @foreach (var day in WeekDays)
+                            {
+                                <option value="@day">@day</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="fac-field">
+                        <span class="fac-field-label">First @_newMarketDay it is held on</span>
+                        <input class="fac-input" type="date" @bind="_newMarketDayFrom" min="@_todayIso" />
+                    </label>
+                    @if (_marketDayError is not null)
+                    {
+                        <div class="cfg-error">@_marketDayError</div>
+                    }
+                    @if (_marketDaySaved is not null)
+                    {
+                        <div class="cfg-success">@_marketDaySaved</div>
+                    }
+                    <button class="fac-btn fac-btn-ghost" type="button" @onclick="SaveMarketDayAsync" disabled="@_busy">
+                        Move the market day
+                    </button>
+                }
+
                 <div class="cfg-section-label">Fixed ordinance rates</div>
 
                 @if (_cfgFacility.Rates.Count == 0)
@@ -643,6 +678,55 @@
         r.Amount > 0m
         && !string.Equals(r.Key, nameof(FeeRateKey.NpmMonthlyStall), StringComparison.OrdinalIgnoreCase);
 
+    // ── The weekly market's day ─────────────────────────────────────────────────────────────────
+    // Effective-dated, so moving it never restates a week the office has already collected. The office picks the
+    // new weekday and the first date it applies from, which must be that weekday and cannot be in the past.
+    private static readonly DayOfWeek[] WeekDays =
+    {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday,
+    };
+
+    private DayOfWeek _cfgMarketDay = DayOfWeek.Friday;      // the day in force now, for the note
+    private DayOfWeek _newMarketDay = DayOfWeek.Friday;
+    private DateTime? _newMarketDayFrom;
+    private string? _marketDayError;
+    private string? _marketDaySaved;
+    private string _todayIso = string.Empty;
+
+    /// <summary>
+    /// Moves the market day. The server decides: it refuses a past date, a date that is not the chosen weekday,
+    /// and a day the market is already held on. Its wording is shown as it comes, because it explains which of
+    /// those it was.
+    /// </summary>
+    private async Task SaveMarketDayAsync()
+    {
+        _marketDayError = null;
+        _marketDaySaved = null;
+
+        if (_newMarketDayFrom is not { } from)
+        {
+            _marketDayError = $"Choose the first {_newMarketDay} the market will be held on.";
+            return;
+        }
+
+        _busy = true;
+        var result = await TpmApi.SetMarketDayAsync(
+            new SetTpmMarketDayCommand(_newMarketDay, DateOnly.FromDateTime(from)));
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _marketDayError = string.IsNullOrWhiteSpace(result.Error)
+                ? "The market day could not be moved."
+                : result.Error;
+            return;
+        }
+
+        _marketDaySaved = $"The market is held on a {_newMarketDay} from {from:MMMM d, yyyy}.";
+        await LoadAsync();
+    }
+
     private enum DrawerMode { None, Add, Configure }
     private DrawerMode _drawer = DrawerMode.None;
     private bool _busy;
@@ -740,6 +824,32 @@
         _cfgSuccess = null;
         _confirmDeactivate = false;
         _drawer = DrawerMode.Configure;
+
+        // The weekly market's day is read for the note and as the starting selection, so the form opens on the
+        // arrangement the office actually has rather than on a guess.
+        _marketDayError = null;
+        _marketDaySaved = null;
+        _newMarketDayFrom = null;
+        if (string.Equals(f.Code, "TPM", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = LoadMarketDayAsync();
+        }
+    }
+
+    /// <summary>The day the market is held on now, from the weekly facility's own overview.</summary>
+    private async Task LoadMarketDayAsync()
+    {
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        _todayIso = today.ToString("yyyy-MM-dd");
+
+        var overview = await TpmApi.GetOverviewAsync(today.Year, today.Month);
+        if (overview.IsSuccess && overview.Value is not null)
+        {
+            _cfgMarketDay = overview.Value.MarketDay;
+            _newMarketDay = overview.Value.MarketDay;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     private void CloseDrawer()

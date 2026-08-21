@@ -91,6 +91,11 @@ public class ApplicationEfBoundaryTests
         "AdvanceOrSeriesCommandHandler.cs",
         "GetOrSeriesSuggestionQueryHandler.cs",
 
+        // The weekly market's day, which is effective-dated like a rate: the handler reads the office's existing
+        // schedule to decide whether a baseline row is needed and whether the date is already taken, and writes
+        // both rows in one save. Added deliberately (2026-08-21) for the same reason SetFacilityRate is here.
+        "SetTpmMarketDayCommandHandler.cs",
+
         // Online payments: the gateway webhook and its confirmation.
         "HandlePaymentWebhookCommandHandler.cs",
         "ConfirmOnlinePaymentCommandHandler.cs",

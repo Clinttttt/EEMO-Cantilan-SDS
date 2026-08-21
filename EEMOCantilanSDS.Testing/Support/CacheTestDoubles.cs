@@ -27,7 +27,20 @@ internal static class CacheTestDoubles
 
 internal sealed class StubTpmMarketDayProvider : EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider
 {
-    public Task<DayOfWeek> GetMarketDayAsync(CancellationToken ct = default) => Task.FromResult(DayOfWeek.Friday);
+    /// <summary>An office whose market day is Friday and has never moved it.</summary>
+    public Task<DayOfWeek> GetMarketDayAsync(DateOnly asOf, CancellationToken ct = default)
+        => Task.FromResult(DayOfWeek.Friday);
+
+    public Task<IReadOnlyList<DateOnly>> GetMarketDatesAsync(int year, int month, CancellationToken ct = default)
+    {
+        var dates = new List<DateOnly>();
+        var first = new DateOnly(year, month, 1);
+        for (var date = first; date.Month == month; date = date.AddDays(1))
+        {
+            if (date.DayOfWeek == DayOfWeek.Friday) dates.Add(date);
+        }
+        return Task.FromResult<IReadOnlyList<DateOnly>>(dates);
+    }
 }
 
 internal sealed class StubFeeRateResolver : IFeeRateResolver

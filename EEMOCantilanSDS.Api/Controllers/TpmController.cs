@@ -1,6 +1,7 @@
-using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
+﻿using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.SaveVendorOrNumber;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.UpdateVendor;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetMarketDays;
@@ -22,6 +23,16 @@ public class TpmController(ISender sender) : ApiBaseController(sender)
     [HttpGet("overview")]
     public async Task<ActionResult<TpmOverviewDto>> GetOverview([FromQuery] int year, [FromQuery] int month)
         => HandleResponse(await Sender.Send(new GetTpmOverviewQuery(year, month)));
+
+    /// <summary>
+    /// Moves the weekly market to a different weekday from a date the office names. The Head's decision, so it is
+    /// restricted to that role; the handler refuses a start date in the past, because the weeks already collected
+    /// were held on the day in force then.
+    /// </summary>
+    [HttpPost("market-day")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SetMarketDay([FromBody] SetTpmMarketDayCommand command)
+        => HandleResponse(await Sender.Send(command));
 
     [HttpGet("market-days")]
     public async Task<ActionResult<IReadOnlyList<TpmMarketDayDto>>> GetMarketDays([FromQuery] int year, [FromQuery] int month)

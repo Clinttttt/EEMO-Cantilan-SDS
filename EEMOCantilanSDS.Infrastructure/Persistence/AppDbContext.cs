@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
@@ -76,6 +76,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<TpmVendor> TpmVendors { get; set; }
         public DbSet<TpmAttendance> TpmAttendances { get; set; }
+    public DbSet<TpmMarketDaySchedule> TpmMarketDaySchedules { get; set; }
 
         public DbSet<TrmTransporter> TrmTransporters { get; set; }
         public DbSet<TrmTrip> TrmTrips { get; set; }

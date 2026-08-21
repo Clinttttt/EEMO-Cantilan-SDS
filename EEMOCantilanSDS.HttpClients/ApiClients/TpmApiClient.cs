@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Requests.TaboanMarket;
@@ -22,6 +23,9 @@ public class TpmApiClient(HttpClient http) : HandleResponse(http), ITpmApiClient
 
     public async Task<Result<IReadOnlyList<TpmVendorAttendanceDto>>> GetVendorAttendanceAsync(DateOnly marketDate) =>
         await GetAsync<IReadOnlyList<TpmVendorAttendanceDto>>($"api/tpm/attendance?marketDate={marketDate:yyyy-MM-dd}");
+
+    public async Task<Result<bool>> SetMarketDayAsync(SetTpmMarketDayCommand command) =>
+        await PostAsync<SetTpmMarketDayCommand, bool>("api/tpm/market-day", command);
 
     public async Task<Result<TpmVendorAttendanceDto>> AddVendorAsync(AddVendorToMarketDayCommand command) =>
         await PostAsync<AddVendorToMarketDayCommand, TpmVendorAttendanceDto>("api/tpm/attendance", command);

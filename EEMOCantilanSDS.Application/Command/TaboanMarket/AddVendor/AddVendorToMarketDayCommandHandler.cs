@@ -38,7 +38,9 @@ public class AddVendorToMarketDayCommandHandler(
         }
 
         // The market date must fall on THIS LGU's configured market weekday (Cantilan = Friday by default).
-        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
+        // The day as it stood on the date being recorded, so a week already collected under the office's
+        // previous day can still be corrected, and a week under the new one is accepted from the day it starts.
+        var marketDay = await marketDayProvider.GetMarketDayAsync(request.MarketDate, ct);
         if (request.MarketDate.DayOfWeek != marketDay)
             return Result<TpmVendorAttendanceDto>.Failure($"Market date must be a {marketDay}.");
 

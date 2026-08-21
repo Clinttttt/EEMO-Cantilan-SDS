@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<SlaughterAnimalRate> SlaughterAnimalRates { get; }
         DbSet<TpmVendor> TpmVendors { get; }
         DbSet<TpmAttendance> TpmAttendances { get; }
+    DbSet<TpmMarketDaySchedule> TpmMarketDaySchedules { get; }
         DbSet<TrmTransporter> TrmTransporters { get; }
         DbSet<TrmTrip> TrmTrips { get; }
         DbSet<BaseUser> Users { get; }

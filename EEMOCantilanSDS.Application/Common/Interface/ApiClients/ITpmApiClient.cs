@@ -1,4 +1,5 @@
-using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
+﻿using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Requests.TaboanMarket;
 using EEMOCantilanSDS.Domain.Common;
@@ -16,4 +17,7 @@ public interface ITpmApiClient
     Task<Result<bool>> MarkVendorPaidAsync(Guid attendanceId, MarkVendorPaidRequest request);
     Task<Result<bool>> SaveOrNumberAsync(Guid attendanceId, SaveOrNumberRequest request);
     Task<Result<bool>> UpdateVendorAsync(Guid attendanceId, UpdateTpmVendorRequest request);
+
+    /// <summary>Moves the weekly market to a different weekday from a date the office names.</summary>
+    Task<Result<bool>> SetMarketDayAsync(SetTpmMarketDayCommand command);
 }
