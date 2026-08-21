@@ -596,13 +596,16 @@ html, body, #app {
 }
 
 .day-chip {
-    padding: 7px 12px;
+    padding: 9px 14px;
     border-radius: 999px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-subtle);
     background: var(--bg-card);
-    color: var(--text-secondary);
+    /* Was var(--text-secondary), which this app never defines: an undefined custom property leaves the declaration
+       invalid, so the chips inherited whatever colour the sheet passed down and came out almost invisible against
+       it. Reported from use as barely readable, and it was the only use of that name in the app. */
+    color: var(--text-primary);
     font-family: 'DM Sans', sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: color .15s, border-color .15s, background .15s;
@@ -612,14 +615,15 @@ html, body, #app {
         border-color: var(--gold-primary);
         background: rgba(212, 175, 55, 0.12);
         color: var(--text-primary);
+        font-weight: 700;
     }
 
-/* How many days are still owed. Stated only when there is more than one, because "1 day still owed" beside a single chip
-   repeats what the chip already says. */
+/* How many days are still owed, under the chips. Was var(--text-nav), the grey the bottom bar uses for the tab you are
+   NOT on: light by design, and too light for a line of text that states what is outstanding. */
 .day-note {
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--text-nav);
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--text-subtle);
 }
 
 /* ─────────────────────────────────────────────
@@ -649,7 +653,9 @@ html, body, #app {
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--bg-card);
-    color: var(--text-nav);
+    /* The office's gold, not the bottom bar's inactive grey it used to carry: a control holding a count of payors who
+       owe money should read as something to act on rather than as a disabled icon. */
+    color: var(--gold-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -662,11 +668,10 @@ html, body, #app {
         height: 17px;
     }
 
-    /* On: the list is narrowed to the payors who are behind, so the control states plainly that a filter is in force. */
-    .owed-btn.on {
-        color: var(--gold-primary);
-        border-color: var(--gold-primary);
-    }
+        .owed-btn:active {
+            border-color: var(--gold-primary);
+            background: rgba(212, 175, 55, 0.10);
+        }
 
 /* The number of payors behind. Absent entirely when nobody is, rather than showing a zero - a badge reading 0 invites a
    second look at nothing. */
@@ -804,6 +809,122 @@ html, body, #app {
     display: flex;
     align-items: flex-end;
     animation: eemo-fadeIn 0.18s ease;
+}
+
+/* ─────────────────────────────────────────────
+   Days still owed: its own screen over the round.
+
+   Full height rather than a sheet, because it is a place a collector works in and returns from, not a prompt to answer.
+   It sits under the record sheet's z-index so opening a payor from here layers the sheet on top of it, and the round
+   underneath is left mounted so coming back costs nothing and loses no scroll position.
+───────────────────────────────────────────── */
+.arrears-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 19000;
+    background: var(--bg-page);
+    display: flex;
+    flex-direction: column;
+    animation: eemo-fadeIn 0.18s ease;
+}
+
+.arrears-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+    background: var(--navy-primary);
+    border-bottom: 2px solid var(--gold-primary);
+}
+
+.arrears-back {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--navy-accent);
+    background: var(--navy-secondary);
+    color: var(--gold-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+    .arrears-back svg {
+        width: 18px;
+        height: 18px;
+    }
+
+.arrears-head-text {
+    min-width: 0;
+}
+
+.arrears-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 19px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.2;
+}
+
+.arrears-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.arrears-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 16px));
+}
+
+/* The round's outstanding position, before the individual payors: the figure an officer is asked for out loud. */
+.arrears-summary {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+}
+
+.arrears-summary-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 5px 0;
+}
+
+.arrears-summary-label {
+    font-size: 12.5px;
+    color: var(--text-subtle);
+}
+
+.arrears-summary-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.arrears-summary-total {
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 9px;
+}
+
+    .arrears-summary-total .arrears-summary-val {
+        font-size: 17px;
+        color: var(--navy-primary);
+    }
+
+/* Which day the payor's arrears start from, under the amount. Stated on the row so a collector can tell a payor one day
+   behind from one behind all month without opening either. */
+.arrears-oldest {
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 2px;
 }
 
 @keyframes eemo-fadeIn {

@@ -86,14 +86,14 @@
                     <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
                 </div>
 
-                @* Days already gone by that are still collectable. Shown as its own control rather than another section tab,
-                   because it answers a different question: the tabs ask WHERE a payor is, this asks WHO is behind. The count
-                   is the number of payors with an outstanding day this period, so a collector can see at a glance whether
-                   there is anything to chase before opening anybody. *@
-                <button class="owed-btn @(ShowOwedOnly ? "on" : "")" type="button"
-                        aria-pressed="@ShowOwedOnly"
-                        title="@(ShowOwedOnly ? "Show all payors" : "Show only payors with days still owed")"
-                        @onclick="() => ShowOwedOnly = !ShowOwedOnly">
+                @* Days already gone by that are still collectable. Its own screen rather than a filter over this list,
+                   because it answers a different question and needs a different answer: this list is today's round, and
+                   which earlier day a payment settles is a decision that belongs beside the arrears, not inside the
+                   sheet a collector uses forty times a day. The count is the number of payors with an outstanding day
+                   this period, so it is visible before anybody is opened. *@
+                <button class="owed-btn" type="button"
+                        title="Payors with days still owed"
+                        @onclick="OpenArrears">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
                     </svg>
@@ -116,18 +116,8 @@
             @if (!FilteredStalls.Any())
             {
                 <div class="state-card">
-                    @* Said differently when the owed filter is the reason the list is empty, because "nobody is behind" is good
-                   news and "no match" reads as a mistake. *@
-                @if (ShowOwedOnly && OwedPayorCount == 0)
-                {
-                    <div class="state-title">Nothing outstanding</div>
-                    <div class="state-text">Every payor is settled or excused for the days gone by this period.</div>
-                }
-                else
-                {
                     <div class="state-title">No matching stalls</div>
                     <div class="state-text">Try another search or filter.</div>
-                }
                 </div>
             }
             else
@@ -181,6 +171,99 @@
     <BottomNav ActiveTab="menu" />
 </div>
 
+@* ══════════════════════════════════════════════
+   DAYS STILL OWED
+   ══════════════════════════════════════════════
+
+   Its own screen, over the round rather than inside it. The round below answers for today; this answers for the days
+   that went by, which is a different question with a different figure attached, and mixing them put a row of past
+   dates inside the sheet used for today's ordinary collection. A collector who is not chasing arrears never sees
+   them now, and one who is gets the payor, the days and the total in one place. *@
+@if (ShowArrears)
+{
+    <div class="arrears-screen">
+        <div class="arrears-head">
+            <button class="arrears-back" type="button" @onclick="CloseArrears" aria-label="Back to the round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <div class="arrears-head-text">
+                <div class="arrears-title">Days still owed</div>
+                <div class="arrears-sub">@MonthLabel</div>
+            </div>
+        </div>
+
+        <div class="arrears-body">
+            @if (ArrearsPayors.Count == 0)
+            {
+                <div class="state-card">
+                    <div class="state-title">Nothing outstanding</div>
+                    <div class="state-text">Every payor is settled or excused for the days gone by this period.</div>
+                </div>
+            }
+            else
+            {
+                @* The whole round's outstanding total first, because it is the figure an officer is asked for. *@
+                <div class="arrears-summary">
+                    <div class="arrears-summary-line">
+                        <span class="arrears-summary-label">Payors behind</span>
+                        <span class="arrears-summary-val">@ArrearsPayors.Count</span>
+                    </div>
+                    <div class="arrears-summary-line">
+                        <span class="arrears-summary-label">Days owed</span>
+                        <span class="arrears-summary-val">@ArrearsPayors.Sum(s => OwedDays(s).Count)</span>
+                    </div>
+                    <div class="arrears-summary-line arrears-summary-total">
+                        <span class="arrears-summary-label">Still to collect</span>
+                        <span class="arrears-summary-val">@FormatCurrency(ArrearsPayors.Sum(OwedAmount))</span>
+                    </div>
+                </div>
+
+                @foreach (var sectionGroup in ArrearsPayors
+                    .GroupBy(s => s.SectionName)
+                    .OrderBy(g => g.First().Section is null)
+                    .ThenBy(g => g.First().Section)
+                    .ThenBy(g => g.Key))
+                {
+                    <div class="section-label">@sectionGroup.Key</div>
+
+                    @foreach (var stall in sectionGroup)
+                    {
+                        <button class="tx-card" type="button" @onclick="() => OpenArrearsFor(stall)">
+                            @* The unpaid marker, which is what every one of these rows is: days gone by with money still
+                               owed on them. bar-pending does not exist in this stylesheet; the plain bar is grey. *@
+                            <div class="tx-left-bar bar-unpaid"></div>
+                            <div class="tx-body">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@stall.PayorName</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-tag">No. @stall.StallNo</span>
+                                        <span class="tx-or">@OwedDaysLabel(stall)</span>
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-amount">@FormatCurrency(OwedAmount(stall))</span>
+                                    @if (IsQueuedOffline(stall))
+                                    {
+                                        @* A capture for this payor is still waiting to sync. Said here, not only on the
+                                           round, or a collector working without signal could settle the same day twice
+                                           and leave the office two records for one payment. The queue is held per payor
+                                           rather than per day, so this says a capture is waiting and not which day. *@
+                                        <span class="tx-badge queued"><span class="tx-dot"></span>Queued</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="arrears-oldest">from @OldestOwedLabel(stall)</span>
+                                    }
+                                </div>
+                            </div>
+                        </button>
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
 @if (ShowCollectionSheet && SelectedStall is not null)
 {
     <div class="sheet-overlay" @onclick="CloseCollectionSheet">
@@ -211,7 +294,8 @@
             {
                 @* The days this payor still owes. Chips rather than a date field: a typed date could fall on a closure,
                    outside the term, or on a day already settled, and the office would be left with a figure it cannot
-                   reconcile. Only days the server says are owed appear here. *@
+                   reconcile. Only days the server says are owed appear here. Shown on this sheet only when it was opened
+                   from the arrears screen; today's ordinary round answers for today and says so. *@
                 <div class="day-choose">
                     <div class="form-label">Day being settled</div>
                     <div class="day-chips">
@@ -224,10 +308,16 @@
                             </button>
                         }
                     </div>
-                    @if (SettleDays.Count > 1)
-                    {
-                        <div class="day-note">@SettleDays.Count days still owed this period.</div>
-                    }
+                    <div class="day-note">
+                        @if (SettleDays.Count == 1)
+                        {
+                            <text>One day still owed this period.</text>
+                        }
+                        else
+                        {
+                            <text>@SettleDays.Count days still owed this period. The oldest is chosen first.</text>
+                        }
+                    </div>
                 </div>
             }
 
@@ -785,7 +875,7 @@
                 _ => true
             };
 
-            return matchesSearch && matchesFilter && (!ShowOwedOnly || OwedDays(s).Count > 0);
+            return matchesSearch && matchesFilter;
         })
         .OrderBy(s => s.Section)
         .ThenBy(s => s.StallNo);
@@ -813,8 +903,51 @@
     private int OwedPayorCount =>
         (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Count(HasOwedDays);
 
-    /// <summary>Showing only the payors who are behind.</summary>
-    private bool ShowOwedOnly;
+    /// <summary>Showing the payors who are behind, on their own screen over the round.</summary>
+    private bool ShowArrears;
+
+    /// <summary>
+    /// True when the sheet was opened from that screen, which is the only place a day other than today is settled.
+    ///
+    /// <para>
+    /// The round's own sheet used to offer the choice too, whenever a payor happened to owe an earlier day, so the
+    /// screen a collector uses forty times a day carried a row of past dates and quietly defaulted to the oldest of
+    /// them when today was not owed. Today's round now answers for today, and only for today.
+    /// </para>
+    /// </summary>
+    private bool SheetIsArrears;
+
+    /// <summary>The payors with a day gone by still owed, in the round's own order.</summary>
+    private IReadOnlyList<MobileNpmStallCollectionDto> ArrearsPayors =>
+        (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Where(HasOwedDays).ToList();
+
+    /// <summary>What a payor still owes for the days gone by: their own daily rate for each day outstanding.</summary>
+    private static decimal OwedAmount(MobileNpmStallCollectionDto stall) =>
+        OwedDays(stall).Count * stall.DailyRate;
+
+    private static string OwedDaysLabel(MobileNpmStallCollectionDto stall) =>
+        OwedDays(stall).Count == 1 ? "1 day owed" : $"{OwedDays(stall).Count} days owed";
+
+    private string OldestOwedLabel(MobileNpmStallCollectionDto stall)
+    {
+        var owed = OwedDays(stall);
+        return owed.Count == 0
+            ? string.Empty
+            : DayChipLabel(owed[0]);
+    }
+
+    private void OpenArrears() => ShowArrears = true;
+
+    private void CloseArrears() => ShowArrears = false;
+
+    /// <summary>
+    /// Opens the record sheet for a payor who is behind, on the oldest day they owe. The oldest first, matching the
+    /// rule this screen already states for utility arrears, and the collector can pick another from the chips.
+    /// </summary>
+    private void OpenArrearsFor(MobileNpmStallCollectionDto stall)
+    {
+        OpenCollectionSheet(stall, asArrears: true);
+    }
 
     /// <summary>
     /// Today, as this page already establishes it: the session's server-issued date, falling back to the device clock only
@@ -848,11 +981,12 @@
     private bool IsSettlingPastDay => SelectedDate < Today;
 
     /// <summary>
-    /// Whether to offer the choice at all. One owed day that IS today needs no chooser - the sheet already says today - and
-    /// a row of one chip would be furniture on the screen a collector uses most.
+    /// Whether to offer the choice at all. Only on the arrears screen's sheet: today's round settles today, so a row of
+    /// chips there was furniture on the screen a collector uses most, and worse than furniture when it defaulted to an
+    /// earlier day. A single owed day still shows its chip here, because the day being settled is the whole point of
+    /// this sheet and stating it is not optional.
     /// </summary>
-    private bool ShowDayChooser =>
-        SettleDays.Count > 1 || (SettleDays.Count == 1 && SettleDays[0] != Today);
+    private bool ShowDayChooser => SheetIsArrears && SettleDays.Count > 0;
 
     private string DayChipLabel(DateOnly date) =>
         date == Today
@@ -909,18 +1043,20 @@
         SelectedStall = null;
     }
 
-    private void OpenCollectionSheet(MobileNpmStallCollectionDto stall)
+    private void OpenCollectionSheet(MobileNpmStallCollectionDto stall, bool asArrears = false)
     {
         SelectedStall = stall;
+        SheetIsArrears = asArrears;
 
-        // Which day this sheet answers for. Today when today is owed, which is the ordinary round; otherwise the OLDEST
-        // outstanding day, matching the rule already stated on this screen for utility arrears - the oldest is settled
-        // first. Falls back to today when the round carries no list at all (an older build, or a cached round from one),
-        // because that is exactly what the app did before it could choose.
+        // Which day this sheet answers for. Today's round answers for TODAY, always: it is today's round, the sheet says
+        // so, and a stall already settled today is reopened here to be corrected. It used to fall back to the oldest
+        // outstanding day whenever today was not owed, which meant the ordinary screen could record money against a day
+        // in the past without the collector having asked for that.
+        //
+        // From the arrears screen it is the OLDEST day owed, matching the rule already stated on this screen for utility
+        // arrears, and the chips there let the collector choose another.
         var owed = OwedDays(stall);
-        SelectedDate = owed.Contains(Today)
-            ? Today
-            : owed.Count > 0 ? owed[0] : Today;
+        SelectedDate = asArrears && owed.Count > 0 ? owed[0] : Today;
 
         // A capture waiting to sync is this stall's answer for the day, so the sheet opens on it. Reading the
         // server's "not collected" instead put the tick on Not Collected for a stall the same screen had just
@@ -1156,6 +1292,7 @@
         SelectedIsPaid = false;
         SelectedIsAbsent = false;
         SelectedDate = Today;
+        SheetIsArrears = false;
         FishKilos = null;
         ORNumber = string.Empty;
         SelectedIsMisc = false;
