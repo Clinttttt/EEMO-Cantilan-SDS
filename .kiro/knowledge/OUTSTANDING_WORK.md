@@ -770,6 +770,15 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **The Tabo-an weekly trend still expands one weekday across a month.** `TpmReports.razor`'s `MarketDaysOfMonth` plots each
+  occurrence of `_marketDay`, and `_marketDay` is inferred from the first attendance record of the month. In a month the office
+  moved its market day, that plots one weekday only: for a Friday to Thursday move starting 27 August it would draw bars for 7, 14,
+  21 and 28 August, when the 28th is no longer a market day and the 27th is. It reads from recorded data, so it never relabels
+  history the way the calendar did (fixed 2026-08-21, see `TpmOverviewMarketDatesTests`); it simply plots the wrong set in the one
+  month a change begins. The fix is the same one the calendar took: read `TpmOverviewDto.MarketDates`, which now carries the
+  month's real dates. It needs the reports page to fetch the overview, which it does not currently do, which is why this is
+  recorded rather than bundled into the calendar fix.
+
 - **Eight report stylesheets still print edge-to-edge, awaiting a go-ahead.** `Bbq`, `Custom`, `Ice`, `Ncc`, `Slh`, `Tcc`, `Tpm`,
   `Trm` each carry `.print-report-sheet { padding: 0 !important }` in their own scoped stylesheet, so their sheets print hard
   against the paper edge. `NpmReports.razor.css` had the identical line and was fixed to `12mm` on 2026-08-18; the other eight are

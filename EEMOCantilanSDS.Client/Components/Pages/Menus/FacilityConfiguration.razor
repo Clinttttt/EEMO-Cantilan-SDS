@@ -381,10 +381,20 @@
                     </label>
                     <label class="fac-field">
                         <span class="fac-field-label">First @_newMarketDay it is held on</span>
-                        <input class="fac-input" type="date" @bind="_newMarketDayFrom" min="@_todayIso" />
+                        <select class="fac-input" value="@(_newMarketDayFrom?.ToString("yyyy-MM-dd"))" @onchange="OnMarketDayStartPicked">
+                            @foreach (var group in _marketDayStartChoices.GroupBy(d => new DateOnly(d.Year, d.Month, 1)))
+                            {
+                                <optgroup label="@group.Key.ToString("MMMM yyyy")">
+                                    @foreach (var choice in group)
+                                    {
+                                        <option value="@choice.ToString("yyyy-MM-dd")">@choice.ToString("MMMM d, yyyy")</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
                         <span class="cfg-field-note">
-                            Filled with the next @_newMarketDay. Change it for a later one; the market keeps its
-                            present day until then.
+                            Every @_newMarketDay still to come this month and next. The market keeps its present day
+                            until the date you choose here.
                         </span>
                     </label>
                     @if (_marketDayError is not null)
@@ -693,25 +703,62 @@
 
     private DayOfWeek _cfgMarketDay = DayOfWeek.Friday;      // the day in force now, for the note
     private DayOfWeek _newMarketDay = DayOfWeek.Friday;
-    private DateTime? _newMarketDayFrom;
+    private DateOnly? _newMarketDayFrom;
+    private List<DateOnly> _marketDayStartChoices = new();
     private string? _marketDayError;
     private string? _marketDaySaved;
-    private string _todayIso = string.Empty;
 
     /// <summary>
-    /// The office picked a weekday, so the date field offers the next one of those. Saves the office working out
-    /// which date that is, and it is the date they almost always mean: the first market day under the new day.
-    /// A stale message is cleared at the same time — the form used to keep saying "choose the first Saturday"
-    /// after the office had moved on to a Wednesday.
+    /// The office picked a weekday, so the start field offers every one of those days still to come. It used to
+    /// offer a single filled-in date, which answered the question the office had not been asked: whether the change
+    /// starts this week or in three weeks is theirs to decide, and a typed date is a chance to enter one that is not
+    /// that weekday at all, which the server then refuses. A stale message is cleared at the same time, since the
+    /// form used to keep saying "choose the first Saturday" after the office had moved on to a Wednesday.
     /// </summary>
     private void OnMarketDayPicked(ChangeEventArgs e)
     {
         if (!Enum.TryParse<DayOfWeek>(e.Value?.ToString(), out var picked)) return;
 
         _newMarketDay = picked;
-        _newMarketDayFrom = NextOccurrenceOf(picked).ToDateTime(TimeOnly.MinValue);
+        RefreshMarketDayStartChoices();
         _marketDayError = null;
         _marketDaySaved = null;
+    }
+
+    /// <summary>The office chose which of those days the new arrangement begins on.</summary>
+    private void OnMarketDayStartPicked(ChangeEventArgs e)
+    {
+        if (!DateOnly.TryParse(e.Value?.ToString(), out var picked)) return;
+
+        _newMarketDayFrom = picked;
+        _marketDayError = null;
+        _marketDaySaved = null;
+    }
+
+    /// <summary>
+    /// Every occurrence of the chosen weekday from today to the end of NEXT month, soonest first, with the soonest
+    /// selected.
+    ///
+    /// <para>
+    /// Reaching into next month is deliberate rather than tidy: on the last Thursday of a month there would
+    /// otherwise be one choice or none, and the office would be told to move its market this week or not at all.
+    /// Every date offered is therefore a date the server will accept, which is the point of offering them.
+    /// </para>
+    /// </summary>
+    private void RefreshMarketDayStartChoices()
+    {
+        var today = DateOnly.FromDateTime(PhilippineTime.Now.Date);
+        var lastOffered = new DateOnly(today.Year, today.Month, 1).AddMonths(2).AddDays(-1);
+
+        var choices = new List<DateOnly>();
+        for (var d = NextOccurrenceOf(_newMarketDay); d <= lastOffered; d = d.AddDays(7))
+            choices.Add(d);
+
+        _marketDayStartChoices = choices;
+
+        // Keep the office's own choice when it is still on offer; otherwise fall to the soonest, never to nothing.
+        if (_newMarketDayFrom is not { } chosen || !choices.Contains(chosen))
+            _newMarketDayFrom = choices.FirstOrDefault();
     }
 
     /// <summary>
@@ -743,7 +790,7 @@
 
         _busy = true;
         var result = await TpmApi.SetMarketDayAsync(
-            new SetTpmMarketDayCommand(_newMarketDay, DateOnly.FromDateTime(from)));
+            new SetTpmMarketDayCommand(_newMarketDay, from));
         _busy = false;
 
         if (!result.IsSuccess)
@@ -871,7 +918,6 @@
     private async Task LoadMarketDayAsync()
     {
         var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
-        _todayIso = today.ToString("yyyy-MM-dd");
 
         var overview = await TpmApi.GetOverviewAsync(today.Year, today.Month);
         if (overview.IsSuccess && overview.Value is not null)
@@ -880,9 +926,9 @@
             _newMarketDay = overview.Value.MarketDay;
         }
 
-        // Open on a usable date rather than an empty picker. It is the next market day under the day currently
-        // selected, and it moves with the selection.
-        _newMarketDayFrom = NextOccurrenceOf(_newMarketDay).ToDateTime(TimeOnly.MinValue);
+        // Open on the dates the office can actually choose from, rather than on an empty picker. They are every
+        // occurrence of the day currently selected that is still to come, and they move with the selection.
+        RefreshMarketDayStartChoices();
 
         await InvokeAsync(StateHasChanged);
     }

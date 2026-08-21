@@ -69,10 +69,10 @@
                 </div>
             </div>
 
-            <div class="tpm-cal-desc">Every @MarketDay · ₱@((Overview?.VendorFee ?? 100m).ToString("0")) per vendor</div>
+            <div class="tpm-cal-desc">@MarketDayDescription · ₱@((Overview?.VendorFee ?? 100m).ToString("0")) per vendor</div>
 
             <div class="tpm-friday-list">
-                @foreach (var friday in MarketDaysInMonth(CalendarMonth, MarketDay))
+                @foreach (var friday in MarketDatesInView)
                 {
                     var isFuture = friday > PhilippineTime.Now.Date;
                     var record = MarketDays.FirstOrDefault(m => m.MarketDate.ToDateTime(TimeOnly.MinValue).Date == friday.Date);
@@ -764,6 +764,47 @@
     }
 
     // ── Helpers ───────────────────────────────────
+
+    /// <summary>
+    /// The month's market dates as the OFFICE's schedule states them, not as one weekday multiplied out.
+    ///
+    /// <para>
+    /// This used to expand <c>MarketDay</c> across the month, which silently re-answered the past: an office that
+    /// moved its market from Friday to Thursday partway through a month had its earlier weeks relabelled Thursday,
+    /// dates the market never opened on, while the Fridays that were actually collected disappeared from the list.
+    /// The dates now come from the schedule, which holds when each arrangement began.
+    /// </para>
+    ///
+    /// <para>
+    /// The weekday expansion survives only as a fallback for the moment before the overview has loaded, where the
+    /// alternative is an empty calendar. It is right whenever the month contains no move, which is every month bar
+    /// the one a change starts in.
+    /// </para>
+    /// </summary>
+    private List<DateTime> MarketDatesInView =>
+        Overview?.MarketDates is { Count: > 0 } dates
+            ? dates.Select(d => d.ToDateTime(TimeOnly.MinValue)).ToList()
+            : MarketDaysInMonth(CalendarMonth, MarketDay);
+
+    /// <summary>
+    /// States the arrangement the month is under. A month the office moved its day in names both, because "Every
+    /// Thursday" over a list that opens with three Fridays reads as an error in the record.
+    /// </summary>
+    private string MarketDayDescription
+    {
+        get
+        {
+            var dates = MarketDatesInView;
+            if (dates.Count == 0) return $"Every {MarketDay}";
+
+            var first = dates[0].DayOfWeek;
+            var moved = dates.FirstOrDefault(d => d.DayOfWeek != first);
+            return moved == default
+                ? $"Every {first}"
+                : $"Every {first}, then every {moved.DayOfWeek} from {moved:MMMM d}";
+        }
+    }
+
     private static List<DateTime> MarketDaysInMonth(DateTime month, DayOfWeek marketDay)
     {
         var days = new List<DateTime>();

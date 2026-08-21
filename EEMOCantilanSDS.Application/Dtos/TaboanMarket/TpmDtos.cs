@@ -9,9 +9,16 @@ public record TpmOverviewDto
     public int VendorEntriesThisMonth { get; init; }
     public int CollectionRate { get; init; }
 
-    // The LGU's configured weekly market weekday (Cantilan default = Friday). Lets the UI render the
-    // correct calendar/labels per tenant (e.g. Madrid = Saturday) instead of hardcoding Friday.
+    // The LGU's configured weekly market weekday, as it stands at the END of the month being viewed. Lets the UI
+    // label the arrangement the office is operating under. Do NOT expand this into a month's dates: in a month the
+    // office moved its market day, the earlier weeks fall on the OLD day, and multiplying one weekday out would
+    // re-label weeks that have already been collected. Use MarketDates for that.
     public DayOfWeek MarketDay { get; init; } = DayOfWeek.Friday;
+
+    // The month's actual market dates, taken from the office's own schedule, in date order. A month the day was
+    // moved in carries BOTH weekdays: the old day up to the move, the new day from it. This is the only correct
+    // source for a calendar or a per-date trend.
+    public IReadOnlyList<DateOnly> MarketDates { get; init; } = [];
 
     // The tenant's resolved per-vendor market-day fee (₱100 ordinance fallback keeps Cantilan identical),
     // so the UI shows this LGU's own fee instead of a hardcoded ₱100.

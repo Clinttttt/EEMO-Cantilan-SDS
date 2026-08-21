@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -80,7 +80,8 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
             FridaysThisMonth = marketDates.Count,
             VendorEntriesThisMonth = totalAttendances,
             CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0,
-            MarketDay = marketDay
+            MarketDay = marketDay,
+            MarketDates = marketDates
         };
     }
 
