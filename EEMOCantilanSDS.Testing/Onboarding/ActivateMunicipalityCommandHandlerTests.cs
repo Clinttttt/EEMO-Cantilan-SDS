@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Security;
+﻿using EEMOCantilanSDS.Infrastructure.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,11 +28,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public void Set(Guid municipalityId) { }
         }
 
-        // Fake caller for the platform-operator authorization check.
-        private sealed class FakeCurrentUser(Guid? municipalityId, string? role) : ICurrentUserService
+        // Fake caller for the platform-operator authorization check. Carries a user id, because the guard reads the
+        // IsPlatformOperator flag from the account's own row: being a SuperAdmin of the default municipality no
+        // longer makes anybody the operator, so a test acting as the operator has to BE one.
+        private sealed class FakeCurrentUser(Guid? userId, Guid? municipalityId, string? role) : ICurrentUserService
         {
             public bool IsAuthenticated => true;
-            public Guid? UserId => Guid.NewGuid();
+            public Guid? UserId => userId;
             public string? Username => "operator";
             public string? Role => role;
             public Guid? CollectorId => null;
@@ -41,8 +43,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser.AdminUserDto? GetCurrentUser() => null;
         }
 
-        // The platform operator = a SuperAdmin of the default (Cantilan) municipality.
-        private static ICurrentUserService Operator(Guid defaultMunicipalityId) => new FakeCurrentUser(defaultMunicipalityId, "SuperAdmin");
+        /// <summary>The dedicated console operator: the only account that may activate an LGU.</summary>
+        private static ICurrentUserService Operator(Guid operatorUserId, Guid municipalityId) =>
+            new FakeCurrentUser(operatorUserId, municipalityId, "SuperAdmin");
+
+        /// <summary>A municipality's own Head, who may not.</summary>
+        private static ICurrentUserService Head(Guid municipalityId) =>
+            new FakeCurrentUser(Guid.NewGuid(), municipalityId, "SuperAdmin");
 
         // Best-effort email is a side-effect of activation; tests don't assert on it.
         private sealed class NoOpEmailSender : IEmailSender
@@ -58,7 +65,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 .Options;
 
         // Seeds the default (Cantilan) + an Upcoming Carmen; returns their ids.
-        private static async Task<(Guid cantilanId, Guid carmenId)> SeedRegistryAsync(DbContextOptions<AppDbContext> options)
+        private static async Task<(Guid cantilanId, Guid carmenId, Guid operatorId)> SeedRegistryAsync(DbContextOptions<AppDbContext> options)
         {
             using var seed = new AppDbContext(options);
             var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
@@ -66,7 +73,16 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             seed.Municipalities.Add(cantilan);
             seed.Municipalities.Add(carmen);
             await seed.SaveChangesAsync();
-            return (cantilan.Id, carmen.Id);
+// The dedicated console operator. The guard reads the IsPlatformOperator flag off the caller's own
+            // account row: no municipality's Head is the operator any more, including the default municipality's,
+            // so a test that activates has to act as this account.
+            var op = AdminUser.Create(
+                "Console Operator", "console.op", "op@stalltrack.site", TestPasswords.Hash("OpPass123!"),
+                AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true);
+            seed.AdminUsers.Add(op);
+            await seed.SaveChangesAsync();
+
+            return (cantilan.Id, carmen.Id, op.Id);
         }
 
         private static ActivateMunicipalityCommand CarmenConfig(string code = "CARMEN") => new(
@@ -102,12 +118,12 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_NamesSectionAreas_AsTheLguNamedThem()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
                 var command = CarmenConfigWithSectionLabels(new ActivationSectionLabels("Gulayan", "Isda", "Karne"));
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
                 Assert.True(result.IsSuccess);
             }
 
@@ -125,7 +141,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_NamesSectionAreas_FromTheDraftDeclaration_WhenCommandCarriesNone()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             // The LGU declared which collection area each of its sections is; the names are its own and are
             // not English. Guessing from the wording is what dropped "Isda" and "Karne" for Madrid.
@@ -145,7 +161,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
                 Assert.True(result.IsSuccess);
             }
 
@@ -162,7 +178,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_NeverReadsASectionsMeaning_FromItsWording()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             // A draft saved before the LGU was asked which area each section is. The wording says "Fish" and
             // "Meat" in plain English, and it is still not evidence: an undeclared area keeps the platform's
@@ -181,7 +197,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
                 Assert.True(result.IsSuccess);
             }
 
@@ -198,13 +214,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_LeavesAnUnnamedAreaCanonical()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
                 // The LGU named only its fish area; the other two keep the canonical wording.
                 var command = CarmenConfigWithSectionLabels(new ActivationSectionLabels(null, "Isda", null));
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
                 Assert.True(result.IsSuccess);
             }
 
@@ -221,12 +237,12 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_GoesLive_And_CreatesScopedData()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             // Handler runs as the platform operator (Cantilan-scoped context).
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
 
                 Assert.True(result.IsSuccess);
                 Assert.Equal(carmenId, result.Value!.MunicipalityId);
@@ -270,7 +286,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             {
                 Assert.Empty(await cantilanCtx.Facilities.ToListAsync());
                 Assert.Empty(await cantilanCtx.FacilityRates.ToListAsync());
-                Assert.Empty(await cantilanCtx.AdminUsers.ToListAsync());
+
+                // Carmen's Head must not appear in the operator's own scope. Asserted by name rather than by an
+                // empty set, because the console operator account itself lives here: the platform creates it under
+                // the default municipality's id, so "no users at all" would be asserting the wrong thing.
+                var visible = await cantilanCtx.AdminUsers.Select(u => u.Email).ToListAsync();
+                Assert.DoesNotContain("head@carmen.gov.ph", visible);
+                Assert.Equal(new[] { "op@stalltrack.site" }, visible);
             }
         }
 
@@ -278,7 +300,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_IgnoresStallGroups_CreatesNoStalls()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             // Even if a (legacy) client sends StallGroups, activation must NOT provision stalls — stalls
             // and their occupants/payors are created in the live portal, never at onboarding.
@@ -302,7 +324,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.Equal(0, result.Value!.StallsCreated);   // StallGroups ignored — no stalls provisioned
                 Assert.Equal(2, result.Value.FacilitiesCreated); // facility shells still created
@@ -318,7 +340,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_SeedsCustomAnimals_ScopedToLgu()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             var config = new ActivateMunicipalityCommand(
                 "CARMEN",
@@ -337,7 +359,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.Equal(2, result.Value!.CustomAnimalTypesCreated);
             }
@@ -362,7 +384,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_SeedsOrSeries_ScopedToLgu()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
             var config = new ActivateMunicipalityCommand(
                 "CARMEN",
@@ -375,7 +397,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(config, default);
                 Assert.True(result.IsSuccess);
                 Assert.True(result.Value!.OrSeriesConfigured);
             }
@@ -398,10 +420,10 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         [Fact]
         public async Task Activate_RejectsDefaultMunicipality()        {
             var options = Options();
-            var (cantilanId, _) = await SeedRegistryAsync(options);
+            var (cantilanId, _, operatorId) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "CANTILAN"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "CANTILAN"), default);
 
             Assert.False(result.IsSuccess);
         }
@@ -410,14 +432,14 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_RejectsAlreadyActive()
         {
             var options = Options();
-            var (cantilanId, _) = await SeedRegistryAsync(options);
+            var (cantilanId, _, operatorId) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var first = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+            var first = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
             Assert.True(first.IsSuccess);
 
             using var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var second = await new ActivateMunicipalityCommandHandler(ctx2, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
+            var second = await new ActivateMunicipalityCommandHandler(ctx2, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(), default);
             Assert.False(second.IsSuccess);
         }
 
@@ -425,10 +447,10 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_UnknownMunicipality_NotFound()
         {
             var options = Options();
-            var (cantilanId, _) = await SeedRegistryAsync(options);
+            var (cantilanId, _, operatorId) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "NOWHERE"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(CarmenConfig(code: "NOWHERE"), default);
 
             Assert.False(result.IsSuccess);
         }
@@ -437,12 +459,12 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Activate_NonPlatformOperator_Forbidden()
         {
             var options = Options();
-            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
 
-            // A SuperAdmin of a NON-default LGU (Carmen) is not the platform operator.
+            // A municipality's own Head is not the platform operator - not Carmen's, and not the default LGU's either.
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx, new FakeCurrentUser(carmenId, "SuperAdmin"), Email, new IdentityPasswordHasher())
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Head(carmenId), Email, new IdentityPasswordHasher())
                     .Handle(CarmenConfig(), default);
                 Assert.False(result.IsSuccess);
             }
@@ -450,7 +472,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // An Admin (not SuperAdmin) of the default LGU is likewise rejected.
             using (var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result2 = await new ActivateMunicipalityCommandHandler(ctx2, new FakeCurrentUser(cantilanId, "Admin"), Email, new IdentityPasswordHasher())
+                var result2 = await new ActivateMunicipalityCommandHandler(ctx2, new FakeCurrentUser(Guid.NewGuid(), cantilanId, "Admin"), Email, new IdentityPasswordHasher())
                     .Handle(CarmenConfig(), default);
                 Assert.False(result2.IsSuccess);
             }

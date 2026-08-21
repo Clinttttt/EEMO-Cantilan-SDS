@@ -83,10 +83,11 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         // Checked after the password, like the boundary above, so it cannot be used to discover which accounts exist. The
         // flag is only set by the console's own endpoint; an LGU administrator signing into their own portal is unaffected.
         //
-        // Deliberately `IsPlatformOperator` rather than the broader PlatformOperatorPolicy: that policy also counts the
-        // SuperAdmin of the DEFAULT municipality, which is why the office Head of Cantilan could sign in here and see the
-        // onboarding console. The Head runs an LGU; they are not the platform's onboarding operator, and the two roles
-        // having been conflated is the defect. The policy is left exactly as it is for what it guards elsewhere.
+        // Reads `IsPlatformOperator` directly rather than going through PlatformOperatorPolicy. The policy used to be
+        // broader — it also counted the SuperAdmin of the DEFAULT municipality, which is why the office Head of that
+        // municipality could sign in here and see the onboarding console. That clause has since been retired, so the
+        // two now agree; the flag is read directly because who may open the console is a question about the account
+        // itself, and this check should not change again if the policy ever gains a clause.
         if (request.RequirePlatformOperator && !user.IsPlatformOperator)
             return Result<TokenResponseDto>.Failure(
                 "This account is not a platform operator, so it cannot sign in to the onboarding console.",

@@ -19,23 +19,18 @@ namespace EEMOCantilanSDS.Api
             service.AddHttpContextAccessor();
             service.AddAuthorization(options =>
             {
-                // Platform operator = a dedicated operator account, or (while none exists) a SuperAdmin of the DEFAULT
-                // LGU. Whole-database operations — backup, restore, DB-health, onboarding — run over the shared
-                // database across every LGU, so a per-LGU Head must never trigger them.
+                // Platform operator = a dedicated operator account, and nothing else. Whole-database operations —
+                // backup, restore, DB-health, onboarding — run over the shared database across every LGU, so no
+                // municipality's Head may trigger them, including the default municipality's.
                 //
-                // The decision is PlatformOperatorPolicy's, the same rule the Application guard applies. This policy
-                // used to state its own version and accepted only the default tenant's SuperAdmin, so a dedicated
-                // operator was refused here while being accepted inside the handlers.
+                // The decision is PlatformOperatorPolicy's, the same rule the Application guard applies. The claim
+                // read here is put on the token for an account carrying the IsPlatformOperator flag, so the two
+                // decide by the same fact.
                 options.AddPolicy("PlatformOperator", policy => policy.RequireAssertion(ctx =>
                     PlatformOperatorPolicy.IsOperator(
                         isDedicatedOperator: string.Equals(
                             ctx.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true",
-                            StringComparison.OrdinalIgnoreCase),
-                        role: ctx.User.IsInRole(PlatformOperatorPolicy.SuperAdminRole)
-                            ? PlatformOperatorPolicy.SuperAdminRole
-                            : null,
-                        isDefaultTenant: ctx.User.FindFirst(AppClaimTypes.Municipality)?.Value
-                                         == TenantConstants.DefaultTenantCode)));
+                            StringComparison.OrdinalIgnoreCase))));
             });
             service.AddSignalR();
             service.AddScoped<SignalROnlinePaymentNotifier>();

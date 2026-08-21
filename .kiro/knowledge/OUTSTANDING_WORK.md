@@ -684,6 +684,17 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
+**No LGU holds destructive power over another's data.** Raised by the office itself (2026-08-20) and acted on 2026-08-21.
+The platform operator is now an account carrying the `IsPlatformOperator` flag and nothing else: `PlatformOperatorPolicy.IsOperator`
+takes one argument and returns it. Until then the policy also accepted `isDefaultTenant && role == SuperAdmin`, a documented
+fallback from when the default municipality was the only one on the platform. That clause made one municipality's Head the operator
+over all of them, including `POST api/backup/restore`, a destructive restore across the whole shared database with every LGU's
+records in it. The Head keeps its own per-LGU backup and restore, exactly like every other Head, and loses `BackupController`'s six
+endpoints and the nine `PlatformOperatorGuard.IsCurrentAsync` sites (the onboarding pipeline and the two operator queries).
+`AdminAuthController`'s two MFA endpoints are `Roles = SuperAdmin` and were never gated by the policy. Console sign-in already
+read the flag directly, so `admin.stalltrack.site` is unchanged by it. The full record, including what was verified before
+deleting the clause and which tests were inverted, is under "Retired work" below.
+
 **Client names identify the client.** Confirmed by the office 2026-08-14: within one LGU there are no namesakes — two
 different people carrying the same name is a national-scale problem, not a municipality's. So a slaughterhouse owner's typed
 name IS their identity, and matching by name (ignoring case and redundant whitespace, per `PersonName`) is sufficient. No
@@ -717,30 +728,47 @@ These cannot be answered by reading code.
 
 ---
 
+## Retired work
+
+Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
+
+- **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one
+  argument and returns it: the `IsPlatformOperator` flag on the account is the whole rule. Until this change the policy also
+  returned true for `isDefaultTenant && role == SuperAdmin`, which made the DEFAULT municipality's Head the platform operator, and
+  therefore let one municipality's Head trigger `POST api/backup/restore` — a destructive restore over the whole shared database,
+  every LGU's records included. The office raised it itself (2026-08-20): a single LGU should hold no destructive power over
+  another's data. The clause was a documented fallback from when that municipality was the only one on the platform, and its own
+  remarks named the condition to delete it on.
+
+  That condition was met: the office created its operator at `admin.stalltrack.site/setup` and confirmed it signs in. Verified
+  before deleting the clause that this would not lock everyone out — `TokenService` puts the `PlatformOperator` claim on the token
+  for any account carrying the flag, which is the fact the API's policy reads, so the dedicated operator satisfies both the API
+  policy and the database-backed guard.
+
+  What the default office's Head lost, and it is deliberate: `BackupController` (6 endpoints), and the nine
+  `PlatformOperatorGuard.IsCurrentAsync` call sites — the onboarding pipeline (assessment approve/decline, validation approve,
+  return-to-draft, activation) and the two operator queries. `AdminAuthController`'s two MFA endpoints are `Roles = SuperAdmin`
+  and were never gated by the policy, so they are unaffected. The Head keeps its own per-LGU backup and restore, exactly like
+  every other Head.
+
+  Changed in the same commit, or the portal would have contradicted the API: `Settings.razor` decided
+  `_isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant` locally, and now calls the policy the way `Backups.razor` does.
+  Left alone it would have gone on showing the default office's Head whole-database controls the API refuses, and shown the real
+  operator none of the ones it allows. `PlatformOperatorGuard.IsCurrentAsync` no longer reads the caller's municipality at all,
+  since the question no longer turns on it.
+
+  Two tests that existed to assert the fallback were inverted rather than deleted, so the refusal is now what is pinned:
+  `PlatformOperatorGuardTests.TheDefaultMunicipalitysHeadIsRefused` and
+  `ConsoleAdminHandlerTests.Guard_DefaultMunicipalitysHead_IsRefused`. `PlatformOperatorPolicyTests` also asserts that the rule
+  takes exactly one argument, so a future clause about a role or a municipality cannot be added quietly. Four onboarding test
+  classes had been acting as the default municipality's Head to reach activation and approval; they now seed a real operator
+  account, which is how the platform itself creates one (under the default municipality's id, per
+  `CreateFirstConsoleAdminCommandHandler`).
+
+  Console sign-in was already reading the flag directly rather than the policy, so `admin.stalltrack.site` behaviour is unchanged
+  by this; the comments in `LoginCommand` and `LoginCommandHandler` explaining the old divergence were corrected.
+
 ## Deferred product work
-
-- **The platform-operator fallback clause is still in force, and cannot be retired yet — BLOCKED on a dedicated operator
-  existing.** `PlatformOperatorPolicy.IsOperator` returns true for `isDedicatedOperator || (isDefaultTenant && role ==
-  SuperAdmin)`. The second clause is why the DEFAULT municipality's Head is the platform operator, and therefore why one
-  municipality's Head can trigger `POST api/backup/restore` — a destructive restore over the whole shared database, every LGU's
-  records included. The office raised this itself (2026-08-20): a single LGU should hold no destructive power over another's data.
-  The policy's own remarks already name this clause as the one to delete once a deployment has a dedicated operator.
-
-  Verified 2026-08-20 that it cannot be deleted yet: `GET api/platform-setup/status` answers `{"isSetupRequired":true}`, so NO
-  account carries `IsPlatformOperator`. Deleting the clause today would leave nobody able to satisfy the policy at all — no
-  onboarding, no activation, no whole-database backup.
-
-  The sequence, in order: (1) the office creates its operator at `admin.stalltrack.site/setup`; (2) that account is verified to
-  sign in and to be accepted by the API (the console's own `console-login` already requires the flag); (3) only then delete the
-  clause. What the default office's Head loses at that point, verified by reading every caller: `BackupController` (6 endpoints),
-  `AdminAuthController`'s two MFA endpoints, and the nine `PlatformOperatorGuard.IsCurrentAsync` call sites — the onboarding
-  pipeline (assessment approve/decline, validation approve, return-to-draft, activation) and the two operator queries. It keeps
-  its own per-LGU backup and restore, exactly like every other Head.
-
-  One thing to change WITH the clause, or the portal will contradict the API: `Settings.razor:506` still decides
-  `_isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant` locally instead of calling `PlatformOperatorPolicy.IsOperator`
-  the way `Backups.razor` now does. Left as it is, the default office's Head would still be shown whole-database controls that the
-  API refuses, and a dedicated operator signing into the portal would be shown none that it allows.
 
 - **Eight report stylesheets still print edge-to-edge, awaiting a go-ahead.** `Bbq`, `Custom`, `Ice`, `Ncc`, `Slh`, `Tcc`, `Tpm`,
   `Trm` each carry `.print-report-sheet { padding: 0 !important }` in their own scoped stylesheet, so their sheets print hard
@@ -845,9 +873,11 @@ And for item 6: **the portal gets its own request models** rather than continuin
     whole-database controls the API already permits it**, while any SuperAdmin of the default tenant saw them.
   - **Not a security hole:** every endpoint on `BackupController` is `[Authorize(Policy = "PlatformOperator")]`, checked before
     concluding anything. The UI flag decided only what was DISPLAYED. Verified endpoint by endpoint.
-  - Now calls `PlatformOperatorPolicy.IsOperator` with the three facts from the claims, exactly as the API's policy does, using
-    `AppClaimTypes` and `TenantConstants.DefaultTenantCode` instead of literals. The comparisons mirror the API's case sensitivity
-    deliberately: looser would offer controls the API then refuses, stricter would hide ones it allows.
+  - Now calls `PlatformOperatorPolicy.IsOperator`, exactly as the API's policy does, using `AppClaimTypes` instead of literals.
+    (At the time this meant passing three facts, including the tenant code from `TenantConstants.DefaultTenantCode`; the fallback
+    clause was retired on 2026-08-21 and the rule now takes only the operator flag, so both call sites pass just that.) The
+    comparison mirrors the API's case sensitivity deliberately: looser would offer controls the API then refuses, stricter would
+    hide ones it allows.
   - `BackupsOperatorDecisionTests` states the decision for every combination that matters, and asserts **no file in the portal
     contains the default tenant's code at all** — the multi-tenancy guard, asserted against the source because that is where the
     fault lived. Both were proven load-bearing by reintroducing the old line.

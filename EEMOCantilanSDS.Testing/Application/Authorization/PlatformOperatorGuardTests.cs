@@ -18,6 +18,11 @@ namespace EEMOCantilanSDS.Testing.Application.Authorization;
 /// operator account — the mechanism meant to replace that fallback — could therefore approve an LGU's onboarding and
 /// then be refused the activation that completes it. Nothing covered it, which is how the two drifted apart.
 /// </para>
+///
+/// <para>
+/// The fallback itself is now gone: the flag on the account is the whole rule, so no municipality's Head is the
+/// platform operator, the default municipality's included. These tests pin that refusal down.
+/// </para>
 /// </summary>
 public class PlatformOperatorGuardTests
 {
@@ -65,8 +70,13 @@ public class PlatformOperatorGuardTests
     }
 
     [Fact]
-    public async Task TheDefaultTenantsHeadIsStillAccepted()
+    public async Task TheDefaultMunicipalitysHeadIsRefused()
     {
+        // This used to be accepted, from when the default municipality was the only one on the platform and its Head
+        // genuinely was the operator. It made one municipality's Head the operator over all of them, holding a
+        // restore of the shared database and the approval of other municipalities' onboarding. A dedicated operator
+        // account now exists, which is the condition the clause was written to be deleted on. The Head keeps every
+        // power over their own office and none over anybody else's.
         var context = NewContext();
 
         var cantilan = Municipality.Create(
@@ -80,7 +90,7 @@ public class PlatformOperatorGuardTests
         var accepted = await PlatformOperatorGuard.IsCurrentAsync(
             context, new Caller(head.Id, "SuperAdmin", cantilan.Id), CancellationToken.None);
 
-        Assert.True(accepted);
+        Assert.False(accepted);
     }
 
     [Fact]

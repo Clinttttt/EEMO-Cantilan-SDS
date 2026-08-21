@@ -1,3 +1,5 @@
+﻿@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Authorization
 @page "/settings"
 @using Microsoft.AspNetCore.Authorization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
@@ -493,9 +495,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Platform operator = SuperAdmin of the DEFAULT (Cantilan) LGU. Database-health + backups are
-        // whole-database (cross-LGU) tools the API restricts to that operator, so a per-LGU Head never sees
-        // them (avoids the 403 "couldn't load" state and hides destructive platform-wide controls).
+        // Platform operator = a dedicated operator account. Database-health and the whole-database backup tools
+        // run across every LGU, so the API restricts them to that account and this screen offers them only to it
+        // (avoids the 403 "couldn't load" state and hides destructive platform-wide controls).
+        //
+        // Decided by PlatformOperatorPolicy, the same function the API's policy calls. This screen used to decide
+        // for itself — SuperAdmin of the default tenant — which is the clause the platform has since retired, so
+        // it would have gone on offering one municipality's Head controls the API now refuses, and offering the
+        // real operator none of the ones it allows.
         await Branding.EnsureLoadedAsync();
         await FacilityCatalog.EnsureLoadedAsync();
         var authState = await AuthState.GetAuthenticationStateAsync();
@@ -503,7 +510,10 @@
             || authState.User.Claims.Any(c =>
                 string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
-        _isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant;
+        _isPlatformOperator = PlatformOperatorPolicy.IsOperator(
+            isDedicatedOperator: string.Equals(
+                authState.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true",
+                StringComparison.OrdinalIgnoreCase));
         // The LGU Head (SuperAdmin of ANY tenant) manages their own facilities — unlike the platform-only
         // database/backup tools, this is available to every LGU's Head.
         _isHead = isSuperAdmin;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentRequest;
 using EEMOCantilanSDS.Application.Command.Onboarding.DeclineAssessmentRequest;
@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Queries.Onboarding.GetAssessmentRequests;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -28,10 +29,10 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public void Set(Guid municipalityId) { }
         }
 
-        private sealed class FakeCurrentUser(Guid? municipalityId, string? role) : ICurrentUserService
+        private sealed class FakeCurrentUser(Guid? userId, Guid? municipalityId, string? role) : ICurrentUserService
         {
             public bool IsAuthenticated => true;
-            public Guid? UserId => Guid.NewGuid();
+            public Guid? UserId => userId;
             public string? Username => "operator";
             public string? Role => role;
             public Guid? CollectorId => null;
@@ -50,14 +51,35 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-        private static async Task<Guid> SeedDefaultAsync(DbContextOptions<AppDbContext> options)
+        /// <summary>
+        /// The registry plus the dedicated console operator, whose id the caller acts as. The guard reads the
+        /// IsPlatformOperator flag off the account's own row: a municipality's Head is no longer the operator, the
+        /// default municipality's included, so a test that approves or declines has to act as this account. The
+        /// platform creates it under the default municipality's id, and so does this.
+        /// </summary>
+        private static async Task<(Guid cantilanId, Guid operatorId)> SeedDefaultAsync(DbContextOptions<AppDbContext> options)
         {
             using var seed = new AppDbContext(options);
             var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
             seed.Municipalities.Add(cantilan);
             await seed.SaveChangesAsync();
-            return cantilan.Id;
+
+            var op = AdminUser.Create(
+                "Console Operator", "console.op", "op@stalltrack.site", TestPasswords.Hash("OpPass123!"),
+                AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true);
+            seed.AdminUsers.Add(op);
+            await seed.SaveChangesAsync();
+
+            return (cantilan.Id, op.Id);
         }
+
+        /// <summary>The dedicated console operator.</summary>
+        private static ICurrentUserService Operator(Guid operatorId, Guid municipalityId) =>
+            new FakeCurrentUser(operatorId, municipalityId, "SuperAdmin");
+
+        /// <summary>A municipality's own Head, who is not the operator whichever municipality it is.</summary>
+        private static ICurrentUserService Head(Guid municipalityId) =>
+            new FakeCurrentUser(Guid.NewGuid(), municipalityId, "SuperAdmin");
 
         private static SubmitAssessmentRequestCommand SampleSubmit() => new(
             "Madrid", "Surigao del Sur", "Local Economic Enterprise Office (LEEO)",
@@ -82,7 +104,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Approve_ByOperator_MovesToOnboarding()
         {
             var options = Options();
-            var cantilanId = await SeedDefaultAsync(options);
+            var (cantilanId, operatorId) = await SeedDefaultAsync(options);
             Guid requestId;
             using (var seed = new AppDbContext(options))
             {
@@ -93,7 +115,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+            var op = Operator(operatorId, cantilanId);
             var result = await new ApproveAssessmentRequestCommandHandler(ctx, op, new NoOpEmailSender())
                 .Handle(new ApproveAssessmentRequestCommand(requestId, "Welcome"), default);
 
@@ -109,7 +131,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Approve_ByNonOperator_IsForbidden()
         {
             var options = Options();
-            var cantilanId = await SeedDefaultAsync(options);
+            var (cantilanId, operatorId) = await SeedDefaultAsync(options);
             Guid requestId;
             using (var seed = new AppDbContext(options))
             {
@@ -121,7 +143,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
             // A SuperAdmin of a DIFFERENT municipality is not the platform operator.
-            var notOperator = new FakeCurrentUser(Guid.NewGuid(), "SuperAdmin");
+            var notOperator = Head(Guid.NewGuid());
             var result = await new ApproveAssessmentRequestCommandHandler(ctx, notOperator, new NoOpEmailSender())
                 .Handle(new ApproveAssessmentRequestCommand(requestId, null), default);
 
@@ -133,7 +155,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Decline_ByOperator_MarksDeclined()
         {
             var options = Options();
-            var cantilanId = await SeedDefaultAsync(options);
+            var (cantilanId, operatorId) = await SeedDefaultAsync(options);
             Guid requestId;
             using (var seed = new AppDbContext(options))
             {
@@ -144,7 +166,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+            var op = Operator(operatorId, cantilanId);
             var result = await new DeclineAssessmentRequestCommandHandler(ctx, op)
                 .Handle(new DeclineAssessmentRequestCommand(requestId, "Not yet authorized."), default);
 
@@ -157,7 +179,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task GetAll_ByOperator_ReturnsRequests_NonOperatorForbidden()
         {
             var options = Options();
-            var cantilanId = await SeedDefaultAsync(options);
+            var (cantilanId, operatorId) = await SeedDefaultAsync(options);
             using (var seed = new AppDbContext(options))
             {
                 seed.AssessmentRequests.Add(AssessmentRequest.Create("Madrid", "SDS", "LEEO", "A", "O", "a@b.gov.ph", "0912", "Market", null, null, true, null));
@@ -166,12 +188,12 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
 
-            var okResult = await new GetAssessmentRequestsQueryHandler(ctx, new FakeCurrentUser(cantilanId, "SuperAdmin"))
+            var okResult = await new GetAssessmentRequestsQueryHandler(ctx, Operator(operatorId, cantilanId))
                 .Handle(new GetAssessmentRequestsQuery(), default);
             Assert.True(okResult.IsSuccess);
             Assert.Single(okResult.Value!);
 
-            var forbidden = await new GetAssessmentRequestsQueryHandler(ctx, new FakeCurrentUser(cantilanId, "Admin"))
+            var forbidden = await new GetAssessmentRequestsQueryHandler(ctx, new FakeCurrentUser(Guid.NewGuid(), cantilanId, "Admin"))
                 .Handle(new GetAssessmentRequestsQuery(), default);
             Assert.False(forbidden.IsSuccess);
             Assert.Equal(ResultStatus.Forbidden, forbidden.Status);

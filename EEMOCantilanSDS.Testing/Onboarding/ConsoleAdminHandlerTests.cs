@@ -73,8 +73,10 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
-        public async Task Guard_Fallback_DefaultSuperAdmin_StillPasses()
+        public async Task Guard_DefaultMunicipalitysHead_IsRefused()
         {
+            // The retired fallback. The default municipality's Head is a municipal officer like any other now that a
+            // dedicated operator account exists: no whole-database restore, no approving another LGU's onboarding.
             var options = Options();
             var cantilanId = await SeedDefaultAsync(options);
             Guid headId;
@@ -88,7 +90,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
             var ok = await PlatformOperatorGuard.IsCurrentAsync(ctx, new FakeCurrentUser(headId, cantilanId, "SuperAdmin"), default);
-            Assert.True(ok);
+            Assert.False(ok);
         }
 
         [Fact]

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Onboarding.ApproveOnboardingValidation;
 using EEMOCantilanSDS.Application.Command.Onboarding.ReturnOnboardingToDraft;
@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Application.Queries.Onboarding.GetOnboardingDraft;
 using EEMOCantilanSDS.Application.Queries.Onboarding.GetOnboardingDraftByRequest;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -29,10 +30,10 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public void Set(Guid municipalityId) { }
         }
 
-        private sealed class FakeCurrentUser(Guid? municipalityId, string? role) : ICurrentUserService
+        private sealed class FakeCurrentUser(Guid? userId, Guid? municipalityId, string? role) : ICurrentUserService
         {
             public bool IsAuthenticated => true;
-            public Guid? UserId => Guid.NewGuid();
+            public Guid? UserId => userId;
             public string? Username => "operator";
             public string? Role => role;
             public Guid? CollectorId => null;
@@ -126,30 +127,39 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task GetByRequest_OperatorOnly()
         {
             var options = Options();
-            Guid cantilanId;
+            Guid cantilanId, operatorId;
             using (var seed = new AppDbContext(options))
             {
                 var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
                 seed.Municipalities.Add(cantilan);
                 await seed.SaveChangesAsync();
                 cantilanId = cantilan.Id;
+
+                // Only the dedicated console operator may read another LGU's draft. A Head cannot, whichever
+                // municipality they head.
+                var op = AdminUser.Create(
+                    "Console Operator", "console.op", "op@stalltrack.site", TestPasswords.Hash("OpPass123!"),
+                    AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true);
+                seed.AdminUsers.Add(op);
+                await seed.SaveChangesAsync();
+                operatorId = op.Id;
             }
             var (requestId, _) = await SeedDraftAsync(options, config: "{\"ok\":true}");
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
 
-            var ok = await new GetOnboardingDraftByRequestQueryHandler(ctx, new FakeCurrentUser(cantilanId, "SuperAdmin"))
+            var ok = await new GetOnboardingDraftByRequestQueryHandler(ctx, new FakeCurrentUser(operatorId, cantilanId, "SuperAdmin"))
                 .Handle(new GetOnboardingDraftByRequestQuery(requestId), default);
             Assert.True(ok.IsSuccess);
 
-            var forbidden = await new GetOnboardingDraftByRequestQueryHandler(ctx, new FakeCurrentUser(Guid.NewGuid(), "SuperAdmin"))
+            var forbidden = await new GetOnboardingDraftByRequestQueryHandler(ctx, new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), "SuperAdmin"))
                 .Handle(new GetOnboardingDraftByRequestQuery(requestId), default);
             Assert.False(forbidden.IsSuccess);
             Assert.Equal(ResultStatus.Forbidden, forbidden.Status);
         }
 
         // Seeds a default LGU + an approved request (Onboarding) + a linked draft with config; returns ids/token.
-        private static async Task<(Guid cantilanId, Guid requestId, string token)> SeedApprovedWithDraftAsync(DbContextOptions<AppDbContext> options)
+        private static async Task<(Guid cantilanId, Guid requestId, string token, Guid operatorId)> SeedApprovedWithDraftAsync(DbContextOptions<AppDbContext> options)
         {
             Guid cantilanId, requestId;
             var token = "tok_" + Guid.NewGuid().ToString("N");
@@ -165,14 +175,24 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             await seed.SaveChangesAsync();
             cantilanId = cantilan.Id;
             requestId = req.Id;
-            return (cantilanId, requestId, token);
+
+            // The dedicated console operator, which is now the only account the guard accepts: a municipality's
+            // Head no longer qualifies, the default municipality's included. The platform creates the operator
+            // under the default municipality's id, and so does this.
+            var op = AdminUser.Create(
+                "Console Operator", "console.op", "op@stalltrack.site", TestPasswords.Hash("OpPass123!"),
+                AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true);
+            seed.AdminUsers.Add(op);
+            await seed.SaveChangesAsync();
+
+            return (cantilanId, requestId, token, op.Id);
         }
 
         [Fact]
         public async Task Submit_Advances_Request_ToValidation_And_ApproveValidation_ToActivation()
         {
             var options = Options();
-            var (cantilanId, requestId, token) = await SeedApprovedWithDraftAsync(options);
+            var (cantilanId, requestId, token, operatorId) = await SeedApprovedWithDraftAsync(options);
 
             using (var ctx = new AppDbContext(options))
             {
@@ -187,7 +207,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+                var op = new FakeCurrentUser(operatorId, cantilanId, "SuperAdmin");
                 var r = await new ApproveOnboardingValidationCommandHandler(ctx, op)
                     .Handle(new ApproveOnboardingValidationCommand(requestId), default);
                 Assert.True(r.IsSuccess);
@@ -199,14 +219,14 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         public async Task Return_ReopensDraft_And_StageOnboarding()
         {
             var options = Options();
-            var (cantilanId, requestId, token) = await SeedApprovedWithDraftAsync(options);
+            var (cantilanId, requestId, token, operatorId) = await SeedApprovedWithDraftAsync(options);
 
             using (var ctx = new AppDbContext(options))
                 await new SubmitOnboardingCommandHandler(ctx).Handle(new SubmitOnboardingCommand(token), default);
 
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+                var op = new FakeCurrentUser(operatorId, cantilanId, "SuperAdmin");
                 var r = await new ReturnOnboardingToDraftCommandHandler(ctx, op)
                     .Handle(new ReturnOnboardingToDraftCommand(requestId, "Please fix the rates."), default);
                 Assert.True(r.IsSuccess);

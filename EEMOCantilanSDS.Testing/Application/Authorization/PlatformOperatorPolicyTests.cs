@@ -11,40 +11,40 @@ namespace EEMOCantilanSDS.Testing.Application.Authorization;
 /// so it could approve an LGU's onboarding and then fail to activate it. These tests pin the single rule down so a
 /// fourth opinion cannot appear quietly.
 /// </para>
+///
+/// <para>
+/// The rule also used to accept the DEFAULT municipality's Head, from when that municipality was the only one on the
+/// platform. That made one municipality's Head the operator over all of them, carrying a restore of the whole shared
+/// database and the approval of other municipalities' onboarding. A dedicated operator account now exists, which is
+/// the condition the clause was written to be deleted on, so nothing but the flag qualifies.
+/// </para>
 /// </summary>
 public class PlatformOperatorPolicyTests
 {
     [Fact]
-    public void ADedicatedOperatorIsTheOperator_WhateverTenantOrRoleTheyHold()
+    public void ADedicatedOperatorIsTheOperator()
     {
-        // The intended mechanism: an operator belonging to no LGU and holding no municipal office. This is the case
-        // the API policy and the activation handler refused.
-        Assert.True(PlatformOperatorPolicy.IsOperator(isDedicatedOperator: true, role: null, isDefaultTenant: false));
-        Assert.True(PlatformOperatorPolicy.IsOperator(isDedicatedOperator: true, role: "Admin", isDefaultTenant: false));
+        // The one mechanism: an account belonging to no LGU and holding no municipal office.
+        Assert.True(PlatformOperatorPolicy.IsOperator(isDedicatedOperator: true));
     }
 
     [Fact]
-    public void TheDefaultTenantsSuperAdminIsStillAccepted()
+    public void NobodyWithoutTheFlagIsTheOperator()
     {
-        // The documented fallback. Removing it would lock the office out of its own onboarding before a dedicated
-        // account exists.
-        Assert.True(PlatformOperatorPolicy.IsOperator(false, "SuperAdmin", isDefaultTenant: true));
-        Assert.True(PlatformOperatorPolicy.IsOperator(false, "superadmin", isDefaultTenant: true));
+        // Including the default municipality's Head, which is the clause this platform retired. Onboarding,
+        // activation, backup and restore reach across every LGU in the shared database, so no municipal officer
+        // holds them — the office asked for exactly this.
+        Assert.False(PlatformOperatorPolicy.IsOperator(isDedicatedOperator: false));
     }
 
     [Fact]
-    public void AnotherLgusHeadIsNeverTheOperator()
+    public void TheRuleReadsNothingButTheFlag()
     {
-        // The whole point of the rule. Onboarding, activation, backup and restore reach across every LGU in the shared
-        // database, so a municipal Head must never hold them.
-        Assert.False(PlatformOperatorPolicy.IsOperator(false, "SuperAdmin", isDefaultTenant: false));
-    }
-
-    [Fact]
-    public void ALesserRoleInTheDefaultTenantIsNotTheOperator()
-    {
-        Assert.False(PlatformOperatorPolicy.IsOperator(false, "Admin", isDefaultTenant: true));
-        Assert.False(PlatformOperatorPolicy.IsOperator(false, "Collector", isDefaultTenant: true));
-        Assert.False(PlatformOperatorPolicy.IsOperator(false, null, isDefaultTenant: true));
+        // Stated as a property rather than a case list: the decision cannot depend on a role or a municipality,
+        // because it takes neither. A future clause about either would have to change this signature, which is the
+        // point — the last one was added quietly and outlived its reason.
+        Assert.Equal(1, typeof(PlatformOperatorPolicy)
+            .GetMethod(nameof(PlatformOperatorPolicy.IsOperator))!
+            .GetParameters().Length);
     }
 }

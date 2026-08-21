@@ -1167,11 +1167,7 @@
         // refuses; being stricter would hide controls it allows.
         _isOperator = PlatformOperatorPolicy.IsOperator(
             isDedicatedOperator: string.Equals(
-                state.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true", StringComparison.OrdinalIgnoreCase),
-            role: isSuperAdmin ? PlatformOperatorPolicy.SuperAdminRole : null,
-            isDefaultTenant: string.Equals(
-                state.User.FindFirst(AppClaimTypes.Municipality)?.Value, TenantConstants.DefaultTenantCode,
-                StringComparison.Ordinal));
+                state.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true", StringComparison.OrdinalIgnoreCase));
 
         if (_isOperator)
         {

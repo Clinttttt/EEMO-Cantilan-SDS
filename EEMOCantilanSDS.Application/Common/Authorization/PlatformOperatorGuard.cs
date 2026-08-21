@@ -9,17 +9,21 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Common.Authorization
 {
     /// <summary>
-    /// Determines whether the current caller is the <b>platform operator</b> — a SuperAdmin of the DEFAULT
-    /// (Cantilan) municipality. Onboarding/activation are system-owner actions, so a per-LGU Head can never
-    /// perform them. Mirrors the check inlined in <c>ActivateMunicipalityCommandHandler</c>.
+    /// Determines whether the current caller is the <b>platform operator</b> — an account carrying the
+    /// <c>IsPlatformOperator</c> flag. Onboarding, activation and the whole-database tools are system-owner
+    /// actions, so no municipality's Head can perform them, including the default municipality's.
     /// </summary>
     public static class PlatformOperatorGuard
     {
         /// <summary>
-        /// True only for a DEDICATED platform/console operator account (the <c>IsPlatformOperator</c> flag).
-        /// Distinct from <see cref="IsCurrentAsync"/>, which also accepts the backward-compatible fallback.
-        /// Use this for powers that must not reach across municipalities in the hands of a municipal officer
-        /// — listing or acting on other LGUs' accounts, for instance.
+        /// True only for a dedicated platform/console operator account (the <c>IsPlatformOperator</c> flag).
+        ///
+        /// <para>
+        /// Kept as its own method, distinct from <see cref="IsCurrentAsync"/>, because callers ask two different
+        /// questions of it. Some ask "may this caller act at all", and some ask "does this caller see every
+        /// municipality" — the two-factor recovery tool is open to a Head for their own office's staff, and only an
+        /// operator reaches across offices.
+        /// </para>
         /// </summary>
         public static async Task<bool> IsDedicatedOperatorAsync(IAppDbContext context, ICurrentUserService currentUser, CancellationToken ct)
         {
@@ -34,24 +38,17 @@ namespace EEMOCantilanSDS.Application.Common.Authorization
             return isOperator == true;
         }
 
+        /// <summary>
+        /// Whether the caller may act as the platform operator.
+        ///
+        /// <para>
+        /// The decision itself lives in <see cref="PlatformOperatorPolicy"/>, so the API's authorization policy and
+        /// this guard cannot drift apart. They differ only in where the fact comes from: a claim there, the database
+        /// here. This used to also read the caller's municipality, to accept the default one's Head; that fallback
+        /// is gone, so the municipality no longer bears on the question and is no longer read.
+        /// </para>
+        /// </summary>
         public static async Task<bool> IsCurrentAsync(IAppDbContext context, ICurrentUserService currentUser, CancellationToken ct)
-        {
-            // Primary: a dedicated platform/console operator (the IsPlatformOperator flag), independent of any
-            // municipality's Head role.
-            var isDedicated = await IsDedicatedOperatorAsync(context, currentUser, ct);
-
-            var defaultMunicipalityId = await context.Municipalities
-                .IgnoreQueryFilters()
-                .Where(m => m.IsDefault)
-                .Select(m => (Guid?)m.Id)
-                .FirstOrDefaultAsync(ct);
-
-            var isDefaultTenant = defaultMunicipalityId is not null
-                                  && currentUser.MunicipalityId == defaultMunicipalityId;
-
-            // The decision itself lives in PlatformOperatorPolicy, so the API's authorization policy and this guard
-            // cannot drift apart. They differ only in where the two facts come from: claims there, the database here.
-            return PlatformOperatorPolicy.IsOperator(isDedicated, currentUser.Role, isDefaultTenant);
-        }
+            => PlatformOperatorPolicy.IsOperator(await IsDedicatedOperatorAsync(context, currentUser, ct));
     }
 }

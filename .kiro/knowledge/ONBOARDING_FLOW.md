@@ -124,6 +124,10 @@ The office's rule, confirmed 2026-08-16:
   product's mark twice over, one of them describing itself to a screen reader as a municipal seal.
 - **A tenant code must never decide anything in the portal.** Branding defaults are cosmetic; a decision keyed on a tenant string
   grants or withholds. See `BackupsOperatorDecisionTests`.
+- **"Operator" in the table above means the flagged account, and only that.** Since 2026-08-21 the rule is
+  `PlatformOperatorPolicy.IsOperator(isDedicatedOperator)` and nothing more. It used to also accept the default municipality's Head,
+  so every step in that table could be run by one LGU's officer; that clause is gone. A Head who tries now gets `Forbidden` from
+  the pipeline handlers and `403` from `BackupController`, which is intended, not a regression.
 
 The same borrowed-seal fallback existed in five more places and is now **FIXED across all of them (2026-08-17)**. The full set was three
 components that render a municipal seal — `Login` (fixed first), the shared `AuthBrandPanel` behind forgot-password, reset-password and

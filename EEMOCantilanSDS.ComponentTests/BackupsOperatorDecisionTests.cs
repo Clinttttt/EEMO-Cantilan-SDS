@@ -24,15 +24,19 @@ namespace EEMOCantilanSDS.ComponentTests;
 /// </summary>
 public class BackupsOperatorDecisionTests
 {
-    /// <summary>The decision as <c>Backups.razor</c> makes it — same inputs, same comparisons, same order.</summary>
+    /// <summary>
+    /// The decision as <c>Backups.razor</c> makes it — same input, same comparison.
+    ///
+    /// <para>
+    /// <paramref name="isSuperAdmin"/> is accepted and deliberately unused: the page still computes it, because being a Head is
+    /// what gets you onto the page at all, but it no longer bears on who the OPERATOR is. Every case below passes it so the tests
+    /// read as the scenarios they describe, and so it is visible that neither value changes the answer.
+    /// </para>
+    /// </summary>
     private static bool DecideAsThePageDoes(ClaimsPrincipal user, bool isSuperAdmin) =>
         PlatformOperatorPolicy.IsOperator(
             isDedicatedOperator: string.Equals(
-                user.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true", StringComparison.OrdinalIgnoreCase),
-            role: isSuperAdmin ? PlatformOperatorPolicy.SuperAdminRole : null,
-            isDefaultTenant: string.Equals(
-                user.FindFirst(AppClaimTypes.Municipality)?.Value, TenantConstants.DefaultTenantCode,
-                StringComparison.Ordinal));
+                user.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true", StringComparison.OrdinalIgnoreCase));
 
     private static ClaimsPrincipal User(string? municipality, bool dedicatedOperator = false)
     {
@@ -52,11 +56,12 @@ public class BackupsOperatorDecisionTests
     }
 
     [Fact]
-    public void TheDefaultTenantsHeadStillSeesThem()
+    public void TheDefaultTenantsHeadNoLongerSeesThem()
     {
-        // The documented fallback, preserved deliberately: while one LGU was the only LGU, its Head WAS the operator, and
-        // removing that would lock the office out of its own onboarding before a dedicated account exists.
-        Assert.True(DecideAsThePageDoes(User(TenantConstants.DefaultTenantCode), isSuperAdmin: true));
+        // The fallback the platform has retired, now that a dedicated operator account exists. One municipality's Head must not be
+        // offered a restore of the shared database, and that includes the municipality this system was built for — the office
+        // asked for exactly this.
+        Assert.False(DecideAsThePageDoes(User(TenantConstants.DefaultTenantCode), isSuperAdmin: true));
     }
 
     [Fact]
@@ -68,9 +73,10 @@ public class BackupsOperatorDecisionTests
     }
 
     [Fact]
-    public void TheDefaultTenantAloneIsNotEnoughWithoutTheRole()
+    public void NoMunicipalityOrRoleAloneIsEnough()
     {
         Assert.False(DecideAsThePageDoes(User(TenantConstants.DefaultTenantCode), isSuperAdmin: false));
+        Assert.False(DecideAsThePageDoes(User(municipality: null), isSuperAdmin: true));
     }
 
     [Fact]

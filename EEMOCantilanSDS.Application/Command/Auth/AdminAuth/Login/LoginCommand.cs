@@ -16,9 +16,9 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
     // RequirePlatformOperator is set by the ADMIN CONSOLE's own endpoint (api/adminauth/console-login). That console
     // belongs to the dedicated platform operator who onboards LGUs; it is not a second door into an LGU's portal. Without
     // it, any LGU administrator who knew the address could sign in there - and the office Head of the default LGU could,
-    // because the platform-operator POLICY also counts "SuperAdmin of the default municipality". That policy still stands
-    // for what it guards elsewhere; signing into the console is a narrower question, and the answer is the dedicated
-    // operator account only.
+    // because the platform-operator policy used to also count "SuperAdmin of the default municipality". That clause has
+    // since been retired platform-wide, so the policy now agrees with this check rather than being broader than it.
+    // The flag is still read directly here, because who may sign into the console is a question about the account.
     public record LoginCommand(
         string? Username,
         string? Password,

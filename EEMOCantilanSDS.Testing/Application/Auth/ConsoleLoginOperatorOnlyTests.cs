@@ -16,13 +16,13 @@ namespace EEMOCantilanSDS.Testing;
 /// <para>
 /// It admits the dedicated platform operator and nobody else. It used to admit anyone who could sign in to any LGU portal,
 /// because the console posts to the shared administrator login - and the office Head of the DEFAULT municipality could get
-/// all the way in, since the platform-operator policy also counts "SuperAdmin of the default LGU". A Head runs an LGU;
+/// all the way in, since the platform-operator policy also counted "SuperAdmin of the default LGU". A Head runs an LGU;
 /// they are not the platform's onboarding operator.
 /// </para>
 ///
 /// <para>
-/// The policy itself is untouched, because it guards other things (whole-database backups in the portal). This is the
-/// narrower question of who the console lets through its front door, and it asks for the dedicated flag.
+/// That clause has since been retired from the policy as well, so the two now agree. This check still asks for the
+/// dedicated flag directly, because who the console lets through its front door is a question about the account itself.
 /// </para>
 /// </summary>
 public class ConsoleLoginOperatorOnlyTests
