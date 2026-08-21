@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -41,7 +41,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var muniRepo = new Mock<IMunicipalityRepository>();
         var tenant = new Mock<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>();
-        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, muniRepo.Object, tenant.Object, currentUser.Object, new FixedClock(DateTime.UtcNow));
+        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, muniRepo.Object, tenant.Object, currentUser.Object, new FixedClock(DateTime.UtcNow), CacheTestDoubles.TpmMarketDay);
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -84,7 +84,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var handler = new GetCollectorMobileMenuQueryHandler(
             repo.Object, facilityRepo.Object, Mock.Of<IMunicipalityRepository>(),
-            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(), currentUser.Object, new FixedClock(DateTime.UtcNow));
+            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(), currentUser.Object, new FixedClock(DateTime.UtcNow), CacheTestDoubles.TpmMarketDay);
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -103,7 +103,8 @@ public class GetCollectorMobileMenuQueryHandlerTests
             Mock.Of<IMunicipalityRepository>(),
             Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(),
             Mock.Of<ICurrentUserService>(),
-            new FixedClock(DateTime.UtcNow));
+            new FixedClock(DateTime.UtcNow),
+            CacheTestDoubles.TpmMarketDay);
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 

@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Queries.Settings.GetSystemSettings;
 using EEMOCantilanSDS.Domain.Constants;
@@ -23,7 +23,8 @@ public class GetSystemSettingsQueryHandlerTests
             new FakeFacilityRepository(FacilityCatalog.AllCodes),
             CacheTestDoubles.Tenant,
             CacheTestDoubles.FeeRateResolver,
-            new FixedClock(DateTime.UtcNow));
+            new FixedClock(DateTime.UtcNow),
+            CacheTestDoubles.TpmMarketDay);
 
     [Fact]
     public async Task Returns_values_sourced_from_the_live_domain_constants()
@@ -88,7 +89,8 @@ public class GetSystemSettingsQueryHandlerTests
             new FakeFacilityRepository(FacilityCatalog.AllCodes.Append(FacilityCode.Custom1)),
             CacheTestDoubles.Tenant,
             CacheTestDoubles.FeeRateResolver,
-            new FixedClock(DateTime.UtcNow));
+            new FixedClock(DateTime.UtcNow),
+            CacheTestDoubles.TpmMarketDay);
 
         var result = await handler.Handle(new GetSystemSettingsQuery("Development"), CancellationToken.None);
         var dto = result.Value!;

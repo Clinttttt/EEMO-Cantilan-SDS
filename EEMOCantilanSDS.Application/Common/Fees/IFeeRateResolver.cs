@@ -16,7 +16,7 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     ///
     /// <para>
     /// A rate an office has not stated is NOT borrowed from anywhere. It used to fall back to a
-    /// <see cref="FeeRateDefaults"/> constant, and those constants are the reference municipality's own
+    /// constant taken from the reference municipality's own
     /// ordinance: Madrid, which had never stated a per-kilo weighing fee, was therefore charging Cantilan's
     /// ₱1.00 per kilo. Each LGU bills under its own ordinance, so an unstated rate now resolves to nothing at
     /// all, and the paths that would create a charge from one refuse instead of inventing a figure.

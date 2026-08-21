@@ -241,21 +241,4 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
             total > 0 ? (int)Math.Round((double)paid / total * 100) : 0,
             goods);
     }
-
-    private static List<DateOnly> GetMarketDaysInMonth(int year, int month, DayOfWeek marketDay)
-    {
-        var days = new List<DateOnly>();
-        var date = new DateOnly(year, month, 1);
-
-        while (date.DayOfWeek != marketDay)
-            date = date.AddDays(1);
-
-        while (date.Month == month)
-        {
-            days.Add(date);
-            date = date.AddDays(7);
-        }
-
-        return days;
-    }
 }

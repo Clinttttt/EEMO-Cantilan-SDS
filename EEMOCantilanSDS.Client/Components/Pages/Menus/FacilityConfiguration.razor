@@ -372,7 +372,7 @@
                     </div>
                     <label class="fac-field">
                         <span class="fac-field-label">Held on</span>
-                        <select class="fac-input" @bind="_newMarketDay">
+                        <select class="fac-input" value="@_newMarketDay" @onchange="OnMarketDayPicked">
                             @foreach (var day in WeekDays)
                             {
                                 <option value="@day">@day</option>
@@ -382,6 +382,10 @@
                     <label class="fac-field">
                         <span class="fac-field-label">First @_newMarketDay it is held on</span>
                         <input class="fac-input" type="date" @bind="_newMarketDayFrom" min="@_todayIso" />
+                        <span class="cfg-field-note">
+                            Filled with the next @_newMarketDay. Change it for a later one; the market keeps its
+                            present day until then.
+                        </span>
                     </label>
                     @if (_marketDayError is not null)
                     {
@@ -695,6 +699,33 @@
     private string _todayIso = string.Empty;
 
     /// <summary>
+    /// The office picked a weekday, so the date field offers the next one of those. Saves the office working out
+    /// which date that is, and it is the date they almost always mean: the first market day under the new day.
+    /// A stale message is cleared at the same time — the form used to keep saying "choose the first Saturday"
+    /// after the office had moved on to a Wednesday.
+    /// </summary>
+    private void OnMarketDayPicked(ChangeEventArgs e)
+    {
+        if (!Enum.TryParse<DayOfWeek>(e.Value?.ToString(), out var picked)) return;
+
+        _newMarketDay = picked;
+        _newMarketDayFrom = NextOccurrenceOf(picked).ToDateTime(TimeOnly.MinValue);
+        _marketDayError = null;
+        _marketDaySaved = null;
+    }
+
+    /// <summary>
+    /// The soonest date that falls on this weekday, today included. Today counts because a market day starting
+    /// today is allowed: it is the present week, not a past one.
+    /// </summary>
+    private static DateOnly NextOccurrenceOf(DayOfWeek day)
+    {
+        var date = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        while (date.DayOfWeek != day) date = date.AddDays(1);
+        return date;
+    }
+
+    /// <summary>
     /// Moves the market day. The server decides: it refuses a past date, a date that is not the chosen weekday,
     /// and a day the market is already held on. Its wording is shown as it comes, because it explains which of
     /// those it was.
@@ -848,6 +879,10 @@
             _cfgMarketDay = overview.Value.MarketDay;
             _newMarketDay = overview.Value.MarketDay;
         }
+
+        // Open on a usable date rather than an empty picker. It is the next market day under the day currently
+        // selected, and it moves with the selection.
+        _newMarketDayFrom = NextOccurrenceOf(_newMarketDay).ToDateTime(TimeOnly.MinValue);
 
         await InvokeAsync(StateHasChanged);
     }

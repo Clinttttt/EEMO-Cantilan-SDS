@@ -1,7 +1,8 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -14,7 +15,8 @@ public class GetSystemSettingsQueryHandler(
     IMunicipalityRepository municipalityRepository,
     IFacilityRepository facilityRepository,
     ITenantContext tenantContext,
-    IFeeRateResolver feeRateResolver, IClock clock)
+    IFeeRateResolver feeRateResolver, IClock clock,
+    ITpmMarketDayProvider marketDayProvider)
     : IRequestHandler<GetSystemSettingsQuery, Result<SystemSettingsDto>>
 {
     private const string TimeZoneLabel = "Philippine Standard Time (UTC+8)";
@@ -77,7 +79,11 @@ public class GetSystemSettingsQueryHandler(
         // names and resolved rates. Cantilan has all eight seeded (names/rates equal the constants), so its
         // list is unchanged; other LGUs show their own facilities, names, rates, and market day.
         var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
-        var marketDay = lgu?.TpmMarketDay ?? DayOfWeek.Friday;
+
+        // Asked of the schedule rather than read off the registry column. A move the office scheduled for a later
+        // week updates that column only when it starts, so reading the column here would have gone on stating the
+        // old day after the new one had taken effect — this screen contradicting the collections being taken.
+        var marketDay = await marketDayProvider.GetMarketDayAsync(asOf, ct);
         var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay);
 
         var dto = new SystemSettingsDto(office, security, collection, system, facilities);

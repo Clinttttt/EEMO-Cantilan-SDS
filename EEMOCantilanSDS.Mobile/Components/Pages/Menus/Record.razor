@@ -381,9 +381,19 @@
 
     record Chip(string Key, string Label);
 
-    // Recent market days (Fridays), most recent first — for the weekly (TPM) chips.
-    static IReadOnlyList<DateTime> RecentMarketDays()
+    // The office's recent market days, most recent first — for the weekly (TPM) chips.
+    //
+    // Taken from the menu, which carries the office's own schedule, because the market day is the office's to
+    // set and it may move. This used to count back Fridays on the device, which was wrong for any office that
+    // holds its market on another day: the chips offered dates that were never market days, so a collector
+    // filtering by them saw nothing. The old reckoning remains only as a fallback for a menu cached before the
+    // field existed.
+    IReadOnlyList<DateTime> RecentMarketDays()
     {
+        var fromOffice = Session.Menu?.RecentMarketDates;
+        if (fromOffice is { Count: > 0 })
+            return fromOffice.Select(d => d.ToDateTime(TimeOnly.MinValue)).ToList();
+
         var today = DateTime.Now.Date;
         var delta = ((int)today.DayOfWeek - (int)DayOfWeek.Friday + 7) % 7;
         var lastFriday = today.AddDays(-delta);

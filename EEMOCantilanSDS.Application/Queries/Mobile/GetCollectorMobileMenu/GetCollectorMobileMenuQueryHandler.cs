@@ -1,4 +1,5 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using System.Linq;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -15,7 +16,8 @@ public class GetCollectorMobileMenuQueryHandler(
     IFacilityRepository facilityRepository,
     IMunicipalityRepository municipalityRepository,
     EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext tenantContext,
-    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
+    ICurrentUserService currentUser, IClock clock,
+    ITpmMarketDayProvider marketDayProvider) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
 {
     public async Task<Result<MobileMenuDto>> Handle(GetCollectorMobileMenuQuery request, CancellationToken cancellationToken)
     {
@@ -63,7 +65,34 @@ public class GetCollectorMobileMenuQueryHandler(
             collector.EmployeeId ?? string.Empty,
             clock.PhilippineToday,
             facilities,
-            await BuildBrandingAsync(cancellationToken)));
+            await BuildBrandingAsync(cancellationToken),
+            await RecentMarketDatesAsync(cancellationToken)));
+    }
+
+    /// <summary>
+    /// The office's last six weekly market days, most recent first, taken from its own schedule so they follow a
+    /// day the office has moved. The device used to count back Fridays, which was simply wrong for an office that
+    /// holds its market on another day.
+    /// </summary>
+    private async Task<IReadOnlyList<DateOnly>> RecentMarketDatesAsync(CancellationToken ct)
+    {
+        var today = clock.PhilippineToday;
+        var dates = new List<DateOnly>();
+
+        // Reads at most a few months back: six market days are six weeks, and a month is asked for once.
+        var month = new DateOnly(today.Year, today.Month, 1);
+        while (dates.Count < 6 && month > today.AddMonths(-4))
+        {
+            var inMonth = await marketDayProvider.GetMarketDatesAsync(month.Year, month.Month, ct);
+            foreach (var date in inMonth.Where(d => d <= today).OrderByDescending(d => d))
+            {
+                if (dates.Count == 6) break;
+                dates.Add(date);
+            }
+            month = month.AddMonths(-1);
+        }
+
+        return dates;
     }
 
     // The collector's LGU branding (seal/office/name) so the mobile header + receipts identify the correct

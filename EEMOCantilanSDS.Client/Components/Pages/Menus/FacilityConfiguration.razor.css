@@ -456,6 +456,10 @@
 .fac-field-label { font-size: 11.5px; font-weight: 600; color: var(--text-subtle); }
 .fac-field-opt { font-weight: 400; color: var(--text-muted); }
 
+/* A note under a field, explaining what was filled in and that it can be changed. Muted, so it reads as
+   guidance rather than as a value. */
+.cfg-field-note { display: block; margin-top: 6px; font-size: 11px; line-height: 1.45; color: var(--text-muted); }
+
 .fac-input {
     height: 40px;
     border: 1px solid var(--border);
