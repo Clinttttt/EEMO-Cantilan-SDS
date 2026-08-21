@@ -1232,9 +1232,11 @@
                 
                 var section = stallDto.Section switch
                 {
-                    Domain.Enums.MarketSection.VegetableArea => "Vegetable Area",
-                    Domain.Enums.MarketSection.FishSection => "Fish Area",
-                    Domain.Enums.MarketSection.MeatSection => "Meat Area",
+                    // The office's own name for the area. The fee decision below reads the MarketSection value
+                    // itself, so what this stall is charged never depends on the wording shown here.
+                    Domain.Enums.MarketSection.VegetableArea => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, Domain.Enums.MarketSection.VegetableArea),
+                    Domain.Enums.MarketSection.FishSection => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, Domain.Enums.MarketSection.FishSection),
+                    Domain.Enums.MarketSection.MeatSection => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, Domain.Enums.MarketSection.MeatSection),
                     _ => stallDto.AreaLocation switch
                     {
                         Domain.Enums.NccAreaLocation.Extension => "Extension",

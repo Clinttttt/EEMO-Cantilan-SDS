@@ -1,4 +1,4 @@
-@page "/vendors"
+﻿@page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
@@ -9,7 +9,6 @@
 @inject IVendorsApiClient VendorsApi
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
-@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyCollectionApi
 <PageTitle>StallTrack — Vendors &amp; Stalls</PageTitle>
@@ -520,11 +519,11 @@
 
                         @{
                             bool hasVegDaily = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase);
+                                                  DetailVendor.SectionKey == "VegetableArea";
                             bool hasFishSection = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
+                                                  DetailVendor.SectionKey == "FishSection";
                             bool hasMeatSection = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
+                                                  DetailVendor.SectionKey == "MeatSection";
                             bool hasFishPerKg = HasSectionFee(DetailVendor.FeeTypes);
                         }
 
@@ -649,16 +648,16 @@
                 ---------------------------------- -->
                 @{
                     bool showDailyCal = DetailVendor.FacilityCode == "NPM" &&
-                        (DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase) ||
-                         DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase) ||
-                         DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase));
+                        (DetailVendor.SectionKey == "VegetableArea" ||
+                         DetailVendor.SectionKey == "FishSection" ||
+                         DetailVendor.SectionKey == "MeatSection");
                 }
 
                 @if (showDailyCal)
                 {
-                    var isFishSection = DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
-                    var isVegetableSection = DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase);
-                    var isMeatSection = DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
+                    var isFishSection = DetailVendor.SectionKey == "FishSection";
+                    var isVegetableSection = DetailVendor.SectionKey == "VegetableArea";
+                    var isMeatSection = DetailVendor.SectionKey == "MeatSection";
                     var sectionClass = isVegetableSection ? "vegetables-section" : isMeatSection ? "meat-section" : "";
 
                     <DailyCollectionCalendar 
@@ -858,9 +857,12 @@
         {
             var sectionDisplay = item.SectionDisplay switch
             {
-                "VegetableArea" => "Vegetable Area",
-                "FishSection" => "Fish Area",
-                "MeatSection" => "Meat Area",
+                // The office's own name for the area. The canonical value it arrived as is kept on the entry
+                // (SectionKey) for the ordering and the fee decisions, so naming an area cannot change what is
+                // charged for it.
+                "VegetableArea" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.VegetableArea),
+                "FishSection" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection),
+                "MeatSection" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.MeatSection),
                 _ => item.SectionDisplay ?? item.AreaLocationDisplay ?? item.FacilityName
             };
 
@@ -873,6 +875,7 @@
                 ActualOccupant = item.ActualOccupant,
                 ContractName = item.NameOnContract ?? "No contract",
                 Section = sectionDisplay,
+                SectionKey = item.SectionDisplay ?? string.Empty,
                 OrNo = item.ORNumber,
                 AreaSqm = item.AreaSqm ?? 0,
                 ContractDate = item.ContractDate,
@@ -980,7 +983,16 @@
         public string StallNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
+        /// <summary>What the office calls this area, for the screen.</summary>
         public string Section { get; set; } = string.Empty;
+        /// <summary>
+        /// The canonical section the server sent, for everything that has to DECIDE rather than display: the
+        /// order the areas are listed in, and whether the daily calendar and its per-kilo fee apply. This used
+        /// to be read off the displayed words, which only worked while the words were this platform's own -
+        /// an office calling its fish area "Isda" would have lost its weighing fee the moment the screen
+        /// started showing its own name.
+        /// </summary>
+        public string SectionKey { get; set; } = string.Empty;
         public string? OrNo { get; set; }
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
@@ -1031,11 +1043,13 @@
             || v.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
         return matchStatus && matchSearch;
     })
-    .OrderBy(v => v.Section switch
+    // Ordered by the canonical section rather than by the words on screen: an office's own names would sort
+    // alphabetically by accident, and the areas would stop appearing in sheet order.
+    .OrderBy(v => v.SectionKey switch
     {
-        "Vegetable Area" => 0,
-        "Fish Area" => 1,
-        "Meat Area" => 2,
+        "VegetableArea" => 0,
+        "FishSection" => 1,
+        "MeatSection" => 2,
         _ => 3
     })
     .ThenBy(v => v.StallNo.PadLeft(10, '0'));
@@ -1166,13 +1180,16 @@
         IsEditing = true;
         EditingId = v.Id;
         string selectedSection = string.Empty;
-        if (v.FacilityCode == "NPM" && !string.IsNullOrEmpty(v.Section))
+        if (v.FacilityCode == "NPM" && !string.IsNullOrEmpty(v.SectionKey))
         {
-            if (v.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase))
+            // Read from the canonical section, not from the words on screen. Matching on the display only worked
+            // while the display was this platform's own wording: an office whose fish area is "Isda" would have
+            // opened this form with no section selected, and saved the stall out of the area it is in.
+            if (v.SectionKey == "VegetableArea")
                 selectedSection = "Vegetable";
-            else if (v.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase))
+            else if (v.SectionKey == "FishSection")
                 selectedSection = "Fish";
-            else if (v.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase))
+            else if (v.SectionKey == "MeatSection")
                 selectedSection = "Meat";
         }
         Form = new AddVendorModal.VendorModalForm

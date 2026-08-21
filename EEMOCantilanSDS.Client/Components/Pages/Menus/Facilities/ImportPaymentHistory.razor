@@ -1,4 +1,4 @@
-@page "/import-history/{Facility}"
+﻿@page "/import-history/{Facility}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory
 @using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory
@@ -106,7 +106,7 @@
                     var chosen = option;
                     <button type="button" class="iph-pick-card" @onclick="() => ChooseSection(chosen.Section)">
                         <span class="iph-pick-icon @chosen.Css">@((MarkupString)chosen.Icon)</span>
-                        <span class="iph-pick-name">@chosen.Name</span>
+                        <span class="iph-pick-name">@SectionLabel(chosen.Section)</span>
                         <span class="iph-pick-desc">@SectionDesc(chosen)</span>
                     </button>
                 }
@@ -672,7 +672,7 @@
     private bool IsDaily => Code is { } code && DailyFacilities.Contains(code);
 
     /// <summary>The market's canonical sections. Its spaces are numbered separately in each.</summary>
-    private sealed record DailySectionOption(MarketSection Section, string Name, string Desc, string Css, string Icon);
+    private sealed record DailySectionOption(MarketSection Section, string Css, string Icon);
 
     /// <summary>
     /// The same three cards the stallholder import offers, with the same artwork, because it is the same question
@@ -681,11 +681,11 @@
     /// </summary>
     private static readonly List<DailySectionOption> DailySectionOptions = new()
     {
-        new(MarketSection.VegetableArea, "Vegetable", "Vegetable stalls", "veg",
+        new(MarketSection.VegetableArea, "veg",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2c0 0-1 3-1 6s1 5 1 5'/><path d='M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z'/><path d='M9 4c-2 1-3 3-3 5'/><path d='M15 4c2 1 3 3 3 5'/></svg>"),
-        new(MarketSection.FishSection, "Fish", "Fish stalls", "fish",
+        new(MarketSection.FishSection, "fish",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z'/><circle cx='14' cy='11' r='1' fill='currentColor' stroke='none'/></svg>"),
-        new(MarketSection.MeatSection, "Meat", "Meat stalls", "meat",
+        new(MarketSection.MeatSection, "meat",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
     };
 
@@ -705,16 +705,16 @@
     private bool SectionChosen => _section is not null || !string.IsNullOrWhiteSpace(_customSectionName);
 
     private string SectionDesc(DailySectionOption option) =>
-        $"{option.Desc} · ₱{_dailyRate:0}/day"
+        $"{SectionLabel(option.Section)} stalls · ₱{_dailyRate:0}/day"
         + (option.Section == MarketSection.FishSection && _fishRate > 0m ? $" + ₱{_fishRate:0}/kg" : "");
 
-    private static string SectionLabel(MarketSection section) => section switch
-    {
-        MarketSection.VegetableArea => "Vegetable Area",
-        MarketSection.FishSection => "Fish Section",
-        MarketSection.MeatSection => "Meat Section",
-        _ => section.ToString()
-    };
+    /// <summary>
+    /// The office's own name for a collection area. This was a private mapping to the platform's canonical wording,
+    /// so an office that calls its areas otherwise was offered "Vegetable Area" here and read its own name for the
+    /// same area everywhere else. The MarketSection value remains the key the import is filed under.
+    /// </summary>
+    private string SectionLabel(MarketSection section) =>
+        FacilityCatalog.SectionLabelOf(FacilityCode.NPM, section);
 
     /// <summary>What the hero states once a section is chosen.</summary>
     private string ChosenSectionLabel =>

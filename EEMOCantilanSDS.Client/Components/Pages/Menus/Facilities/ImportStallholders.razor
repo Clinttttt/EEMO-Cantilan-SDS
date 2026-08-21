@@ -151,7 +151,7 @@
             <div class="imp-pick">
                 <div class="imp-pick-head">
                     <div class="imp-pick-title">Which section are you importing?</div>
-                    <div class="imp-pick-sub">New Public Market keeps a separate list per section. Pick one — every row in the file you upload will be imported into it.</div>
+                    <div class="imp-pick-sub">@FacilityCatalog.NameOf(FacilityCode.NPM) keeps a separate list per section. Pick one — every row in the file you upload will be imported into it.</div>
                 </div>
                 <div class="imp-pick-grid">
                     @foreach (var s in NpmSections)
@@ -159,7 +159,7 @@
                         var sec = s;
                         <button type="button" class="imp-pick-card" @onclick="() => ChooseSection(sec.Name)">
                             <span class="imp-pick-icon @sec.Css">@((MarkupString)sec.Icon)</span>
-                            <span class="imp-pick-name">@sec.Name</span>
+                            <span class="imp-pick-name">@SectionOptionLabel(sec.Name)</span>
                             <span class="imp-pick-desc">@SectionDesc(sec)</span>
                         </button>
                     }
@@ -184,7 +184,7 @@
                     <div class="imp-setup">
                         <div class="imp-setup-group">
                             <span class="imp-setup-key">Section</span>
-                            <span class="imp-setup-val">@_section</span>
+                            <span class="imp-setup-val">@SectionOptionLabel(_section)</span>
                             <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change</button>
                         </div>
 
@@ -622,9 +622,20 @@
         _ratesLoaded = true;
     }
 
-    // Section-option description with the tenant's resolved rate appended (Fish adds the per-kilo fee).
+    /// <summary>
+    /// The office's own name for one of the three collection areas, given the canonical key these options carry.
+    /// The KEY is what the upload is filed under and what the server is told, so it does not move; only the words
+    /// on the card do. A per-LGU custom section already carries its own name and is returned unchanged.
+    /// </summary>
+    private string SectionOptionLabel(string? sectionKey) =>
+        MapSection(sectionKey) is { } section
+            ? FacilityCatalog.SectionLabelOf(FacilityCode.NPM, section)
+            : (sectionKey ?? string.Empty);
+
+    // Section-option description with the tenant's resolved rate appended (Fish adds the per-kilo fee). The area is
+    // named as the office names it; "Vegetable stalls" was this platform's wording on another municipality's screen.
     private string SectionDesc(NpmSectionOption sec) =>
-        $"{sec.Desc} · ₱{_npmDailyRate:0}/day" + (sec.Name == "Fish" ? $" + ₱{_npmFishRate:0}/kg" : "");
+        $"{SectionOptionLabel(sec.Name)} stalls · ₱{_npmDailyRate:0}/day" + (sec.Name == "Fish" ? $" + ₱{_npmFishRate:0}/kg" : "");
 
     // Per-LGU custom NPM sections offered as import targets (in addition to Vegetable/Fish/Meat).
     private List<string> _customSections = new();
@@ -709,7 +720,7 @@
     // every newly created stall in this import.
     private bool _applyElectricity;
     private bool _applyWater;
-    private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {_section}";
+    private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {SectionOptionLabel(_section)}";
 
     private void ChooseSection(string section) => _section = section;
 
@@ -733,15 +744,15 @@
         _sheetQueries.Clear();
     }
 
-    public record NpmSectionOption(string Name, string Desc, string Css, string Icon);
+    public record NpmSectionOption(string Name, string Css, string Icon);
 
     private static readonly List<NpmSectionOption> NpmSections = new()
     {
-        new("Vegetable", "Vegetable stalls", "veg",
+        new("Vegetable", "veg",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2c0 0-1 3-1 6s1 5 1 5'/><path d='M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z'/><path d='M9 4c-2 1-3 3-3 5'/><path d='M15 4c2 1 3 3 3 5'/></svg>"),
-        new("Fish", "Fish stalls", "fish",
+        new("Fish", "fish",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z'/><circle cx='14' cy='11' r='1' fill='currentColor' stroke='none'/></svg>"),
-        new("Meat", "Meat stalls", "meat",
+        new("Meat", "meat",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
     };
 
