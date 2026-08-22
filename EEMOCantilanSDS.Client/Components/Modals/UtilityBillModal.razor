@@ -1,4 +1,4 @@
-@using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityReading
+﻿@using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityReading
 @using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment
 @using EEMOCantilanSDS.Application.Dtos.Utilities
 @using EEMOCantilanSDS.Domain.Enums
@@ -56,7 +56,7 @@
     <div class="ub-overlay" @onclick="Close">
         @* Two columns when the stall is billed for both utilities, so electricity and water are read side by side
            instead of one scrolling under the other. A stall billed for one keeps the single narrow column. *@
-        <div class="ub-modal @(ShowElec && ShowWater ? "ub-modal-two" : "")" @onclick:stopPropagation="true">
+        <div class="ub-modal @((ShowElec || ShowWater) ? "ub-modal-two" : "")" @onclick:stopPropagation="true">
             <div class="ub-head">
                 <div>
                     <div class="ub-title">Utility Bill</div>
@@ -74,9 +74,9 @@
                         record first, then record a reading here.
                     </div>
                 }
-                @if (ShowElec)
+                @if (ShowElec || ShowWater)
                 {
-                <div class="ub-meter @(_elecStatusAsked ? "asked" : "")">
+                <div class="ub-meter @(_elecStatusAsked ? "asked" : "") @(ShowElec ? "" : "ub-meter-off")" data-meter="elec" aria-disabled="@(!ShowElec)">
                     <div class="ub-meter-head">
                         <div class="ub-meter-id">
                             <span class="ub-meter-badge">@boltIcon</span>
@@ -160,18 +160,16 @@
                     @if (ElecReadingsSettled || ElecStatusLocked)
                     {
                         <div class="ub-meter-foot">
-                            @if (ElecReadingsSettled)
-                            {
-                                <div class="ub-lock-note" title="@PrevLockHint(true)">
-                                    <span class="ub-lock-badge">@lockIcon</span><span>@ReadingsLockedNote</span>
-                                </div>
-                            }
-                            @if (ElecStatusLocked)
+                            @if (ElecStatusLocked && ShowElec)
                             {
                                 <button type="button" class="ub-status-unlock" @onclick="() => _elecStatusUnlocked = true"
                                         title="This electricity status is on record. Open it to change it.">
                                     @pencilIcon <span>Update status</span>
                                 </button>
+                            }
+                            @if (!ShowElec)
+                            {
+                                <div class="ub-not-billed">This stall is not billed for electricity.</div>
                             }
                         </div>
                     }
@@ -204,9 +202,9 @@
                 </div>
                 }
 
-                @if (ShowWater)
+                @if (ShowElec || ShowWater)
                 {
-                <div class="ub-meter @(_waterStatusAsked ? "asked" : "")">
+                <div class="ub-meter @(_waterStatusAsked ? "asked" : "") @(ShowWater ? "" : "ub-meter-off")" data-meter="water" aria-disabled="@(!ShowWater)">
                     <div class="ub-meter-head">
                         <div class="ub-meter-id">
                             <span class="ub-meter-badge">@dropIcon</span>
@@ -288,18 +286,16 @@
                     @if (WaterReadingsSettled || WaterStatusLocked)
                     {
                         <div class="ub-meter-foot">
-                            @if (WaterReadingsSettled)
-                            {
-                                <div class="ub-lock-note" title="@PrevLockHint(true)">
-                                    <span class="ub-lock-badge">@lockIcon</span><span>@ReadingsLockedNote</span>
-                                </div>
-                            }
-                            @if (WaterStatusLocked)
+                            @if (WaterStatusLocked && ShowWater)
                             {
                                 <button type="button" class="ub-status-unlock" @onclick="() => _waterStatusUnlocked = true"
                                         title="This water status is on record. Open it to change it.">
                                     @pencilIcon <span>Update status</span>
                                 </button>
+                            }
+                            @if (!ShowWater)
+                            {
+                                <div class="ub-not-billed">This stall is not billed for water.</div>
                             }
                         </div>
                     }
@@ -471,14 +467,18 @@
     private bool _elecSeedSettled, _waterSeedSettled;
 
     /// <summary>Readings the server will refuse to change, because that utility's payment is on record.</summary>
-    private bool ElecReadingsSettled => _elecSeedSettled;
-    private bool WaterReadingsSettled => _waterSeedSettled;
+    // A utility the stall is NOT billed for is treated as settled for display, which is what puts its fields on the
+    // read-only path: the panel is shown so the two columns balance, but there is nothing on it to type into, by mouse
+    // or by keyboard. Dimming alone would have left the inputs reachable with the tab key, and the save sends the
+    // readings the server seeded whether or not they were touched.
+    private bool ElecReadingsSettled => _elecSeedSettled || !ShowElec;
+    private bool WaterReadingsSettled => _waterSeedSettled || !ShowWater;
 
     private bool ElecPrevOpen => _elecPrevUnlocked && !ElecReadingsSettled;
     private bool WaterPrevOpen => _waterPrevUnlocked && !WaterReadingsSettled;
 
-    private bool ElecStatusLocked => ExistingBill && !_elecStatusUnlocked;
-    private bool WaterStatusLocked => ExistingBill && !_waterStatusUnlocked;
+    private bool ElecStatusLocked => (ExistingBill && !_elecStatusUnlocked) || !ShowElec;
+    private bool WaterStatusLocked => (ExistingBill && !_waterStatusUnlocked) || !ShowWater;
 
     // A lock glyph and a pencil are drawn as line icons in the markup above; nothing here emits a character
     // that a machine might render as a picture.
@@ -492,8 +492,6 @@
             ? "A payment is recorded for this utility, so its readings are locked. Reverse the payment to change them."
             : "Carried from the last reading. Click to correct it.";
 
-    /// <summary>The same fact, short enough to sit on one line beside the lock.</summary>
-    private const string ReadingsLockedNote = "Readings locked — a payment is recorded.";
     private void OpenElecPrev()
     {
         // Settled readings never render as this control, so there is nothing to refuse here — the guard only

@@ -5,7 +5,10 @@
 }
 .ub-modal {
     background: var(--bg-card, #fff); border-radius: 16px; width: 100%; max-width: 520px;
-    max-height: 90vh; overflow-y: auto; overflow-x: hidden; box-sizing: border-box;
+    /* Taller before it will scroll, since the locked sentence is gone and the two meters now sit side by side. The
+       overflow stays as a safety valve rather than being removed: on a short window the Save button has to remain
+       reachable, and clipping it would be a worse fault than a scrollbar. */
+    max-height: 94vh; overflow-y: auto; overflow-x: hidden; box-sizing: border-box;
     box-shadow: 0 24px 60px rgba(13, 33, 55, 0.28);
 }
 .ub-modal *, .ub-modal *::before, .ub-modal *::after { box-sizing: border-box; }
@@ -20,11 +23,22 @@
 .ub-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 
 /* ── Both utilities: side by side ──────────────────────────────────────────────────────────────────────
-   A stall billed for electricity AND water put one meter under the other in a 520px column, so the office
-   scrolled the second into view, recorded it, then scrolled back to check the first. Read together they fit
-   the page. A stall billed for one utility is untouched, and so is every narrow screen: below 900px this
-   returns to the single column, because two of these side by side would be too cramped to type in. */
+   Both panels are always shown now, so the dialog is the same shape for every stall and the two columns balance.
+   A utility the stall is not billed for is dimmed and carries no controls: its fields render on the read-only
+   path, its status chips are locked and its "Update status" button is withheld, so there is nothing to reach by
+   mouse or by keyboard. Dimming alone would not have been enough — the save sends the readings the server seeded
+   whether or not they were touched, so a tab-key edit would have been a real one. */
 .ub-modal-two { max-width: 940px; }
+
+.ub-meter-off {
+    opacity: .55;
+    pointer-events: none;
+}
+
+.ub-not-billed {
+    font-size: 11.5px;
+    color: var(--text-muted, #6a8aa0);
+}
 
 @media (min-width: 900px) {
     .ub-modal-two .ub-body {

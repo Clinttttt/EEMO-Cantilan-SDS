@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Utilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -67,14 +67,14 @@ public class UtilityBillModalLockTests : TestContext
         var cut = RenderModal(Seed(), elec: false);   // water only, to keep one meter in the assertions
 
         // Previous is a stated figure; Current and Rate remain inputs.
-        var locked = cut.Find(".ub-locked");
+        var locked = cut.Find("[data-meter='water'] .ub-locked");
         Assert.Contains("40.00", locked.TextContent);
-        Assert.Equal(2, cut.FindAll(".ub-grid3 input").Count);
+        Assert.Equal(2, cut.FindAll("[data-meter='water'] .ub-grid3 input").Count);
 
         locked.Click();
 
-        Assert.Empty(cut.FindAll(".ub-locked"));
-        Assert.Equal(3, cut.FindAll(".ub-grid3 input").Count);   // now editable
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-locked"));
+        Assert.Equal(3, cut.FindAll("[data-meter='water'] .ub-grid3 input").Count);   // now editable
     }
 
     [Fact]
@@ -85,12 +85,14 @@ public class UtilityBillModalLockTests : TestContext
         // come back as a rejected save.
         var cut = RenderModal(Seed(exists: true, waterStatus: "Paid"), elec: false);
 
-        Assert.Equal(3, cut.FindAll(".ub-locked").Count);          // previous, current and rate
-        Assert.Empty(cut.FindAll(".ub-grid3 input"));              // nothing typeable
-        Assert.Empty(cut.FindAll(".ub-locked-edit"));              // no pencil offered at all
+        Assert.Equal(3, cut.FindAll("[data-meter='water'] .ub-locked").Count);          // previous, current and rate
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-grid3 input"));              // nothing typeable
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-locked-edit"));              // no pencil offered at all
         Assert.Contains("A payment is recorded for this utility", cut.Markup);
-        // Stated as a fact, not as a validation failure.
-        Assert.Single(cut.FindAll(".ub-lock-note"));
+        // The lock is shown on the fields themselves. The sentence that used to repeat it was removed once both
+        // meters were laid side by side: it made one column taller than the other, and the padlock on every locked
+        // field already says it.
+        Assert.Equal(3, cut.FindAll("[data-meter='water'] .ub-locked-mark").Count);
         Assert.Empty(cut.FindAll(".ub-error"));
     }
 
@@ -100,16 +102,16 @@ public class UtilityBillModalLockTests : TestContext
         var cut = RenderModal(Seed(exists: true, waterStatus: "Unpaid"), elec: false);
 
         // The chip that holds the recorded status carries the lock; the row is out of reach until asked.
-        Assert.Single(cut.FindAll(".ub-status-wrap.locked"));
-        Assert.Single(cut.FindAll(".ub-status.on .ub-ico"));
-        Assert.Single(cut.FindAll(".ub-status-unlock"));
+        Assert.Single(cut.FindAll("[data-meter='water'] .ub-status-wrap.locked"));
+        Assert.Single(cut.FindAll("[data-meter='water'] .ub-status.on .ub-ico"));
+        Assert.Single(cut.FindAll("[data-meter='water'] .ub-status-unlock"));
 
         // The mis-tap: pressing "Paid" while locked changes nothing, and brings the way out into view.
-        cut.FindAll(".ub-status")[1].Click();
+        cut.FindAll("[data-meter='water'] .ub-status")[1].Click();
 
-        Assert.Contains("on", cut.FindAll(".ub-status")[0].GetAttribute("class"));   // still Unpaid
-        Assert.DoesNotContain("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));
-        Assert.Single(cut.FindAll(".ub-status-wrap.asked"));
+        Assert.Contains("on", cut.FindAll("[data-meter='water'] .ub-status")[0].GetAttribute("class"));   // still Unpaid
+        Assert.DoesNotContain("on", cut.FindAll("[data-meter='water'] .ub-status")[1].GetAttribute("class"));
+        Assert.Single(cut.FindAll("[data-meter='water'] .ub-status-wrap.asked"));
     }
 
     [Fact]
@@ -117,12 +119,12 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: true, waterStatus: "Unpaid"), elec: false);
 
-        cut.Find(".ub-status-unlock").Click();
+        cut.Find("[data-meter='water'] .ub-status-unlock").Click();
 
-        Assert.Empty(cut.FindAll(".ub-status-wrap.locked"));
-        Assert.Empty(cut.FindAll(".ub-status-unlock"));
-        cut.FindAll(".ub-status")[1].Click();
-        Assert.Contains("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));   // Paid now takes
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-status-wrap.locked"));
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-status-unlock"));
+        cut.FindAll("[data-meter='water'] .ub-status")[1].Click();
+        Assert.Contains("on", cut.FindAll("[data-meter='water'] .ub-status")[1].GetAttribute("class"));   // Paid now takes
     }
 
     [Fact]
@@ -130,12 +132,12 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: false), elec: false);
 
-        Assert.Empty(cut.FindAll(".ub-status-wrap.locked"));
-        Assert.Empty(cut.FindAll(".ub-status-unlock"));
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-status-wrap.locked"));
+        Assert.Empty(cut.FindAll("[data-meter='water'] .ub-status-unlock"));
 
-        cut.FindAll(".ub-status")[1].Click();
+        cut.FindAll("[data-meter='water'] .ub-status")[1].Click();
 
-        Assert.Contains("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));
+        Assert.Contains("on", cut.FindAll("[data-meter='water'] .ub-status")[1].GetAttribute("class"));
     }
 
     [Fact]
@@ -147,15 +149,15 @@ public class UtilityBillModalLockTests : TestContext
         var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
 
         // Previous is the figure carried forward, stated rather than typed.
-        Assert.Contains("56.00", cut.Find(".ub-locked .ub-locked-value").TextContent);
+        Assert.Contains("56.00", cut.Find("[data-meter='water'] .ub-locked .ub-locked-value").TextContent);
 
         // Current and Rate are the inputs; the current reading waits to be stated.
-        var inputs = cut.FindAll(".ub-grid3 input");
+        var inputs = cut.FindAll("[data-meter='water'] .ub-grid3 input");
         Assert.True(string.IsNullOrEmpty(inputs[0].GetAttribute("value")));
         Assert.Equal("Meter now", inputs[0].GetAttribute("placeholder"));
         // Nothing is charged until it is read: no usage, nothing due.
-        Assert.Contains("0.00", cut.Find(".ub-usage-value").TextContent);
-        Assert.Contains("₱0.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("0.00", cut.Find("[data-meter='water'] .ub-usage-value").TextContent);
+        Assert.Contains("₱0.00", cut.Find("[data-meter='water'] .ub-usage-amount").TextContent);
     }
 
     [Fact]
@@ -163,10 +165,10 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: true, waterPrev: 40m, waterCur: 56m), elec: false);
 
-        Assert.Contains("40.00", cut.Find(".ub-locked .ub-locked-value").TextContent);
-        Assert.Equal("56", cut.FindAll(".ub-grid3 input")[0].GetAttribute("value"));
-        Assert.Contains("16.00", cut.Find(".ub-usage-value").TextContent);
-        Assert.Contains("₱16.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("40.00", cut.Find("[data-meter='water'] .ub-locked .ub-locked-value").TextContent);
+        Assert.Equal("56", cut.FindAll("[data-meter='water'] .ub-grid3 input")[0].GetAttribute("value"));
+        Assert.Contains("16.00", cut.Find("[data-meter='water'] .ub-usage-value").TextContent);
+        Assert.Contains("₱16.00", cut.Find("[data-meter='water'] .ub-usage-amount").TextContent);
     }
 
     [Fact]
@@ -174,7 +176,7 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
 
-        cut.FindAll(".ub-grid3 input")[0].Input("44");   // the current reading, bound on input
+        cut.FindAll("[data-meter='water'] .ub-grid3 input")[0].Input("44");   // the current reading, bound on input
         cut.Find(".ub-save").Click();
 
         Assert.Contains("must be at least 56.00", cut.Markup);
@@ -200,7 +202,7 @@ public class UtilityBillModalLockTests : TestContext
         // owing the whole of it again.
         var cut = RenderModal(Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Paid"), elec: false);
 
-        Assert.Contains("₱0.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("₱0.00", cut.Find("[data-meter='water'] .ub-usage-amount").TextContent);
         Assert.Contains("of ₱10.00 charged", cut.Markup);
         Assert.Contains("Still owed", cut.Markup);
     }
@@ -211,7 +213,7 @@ public class UtilityBillModalLockTests : TestContext
         var seed = Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Partial") with { WaterPartialAmount = 4m };
         var cut = RenderModal(seed, elec: false);
 
-        Assert.Contains("₱6.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("₱6.00", cut.Find("[data-meter='water'] .ub-usage-amount").TextContent);
     }
 
     [Fact]
@@ -219,8 +221,40 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Unpaid"), elec: false);
 
-        Assert.Contains("₱10.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("₱10.00", cut.Find("[data-meter='water'] .ub-usage-amount").TextContent);
         Assert.DoesNotContain("charged", cut.Markup);
         Assert.DoesNotContain("Still owed", cut.Markup);
+    }
+
+    [Fact]
+    public void AUtilityTheStallIsNotBilledFor_IsShownButHasNothingToEdit()
+    {
+        // Asked for by the office: both panels visible so the dialog is the same shape for every stall, with the one
+        // that does not apply dimmed. Shown is not the same as available, and that is where the care was needed — the
+        // save sends the readings the server seeded whether or not they were touched, so a panel that was merely faded
+        // would still be reachable with the tab key and a stray keystroke would become a real reading.
+        //
+        // So the unbilled panel carries no inputs at all, no pencil to open one, and no way to set a status.
+        var cut = RenderModal(Seed(), elec: false);   // billed for water only
+
+        Assert.Single(cut.FindAll("[data-meter='elec'].ub-meter-off"));
+        Assert.Empty(cut.FindAll("[data-meter='elec'] .ub-grid3 input"));
+        Assert.Empty(cut.FindAll("[data-meter='elec'] .ub-locked-edit"));
+        Assert.Empty(cut.FindAll("[data-meter='elec'] .ub-status-unlock"));
+        Assert.Contains("not billed for electricity", cut.Markup);
+
+        // And the utility it IS billed for is untouched by any of that.
+        Assert.Empty(cut.FindAll("[data-meter='water'].ub-meter-off"));
+        Assert.NotEmpty(cut.FindAll("[data-meter='water'] .ub-grid3 input"));
+    }
+
+    [Fact]
+    public void AStallBilledForBoth_HasTwoLivePanels()
+    {
+        var cut = RenderModal(Seed(), elec: true, water: true);
+
+        Assert.Empty(cut.FindAll(".ub-meter-off"));
+        Assert.NotEmpty(cut.FindAll("[data-meter='elec'] .ub-grid3 input"));
+        Assert.NotEmpty(cut.FindAll("[data-meter='water'] .ub-grid3 input"));
     }
 }

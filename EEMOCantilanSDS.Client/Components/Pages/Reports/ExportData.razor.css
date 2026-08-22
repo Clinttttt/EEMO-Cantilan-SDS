@@ -137,6 +137,10 @@
 
 .ex-txn-detail td { color: var(--text-subtle); font-size: 11.5px; }
 
+/* The facility's name as the table's own first row. Paper only: on screen the head above each table carries it,
+   with the model and the two figures beside it. */
+.ex-fac-row { display: none; }
+
 /* ── Footer signatures ── */
 .ex-rpt-foot { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; padding-top: 18px; }
 .ex-rpt-foot div { text-align: center; flex: 1; }
@@ -185,24 +189,32 @@
        the paper/PDF copy only. */
     .ex-sheet-single .ex-fac-head { display: none; }
 
-    /* ── All facilities: the head is trimmed rather than dropped ────────────────────────────────────────
-       Reported as cluttered on paper: the facility's name carried a model tag and its collected and
-       outstanding pair, over a heavy two-pixel rule, and the same two figures already appear in the summary
-       above and again in the table's own subtotal below. The tag, the figures and the rule go.
+    /* ── The facility, inside the table ────────────────────────────────────────────────────────────────
+       The label above each table sat outside the table's left edge, hanging in the margin while everything
+       else lined up on the grid, and it carried a model tag and a collected/outstanding pair that the summary
+       above and the table's own subtotal below both already state. On paper the whole head goes, and the
+       facility's name becomes the table's first row, so nothing sits outside the grid and the name repeats
+       with the column headings when a table runs onto a second sheet. On screen the head is untouched. */
+    .ex-fac-head { display: none; }
 
-       The NAME stays, deliberately. This copy carries every facility one after another, and without a name
-       above each table the reader cannot tell which facility a table belongs to — an unidentifiable table is
-       worse on a filed document than a cluttered one. On screen the whole head is untouched. */
-    .ex-facility .ex-fac-head {
-        border-bottom: none;
-        padding-bottom: 0;
-        margin-bottom: 6px;
+    .ex-fac-row { display: table-row; }
+
+    .ex-fac-row td {
+        background: var(--bg);
+        text-align: left;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--navy);
+        padding: 7px 10px;
     }
 
-    .ex-facility .ex-fac-stats,
-    .ex-facility .ex-tag { display: none; }
-
-    .ex-facility .ex-fac-name { font-size: 12px; }
+    /* Room to read. The cells were tight enough on paper that the figures nearly touched their rules. */
+    .ex-table th, .ex-table td { padding: 7px 9px; }
+    .ex-table th { font-size: 9.5px; }
+    .ex-table td { font-size: 10.5px; }
+    .ex-sec-row td, .ex-subtotal td { padding: 6px 10px; }
 
     /* ── Tables across a page break ─────────────────────────────────────────────────────────────────────
        A table that ran past the foot of a page left its rows on one sheet and its subtotal on another, with

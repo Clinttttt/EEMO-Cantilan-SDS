@@ -1,4 +1,4 @@
-@page "/export"
+﻿@page "/export"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
@@ -574,6 +574,7 @@
         var span = showFish ? 10 : 9;
         <table class="ex-table">
             <thead>
+                <tr class="ex-fac-row"><td colspan="99">@f.Name</td></tr>
                 <tr>
                     <th class="ex-c">#</th>
                     <th>Stall</th>
@@ -648,6 +649,7 @@
         var isNcc = f.Code == FacilityCode.NCC;
         <table class="ex-table">
             <thead>
+                <tr class="ex-fac-row"><td colspan="99">@f.Name</td></tr>
                 <tr>
                     <th class="ex-c">#</th>
                     <th>Stall</th>
@@ -706,6 +708,7 @@
             @if (f.Code == FacilityCode.SLH)
             {
                 <thead>
+                    <tr class="ex-fac-row"><td colspan="99">@f.Name</td></tr>
                     <tr>
                         <th class="ex-c">#</th>
                         <th class="ex-l">Owner</th>
