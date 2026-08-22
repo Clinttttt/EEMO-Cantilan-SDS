@@ -206,6 +206,8 @@
 .ce-sw-collected { background: var(--bg-card); border: 1.5px solid var(--navy); }
 .ce-sw-missed { background: var(--red-bg); border-color: rgba(139,58,58,.5); }
 .ce-sw-excused { background: rgba(200,168,75,.3); border-color: rgba(200,168,75,.6); }
+/* The copper the calendar already uses for a part-settled month, so the legend and the cells agree. */
+.ce-sw-partial { background: rgba(184,115,51,.16); border-color: rgba(184,115,51,.5); }
 .ce-sw-future { background: rgba(168,184,200,.18); border-style: dashed; }
 .ce-sw-open { background: var(--green-bg); border-color: rgba(45,122,95,.5); }
 
@@ -221,7 +223,9 @@
 
 .ce-drawer-body { padding: 16px; }
 .ce-set-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; }
-.ce-set-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+/* Three options on a market day, four on a month, which is where Partial belongs. auto-fit rather than a fixed
+   count so neither case leaves a gap or squeezes. */
+.ce-set-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .ce-set-opt {
     display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
     border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; background: var(--bg-card);
@@ -234,9 +238,14 @@
 .ce-set-paid .ce-set-dot { background: var(--green); }
 .ce-set-unpaid .ce-set-dot { background: var(--red); }
 .ce-set-excused .ce-set-dot { background: var(--gold); }
+.ce-set-partial .ce-set-dot { background: #9a5a1f; }
 .ce-set-paid.ce-set-on { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); background: var(--green-bg); }
 .ce-set-unpaid.ce-set-on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); background: var(--red-bg); }
 .ce-set-excused.ce-set-on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: rgba(200,168,75,.14); }
+.ce-set-partial.ce-set-on { border-color: #9a5a1f; box-shadow: 0 0 0 1px #9a5a1f; background: rgba(184,115,51,.10); }
+
+/* What the amount is a part of. Guidance, so it is set quietly under the field. */
+.ce-partial-hint { margin-top: 5px; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
 
 /* Status pill (drawer header current status) */
 .ce-pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; }

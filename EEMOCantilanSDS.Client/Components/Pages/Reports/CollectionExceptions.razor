@@ -370,6 +370,10 @@
                 {
                     <div class="ce-legend">
                         <span><i class="ce-sw ce-sw-collected"></i>@(IsNpm ? "Collected" : "Paid")</span>
+                        @if (!IsNpm)
+                        {
+                            <span><i class="ce-sw ce-sw-partial"></i>Partial</span>
+                        }
                         <span><i class="ce-sw ce-sw-missed"></i>Unpaid</span>
                         <span><i class="ce-sw ce-sw-excused"></i>Excused</span>
                         <span><i class="ce-sw ce-sw-future"></i>Upcoming</span>
@@ -415,6 +419,18 @@
                                     <span class="ce-set-name">Unpaid</span>
                                     <span class="ce-set-sub">Due / not collected</span>
                                 </button>
+                                @if (!IsDay)
+                                {
+                                    @* Monthly only. A market day is a fixed fee that was either collected or not, so there is
+                                       nothing to part-pay; a month's rent can be settled in instalments and the office has
+                                       always been able to record that elsewhere. This screen could show such a month but not
+                                       set one, which is the gap. *@
+                                    <button class="ce-set-opt ce-set-partial @(eff == "partial" ? "ce-set-on" : "") @(DrawerIsFuture() ? "ce-set-disabled" : "")" type="button" disabled="@DrawerIsFuture()" @onclick='() => ChooseStatus("partial")'>
+                                        <span class="ce-set-dot"></span>
+                                        <span class="ce-set-name">Partial</span>
+                                        <span class="ce-set-sub">Part of the rent collected</span>
+                                    </button>
+                                }
                                 <button class="ce-set-opt ce-set-excused @(eff == "excused" ? "ce-set-on" : "")" type="button" @onclick='() => ChooseStatus("excused")'>
                                     <span class="ce-set-dot"></span>
                                     <span class="ce-set-name">Excused</span>
@@ -430,7 +446,22 @@
                                 </div>
                             }
 
-                            @if (eff == "collected")
+                            @if (eff == "partial")
+                            {
+                                @* How much was actually handed over. Stated against the month's own rent, because "partial"
+                                   without a figure is not a record of anything: the reports reconcile a partial month by this
+                                   amount, and the balance is the rest. *@
+                                <div class="ce-or">
+                                    <label class="ce-or-label">Amount collected @(DrawerMonthRent() > 0m ? $"(of ₱{DrawerMonthRent():N2} due)" : "")</label>
+                                    <input class="ce-or-input" type="number" min="0" step="0.01" inputmode="decimal"
+                                           placeholder="0.00" @bind="CurrentPartial" @bind:event="oninput" />
+                                    <div class="ce-partial-hint">
+                                        Anything at or above the month's rent is recorded as fully Paid rather than partial.
+                                    </div>
+                                </div>
+                            }
+
+                            @if (eff == "collected" || eff == "partial")
                             {
                                 <div class="ce-or">
                                     <label class="ce-or-label">OR Number</label>
@@ -549,6 +580,7 @@
     private string? _saveError;
     private readonly Dictionary<string, string> _orNumbers = new();
     private readonly Dictionary<string, string> _fishKilos = new();
+    private readonly Dictionary<string, string> _partialAmounts = new();
 
     // Whether this space sits in the section that carries the per-kilo fee, read from the section ENUM. It compared
     // against "Fish Area" — Cantilan's own wording — so another municipality's fish section, named its own way, was
@@ -866,6 +898,32 @@
         set => _fishKilos[CurrentKey] = value ?? "";
     }
 
+    /// <summary>What was handed over on a part-settled month, kept per month like the OR number beside it.</summary>
+    private string CurrentPartial
+    {
+        get => _partialAmounts.GetValueOrDefault(CurrentKey, "");
+        set => _partialAmounts[CurrentKey] = value ?? "";
+    }
+
+    /// <summary>
+    /// Parsed amount for a partial month, or null when nothing usable was typed. The server refuses a partial of zero
+    /// or less, which is the check that matters; this keeps a stray character from being sent as a figure.
+    /// </summary>
+    private decimal? PartialValue() =>
+        decimal.TryParse(CurrentPartial, out var v) && v > 0m ? decimal.Round(v, 2) : null;
+
+    /// <summary>
+    /// What this month is billed in total, from the month's own record, so the amount field can state what it is a part
+    /// of. The whole bill, not the base rent alone: the rule that promotes a partial to fully Paid compares against the
+    /// total including any electricity and water on the record, so a figure quoted here that left them out would make
+    /// that promotion look arbitrary. Zero when the office has no record for the month yet, and then the field simply
+    /// asks for the amount.
+    /// </summary>
+    private decimal DrawerMonthRent() =>
+        !IsDay && _monthRecords.TryGetValue(_drawerMonth, out var r)
+            ? r.MonthlyRental + (r.ElecAmount ?? 0m) + (r.WaterAmount ?? 0m) + (r.FishFeeAmount ?? 0m)
+            : 0m;
+
     // Parsed fish weight for the current day — only for Fish Area payors; null (no fish fee) otherwise.
     private decimal? FishKilosValue()
     {
@@ -879,11 +937,20 @@
         _pendingStatus = status == DrawerStatus() ? null : status;
         _ackEdit = false;
         _saveError = null;
+
+        // Opening Partial on a month already part-settled starts from what was recorded, so the officer is correcting a
+        // figure rather than retyping it from the ledger. Only when nothing has been typed for this month yet.
+        if (status == "partial" && string.IsNullOrWhiteSpace(CurrentPartial)
+            && _monthRecords.TryGetValue(_drawerMonth, out var rec)
+            && rec.Status == PaymentStatus.Partial && rec.TotalPaid > 0m)
+        {
+            CurrentPartial = rec.TotalPaid.ToString("0.##");
+        }
     }
 
     private string PendingLabel() => _pendingStatus switch
     {
-        "collected" => IsNpm ? "Collected" : "Paid", "missed" => "Unpaid", "excused" => "Excused", _ => ""
+        "collected" => IsNpm ? "Collected" : "Paid", "missed" => "Unpaid", "excused" => "Excused", "partial" => "Partial", _ => ""
     };
 
     private void CancelPending() { _pendingStatus = null; _ackEdit = false; _saveError = null; }
@@ -935,6 +1002,35 @@
                 res = await PaymentsApi.RecordPaymentAsync(
                     new RecordPaymentCommand(SelectedStall.Id, _year, _drawerMonth, PaymentStatus.Paid, null, null, or));
             }
+            else if (_pendingStatus == "partial")
+            {
+                // The figure is required: a month marked partial without an amount would tell the reports that
+                // something was collected while leaving the balance untouched, which reconciles to nothing.
+                if (PartialValue() is not { } amount)
+                {
+                    _saving = false;
+                    _saveError = "Enter the amount collected for this month.";
+                    return;
+                }
+
+                // Same order as Paid: a month cannot be both excused and part-settled.
+                if (cur == "excused")
+                {
+                    var cleared = await PaymentsApi.ClearMonthlyExceptionAsync(
+                        new ClearStallMonthlyExceptionCommand(SelectedStall.Id, _year, _drawerMonth));
+                    if (!cleared.IsSuccess)
+                    {
+                        _saving = false;
+                        _saveError = cleared.Error ?? "Unable to save. Please try again.";
+                        return;
+                    }
+                }
+
+                // The amount travels on the command the office's other payment paths already use, so a month
+                // part-settled here is the same record, read the same way by every report.
+                res = await PaymentsApi.RecordPaymentAsync(
+                    new RecordPaymentCommand(SelectedStall.Id, _year, _drawerMonth, PaymentStatus.Partial, amount, null, or));
+            }
             else // "missed" → unpaid
             {
                 // From excused: clearing the exception returns the month to owing. Otherwise mark Unpaid.
@@ -951,6 +1047,7 @@
         {
             _orNumbers.Remove(CurrentKey);
             _fishKilos.Remove(CurrentKey);
+            _partialAmounts.Remove(CurrentKey);
             await LoadPeriod();
             CloseDrawer();
         }
