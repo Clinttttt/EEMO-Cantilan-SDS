@@ -7,15 +7,15 @@
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
-<PageTitle>StallTrack — Month-End Report</PageTitle>
+<PageTitle>StallTrack — Monthly Collection Report</PageTitle>
 
 <header class="topbar no-print">
     <div class="topbar-left">
-        <div class="topbar-title">Month-End Report</div>
+        <div class="topbar-title">Monthly Collection Report</div>
         <div class="topbar-breadcrumb">
             <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
             <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-active">Month-End Report</span>
+            <span class="breadcrumb-active">Monthly Collection Report</span>
         </div>
     </div>
     <div class="topbar-right">
@@ -185,7 +185,8 @@
                 <div class="me-gov">Republic of the Philippines</div>
                 <div class="me-org">@Branding.OfficeName</div>
                 <div class="me-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="me-doc">@Report.PeriodLabel</div>
+                <div class="me-doc">Monthly Collection Report</div>
+                <div class="me-period-line">@PeriodLine</div>
             </header>
 
             @if (_facility is not null || HasSearch)
@@ -743,6 +744,26 @@
             1 => ors[0],
             _ => $"{ors.Count} ORs"
         };
+    }
+
+    /// <summary>
+    /// The period the sheet covers, and for a month still running, the day the figures stop at.
+    ///
+    /// <para>
+    /// The sheet used to be titled a month-end report, which claimed something it does not do: nothing here waits for
+    /// the month to close, and the office reads August on the twenty-second. A closed month is stated plainly; the
+    /// current one says as of which day it was taken, so a printed copy cannot be mistaken for the final position.
+    /// </para>
+    /// </summary>
+    private string PeriodLine
+    {
+        get
+        {
+            var today = PhilippineTime.Today;
+            return Year == today.Year && Month == today.Month
+                ? $"{Report!.PeriodLabel} · as of {today:MMMM d, yyyy}"
+                : Report!.PeriodLabel;
+        }
     }
 
     /// <summary>Which facilities have their utilities table open. Nothing is open until the office asks.</summary>

@@ -684,6 +684,13 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
+**The sheet is a Monthly Collection Report, not a month-end one.** Renamed 2026-08-22 at the office's request, after they
+pointed out the title claimed something the document does not do: nothing about it waits for the month to close, and the
+office opens August on the twenty second. A closed month prints its period plainly; a month still running prints "as of"
+the day the figures were taken, so a filed copy cannot be mistaken for the final position. The route
+(`/reports/month-end`) and the C# type names were deliberately left alone — a bookmark should keep working, and renaming
+`MonthEndReportDto` would be churn the office never sees.
+
 **No LGU holds destructive power over another's data.** Raised by the office itself (2026-08-20) and acted on 2026-08-21.
 The platform operator is now an account carrying the `IsPlatformOperator` flag and nothing else: `PlatformOperatorPolicy.IsOperator`
 takes one argument and returns it. Until then the policy also accepted `isDefaultTenant && role == SuperAdmin`, a documented
