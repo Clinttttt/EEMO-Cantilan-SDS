@@ -1,4 +1,4 @@
-namespace EEMOCantilanSDS.Application.Dtos.Facilities;
+﻿namespace EEMOCantilanSDS.Application.Dtos.Facilities;
 
 public record StallComplianceDto(
     Guid StallId,
@@ -23,5 +23,8 @@ public record StallComplianceDto(
     decimal ExpectedBill,
     // Count of excused/absent days for this stall within the selected period (NPM only; 0 elsewhere).
     // Surfaced so the admin sees WHY a payor owes less / shows the distinct "Absent" status.
-    int AbsentDays = 0
+    int AbsentDays = 0,
+    // Fish kilos weighed for this stall over the period (NPM only; 0 elsewhere). Recorded on the daily collection
+    // whichever way the stall settled, so it is summed independently of how the money was counted.
+    decimal FishKilos = 0m
 );

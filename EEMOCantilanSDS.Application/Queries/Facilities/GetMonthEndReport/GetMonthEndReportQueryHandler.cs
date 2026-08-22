@@ -91,7 +91,8 @@ public class GetMonthEndReportQueryHandler(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,
                         MonthlyCoverage: coverage,
                         MonthlyCoverageBalance: isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m,
-                        Section: s.Section);
+                        Section: s.Section,
+                        FishKilos: s.FishKilos);
                 })
                 .ToList();
 

@@ -230,6 +230,11 @@
                     @if (f.IsRental && payors.Count > 0)
                     {
                         var isDaily = f.Code == FacilityCode.NPM;
+                        @* The kilos column appears only when the view holds kilos, so a market with no weighing and
+                           every other facility print the sheet they printed before. *@
+                        var showKilos = isDaily && payors.Any(p => p.FishKilos > 0);
+                        var areas = PayorAreas(payors);
+                        var columnCount = (isDaily ? 8 : 7) + (showKilos ? 1 : 0);
                         <div class="me-table-wrap"><table class="me-table">
                             <thead>
                                 <tr>
@@ -237,6 +242,10 @@
                                     <th>@(isDaily ? "Vendor" : "Payor")</th>
                                     <th class="me-num">@(isDaily ? "Daily Rate" : "Monthly Rate")</th>
                                     <th>Status</th>
+                                    @if (showKilos)
+                                    {
+                                        <th class="me-num">Fish (kg)</th>
+                                    }
                                     <th class="me-num">Collected</th>
                                     <th class="me-num">@(isDaily ? "Due to Date" : "Balance")</th>
                                     @if (isDaily)
@@ -253,12 +262,12 @@
                             <tbody>
                                 @* Read area by area when the facility has areas, because that is how the market is
                                    walked and how the office reconciles it. One group, or none, prints as a plain list. *@
-                                @foreach (var area in PayorAreas(payors))
+                                @foreach (var area in areas)
                                 {
                                     @if (area.Key.Length > 0)
                                     {
                                         <tr class="me-area-row">
-                                            <td colspan="@(isDaily ? 8 : 7)">@SectionLabel(f.Code, area.Key)</td>
+                                            <td colspan="@columnCount">@SectionLabel(f.Code, area.Key)</td>
                                         </tr>
                                     }
                                     @foreach (var p in area)
@@ -268,6 +277,10 @@
                                             <td>@p.Payor</td>
                                             <td class="me-num">@Money(isDaily ? p.DailyRate : p.MonthlyRate)</td>
                                             <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
+                                            @if (showKilos)
+                                            {
+                                                <td class="me-num">@(p.FishKilos > 0 ? Kilos(p.FishKilos) : "—")</td>
+                                            }
                                             <td class="me-num">@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
                                             <td class="me-num @(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
                                             @if (isDaily)
@@ -281,12 +294,17 @@
                                             }
                                         </tr>
                                     }
-                                    @if (area.Key.Length > 0 && PayorAreas(payors).Count > 1)
+                                    @if (area.Key.Length > 0 && areas.Count > 1)
                                     {
                                         var areaCollected = area.Sum(p => p.AmountPaid);
                                         var areaBalance = area.Sum(p => p.Balance);
                                         <tr class="me-area-sub">
                                             <td colspan="4">@SectionLabel(f.Code, area.Key) subtotal</td>
+                                            @if (showKilos)
+                                            {
+                                                var areaKilos = area.Sum(p => p.FishKilos);
+                                                <td class="me-num">@(areaKilos > 0 ? Kilos(areaKilos) : "—")</td>
+                                            }
                                             <td class="me-num">@Money(areaCollected)</td>
                                             <td class="me-num @(areaBalance > 0 ? "me-red" : "")">@(areaBalance > 0 ? Money(areaBalance) : "—")</td>
                                             @if (isDaily)
@@ -305,6 +323,11 @@
                             <tfoot>
                                 <tr>
                                     <td colspan="4"><strong>Subtotal — @f.Name</strong></td>
+                                    @if (showKilos)
+                                    {
+                                        var kilosTotal = payors.Sum(p => p.FishKilos);
+                                        <td class="me-num"><strong>@(kilosTotal > 0 ? Kilos(kilosTotal) : "—")</strong></td>
+                                    }
                                     <td class="me-num"><strong>@Money(collectedShown)</strong></td>
                                     <td class="me-num @(outstandingShown > 0 ? "me-red" : "")"><strong>@(outstandingShown > 0 ? Money(outstandingShown) : "—")</strong></td>
                                     @if (isDaily)
@@ -620,6 +643,13 @@
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    /// <summary>
+    /// Kilos as the office writes them: whole numbers plain, fractions to two places, never trailing zeros on a
+    /// round figure. A weighing scale reads 12.5, not 12.50, and 12 is not 12.00.
+    /// </summary>
+    private static string Kilos(decimal v) =>
+        v == decimal.Truncate(v) ? v.ToString("N0") : v.ToString("0.##");
 
     // Aggregate Date/OR for a transaction payor row. A single date/OR shows directly; multiple values
     // (a payor with several receipts across the month) collapse to a professional summary, with the

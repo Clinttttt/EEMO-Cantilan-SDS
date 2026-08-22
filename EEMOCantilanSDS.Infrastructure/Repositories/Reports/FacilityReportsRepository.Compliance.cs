@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -120,6 +120,21 @@ public partial class FacilityReportsRepository
                     g => g.GroupBy(x => (x.CollectionDate.Year, x.CollectionDate.Month))
                           .ToDictionary(m => m.Key, m => m.Sum(x => x.DailyFee + (x.MonthEndAdjustment ?? 0m))))
             : new Dictionary<Guid, Dictionary<(int Year, int Month), decimal>>();
+
+        // Fish kilos weighed per stall over the period. Its own read rather than a column on dailyRowsByStall above,
+        // because that dictionary deliberately EXCLUDES stalls carrying a monthly payment for the period — correct for
+        // settling money, wrong for kilos, which are recorded on the daily row whichever way the stall paid. Summed in
+        // the database, and only for the market.
+        var fishKilosByStall = includeFish
+            ? (await _context.DailyCollections
+                    .AsNoTracking()
+                    .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
+                        && dc.CollectionDate >= complianceStart && dc.CollectionDate <= complianceEnd)
+                    .GroupBy(dc => dc.StallId)
+                    .Select(g => new { StallId = g.Key, Kilos = g.Sum(x => x.FishKilos ?? 0m) })
+                    .ToListAsync(ct))
+                .ToDictionary(x => x.StallId, x => x.Kilos)
+            : new Dictionary<Guid, decimal>();
 
         // Excused/absent dates per stall (this year, up to the report month) — used to drop absent days
         // out of the NPM obligation and to skip fully-absent months in the missed-months count.
@@ -308,7 +323,8 @@ public partial class FacilityReportsRepository
                 contract?.EffectivityDate,
                 contract?.DurationYears ?? 0,
                 rentBill,
-                absentDays));
+                absentDays,
+                fishKilosByStall.GetValueOrDefault(s.Id)));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();
