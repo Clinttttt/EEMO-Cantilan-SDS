@@ -185,13 +185,13 @@
                 <div class="me-gov">Republic of the Philippines</div>
                 <div class="me-org">@Branding.OfficeName</div>
                 <div class="me-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="me-doc">Comprehensive Month-End Collection Report — @Report.PeriodLabel</div>
+                <div class="me-doc">@Report.PeriodLabel</div>
             </header>
 
             @if (_facility is not null || HasSearch)
             {
                 <div class="me-scope-row">
-                    <span class="me-scope">Filtered view — <strong>@ScopeLabel</strong></span>
+                    <span class="me-scope">@ScopeLabel</span>
                 </div>
             }
 
