@@ -10,9 +10,21 @@ name: Publish Collector APK
 #   ANDROID_KEY_PASSWORD         key password
 #   GOOGLE_SERVICES_JSON_BASE64  base64 of Platforms/Android/google-services.json (untracked; needed to build)
 #
-# Optional (enables AUTO-PUBLISH to app.stalltrack.site so the download link updates itself):
+# Optional (enables AUTO-PUBLISH of the download PAGE to app.stalltrack.site):
 #   AZURE_SWA_DEPLOY_TOKEN       Static Web App deployment token
 #     az staticwebapp secrets list -n stalltrack-app-site -g stalltrack-prod-rg --query "properties.apiKey" -o tsv
+#
+# WHERE THE APK IS SERVED FROM, and why it moved (2026-08-22):
+#   The signed APK is attached to a GitHub Release, and the download link points at
+#   https://github.com/<owner>/<repo>/releases/latest/download/stalltrack-collector-latest.apk
+#   which always resolves to the newest release's asset.
+#
+#   It used to be deployed as part of the static site and served from app.stalltrack.site/download/. Measured
+#   2026-08-22: four of eight full downloads of that 41 MB file returned Azure Static Web Apps' own
+#   "500 Internal Server Error" page instead of the file, which is what left collectors with a 0 KB .apk. The
+#   file, its content type and its range handling were all correct; the host simply failed on the large body.
+#   Static Web Apps is built for small assets. The release CDN is built for binaries, so the site now carries
+#   only the page and the APK is never served through it.
 
 on:
   workflow_dispatch:
@@ -26,8 +38,9 @@ on:
         required: false
         default: ""
 
+# Writing is needed to attach the APK to a release. Nothing else in this workflow writes to the repository.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -92,29 +105,60 @@ jobs:
           if [ -n "$VCODE" ]; then ARGS="$ARGS -p:ApplicationVersion=$VCODE"; fi
           dotnet publish EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj $ARGS
 
-      - name: Stage APK (and seal) into the site folder
+      - name: Stage the signed APK
         run: |
           set -e
-          mkdir -p mobile-app-site/download mobile-app-site/assets
-          find EEMOCantilanSDS.Mobile/bin/Release/net10.0-android -name "*-Signed.apk" -print -exec cp {} mobile-app-site/download/stalltrack-collector-latest.apk \;
+          mkdir -p dist
+          # The asset keeps this exact name so the "latest release" download URL never changes between releases.
+          find EEMOCantilanSDS.Mobile/bin/Release/net10.0-android -name "*-Signed.apk" -print \
+            -exec cp {} dist/stalltrack-collector-latest.apk \;
+          ls -la dist
+          test -s dist/stalltrack-collector-latest.apk
+
+      - name: Refresh the seal on the download page
+        run: |
+          set -e
+          mkdir -p mobile-app-site/assets
           cp EEMOCantilanSDS.Mobile/wwwroot/images/stalltrack-seal.png mobile-app-site/assets/seal.png || true
-          ls -la mobile-app-site/download
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: stalltrack-collector-apk
-          path: mobile-app-site/download/stalltrack-collector-latest.apk
+          path: dist/stalltrack-collector-latest.apk
           if-no-files-found: error
           retention-days: 90
 
-      # Auto-publish the site (with the fresh APK) straight to app.stalltrack.site/download/ so the download
-      # link updates itself — no manual copy/deploy. Skipped when AZURE_SWA_DEPLOY_TOKEN isn't set (then just
-      # grab the artifact above).
-      - name: Publish to app.stalltrack.site
+      # Where collectors actually download from. A release per publish, with the asset under a fixed name, so
+      # /releases/latest/download/stalltrack-collector-latest.apk always points at the newest build.
+      - name: Attach the APK to a GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VNAME: ${{ github.event.inputs.versionName }}
+          VCODE: ${{ github.event.inputs.versionCode }}
+        run: |
+          set -e
+          TAG="collector-${VNAME:-build}-${VCODE:-$GITHUB_RUN_NUMBER}"
+          SIZE=$(stat -c%s dist/stalltrack-collector-latest.apk)
+          echo "Publishing $TAG ($SIZE bytes)"
+          # --clobber so re-running the same tag replaces the asset rather than failing halfway.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/stalltrack-collector-latest.apk --clobber
+          else
+            gh release create "$TAG" dist/stalltrack-collector-latest.apk \
+              --title "Collector app ${VNAME:-build} (${VCODE:-$GITHUB_RUN_NUMBER})" \
+              --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes." \
+              --latest
+          fi
+          echo "Published: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/stalltrack-collector-latest.apk"
+
+      # The download PAGE only. The APK is not deployed here any more: this host returned intermittent 500s on
+      # the 41 MB body, which is what produced the 0 KB downloads. Old links keep working through the redirect
+      # stated in staticwebapp.config.json.
+      - name: Publish the download page to app.stalltrack.site
         if: ${{ env.SWA_TOKEN != '' }}
         run: |
           set -e
           npm install -g @azure/static-web-apps-cli
           swa deploy ./mobile-app-site --deployment-token "$SWA_TOKEN" --env production
-          echo "Published: https://app.stalltrack.site/download/stalltrack-collector-latest.apk"
+          echo "Published the page: https://app.stalltrack.site/"

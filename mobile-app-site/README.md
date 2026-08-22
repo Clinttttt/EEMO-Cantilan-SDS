@@ -1,25 +1,33 @@
 # StallTrack Collector — App Distribution Site (`app.stalltrack.site`)
 
-Static site that hosts the collector APK download, the **bind-link** landing page (`/a/{token}`), and the
+Static site for the collector app: the **bind-link** landing page (`/a/{token}`), the download button, and the
 Android App Links verification file (`/.well-known/assetlinks.json`). This is **Unit 3** of the mobile
 publishing / bind-link stage. It is purely static — nothing here touches the running API/web/DB.
 
 ```
 mobile-app-site/
 ├── index.html                     landing + download + bind-link ("invited") page
-├── staticwebapp.config.json       routes, /a/{token} fallback, .apk MIME type
+├── staticwebapp.config.json       routes, /a/{token} fallback, the old-download redirect
 ├── .well-known/
 │   └── assetlinks.json            App Links proof (needs the release signing fingerprint)
 ├── assets/
 │   └── seal.png                   (add) platform seal shown in the hero; falls back to a monogram
-└── download/
-    └── stalltrack-collector-latest.apk   (add) the signed release APK
+└── download/                      no APK here any more — see below
 ```
 
+**The APK is NOT served from this site.** It is attached to a GitHub Release, and the download button points at
+`https://github.com/Clinttttt/EEMO-Cantilan-SDS/releases/latest/download/stalltrack-collector-latest.apk`,
+which always resolves to the newest release. `staticwebapp.config.json` redirects the old
+`/download/stalltrack-collector-latest.apk` path there, so links already shared keep working.
+
+Why it moved (2026-08-22): measured from production, four of eight full downloads of the 41 MB file returned
+Azure Static Web Apps' own "500 Internal Server Error" page instead of the file, which is what left collectors
+with a 0 KB `.apk`. The file, its content type and its range handling were all correct; the host simply failed
+on the large body. Static Web Apps is built for small assets, the release CDN for binaries.
+
 The bind/download URLs the Head shares come from the API (`Mobile:AppBaseUrl`, default
-`https://app.stalltrack.site`; `Mobile:DownloadUrl`, default
-`https://app.stalltrack.site/download/stalltrack-collector-latest.apk`). Keep this site's paths in sync
-with those, or override the two app settings.
+`https://app.stalltrack.site`; `Mobile:DownloadUrl`, which must be set to the release URL above so the in-app
+update check and the bind-link page agree).
 
 ---
 
