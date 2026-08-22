@@ -407,6 +407,34 @@
                         </div>
 
                         <div class="ce-drawer-body">
+                            @if (!IsDay && DrawerRecord() is { } rec)
+                            {
+                                @* What this month stands at, before anything is changed. A part-settled month is the case
+                                   that needs it most: "Partial" alone does not say how much was handed over or what is
+                                   still owed, and the officer is about to act on exactly those two figures. *@
+                                <div class="ce-standing">
+                                    <div class="ce-standing-item">
+                                        <span class="ce-standing-lbl">Billed</span>
+                                        <span class="ce-standing-val">@Money(DrawerMonthRent())</span>
+                                    </div>
+                                    <div class="ce-standing-item">
+                                        <span class="ce-standing-lbl">Collected</span>
+                                        <span class="ce-standing-val">@Money(rec.TotalPaid)</span>
+                                    </div>
+                                    <div class="ce-standing-item">
+                                        <span class="ce-standing-lbl">Current balance</span>
+                                        <span class="ce-standing-val @(rec.BalanceDue > 0m ? "ce-standing-owed" : "")">@Money(rec.BalanceDue)</span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(rec.ORNumber))
+                                    {
+                                        <div class="ce-standing-item">
+                                            <span class="ce-standing-lbl">OR</span>
+                                            <span class="ce-standing-val">@rec.ORNumber</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
                             <div class="ce-set-label">Set status</div>
                             <div class="ce-set-opts">
                                 <button class="ce-set-opt ce-set-paid @(eff == "collected" ? "ce-set-on" : "") @(DrawerIsFuture() ? "ce-set-disabled" : "")" type="button" disabled="@DrawerIsFuture()" @onclick='() => ChooseStatus("collected")'>
@@ -911,6 +939,10 @@
     /// </summary>
     private decimal? PartialValue() =>
         decimal.TryParse(CurrentPartial, out var v) && v > 0m ? decimal.Round(v, 2) : null;
+
+    /// <summary>The month's own record, when the office has one. Null for a month nothing has been recorded against.</summary>
+    private PaymentRecordDto? DrawerRecord() =>
+        !IsDay && _monthRecords.TryGetValue(_drawerMonth, out var r) ? r : null;
 
     /// <summary>
     /// What this month is billed in total, from the month's own record, so the amount field can state what it is a part

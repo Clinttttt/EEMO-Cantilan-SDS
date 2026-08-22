@@ -54,7 +54,9 @@
 @if (Show)
 {
     <div class="ub-overlay" @onclick="Close">
-        <div class="ub-modal" @onclick:stopPropagation="true">
+        @* Two columns when the stall is billed for both utilities, so electricity and water are read side by side
+           instead of one scrolling under the other. A stall billed for one keeps the single narrow column. *@
+        <div class="ub-modal @(ShowElec && ShowWater ? "ub-modal-two" : "")" @onclick:stopPropagation="true">
             <div class="ub-head">
                 <div>
                     <div class="ub-title">Utility Bill</div>

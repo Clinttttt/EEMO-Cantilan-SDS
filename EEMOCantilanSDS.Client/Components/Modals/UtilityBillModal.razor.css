@@ -19,6 +19,27 @@
 
 .ub-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 
+/* ── Both utilities: side by side ──────────────────────────────────────────────────────────────────────
+   A stall billed for electricity AND water put one meter under the other in a 520px column, so the office
+   scrolled the second into view, recorded it, then scrolled back to check the first. Read together they fit
+   the page. A stall billed for one utility is untouched, and so is every narrow screen: below 900px this
+   returns to the single column, because two of these side by side would be too cramped to type in. */
+.ub-modal-two { max-width: 940px; }
+
+@media (min-width: 900px) {
+    .ub-modal-two .ub-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+
+    /* Anything that is not a meter states something about the bill as a whole. */
+    .ub-modal-two .ub-body > :not(.ub-meter) {
+        grid-column: 1 / -1;
+    }
+}
+
 /* ── One meter, stated as a section of the bill ──
    Its own name and unit on the left, the period it bills on the right, then the three readings, then what they
    come to. The office reads a usage figure and an amount due; the multiplication that produced them is not
