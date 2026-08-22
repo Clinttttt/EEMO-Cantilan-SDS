@@ -69,8 +69,15 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
         if (!result.IsSuccess || result.Value is null) return NotFound();
 
         var seal = result.Value;
-        Response.Headers.ETag = seal.ETag;
-        return File(seal.Content, seal.ContentType);
+
+        // The tag is handed to File rather than written as a header, which is what makes a conditional request work:
+        // setting it by hand emits the tag but leaves the framework unaware of it, so a browser sending If-None-Match
+        // was answered 200 with the whole image again. Measured against the deployed endpoint, which is how it was
+        // caught. It matters little while the address is cached for a year, but a revalidating proxy or an evicted
+        // cache should be answered 304 rather than resent 9 KB.
+        return File(seal.Content, seal.ContentType, fileDownloadName: null,
+                    lastModified: null,
+                    entityTag: new Microsoft.Net.Http.Headers.EntityTagHeaderValue(seal.ETag));
     }
 
     /// <summary>
