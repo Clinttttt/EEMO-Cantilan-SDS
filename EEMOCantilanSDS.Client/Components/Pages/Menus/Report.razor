@@ -495,9 +495,15 @@
                             </tr>
                             @if (open && f.Detail is { } nd)
                             {
-                                @* What the row's Collected is made of. Electricity and water are named rather than left
-                                   as the remainder they used to be printed as, so the four lines add up to the total in
-                                   the column above in front of the officer. *@
+                                @* What the row's Collected is made of. Electricity and water are named when any was
+                                   collected, rather than falling into the leftover line, so the lines add up to the total
+                                   in the column above.
+
+                                   The panels beside this one are deliberately left as the office had them. Naming the
+                                   utilities due inside Outstanding and totalling it there was tried and reverted: the
+                                   subtotal landed above the full-month coverage lines, which made the group read as
+                                   though it ended halfway down. What is owed on electricity and water keeps its own
+                                   panel, where the office is used to finding it. *@
                                 var utilities = nd.ElecCollected + nd.WaterCollected;
                                 var other = f.Collected - nd.DailyFeeCollected - nd.FishCollected - utilities;
                                 <tr class="fac-detail-row">
@@ -520,13 +526,6 @@
                                             <div class="fac-detail-group">
                                                 <div class="fac-detail-heading">Outstanding</div>
                                                 <div class="fac-detail-item"><span>Unpaid this period</span><strong class="fac-detail-red">@Money(nd.PeriodBalance)</strong></div>
-                                                @if (nd.UtilityOutstanding > 0)
-                                                {
-                                                    @* Named here, and totalled, because the column above now counts it. It used to
-                                                       sit in a group of its own, which read as a figure outside the outstanding. *@
-                                                    <div class="fac-detail-item"><span>Electricity &amp; water due</span><strong class="fac-detail-red">@Money(nd.UtilityOutstanding)</strong></div>
-                                                    <div class="fac-detail-item fac-detail-total"><span>Total outstanding</span><strong class="fac-detail-red">@Money(f.Unpaid ?? 0m)</strong></div>
-                                                }
                                                 @if (nd.FullMonthCoverage > 0)
                                                 {
                                                     <div class="fac-detail-item"><span>Full-month coverage  ₱900</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
@@ -537,9 +536,8 @@
                                                     <div class="fac-detail-item"><span>Full-month coverage balance</span><strong class="fac-detail-red">@Money(nd.FullMonthCoverageBalance)</strong></div>
                                                 }
                                             </div>
-                                            @if (nd.ElecCollected > 0 || nd.WaterCollected > 0)
+                                            @if (nd.ElecCollected > 0 || nd.WaterCollected > 0 || nd.UtilityOutstanding > 0)
                                             {
-                                                @* The split, since the breakdown above states the pair as one line. *@
                                                 <div class="fac-detail-group">
                                                     <div class="fac-detail-heading">Electricity &amp; Water</div>
                                                     <div class="fac-detail-item"><span>Electricity</span><strong>@Money(nd.ElecCollected)</strong></div>
@@ -547,11 +545,8 @@
                                                     <div class="fac-detail-item fac-detail-total"><span>Total collected</span><strong>@Money(utilities)</strong></div>
                                                 </div>
                                             }
-                                            @if (nd.UtilityOutstanding > 0 && nd.ElecCollected + nd.WaterCollected == 0)
+                                            @if (nd.UtilityOutstanding > 0)
                                             {
-                                                @* Nothing was paid, so there is no split to show; the amount due is
-                                                   already named under Outstanding, and this states it on its own for a
-                                                   period where electricity and water are the whole of what is owed. *@
                                                 <div class="fac-detail-group">
                                                     <div class="fac-detail-heading">Utilities Due</div>
                                                     <div class="fac-detail-item"><span>Electricity &amp; water</span><strong class="fac-detail-red">@Money(nd.UtilityOutstanding)</strong></div>

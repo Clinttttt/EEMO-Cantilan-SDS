@@ -128,7 +128,8 @@ public record FinancialFacilityRowDto(
 /// Full-month coverage is the fixed 30-day ₱900 reference summed per occupied stall; its balance is summed per stall as
 /// max(0, ₱900 − that stall's amount paid) — identical to the Month-End report. <see cref="PeriodBalance"/>
 /// is the selected period's assessed STALL-FEE obligation minus collected (whole-period, e.g. the full month or
-/// full year); the row's "Unpaid (period)" column is that plus <see cref="UtilityOutstanding"/>.
+/// full year); the row's "Unpaid (period)" column is that plus <see cref="UtilityOutstanding"/>, which the expandable
+/// row states in its own "Utilities Due" panel rather than inside Outstanding.
 /// </summary>
 public record NpmFacilityDetailDto(
     decimal DailyFeeCollected,
