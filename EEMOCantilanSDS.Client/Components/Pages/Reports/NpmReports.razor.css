@@ -1070,9 +1070,11 @@
     overflow: hidden;
 }
 
+/* No fill, matching the other facilities' reports. The amount is already set in the office's red, which carries the
+   meaning; a tinted panel behind it reads as highlighter on a government screen and prints as a grey block. */
 .delinq-exposure {
-    background: var(--red-bg);
-    border-bottom: 1px solid #f5d0d0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
     padding: 14px 20px;
     display: flex;
     align-items: baseline;
