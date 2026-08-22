@@ -51,7 +51,11 @@ public record MonthEndPayorDto(
     // alongside the existing daily-based Balance — they do not alter any existing collection logic and
     // stay 0 for every non-NPM facility.
     decimal MonthlyCoverage = 0m,
-    decimal MonthlyCoverageBalance = 0m
+    decimal MonthlyCoverageBalance = 0m,
+    // Which area of the market this space is in, so a market sheet can be read area by area. Carries the CANONICAL
+    // wording for a canonical section, which the portal maps to the office's own name for it, and the office's own
+    // custom name for a section it invented. Empty for a facility that has no areas.
+    string Section = ""
 );
 
 /// <summary>

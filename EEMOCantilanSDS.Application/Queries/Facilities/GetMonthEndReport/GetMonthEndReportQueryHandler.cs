@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -90,7 +90,8 @@ public class GetMonthEndReportQueryHandler(
                     return new MonthEndPayorDto(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,
                         MonthlyCoverage: coverage,
-                        MonthlyCoverageBalance: isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m);
+                        MonthlyCoverageBalance: isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m,
+                        Section: s.Section);
                 })
                 .ToList();
 

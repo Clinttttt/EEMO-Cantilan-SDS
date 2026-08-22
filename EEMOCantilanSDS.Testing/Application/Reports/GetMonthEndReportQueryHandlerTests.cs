@@ -21,6 +21,10 @@ public class GetMonthEndReportQueryHandlerTests
     private static StallComplianceDto Payor(string stallNo, string occupant, decimal rate, string status, decimal paid, decimal balance, string? or) =>
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", rate, 0m, status, paid, balance, or, 0, 0, null, 0, paid + balance);
 
+    /// <summary>A payor in a named area of the market, for the sheet that reads area by area.</summary>
+    private static StallComplianceDto PayorIn(string section, string stallNo, string occupant, decimal paid, decimal balance) =>
+        new(Guid.NewGuid(), stallNo, occupant, occupant, section, "", 900m, 30m, "Partial", paid, balance, null, 0, 0, null, 0, paid + balance);
+
     private static FacilityReportsDto Report(decimal collected, decimal outstanding, decimal rate, int paid, int partial, int unpaid, IReadOnlyList<StallComplianceDto> compliance) =>
         new(
             TotalRevenue: collected,
@@ -206,6 +210,86 @@ public class GetMonthEndReportQueryHandlerTests
         // 3455 / (3455 + 600) = 85.2% -> 85
         Assert.Equal(85, report.OverallCollectionRate);
         Assert.Equal("June 2026", report.PeriodLabel);
+    }
+
+    [Fact]
+    public async Task EachPayorCarriesTheAreaItOccupies_SoTheSheetCanReadAreaByArea()
+    {
+        // The market is walked area by area and reconciled that way, so the sheet groups its rows by area with a
+        // subtotal each. That needs the area on every row; before this it was dropped between the compliance rows and
+        // the report, and the sheet could only print one flat list.
+        //
+        // The wording carried here is the CANONICAL name. The portal maps it to whatever this office calls that area,
+        // which is why nothing downstream may group on the words: two offices naming the same area differently must
+        // still produce one group.
+        var reportsRepo = new Mock<IFacilityReportsRepository>();
+        var npm = Report(210m, 960m, 18m, paid: 0, partial: 3, unpaid: 0, new[]
+        {
+            PayorIn("Vegetable Area", "1", "Karmilita Log", 30m, 360m),
+            PayorIn("Vegetable Area", "2", "Justin Bieber", 30m, 330m),
+            PayorIn("Fish Area", "1", "Kim Chui", 150m, 270m),
+        });
+        var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
+        reportsRepo.Setup(r => r.GetFacilityReportsAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                code == FacilityCode.NPM ? npm : empty);
+
+        var handler = new GetMonthEndReportQueryHandler(
+            reportsRepo.Object,
+            EmptySlaughterRepo(),
+            EmptyTrmRepo(),
+            EmptyTpmRepo(),
+            AllFacilitiesRepo(),
+            CacheTestDoubles.FeeRateResolver,
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions());
+
+        var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
+        var npmFacility = report.Facilities.Single(f => f.Code == FacilityCode.NPM);
+
+        Assert.Equal(
+            new[] { "Vegetable Area", "Vegetable Area", "Fish Area" },
+            npmFacility.Payors.Select(p => p.Section));
+
+        // Grouped by that key, the areas total to the facility: 60 collected in one, 150 in the other.
+        var byArea = npmFacility.Payors.GroupBy(p => p.Section).ToDictionary(g => g.Key, g => g.Sum(p => p.AmountPaid));
+        Assert.Equal(60m, byArea["Vegetable Area"]);
+        Assert.Equal(150m, byArea["Fish Area"]);
+        Assert.Equal(npmFacility.Payors.Sum(p => p.AmountPaid), byArea.Values.Sum());
+    }
+
+    [Fact]
+    public async Task AFacilityWithNoAreas_CarriesNoArea_AndStillPrintsAsOneList()
+    {
+        // Every other facility has no areas, so its rows carry none and the sheet must not sprout an empty caption.
+        var reportsRepo = new Mock<IFacilityReportsRepository>();
+        var tcc = Report(1_000m, 0m, 100m, paid: 1, partial: 0, unpaid: 0, new[]
+        {
+            Payor("A1", "Ana Reyes", 1_000m, "Paid", 1_000m, 0m, "OR-1")
+        });
+        var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
+        reportsRepo.Setup(r => r.GetFacilityReportsAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                code == FacilityCode.TCC ? tcc : empty);
+
+        var handler = new GetMonthEndReportQueryHandler(
+            reportsRepo.Object,
+            EmptySlaughterRepo(),
+            EmptyTrmRepo(),
+            EmptyTpmRepo(),
+            AllFacilitiesRepo(),
+            CacheTestDoubles.FeeRateResolver,
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions());
+
+        var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
+        var facility = report.Facilities.Single(f => f.Code == FacilityCode.TCC);
+
+        Assert.All(facility.Payors, p => Assert.Equal(string.Empty, p.Section));
     }
 
     [Fact]

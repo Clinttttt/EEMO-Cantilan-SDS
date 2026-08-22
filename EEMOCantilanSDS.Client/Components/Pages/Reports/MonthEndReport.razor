@@ -251,25 +251,55 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var p in payors)
+                                @* Read area by area when the facility has areas, because that is how the market is
+                                   walked and how the office reconciles it. One group, or none, prints as a plain list. *@
+                                @foreach (var area in PayorAreas(payors))
                                 {
-                                    <tr class="@RowClass(p.Status)">
-                                        <td>@SpaceNumber.Display(p.StallNo)</td>
-                                        <td>@p.Payor</td>
-                                        <td class="me-num">@Money(isDaily ? p.DailyRate : p.MonthlyRate)</td>
-                                        <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
-                                        <td class="me-num">@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
-                                        <td class="me-num @(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
-                                        @if (isDaily)
-                                        {
-                                            <td class="me-num">@Money(p.MonthlyCoverage)</td>
-                                            <td class="me-num @(p.MonthlyCoverageBalance > 0 ? "me-red" : "")">@(p.MonthlyCoverageBalance > 0 ? Money(p.MonthlyCoverageBalance) : "—")</td>
-                                        }
-                                        @if (!isDaily)
-                                        {
-                                            <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
-                                        }
-                                    </tr>
+                                    @if (area.Key.Length > 0)
+                                    {
+                                        <tr class="me-area-row">
+                                            <td colspan="@(isDaily ? 8 : 7)">@SectionLabel(f.Code, area.Key)</td>
+                                        </tr>
+                                    }
+                                    @foreach (var p in area)
+                                    {
+                                        <tr class="@RowClass(p.Status)">
+                                            <td>@SpaceNumber.Display(p.StallNo)</td>
+                                            <td>@p.Payor</td>
+                                            <td class="me-num">@Money(isDaily ? p.DailyRate : p.MonthlyRate)</td>
+                                            <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
+                                            <td class="me-num">@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
+                                            <td class="me-num @(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
+                                            @if (isDaily)
+                                            {
+                                                <td class="me-num">@Money(p.MonthlyCoverage)</td>
+                                                <td class="me-num @(p.MonthlyCoverageBalance > 0 ? "me-red" : "")">@(p.MonthlyCoverageBalance > 0 ? Money(p.MonthlyCoverageBalance) : "—")</td>
+                                            }
+                                            @if (!isDaily)
+                                            {
+                                                <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
+                                            }
+                                        </tr>
+                                    }
+                                    @if (area.Key.Length > 0 && PayorAreas(payors).Count > 1)
+                                    {
+                                        var areaCollected = area.Sum(p => p.AmountPaid);
+                                        var areaBalance = area.Sum(p => p.Balance);
+                                        <tr class="me-area-sub">
+                                            <td colspan="4">@SectionLabel(f.Code, area.Key) subtotal</td>
+                                            <td class="me-num">@Money(areaCollected)</td>
+                                            <td class="me-num @(areaBalance > 0 ? "me-red" : "")">@(areaBalance > 0 ? Money(areaBalance) : "—")</td>
+                                            @if (isDaily)
+                                            {
+                                                <td class="me-num">@Money(area.Sum(p => p.MonthlyCoverage))</td>
+                                                <td class="me-num">@Money(area.Sum(p => p.MonthlyCoverageBalance))</td>
+                                            }
+                                            @if (!isDaily)
+                                            {
+                                                <td></td>
+                                            }
+                                        </tr>
+                                    }
                                 }
                             </tbody>
                             <tfoot>
@@ -622,6 +652,32 @@
             1 => ors[0],
             _ => $"{ors.Count} ORs"
         };
+    }
+
+    /// <summary>
+    /// The payors of a facility grouped by the area they occupy, areas in a stable order, unnamed spaces last.
+    ///
+    /// <para>
+    /// Grouping is on the key the server sends, never on the words shown, which is the same rule the rest of the
+    /// portal follows: an office that calls its vegetable area something else must not fall into a separate group
+    /// from one that does not.
+    /// </para>
+    /// </summary>
+    private static List<IGrouping<string, MonthEndPayorDto>> PayorAreas(IReadOnlyList<MonthEndPayorDto> payors) =>
+        payors.GroupBy(p => p.Section ?? string.Empty)
+              .OrderBy(g => g.Key.Length == 0)
+              .ThenBy(g => g.Key, StringComparer.Ordinal)
+              .ToList();
+
+    /// <summary>
+    /// What this office calls that area. The server sends the canonical wording for a canonical section, so it is
+    /// mapped back to its key and then asked of the facility's own record; a section the office invented arrives as
+    /// its own name already and is printed as it stands.
+    /// </summary>
+    private string SectionLabel(FacilityCode code, string section)
+    {
+        var canonical = EEMOCantilanSDS.Client.Services.FacilityState.SectionFromCanonical(section);
+        return canonical is { } s ? Facilities.SectionLabelOf(code, s) : section;
     }
 
     private static string StatusClass(string status) => status switch
