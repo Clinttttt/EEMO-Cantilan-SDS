@@ -3,11 +3,18 @@
    Neutral document styling: white cards, hairline rules, one red accent.
    ══════════════════════════════════════════════════════════════════ */
 
+/* Three columns of the SAME height, with each one's content spread to fill it.
+
+   They used to take their natural heights side by side (align-items: start), so the row ended ragged: the fee mix ran
+   longest, the compliance card stopped short of it, and the two figures on the right left a gap beneath them. Nothing
+   was misaligned in itself; the row simply never agreed on a height. Stretching the columns and letting each card
+   distribute its own content squares the row off, and the two headline figures share the height rather than floating at
+   the top of it. */
 .rpt-audit-row {
     display: grid;
     grid-template-columns: 1fr 1fr 280px;
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .audit-card {
@@ -16,6 +23,20 @@
     border-radius: 14px;
     padding: 18px 20px;
     box-shadow: 0 1px 4px rgba(13, 33, 55, .06);
+    display: flex;
+    flex-direction: column;
+}
+
+/* The fee-mix rows and the compliance figures take the room left after their heading, so both cards read from the same
+   top line and finish on the same bottom one. */
+.fm-list, .cmp-grid {
+    flex: 1 1 auto;
+    justify-content: center;
+}
+
+/* The compliance card's closing line sits on the floor of the card, level with the last fee-mix row. */
+.cmp-foot {
+    margin-top: auto;
 }
 
 .audit-card-head {
@@ -140,6 +161,13 @@
     flex-direction: column;
     gap: 16px;
 }
+
+    /* The two figures share the column's height instead of sitting at the top of it, so the right-hand edge of the row
+       finishes level with the two cards beside it. */
+    .audit-kpi-stack > .audit-number-card {
+        flex: 1 1 0;
+        justify-content: center;
+    }
 .audit-number-card {
     background: var(--bg-card);
     border: 1px solid var(--border);

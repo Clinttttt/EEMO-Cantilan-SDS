@@ -182,8 +182,37 @@
 
     /* Single-facility scope: the document's scope line already names the facility, and its
        collected/outstanding pair repeats the summary above, so the per-facility header row is dropped from
-       the paper/PDF copy only. The all-facilities report keeps it — there it separates the sections. */
+       the paper/PDF copy only. */
     .ex-sheet-single .ex-fac-head { display: none; }
+
+    /* ── All facilities: the head is trimmed rather than dropped ────────────────────────────────────────
+       Reported as cluttered on paper: the facility's name carried a model tag and its collected and
+       outstanding pair, over a heavy two-pixel rule, and the same two figures already appear in the summary
+       above and again in the table's own subtotal below. The tag, the figures and the rule go.
+
+       The NAME stays, deliberately. This copy carries every facility one after another, and without a name
+       above each table the reader cannot tell which facility a table belongs to — an unidentifiable table is
+       worse on a filed document than a cluttered one. On screen the whole head is untouched. */
+    .ex-facility .ex-fac-head {
+        border-bottom: none;
+        padding-bottom: 0;
+        margin-bottom: 6px;
+    }
+
+    .ex-facility .ex-fac-stats,
+    .ex-facility .ex-tag { display: none; }
+
+    .ex-facility .ex-fac-name { font-size: 12px; }
+
+    /* ── Tables across a page break ─────────────────────────────────────────────────────────────────────
+       A table that ran past the foot of a page left its rows on one sheet and its subtotal on another, with
+       no column headings above the continuation. The headings now repeat, the subtotal stays with the rows it
+       totals, and no single row is split down the middle. */
+    .ex-table thead { display: table-header-group; }
+    .ex-table tfoot { display: table-row-group; }
+    .ex-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .ex-facility { break-inside: auto; }
+    .ex-subtotal { break-before: avoid; page-break-before: avoid; }
 
     /* Compact letterhead on paper: landscape leaves little vertical room, and a full-size letterhead pushed
        the table onto the next sheet. */
