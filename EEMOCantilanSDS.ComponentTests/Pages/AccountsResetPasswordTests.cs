@@ -101,7 +101,10 @@ public class AccountsResetPasswordTests : TestContext
         OpenResetFor(cut, "Cly Sullano");
         cut.WaitForElement("#reset-confirm", RenderTimeout);
 
-        Assert.Contains("your own account", cut.Markup, StringComparison.OrdinalIgnoreCase);
+        // Asserted on the hint under the field, which is where the distinction now lives. It used to be asserted on the
+        // phrase "your own account", which the dialog still contains in the confirm field's placeholder, so the test
+        // would have passed on wording that says nothing about whose account is being reset.
+        Assert.Contains("Choose something only you know", cut.Markup);
         Assert.DoesNotContain("Give this password to the account holder", cut.Markup);
     }
 
@@ -118,7 +121,7 @@ public class AccountsResetPasswordTests : TestContext
 
         Assert.Contains("Ana Reyes", cut.Markup);
         Assert.Contains("Give this password to the account holder", cut.Markup);
-        Assert.DoesNotContain("your own account", cut.Markup);
+        Assert.DoesNotContain("Choose something only you know", cut.Markup);
     }
 
     [Fact]

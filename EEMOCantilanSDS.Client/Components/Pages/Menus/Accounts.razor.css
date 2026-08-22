@@ -999,6 +999,18 @@
         flex-shrink: 0;
     }
 
+/* The confirm field, which sits in a .form-input-wrap so the reveal button can be positioned inside its right edge.
+   The wrap is a flex container and the global .form-input states no width, so the input took the browser's default
+   size of about twenty characters: it stopped well short of the dialog's edge with the eye button stranded at the
+   right, which is the field reported as cut off. Every other page that uses the wrap supplies the width in its own
+   scoped stylesheet, and this dialog never did. Stated here rather than on the global .form-input, which forty other
+   forms share and some of them lay their inputs out inline. */
+.form-input-wrap .form-input {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+}
+
 /* Profile modal: badge strip + definition grid */
 .profile-badges {
     display: flex;

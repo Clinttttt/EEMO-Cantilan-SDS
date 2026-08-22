@@ -657,22 +657,9 @@
                 }
                 else
                 {
-                    <p class="confirm-text">
-                        @if (ResetIsSelf)
-                        {
-                            <span>Set a new password for <span class="confirm-name">your own account</span>. You will sign in with it from now on.</span>
-                        }
-                        else
-                        {
-                            <span>
-                                Set a new password for <span class="confirm-name">@ResetTargetName</span>.
-                                @if (ResetIsCollector)
-                                {
-                                    <span>They can sign in to the mobile app with it.</span>
-                                }
-                            </span>
-                        }
-                    </p>
+                    @* No opening paragraph. The header above already names the account, and the two fields are labelled,
+                       so it restated both at length. Whose account this is still governs the hint under the field, which
+                       is the one thing the labels do not say: your own password is kept, somebody else's is handed over. *@
                     <div class="form-group">
                         <label class="form-label">New Password <span class="req">*</span></label>
                         <div class="input-with-action">
@@ -685,10 +672,6 @@
                                 ? "Choose something only you know."
                                 : "Give this password to the account holder securely.")
                         </div>
-                    </div>
-                    <div class="security-note">
-                        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                        <span>@(ResetIsSelf ? "Security check — confirm it's really you before changing your password." : "Security check — confirm it's really you before changing someone's password.")</span>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="reset-confirm">Confirm With Your Password <span class="req">*</span></label>
