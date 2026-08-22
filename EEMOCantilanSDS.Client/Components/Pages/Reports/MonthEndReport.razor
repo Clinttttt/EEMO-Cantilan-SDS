@@ -433,8 +433,7 @@
                     @if (UtilityRows(f) is { Count: > 0 } utilities)
                     {
                         <button type="button" class="me-util-btn no-print" @onclick="() => ToggleUtilities(f.Code)">
-                            @(_utilitiesOpen.Contains(f.Code) ? "Hide" : "Show") electricity and water
-                            <span class="me-util-count">@utilities.Count</span>
+                            @(_utilitiesOpen.Contains(f.Code) ? "Hide" : "Show") Miscellaneous
                         </button>
 
                         @if (_utilitiesOpen.Contains(f.Code))
@@ -580,7 +579,9 @@
     {
         get
         {
-            var scope = _facility is null ? "All facilities" : $"{_facility} — {Facilities.NameOf(_facility.Value)}";
+            // The facility's own name, without its code. The code is an internal handle; on a filed sheet the name is
+            // what identifies the place, and "NPM — New Public Market" says it twice.
+            var scope = _facility is null ? "All facilities" : Facilities.NameOf(_facility.Value);
             return HasSearch ? $"{scope} · matching “{_search.Trim()}”" : scope;
         }
     }
@@ -752,7 +753,8 @@
     /// <para>
     /// The sheet used to be titled a month-end report, which claimed something it does not do: nothing here waits for
     /// the month to close, and the office reads August on the twenty-second. A closed month is stated plainly; the
-    /// current one says as of which day it was taken, so a printed copy cannot be mistaken for the final position.
+    /// current one states the day it was taken, so a printed copy cannot be mistaken for the final position. The month
+    /// is not repeated before it: the date already carries the month, and stating both said it twice.
     /// </para>
     /// </summary>
     private string PeriodLine
@@ -761,7 +763,7 @@
         {
             var today = PhilippineTime.Today;
             return Year == today.Year && Month == today.Month
-                ? $"{Report!.PeriodLabel} · as of {today:MMMM d, yyyy}"
+                ? $"As of {today:MMMM d, yyyy}"
                 : Report!.PeriodLabel;
         }
     }

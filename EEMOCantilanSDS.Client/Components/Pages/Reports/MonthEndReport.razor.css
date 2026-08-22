@@ -1,4 +1,4 @@
-.me-controls {
+﻿.me-controls {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -112,8 +112,11 @@
 }
 
 /* The period the sheet covers, and under it the scope when one is in force. Both are set as plain type: a tinted
-   pill around a heading reads as a web badge, and this sheet is printed and filed. The words carry the meaning. */
-.me-scope-row { text-align: center; margin-bottom: 16px; }
+   pill around a heading reads as a web badge, and this sheet is printed and filed.
+
+   Held close to the header above it. The two belong to the same block of identification — office, municipality,
+   document, period, scope — and a wide gap between them read as an empty band across the top of the page. */
+.me-scope-row { text-align: center; margin-top: 4px; margin-bottom: 14px; }
 .me-scope {
     font-size: 12px;
     color: var(--text-subtle);
@@ -125,12 +128,12 @@
 
 .me-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
 
-.me-rpt-head { text-align: center; margin-bottom: 20px; }
+.me-rpt-head { text-align: center; margin-bottom: 10px; }
 .me-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
 .me-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .me-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .me-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
-.me-doc { margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--navy); }
+.me-doc { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--navy); }
 /* The period beneath the document's name, and on a month still running the day the figures stop at. */
 .me-period-line { margin-top: 2px; font-size: 12px; color: var(--text-subtle); }
 
@@ -196,12 +199,6 @@
     border-color: var(--gold);
 }
 
-.me-util-count {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-subtle);
-}
-
 .me-util-block {
     margin-top: 14px;
     padding-top: 12px;
@@ -246,7 +243,7 @@
     .no-print { display: none !important; }
     .content-area { padding: 0 !important; }
     .me-sheet { border: none; border-radius: 0; padding: 0 12mm; background: #fff; }
-    .me-rpt-head { margin-bottom: 18px; }
+    .me-rpt-head { margin-bottom: 10px; }
     .me-facility { break-inside: avoid; }
 }
 
