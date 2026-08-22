@@ -732,6 +732,22 @@ These cannot be answered by reading code.
 
 Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
 
+- **The 0 KB collector download — FIXED 2026-08-22.** Collectors scanning the QR and tapping Download were sometimes left with a
+  0 KB `.apk`. Measured against production before changing anything: **four of eight** full downloads of the 41 MB file returned
+  Azure Static Web Apps' own "500 Internal Server Error" page. The file itself was sound — `HEAD` answered 200 with the right
+  `content-type`, ranged requests answered 206 with exact byte counts, and the body began with a real `PK` archive signature — so
+  it was the host failing on the large body, not the file, the MIME type or the config.
+  - The APK is now attached to a **GitHub Release** under a fixed asset name, so
+    `/releases/latest/download/stalltrack-collector-latest.apk` always resolves to the newest build. Verified after publishing:
+    **eight of eight** downloads returned all 43,082,581 bytes.
+  - `publish-apk.yml` no longer stages the APK into the site, so the failing host never serves it. The workflow needs
+    `contents: write` for the release and nothing else. The old path redirects (302) to the release, verified, so links already
+    shared keep working — which also means the API's built-in default URL stays correct without any app setting.
+  - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect, and
+    `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were set to 2 / 1.1.0 to match the published build. `api/mobile/version`
+    confirmed afterwards.
+  - The 41 MB binary also stopped being tracked in git; the release holds it and `mobile-app-site/download/*.apk` is ignored.
+
 - **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one
   argument and returns it: the `IsPlatformOperator` flag on the account is the whole rule. Until this change the policy also
   returned true for `isDefaultTenant && role == SuperAdmin`, which made the DEFAULT municipality's Head the platform operator, and
