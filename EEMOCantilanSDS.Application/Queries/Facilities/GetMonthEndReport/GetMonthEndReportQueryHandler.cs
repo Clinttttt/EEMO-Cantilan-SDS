@@ -108,7 +108,13 @@ public class GetMonthEndReportQueryHandler(
                 UnpaidCount: report.CollectionPerformance.UnpaidCount,
                 TotalPayors: payors.Count,
                 Payors: payors,
-                TransactionPayors: Array.Empty<MonthEndTxnPayorDto>()));
+                TransactionPayors: Array.Empty<MonthEndTxnPayorDto>(),
+                // The market's metered utilities, as their own table on the sheet. Stated beside the stall fees rather
+                // than folded into them: this document's payor lines are stall fees, and a total that included metered
+                // charges would stop tying to the lines above it.
+                Utilities: isNpm
+                    ? await reportsRepository.GetNpmUtilityRowsAsync(request.Year, request.Month, ct)
+                    : null));
         }
 
         // ── Transaction facilities: itemised month records grouped by payor ──

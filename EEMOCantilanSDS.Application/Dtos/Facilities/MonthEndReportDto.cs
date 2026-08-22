@@ -33,7 +33,10 @@ public record MonthEndFacilityDto(
     int UnpaidCount,
     int TotalPayors,
     IReadOnlyList<MonthEndPayorDto> Payors,
-    IReadOnlyList<MonthEndTxnPayorDto> TransactionPayors
+    IReadOnlyList<MonthEndTxnPayorDto> TransactionPayors,
+    // The market's metered utilities for the month, per space. Empty for every other facility, and empty for the
+    // market itself when no bill was raised.
+    IReadOnlyList<MonthEndUtilityRowDto>? Utilities = null
 );
 
 public record MonthEndPayorDto(
@@ -65,6 +68,27 @@ public record MonthEndPayorDto(
 /// individual records grouped underneath. Repeated payors collapse into a single expandable row whose
 /// total reconciles to the facility subtotal.
 /// </summary>
+/// <summary>
+/// One space's electricity and water for the month: what each utility charged, what was collected against it, and the
+/// receipt it was collected on. Shown as its own table, because a utility is not a stall fee: it is metered, it is
+/// billed per reading, and the office reconciles it separately.
+/// </summary>
+public record MonthEndUtilityRowDto(
+    string StallNo,
+    string Payor,
+    decimal ElecCharge,
+    decimal ElecPaid,
+    decimal WaterCharge,
+    decimal WaterPaid,
+    string? ORNumber
+)
+{
+    public decimal Charged => ElecCharge + WaterCharge;
+    public decimal Collected => ElecPaid + WaterPaid;
+    /// <summary>What is still owed, per utility, so an overpayment on one cannot mask a shortfall on the other.</summary>
+    public decimal Balance => Math.Max(0m, ElecCharge - ElecPaid) + Math.Max(0m, WaterCharge - WaterPaid);
+}
+
 public record MonthEndTxnPayorDto(
     string Payor,
     int RecordCount,

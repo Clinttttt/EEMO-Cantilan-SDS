@@ -98,6 +98,18 @@ public interface IFacilityReportsRepository
     );
 
     /// <summary>
+    /// The market's metered utilities for ONE month, per space: what electricity and water each charged, what was
+    /// collected against each, and the receipt it was collected on. The totals method above answers how much; this
+    /// answers from whom, which is what a filed sheet has to show. Both derive a charge the same way, so the two can
+    /// never state different figures. Tenant-scoped. Empty when no bill was raised.
+    /// </summary>
+    Task<IReadOnlyList<MonthEndUtilityRowDto>> GetNpmUtilityRowsAsync(
+        int year,
+        int month,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
     /// Earliest calendar year that has any collection / billing / contract activity for this tenant —
     /// the floor for the Follow-up History year picker, so a back-dated (prior-year) settlement is
     /// reachable and not stranded outside the last-12-months window. Returns the current year when there

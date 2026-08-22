@@ -1,4 +1,4 @@
-@page "/reports/month-end"
+﻿@page "/reports/month-end"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Enums
@@ -423,6 +423,67 @@
                     {
                         <div class="me-fac-note">No active payors under contract for @Report.PeriodLabel.</div>
                     }
+
+                    @* ── Metered utilities, as their own table ───────────────────────────────────────────────
+                       Electricity and water are not stall fees: they are metered, billed per reading, and settled on
+                       their own receipt, so folding them into the payor lines above would leave a total that no longer
+                       ties to its own rows. Behind a button because most months the office is reading collections, and
+                       once opened it prints with the sheet. *@
+                    @if (UtilityRows(f) is { Count: > 0 } utilities)
+                    {
+                        <button type="button" class="me-util-btn no-print" @onclick="() => ToggleUtilities(f.Code)">
+                            @(_utilitiesOpen.Contains(f.Code) ? "Hide" : "Show") electricity and water
+                            <span class="me-util-count">@utilities.Count</span>
+                        </button>
+
+                        @if (_utilitiesOpen.Contains(f.Code))
+                        {
+                            <div class="me-util-block">
+                                <div class="me-util-head">Miscellaneous — Electricity and Water</div>
+                                <div class="me-table-wrap"><table class="me-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Stall</th>
+                                            <th>Payor</th>
+                                            <th class="me-num">Electricity</th>
+                                            <th class="me-num">Water</th>
+                                            <th class="me-num">Charged</th>
+                                            <th class="me-num">Collected</th>
+                                            <th class="me-num">Balance</th>
+                                            <th>OR No.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var u in utilities)
+                                        {
+                                            <tr>
+                                                <td>@SpaceNumber.Display(u.StallNo)</td>
+                                                <td>@u.Payor</td>
+                                                <td class="me-num">@Money(u.ElecCharge)</td>
+                                                <td class="me-num">@Money(u.WaterCharge)</td>
+                                                <td class="me-num">@Money(u.Charged)</td>
+                                                <td class="me-num">@(u.Collected > 0 ? Money(u.Collected) : "—")</td>
+                                                <td class="me-num @(u.Balance > 0 ? "me-red" : "")">@(u.Balance > 0 ? Money(u.Balance) : "—")</td>
+                                                <td>@(string.IsNullOrWhiteSpace(u.ORNumber) ? "—" : u.ORNumber)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="2"><strong>Subtotal — electricity and water</strong></td>
+                                            <td class="me-num"><strong>@Money(utilities.Sum(u => u.ElecCharge))</strong></td>
+                                            <td class="me-num"><strong>@Money(utilities.Sum(u => u.WaterCharge))</strong></td>
+                                            <td class="me-num"><strong>@Money(utilities.Sum(u => u.Charged))</strong></td>
+                                            <td class="me-num"><strong>@Money(utilities.Sum(u => u.Collected))</strong></td>
+                                            @{ var utilBalance = utilities.Sum(u => u.Balance); }
+                                            <td class="me-num @(utilBalance > 0 ? "me-red" : "")"><strong>@(utilBalance > 0 ? Money(utilBalance) : "—")</strong></td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                </table></div>
+                            </div>
+                        }
+                    }
                 </div>
             }
 
@@ -682,6 +743,29 @@
             1 => ors[0],
             _ => $"{ors.Count} ORs"
         };
+    }
+
+    /// <summary>Which facilities have their utilities table open. Nothing is open until the office asks.</summary>
+    private readonly HashSet<FacilityCode> _utilitiesOpen = new();
+
+    private void ToggleUtilities(FacilityCode code)
+    {
+        if (!_utilitiesOpen.Remove(code)) _utilitiesOpen.Add(code);
+    }
+
+    /// <summary>
+    /// A facility's metered utility rows, narrowed by the search when one is in force so the table agrees with the
+    /// payor rows above it rather than showing spaces the sheet is not currently listing.
+    /// </summary>
+    private IReadOnlyList<MonthEndUtilityRowDto> UtilityRows(MonthEndFacilityDto f)
+    {
+        var rows = f.Utilities ?? Array.Empty<MonthEndUtilityRowDto>();
+        if (!HasSearch || rows.Count == 0) return rows;
+
+        var term = _search.Trim();
+        return rows.Where(u =>
+            u.Payor.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            u.StallNo.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
     /// <summary>
