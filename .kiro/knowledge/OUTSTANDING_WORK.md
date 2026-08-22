@@ -793,6 +793,18 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **A municipality's seal is a base64 data URI, which costs a round trip on every login paint.** Because a seal can be large, it is
+  deliberately kept out of persistent component state: putting one there can exceed the circuit's SignalR message limit and drop the
+  connection with "connection closed with an error". The login page therefore carries the office's NAME across the prerender
+  boundary but re-fetches the seal, showing a plain municipal-hall outline until it arrives. Nothing wrong is ever painted, but the
+  slot visibly fills a moment later, which the office reported as flicker (2026-08-22).
+  - The durable fix is to serve a seal as a URL rather than embed it: an endpoint that streams the stored bytes with a long
+    cache-control, and branding returning that address. The persisted value becomes a short string, the browser caches the image
+    across pages and refreshes, and the first paint carries it.
+  - Not done here because it is a server change touching how branding is stored and served, and the signed-in shell — where the
+    complaint actually came from — was fixed on its own (the sidebar now carries branding across the boundary like the login and
+    change-password pages already did).
+
 - **The Financial report now counts the market's utilities; Month-End and the Collection report still do not.** Asked for by the
   office 2026-08-22: electricity and water are the market's revenue, so NPM's Collected states them. Done in
   `GetFinancialReportQueryHandler` only — the row, the footer totals, the row's rate, and every bar of the trend. The other two

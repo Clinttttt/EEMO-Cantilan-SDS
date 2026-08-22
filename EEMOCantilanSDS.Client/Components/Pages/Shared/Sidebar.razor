@@ -1,5 +1,6 @@
 ﻿@using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Tenancy
 @inject IFacilitiesApiClient FacilitiesApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
@@ -155,6 +156,25 @@
     [PersistentState(AllowUpdates = true)]
     public int? OnlinePaymentsAwaitingOr { get; set; }
 
+    /// <summary>
+    /// The office's own branding, carried from the prerendered pass into the interactive one.
+    ///
+    /// <para>
+    /// Reported from use as a flash of the wrong seal on every refresh, and it was exactly that. The signed-in shell is
+    /// the one place that never carried branding across the boundary, so the interactive pass began with an empty
+    /// <c>BrandingState</c>: awaiting the API yields, the sidebar paints once with the fallback seal and acronym, and
+    /// re-paints a second later with the office's own. The prerendered markup and the interactive first paint therefore
+    /// differed, which is the "displaying twice" as well — the swap is only visible when the two disagree.
+    /// </para>
+    ///
+    /// <para>
+    /// The same mechanism the login and change-password pages already use. It also means the API is asked once per
+    /// refresh instead of twice.
+    /// </para>
+    /// </summary>
+    [PersistentState]
+    public MunicipalityBrandingDto? PersistedBranding { get; set; }
+
     protected override void OnInitialized()
         => Nav.LocationChanged += OnLocationChanged;
 
@@ -223,7 +243,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Branding.EnsureLoadedAsync();
+        // Paint with the office's own name and seal on the FIRST render, from what the prerender pass already fetched.
+        // Only ask the API when nothing was carried over. Never throws: BrandingState keeps its fallbacks on a failed
+        // load, so the shell is reachable even when branding is not.
+        if (PersistedBranding is not null)
+        {
+            Branding.Apply(PersistedBranding);
+        }
+        else
+        {
+            await Branding.EnsureLoadedAsync();
+            PersistedBranding = Branding.Current;
+        }
+
         var state = await AuthState.GetAuthenticationStateAsync();
         _isHead = state.User.IsInRole("SuperAdmin")
             || state.User.Claims.Any(c =>
