@@ -445,15 +445,17 @@
     // interactive circuit re-instantiates the component with the default (Cantilan) field values and paints
     // them for a frame before the async branding re-resolves — a visible flash of Cantilan branding on
     // another municipality's login. Persisting the resolved values makes the first interactive frame correct.
-    // Carry the prerender-resolved branding into the interactive (hydration) pass to avoid a flash of the
-    // default (Cantilan) branding. NOTE: the seal is deliberately NOT persisted — non-Cantilan seals are
-    // large base64 data URIs, and putting one in persistent component state can exceed the SignalR message
-    // size limit and drop the circuit ("connection closed with an error"). The seal is re-resolved by the
-    // branding fetch below instead; only these small fields are persisted.
+    //
+    // The seal is carried too, since 2026-08-22. It used to be left out on purpose: a seal was stored as a base64
+    // data URI of some tens of kilobytes, and putting one in persistent component state can exceed the circuit's
+    // message limit and drop it ("connection closed with an error"). The API now hands back the ADDRESS of the seal
+    // instead of the image, so the value here is a short URL. That is what removes the last of the flicker the office
+    // reported: the seal slot no longer empties and refills between the two passes, and the browser caches the image.
     [PersistentState] public string? PBrandName { get; set; }
     [PersistentState] public string? PBrandAcronym { get; set; }
     [PersistentState] public string? PBrandOffice { get; set; }
     [PersistentState] public bool? PBrandIsDefault { get; set; }
+    [PersistentState] public string? PBrandSeal { get; set; }
 
     /// <summary>
     /// WHICH LGU the persisted branding above belongs to, so the interactive pass can fetch the one thing that is not
@@ -541,7 +543,13 @@
         PBrandOffice = OfficeName;
         PBrandIsDefault = _isDefaultBrand;
 
-        // Carried so the interactive pass can re-fetch the seal, which is not persisted.
+        // The seal's address, which is short. Only ever a URL or a file path — never an embedded image, which is what
+        // made this unsafe to carry before.
+        PBrandSeal = SealPath is { Length: > 0 } s && !s.StartsWith("data:", StringComparison.OrdinalIgnoreCase)
+            ? SealPath
+            : null;
+
+        // Carried so the interactive pass can re-fetch the seal when an office's record still holds an embedded one.
         PBrandId = _brandedIdentifier;
     }
 
@@ -562,9 +570,11 @@
         if (!string.IsNullOrEmpty(PBrandName))
         {
             _isDefaultBrand = PBrandIsDefault ?? true;
-            // Seal isn't persisted (see note above): show the lightweight neutral seal for a non-default LGU
-            // until the branding fetch below resolves the real one — never the Cantilan logo.
-            if (PBrandIsDefault == false) SealPath = NeutralSealPath;
+            // The seal's address now travels with the rest, so the first interactive frame carries the office's own
+            // seal. Only when an office's record still holds an embedded image is there nothing to carry, and the slot
+            // waits as a plain outline until the fetch below resolves it — never another municipality's seal.
+            if (PBrandSeal is { Length: > 0 } carried) SealPath = carried;
+            else if (PBrandIsDefault == false) SealPath = NeutralSealPath;
             MunicipalityName = PBrandName;
             if (PBrandAcronym is not null) OfficeAcronym = PBrandAcronym;
             if (PBrandOffice is not null) OfficeName = PBrandOffice;
