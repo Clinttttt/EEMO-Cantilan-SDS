@@ -63,71 +63,91 @@
             }
             else
             {
-                <!-- Official logo -->
-                <div class="op-section-label">Official identity</div>
-                <div class="op-logo-row">
-                    <div class="op-logo-preview">
-                        @if (!string.IsNullOrWhiteSpace(PreviewSrc))
-                        {
-                            <img src="@PreviewSrc" alt="Official logo" />
-                        }
-                        else
-                        {
-                            <div class="op-logo-placeholder">
-                                <svg viewBox="0 0 24 24"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>
+                @* Two columns on a wide screen, one on a narrow one. The sheet used to be a 620px strip down the middle
+                   of the page with empty bands either side, which reads as an unfinished form rather than a record. The
+                   office's editable identity sits on the left, the part set at onboarding and shown for reference on the
+                   right, so both halves of the page carry something. *@
+                <div class="op-columns">
+                    <div class="op-col">
+                        <!-- Official logo -->
+                        <div class="op-section-label">Official identity</div>
+                        <div class="op-logo-row">
+                            <div class="op-logo-preview">
+                                @if (!string.IsNullOrWhiteSpace(PreviewSrc))
+                                {
+                                    <img src="@PreviewSrc" alt="Official logo" />
+                                }
+                                else
+                                {
+                                    <div class="op-logo-placeholder">
+                                        <svg viewBox="0 0 24 24"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>
+                                    </div>
+                                }
                             </div>
-                        }
-                    </div>
-                    <div class="op-logo-actions">
-                        <div class="form-label">Official Logo / Seal</div>
-                        <div class="op-file-wrap">
-                            <InputFile id="logoInput" OnChange="OnLogoSelected" accept="image/*" />
-                            <label for="logoInput" class="op-upload-btn">
-                                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                                @(string.IsNullOrWhiteSpace(_sealPath) ? "Upload logo" : "Replace logo")
-                            </label>
+                            <div class="op-logo-actions">
+                                <div class="form-label">Official Logo / Seal</div>
+                                <div class="op-file-wrap">
+                                    <InputFile id="logoInput" OnChange="OnLogoSelected" accept="image/*" />
+                                    <label for="logoInput" class="op-upload-btn">
+                                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                                        @(string.IsNullOrWhiteSpace(_sealPath) ? "Upload logo" : "Replace logo")
+                                    </label>
+                                </div>
+                                <div class="op-logo-hint">PNG or JPG · square works best · up to 1&nbsp;MB. Appears on the portal, reports &amp; receipts.</div>
+                            </div>
                         </div>
-                        <div class="op-logo-hint">PNG or JPG · square works best · up to 1&nbsp;MB. Appears on the portal, reports &amp; receipts.</div>
+
+                        <div class="op-divider"></div>
+                        <div class="op-section-label">Names &amp; address</div>
+
+                        <div class="form-group">
+                            <label class="form-label">Office name</label>
+                            <input class="form-input" type="text" maxlength="120" placeholder="e.g. Economic Enterprise &amp; Management Office"
+                                   @bind="_officeName" @bind:event="oninput" />
+                        </div>
+
+                        <div class="op-field-row">
+                            <div class="form-group">
+                                <label class="form-label">Office acronym</label>
+                                <input class="form-input" type="text" maxlength="12" placeholder="e.g. EEMO"
+                                       @bind="_acronym" @bind:event="oninput" />
+                                <div class="op-hint">Short label used in compact headings.</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Address <span class="op-opt">optional</span></label>
+                                <input class="form-input" type="text" maxlength="160" placeholder="e.g. Municipal Hall, Poblacion"
+                                       @bind="_address" @bind:event="oninput" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="op-col">
+                        <div class="op-section-label">Municipality <span class="op-lock">read-only</span></div>
+
+                        <div class="op-field-row">
+                            <div class="form-group">
+                                <label class="form-label">Municipality</label>
+                                <input class="form-input op-readonly" type="text" value="@_municipality" readonly disabled />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Province</label>
+                                <input class="form-input op-readonly" type="text" value="@_province" readonly disabled />
+                            </div>
+                        </div>
+                        <div class="op-hint">Core LGU identity is set during onboarding and can't be changed here.</div>
+
+                        <div class="op-divider"></div>
+                        <div class="op-section-label">Where this appears</div>
+                        @* Stated because the office is editing something that prints. Nothing here is a control; it is
+                           the reason the fields on the left matter. *@
+                        <ul class="op-appears">
+                            <li>The portal's own heading and sidebar.</li>
+                            <li>Every printed report and its signatory page.</li>
+                            <li>Official receipts issued to payors.</li>
+                            <li>The collector app's header.</li>
+                        </ul>
                     </div>
                 </div>
-
-                <div class="op-divider"></div>
-                <div class="op-section-label">Names &amp; address</div>
-
-                <div class="form-group">
-                    <label class="form-label">Office name</label>
-                    <input class="form-input" type="text" maxlength="120" placeholder="e.g. Economic Enterprise &amp; Management Office"
-                           @bind="_officeName" @bind:event="oninput" />
-                </div>
-
-                <div class="op-field-row">
-                    <div class="form-group">
-                        <label class="form-label">Office acronym</label>
-                        <input class="form-input" type="text" maxlength="12" placeholder="e.g. EEMO"
-                               @bind="_acronym" @bind:event="oninput" />
-                        <div class="op-hint">Short label used in compact headings.</div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Address <span class="op-opt">optional</span></label>
-                        <input class="form-input" type="text" maxlength="160" placeholder="e.g. Municipal Hall, Poblacion"
-                               @bind="_address" @bind:event="oninput" />
-                    </div>
-                </div>
-
-                <div class="op-divider"></div>
-                <div class="op-section-label">Municipality <span class="op-lock">read-only</span></div>
-
-                <div class="op-field-row">
-                    <div class="form-group">
-                        <label class="form-label">Municipality</label>
-                        <input class="form-input op-readonly" type="text" value="@_municipality" readonly disabled />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Province</label>
-                        <input class="form-input op-readonly" type="text" value="@_province" readonly disabled />
-                    </div>
-                </div>
-                <div class="op-hint">Core LGU identity is set during onboarding and can't be changed here.</div>
 
                 <div class="op-form-actions">
                     <button class="btn-ghost" @onclick="Cancel" disabled="@_saving">Back to Settings</button>
