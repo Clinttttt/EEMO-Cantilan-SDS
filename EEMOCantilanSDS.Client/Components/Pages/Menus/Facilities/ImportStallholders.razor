@@ -1185,15 +1185,23 @@
         }
     }
 
-    // Maps parsed rows to the facility's columns by position. Built to tolerate "printable report"
-    // layouts: it skips title/section banners (single-cell rows), the column-header row, and total
-    // rows; normalizes dates and numbers; strips leading "1." numbering from names; and, for NPM,
-    // keeps only the rows under the section the user chose (when the file has section banners).
+    // Maps parsed rows to the facility's columns. Prefers the FILE'S OWN HEADER when it is one we recognise, and falls
+    // back to position when it is not. Built to tolerate "printable report" layouts: it skips title/section banners
+    // (single-cell rows), the column-header row, and total rows; normalizes dates and numbers; strips leading "1."
+    // numbering from names; and, for NPM, keeps only the rows under the section the user chose (when the file has
+    // section banners).
+    //
+    // WHY THE HEADER MATTERS: matching by position alone is correct only while two facilities carry the same columns.
+    // NPM, TCC, BBQ and ICE do, so a file prepared for one maps onto another. NCC does not — it carries "Area Loc."
+    // ninth, before Delinquent — so an NPM or TCC file read positionally put a money figure into Area Loc. and left
+    // Delinquent empty, silently. Reading the header fixes that for any file that has one, and the office's printed
+    // reports, whose headings are their own wording, keep the positional behaviour they always had.
     private static List<Dictionary<string, string>> MapRows(List<string[]> raw, FacilityImportConfig cfg, string? targetSection)
     {
         var staged = new List<(string? Section, Dictionary<string, string> Row)>();
         string? currentSection = null;
         var sawBanner = false;
+        int[]? headerMap = null;
 
         foreach (var cells in raw)
         {
@@ -1209,13 +1217,23 @@
                 continue;
             }
 
-            // Column-header rows and TOTAL/sub-total rows are not data.
-            if (IsNoiseRow(cells)) continue;
+            // Column-header rows and TOTAL/sub-total rows are not data. A header is read for its column order first,
+            // which is the one useful thing in it.
+            if (IsNoiseRow(cells))
+            {
+                headerMap ??= HeaderMap(cells, cfg);
+                continue;
+            }
 
             var row = NewRow(cfg);
-            for (var i = 0; i < cfg.Columns.Count && i < cells.Length; i++)
+            for (var i = 0; i < cells.Length; i++)
             {
-                var col = cfg.Columns[i];
+                var colIndex = headerMap is null
+                    ? (i < cfg.Columns.Count ? i : -1)
+                    : (i < headerMap.Length ? headerMap[i] : -1);
+                if (colIndex < 0) continue;
+
+                var col = cfg.Columns[colIndex];
                 var val = (cells[i] ?? string.Empty).Trim();
                 if (col.Key == "occupant") val = StripLeadingIndex(val);
                 else if (col.Type == "date") val = NormalizeDate(val);
@@ -1272,6 +1290,47 @@
             return n.Length > 2 && HeaderKeywords.Any(h => n.Contains(h));
         });
         return hits >= 2;
+    }
+
+    /// <summary>
+    /// Reads a header row into "file column i holds the facility's column n", or null when the row is not a header of
+    /// ours.
+    ///
+    /// <para>
+    /// Matching is on the label reduced to letters and digits, so "Delinquent (₱)" and "DELINQUENT ( ₱ )" are the same
+    /// heading and Excel's own truncation of what it DISPLAYS is irrelevant. A prefix match catches a sheet that
+    /// shortened a heading by hand. Three recognised columns are required before the map is trusted: fewer than that and
+    /// this is somebody else's sheet, where position is the better guess.
+    /// </para>
+    /// </summary>
+    private static int[]? HeaderMap(string[] cells, FacilityImportConfig cfg)
+    {
+        var map = new int[cells.Length];
+        var taken = new HashSet<int>();
+        var matched = 0;
+
+        for (var i = 0; i < cells.Length; i++)
+        {
+            map[i] = -1;
+            var n = Norm(cells[i]);
+            if (n.Length < 3) continue;
+
+            var idx = cfg.Columns.FindIndex(c => Norm(c.Label) == n);
+            if (idx < 0)
+                idx = cfg.Columns.FindIndex(c =>
+                {
+                    var label = Norm(c.Label);
+                    return label.Length >= 3 && (label.StartsWith(n) || n.StartsWith(label));
+                });
+
+            if (idx >= 0 && taken.Add(idx))
+            {
+                map[i] = idx;
+                matched++;
+            }
+        }
+
+        return matched >= 3 ? map : null;
     }
 
     // "1. Merlita A. Abuso" / "12) Name" -> "Merlita A. Abuso" / "Name".
@@ -1553,7 +1612,12 @@
                 : $"No contract (Extension {_facility.ShortCode})";
             var guidance = string.Join(",", _facility.Columns.Select(c => c.Key == "contractName" ? basis : string.Empty));
 
-            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(header + "\n" + guidance + "\n");
+            // A byte-order mark, and it is load-bearing. The office opens this in Excel, which ignores the charset on a
+            // data URI and reads a .csv in the system's ANSI codepage: the peso sign in "Delinquent (₱)" arrived as
+            // "â‚±". A BOM is what tells Excel the file is UTF-8. Reported from use, with the mangled header visible in
+            // the sheet.
+            const string bom = "\uFEFF";
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(bom + header + "\n" + guidance + "\n");
         }
     }
 
