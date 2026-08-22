@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -114,8 +114,20 @@ public class GetFinancialReportQueryHandler(
             var report = await reportsRepository.GetFacilityReportsAsync(
                 code, request.Period, request.Year, request.Month, null, ct);
 
-            collected += report.TotalRevenue;
-            unpaid += report.PendingPaymentAmount;
+            // Electricity and water are the market's revenue too, so NPM's Collected states them alongside the stall
+            // fees rather than beside them. They are held on utility bills, which no stall-fee path touches, so there
+            // is nothing to double count: a utility payment writes only to its own bill.
+            //
+            // Only for a period a monthly bill can honestly be attributed to. A bill is billed for a MONTH, so a
+            // weekly report cannot say which week its money belongs to, and folding a whole month into one week
+            // would overstate that week. Weekly therefore counts stall fees alone, as it always did.
+            var (utilElec, utilWater, utilOutstanding) = code == FacilityCode.NPM && request.Period != ReportPeriod.Weekly
+                ? await NpmUtilitiesAsync(request.Year, request.Month, ct)
+                : (0m, 0m, 0m);
+            var utilCollected = utilElec + utilWater;
+
+            collected += report.TotalRevenue + utilCollected;
+            unpaid += report.PendingPaymentAmount + utilOutstanding;
 
             // "Paid records" counts actual collection transactions. NPM is collected per day, so the count comes
             // from the collections themselves — the repository counts them where each stall's own daily fee is
@@ -160,8 +172,7 @@ public class GetFinancialReportQueryHandler(
                         Math.Max(0m, Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) - s.AmountPaid));
                     excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * npmDaily);
                 }
-                // Electricity + water collection for the period (separate from the market-fee total).
-                var util = await reportsRepository.GetNpmUtilityTotalsAsync(request.Year, request.Month, ct);
+                // Electricity + water for the period, the same figures now counted in this row's Collected.
                 detail = new NpmFacilityDetailDto(
                     DailyFeeCollected: dailyFee,
                     FishCollected: fishFee,
@@ -170,21 +181,31 @@ public class GetFinancialReportQueryHandler(
                     FullMonthCoverage: coverage,
                     FullMonthCoverageBalance: coverageBalance,
                     ExcusedAmount: excusedAmount,
-                    ElecCollected: util.ElecCollected,
-                    WaterCollected: util.WaterCollected,
-                    UtilityOutstanding: util.Outstanding);
+                    ElecCollected: utilElec,
+                    WaterCollected: utilWater,
+                    UtilityOutstanding: utilOutstanding);
             }
+
+            // The row's own two figures decide its rate whenever utilities are part of them, so the percentage cannot
+            // contradict the numbers beside it. With no utilities in play the repository's own rate is kept exactly,
+            // which is every other facility and every NPM period without a utility bill.
+            var rowCollected = report.TotalRevenue + utilCollected;
+            var rowUnpaid = report.PendingPaymentAmount + utilOutstanding;
+            var rowBilled = rowCollected + rowUnpaid;
+            var rowRate = utilCollected + utilOutstanding > 0m
+                ? (rowBilled > 0m ? (int)Math.Round(rowCollected / rowBilled * 100m) : 0)
+                : (int)Math.Round(report.CollectionRate);
 
             facilityRows.Add(new FinancialFacilityRowDto(
                 Code: code,
                 Name: ReportName(code, facilityNames),
                 Model: FacilityModel(code),
                 PaidOnService: false,
-                Collected: report.TotalRevenue,
-                Unpaid: report.PendingPaymentAmount,
+                Collected: rowCollected,
+                Unpaid: rowUnpaid,
                 PaidRecords: paid,
-                RatePct: (int)Math.Round(report.CollectionRate),
-                Status: StallStatus((int)Math.Round(report.CollectionRate)),
+                RatePct: rowRate,
+                Status: StallStatus(rowRate),
                 Detail: detail));
 
             // RevenueTrend is computed server-side with the report; sum across stall facilities by period.
@@ -240,6 +261,17 @@ public class GetFinancialReportQueryHandler(
                 var st = stallTrend.GetValueOrDefault(label);
                 periodCollected = st.Collected;
                 periodUnpaid = st.Unpaid;
+
+                // The market's utilities for THAT period, not this one. Without it the selected bar would stand
+                // higher than every bar before it purely because only the selected period counted electricity and
+                // water, which reads as a jump in collection that never happened.
+                if (request.Period != ReportPeriod.Weekly && InScope(FacilityCode.NPM))
+                {
+                    var (elec, water, due) = await NpmUtilitiesAsync(py, pm, ct);
+                    periodCollected += elec + water;
+                    periodUnpaid += due;
+                }
+
                 if (request.Period == ReportPeriod.Monthly && pm is int pmonth)
                 {
                     foreach (var svc in ServiceFacilities.Where(InScope))
@@ -513,6 +545,20 @@ public class GetFinancialReportQueryHandler(
             }
         }
         return window;
+    }
+
+    /// <summary>
+    /// The market's electricity and water for a period: what was paid, split by utility, and what is still due.
+    ///
+    /// <para>
+    /// One place, called for the row and for every bar of the trend, so the table and the chart cannot come to
+    /// different answers. A null month means the whole year, which is how the underlying query already reads it.
+    /// </para>
+    /// </summary>
+    private async Task<(decimal Elec, decimal Water, decimal Outstanding)> NpmUtilitiesAsync(int year, int? month, CancellationToken ct)
+    {
+        var util = await reportsRepository.GetNpmUtilityTotalsAsync(year, month, ct);
+        return (util.ElecCollected, util.WaterCollected, util.Outstanding);
     }
 
     /// <summary>Collected total and record count for a paid-on-service facility, for one month or a full year.</summary>

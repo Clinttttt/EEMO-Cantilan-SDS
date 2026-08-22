@@ -770,6 +770,22 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **The Financial report now counts the market's utilities; Month-End and the Collection report still do not.** Asked for by the
+  office 2026-08-22: electricity and water are the market's revenue, so NPM's Collected states them. Done in
+  `GetFinancialReportQueryHandler` only — the row, the footer totals, the row's rate, and every bar of the trend. The other two
+  reports read the same `FacilityReportsDto.TotalRevenue`, which is deliberately still stall fees alone, so for the same month the
+  Financial report's NPM total will now exceed Month-End's by the utilities collected.
+  - Left that way on purpose rather than changed in passing. Month-End prints a line per stall and a facility total the office ties
+    together by hand; utilities are billed per stall too, but its payor lines carry stall fees only, so folding utilities into its
+    total would stop that document adding up. Extending it means giving it a utilities line of its own, which is a change to a
+    printed month-end document and wants the office's word first.
+  - `CalculateNpmRevenueAsync` was deliberately NOT touched, which is what keeps every per-stall document consistent.
+  - Weekly is excluded by design: a utility bill is billed for a month and carries no week, so a weekly report counts stall fees
+    alone. Pinned by `AWeeklyReport_CountsStallFeesAlone`.
+  - The utility figures are attributed by BILLING period, not by payment date, which is how `GetNpmUtilityTotalsAsync` has always
+    read them. `UtilityBill` does carry `ElecPaidAt`/`WaterPaidAt`, so a cash-received view is possible later if the office wants
+    the column to mean money received in the period rather than money against that period's bills.
+
 - **Thirty eight other dialogs still close when their backdrop is clicked, and some of them hold typed work.** The rule the
   office's report established (2026-08-21, Reset Password on Staff Accounts): a dialog holding text somebody typed must not be
   dismissed by a stray click on the backdrop, because there is no warning, no undo, and nothing to recover it from. A confirm

@@ -123,12 +123,12 @@ public record FinancialFacilityRowDto(
 
 /// <summary>
 /// NPM-only breakdown shown in an expandable row, so the generic facility table stays uncluttered.
-/// The fee components (<see cref="DailyFeeCollected"/> + <see cref="FishCollected"/> + the implied
-/// utilities/other remainder) reconcile back to the row's total Collected. Full-month coverage is the
-/// fixed 30-day ₱900 reference summed per occupied stall; its balance is summed per stall as
+/// The fee components (<see cref="DailyFeeCollected"/> + <see cref="FishCollected"/> + <see cref="ElecCollected"/> +
+/// <see cref="WaterCollected"/> + any remainder from monthly payments) reconcile back to the row's total Collected.
+/// Full-month coverage is the fixed 30-day ₱900 reference summed per occupied stall; its balance is summed per stall as
 /// max(0, ₱900 − that stall's amount paid) — identical to the Month-End report. <see cref="PeriodBalance"/>
-/// is the selected period's assessed obligation minus collected (whole-period, e.g. the full month or
-/// full year), the same value shown in the table's "Unpaid (period)" column.
+/// is the selected period's assessed STALL-FEE obligation minus collected (whole-period, e.g. the full month or
+/// full year); the row's "Unpaid (period)" column is that plus <see cref="UtilityOutstanding"/>.
 /// </summary>
 public record NpmFacilityDetailDto(
     decimal DailyFeeCollected,
@@ -140,8 +140,10 @@ public record NpmFacilityDetailDto(
     // Total excused/absent amount for the period (Σ absent days × ₱30). Absent days are not owed, so
     // they reduce the full-month coverage; this line makes that deduction explicit. 0 = none.
     decimal ExcusedAmount = 0m,
-    // NPM electricity + water collected this period, and the combined outstanding utility balance. Tracked
-    // separately from the market-fee Collected total (utilities don't change it). 0 = none.
+    // NPM electricity + water collected this period, and the combined outstanding utility balance. Both are COUNTED
+    // in the row's Collected and Unpaid: the office states that the market's electricity and water are the market's
+    // revenue. They live on utility bills, which no stall-fee path writes to, so counting them adds nothing twice.
+    // Zero on a Weekly report, where a bill billed for a month carries no week of its own. 0 = none.
     decimal ElecCollected = 0m,
     decimal WaterCollected = 0m,
     decimal UtilityOutstanding = 0m

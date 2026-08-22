@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
@@ -400,6 +400,127 @@ public class GetFinancialReportQueryHandlerTests
         var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
         Assert.False(npm.PaidOnService);
         Assert.Equal(20_000m, npm.Unpaid);
+    }
+
+    // ── The market's electricity and water, counted as its revenue ────────────────────────────────────────────
+    //
+    // Asked for by the office: the market's electricity and water are its revenue, so its Collected should say so.
+    // They are held on utility bills, which no stall-fee path writes to, so counting them adds nothing twice.
+    //
+    // These tests exist because the figures used to be shown beside the total instead of in it, and because the
+    // change touches a headline money column, the percentage next to it, and the trend chart underneath.
+
+    /// <summary>Sets the market's utility totals for every period the handler asks about.</summary>
+    private static void WithUtilities(Mock<IFacilityReportsRepository> reports, decimal elec, decimal water, decimal due) =>
+        reports.Setup(r => r.GetNpmUtilityTotalsAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+               .ReturnsAsync((elec, water, due));
+
+    [Fact]
+    public async Task TheMarketsCollected_CountsItsElectricityAndWater()
+    {
+        var (handler, reports) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        Assert.Equal(80_800m, npm.Collected);        // 80,000 stall fees + 800 utilities
+        Assert.Equal(20_119m, npm.Unpaid);           // 20,000 stall fees + 119 still due
+
+        // The headline follows, and the rows still add up to it. A total that disagreed with its own rows is the
+        // fault this report exists to avoid.
+        Assert.Equal(80_860m, r.Collected);          // + TRM 60
+        Assert.Equal(20_119m, r.CurrentPeriodUnpaid);
+        Assert.Equal(r.Collected, r.Facilities.Sum(f => f.Collected));
+        Assert.Equal(r.CurrentPeriodUnpaid, r.Facilities.Where(f => f.Unpaid.HasValue).Sum(f => f.Unpaid!.Value));
+    }
+
+    [Fact]
+    public async Task TheBreakdownAddsUpToTheRowsTotal()
+    {
+        // What the expandable row prints: stall fee + fish + electricity + water must reconcile to Collected, because
+        // an officer checks the parts against the total by hand.
+        var (handler, reports) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        var d = npm.Detail!;
+        Assert.Equal(500m, d.ElecCollected);
+        Assert.Equal(300m, d.WaterCollected);
+        Assert.Equal(119m, d.UtilityOutstanding);
+
+        // 810 daily + 346 fish + 800 utilities, with the rest of the 80,000 being monthly payments the row does not
+        // itemise; what matters is that nothing is counted twice and nothing named is missing.
+        Assert.Equal(npm.Collected - d.DailyFeeCollected - d.FishCollected - d.ElecCollected - d.WaterCollected,
+                     80_000m - 810m - 346m);
+    }
+
+    [Fact]
+    public async Task TheRatePctIsComputedFromTheRowsOwnTwoFigures()
+    {
+        // The repository states 80 percent from the stall fees alone. Once utilities are part of the row, the
+        // percentage has to be the row's own Collected over its own Billed, or it contradicts the numbers printed
+        // beside it.
+        var (handler, reports) = Build();
+        WithUtilities(reports, elec: 20_000m, water: 0m, due: 0m);
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        Assert.Equal(100_000m, npm.Collected);
+        Assert.Equal(20_000m, npm.Unpaid);
+        Assert.Equal(83, npm.RatePct);               // 100,000 / 120,000 = 83.3 -> 83, not the repository's 80
+    }
+
+    [Fact]
+    public async Task WithNoUtilityBill_EveryFigureIsExactlyWhatItWasBefore()
+    {
+        // The guard on the whole change: an office with no utility bills, and every other facility in any case, must
+        // be byte-for-byte unaffected. The rate in particular is left to the repository rather than recomputed, since
+        // the two are not derived the same way.
+        var (handler, _) = Build();
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        Assert.Equal(80_000m, npm.Collected);
+        Assert.Equal(20_000m, npm.Unpaid);
+        Assert.Equal(80, npm.RatePct);
+        Assert.Equal(80_060m, r.Collected);
+    }
+
+    [Fact]
+    public async Task AWeeklyReport_CountsStallFeesAlone()
+    {
+        // A utility bill is billed for a MONTH and carries no week of its own, so folding one into a week would
+        // overstate that week. Weekly stays what it always was.
+        var (handler, reports) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Weekly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        Assert.Equal(80_000m, npm.Collected);
+        Assert.Equal(20_000m, npm.Unpaid);
+        Assert.Equal(0m, npm.Detail!.ElecCollected);
+        Assert.Equal(0m, npm.Detail!.WaterCollected);
+    }
+
+    [Fact]
+    public async Task EveryBarOfTheTrendCountsUtilities_NotOnlyTheSelectedOne()
+    {
+        // Otherwise the selected month stands higher than every month before it purely because it was the only one
+        // counting electricity and water, which reads as a rise in collection that never happened.
+        var (handler, reports) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 0m);
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.All(r.Trend, point => Assert.True(
+            point.Collected >= 800m,
+            $"{point.Label} carries {point.Collected}, so it is not counting the market's utilities"));
     }
 
     [Fact]
