@@ -93,7 +93,37 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
         var version = Convert.ToHexString(
             System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(stored)))[..12].ToLowerInvariant();
 
-        var url = $"{Request.Scheme}://{Request.Host}{Request.PathBase}/api/municipalities/{Uri.EscapeDataString(identifier)}/seal?v={version}";
+        var url = $"{PublicScheme()}://{Request.Host}{Request.PathBase}/api/municipalities/{Uri.EscapeDataString(identifier)}/seal?v={version}";
         return Result<MunicipalityBrandingDto>.Success(branding with { SealPath = url });
+    }
+
+    /// <summary>
+    /// The scheme the CALLER used, not the one that reached this process.
+    ///
+    /// <para>
+    /// TLS terminates at the platform's proxy, so inside the container a request arrives over plain HTTP and
+    /// <c>Request.Scheme</c> says "http". An http address for the seal, on a page served over https, is mixed content:
+    /// the browser refuses to load it and the seal silently disappears. Caught before it shipped by reading the address
+    /// the deployed API actually returned.
+    /// </para>
+    ///
+    /// <para>
+    /// Read from the forwarding header here rather than by turning on forwarded-headers processing for the whole
+    /// application: that also rewrites the scheme every other component sees and the remote address the logs record,
+    /// which is a wider change than one URL needs and would sit underneath the HTTPS redirect and HSTS.
+    /// </para>
+    /// </summary>
+    private string PublicScheme()
+    {
+        var forwarded = Request.Headers["X-Forwarded-Proto"].ToString();
+        if (!string.IsNullOrWhiteSpace(forwarded))
+        {
+            // The header may carry a list, proxy by proxy; the first entry is the client's own.
+            var first = forwarded.Split(',')[0].Trim();
+            if (string.Equals(first, "https", StringComparison.OrdinalIgnoreCase)) return "https";
+            if (string.Equals(first, "http", StringComparison.OrdinalIgnoreCase)) return "http";
+        }
+
+        return Request.Scheme;
     }
 }
