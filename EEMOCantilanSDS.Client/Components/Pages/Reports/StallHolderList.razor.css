@@ -130,9 +130,9 @@
 .sh-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
 .sh-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
-/* The facility's name as the table's own first row. Paper only: on screen the head above each table carries it,
-   with the model and the active/monthly pair beside it. */
-.sh-fac-row { display: none; }
+/* The blank first row of each table's head. Paper only: it exists to put space above a table that continues onto
+   another sheet, and there is nothing to show on screen. */
+.sh-gap-row { display: none; }
 
 @media screen and (max-width: 760px) {
     .sh-summary { grid-template-columns: repeat(2, 1fr); }
@@ -430,8 +430,23 @@
         color: var(--navy);
     }
 
-    /* Withdrawn: it duplicated the heading above, once per section. */
-    .sh-fac-row { display: none; }
+    /* ── Space above a table that continues onto another sheet ───────────────────────────────────────────
+       The facility's own padding cannot help here: it is drawn where the facility STARTS, so a facility whose table
+       broke across sheets left the continuation hard against the paper's edge. A head repeats at the top of every
+       sheet the table runs onto, so a blank first row in the head is the only thing that lands there. It carries no
+       border and no fill, and the sheet the table begins on is pulled up by exactly its height, so nothing about
+       that sheet changes. The obvious alternative, a top page margin, is refused: @page margin is 0 so the browser
+       has no margin box for its date, URL and page number. */
+    .sh-gap-row { display: table-row; }
+
+    .sh-gap-row td {
+        height: 7mm;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    .sh-table { margin-top: -7mm; }
 
     /* ── One Total per facility, not one per sheet ───────────────────────────────────────────────────────
        A tfoot is repeated on every printed page by default, so a facility that ran onto a second sheet printed

@@ -471,12 +471,13 @@
         var activeRows = rows.Where(r => !r.IsClosed).ToList();
         <div class="sh-table-wrap">
         <table class="sh-table">
-            @* The facility, stated INSIDE the table on paper. The label above the table sat outside its left edge with
-               a model tag and an active/monthly pair beside it, and a rule under it; the table's own total states the
-               money, and the count is on the section band. In the head, so it repeats with the column headings when a
-               facility runs onto a second sheet. Hidden on screen, where the head above carries it. *@
+            @* First row of the head, so it repeats at the top of every sheet the table runs onto. It is the only way
+               to put space above a continuation: the page margin is 0 on purpose (it is what keeps the browser's date,
+               URL and page number off the document), and padding or a margin on the table is drawn once, where the
+               table STARTS, not again after a break. Empty, borderless, and cancelled on the sheet the table begins on
+               by an equal negative margin, so nothing about the first sheet changes. Hidden on screen. *@
             <thead>
-                <tr class="sh-fac-row"><td colspan="99">@FacilityCatalog.NameOf(code)</td></tr>
+                <tr class="sh-gap-row" aria-hidden="true"><td colspan="99"></td></tr>
                 <tr>
                     <th class="sh-c">#</th>
                     <th>Name of Lessee<br /><span class="sh-th-sub">(Actual Occupants)</span></th>

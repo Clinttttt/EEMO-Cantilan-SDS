@@ -41,7 +41,32 @@ public class StallHolderListPrintSheetTests
         var print = RosterPrintBlock();
 
         Assert.Matches(@"\.sh-fac-head \{[^}]*display: block", print);
-        Assert.Matches(@"\.sh-fac-row \{ display: none", print);
+
+        // The caption row it replaced is gone from the markup, not merely hidden: a hidden row that no rule shows is
+        // the kind of thing a later edit revives by accident.
+        var razor = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
+        Assert.DoesNotContain("sh-fac-row", razor);
+    }
+
+    [Fact]
+    public void ATableTHATCONTINUESStartsBelowThePapersEdgeToo()
+    {
+        // Reported after the facility padding shipped: Tampak's rows broke across sheets, so the padding was drawn on
+        // sheet one and sheet two opened with the column headings against the paper's edge. Only a head repeats at the
+        // top of every sheet a table runs onto, so a blank first row in the head is the one thing that can land there;
+        // it is cancelled on the sheet the table begins on by an equal negative margin.
+        var razor = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
+        Assert.Contains(@"<tr class=""sh-gap-row"" aria-hidden=""true""><td colspan=""99""></td></tr>", razor);
+
+        var print = RosterPrintBlock();
+        Assert.Matches(@"\.sh-gap-row \{ display: table-row", print);
+        Assert.Matches(@"\.sh-gap-row td \{[^}]*height: 7mm", print);
+        Assert.Matches(@"\.sh-gap-row td \{[^}]*border: 0 !important", print);   // no rule drawn across the gap
+        Assert.Matches(@"\.sh-table \{ margin-top: -7mm", print);                // cancelled on the first sheet
+
+        // Hidden where there is nothing to show.
+        var css = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor.css");
+        Assert.Matches(@"(?m)^\.sh-gap-row \{ display: none", css);
     }
 
     [Fact]
