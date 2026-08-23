@@ -850,10 +850,17 @@ Items that were open and are now closed, kept because the reasoning is what stop
       row only when its value changes, so there is no delete: an office withdraws an area rate by clearing it. Read
       literally, zero would have made that area's stalls free and written a ₱0 collection. The MARKET's own rate keeps
       its documented meaning, where zero says the office charges nothing under that head.
-  - **Phase 4, the only step left:** onboarding collects a rate per area and activation seeds the area keys. The console
-    already warns when an office prices its areas differently and only the first is filed; that warning goes when the
-    wizard can carry all three. `GetSystemSettings` and `GetNpmRates` state the MARKET's rate as a settings figure, which
-    stays correct, and should gain per-area rows on the same pass.
+  - **Phase 4 SHIPPED 2026-08-23** (eemo `b710868b`, platform `0930e38`). The onboarding form always took a rate per
+    section; the console filed the FIRST as the market's rate and dropped the rest. Each priced area is now filed under
+    its own key. The market's rate is still sent and answers for an area left unpriced and for a stall of the market's own
+    areas carrying no rate; it is read from the first of the THREE the office priced, never from a custom row, so one
+    area's figure is not handed to the rest. The "prices its areas differently" warning is gone (nothing is dropped); the
+    warning that remains names the unpriced areas and the rate they will bill at. Pinned by five console specs, two API
+    pairing facts and one activation-handler fact.
+  - **The feature is complete for the portal and onboarding.** Remaining: **phase 5**, the mobile collector app, which
+    receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM daily reads) and needs the area's; and
+    `GetSystemSettings` / `GetNpmRates`, which state the MARKET's rate as a settings figure - correct as far as it goes,
+    but they should list the per-area rows now that an office can set them.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
     daily reads) and needs the area's.
   - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own
