@@ -84,6 +84,32 @@ public class StallHolderListPrintSheetTests
     }
 
     [Fact]
+    public void ASheetTHATCONTINUESStillStartsBelowThePapersEdge()
+    {
+        // Reported on sheet two of the roster: the facility that carried over sat hard against the top edge. The gap
+        // has to be PADDING - a margin at the top of a printed page is dropped by the browser - and it is stated once,
+        // on the facility, so the first table on sheet one sits exactly as far down as the first table on sheet two.
+        // A top page margin would have been the obvious fix and is the wrong one: @page margin is 0 on purpose, so the
+        // browser has no margin box to draw its date, URL and page number into.
+        var print = RosterPrintBlock();
+
+        Assert.Matches(@"\.sh-facility \{[^}]*padding-top: 7mm", print);
+        Assert.Matches(@"\.sh-rpt-head \{ margin-bottom: 0", print);
+        Assert.DoesNotMatch(@"@page[^{]*\{[^}]*margin:\s*(?!0)", print);
+    }
+
+    [Fact]
+    public void ATotalMayNotBeginASheetOnItsOwn()
+    {
+        // Tampak's rows fitted on sheet one but its Total did not, so sheet two opened with a repeated heading row and
+        // a single figure - a page stating a total for rows nobody can see on it.
+        var print = RosterPrintBlock();
+
+        Assert.Matches(@"\.sh-table tbody tr:last-child \{ break-after: avoid", print);
+        Assert.Matches(@"\.sh-table tfoot \{ break-before: avoid", print);
+    }
+
+    [Fact]
     public void ATotalPrintsOncePerFacilityAndHeadingsRepeat()
     {
         // Guarding the two rules a later edit is most likely to undo: a tfoot repeats on every page by default, so a

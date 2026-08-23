@@ -149,7 +149,8 @@
         padding: 0 12mm;
         background: #fff;
     }
-    .sh-rpt-head { margin-bottom: 18px; }
+    /* The letterhead's gap is settled in the last print block in this file, together with the facility padding that
+       has to match it. Stating a second value here only invited the two to drift apart. */
     .sh-table tbody tr:hover { background: transparent; }
 }
 
@@ -367,8 +368,11 @@
         margin: 0 !important;
     }
 
-    .sh-facility { background: transparent; margin-bottom: 14px; }
-    .sh-facility:last-child { margin-bottom: 0; }
+    /* The gap above a facility is PADDING, not margin, and it is the same wherever the facility lands. A margin at
+       the top of a printed page is dropped by the browser, which is why a facility that began sheet two sat flush
+       against the paper's edge; padding belongs to the box and is drawn. One rule therefore gives three gaps: below
+       the letterhead, between two facilities on the same sheet, and above a facility that starts a new sheet. */
+    .sh-facility { background: transparent; padding-top: 7mm; margin-bottom: 0; }
 
     /* On paper only four things carry ink: the letterhead, the facility heading, the section band and the
        table. Any other container inside the sheet is stripped of its surface, so nothing can print as an
@@ -379,9 +383,10 @@
         box-shadow: none !important;
     }
 
-    /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. The
-       first table still sits down from it rather than against it, which is the only reason this is 16 and not 10. */
-    .sh-rpt-head { margin-bottom: 16px; }
+    /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. The gap
+       under it is left to .sh-facility's padding so the first table on sheet one sits exactly as far down as the
+       first table on sheet two. */
+    .sh-rpt-head { margin-bottom: 0; }
     .sh-seal { width: 46px; height: 46px; }
     .sh-org { font-size: 13px; }
     .sh-gov, .sh-muni { font-size: 9.5px; }
@@ -394,6 +399,12 @@
     .sh-fac-head { break-after: avoid; }
     .sh-section-label { break-after: avoid; }
     .sh-table thead { display: table-header-group; }
+
+    /* A Total may not begin a sheet on its own. Tampak's rows fitted on sheet one but its Total did not, so sheet two
+       opened with a repeated heading row and a lone figure - a page that states a total for rows nobody can see on
+       it. The last row and the Total travel together. */
+    .sh-table tbody tr:last-child { break-after: avoid; }
+    .sh-table tfoot { break-before: avoid; }
 
     /* ── The facility label, above its sections ──────────────────────────────────────────────────────────
        The facility is named ONCE, before the section bands, the way the export sheet reads. It was briefly a row
