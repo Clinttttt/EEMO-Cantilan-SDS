@@ -804,6 +804,16 @@ Items that were open and are now closed, kept because the reasoning is what stop
     `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. The change is mechanical — add `screen and` — but each one should
     be printed once before and after, since a print layout could unknowingly be leaning on a phone rule today.
 
+- **Two shell rules used to reach paper, and both are now settled globally (2026-08-23, `50677d49`).** Recorded because every
+  printable page inherited them, so a future report does not have to rediscover either.
+  - `body { background: var(--bg) }` (#f0f4f8) printed across the whole page whenever background graphics are on, which every
+    report needs for the seal and the table headings. The office reported it as "the outer whitespace is not pure white".
+    `print.css` now sets `html, body { background: #fff !important }`; it loads last, so it holds everywhere.
+  - `.admin-layout { min-height: 100vh }` survived printing. On paper a viewport height IS a page height, so the layout box stayed
+    a whole page tall even when the sheet inside it ended halfway down, and the leftover printed as a trailing blank sheet — the
+    blank second page reported on the stallholder roster, which had never been diagnosed. The floor is lifted inside app.css's
+    print block. Both are pinned by `StallHolderListPrintSheetTests`.
+
 - **A municipality's seal is a base64 data URI, which costs a round trip on every login paint.** Because a seal can be large, it is
   deliberately kept out of persistent component state: putting one there can exceed the circuit's SignalR message limit and drop the
   connection with "connection closed with an error". The login page therefore carries the office's NAME across the prerender
