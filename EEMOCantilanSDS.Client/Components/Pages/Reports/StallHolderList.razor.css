@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════════════════════
    Stall Holder List (all facilities) — scoped styles (sh-)
    Mirrors the Month-End report's document language (filter chips, sheet, summary
    cards, tables, subtotals) using the shared design tokens, so the two read as one
@@ -130,7 +130,7 @@
 .sh-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
 .sh-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
     .sh-summary { grid-template-columns: repeat(2, 1fr); }
     .sh-actions { flex-basis: 100%; }
     .sh-table { font-size: 11.5px; }
@@ -180,7 +180,11 @@
    RESPONSIVE — Stall Holder List document (mobile/tablet ≤768px).
    Desktop untouched.
 ═══════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
+/* Phone layout. Scoped to SCREEN deliberately: these rules shrink the sheet's padding and give each table a
+   scrolling wrapper with a 620px floor, none of which belongs on paper. A printed page is measured in CSS pixels
+   too, so an unscoped max-width can match it — that is exactly how the month-end sheet ended up printing with a
+   phone's padding and its signatories stacked down the page. */
+@media screen and (max-width: 768px) {
     /* The report "sheet" had 28px padding — too much on a phone. */
     .sh-sheet {
         padding: 16px 14px;
@@ -350,7 +354,12 @@
         border-radius: 0 !important;
         box-shadow: none !important;
         background: #fff !important;
-        padding: 0 !important;
+        /* The side margin, and it has to be stated HERE. This block sets padding with !important to strip the
+           sheet's card treatment, which was overriding the 12mm stated earlier in the file — so the roster
+           printed hard against both paper edges while the centred letterhead only looked inset. print.js sets
+           the page margin to zero on purpose, so the browser cannot draw its own header and footer across the
+           sheet, which leaves the margin to the app. Same 12mm as the month-end and collection sheets. */
+        padding: 0 12mm !important;
         margin: 0 !important;
     }
 

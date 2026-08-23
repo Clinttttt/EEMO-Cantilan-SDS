@@ -148,7 +148,7 @@
 .ex-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
 /* ── Responsive ── */
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
     .ex-summary { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
     .ex-actions { justify-content: flex-start; }
     .ex-table { font-size: 11.5px; }

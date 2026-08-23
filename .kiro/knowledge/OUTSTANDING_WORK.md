@@ -793,6 +793,17 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
+  measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where
+  an unscoped `768px` block printed the signatories stacked down the page and gave the sheet a phone's 14px side padding instead of
+  its 12mm margin. Because those blocks sit AFTER the print block in each file, they win.
+  - Fixed where documents are actually printed and were reported: `MonthEndReport`, `StallHolderList` and `ExportData` now scope
+    their phone blocks to `screen`.
+  - Still unscoped, and each has a print block that could be overridden the same way: `BbqReports`, `CustomReports`, `IceReports`,
+    `NccReports`, `NpmReports` (four blocks), `SlhReports`, `TccReports`, `TpmReports`, `TrmReports`, `ClosedAccounts`,
+    `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. The change is mechanical — add `screen and` — but each one should
+    be printed once before and after, since a print layout could unknowingly be leaning on a phone rule today.
+
 - **A municipality's seal is a base64 data URI, which costs a round trip on every login paint.** Because a seal can be large, it is
   deliberately kept out of persistent component state: putting one there can exceed the circuit's SignalR message limit and drop the
   connection with "connection closed with an error". The login page therefore carries the office's NAME across the prerender
