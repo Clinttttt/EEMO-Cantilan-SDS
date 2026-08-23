@@ -1950,7 +1950,10 @@ a.topbar-admin.account-chip {
     .sidebar { display: none !important; }
     .sidebar-hamburger, .sidebar-backdrop { display: none !important; }
     .admin-main { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
-    .admin-layout { display: block !important; }
+    /* The shell is a full-height flex column on screen (min-height: 100vh). On paper a viewport height IS a page
+       height, so that floor kept the layout box a whole page tall even when the sheet inside it ended halfway down,
+       and the leftover height printed as a trailing blank sheet. Reported on the stallholder roster. */
+    .admin-layout { display: block !important; min-height: 0 !important; }
     .no-print { display: none !important; }
 }
 

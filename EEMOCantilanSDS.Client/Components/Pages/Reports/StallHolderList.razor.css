@@ -379,8 +379,9 @@
         box-shadow: none !important;
     }
 
-    /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. */
-    .sh-rpt-head { margin-bottom: 10px; }
+    /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. The
+       first table still sits down from it rather than against it, which is the only reason this is 16 and not 10. */
+    .sh-rpt-head { margin-bottom: 16px; }
     .sh-seal { width: 46px; height: 46px; }
     .sh-org { font-size: 13px; }
     .sh-gov, .sh-muni { font-size: 9.5px; }
@@ -394,25 +395,32 @@
     .sh-section-label { break-after: avoid; }
     .sh-table thead { display: table-header-group; }
 
-    /* ── The facility label, folded into the table ───────────────────────────────────────────────────────
-       The label above each table sat outside the table's left edge, carrying a model tag and an active count
-       and monthly figure, over a rule. The table's own Total row already states the money and the section band
-       states the count, so on paper the label goes and the facility's NAME becomes the table's first row —
-       inside the grid, and repeating with the column headings when a facility runs onto a second sheet. */
-    .sh-fac-head { display: none; }
+    /* ── The facility label, above its sections ──────────────────────────────────────────────────────────
+       The facility is named ONCE, before the section bands, the way the export sheet reads. It was briefly a row
+       inside each table instead, which put the name UNDER the section band and then repeated it over every section
+       the market has. What the label must not carry onto paper is its screen furniture: the model tag, the active
+       count and the monthly figure are all restated by the section band and by the table's own Total row. Its
+       surface is the paper's own white, because a grey band here read as a second section heading. */
+    .sh-fac-head {
+        display: block;
+        background: #fff;
+        border: 0;
+        padding: 0;
+        margin: 0 0 6px;
+    }
 
-    .sh-fac-row { display: table-row; }
+    .sh-fac-head .sh-fac-stats, .sh-fac-head .sh-tag { display: none; }
 
-    .sh-fac-row td {
-        background: var(--bg);
-        text-align: left;
+    .sh-fac-name {
         font-size: 11px;
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: .06em;
         text-transform: uppercase;
         color: var(--navy);
-        padding: 7px 10px;
     }
+
+    /* Withdrawn: it duplicated the heading above, once per section. */
+    .sh-fac-row { display: none; }
 
     /* ── One Total per facility, not one per sheet ───────────────────────────────────────────────────────
        A tfoot is repeated on every printed page by default, so a facility that ran onto a second sheet printed

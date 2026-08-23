@@ -9,6 +9,11 @@
 @page { size: auto; margin: 0; }
 
 @media print {
+    /* Paper is white. On screen the shell paints itself --bg (#f0f4f8) so the sheets read as sheets; with background
+       graphics on (which every report needs, for the seal and the table headings) that tint printed across the whole
+       page, so the area around each sheet came out pale blue-grey instead of the paper's own white. */
+    html, body { background: #fff !important; }
+
     /* Facility reports print in LANDSCAPE — both the interactive dashboard (.rpt-content) and the
        formatted Status Report sheet (.print-report-sheet) — so their wide multi-column grids get the
        page width they need and lay out like on screen, instead of collapsing into a cramped column.
