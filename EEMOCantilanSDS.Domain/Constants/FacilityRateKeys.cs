@@ -11,14 +11,18 @@ namespace EEMOCantilanSDS.Domain.Constants
     public static class FacilityRateKeys
     {
         private static readonly FeeRateKey[] Npm =
-            { FeeRateKey.NpmDailyStall, FeeRateKey.NpmMonthlyStall, FeeRateKey.NpmFishPerKilo, FeeRateKey.ElecPerKwh, FeeRateKey.WaterPerCubicMeter };
+        {
+            FeeRateKey.NpmDailyStall, FeeRateKey.NpmMonthlyStall, FeeRateKey.NpmFishPerKilo,
+            FeeRateKey.ElecPerKwh, FeeRateKey.WaterPerCubicMeter,
+            // A market's per-area daily rates, offered since 2026-08-23. An office states one only where its ordinance
+            // prices that area apart from the market; stating none leaves every area on the market's own rate, which is
+            // what every office had before and what Cantilan still has.
+            FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat,
+        };
 
         /// <summary>
-        /// A market's per-area daily rates. Owned by NPM for resolution, but deliberately NOT part of <see cref="Npm"/>
-        /// yet: that list is what the office's rate editor offers and what activation accepts, and until the billing
-        /// paths read a per-area rate, offering one would let an office set ₱35 for its fish area and be charged ₱30 —
-        /// a figure on screen that no collection honours. They join that list in the same change that makes every
-        /// billing path read them.
+        /// A market's per-area daily rates. Named separately because the resolver treats them as a family: see
+        /// <see cref="PerAreaDailyKey"/> and <c>NpmDailyFee</c>, which is the single rule that reads them.
         /// </summary>
         private static readonly FeeRateKey[] NpmPerArea =
             { FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat };

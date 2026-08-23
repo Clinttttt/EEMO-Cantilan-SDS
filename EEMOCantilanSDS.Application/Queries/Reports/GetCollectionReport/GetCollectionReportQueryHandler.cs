@@ -43,7 +43,8 @@ public class GetCollectionReportQueryHandler(
         var asOf = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
-        var npmMonthly = npmDaily * 30m;
+        // The office's own stated market month, or 0 where it states none and a month is thirty installments.
+        var npmMonthlyStated = rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
 
         // Only the facilities the current tenant operates are reported (no phantom zero facilities).
         // Cantilan has all eight, so its report is unchanged.
@@ -63,10 +64,13 @@ public class GetCollectionReportQueryHandler(
 
             var rentals = report.StallCompliance.Select(s =>
             {
-                // NPM full-month coverage (₱900 reference less excused/absent days), same as Month-End.
-                var coverage = isNpm ? Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) : 0m;
+                // The fee THIS stall is billed at: the report carries it per stall, so an office that prices the areas of
+                // its market apart is measured area by area. Cantilan's every stall carries its ₱30, unchanged.
+                var stallDaily = isNpm ? (s.DailyRate > 0 ? s.DailyRate : npmDaily) : 0m;
+                // NPM full-month coverage (the month the space is let for, less excused days), same as Month-End.
+                var coverage = isNpm ? DomainRules.DailyBilledMonthCoverage(stallDaily, npmMonthlyStated, s.AbsentDays) : 0m;
                 var coverageBalance = isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m;
-                var rate = isNpm ? (s.DailyRate > 0 ? s.DailyRate : npmDaily) : s.MonthlyRate;
+                var rate = isNpm ? stallDaily : s.MonthlyRate;
                 var fishKilos = isNpm ? npmFishByStall.GetValueOrDefault(s.StallId) : 0m;
                 var fishFee = fishKilos * fishRate;
                 return new CollectionRentalRowDto(

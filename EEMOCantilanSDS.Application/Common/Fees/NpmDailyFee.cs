@@ -47,9 +47,16 @@ namespace EEMOCantilanSDS.Application.Common.Fees
                 return own;
 
             // 2) The office's rate for this stall's area, where it prices its areas apart.
+            //
+            // A stated area rate of ZERO reads as "this area is not priced apart", and the market's rate answers. Two
+            // reasons: an ordinance does not let a market space for nothing, so a zero here is a figure being cleared
+            // rather than a price; and clearing it is the only way the office's rate editor can withdraw an area rate at
+            // all, since it posts a row only when the value changes. The MARKET's own rate keeps its documented
+            // meaning, where zero says the office charges nothing under that head.
             if (stall.Section is { } section
                 && FacilityRateKeys.PerAreaDailyKey(section) is { } areaKey
-                && snapshot.ResolveOrNull(areaKey, asOf) is { } areaRate)
+                && snapshot.ResolveOrNull(areaKey, asOf) is { } areaRate
+                && areaRate > 0m)
                 return areaRate;
 
             // 3) The office's rate for the market.
@@ -81,8 +88,10 @@ namespace EEMOCantilanSDS.Application.Common.Fees
 
             foreach (var section in Enum.GetValues<MarketSection>())
             {
+                // A cleared area rate (zero) is not a stated fee — same reading as ForStallOrNull above.
                 if (FacilityRateKeys.PerAreaDailyKey(section) is { } key
-                    && snapshot.ResolveOrNull(key, asOf) is not null)
+                    && snapshot.ResolveOrNull(key, asOf) is { } rate
+                    && rate > 0m)
                     return true;
             }
 
@@ -98,7 +107,8 @@ namespace EEMOCantilanSDS.Application.Common.Fees
             ArgumentNullException.ThrowIfNull(snapshot);
 
             if (FacilityRateKeys.PerAreaDailyKey(section) is { } areaKey
-                && snapshot.ResolveOrNull(areaKey, asOf) is { } areaRate)
+                && snapshot.ResolveOrNull(areaKey, asOf) is { } areaRate
+                && areaRate > 0m)
                 return areaRate;
 
             return snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, asOf);

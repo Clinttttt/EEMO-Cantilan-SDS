@@ -75,6 +75,59 @@ public class GetCollectionReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task EachStallsCoverageIsMeasuredAtItsOwnFee()
+    {
+        // Phase 2c, 2026-08-23. The coverage column was struck at the MARKET's rate for every stall, so an office
+        // pricing the areas of its market apart was measured at the wrong fee — and the figure it reconciles by hand is
+        // exactly this one. The report already carries each stall's own resolved fee; the coverage now uses it.
+        var reports = new Mock<IFacilityReportsRepository>();
+        var empty = Report(0m, 0m, Array.Empty<StallComplianceDto>());
+
+        // A vegetable stall at ₱35 with 2 excused days, and a fish stall at the market's ₱30 with none.
+        var veg = Stall("1", "Gulayan", "Ana Reyes", "Paid", dailyRate: 35m, monthlyRate: 900m, paid: 0m, balance: 0m, absentDays: 2);
+        var fish = Stall("2", "Isda", "Ben Cruz", "Paid", dailyRate: 30m, monthlyRate: 900m, paid: 0m, balance: 0m, absentDays: 0);
+        var npm = Report(0m, 0m, new[] { veg, fish });
+
+        reports.Setup(r => r.GetFacilityReportsAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                code == FacilityCode.NPM ? npm : empty);
+        reports.Setup(r => r.GetNpmFishKilosByStallAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, decimal>());
+
+        var slaughter = new Mock<ISlaughterRepository>();
+        slaughter.Setup(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
+        var trm = new Mock<ITrmRepository>();
+        trm.Setup(t => t.GetTripsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrmTripDto>());
+        var tpm = new Mock<ITpmRepository>();
+        tpm.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
+        var facilities = new Mock<IFacilityRepository>();
+        facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<FacilityCode, string> { [FacilityCode.NPM] = "Public Market" });
+
+        var handler = new GetCollectionReportQueryHandler(
+            reports.Object, slaughter.Object, trm.Object, tpm.Object, facilities.Object,
+            CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
+
+        var result = await handler.Handle(new GetCollectionReportQuery(2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var rows = Assert.Single(result.Value!.Facilities, f => f.Code == FacilityCode.NPM).Rentals
+            .ToDictionary(r => r.StallNo, r => r);
+
+        // ₱35 × 30 = ₱1,050, less two excused days at ₱35 = ₱980. At the market's ₱30 it would have read ₱840.
+        Assert.Equal(980m, rows["1"].Coverage);
+        Assert.Equal(35m, rows["1"].Rate);
+
+        // The area priced no differently is unchanged: ₱30 × 30 = ₱900.
+        Assert.Equal(900m, rows["2"].Coverage);
+        Assert.Equal(30m, rows["2"].Rate);
+    }
+
+    [Fact]
     public async Task Composes_StructuredRows_PerFacilityContext()
     {
         var handler = Build();

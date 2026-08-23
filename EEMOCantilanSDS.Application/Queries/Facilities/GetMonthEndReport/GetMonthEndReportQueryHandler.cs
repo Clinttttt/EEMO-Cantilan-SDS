@@ -61,7 +61,8 @@ public class GetMonthEndReportQueryHandler(
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
-        var npmMonthly = npmDaily * 30m;
+        // The office's own stated market month, or 0 where it states none and a month is thirty installments.
+        var npmMonthlyStated = rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
 
         // Only the facilities the current tenant operates are reported (no phantom zero facilities).
         // Cantilan has all eight, so its report is unchanged.
@@ -82,10 +83,12 @@ public class GetMonthEndReportQueryHandler(
             var payors = report.StallCompliance
                 .Select(s =>
                 {
-                    // Excused/absent days are not owed, so they lower the full-month (₱900) reference:
-                    // coverage = ₱900 − (absent days × ₱30). A fully-absent month references ₱0.
+                    // The month the space is let for, less the days it was excused: an excused day is not owed, so it
+                    // lowers the reference by one installment. Measured at the fee THIS stall is billed at, which the
+                    // report carries per stall, so an office pricing its areas apart is measured area by area.
+                    var stallDaily = s.DailyRate > 0 ? s.DailyRate : npmDaily;
                     var coverage = isNpm
-                        ? Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily)
+                        ? DomainRules.DailyBilledMonthCoverage(stallDaily, npmMonthlyStated, s.AbsentDays)
                         : 0m;
                     return new MonthEndPayorDto(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,

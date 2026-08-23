@@ -69,6 +69,32 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const int DailyBilledMonthDays = 30;
 
         /// <summary>
+        /// The FULL-MONTH reference a daily-collected space is measured against on a report, less the days it was
+        /// excused. This is the "coverage" column: what a whole month would owe, and therefore what the amount
+        /// collected is compared with.
+        ///
+        /// <para>
+        /// The month is the rent the space is LET for — the office's own stated market month where it states one, and
+        /// otherwise thirty installments of the fee this space is billed at. Stated the same way as
+        /// <c>Stall.ResolveMonthlyRent</c> on purpose: the coverage on a report and the obligation in the ledger are the
+        /// same claim about the same month, and until this rule was written here the three report handlers each computed
+        /// thirty daily fees and ignored a stated month, so an office whose ordinance said ₱1,000 a month while
+        /// collecting ₱35 a day was shown ₱1,050 on its reports and ₱1,000 on its roster.
+        /// </para>
+        ///
+        /// <para>
+        /// <paramref name="dailyFee"/> is the fee THIS space is billed at, which for an office that prices the areas of
+        /// its market apart is its area's fee. An excused day is not owed, so it lowers the reference by one
+        /// installment; a wholly excused month references nothing.
+        /// </para>
+        /// </summary>
+        public static decimal DailyBilledMonthCoverage(decimal dailyFee, decimal statedMonthlyRent, int excusedDays)
+        {
+            var month = statedMonthlyRent > 0m ? statedMonthlyRent : dailyFee * DailyBilledMonthDays;
+            return System.Math.Max(0m, month - excusedDays * dailyFee);
+        }
+
+        /// <summary>
         /// What a daily-collected space OWES for one calendar month — its canonical contractual obligation.
         ///
         /// <para>A month the space was held in FULL owes the monthly rent, whatever the calendar says: this is the

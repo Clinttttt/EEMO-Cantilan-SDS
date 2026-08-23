@@ -100,7 +100,8 @@ public class GetFinancialReportQueryHandler(
         var asOf = new DateOnly(request.Year, request.Month ?? 12, DateTime.DaysInMonth(request.Year, request.Month ?? 12));
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
-        var npmMonthly = npmDaily * 30m;
+        // The office's own stated market month, or 0 where it states none and a month is thirty installments.
+        var npmMonthlyStated = rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
 
         var facilityRows = new List<FinancialFacilityRowDto>();
         var stallTrend = new Dictionary<string, (decimal Collected, decimal Unpaid)>();
@@ -164,13 +165,17 @@ public class GetFinancialReportQueryHandler(
                 var excusedAmount = 0m;
                 if (request.Period == ReportPeriod.Monthly)
                 {
-                    // Mirror the Month-End report: each NPM stall's ₱900 full-month reference LESS its
-                    // excused/absent days (₱30/day), and the balance against that absent-adjusted
-                    // reference — so the Financial and Month-End reports reconcile stall-for-stall.
-                    coverage = report.StallCompliance.Sum(s => Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily));
-                    coverageBalance = report.StallCompliance.Sum(s =>
-                        Math.Max(0m, Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) - s.AmountPaid));
-                    excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * npmDaily);
+                    // Mirror the Month-End report, stall for stall: the month each space is let for LESS its excused
+                    // days, and the balance against that adjusted reference. Measured at the fee EACH stall is billed
+                    // at, which the report carries per stall, so the two reports still reconcile where an office prices
+                    // the areas of its market apart.
+                    decimal StallDaily(StallComplianceDto s) => s.DailyRate > 0 ? s.DailyRate : npmDaily;
+                    decimal Coverage(StallComplianceDto s) =>
+                        DomainRules.DailyBilledMonthCoverage(StallDaily(s), npmMonthlyStated, s.AbsentDays);
+
+                    coverage = report.StallCompliance.Sum(Coverage);
+                    coverageBalance = report.StallCompliance.Sum(s => Math.Max(0m, Coverage(s) - s.AmountPaid));
+                    excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * StallDaily(s));
                 }
                 // Electricity + water for the period, the same figures now counted in this row's Collected.
                 detail = new NpmFacilityDetailDto(

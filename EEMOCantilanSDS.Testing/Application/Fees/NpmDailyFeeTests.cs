@@ -138,16 +138,44 @@ public class NpmDailyFeeTests
     [Fact]
     public void NoScreenOffersAnAreaRateUntilEveryBillingPathReadsOne()
     {
-        // The guard on phase 1. FacilityRateKeys.For(NPM) is what the office's rate editor lists and what activation
-        // accepts; a rate an office can set while collections still charge the market rate is a figure on screen that
-        // nothing honours. These join that list in the same change that makes billing read them.
+        // Superseded by TheOfficeMaySetAnAreasRate above: the withholding was phase 1's guard, and phase 3 lifted it once
+        // every billing and reporting path read a per-area rate. Kept as the record of why the order was that way round.
+        Assert.True(FacilityRateKeys.IsPerAreaDailyKey(FeeRateKey.NpmDailyStallVegetable));
+    }
+
+    [Fact]
+    public void AClearedAreaRateReturnsTheAreaToTheMarketsRate()
+    {
+        // Zero is a figure being withdrawn, not a price: an ordinance does not let a market space for nothing, and
+        // clearing the row is the only way the office's rate editor can take an area rate back — it posts a row only
+        // when the value changes, so there is no "delete". Without this reading, clearing ₱35 would have made every
+        // stall of that area free, and a collection would have been written for ₱0.
+        var snapshot = Snapshot(
+            (FeeRateKey.NpmDailyStall, 30m, Base),
+            (FeeRateKey.NpmDailyStallVegetable, 0m, Base));
+
+        Assert.Equal(30m, NpmDailyFee.ForStall(CanonicalStall(MarketSection.VegetableArea), snapshot, Today));
+        Assert.Equal(30m, NpmDailyFee.ForAreaOrNull(MarketSection.VegetableArea, snapshot, Today));
+
+        // And with nothing stated for the market either, a cleared area is not a stated fee at all.
+        var clearedOnly = Snapshot((FeeRateKey.NpmDailyStallVegetable, 0m, Base));
+        Assert.Null(NpmDailyFee.ForStallOrNull(CanonicalStall(MarketSection.VegetableArea), clearedOnly, Today));
+        Assert.False(NpmDailyFee.AnyStated(clearedOnly, Today));
+    }
+
+    [Fact]
+    public void TheOfficeMaySetAnAreasRate_AndTheThreeAreOfferedTogether()
+    {
+        // Phase 3. FacilityRateKeys.For(NPM) is what the office's rate editor lists, what its write path validates and
+        // what activation accepts. The three joined it once every billing and reporting path read them, so a rate the
+        // office sets is a rate its collections honour.
         var offered = FacilityRateKeys.For(FacilityCode.NPM);
 
-        Assert.DoesNotContain(FeeRateKey.NpmDailyStallVegetable, offered);
-        Assert.DoesNotContain(FeeRateKey.NpmDailyStallFish, offered);
-        Assert.DoesNotContain(FeeRateKey.NpmDailyStallMeat, offered);
+        Assert.Contains(FeeRateKey.NpmDailyStallVegetable, offered);
+        Assert.Contains(FeeRateKey.NpmDailyStallFish, offered);
+        Assert.Contains(FeeRateKey.NpmDailyStallMeat, offered);
 
-        // But they are recognised as per-area keys, so the change that wires them cannot miss one.
+        // Still recognised as a family, so the rule that reads them cannot miss one.
         Assert.True(FacilityRateKeys.IsPerAreaDailyKey(FeeRateKey.NpmDailyStallFish));
         Assert.False(FacilityRateKeys.IsPerAreaDailyKey(FeeRateKey.NpmDailyStall));
         Assert.Equal(3, Enum.GetValues<MarketSection>().Count(s => FacilityRateKeys.PerAreaDailyKey(s) is not null));
