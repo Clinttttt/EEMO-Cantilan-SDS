@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════════════════════
    Export Data report — scoped styles (ex-)
    Document/paper language consistent with the Month-End & Stall Holder reports.
    Colour is restrained; the sheet is the print artifact (controls are .no-print).
@@ -178,7 +178,11 @@
     .no-print { display: none !important; }
     /* Paper margin comes from js/print.js (page margin is zero so the browser cannot draw its own header and
        footer), so the sheet itself adds none. */
-    .ex-sheet { border: none; border-radius: 0; padding: 0; }
+    /* Side margins are the app's job here. print.js sets `@page { margin: 0 }` deliberately, so the browser
+       cannot draw its own header and footer over the sheet — but that also means the paper has NO margin of its
+       own, and the tables ran hard against both edges while the centred letterhead only looked inset. The
+       vertical whitespace comes from the frame table's repeating spacer; the horizontal comes from here. */
+    .ex-sheet { border: none; border-radius: 0; padding: 0 12mm; }   /* the same margin the month-end sheet prints */
     .ex-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
     .content-area { padding: 0 !important; }
     .ex-table tbody tr:hover { background: transparent; }
