@@ -130,6 +130,10 @@
 .sh-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
 .sh-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
+/* The facility's name as the table's own first row. Paper only: on screen the head above each table carries it,
+   with the model and the active/monthly pair beside it. */
+.sh-fac-row { display: none; }
+
 @media screen and (max-width: 760px) {
     .sh-summary { grid-template-columns: repeat(2, 1fr); }
     .sh-actions { flex-basis: 100%; }
@@ -389,6 +393,33 @@
     .sh-fac-head { break-after: avoid; }
     .sh-section-label { break-after: avoid; }
     .sh-table thead { display: table-header-group; }
+
+    /* ── The facility label, folded into the table ───────────────────────────────────────────────────────
+       The label above each table sat outside the table's left edge, carrying a model tag and an active count
+       and monthly figure, over a rule. The table's own Total row already states the money and the section band
+       states the count, so on paper the label goes and the facility's NAME becomes the table's first row —
+       inside the grid, and repeating with the column headings when a facility runs onto a second sheet. */
+    .sh-fac-head { display: none; }
+
+    .sh-fac-row { display: table-row; }
+
+    .sh-fac-row td {
+        background: var(--bg);
+        text-align: left;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--navy);
+        padding: 7px 10px;
+    }
+
+    /* ── One Total per facility, not one per sheet ───────────────────────────────────────────────────────
+       A tfoot is repeated on every printed page by default, so a facility that ran onto a second sheet printed
+       its Total twice — once after whatever rows fitted on the first page, and again at the end. Two totals for
+       one facility on a filed document reads as two different figures. As a row group it prints once, where it
+       belongs, after the last row. */
+    .sh-table tfoot { display: table-row-group; }
 }
 
 /* ── Section rail + filtered scope ────────────────────────────────────────────────────────────────────

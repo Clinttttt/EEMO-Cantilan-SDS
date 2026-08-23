@@ -245,6 +245,13 @@
     .me-sheet { border: none; border-radius: 0; padding: 0 12mm; background: #fff; }
     .me-rpt-head { margin-bottom: 10px; }
     .me-facility { break-inside: avoid; }
+
+    /* Column headings repeat on a continued table, and the subtotal prints ONCE. A tfoot is repeated on every
+       page by default, which on a facility that spans two sheets printed its subtotal twice — two totals for one
+       facility reads as two different figures. */
+    .me-table thead { display: table-header-group; }
+    .me-table tfoot { display: table-row-group; }
+    .me-table tr { break-inside: avoid; }
 }
 
 
