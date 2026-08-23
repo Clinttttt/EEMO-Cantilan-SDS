@@ -72,8 +72,8 @@ public class GetSettleableNpmDaysQueryHandler(
 
             // The fee this stall is actually billed at: a custom section charges its own rate, every canonical
             // stall the tenant's resolved one. Quoting the raw ordinance rate here offered a custom-section payor
-            // a day at the wrong price — Stall.ResolveDailyFee is the one rule billing and settlement use.
-            result.Add(new SettleableNpmDayDto(day, stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day))));
+            // a day at the wrong price — NpmDailyFee is the one rule billing and settlement use.
+            result.Add(new SettleableNpmDayDto(day, NpmDailyFee.ForStall(stall, snapshot, day)));
         }
 
         return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(result);

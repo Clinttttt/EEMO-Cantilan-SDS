@@ -78,8 +78,10 @@ public class BulkImportDailyHistoryCommandHandler(
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
         // An import writes settled days at the office's own daily fee. A fee it has never stated cannot be
-        // imported against, and taking it as zero would file a batch of days as collected for nothing.
-        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, today) is null)
+        // imported against, and taking it as zero would file a batch of days as collected for nothing. An office that
+        // prices only by area has stated one, so the gate asks whether ANY daily rate stands; each row below then
+        // resolves the fee for its own stall and is refused if that stall's area carries none.
+        if (!NpmDailyFee.AnyStated(snapshot, today))
             return Result<BulkImportDailyResultDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         var results = new List<BulkImportDailyRowResult>(request.Rows.Count);
@@ -232,7 +234,10 @@ public class BulkImportDailyHistoryCommandHandler(
                 if (receipt.Length == 0)
                     return $"{date:yyyy-MM-dd} has no OR number, on the day or on the month";
 
-                var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, date));
+                // The fee this stall is settled at. A stall whose area the office has not priced is refused rather than
+                // written at nothing: a day filed as collected for ₱0 reconciles against no ordinance at all.
+                if (NpmDailyFee.ForStallOrNull(stall, snapshot, date) is not { } fee)
+                    return $"{date:yyyy-MM-dd} has no daily fee stated for this stall's area";
 
                 if (already is null)
                 {

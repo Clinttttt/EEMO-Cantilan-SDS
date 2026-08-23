@@ -72,10 +72,11 @@ public class SettleNpmMonthCommandHandler(
             .ToHashSet();
 
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        // The office's own daily fee, or nothing to settle with. A fee it has never stated cannot be raised
-        // against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
-        // will reconcile against by hand.
-        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, clock.PhilippineToday) is null)
+        // The fee this stall is settled at, or nothing to settle with. A fee the office has never stated cannot be
+        // raised against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
+        // will reconcile against by hand. Asked of the STALL, so an office that prices its market's areas apart is
+        // answered for the area this stall stands in.
+        if (NpmDailyFee.ForStallOrNull(stall, snapshot, clock.PhilippineToday) is null)
             return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // The month's own ledger: its contractual rent (₱900 for a month held in full, whatever the calendar gave
@@ -101,9 +102,11 @@ public class SettleNpmMonthCommandHandler(
         }
 
         var monthCeilingDay = today < monthEnd ? today : monthEnd;
-        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay));
+        var monthFee = NpmDailyFee.ForStall(stall, snapshot, monthCeilingDay);
+        // The month's rent. Where the office states a monthly rent it wins, as it always has; where it states none the
+        // month is thirty of THIS stall's daily fee, which is the area's fee for an office that prices its areas apart.
         var monthRent = stall.ResolveMonthlyRent(
-            snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay),
+            NpmDailyFee.ForStall(stall, snapshot, monthCeilingDay),
             snapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthCeilingDay));
         var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, monthEnd.Day, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
@@ -122,7 +125,7 @@ public class SettleNpmMonthCommandHandler(
             if (closedDates.Contains(day)) continue;
             existing.TryGetValue(day, out var known);
             if (known is not null && (known.IsPaid || known.IsAbsent)) continue;
-            installmentsOwed += stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+            installmentsOwed += NpmDailyFee.ForStall(stall, snapshot, day);
         }
         var adjustment = monthClosed && collectable > installmentsOwed ? collectable - installmentsOwed : 0m;
         var installmentCap = collectable - adjustment;
@@ -139,7 +142,7 @@ public class SettleNpmMonthCommandHandler(
             if (dc is not null && (dc.IsPaid || dc.IsAbsent))
                 continue;                                               // already collected or excused
 
-            var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+            var fee = NpmDailyFee.ForStall(stall, snapshot, day);
             if (accumulated + fee > installmentCap)
                 break;                                                  // the month's rent is settled
             accumulated += fee;

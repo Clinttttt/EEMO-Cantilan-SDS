@@ -37,10 +37,15 @@ public class BulkImportStallholdersCommandHandler(
             ? request.CustomSectionName.Trim()
             : null;
 
-        // Resolve the current municipality's NPM daily fee (falls back to the ordinance constant, so
-        // Cantilan seeds the same ₱30 DailyRate). Imported NPM stalls are stamped with this rate.
+        // The daily fee this import stamps on the stalls it creates. For one of the three areas it is the office's rate
+        // FOR THAT AREA, which is its market rate wherever it prices that area no differently — so Cantilan stamps the
+        // same ₱30 it always did. A fee the office has never stated is refused rather than taken as zero.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        if (rateSnapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(clock.PhilippineNow)) is not { } npmDailyRate)
+        var rateAsOf = DateOnly.FromDateTime(clock.PhilippineNow);
+        var statedDailyRate = section is { } importedArea
+            ? NpmDailyFee.ForAreaOrNull(importedArea, rateSnapshot, rateAsOf)
+            : rateSnapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, rateAsOf);
+        if (statedDailyRate is not { } npmDailyRate)
             return Result<BulkImportResultDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED

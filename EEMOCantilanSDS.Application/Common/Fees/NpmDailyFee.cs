@@ -68,6 +68,28 @@ namespace EEMOCantilanSDS.Application.Common.Fees
             => ForStallOrNull(stall, snapshot, asOf) ?? 0m;
 
         /// <summary>
+        /// True when the office has stated SOME daily rate as of a date — for its market, or for at least one of its
+        /// areas. For the gates that run before any particular stall is in hand: an office that prices only by area has
+        /// stated a daily rate, and refusing its import because no market-wide row exists would be wrong. Each stall
+        /// still resolves its own fee, and a stall whose area is unpriced is refused there.
+        /// </summary>
+        public static bool AnyStated(FeeRateSnapshot snapshot, DateOnly asOf)
+        {
+            ArgumentNullException.ThrowIfNull(snapshot);
+
+            if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, asOf) is not null) return true;
+
+            foreach (var section in Enum.GetValues<MarketSection>())
+            {
+                if (FacilityRateKeys.PerAreaDailyKey(section) is { } key
+                    && snapshot.ResolveOrNull(key, asOf) is not null)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// The office's stated daily rate for one collection area, or the market's where it prices that area no
         /// differently. For the screens and reports that state an area's rate without a stall in hand.
         /// </summary>

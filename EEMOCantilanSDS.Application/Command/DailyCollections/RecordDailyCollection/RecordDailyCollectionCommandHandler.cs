@@ -91,14 +91,14 @@ public class RecordDailyCollectionCommandHandler(
         }
         else
         {
-            // Stamp the current municipality's resolved daily fee as of the collection date (falls back
-            // to the ordinance constant, so Cantilan stamps the same ₱30). A custom-section stall uses its
-            // own daily rate instead (canonical sections are unaffected).
+            // Stamp the fee this stall is collected at, as of the collection date. Asked of the STALL, so an office that
+            // prices the areas of its market apart is answered for the area this stall stands in, a stall in an area of
+            // the market's own keeps the rate it was let at, and an office stating one rate for the whole market is
+            // answered that rate exactly as before. A fee the office has never stated is refused rather than taken as
+            // zero: the amount stamped here is what it reconciles against by hand.
             var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-            if (rateSnapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, request.CollectionDate) is not { } statedDailyRate)
+            if (NpmDailyFee.ForStallOrNull(stall, rateSnapshot, request.CollectionDate) is not { } dailyFee)
                 return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
-
-            var dailyFee = stall.ResolveDailyFee(statedDailyRate);
 
             var newCollection = DailyCollection.Create(
                 stallId: request.StallId,

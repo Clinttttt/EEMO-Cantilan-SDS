@@ -52,10 +52,12 @@ public class SettleNpmDaysCommandHandler(
         // stall's current one, or arrears left behind by a lessee who has gone could never be collected.
         var occupancies = stall.Occupancies(today);
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        // The office's own daily fee, or nothing to settle with. A fee it has never stated cannot be raised
-        // against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
-        // will reconcile against by hand.
-        if (snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, clock.PhilippineToday) is null)
+        // The fee this stall is settled at, or nothing to settle with. A fee the office has never stated cannot be
+        // raised against a vendor, and must not be quietly taken as zero either: the amounts below are what the office
+        // will reconcile against by hand. Asked of the STALL, so an office that prices its market's areas apart is
+        // answered for the area this stall stands in; where it states one rate for the whole market, that is what
+        // answers, exactly as before.
+        if (NpmDailyFee.ForStallOrNull(stall, snapshot, clock.PhilippineToday) is null)
             return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
         // Load existing collections + facility closures for every month the selected dates span.
@@ -83,7 +85,7 @@ public class SettleNpmDaysCommandHandler(
             if (dc is not null && (dc.IsPaid || dc.IsAbsent))
                 continue;                                               // already collected or excused
 
-            var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+            var fee = NpmDailyFee.ForStall(stall, snapshot, day);
             if (dc is null)
             {
                 dc = DailyCollection.Create(request.StallId, day, recordedBy, fee);

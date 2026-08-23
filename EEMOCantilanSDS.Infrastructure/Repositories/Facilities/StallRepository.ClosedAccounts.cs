@@ -214,11 +214,11 @@ public partial class StallRepository
 
                     // The rate in force at the end of the counted span — the rent it is measured against is that
                     // month's.
-                    var monthFee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd));
+                    var monthFee = NpmDailyFee.ForStall(stall, rateSnapshot, mEnd);
                     var obligation = DomainRules.DailyBilledMonthObligation(
                         monthFee,
                         stall.ResolveMonthlyRent(
-                            rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd),
+                            NpmDailyFee.ForStall(stall, rateSnapshot, mEnd),
                             rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, mEnd)),
                         daysInMonth,
                         daysHeld);

@@ -133,9 +133,10 @@ public sealed class NpmMonthSettlementService(
             return NpmFishDayQuote.NotPayable("That day is already collected or excused.");
 
         // Tenant-aware: resolve BOTH the base fee and the fish ₱/kg from the current municipality's
-        // snapshot as-of the day (custom LGUs use their configured rates; Cantilan the ordinance constant).
+        // snapshot as-of the day. The base fee is asked of the STALL, so an office that prices the areas of its market
+        // apart is answered for the area this stall stands in; one rate for the whole market answers as it always did.
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var baseFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+        var baseFee = NpmDailyFee.ForStall(stall, snapshot, day);
         var fishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, day);
         return NpmFishDayQuote.Payable(baseFee + declaredKilos * fishRate, baseFee, fishRate);
     }
@@ -145,7 +146,7 @@ public sealed class NpmMonthSettlementService(
         Stall stall, DateOnly day, decimal declaredKilos, string recordedBy, CancellationToken ct)
     {
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var baseFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+        var baseFee = NpmDailyFee.ForStall(stall, snapshot, day);
 
         var dc = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, day, ct);
         if (dc is null)
@@ -218,15 +219,15 @@ public sealed class NpmMonthSettlementService(
                 continue;
             }
 
-            days.Add((day, stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day))));
+            days.Add((day, NpmDailyFee.ForStall(stall, snapshot, day)));
         }
 
         // The month's own obligation: its contractual rent when held in full, whatever the calendar gave it, less
         // the days nothing is owed for. The installments below settle against it.
         var rateDay = today < monthEnd ? today : monthEnd;
-        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, rateDay));
+        var monthFee = NpmDailyFee.ForStall(stall, snapshot, rateDay);
         var monthRent = stall.ResolveMonthlyRent(
-            snapshot.Resolve(FeeRateKey.NpmDailyStall, rateDay),
+            NpmDailyFee.ForStall(stall, snapshot, rateDay),
             snapshot.Resolve(FeeRateKey.NpmMonthlyStall, rateDay));
         var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, daysInMonth, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);

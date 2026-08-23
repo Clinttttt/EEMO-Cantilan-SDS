@@ -124,11 +124,11 @@ public partial class PaymentRepository
             // received (plus any month-end adjustment recorded on the month's last one).
             var daysHeld = CountCollectableDays(stall, monthStart, earnedEnd);
             var daysForgiven = absentDates.Count(d => d >= monthStart && d <= earnedEnd);
-            var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+            var fee = NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd);
             var obligation = DomainRules.DailyBilledMonthObligation(
                 fee,
                 stall.ResolveMonthlyRent(
-                    rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
+                    NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd),
                     rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
                 // The CALENDAR length, never the clamped end: a month held in full owes the month's rent, and passing
                 // the elapsed-day count here would make every month look like a part month.
@@ -298,11 +298,11 @@ public partial class PaymentRepository
                 // are credits against the obligation; a month entirely credited is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
-                var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+                var fee = NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd);
                 var obligation = DomainRules.DailyBilledMonthObligation(
                     fee,
                     stall.ResolveMonthlyRent(
-                        rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
+                        NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd),
                         rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
                     // The CALENDAR length of the month, never the clamped end: monthEnd was narrowed to this
                     // occupancy's own last day above, and passing that would make a seven-day part month look like
@@ -425,11 +425,11 @@ public partial class PaymentRepository
                 var daysHeld = to.DayNumber - from.DayNumber + 1;
                 var excusedDays = excused.Count(d => d >= from && d <= to);
                 if (daysHeld - excusedDays <= 0) continue;
-                var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
+                var fee = NpmDailyFee.ForStall(stall, rateSnapshot, mEndFull);
                 var obligation = DomainRules.DailyBilledMonthObligation(
                     fee,
                     stall.ResolveMonthlyRent(
-                        rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull),
+                        NpmDailyFee.ForStall(stall, rateSnapshot, mEndFull),
                         rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, mEndFull)),
                     mEndFull.Day,
                     daysHeld);
