@@ -854,9 +854,6 @@ Items that were open and are now closed, kept because the reasoning is what stop
     already warns when an office prices its areas differently and only the first is filed; that warning goes when the
     wizard can carry all three. `GetSystemSettings` and `GetNpmRates` state the MARKET's rate as a settings figure, which
     stays correct, and should gain per-area rows on the same pass.
-  - **Phase 5:** the mobile collector app, which receives a resolved rate and needs the area's.
-  - **Phase 4:** onboarding collects a rate per area, and activation seeds the area keys. The console already warns when
-    an office prices its areas differently and only the first is filed.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
     daily reads) and needs the area's.
   - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own
