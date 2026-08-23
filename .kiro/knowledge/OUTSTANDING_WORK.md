@@ -837,14 +837,24 @@ Items that were open and are now closed, kept because the reasoning is what stop
     now asks `NpmDailyFee.AnyStated` with a per-ROW refusal naming the stall's area, so a day can never be filed at zero.
     Proven by `RecordDailyCollectionPerAreaRateTests` (billing) and `StallHoldersListPerAreaRateTests` (reporting), both
     against seeded rate rows; TEMP-DEFECTs restoring the market-only reads failed them.
-  - **Phase 2c, still open.** Three report handlers compute a per-stall coverage figure from DTOs rather than from
-    stalls, so they still use the market's rate: `GetMonthEndReportQueryHandler:63` · `GetCollectionReportQueryHandler:44`
-    · `GetFinancialReportQueryHandler:101`. Making them area-aware needs the area carried on `StallComplianceDto` (which
-    already carries `Section` as canonical wording) or the fee resolved before the DTO is built. `GetSystemSettings` and
-    `GetNpmRates` state the MARKET's rate as a settings figure, which stays correct; they should gain the per-area rows
-    once phase 3 lets an office set them.
-  - **Phase 3:** add the keys to `FacilityRateKeys.For(NPM)` (which turns on the rate editor rows and the write path) and
-    delete the withheld-on-purpose branch of the invariant test.
+  - **Phase 2c SHIPPED 2026-08-23** with phase 3 (`860f78d1`). The month-end, collection and financial reports measured
+    every stall's coverage at the MARKET's rate and derived a month as thirty daily fees, ignoring a stated
+    `NpmMonthlyStall` — so an office stating ₱1,000 a month while collecting ₱35 a day read ₱1,050 on its reports beside
+    ₱1,000 on its roster, a disagreement that predated per-area rates. `DomainRules.DailyBilledMonthCoverage` now answers
+    for all three: the stated month where there is one, else thirty installments of THIS space's fee, less one
+    installment per excused day. Pinned by `DailyBilledMonthCoverageTests` and one handler assertion.
+  - **Phase 3 SHIPPED 2026-08-23** (`860f78d1`). The three keys joined `FacilityRateKeys.For(NPM)`, so the rate editor
+    lists them, its write path accepts them and activation's pairing rule allows them. The invariant test's
+    withheld-on-purpose branch is gone.
+    - **A cleared area rate (zero) reads as "not priced apart"** and the market's rate answers. The rate editor posts a
+      row only when its value changes, so there is no delete: an office withdraws an area rate by clearing it. Read
+      literally, zero would have made that area's stalls free and written a ₱0 collection. The MARKET's own rate keeps
+      its documented meaning, where zero says the office charges nothing under that head.
+  - **Phase 4, the only step left:** onboarding collects a rate per area and activation seeds the area keys. The console
+    already warns when an office prices its areas differently and only the first is filed; that warning goes when the
+    wizard can carry all three. `GetSystemSettings` and `GetNpmRates` state the MARKET's rate as a settings figure, which
+    stays correct, and should gain per-area rows on the same pass.
+  - **Phase 5:** the mobile collector app, which receives a resolved rate and needs the area's.
   - **Phase 4:** onboarding collects a rate per area, and activation seeds the area keys. The console already warns when
     an office prices its areas differently and only the first is filed.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
