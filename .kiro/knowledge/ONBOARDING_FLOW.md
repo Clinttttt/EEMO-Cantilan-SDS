@@ -128,6 +128,14 @@ The office's rule, confirmed 2026-08-16:
   `PlatformOperatorPolicy.IsOperator(isDedicatedOperator)` and nothing more. It used to also accept the default municipality's Head,
   so every step in that table could be run by one LGU's officer; that clause is gone. A Head who tries now gets `Forbidden` from
   the pipeline handlers and `403` from `BackupController`, which is intended, not a regression.
+- **The operator does not name another office's Head (2026-08-23).** The activation form carried a "Head username" input, so one
+  office's sign-in name was typed by another office. The field is gone, and `mapRequestToCommand` takes no username override at all,
+  so a later caller cannot pass one back in. Nothing an office states during onboarding is a username — its config carries a name, a
+  role and an email — so the name is derived from the municipality (`headUsernameFor`, e.g. Carrascal → `carrascal.head`), shown to
+  the operator read-only, emailed to the Head, and changed by the Head in their own portal, where editing your own account is
+  already allowed (`UpdateAdminCommandHandler`, `AdminManagementGuard.CanActOn`). Pinned by `activation.mapper.spec.ts`.
+  - The fuller answer, not built: let the Head choose their username on the set-password page the activation link opens, since that
+    page is already the Head's own. It needs `SetAdminPasswordByTokenCommand` to accept one and check it per municipality.
 
 The same borrowed-seal fallback existed in five more places and is now **FIXED across all of them (2026-08-17)**. The full set was three
 components that render a municipal seal — `Login` (fixed first), the shared `AuthBrandPanel` behind forgot-password, reset-password and
