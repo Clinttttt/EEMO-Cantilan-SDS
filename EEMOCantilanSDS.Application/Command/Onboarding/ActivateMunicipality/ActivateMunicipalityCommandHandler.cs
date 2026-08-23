@@ -96,7 +96,18 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 await ApplyNpmSectionLabelsAsync(npmFacility, npmSectionLabels, municipality.Name, ct);
 
             // 3) Fixed ordinance rates for the LGU.
-            foreach (var r in request.Rates)
+            //
+            // Filed once per facility and rate key. An onboarding config can state the same rate twice — the platform
+            // holds ONE large-animal rate, so a slaughterhouse listing carabao and cow at the same amount arrives as
+            // two identical rows — and every rate is filed on one effective date, so the second row hit the unique
+            // index and Postgres answered the operator with the bare word "Conflict". Two rows saying the same thing
+            // are one statement; two rows saying DIFFERENT things are refused by the validator, because choosing
+            // between them would be the platform deciding an ordinance.
+            var ratesToSeed = request.Rates
+                .GroupBy(r => (r.FacilityCode, r.Key))
+                .Select(g => g.First())
+                .ToList();
+            foreach (var r in ratesToSeed)
             {
                 context.FacilityRates.Add(FacilityRate.Create(
                     r.FacilityCode, r.Key, r.Amount, RateEffectiveFrom, municipality.Id, "Activation"));
@@ -107,7 +118,11 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             var customAnimalsCreated = 0;
             if (request.CustomAnimals is { Count: > 0 })
             {
-                foreach (var a in request.CustomAnimals)
+                // Once per name, for the same reason as the rates above: the registry is keyed by name, and the same
+                // animal named twice at the same rate is one entry. Two rates for one name are refused by the validator.
+                foreach (var a in request.CustomAnimals
+                    .GroupBy(a => a.AnimalName.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First()))
                 {
                     context.SlaughterAnimalRates.Add(SlaughterAnimalRate.Create(
                         a.AnimalName, a.RatePerHead, municipality.Id, "Activation"));
@@ -163,7 +178,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 head.Username!,
                 activationToken,
                 request.Facilities.Count,
-                request.Rates.Count,
+                ratesToSeed.Count,
                 stallsCreated,
                 customAnimalsCreated,
                 orSeriesConfigured));

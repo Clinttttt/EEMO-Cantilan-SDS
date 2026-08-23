@@ -115,6 +115,48 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Activate_FilesOneRow_WhenTheSameRateIsStatedTwice()
+        {
+            // Carrascal, 2026-08-23: activation answered "Conflict" because two rows arrived for one facility and rate
+            // key and Postgres rejected the second. The platform holds ONE large-animal rate, so a slaughterhouse
+            // listing carabao and cow at the same amount states that rate twice. Two identical statements are one
+            // statement, and one row is filed. (The in-memory provider does not enforce the unique index, so this
+            // asserts the row count directly — which is the behaviour the index was objecting to.)
+            var options = Options();
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var command = CarmenConfig() with
+                {
+                    Rates = new List<ActivationRate>
+                    {
+                        new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m),
+                        new(FacilityCode.SLH, FeeRateKey.SlhHogPerHead, 250m),
+                        new(FacilityCode.SLH, FeeRateKey.SlhLargePerHead, 365m),
+                        new(FacilityCode.SLH, FeeRateKey.SlhLargePerHead, 365m),
+                    }
+                };
+
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+
+                Assert.True(result.IsSuccess);
+                Assert.Equal(3, result.Value!.RatesCreated);   // reported as filed, not as sent
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var large = await carmenCtx.FacilityRates
+                    .Where(r => r.FacilityCode == FacilityCode.SLH && r.RateKey == FeeRateKey.SlhLargePerHead)
+                    .ToListAsync();
+
+                Assert.Single(large);
+                Assert.Equal(365m, large[0].Amount);
+                Assert.Equal(3, await carmenCtx.FacilityRates.CountAsync());
+            }
+        }
+
+        [Fact]
         public async Task Activate_NamesSectionAreas_AsTheLguNamedThem()
         {
             var options = Options();
