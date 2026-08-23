@@ -35,7 +35,7 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
             var muni = await context.Municipalities
                 .IgnoreQueryFilters()
                 .Where(m => m.Id == user.MunicipalityId)
-                .Select(m => new { m.Code, m.Name, m.OfficeName, m.OfficeAcronym })
+                .Select(m => new { m.Code, m.Name, m.OfficeName, m.OfficeAcronym, m.SealPath })
                 .FirstOrDefaultAsync(ct);
 
             return Result<ActivationContextDto>.Success(new ActivationContextDto(
@@ -44,7 +44,8 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
                 muni?.Name ?? string.Empty,
                 muni?.OfficeName,
                 muni?.OfficeAcronym,
-                muni?.Code));
+                muni?.Code,
+                muni?.SealPath));
         }
     }
 }

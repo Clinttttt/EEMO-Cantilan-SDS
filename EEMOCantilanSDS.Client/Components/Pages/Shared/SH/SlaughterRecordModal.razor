@@ -49,7 +49,12 @@
 
         <!-- Animal Selection -->
         <div class="slh-record-form-section-label">Select Animal Type(s)</div>
-        
+
+        @* Only the animals this office prices. An animal whose per-head rate its ordinance does not state is not
+           offered: the recording handler refuses such a transaction anyway, and until now the card stood there quoting
+           ₱0 — or, before the office's rates had loaded, Cantilan's. *@
+        @if (HogRate is not null)
+        {
         <!-- Hog -->
         <div class="slh-record-animal-card @(RecordForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
             <div class="slh-record-animal-header">
@@ -58,7 +63,7 @@
                 </div>
                 <div class="slh-record-animal-info">
                     <div class="slh-record-animal-name">Hog</div>
-                    <div class="slh-record-animal-rate">₱@(HogRate.ToString("0")) per head</div>
+                    <div class="slh-record-animal-rate">₱@(HogRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
                     @if (RecordForm.HogHeads > 0)
@@ -75,7 +80,10 @@
                 </div>
             }
         </div>
+        }
 
+        @if (LargeRate is not null)
+        {
         <!-- Carabao -->
         <div class="slh-record-animal-card @(RecordForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
             <div class="slh-record-animal-header">
@@ -84,7 +92,7 @@
                 </div>
                 <div class="slh-record-animal-info">
                     <div class="slh-record-animal-name">Carabao</div>
-                    <div class="slh-record-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-record-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
                     @if (RecordForm.CarabaoHeads > 0)
@@ -110,7 +118,7 @@
                 </div>
                 <div class="slh-record-animal-info">
                     <div class="slh-record-animal-name">Cow</div>
-                    <div class="slh-record-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-record-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
                     @if (RecordForm.CowHeads > 0)
@@ -127,7 +135,10 @@
                 </div>
             }
         </div>
+        }
 
+        @* Kept for every office: the rate is typed in by the person recording, so nothing is defaulted or assumed. It
+           is how an animal outside the priced list is receipted at all. *@
         <!-- Other Animal Type -->
         <div class="slh-record-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
             <div class="slh-record-animal-header">
@@ -167,21 +178,21 @@
                 {
                     <div class="slh-record-summary-row">
                         <span>Hog (@RecordForm.HogHeads head@(RecordForm.HogHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((RecordForm.HogHeads * 250).ToString("N0"))</span>
+                        <span>₱@((RecordForm.HogHeads * (HogRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (RecordForm.CarabaoHeads > 0)
                 {
                     <div class="slh-record-summary-row">
                         <span>Carabao (@RecordForm.CarabaoHeads head@(RecordForm.CarabaoHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((RecordForm.CarabaoHeads * 365).ToString("N0"))</span>
+                        <span>₱@((RecordForm.CarabaoHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (RecordForm.CowHeads > 0)
                 {
                     <div class="slh-record-summary-row">
                         <span>Cow (@RecordForm.CowHeads head@(RecordForm.CowHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((RecordForm.CowHeads * 365).ToString("N0"))</span>
+                        <span>₱@((RecordForm.CowHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (UseCustomAnimal && RecordForm.CustomHeads > 0)
@@ -220,13 +231,14 @@
     [Parameter]
     public bool ShowModal { get; set; }
 
-    // Tenant-resolved per-head rates for the animal cards (250 / 365 ordinance fallback keeps Cantilan
-    // identical); passed in by the SLH page from the resolved overview.
+    // The office's own per-head rates, or null where its ordinance states none. No fallback: these used to default to
+    // Cantilan's 250 and 365, so an office whose rates had not loaded was quoted another municipality's ordinance. An
+    // animal with no stated rate is not offered at all — its card is not rendered.
     [Parameter]
-    public decimal HogRate { get; set; } = 250m;
+    public decimal? HogRate { get; set; }
 
     [Parameter]
-    public decimal LargeRate { get; set; } = 365m;
+    public decimal? LargeRate { get; set; }
 
     [Parameter]
     public EventCallback OnClose { get; set; }
@@ -242,10 +254,14 @@
 
     private enum AnimalType { Hog, Carabao, Cow }
 
+    // Priced at the OFFICE's rates. These lines read 250 and 365 — Cantilan's ordinance, written into the arithmetic —
+    // while the cards above showed the office's own figures, so an office charging ₱400 a hog was shown a total
+    // computed at ₱250. The stored amount was always resolved server-side, so this was a wrong figure on screen in
+    // front of the person about to confirm it.
     private decimal TotalAmount =>
-        (RecordForm.HogHeads * 250) +
-        (RecordForm.CarabaoHeads * 365) +
-        (RecordForm.CowHeads * 365) +
+        (RecordForm.HogHeads * (HogRate ?? 0m)) +
+        (RecordForm.CarabaoHeads * (LargeRate ?? 0m)) +
+        (RecordForm.CowHeads * (LargeRate ?? 0m)) +
         (UseCustomAnimal ? RecordForm.CustomHeads * RecordForm.CustomRate : 0);
 
     protected override void OnParametersSet()

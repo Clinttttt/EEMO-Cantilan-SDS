@@ -55,6 +55,17 @@ public class ActivationController : ApiBaseController
     public async Task<ActionResult<ActivationContextDto>> GetContextAsync(string token)
     {
         var result = await Sender.Send(new GetActivationContextQuery(token));
+
+        // An embedded seal becomes the address of the seal endpoint, exactly as the branding endpoints do it: the page
+        // carries a short URL across its prerender boundary instead of tens of kilobytes of data URI, and the browser
+        // caches the image. Done here because only the request knows the host the caller reached us on.
+        if (result.IsSuccess && result.Value is { } ctx)
+        {
+            var url = SealUrl.From(Request, ctx.Code, ctx.SealPath);
+            if (url != ctx.SealPath)
+                result = Result<ActivationContextDto>.Success(ctx with { SealPath = url });
+        }
+
         return HandleResponse(result);
     }
 }

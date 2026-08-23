@@ -30,10 +30,12 @@ public record SlaughterOverviewDto(
     int CarabaoCount,
     int CowCount,
     int OthersCount,
-    // Tenant-resolved per-head rates (250 / 365 ordinance fallback keeps Cantilan identical), so the UI
-    // shows this LGU's own rates. Trailing defaults keep the existing positional repository construction valid.
-    decimal HogRatePerHead = 250m,
-    decimal LargeRatePerHead = 365m
+    // The office's OWN per-head rates, or null where its ordinance states none. Null is the whole point: these used to
+    // default to Cantilan's 250 and 365, and the overview resolved them with Resolve(), which reads an unstated rate as
+    // zero - so an office that does not slaughter carabao was offered a carabao at ₱0 per head, and one that had not
+    // been configured at all was quoted Cantilan's ordinance. An animal an office does not price is not offered.
+    decimal? HogRatePerHead = null,
+    decimal? LargeRatePerHead = null
 );
 
 public record OwnerTransactionGroupDto(

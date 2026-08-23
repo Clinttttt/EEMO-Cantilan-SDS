@@ -10,16 +10,37 @@
 
 <div class="setup-root">
 
-    <!-- Left Panel — neutral StallTrack branding (LGU-agnostic: the one-time token does not identify the LGU) -->
+    <!-- Left Panel — the office's own identification. The token does name an LGU, by way of the account it belongs to,
+         so the page an office sets its first password on carries that office's seal beside the platform's. Where an
+         office has no seal on file the slot waits as a plain outline; it is never filled with another LGU's mark. -->
     <div class="setup-left">
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
+                @if (Context is not null)
+                {
+                    <div class="government-logo-card">
+                        @if (!string.IsNullOrWhiteSpace(SealPath))
+                        {
+                            <img src="@SealPath" alt="@Context.Municipality seal" />
+                        }
+                        else
+                        {
+                            <svg class="seal-placeholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"
+                                 stroke-linecap="round" stroke-linejoin="round" role="img"
+                                 aria-label="@Context.Municipality has not uploaded its official seal yet">
+                                <path d="M3 21h18" />
+                                <path d="M5 21V10l7-5 7 5v11" />
+                                <path d="M9 21v-6h6v6" />
+                            </svg>
+                        }
+                    </div>
+                }
                 <div class="government-logo-card stalltrack-logo">
                     <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
                 </div>
             </div>
             <div class="setup-brand">
-                <div class="setup-brand-label">StallTrack Platform</div>
+                <div class="setup-brand-label">@(Context is not null ? "Republic of the Philippines" : "StallTrack Platform")</div>
                 <div class="setup-brand-city">@(Context is not null && !string.IsNullOrWhiteSpace(Context.Municipality) ? $"Municipality of {Context.Municipality}" : "Municipal Revenue System")</div>
                 <div class="setup-brand-title">@(Context?.OfficeAcronym ?? "Activation")</div>
                 <div class="setup-brand-sub">@(Context is not null && !string.IsNullOrWhiteSpace(Context.OfficeName) ? Context.OfficeName : "Set your administrator password to go live")</div>
@@ -127,9 +148,14 @@
                                         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                                         <circle cx="12" cy="7" r="4" />
                                     </svg>
+                                    @* Bound the way the sign-in page binds its own username field. Written as
+                                       value="@Username" with @oninput, every keystroke re-rendered the component and
+                                       re-applied the value as of that render, so on a slow circuit characters visibly
+                                       vanished and came back as the server's older value overwrote what was typed.
+                                       @bind tracks what it last put in the element and leaves it alone. *@
                                     <input class="form-input"
-                                           value="@Username"
-                                           @oninput="@((e) => Username = e.Value?.ToString() ?? string.Empty)"
+                                           @bind="Username"
+                                           @bind:event="oninput"
                                            placeholder="Choose your sign-in username"
                                            autocomplete="username" />
                                 </div>
@@ -139,7 +165,7 @@
                                 }
                                 else
                                 {
-                                    <span class="form-hint">This is what you'll type to sign in. Keep the suggested one or set your own.</span>
+                                    <span class="form-hint">This is what you will type to sign in.</span>
                                 }
                             </div>
                         }
@@ -154,8 +180,8 @@
                                         <path d="M7 11V7a5 5 0 0110 0v4" />
                                     </svg>
                                     <input @key="@ShowPassword"
-                                           value="@Password"
-                                           @oninput="@((e) => Password = e.Value?.ToString() ?? string.Empty)"
+                                           @bind="Password"
+                                           @bind:event="oninput"
                                            type="@(ShowPassword ? "text" : "password")"
                                            class="form-input form-input-password"
                                            placeholder="Min. 8 characters, with a letter and a number" />
@@ -192,8 +218,8 @@
                                     <path d="M7 11V7a5 5 0 0110 0v4" />
                                 </svg>
                                 <input @key="@ShowPassword"
-                                       value="@ConfirmPassword"
-                                       @oninput="@((e) => ConfirmPassword = e.Value?.ToString() ?? string.Empty)"
+                                       @bind="ConfirmPassword"
+                                       @bind:event="oninput"
                                        type="@(ShowPassword ? "text" : "password")"
                                        class="form-input"
                                        placeholder="Re-enter password" />
@@ -271,8 +297,15 @@
 @code {
     [Parameter] public string? Token { get; set; }
 
+    // Carried across the prerender boundary. The page is opened by a full page load from the activation email, so the
+    // prerender resolves the office's identity; without carrying it, the interactive pass started blank and the seal
+    // and office name appeared a moment later. Same mechanism the sign-in page and the sidebar use.
+    [PersistentState] public string? PMunicipality { get; set; }
+    [PersistentState] public string? PSeal { get; set; }
+
     ActivationContextDto? Context;
 
+    string SealPath = string.Empty;
     string Username = string.Empty;
     string Password = string.Empty;
     string ConfirmPassword = string.Empty;
@@ -287,6 +320,9 @@
         if (string.IsNullOrWhiteSpace(Token))
             return;
 
+        // Paint what the prerender already resolved, so the first interactive frame is not a blank panel.
+        if (!string.IsNullOrWhiteSpace(PSeal)) SealPath = PSeal!;
+
         // Best-effort: resolve the account identity for a valid token so the page can confirm who is
         // activating (name/username/office). A failure here never blocks activation — the set-password call
         // re-validates the token — so we simply fall back to the plain password form.
@@ -296,7 +332,13 @@
             if (result.IsSuccess)
             {
                 Context = result.Value;
-                Username = Context?.Username ?? string.Empty;
+
+                // The username is NOT filled in. The account is provisioned under a name derived from the LGU, and
+                // showing it invited the office to accept a sign-in name it never chose. It types its own; the one on
+                // file only stands until it does.
+                SealPath = Context?.SealPath ?? string.Empty;
+                PMunicipality = Context?.Municipality;
+                PSeal = SealPath;
             }
         }
         catch
@@ -385,12 +427,17 @@
     // Hands the login page the LGU this account belongs to, so the panel it lands on carries that municipality's own
     // seal, name and office. A bare /login falls back to the default LGU's identity, which is how an office finished
     // activating Madrid and was greeted by Cantilan. `activated=1` is kept so the page can still say the account is ready.
+    //
+    // forceLoad, deliberately. Navigating inside the circuit builds the login page in the browser, and its first frame
+    // is drawn from the field initialisers — the default LGU — before the branding call returns, so the office saw
+    // Cantilan's seal flash. A real request lets the server prerender the page with this LGU's branding already
+    // resolved, so the office's own seal is in the first byte.
     void GoToLogin()
     {
         var code = Context?.Code;
         Navigation.NavigateTo(string.IsNullOrWhiteSpace(code)
             ? "/login?activated=1"
-            : $"/login?activated=1&lgu={Uri.EscapeDataString(code!)}");
+            : $"/login?activated=1&lgu={Uri.EscapeDataString(code!)}", forceLoad: true);
     }
 
     int GetPasswordStrength(string pw)

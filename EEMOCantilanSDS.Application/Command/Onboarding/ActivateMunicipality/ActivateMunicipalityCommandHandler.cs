@@ -159,14 +159,16 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
             // Email the Head their one-time set-password link (best-effort; the link is also shown in the
             // console for the operator to copy). Mirrors the onboarding-approval email pattern.
+            // The username is NOT stated. The account is provisioned under a name derived from the LGU so the row is
+            // valid, but the Head chooses their own on the activation page; naming the provisioned one here told the
+            // office to expect a sign-in name it never chose and would not end up using.
             var activationLink = ActivationLinks.Build(activationToken);
             var emailBody =
                 $"Congratulations! {municipality.Name}'s StallTrack portal is now live.\n\n" +
-                "As the designated Administrator (Head), please use the secure link below to set your password " +
-                "and sign in for the first time. Once inside, you can add and manage your own staff (admins and " +
-                "collectors) and begin day-to-day operations.\n\n" +
-                $"Your username: {head.Username}\n" +
-                $"Set your password:\n{activationLink}\n\n" +
+                "As the designated Administrator (Head), please use the secure link below to choose your username and " +
+                "set your password, then sign in for the first time. Once inside, you can add and manage your own staff " +
+                "(admins and collectors) and begin day-to-day operations.\n\n" +
+                $"Activate your account:\n{activationLink}\n\n" +
                 "This is a one-time link and expires in 7 days.\n\n" +
                 "— StallTrack Platform Team";
             await emailSender.SendAsync(

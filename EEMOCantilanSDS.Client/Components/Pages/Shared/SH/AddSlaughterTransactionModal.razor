@@ -36,7 +36,10 @@
 
         <!-- Animal Selection -->
         <div class="slh-form-section-label">Select Animal Type</div>
-        
+
+        @* Only the animals this office prices — see SlaughterRecordModal for why. *@
+        @if (HogRate is not null)
+        {
         <!-- Hog -->
         <div class="slh-animal-card @(TransactionForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
             <div class="slh-animal-header">
@@ -45,7 +48,7 @@
                 </div>
                 <div class="slh-animal-info">
                     <div class="slh-animal-name">Hog</div>
-                    <div class="slh-animal-rate">₱@(HogRate.ToString("0")) per head</div>
+                    <div class="slh-animal-rate">₱@(HogRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
                     @if (TransactionForm.HogHeads > 0)
@@ -62,7 +65,10 @@
                 </div>
             }
         </div>
+        }
 
+        @if (LargeRate is not null)
+        {
         <!-- Carabao -->
         <div class="slh-animal-card @(TransactionForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
             <div class="slh-animal-header">
@@ -71,7 +77,7 @@
                 </div>
                 <div class="slh-animal-info">
                     <div class="slh-animal-name">Carabao</div>
-                    <div class="slh-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
                     @if (TransactionForm.CarabaoHeads > 0)
@@ -97,7 +103,7 @@
                 </div>
                 <div class="slh-animal-info">
                     <div class="slh-animal-name">Cow</div>
-                    <div class="slh-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
                     @if (TransactionForm.CowHeads > 0)
@@ -114,6 +120,7 @@
                 </div>
             }
         </div>
+        }
 
         <!-- Other Animal Type -->
         <div class="slh-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
@@ -160,21 +167,21 @@
                 {
                     <div class="slh-summary-row">
                         <span>Hog (@TransactionForm.HogHeads head@(TransactionForm.HogHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((TransactionForm.HogHeads * 250).ToString("N0"))</span>
+                        <span>₱@((TransactionForm.HogHeads * (HogRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (TransactionForm.CarabaoHeads > 0)
                 {
                     <div class="slh-summary-row">
                         <span>Carabao (@TransactionForm.CarabaoHeads head@(TransactionForm.CarabaoHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((TransactionForm.CarabaoHeads * 365).ToString("N0"))</span>
+                        <span>₱@((TransactionForm.CarabaoHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (TransactionForm.CowHeads > 0)
                 {
                     <div class="slh-summary-row">
                         <span>Cow (@TransactionForm.CowHeads head@(TransactionForm.CowHeads > 1 ? "s" : ""))</span>
-                        <span>₱@((TransactionForm.CowHeads * 365).ToString("N0"))</span>
+                        <span>₱@((TransactionForm.CowHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (UseCustomAnimal && TransactionForm.CustomHeads > 0)
@@ -213,13 +220,13 @@
     [Parameter]
     public bool ShowModal { get; set; }
 
-    // Tenant-resolved per-head rates for the animal cards (250 / 365 ordinance fallback keeps Cantilan
-    // identical); passed in by the SLH page from the resolved overview.
+    // The office's own per-head rates, or null where its ordinance states none — never another municipality's numbers
+    // as a default. An animal with no stated rate is not offered.
     [Parameter]
-    public decimal HogRate { get; set; } = 250m;
+    public decimal? HogRate { get; set; }
 
     [Parameter]
-    public decimal LargeRate { get; set; } = 365m;
+    public decimal? LargeRate { get; set; }
 
     [Parameter]
     public string OwnerName { get; set; } = string.Empty;
@@ -246,9 +253,9 @@
     private bool UseCustomAnimal { get; set; } = false;
 
     private decimal TotalAmount =>
-        (TransactionForm.HogHeads * 250) +
-        (TransactionForm.CarabaoHeads * 365) +
-        (TransactionForm.CowHeads * 365) +
+        (TransactionForm.HogHeads * (HogRate ?? 0m)) +
+        (TransactionForm.CarabaoHeads * (LargeRate ?? 0m)) +
+        (TransactionForm.CowHeads * (LargeRate ?? 0m)) +
         (UseCustomAnimal ? TransactionForm.CustomHeads * TransactionForm.CustomRate : 0);
 
     protected override void OnParametersSet()

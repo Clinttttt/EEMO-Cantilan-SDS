@@ -128,6 +128,66 @@ public class LoginIdentityTests
     }
 
     [Fact]
+    public void TheActivationPageCarriesTheOfficesOwnSeal()
+    {
+        // An office setting its first password was shown StallTrack's mark and nothing of its own, on the grounds that a
+        // one-time token does not name an LGU. It does, by way of the account it belongs to — so the context carries the
+        // office's seal, and the page shows it beside the platform's.
+        var query = Source("EEMOCantilanSDS.Application", "Queries", "Onboarding", "GetActivationContext",
+            "GetActivationContextQuery.cs");
+        var handler = Source("EEMOCantilanSDS.Application", "Queries", "Onboarding", "GetActivationContext",
+            "GetActivationContextQueryHandler.cs");
+        var markup = Source("EEMOCantilanSDS.Client", "Components", "Pages", "AdminActivate.razor");
+
+        Assert.Contains("string? SealPath", query);
+        Assert.Contains("m.SealPath", handler);
+        Assert.Contains("Context.Municipality seal", markup);
+
+        // An office with no seal on file gets the waiting slot, never another municipality's mark.
+        Assert.Contains("seal-placeholder", markup);
+        Assert.DoesNotContain("stalltrack-seal.png", markup);
+    }
+
+    [Fact]
+    public void TheActivationPageDoesNotFillInTheUsername()
+    {
+        // The account is provisioned under a name derived from the LGU. Showing it invited an office to accept a sign-in
+        // name it never chose, so the field starts empty and the office types its own.
+        var markup = Source("EEMOCantilanSDS.Client", "Components", "Pages", "AdminActivate.razor");
+
+        Assert.DoesNotContain("Username = Context?.Username", markup);
+        Assert.Contains("Choose your sign-in username", markup);
+    }
+
+    [Fact]
+    public void TypingIsNotOverwrittenByTheServersOlderValue()
+    {
+        // Reported from use: characters vanished and came back while typing. Written as value="@Field" with @oninput,
+        // every keystroke re-rendered and re-applied the value as of that render, so on a slow circuit the server's
+        // older value overwrote what had been typed since. @bind tracks what it last put in the element.
+        var markup = Source("EEMOCantilanSDS.Client", "Components", "Pages", "AdminActivate.razor");
+
+        // Comments out: this page explains the very pattern being banned, and a comment is not markup.
+        var code = Regex.Replace(markup, @"@\*.*?\*@", string.Empty, RegexOptions.Singleline);
+
+        Assert.DoesNotMatch(@"value=""@(Username|Password|ConfirmPassword)""", code);
+        Assert.Contains(@"@bind=""Username""", code);
+        Assert.Contains(@"@bind=""Password""", code);
+        Assert.Contains(@"@bind=""ConfirmPassword""", code);
+    }
+
+    [Fact]
+    public void ContinuingToSignInReloadsSoTheOfficesOwnSealIsInTheFirstByte()
+    {
+        // Navigating inside the circuit built the login page in the browser, and its first frame came from the field
+        // initialisers - the default LGU - before the branding call returned, so an office that had just activated saw
+        // Cantilan's seal flash. A real request lets the server prerender the page with this LGU already resolved.
+        var markup = Source("EEMOCantilanSDS.Client", "Components", "Pages", "AdminActivate.razor");
+
+        Assert.Matches(@"lgu=\{Uri\.EscapeDataString\(code!\)\}"",\s*forceLoad: true", markup);
+    }
+
+    [Fact]
     public void TheActivatedPanelIsNotWashedInNavy()
     {
         // The confirmation was the one screen in the sequence with a dark panel: a light password step, then this, then a

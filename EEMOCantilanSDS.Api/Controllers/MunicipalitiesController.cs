@@ -94,14 +94,11 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     {
         if (!result.IsSuccess || result.Value is not { } branding) return result;
         if (branding.SealPath is not { Length: > 0 } stored) return result;
-        if (!stored.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return result;
-        if (string.IsNullOrWhiteSpace(identifier)) return result;
 
-        var version = Convert.ToHexString(
-            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(stored)))[..12].ToLowerInvariant();
-
-        var url = $"{PublicScheme()}://{Request.Host}{Request.PathBase}/api/municipalities/{Uri.EscapeDataString(identifier)}/seal?v={version}";
-        return Result<MunicipalityBrandingDto>.Success(branding with { SealPath = url });
+        var url = SealUrl.From(Request, identifier, stored);
+        return ReferenceEquals(url, stored) || url == stored
+            ? result
+            : Result<MunicipalityBrandingDto>.Success(branding with { SealPath = url });
     }
 
     /// <summary>
@@ -120,17 +117,9 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     /// which is a wider change than one URL needs and would sit underneath the HTTPS redirect and HSTS.
     /// </para>
     /// </summary>
-    private string PublicScheme()
-    {
-        var forwarded = Request.Headers["X-Forwarded-Proto"].ToString();
-        if (!string.IsNullOrWhiteSpace(forwarded))
-        {
-            // The header may carry a list, proxy by proxy; the first entry is the client's own.
-            var first = forwarded.Split(',')[0].Trim();
-            if (string.Equals(first, "https", StringComparison.OrdinalIgnoreCase)) return "https";
-            if (string.Equals(first, "http", StringComparison.OrdinalIgnoreCase)) return "http";
-        }
-
-        return Request.Scheme;
-    }
+    /// <summary>
+    /// The scheme the CALLER used. Kept as a thin call to the shared rule so the seal endpoint below and the Head's
+    /// activation page cannot drift apart on the one detail that fails silently.
+    /// </summary>
+    private string PublicScheme() => SealUrl.PublicScheme(Request);
 }

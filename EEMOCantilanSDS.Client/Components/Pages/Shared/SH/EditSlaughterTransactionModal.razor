@@ -50,7 +50,10 @@
 
         <!-- Animal Selection -->
         <div class="slh-edit-form-section-label">Select Animal Types</div>
-        
+
+        @* Priced animals, plus whatever this transaction already records so a past entry stays correctable. *@
+        @if (HogRate is not null || EditForm.HogHeads > 0)
+        {
         <!-- Hog -->
         <div class="slh-edit-animal-card @(EditForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
             <div class="slh-edit-animal-header">
@@ -59,7 +62,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Hog</div>
-                    <div class="slh-edit-animal-rate">₱@(HogRate.ToString("0")) per head</div>
+                    <div class="slh-edit-animal-rate">₱@((HogRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.HogHeads > 0)
@@ -76,7 +79,10 @@
                 </div>
             }
         </div>
+        }
 
+        @if (LargeRate is not null || EditForm.CarabaoHeads > 0 || EditForm.CowHeads > 0)
+        {
         <!-- Carabao -->
         <div class="slh-edit-animal-card @(EditForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
             <div class="slh-edit-animal-header">
@@ -85,7 +91,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Carabao</div>
-                    <div class="slh-edit-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-edit-animal-rate">₱@((LargeRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.CarabaoHeads > 0)
@@ -111,7 +117,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Cow</div>
-                    <div class="slh-edit-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
+                    <div class="slh-edit-animal-rate">₱@((LargeRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.CowHeads > 0)
@@ -128,6 +134,7 @@
                 </div>
             }
         </div>
+        }
 
         <!-- Other Animal Type -->
         <div class="slh-edit-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
@@ -184,13 +191,14 @@
     [Parameter]
     public bool ShowModal { get; set; }
 
-    // Tenant-resolved per-head rates for the animal cards (250 / 365 ordinance fallback keeps Cantilan
-    // identical); passed in by the SLH page from the resolved overview.
+    // The office's own per-head rates, or null where its ordinance states none — never another municipality's numbers
+    // as a default. A card is offered when the office prices that animal OR when the transaction being corrected
+    // already recorded it: an office that has since stopped pricing an animal must still be able to fix a past entry.
     [Parameter]
-    public decimal HogRate { get; set; } = 250m;
+    public decimal? HogRate { get; set; }
 
     [Parameter]
-    public decimal LargeRate { get; set; } = 365m;
+    public decimal? LargeRate { get; set; }
 
     [Parameter]
     public EventCallback OnClose { get; set; }

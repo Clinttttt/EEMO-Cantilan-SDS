@@ -94,18 +94,19 @@
             </div>
         </div>
 
-        <!-- SLAUGHTER RECORD MODAL -->
+        <!-- SLAUGHTER RECORD MODAL. The office's own rates travel as they are: an unstated rate stays null so the modal
+             leaves that animal out, rather than a fallback putting Cantilan's ordinance on another office's screen. -->
         <SlaughterRecordModal ShowModal="ShowRecordModal"
-                              HogRate="@(Overview?.HogRatePerHead ?? 250m)"
-                              LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
+                              HogRate="@Overview?.HogRatePerHead"
+                              LargeRate="@Overview?.LargeRatePerHead"
                               OnClose="CloseRecordModal"
                               OnSubmit="SubmitSlaughterRecord"
                               ErrorMessage="@ErrorMessage" />
 
         <!-- ADD TRANSACTION MODAL -->
         <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
-                                      HogRate="@(Overview?.HogRatePerHead ?? 250m)"
-                                      LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
+                                      HogRate="@Overview?.HogRatePerHead"
+                                      LargeRate="@Overview?.LargeRatePerHead"
                                       OwnerName="@SelectedOwnerName"
                                       TransactionDate="@SelectedTransactionDate"
                                       ORNumber="@SelectedORNumber"
@@ -115,8 +116,8 @@
 
         <!-- EDIT TRANSACTION MODAL -->
         <EditSlaughterTransactionModal ShowModal="ShowEditModal"
-                                       HogRate="@(Overview?.HogRatePerHead ?? 250m)"
-                                       LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
+                                       HogRate="@Overview?.HogRatePerHead"
+                                       LargeRate="@Overview?.LargeRatePerHead"
                                        OnClose="CloseEditModal"
                                        OnSave="SubmitEditTransaction"
                                        ErrorMessage="@ErrorMessage"
@@ -143,29 +144,35 @@
                         <div class="slh-tooltip">
                             <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
 
-                            <div class="slh-tooltip-section">
-                                <div class="slh-tooltip-animal">Hog — ₱@((Overview?.HogRatePerHead ?? 250m).ToString("0")) total</div>
-                                <div class="slh-tooltip-breakdown">
-                                    <span>Slaughter</span><span>₱50</span>
-                                    <span>Ante Mortem</span><span>₱20</span>
-                                    <span>Table Charge</span><span>₱30</span>
-                                    <span>Entrance</span><span>₱150</span>
+                            @* The office's own stated rates, and only the animals it prices.
+                               The itemisation that used to sit here - Slaughter 50, Ante Mortem 20, Table Charge 30,
+                               Entrance 150, and six more lines for a large animal - was Cantilan's ordinance written
+                               into the markup, shown to every LGU as though it were its own. Nothing stores a
+                               breakdown: the platform holds one total per head, so a total is what it can state. *@
+                            @if (Overview?.HogRatePerHead is { } hogRate)
+                            {
+                                <div class="slh-tooltip-section">
+                                    <div class="slh-tooltip-animal">Hog — ₱@(hogRate.ToString("0"))</div>
                                 </div>
-                            </div>
+                            }
 
-                            <div class="slh-tooltip-divider"></div>
-
-                            <div class="slh-tooltip-section">
-                                <div class="slh-tooltip-animal">Carabao / Cow — ₱@((Overview?.LargeRatePerHead ?? 365m).ToString("0")) total</div>
-                                <div class="slh-tooltip-breakdown">
-                                    <span>Slaughter</span><span>₱150</span>
-                                    <span>Permit</span><span>₱100</span>
-                                    <span>Ante Mortem</span><span>₱20</span>
-                                    <span>Post Mortem</span><span>₱25</span>
-                                    <span>Table Charge</span><span>₱30</span>
-                                    <span>Livestock</span><span>₱40</span>
+                            @if (Overview?.LargeRatePerHead is { } largeRate)
+                            {
+                                @if (Overview?.HogRatePerHead is not null)
+                                {
+                                    <div class="slh-tooltip-divider"></div>
+                                }
+                                <div class="slh-tooltip-section">
+                                    <div class="slh-tooltip-animal">Carabao / Cow — ₱@(largeRate.ToString("0"))</div>
                                 </div>
-                            </div>
+                            }
+
+                            @if (Overview?.HogRatePerHead is null && Overview?.LargeRatePerHead is null)
+                            {
+                                <div class="slh-tooltip-section">
+                                    <div class="slh-tooltip-animal">No per-head rate is on file for this office yet.</div>
+                                </div>
+                            }
                         </div>
                     </div>
                 </div>

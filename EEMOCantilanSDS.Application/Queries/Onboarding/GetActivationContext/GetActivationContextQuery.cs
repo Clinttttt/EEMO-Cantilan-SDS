@@ -17,11 +17,19 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
     /// Without it that button led to a bare /login, which falls back to the default LGU's seal and office - an office
     /// finished activating Madrid and was greeted by Cantilan.
     /// </param>
+    /// <param name="SealPath">
+    /// The office's OWN seal, so the page an office sets its first password on carries its own identification. It used
+    /// to carry StallTrack's mark alone, on the grounds that a one-time token does not name an LGU - but it does, by
+    /// way of the account it belongs to. Null when the office has no seal on file: the slot then waits, and is never
+    /// filled with another municipality's mark. An embedded seal is rewritten to the seal endpoint's address by the
+    /// controller, which is the only place that knows the host the caller reached.
+    /// </param>
     public record ActivationContextDto(
         string FullName,
         string Username,
         string Municipality,
         string? OfficeName,
         string? OfficeAcronym,
-        string? Code = null);
+        string? Code = null,
+        string? SealPath = null);
 }
