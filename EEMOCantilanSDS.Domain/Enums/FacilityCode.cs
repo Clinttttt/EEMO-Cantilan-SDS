@@ -59,6 +59,20 @@ namespace EEMOCantilanSDS.Domain.Enums
         // whose ordinance states a month that is not thirty of its days (say ₱35 a day and ₱1,000 a month) sets it
         // here, and every obligation, balance and roster figure follows.
         NpmMonthlyStall = 9,
+
+        // NPM, PER COLLECTION AREA — ₱ per day for stalls of one area of the market, where an office's ordinance
+        // prices its areas apart (say vegetables at ₱35 and fish at ₱30). An office that states one rate for the whole
+        // market states none of these, and every area is billed NpmDailyStall exactly as before: Cantilan has no rows
+        // under these keys and nothing about its billing changes.
+        //
+        // Deliberately ordinary rate keys rather than a new table, so an area's rate inherits everything the fee-rate
+        // machinery already guarantees — an effective date, a change that is never retroactive, the audit trail, and the
+        // resolver's refusal to hand one facility's figure to another.
+        //
+        // A market's OWN area (a custom section) is not here: its stalls already carry their own daily rate.
+        NpmDailyStallVegetable = 10,
+        NpmDailyStallFish = 11,
+        NpmDailyStallMeat = 12,
     }
     public enum MarketSection
     {

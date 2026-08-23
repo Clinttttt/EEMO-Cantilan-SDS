@@ -67,4 +67,21 @@ public class FeeRateSnapshotFacilityTests
         Assert.Equal(facility, FacilityRateKeys.OwnerOf(key));
         Assert.Contains(key, FacilityRateKeys.For(facility));
     }
+
+    [Fact]
+    public void EveryKeyIsEitherOfferedByItsOwner_OrWithheldOnPurpose()
+    {
+        // The theory above lists keys by hand, so a key added later could be owned by a facility that never offers it -
+        // settable by nobody, and silently unreachable. Every key must therefore be one or the other, and the only
+        // withheld ones are the market's per-area daily rates, which are resolved but not yet offered because no billing
+        // path reads them (see NpmDailyFeeTests).
+        foreach (var key in Enum.GetValues<FeeRateKey>())
+        {
+            var offered = FacilityRateKeys.For(FacilityRateKeys.OwnerOf(key)).Contains(key);
+            var withheldOnPurpose = FacilityRateKeys.IsPerAreaDailyKey(key);
+
+            Assert.True(offered ^ withheldOnPurpose,
+                $"{key} is neither offered by {FacilityRateKeys.OwnerOf(key)} nor withheld on purpose.");
+        }
+    }
 }

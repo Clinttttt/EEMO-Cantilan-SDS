@@ -12,6 +12,16 @@ namespace EEMOCantilanSDS.Domain.Constants
     {
         private static readonly FeeRateKey[] Npm =
             { FeeRateKey.NpmDailyStall, FeeRateKey.NpmMonthlyStall, FeeRateKey.NpmFishPerKilo, FeeRateKey.ElecPerKwh, FeeRateKey.WaterPerCubicMeter };
+
+        /// <summary>
+        /// A market's per-area daily rates. Owned by NPM for resolution, but deliberately NOT part of <see cref="Npm"/>
+        /// yet: that list is what the office's rate editor offers and what activation accepts, and until the billing
+        /// paths read a per-area rate, offering one would let an office set ₱35 for its fish area and be charged ₱30 —
+        /// a figure on screen that no collection honours. They join that list in the same change that makes every
+        /// billing path read them.
+        /// </summary>
+        private static readonly FeeRateKey[] NpmPerArea =
+            { FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat };
         private static readonly FeeRateKey[] Slh = { FeeRateKey.SlhHogPerHead, FeeRateKey.SlhLargePerHead };
         private static readonly FeeRateKey[] Tpm = { FeeRateKey.TpmVendorDay };
         private static readonly FeeRateKey[] Trm = { FeeRateKey.TrmPerTrip };
@@ -35,10 +45,27 @@ namespace EEMOCantilanSDS.Domain.Constants
         {
             FeeRateKey.NpmDailyStall or FeeRateKey.NpmMonthlyStall or FeeRateKey.NpmFishPerKilo
                 or FeeRateKey.ElecPerKwh or FeeRateKey.WaterPerCubicMeter => FacilityCode.NPM,
+            FeeRateKey.NpmDailyStallVegetable or FeeRateKey.NpmDailyStallFish
+                or FeeRateKey.NpmDailyStallMeat => FacilityCode.NPM,
             FeeRateKey.SlhHogPerHead or FeeRateKey.SlhLargePerHead => FacilityCode.SLH,
             FeeRateKey.TpmVendorDay => FacilityCode.TPM,
             FeeRateKey.TrmPerTrip => FacilityCode.TRM,
             _ => FacilityCode.NPM,
         };
+
+        /// <summary>
+        /// The rate key for ONE collection area of a market, or null for an area the platform keys nothing on (a
+        /// market's own area, whose stalls carry their own daily rate).
+        /// </summary>
+        public static FeeRateKey? PerAreaDailyKey(MarketSection section) => section switch
+        {
+            MarketSection.VegetableArea => FeeRateKey.NpmDailyStallVegetable,
+            MarketSection.FishSection => FeeRateKey.NpmDailyStallFish,
+            MarketSection.MeatSection => FeeRateKey.NpmDailyStallMeat,
+            _ => null,
+        };
+
+        /// <summary>True for the per-area daily rates, which are resolved per area rather than per market.</summary>
+        public static bool IsPerAreaDailyKey(FeeRateKey key) => NpmPerArea.Contains(key);
     }
 }

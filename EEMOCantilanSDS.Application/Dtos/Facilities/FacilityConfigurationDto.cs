@@ -56,6 +56,11 @@ public static class FacilityDisplay
     public static string RateLabel(FeeRateKey key) => key switch
     {
         FeeRateKey.NpmDailyStall => "Daily stall fee",
+        // Per-area daily rates, for an office that prices the areas of its market apart. An office that states none is
+        // billed its market rate for every area.
+        FeeRateKey.NpmDailyStallVegetable => "Daily stall fee — vegetable area",
+        FeeRateKey.NpmDailyStallFish => "Daily stall fee — fish section",
+        FeeRateKey.NpmDailyStallMeat => "Daily stall fee — meat section",
         // The month-length convention, taken from the rule rather than written out: an LGU that states no monthly rent
         // has its month read as this many daily fees, and a label saying "30" while the rule said otherwise would be
         // the office's own screen contradicting the arithmetic behind it.
