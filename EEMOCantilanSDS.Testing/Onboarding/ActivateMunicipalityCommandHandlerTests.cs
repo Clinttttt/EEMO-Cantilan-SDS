@@ -115,6 +115,46 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Activate_FilesAnAreasOwnRate_SoTheOfficeIsBilledAreaByArea()
+        {
+            // The end of the chain the office asked for on 2026-08-23: it enters a rate per area during onboarding, the
+            // console files each one, and activation stores them as that LGU's own ordinance rows.
+            var options = Options();
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var command = CarmenConfig() with
+                {
+                    Rates = new List<ActivationRate>
+                    {
+                        new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m),
+                        new(FacilityCode.NPM, FeeRateKey.NpmDailyStallVegetable, 35m),
+                        new(FacilityCode.NPM, FeeRateKey.NpmDailyStallFish, 30m),
+                        new(FacilityCode.NPM, FeeRateKey.NpmDailyStallMeat, 40m),
+                    }
+                };
+
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+
+                Assert.True(result.IsSuccess);
+                Assert.Equal(4, result.Value!.RatesCreated);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var byKey = await carmenCtx.FacilityRates
+                    .Where(r => r.FacilityCode == FacilityCode.NPM)
+                    .ToDictionaryAsync(r => r.RateKey, r => r.Amount);
+
+                Assert.Equal(35m, byKey[FeeRateKey.NpmDailyStall]);
+                Assert.Equal(35m, byKey[FeeRateKey.NpmDailyStallVegetable]);
+                Assert.Equal(30m, byKey[FeeRateKey.NpmDailyStallFish]);
+                Assert.Equal(40m, byKey[FeeRateKey.NpmDailyStallMeat]);
+            }
+        }
+
+        [Fact]
         public async Task Activate_RegistersTheMarketsOwnDeclaredAreas()
         {
             // A market with an area that is not a vegetable, fish or meat section used to have no way to say so at

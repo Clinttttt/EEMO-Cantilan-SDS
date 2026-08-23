@@ -52,6 +52,31 @@ public class ActivateMunicipalityRatePairingTests
     }
 
     [Fact]
+    public void AMarketsPerAreaRatesAreItsOwnFacilitysRates()
+    {
+        // Phase 4 (2026-08-23): onboarding now sends a rate for each area the office priced. They belong to the market's
+        // ordinance like its market-wide rate, so activation accepts them for NPM.
+        var ok = Validate(Command(
+            new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m),
+            new(FacilityCode.NPM, FeeRateKey.NpmDailyStallVegetable, 35m),
+            new(FacilityCode.NPM, FeeRateKey.NpmDailyStallFish, 30m),
+            new(FacilityCode.NPM, FeeRateKey.NpmDailyStallMeat, 40m)), out var error);
+
+        Assert.True(ok, error);
+    }
+
+    [Fact]
+    public void AnAreasRateFiledUnderAnotherFacility_IsRefused()
+    {
+        // The same rule as every other key: a row filed against the wrong facility is not that facility's rate, and the
+        // resolver would never read it.
+        var ok = Validate(Command(new ActivationRate(FacilityCode.TCC, FeeRateKey.NpmDailyStallFish, 30m)), out var error);
+
+        Assert.False(ok);
+        Assert.Contains("is not a rate of TCC", error);
+    }
+
+    [Fact]
     public void AMonthlyRentalFacility_HasNoOrdinanceRatesToState()
     {
         // TCC/NCC/BBQ/ICE rent is negotiated per stall, so no fixed key belongs to them at all.
