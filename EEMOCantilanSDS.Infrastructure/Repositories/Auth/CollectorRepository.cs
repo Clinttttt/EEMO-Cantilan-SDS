@@ -53,7 +53,23 @@ public partial class CollectorRepository(AppDbContext context, IFeeRateResolver 
         _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         _npmMonthlyRent = snapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
+
+        // Kept alongside the market's figure, because a collector's own figures are stated PER STALL and an office may
+        // price the areas of its market apart.
+        _rateSnapshot = snapshot;
+        _rateAsOf = asOf;
     }
+
+    private FeeRateSnapshot? _rateSnapshot;
+    private DateOnly _rateAsOf;
+
+    /// <summary>
+    /// The daily fee this stall is billed at: the rate of its area where the office prices its areas apart, its own
+    /// rate where it stands in an area of the market's own, and the market's rate otherwise.
+    /// </summary>
+    private decimal NpmFeeFor(Stall stall) => _rateSnapshot is { } snapshot
+        ? NpmDailyFee.ForStall(stall, snapshot, _rateAsOf)
+        : stall.ResolveDailyFee(_npmDailyRate);
 
     public async Task<CollectorUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {

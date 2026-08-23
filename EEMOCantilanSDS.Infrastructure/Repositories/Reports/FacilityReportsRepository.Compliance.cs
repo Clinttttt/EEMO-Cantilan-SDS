@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -313,7 +313,7 @@ public partial class FacilityReportsRepository
                 // charged: a custom section its own rate, a canonical stall the tenant's resolved rate (which
                 // fixes legacy NPM stalls that stored the old ₱30 default). Non-NPM keeps its stored per-stall
                 // daily rate. Cantilan is unchanged (stored == resolved == ₱30).
-                includeFish ? s.ResolveDailyFee(_npmDailyRate) : (s.DailyRate ?? 0m),
+                includeFish ? NpmFeeFor(s) : (s.DailyRate ?? 0m),
                 status,
                 amountPaid,
                 balance,

@@ -65,7 +65,7 @@ public class GetDailyCollectionMonthQueryHandler(
         // uses. Single-rate tenants (Cantilan) are unaffected: any as-of date in range resolves the same amount.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
-        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var npmDaily = NpmDailyFee.ForStall(stall, rateSnapshot, asOf);
         var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);        var daysAbsentPast = 0;      // individually excused/absent days up to today — excluded from DaysMissed
         var daysAbsentAll = 0;       // individually excused/absent days in the whole month
         var daysClosedPast = 0;      // market-closed days up to today — excluded from DaysMissed

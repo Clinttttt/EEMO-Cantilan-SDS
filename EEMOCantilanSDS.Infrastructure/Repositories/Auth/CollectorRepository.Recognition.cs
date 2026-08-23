@@ -96,8 +96,8 @@ public partial class CollectorRepository
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        // A custom-section stall's prepaid daily amount is divided by ITS daily rate; canonical uses ordinance.
-        var dailyRate = stall.ResolveDailyFee(_npmDailyRate);
+        // A stall's prepaid daily amount is divided by the fee IT is billed at.
+        var dailyRate = NpmFeeFor(stall);
         if (prepaidAmount <= 0m || dailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 

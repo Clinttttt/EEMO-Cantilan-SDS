@@ -71,10 +71,11 @@ public partial class StallRepository
         var npmMonthlyRent = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmMonthlyStall, rateAsOf) : 0m;
 
         // The monthly rent the space is let for: the LGU's own stated market month when it has stated one, else
-        // thirty of its daily fee — and a custom section's own rate decides its own month. Cantilan resolves to
-        // ₱30 × 30 = ₱900, exactly what it showed before.
+        // thirty of the fee THIS stall is billed at — its own rate in an area of the market's own, its area's rate
+        // where the office prices areas apart, the market's rate otherwise. Cantilan resolves to ₱30 × 30 = ₱900,
+        // exactly what it showed before.
         decimal MonthlyOf(Stall s) => isDailyBilled
-            ? s.ResolveMonthlyRent(npmDailyRate, npmMonthlyRent)
+            ? s.ResolveMonthlyRent(NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf), npmMonthlyRent)
             : s.MonthlyRate;
 
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection

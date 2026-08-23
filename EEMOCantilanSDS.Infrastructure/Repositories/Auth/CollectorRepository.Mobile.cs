@@ -308,7 +308,6 @@ public partial class CollectorRepository
 
         await LoadNpmRatesAsync(toDate, cancellationToken);
         var npmFish = _npmFishRate;
-        var npmDaily = _npmDailyRate;
         var npmMonthlyRent = _npmMonthlyRent;
 
         if (selectedSet.Contains(FacilityCode.NPM))
@@ -433,7 +432,7 @@ public partial class CollectorRepository
                 // The fee this stall is billed at, through the one rule billing and settlement use: a custom section
                 // charges its own rate, a canonical stall the tenant's resolved one. Reading the stored per-stall
                 // value here let a legacy figure on a canonical stall quietly outrank the tenant's own rate.
-                var dailyRate = s.ResolveDailyFee(npmDaily);
+                var dailyRate = NpmFeeFor(s);
                 var stallPayments = periodNpmPaymentRecords
                     .Where(p => p.StallId == s.Id)
                     .ToList();
@@ -469,7 +468,7 @@ public partial class CollectorRepository
                     s, monthStart, DomainRules.EarnedThrough(collectionEnd, _clock.PhilippineToday));
                 var assessed = DomainRules.DailyBilledMonthObligation(
                     dailyRate,
-                    s.ResolveMonthlyRent(npmDaily, npmMonthlyRent),
+                    s.ResolveMonthlyRent(NpmFeeFor(s), npmMonthlyRent),
                     DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month),
                     assessedDays);
                 var balance = Math.Max(0m, assessed - rentalPaid);

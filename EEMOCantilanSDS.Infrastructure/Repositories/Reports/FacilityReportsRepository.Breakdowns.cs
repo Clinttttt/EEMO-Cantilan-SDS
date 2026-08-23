@@ -95,7 +95,7 @@ public partial class FacilityReportsRepository
             + periodPaymentRecords.Sum(pr =>
             {
                 if (!npmStallsById.TryGetValue(pr.StallId, out var stall)) return 0;
-                var fee = stall.ResolveDailyFee(_npmDailyRate);
+                var fee = NpmFeeFor(stall);
                 if (fee <= 0m) return 0;
                 return (int)Math.Round(RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall) / fee);
             });
@@ -124,7 +124,7 @@ public partial class FacilityReportsRepository
 
         var expectedDayRecords = npmCollectableStalls.Sum(stall =>
         {
-            var fee = stall.ResolveDailyFee(_npmDailyRate);
+            var fee = NpmFeeFor(stall);
             if (fee <= 0m) return 0;
             var excused = excusedByStall.GetValueOrDefault(stall.Id);
             var days = 0;
@@ -268,7 +268,7 @@ public partial class FacilityReportsRepository
             s => Enumerable.Range(0, monthEnd.Day).Select(i => monthStart.AddDays(i)).Where(d => CollectableOn(s, d)).ToList());
         var prepaidDaysByStall = stalls.ToDictionary(
             s => s.Id,
-            s => _npmDailyRate > 0 ? (int)Math.Floor(rentPaidByStall.GetValueOrDefault(s.Id) / _npmDailyRate) : 0);
+            s => NpmFeeFor(s) > 0 ? (int)Math.Floor(rentPaidByStall.GetValueOrDefault(s.Id) / NpmFeeFor(s)) : 0);
 
         bool CoveredOn(Stall s, DateOnly d)
         {

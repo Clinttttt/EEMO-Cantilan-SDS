@@ -124,8 +124,8 @@ public partial class FacilityReportsRepository
         // projected January-to-December receivable.
         var asOf = _clock.PhilippineToday;
 
-        var fee = stall.ResolveDailyFee(_npmDailyRate);
-        var rent = stall.ResolveMonthlyRent(_npmDailyRate, _npmMonthlyRent);
+        var fee = NpmFeeFor(stall);
+        var rent = stall.ResolveMonthlyRent(NpmFeeFor(stall), _npmMonthlyRent);
         var total = 0m;
 
         var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
@@ -261,8 +261,9 @@ public partial class FacilityReportsRepository
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        // A custom-section stall's prepaid daily amount is divided by ITS daily rate; canonical uses ordinance.
-        var dailyRate = stall.ResolveDailyFee(_npmDailyRate);
+        // A stall's prepaid daily amount is divided by the fee IT is billed at: its own rate in an area of the market's
+        // own, its area's rate where the office prices areas apart, the market's rate otherwise.
+        var dailyRate = NpmFeeFor(stall);
         if (prepaidAmount <= 0m || dailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 
@@ -291,6 +292,8 @@ public partial class FacilityReportsRepository
         return amount;
     }
 
+    // The market's rate, deliberately: this overload is reached only where the payment names no stall (see the caller
+    // above), so there is no area to resolve and no stall whose own rate could apply.
     private decimal AllocatePrepaidDailyAmountToRange(
         decimal prepaidAmount,
         DateOnly monthStart,

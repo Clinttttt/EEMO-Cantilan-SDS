@@ -51,7 +51,25 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         _npmMonthlyRent = snapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
+
+        // Kept alongside the market's own figure, because a report states a fee PER STALL and an office may price the
+        // areas of its market apart. The scalar above remains the market's rate, for the few figures that are the
+        // market's rather than a stall's.
+        _rateSnapshot = snapshot;
+        _rateAsOf = asOf;
     }
+
+    private FeeRateSnapshot? _rateSnapshot;
+    private DateOnly _rateAsOf;
+
+    /// <summary>
+    /// The daily fee this stall is billed at, for the period this report covers: the rate of the area it stands in
+    /// where the office prices its areas apart, its own rate where it is in an area of the market's own, and the
+    /// market's rate otherwise — which is every stall of an office that states one rate, unchanged.
+    /// </summary>
+    private decimal NpmFeeFor(Stall stall) => _rateSnapshot is { } snapshot
+        ? NpmDailyFee.ForStall(stall, snapshot, _rateAsOf)
+        : stall.ResolveDailyFee(_npmDailyRate);
 
     public async Task<int> GetEarliestActivityYearAsync(CancellationToken ct)
     {

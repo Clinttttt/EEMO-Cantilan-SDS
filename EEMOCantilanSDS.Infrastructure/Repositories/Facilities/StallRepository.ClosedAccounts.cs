@@ -299,7 +299,7 @@ public partial class StallRepository
                 // LGU's own stated market month, or thirty of its daily fee, and a custom section's own rate for its
                 // own month — never the hand-entered figure stored on the stall. A monthly facility states the rent
                 // THIS occupancy was let at, which is also the figure the collection dialog offers.
-                isNpm ? stall.ResolveMonthlyRent(npmDailyRate, npmMonthlyRent) : occupancyMonthlyRate,
+                isNpm ? stall.ResolveMonthlyRent(NpmDailyFee.ForStall(stall, rateSnapshot, today), npmMonthlyRent) : occupancyMonthlyRate,
                 isClosed ? stall.ClosedAt : null,
                 contractExpiry,
                 lifetimeCollected,

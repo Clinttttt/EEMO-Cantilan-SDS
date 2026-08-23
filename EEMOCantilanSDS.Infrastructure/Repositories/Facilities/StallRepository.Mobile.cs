@@ -86,10 +86,11 @@ public partial class StallRepository
                 .FirstOrDefault();
             var collectableToday = contract is not null && contract.IsCollectableOn(collectionDate);
 
-            // Through Stall.ResolveDailyFee, the same rule billing, settlement and the reports use: a custom
-            // section charges its own rate; a canonical stall charges the tenant's resolved rate even if a legacy
-            // figure is still stored on it.
-            var dailyRate = s.ResolveDailyFee(npmDailyRate);
+            // Through NpmDailyFee, the same rule billing, settlement and the reports use: a stall in an area of the
+            // market's own charges the rate it was let at; a stall in one of the three charges the office's rate for
+            // that area, which is its market rate wherever it prices the area no differently — even if a legacy figure
+            // is still stored on the stall.
+            var dailyRate = NpmDailyFee.ForStall(s, rateSnapshot, collectionDate);
             var todayCollection = s.DailyCollections.FirstOrDefault(d => d.CollectionDate == collectionDate);
             var paidCollections = s.DailyCollections
                 .Where(d => d.IsPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd)
