@@ -187,6 +187,30 @@ its own language, and that name is display only. Both sides travel end to end:
 The `kind` values are the `MarketSection` names verbatim, in all three codebases, so no translation table exists to
 disagree with itself.
 
+**A market may also declare areas of its OWN (2026-08-23).** Beyond the three, an office whose market has a rice section,
+a dry goods row or a carinderia line declares each by name, and activation registers it in the facility's section
+registry (`Facility.CustomSectionNames`, the same store the portal writes when a Head files a stall under a new area).
+Before this, onboarding could not reach that registry at all: an area came into being only when the Head typed its name
+into the first stall filed under it.
+
+| Where | Carries |
+|---|---|
+| Landing onboarding | a section whose `kind` is `CustomArea`, named by the office (the name is required; an unnamed one holds the facility open) |
+| Admin console | `isCustomArea` routes it into `ActivationFacility.customSections`; `CustomArea` is deliberately NOT a member of `MarketSectionKind`, so nothing reading a collection area can be handed one |
+| API | `ActivationFacility.CustomSections` → `Facility.AddCustomSection` per area |
+| Portal | the area is a filter and a sheet grouping already; the Head adds and removes them afterwards |
+
+Its rules are the registry's own, asserted in `ActivationCustomMarketAreaTests`: a name is required and capped at 60
+characters (as `AddNpmCustomSectionCommandValidator` has it), the same area twice is refused rather than collapsed, only
+a daily-stall market has areas to declare (nothing else keeps a registry, so accepting them would store nothing and say
+nothing), and an area may not carry the same name as one of the three the office has already named — two groups reading
+"Gulayan" on one sheet is not a document anybody can reconcile.
+
+**Recorded, not fixed: a market bills ONE daily rate.** Where an office prices its areas differently, only the first
+priced area is filed as `NpmDailyStall`, and that was happening silently. The console now warns which figure the market
+will bill at and which were not kept; choosing among an office's figures is not the console's decision, and a stall
+carries its own rate in the live portal. A per-section ordinance rate would be a schema change.
+
 **Nothing reads meaning out of a section's wording.** Until 2026-08-20 it did: the console decided the fish area by
 `/fish/` on the section name and the weighing fee by `/kilo|fish/` on the fee's own name, and the API classified by
 English keyword and took whatever was left as the vegetable area. Madrid entered **Gulayan, Isda, Karne** and so:
