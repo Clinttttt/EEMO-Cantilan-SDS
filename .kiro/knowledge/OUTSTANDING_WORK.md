@@ -804,6 +804,40 @@ Items that were open and are now closed, kept because the reasoning is what stop
     `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. The change is mechanical — add `screen and` — but each one should
     be printed once before and after, since a print layout could unknowingly be leaning on a phone rule today.
 
+- **A market may price its areas apart — PHASE 1 SHIPPED 2026-08-23 (`88e94d92`), phases 2 to 5 open.** The office asked
+  for it: Cantilan charges ₱30 across its market, but another LGU may charge ₱35 for vegetables and ₱30 for fish.
+  - **Done.** `FeeRateKey.NpmDailyStallVegetable|Fish|Meat` (10, 11, 12) — ordinary rate keys, so an area's rate inherits
+    an effective date, a never-retroactive change, the audit trail and the resolver's wrong-facility refusal. No
+    migration (the column is already an int). `NpmDailyFee.ForStallOrNull/ForStall/ForAreaOrNull` states the whole rule
+    in one place: own-area stall's own rate → the area's stated rate → the market's stated rate → nothing.
+    `FacilityRateKeys.PerAreaDailyKey` / `IsPerAreaDailyKey`. Pinned by `NpmDailyFeeTests` (10 assertions) and by the
+    invariant in `FeeRateSnapshotFacilityTests` that every key is either offered by its owner or withheld on purpose.
+  - **Deliberately withheld:** the three keys are NOT in `FacilityRateKeys.For(NPM)`, which is the single list behind the
+    rate editor's rows (`FacilityRepository:114`), its write validator (`SetFacilityRateCommandValidator:17`) and
+    activation's pairing rule (`ActivateMunicipalityCommandValidator:99`). So no screen offers one and nothing can store
+    one. They join that list in the same change that makes billing read them, because a rate an office could set while
+    every collection still charged the market rate is worse than not offering it.
+  - **Phase 2, the money work:** route every daily-fee read through `NpmDailyFee`. The sites, counted:
+    `RecordDailyCollectionCommandHandler:98` · `SettleNpmDaysCommandHandler:58,86` · `SettleNpmMonthCommandHandler:78,
+    104,106,125` · `NpmMonthSettlementService:138,148,221,227,229` · `BulkImportDailyHistoryCommandHandler:82,235` ·
+    `BulkImportStallholdersCommandHandler:43` · `PaymentRepository.Ledger:127,131,301,305,428` ·
+    `StallRepository.ClosedAccounts:54,217,221` · `StallRepository.Mobile:35` · `StallRepository.Register:70` ·
+    `CollectorRepository:53` · `FacilityReportsRepository:51` · `GetSettleableNpmDaysQueryHandler:76` ·
+    `GetDailyCollectionMonthQueryHandler:68` · `GetMonthEndReportQueryHandler:63` · `GetCollectionReportQueryHandler:44`
+    · `GetFinancialReportQueryHandler:101` · `GetSystemSettingsQueryHandler:99` · `GetNpmRatesQueryHandler:29`. The
+    pattern `stall.ResolveDailyFee(snapshot.Resolve(NpmDailyStall, day))` becomes `NpmDailyFee.ForStall(stall, snapshot,
+    day)`; the several sites that resolve a bare rate for display need an area or a stall in hand first. Do it in small
+    groups, with the Phase 0 Cantilan baselines green after each.
+  - **Phase 3:** add the keys to `FacilityRateKeys.For(NPM)` (which turns on the rate editor rows and the write path) and
+    delete the withheld-on-purpose branch of the invariant test.
+  - **Phase 4:** onboarding collects a rate per area, and activation seeds the area keys. The console already warns when
+    an office prices its areas differently and only the first is filed.
+  - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
+    daily reads) and needs the area's.
+  - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own
+    rate has its month as thirty of those. `NpmMonthlyStall` stays market-wide, and the office's stated monthly still
+    wins where it states one. The onboarding monthly-rent field is KEPT on the office's own instruction (2026-08-23):
+    removing it would silently re-price any office whose ordinance states a month directly (₱1,000 a month with a ₱35
 - **Two shell rules used to reach paper, and both are now settled globally (2026-08-23, `50677d49`).** Recorded because every
   printable page inherited them, so a future report does not have to rediscover either.
   - `body { background: var(--bg) }` (#f0f4f8) printed across the whole page whenever background graphics are on, which every
