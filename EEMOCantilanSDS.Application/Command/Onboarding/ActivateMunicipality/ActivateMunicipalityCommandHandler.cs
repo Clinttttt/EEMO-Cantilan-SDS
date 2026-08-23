@@ -76,6 +76,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             var stallsCreated = 0;
             Facility? npmFacility = null;
             ActivationSectionLabels? npmSectionLabels = null;
+            IReadOnlyList<string>? npmCustomSections = null;
             foreach (var f in request.Facilities)
             {
                 var facility = Facility.Create(
@@ -85,6 +86,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 {
                     npmFacility = facility;
                     npmSectionLabels = f.SectionLabels;
+                    npmCustomSections = f.CustomSections;
                 }
             }
 
@@ -94,6 +96,17 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             // left unnamed keeps the platform's canonical wording until its Head sets one in the portal.
             if (npmFacility is not null)
                 await ApplyNpmSectionLabelsAsync(npmFacility, npmSectionLabels, municipality.Name, ct);
+
+            // The market's OWN areas, beyond the three the platform keys on. An office whose market has a rice section
+            // or a dry goods row declared it during onboarding; registering it here means its stalls can be filed under
+            // that area from the first day, instead of the office having to re-type the name into the first stall it
+            // creates (which is the only way one came into being before). AddCustomSection trims, refuses a blank and
+            // ignores a repeat, so this is safe to call for whatever the office sent.
+            if (npmFacility is not null && npmCustomSections is { Count: > 0 })
+            {
+                foreach (var area in npmCustomSections)
+                    npmFacility.AddCustomSection(area, "Activation");
+            }
 
             // 3) Fixed ordinance rates for the LGU.
             //

@@ -115,6 +115,50 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Activate_RegistersTheMarketsOwnDeclaredAreas()
+        {
+            // A market with an area that is not a vegetable, fish or meat section used to have no way to say so at
+            // onboarding: the only way one came into being was for the Head to type the name into the first stall filed
+            // under it. Declared areas are registered with the facility, so its stalls can be filed from the first day.
+            var options = Options();
+            var (cantilanId, carmenId, operatorId) = await SeedRegistryAsync(options);
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var command = CarmenConfig() with
+                {
+                    Facilities = new List<ActivationFacility>
+                    {
+                        new(FacilityCode.NPM, "Carmen Public Market", "CPM", BillingArchetype.DailyStall, null,
+                            new ActivationSectionLabels("Gulayan", "Isda", "Karne"),
+                            new[] { "Rice Section", " Dry Goods ", "rice section" }),
+                        new(FacilityCode.SLH, "Carmen Slaughterhouse", "CSLH", BillingArchetype.PerHead),
+                    }
+                };
+
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(operatorId, cantilanId), Email, new IdentityPasswordHasher()).Handle(command, default);
+                Assert.True(result.IsSuccess);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
+
+                // Trimmed, and the repeat of one already registered is ignored - the registry's own rules.
+                Assert.Equal(new[] { "Rice Section", "Dry Goods" }, npm.CustomSectionNames);
+
+                // The three the platform keys on are untouched by this.
+                Assert.Equal("Gulayan", npm.VegetableSectionLabel);
+                Assert.Equal("Isda", npm.FishSectionLabel);
+                Assert.Equal("Karne", npm.MeatSectionLabel);
+
+                // And a facility that declared none keeps an empty registry.
+                var slh = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.SLH);
+                Assert.Empty(slh.CustomSectionNames);
+            }
+        }
+
+        [Fact]
         public async Task Activate_FilesOneRow_WhenTheSameRateIsStatedTwice()
         {
             // Carrascal, 2026-08-23: activation answered "Conflict" because two rows arrived for one facility and rate

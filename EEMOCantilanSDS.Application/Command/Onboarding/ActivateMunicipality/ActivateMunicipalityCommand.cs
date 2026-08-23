@@ -32,13 +32,20 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     /// <summary>A facility to create for the LGU, mapped to a code + billing archetype during onboarding.
     /// <paramref name="StallGroups"/> optionally provisions the facility's stalls/units (spaces) at
     /// activation; leave null/empty for transaction-only facilities (SLH/TRM/TPM).</summary>
+    /// <param name="CustomSections">
+    /// The daily market's OWN areas, beyond the three the platform keys on. An office whose market has an area that is
+    /// not a vegetable, fish or meat section (a rice section, a dry goods row, a carinderia line) declares it here by
+    /// name, and it is registered in the facility's section registry so its stalls can be filed under it from the first
+    /// day. Only a daily-stall market has such a registry; the office's Head adds and removes them afterwards.
+    /// </param>
     public record ActivationFacility(
         FacilityCode Code,
         string Name,
         string ShortName,
         BillingArchetype Archetype,
         IReadOnlyList<ActivationStallGroup>? StallGroups = null,
-        ActivationSectionLabels? SectionLabels = null);
+        ActivationSectionLabels? SectionLabels = null,
+        IReadOnlyList<string>? CustomSections = null);
 
     /// <summary>
     /// The LGU's own names for the three collection areas of its public-market daily sheet, as it declared

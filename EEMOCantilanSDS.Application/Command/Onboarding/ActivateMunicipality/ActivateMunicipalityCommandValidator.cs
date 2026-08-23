@@ -1,5 +1,6 @@
 using System.Linq;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
@@ -44,6 +45,39 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             {
                 f.RuleFor(x => x.Name).NotEmpty().WithMessage("Facility name is required.");
                 f.RuleFor(x => x.ShortName).NotEmpty().WithMessage("Facility short name is required.");
+
+                // The market's own declared areas, beyond the three the platform keys on. Same rules the portal's own
+                // section registry enforces (AddNpmCustomSectionCommandValidator + Facility.AddCustomSection), so an
+                // area declared at onboarding and one added later by the Head cannot follow different rules.
+                f.RuleForEach(x => x.CustomSections).ChildRules(s =>
+                {
+                    s.RuleFor(name => name).NotEmpty().WithMessage("A market area needs a name.")
+                        .MaximumLength(60).WithMessage("A market area's name cannot exceed 60 characters.");
+                }).When(x => x.CustomSections is not null);
+
+                f.RuleFor(x => x.CustomSections)
+                    .Must(areas => areas is null || areas
+                        .Select(a => (a ?? string.Empty).Trim())
+                        .GroupBy(a => a, StringComparer.OrdinalIgnoreCase)
+                        .All(g => g.Count() == 1))
+                    .WithMessage("The same market area was declared twice; each area is named once.");
+
+                // Only a daily-stall market keeps a section registry. Accepting areas for anything else would store
+                // nothing and say nothing, which is how an office ends up believing it declared something it did not.
+                f.RuleFor(x => x)
+                    .Must(fac => fac.CustomSections is null or { Count: 0 } || fac.Archetype == BillingArchetype.DailyStall)
+                    .WithMessage(fac => $"{fac.Name} is not a daily-stall market, so it has no market areas to declare.");
+
+                // A declared area may not carry the same name as one of the three the office has already named. Two
+                // groups reading "Gulayan" on one collection sheet - one canonical, one custom - is not a document
+                // anybody can reconcile.
+                f.RuleFor(x => x)
+                    .Must(fac => fac.CustomSections is null || fac.SectionLabels is null || !fac.CustomSections
+                        .Select(a => (a ?? string.Empty).Trim())
+                        .Any(a => a.Length > 0 && new[] { fac.SectionLabels.Vegetable, fac.SectionLabels.Fish, fac.SectionLabels.Meat }
+                            .Any(l => !string.IsNullOrWhiteSpace(l) && string.Equals(l!.Trim(), a, StringComparison.OrdinalIgnoreCase))))
+                    .WithMessage("A market area cannot carry the same name as one of the three areas already named.");
+
                 f.RuleForEach(x => x.StallGroups).ChildRules(g =>
                 {
                     g.RuleFor(s => s.Count).InclusiveBetween(1, 5000)
