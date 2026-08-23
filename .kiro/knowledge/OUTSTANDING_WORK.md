@@ -828,6 +828,21 @@ Items that were open and are now closed, kept because the reasoning is what stop
     pattern `stall.ResolveDailyFee(snapshot.Resolve(NpmDailyStall, day))` becomes `NpmDailyFee.ForStall(stall, snapshot,
     day)`; the several sites that resolve a bare rate for display need an area or a stall in hand first. Do it in small
     groups, with the Phase 0 Cantilan baselines green after each.
+  - **Phase 2 SHIPPED 2026-08-23** in two commits: `f4cd817b` (2a, what creates a charge) and `86ff114d` (2b, what
+    states one). Rerouted through `NpmDailyFee`: `RecordDailyCollection` · `SettleNpmDays` · `SettleNpmMonth` ·
+    `NpmMonthSettlementService` · `BulkImportDailyHistory` · `BulkImportStallholders` (per AREA imported) ·
+    `PaymentRepository.Ledger` · `StallRepository.ClosedAccounts` / `.Mobile` / `.Register` · `GetSettleableNpmDays` ·
+    `GetDailyCollectionMonth` · `FacilityReportsRepository` (+ Revenue, Breakdowns, Compliance) · `CollectorRepository`
+    (+ Mobile, Recognition). Three refusals became per-stall rather than per-market, and the daily-history import gate
+    now asks `NpmDailyFee.AnyStated` with a per-ROW refusal naming the stall's area, so a day can never be filed at zero.
+    Proven by `RecordDailyCollectionPerAreaRateTests` (billing) and `StallHoldersListPerAreaRateTests` (reporting), both
+    against seeded rate rows; TEMP-DEFECTs restoring the market-only reads failed them.
+  - **Phase 2c, still open.** Three report handlers compute a per-stall coverage figure from DTOs rather than from
+    stalls, so they still use the market's rate: `GetMonthEndReportQueryHandler:63` · `GetCollectionReportQueryHandler:44`
+    · `GetFinancialReportQueryHandler:101`. Making them area-aware needs the area carried on `StallComplianceDto` (which
+    already carries `Section` as canonical wording) or the fee resolved before the DTO is built. `GetSystemSettings` and
+    `GetNpmRates` state the MARKET's rate as a settings figure, which stays correct; they should gain the per-area rows
+    once phase 3 lets an office set them.
   - **Phase 3:** add the keys to `FacilityRateKeys.For(NPM)` (which turns on the rate editor rows and the write path) and
     delete the withheld-on-purpose branch of the invariant test.
   - **Phase 4:** onboarding collects a rate per area, and activation seeds the area keys. The console already warns when
