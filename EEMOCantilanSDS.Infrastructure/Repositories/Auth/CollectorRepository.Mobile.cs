@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Infrastructure.Time;
+using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -89,7 +90,8 @@ public partial class CollectorRepository
                 return new MobileCollectorRecordDto(
                     r.ORNumber ?? "—", payor, r.Code, string.Empty, r.StallNo,
                     "Stall Rental", full, partial ? r.PartialAmount : full, partial, PhilippineTime.ToPhilippineTime(r.When), r.Section, r.FishKilos,
-                    r.IsAdmin);
+                    r.IsAdmin,
+                    PeriodLabel: new DateOnly(r.BillingYear, r.BillingMonth, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture));
             }));
         }
 

@@ -41,7 +41,10 @@ public sealed record MobileCollectorRecordDto(
     string? CustomSectionName = null,
     // NPM only: the day this fee is FOR, which is not the day it was collected when a payor settles what they owe. The
     // Records feed states the collection day; this lets a settled receipt name the days it covered.
-    DateOnly? FeeDate = null);
+    DateOnly? FeeDate = null,
+    // Monthly rentals: the month the payment is FOR, e.g. "Aug 2026". Where several receipts of one payor are shown as one
+    // entry, each has to name the period it answers for, or two rentals of the same amount are indistinguishable.
+    string? PeriodLabel = null);
 
 /// <summary>A stall's electricity &amp; water bill attached to an NPM collection record (detail view only).</summary>
 public sealed record MobileRecordUtilityDto(

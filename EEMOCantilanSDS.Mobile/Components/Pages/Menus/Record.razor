@@ -2,6 +2,8 @@
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Records
+@using RecordRow = EEMOCantilanSDS.Mobile.Records.CollectorRecordEntry
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
@@ -144,7 +146,7 @@
                                 {
                                     <span class="record-section">@rec.SlaughterLines.Count animal types</span>
                                 }
-                                <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt")@(rec.IsAbsent ? " · marked absent" : " · OR #" + rec.ORNumber)</span>
+                                <span class="record-time">@RowTimeLine(row)</span>
                             </div>
                         </div>
                         <div class="record-amount-col">
@@ -173,7 +175,14 @@
 
             @if (!SelectedRecord.IsAbsent)
             {
-                <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+                @if (SelectedRow is { ReceiptCount: > 1 })
+                {
+                    <div class="detail-row"><span class="detail-key">Receipts</span><span class="detail-val">@SelectedRow.ReceiptCount</span></div>
+                }
+                else
+                {
+                    <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+                }
             }
             <div class="detail-row"><span class="detail-key">Facility</span><span class="detail-val">@SelectedRecord.FacilityName</span></div>
             @if (!string.IsNullOrWhiteSpace(SelectedRecord.StallNo))
@@ -188,12 +197,15 @@
             {
                 <div class="detail-row"><span class="detail-key">Section</span><span class="detail-val">@SelectedRecord.CustomSectionName</span></div>
             }
-            @if (SelectedRecord.FishKilos is > 0)
+            @if (SelectedRow is { } fishRow && fishRow.Items.Sum(i => i.FishKilos ?? 0m) > 0m)
             {
-                <div class="detail-row"><span class="detail-key">Fish Weight</span><span class="detail-val">@SelectedRecord.FishKilos.Value.ToString("0.##") kg</span></div>
+                <div class="detail-row"><span class="detail-key">Fish Weight</span><span class="detail-val">@fishRow.Items.Sum(i => i.FishKilos ?? 0m).ToString("0.##") kg</span></div>
             }
-            <div class="detail-row"><span class="detail-key">Nature</span><span class="detail-val">@SelectedRecord.Nature</span></div>
-            @if (SelectedRecord.SlaughterLines is { Count: > 0 })
+            @if (SelectedRow is null || SelectedRow.SharesOneNature)
+            {
+                <div class="detail-row"><span class="detail-key">Nature</span><span class="detail-val">@SelectedRecord.Nature</span></div>
+            }
+            @if (SelectedRow is { IsMerged: false } && SelectedRecord.SlaughterLines is { Count: > 0 })
             {
                 var totalHeads = SelectedRecord.SlaughterLines.Sum(l => l.Heads);
                 <div class="detail-row"><span class="detail-key">Animals</span><span class="detail-val">@totalHeads head@(totalHeads == 1 ? "" : "s") · @SelectedRecord.SlaughterLines.Count type@(SelectedRecord.SlaughterLines.Count == 1 ? "" : "s")</span></div>
@@ -203,24 +215,52 @@
                 }
             }
             <div class="detail-row"><span class="detail-key">Recorded by</span><span class="detail-val">@(SelectedRecord.IsAdminRecorded ? "Office / Admin" : Session.CollectorName)</span></div>
-            <div class="detail-row"><span class="detail-key">Date &amp; Time</span><span class="detail-val">@SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt")</span></div>
+            <div class="detail-row"><span class="detail-key">Date@(SelectedRow is { ReceiptCount: > 1 } ? "" : " &amp; Time")</span><span class="detail-val">@(SelectedRow is { ReceiptCount: > 1 } ? SelectedRecord.CollectedAt.ToString("MMM d, yyyy") : SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt"))</span></div>
             @if (SelectedRow is { IsMerged: false } && SelectedRecord.FeeDate is { } feeDay && feeDay != DateOnly.FromDateTime(SelectedRecord.CollectedAt))
             {
                 <div class="detail-row"><span class="detail-key">Fee for</span><span class="detail-val">@feeDay.ToString("MMM d, yyyy")</span></div>
             }
-            <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="record-status-pill @PillClass(SelectedRecord)">@StatusLabel(SelectedRecord)</span></span></div>
-            @if (SelectedRow is { IsMerged: true })
+            @if (SelectedRow is { IsMerged: false } && SelectedRecord.PeriodLabel is { Length: > 0 } onePeriod)
             {
-                <div class="detail-row"><span class="detail-key">Payments in this receipt</span><span class="detail-val">@SelectedRow.Count</span></div>
-                @foreach (var it in SelectedRow.Items.OrderBy(i => i.FeeDate ?? DateOnly.MaxValue))
+                <div class="detail-row"><span class="detail-key">Payment for</span><span class="detail-val">@onePeriod</span></div>
+            }
+            <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="record-status-pill @(SelectedRow is { } sr ? RowPillClass(sr) : PillClass(SelectedRecord))">@(SelectedRow is { } sl ? RowStatusLabel(sl) : StatusLabel(SelectedRecord))</span></span></div>
+            @if (SelectedRow is { IsMerged: true } merged)
+            {
+                @* Every receipt behind this entry, with its own number, the time it was taken and what it covered. The
+                   entry collapses a payor's cards; it does not collapse the receipts the office answers for. *@
+                <div class="detail-util-head">@(merged.ReceiptCount == 1 ? "This receipt" : "Receipts")</div>
+                @foreach (var receipt in merged.Receipts)
                 {
-                    <div class="detail-row"><span class="detail-key">· @(it.FeeDate is null ? it.Nature : it.FeeDate.Value.ToString("MMM d, yyyy"))</span><span class="detail-val">₱@it.Amount.ToString("N0")</span></div>
+                    var receiptTotal = receipt.Sum(i => i.Amount);
+                    var receiptTime = receipt.Min(i => i.CollectedAt);
+                    <div class="detail-row">
+                        <span class="detail-key">#@receipt.Key · @receiptTime.ToString("hh:mm tt")</span>
+                        <span class="detail-val amount-val">₱@receiptTotal.ToString("N0")</span>
+                    </div>
+                    @foreach (var it in receipt.OrderBy(i => i.FeeDate ?? DateOnly.MaxValue).ThenBy(i => i.CollectedAt))
+                    {
+                        @if (it.SlaughterLines is { Count: > 0 } lines)
+                        {
+                            @foreach (var line in lines)
+                            {
+                                <div class="detail-row"><span class="detail-key">· @line.AnimalType × @line.Heads</span><span class="detail-val">₱@line.Amount.ToString("N0")</span></div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="detail-row">
+                                <span class="detail-key">· @(it.FeeDate is { } d ? d.ToString("MMM d, yyyy") : it.PeriodLabel is { Length: > 0 } p ? p : it.Nature)</span>
+                                <span class="detail-val">₱@it.Amount.ToString("N0")</span>
+                            </div>
+                        }
+                    }
                 }
-                <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@SelectedRow.TotalAmount.ToString("N0")</span></div>
-                @if (SelectedRow.AnyPartial)
+                <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@merged.TotalAmount.ToString("N0")</span></div>
+                @if (merged.AnyPartial)
                 {
-                    <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@SelectedRow.TotalPaid.ToString("N0")</span></div>
-                    <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRow.TotalAmount - SelectedRow.TotalPaid).ToString("N0"))</span></div>
+                    <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@merged.TotalPaid.ToString("N0")</span></div>
+                    <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((merged.TotalAmount - merged.TotalPaid).ToString("N0"))</span></div>
                 }
             }
             else
@@ -618,43 +658,7 @@
             .ToDictionary(g => g.Key, g => BuildRows(g));
 
     static IReadOnlyList<RecordRow> BuildRows(IEnumerable<MobileCollectorRecordDto> recs)
-    {
-        var rows = new List<RecordRow>();
-        var byReceipt = new Dictionary<string, RecordRow>();
-        foreach (var r in recs)
-        {
-            // Only merge genuine multi-period receipts: a real OR number and not an absent mark.
-            if (!r.IsAbsent && !string.IsNullOrWhiteSpace(r.ORNumber))
-            {
-                var key = r.FacilityCode + "|" + r.PayorName + "|" + r.ORNumber;
-                if (byReceipt.TryGetValue(key, out var existing))
-                {
-                    existing.Items.Add(r);
-                    continue;
-                }
-                var row = new RecordRow(r);
-                byReceipt[key] = row;
-                rows.Add(row);
-            }
-            else
-            {
-                rows.Add(new RecordRow(r));
-            }
-        }
-        return rows;
-    }
-
-    sealed class RecordRow
-    {
-        public RecordRow(MobileCollectorRecordDto first) => Items = new List<MobileCollectorRecordDto> { first };
-        public List<MobileCollectorRecordDto> Items { get; }
-        public MobileCollectorRecordDto Primary => Items[0];
-        public int Count => Items.Count;
-        public bool IsMerged => Items.Count > 1;
-        public decimal TotalAmount => Items.Sum(i => i.Amount);
-        public decimal TotalPaid => Items.Sum(i => i.AmountPaid);
-        public bool AnyPartial => Items.Any(i => i.IsPartial) || TotalPaid < TotalAmount;
-    }
+        => CollectorRecordGrouping.Build(recs);
 
     static string DateLabel(DateTime dt)
     {
@@ -690,14 +694,26 @@
         : row.AnyPartial ? $"₱{row.TotalPaid:N0} paid"
         : "Paid";
 
-    // Tag on a collapsed row: monthly rentals collapse months; a market receipt that settled several owed days states
-    // the days it covered, since the amount on the card is the whole receipt.
+    // The line under the name: the time the last money came in, and the receipt number while there is only one to name.
+    // Where an entry holds several receipts the numbers are in its detail, each against its own time and amount, rather
+    // than one of them standing for all.
+    static string RowTimeLine(RecordRow row) =>
+        row.Primary.IsAbsent
+            ? row.Primary.CollectedAt.ToString("hh:mm tt") + " · marked absent"
+            : row.ReceiptCount == 1
+                ? row.LatestAt.ToString("hh:mm tt") + " · OR #" + row.Primary.ORNumber
+                : row.LatestAt.ToString("hh:mm tt") + " · last of " + row.ReceiptCount + " receipts";
+
+    // Tag on a collapsed entry. Several receipts are counted as receipts, because that is what the office answers for; one
+    // receipt covering several owed days states the days; anything else states plain entries.
     string MergedLabel(RecordRow row) =>
-        row.Items.All(i => i.FeeDate is not null)
-            ? $"{row.Count} days"
-            : (DailyFacilities.Contains(row.Primary.FacilityCode) || WeeklyFacilities.Contains(row.Primary.FacilityCode))
-                ? $"{row.Count} entries"
-                : $"{row.Count} months";
+        row.ReceiptCount > 1
+            ? $"{row.ReceiptCount} receipts"
+            : row.Items.All(i => i.FeeDate is not null)
+                ? $"{row.Count} days"
+                : (DailyFacilities.Contains(row.Primary.FacilityCode) || WeeklyFacilities.Contains(row.Primary.FacilityCode))
+                    ? $"{row.Count} entries"
+                    : $"{row.Count} months";
 
     // ── Offline pending queue (button right of the search bar) ──────────────
     bool ShowPendingSheet = false;
