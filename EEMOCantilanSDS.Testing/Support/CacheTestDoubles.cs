@@ -90,6 +90,9 @@ internal sealed class NullEemoCacheInvalidator : IEemoCacheInvalidator
     public Task InvalidatePaymentAffectedViewsAsync(string tenantCode, EEMOCantilanSDS.Domain.Enums.FacilityCode? facilityCode, int year, int month, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 
+    public Task InvalidateTenantAsync(string tenantCode, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
     public Task InvalidateReferenceDataAsync(string tenantCode, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
 }

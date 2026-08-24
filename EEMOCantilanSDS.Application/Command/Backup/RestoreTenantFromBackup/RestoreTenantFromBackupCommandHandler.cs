@@ -4,6 +4,8 @@ using EEMOCantilanSDS.Application.Dtos.Backup;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
+using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using Microsoft.Extensions.Logging;
 
@@ -21,7 +23,9 @@ public class RestoreTenantFromBackupCommandHandler(
     ITenantBackupRepository backupRepository,
     ITenantRestoreRepository restoreRepository,
     ILogger<RestoreTenantFromBackupCommandHandler> logger,
-    IPasswordHasher passwordHasher)
+    IPasswordHasher passwordHasher,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext)
     : IRequestHandler<RestoreTenantFromBackupCommand, Result<TenantRestoreResult>>
 {
     public async Task<Result<TenantRestoreResult>> Handle(RestoreTenantFromBackupCommand request, CancellationToken ct)
@@ -50,6 +54,13 @@ public class RestoreTenantFromBackupCommandHandler(
         try
         {
             var result = await restoreRepository.RestoreAsync(snapshot, ct);
+
+            // Every cached view of this office is now describing data that has been rolled back. A restore can rewrite
+            // any row of any year, so there is no period or facility to name — the office's whole cache goes. Without
+            // this the office was shown the figures it had just rolled back from until each view expired on its own:
+            // reported from use as a vendor removed by a restore still counting on its facility page.
+            await cacheInvalidator.InvalidateTenantAsync(tenantContext.TenantCode, ct);
+
             logger.LogWarning("Tenant restore from stored backup {BackupId} by {Username}: {Rows} rows across {Tables} tables.",
                 request.BackupId, username, result.RowsRestored, result.TablesRestored);
             return Result<TenantRestoreResult>.Success(result);

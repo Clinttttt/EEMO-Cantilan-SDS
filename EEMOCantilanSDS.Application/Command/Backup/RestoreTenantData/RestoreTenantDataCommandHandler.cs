@@ -5,6 +5,8 @@ using EEMOCantilanSDS.Application.Dtos.Backup;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
+using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using Microsoft.Extensions.Logging;
 
@@ -21,7 +23,9 @@ public class RestoreTenantDataCommandHandler(
     IAuthRepository authRepository,
     ITenantRestoreRepository restoreRepository,
     ILogger<RestoreTenantDataCommandHandler> logger,
-    IPasswordHasher passwordHasher)
+    IPasswordHasher passwordHasher,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext)
     : IRequestHandler<RestoreTenantDataCommand, Result<TenantRestoreResult>>
 {
     public async Task<Result<TenantRestoreResult>> Handle(RestoreTenantDataCommand request, CancellationToken ct)
@@ -62,6 +66,11 @@ public class RestoreTenantDataCommandHandler(
         try
         {
             var result = await restoreRepository.RestoreAsync(snapshot, ct);
+
+            // The office's whole cache goes: a restore can rewrite any row of any year, so no period or facility can be
+            // named, and leaving it meant the office kept being shown the figures it had just rolled back from.
+            await cacheInvalidator.InvalidateTenantAsync(tenantContext.TenantCode, ct);
+
             logger.LogWarning("Tenant restore performed by {Username}: {Rows} rows across {Tables} tables.",
                 username, result.RowsRestored, result.TablesRestored);
             return Result<TenantRestoreResult>.Success(result);

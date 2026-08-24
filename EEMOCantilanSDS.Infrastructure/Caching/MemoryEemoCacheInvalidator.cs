@@ -83,8 +83,7 @@ public sealed class MemoryEemoCacheInvalidator : IEemoCacheInvalidator
             ? InvalidateFacilityPeriodAsync(tenantCode, facility, year, month, cancellationToken)
             : InvalidatePeriodAsync(tenantCode, year, month, cancellationToken);
 
-    public Task InvalidateReferenceDataAsync(string tenantCode, CancellationToken cancellationToken = default)
-        => InvalidateRegionsAsync(
+    public Task InvalidateReferenceDataAsync(string tenantCode, CancellationToken cancellationToken = default)        => InvalidateRegionsAsync(
             new[]
             {
                 EemoCacheRegions.ReferenceData(tenantCode),
@@ -92,6 +91,24 @@ public sealed class MemoryEemoCacheInvalidator : IEemoCacheInvalidator
                 EemoCacheRegions.OutstandingAccounts(tenantCode)
             },
             cancellationToken);
+
+    /// <summary>
+    /// Every region belonging to one office, found by its key prefix. Every region and key this application builds
+    /// begins with the normalised tenant code and a colon (see <see cref="EemoCacheRegions"/>), so the prefix is exact
+    /// and cannot reach another office's entries. A blank tenant is refused rather than normalised to "default", which
+    /// would purge the reference municipality's cache on a caller's mistake.
+    /// </summary>
+    public async Task InvalidateTenantAsync(string tenantCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(tenantCode))
+            return;
+
+        var prefix = tenantCode.Trim().ToLowerInvariant() + ":";
+        var mine = regions.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+
+        foreach (var region in mine)
+            await InvalidateRegionAsync(region, cancellationToken);
+    }
 
     private async Task InvalidateRegionsAsync(IEnumerable<string> regionNames, CancellationToken cancellationToken)
     {
