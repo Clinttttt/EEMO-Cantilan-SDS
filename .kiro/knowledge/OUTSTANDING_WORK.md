@@ -717,6 +717,15 @@ one stall's days, and one slaughter receipt (same owner AND same date), and refu
 soft-deleted rows, so deleting a record never frees its receipt number, and it scopes per municipality so a second LGU
 may reuse a number that exists only in another.
 
+**A collector's feed answers for the money, the office's reports answer for the day.** Established 2026-08-24 when the office
+settled three payors' Aug 22, 23 and 24 in one afternoon and found ₱30 on the app's Records tab against a ₱90 receipt. Two
+bases coexist deliberately. The mobile Records feed is a cash view: every source in it, including NPM daily fees since this
+date, is selected on when the money was taken, and a receipt shared by several days reads as one card carrying the whole
+amount with the days it covered named in its detail. Every facility report is an accrual view: a fee counts in the period the
+day it covers falls in, which is why a late-settled day turns its own calendar cell green and why the trend showed ₱90 on each
+of the three days rather than ₱270 on one. Nothing in the facility report repositories reads a record timestamp, so the two
+never disagree by accident. The caption over the trend was corrected the same day; it had said "recorded collections".
+
 **The three billing rules** stand as implemented, per the same interview: a term of N years owes exactly N × 12 months'
 rent; an expired contract stops accruing rent but keeps its balance collectable; a current or yearly market report counts
 only the market days elapsed as of the report date.
@@ -753,6 +762,11 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect, and
     `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were set to 2 / 1.1.0 to match the published build. `api/mobile/version`
     confirmed afterwards.
+  - **Published builds since:** `collector-1.1.1-3` (2026-08-24, the arrears sheet answering for its own day) and
+    `collector-1.1.2-4` (2026-08-24, the Records card reading the whole receipt, the payor's own area on that card, and the
+    market round's area chips taken from the areas the market has). `/releases/latest/download/stalltrack-collector.apk`
+    verified to 302 at `collector-1.1.2-4`. The API still advertises **2 / 1.1.0**, so no device is PROMPTED to update: the two
+    settings above must be raised to `4` / `1.1.2` for that, which restarts the API and so waits for the office to be idle.
   - The 41 MB binary also stopped being tracked in git; the release holds it and `mobile-app-site/download/*.apk` is ignored.
 
 - **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one

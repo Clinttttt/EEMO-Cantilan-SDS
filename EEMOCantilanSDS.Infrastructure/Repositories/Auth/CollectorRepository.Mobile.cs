@@ -24,9 +24,9 @@ public partial class CollectorRepository
     public async Task<IReadOnlyList<MobileCollectorRecordDto>> GetCollectorRecordsAsync(
         Guid collectorId, FacilityCode? facility, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
     {
-        // UTC window for timestamp-based sources (PaymentRecords/TrmTrips); DateOnly sources compare
-        // against the business date directly. FacilityName is filled by the handler from the canonical
-        // facility names, so a blank placeholder is fine here.
+        // UTC window for the sources that carry a collection timestamp (monthly rentals, NPM daily fees, trips); the
+        // slaughter and Tabo-an sources compare their own transaction date, which IS the day they were taken. FacilityName
+        // is filled by the handler from the canonical facility names, so a blank placeholder is fine here.
         var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
         var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
 
@@ -93,7 +93,7 @@ public partial class CollectorRepository
             }));
         }
 
-        // ── NPM daily collections — business date = CollectionDate ──
+        // ── NPM daily collections — selected on when the money was taken, the fee's own day kept as FeeDate ──
         if (all || facility is FacilityCode.NPM)
         {
             var npmAssigned = assignedSet.Contains(FacilityCode.NPM);
