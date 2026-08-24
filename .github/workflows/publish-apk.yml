@@ -153,9 +153,13 @@ jobs:
           TAG="collector-${apk_version_name}-${apk_version_code}"
           SIZE=$(stat -c%s dist/stalltrack-collector-latest.apk)
           echo "Publishing $TAG ($SIZE bytes)"
-          # --clobber so re-running the same tag replaces the asset rather than failing halfway.
+          # --clobber so re-running the same tag replaces the asset rather than failing halfway. --latest as well: the
+          # download link resolves through /releases/latest, so re-publishing an existing tag while a NEWER tag holds
+          # "Latest" would leave collectors downloading the older build. That is how collector-build-19 came to serve an
+          # APK reporting versionCode 1 after collector-1.1.0-2 had been published.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/stalltrack-collector-latest.apk --clobber
+            gh release edit "$TAG" --latest
           else
             gh release create "$TAG" dist/stalltrack-collector-latest.apk \
               --title "Collector app ${apk_version_name} (versionCode ${apk_version_code})" \

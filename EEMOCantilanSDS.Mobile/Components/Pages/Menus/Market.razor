@@ -1062,10 +1062,26 @@
         // server's "not collected" instead put the tick on Not Collected for a stall the same screen had just
         // marked "Queued" — and re-confirming it queued a second operation that could overrule the first.
         var queuedHere = IsQueuedOffline(stall);
-        SelectedIsAbsent = queuedHere ? QueuedOfflineAbsent.Contains(stall.StallId) : stall.IsAbsentToday;
-        SelectedIsPaid = queuedHere ? !SelectedIsAbsent : stall.IsCollectedToday;
-        FishKilos = stall.FishKilosToday;
-        ORNumber = stall.ORNumberToday ?? string.Empty;
+        var settlingToday = SelectedDate == Today;
+
+        if (settlingToday)
+        {
+            SelectedIsAbsent = queuedHere ? QueuedOfflineAbsent.Contains(stall.StallId) : stall.IsAbsentToday;
+            SelectedIsPaid = queuedHere ? !SelectedIsAbsent : stall.IsCollectedToday;
+            FishKilos = stall.FishKilosToday;
+            ORNumber = stall.ORNumberToday ?? string.Empty;
+        }
+        else
+        {
+            // A day still owed is, by definition, neither collected nor excused — so the sheet answers for THAT day and
+            // starts blank. It used to open on today's answer whatever day it was settling: an arrears day arrived with
+            // the tick already on Collected and TODAY's receipt number already typed into the OR field, which is a
+            // receipt issued for a different day. Confirming it would have put one OR number on two days.
+            SelectedIsAbsent = false;
+            SelectedIsPaid = false;
+            FishKilos = null;
+            ORNumber = string.Empty;
+        }
         SelectedIsMisc = false;
         // The oldest bill still owed, so arrears are collected before this month's; if nothing is owed, the
         // month's own bill is shown so the collector can see it was already settled.
