@@ -252,7 +252,7 @@ else
                 <div class="chart-header">
                     <div class="chart-header-left">
                         <h3 class="chart-title">Collection Trend</h3>
-                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => $"Collected fees by {_marketDay} (market day)", _ => "Collected fees by month" })</p>
+                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => WeeklyTrendSubtitle, _ => "Collected fees by month" })</p>
                     </div>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
@@ -426,10 +426,12 @@ else
     // Full month's attendance kept for the Weekly trend's per-market-day series.
     private List<TpmVendorAttendanceDto> _weekTrendSource = new();
 
-    // The LGU's market weekday, derived from the recorded attendance dates (they always fall on the LGU's
-    // market day). Fallback = Friday (Cantilan). Keeps the Weekly trend + subtitle correct for tenants like
-    // Madrid (Saturday) without an extra API call.
+    // The LGU's market weekday. Read from its own schedule (the overview below); the attendance dates and then Friday
+    // are fallbacks for when that call fails, not the source. Deriving it from attendance alone was wrong twice over: an
+    // office that had not collected yet was described as a Friday market whatever day it holds, and a month in which the
+    // office MOVED its day cannot be described by one weekday at all.
     private DayOfWeek _marketDay = DayOfWeek.Friday;
+    private TpmOverviewDto? _overview;
 
     [PersistentState(AllowUpdates = true)]
     public TpmReportsPageState? CachedReport { get; set; }
@@ -462,6 +464,14 @@ else
             // Monthly/Weekly (Phase 1) and the Status Report all start from the month's attendance.
             var r = await TpmApi.GetMonthAttendanceAsync(CurrentDate.Year, CurrentDate.Month);
             var att = r.IsSuccess && r.Value != null ? r.Value.ToList() : new();
+
+            // The office's OWN market days for this month, from its schedule. This page used to work them out from
+            // whatever attendance happened to exist and fall back to Friday when there was none — so an office whose
+            // market day is Saturday, and which had not collected yet, was shown "Collected fees by Friday" and a trend
+            // plotted on Fridays it does not hold a market on. The schedule also answers correctly for a month in which
+            // the office MOVED its day, which one weekday expanded across a month cannot.
+            var ov = await TpmApi.GetOverviewAsync(CurrentDate.Year, CurrentDate.Month);
+            _overview = ov.IsSuccess ? ov.Value : null;
 
             // Weekly view: keep the full month for the per-Friday trend, but scope the KPIs/table
             // to the selected week-of-month.
@@ -516,12 +526,14 @@ else
 
     void RecomputeDerived()
     {
-        // Derive the tenant market weekday from attendance dates before building the trend (they fall on
-        // the LGU's market day); fall back to Friday when there is no data yet.
-        var wd = _weekTrendSource.Concat(MonthAtt)
-            .Select(a => (DayOfWeek?)a.MarketDate.DayOfWeek)
-            .FirstOrDefault();
-        _marketDay = wd ?? DayOfWeek.Friday;
+        // The office's own market weekday, from its schedule. Falling back to the weekday of whatever attendance exists
+        // keeps a figure on screen when the overview call fails; falling back to Friday beyond that is the reference
+        // municipality's arrangement and is only reached when this office has stated nothing and collected nothing.
+        _marketDay = _overview?.MarketDay
+            ?? _weekTrendSource.Concat(MonthAtt)
+                .Select(a => (DayOfWeek?)a.MarketDate.DayOfWeek)
+                .FirstOrDefault()
+            ?? DayOfWeek.Friday;
 
         _goodsBreakdown = BuildGoodsBreakdown();
         _goodsSegments = BuildGoodsSegments(_goodsBreakdown);
@@ -547,6 +559,41 @@ else
         return targets
             .Select(d => (d.Year, d.Month, collectedByMonth.TryGetValue((d.Year, d.Month), out var c) ? c : 0m))
             .ToList();
+    }
+
+    // What the weekly trend is plotting, in the office's own terms. A month in which the office moved its market day
+    // holds two arrangements, and naming only one of them would describe half the bars wrongly — so both are named, in
+    // the order they applied.
+    string WeeklyTrendSubtitle
+    {
+        get
+        {
+            var days = MarketDatesOfMonth().Select(d => d.DayOfWeek).Distinct().ToList();
+            return days.Count switch
+            {
+                0 => "Collected fees by market day",
+                1 => $"Collected fees by {days[0]} (market day)",
+                _ => $"Collected fees by market day ({string.Join(", then ", days)})",
+            };
+        }
+    }
+
+    // The office's own market days for the selected month, in date order: its schedule where the overview answered, and
+    // otherwise the days it actually collected on, and only then one weekday expanded across the month.
+    IEnumerable<DateOnly> MarketDatesOfMonth()    {
+        if (_overview?.MarketDates is { Count: > 0 } dates)
+            return dates.OrderBy(d => d);
+
+        var collected = _weekTrendSource.Concat(MonthAtt)
+            .Select(a => a.MarketDate)
+            .Where(d => d.Year == CurrentDate.Year && d.Month == CurrentDate.Month)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToList();
+
+        return collected.Count > 0
+            ? collected
+            : MarketDaysOfMonth(CurrentDate.Year, CurrentDate.Month, _marketDay);
     }
 
     // All market days (the tenant's weekday) of the given month, in date order.
@@ -686,14 +733,15 @@ else
         }
         else if (ActivePeriod == "Weekly")
         {
-            // Tabo-an is a Friday-only market, so the weekly trend plots each Friday (market day) of
-            // the month by date; the Friday in the selected week is highlighted as the current bar.
+            // The weekly trend plots the office's OWN market days of the month by date, and highlights the one in the
+            // selected week. Taken from the office's schedule, so a month in which it moved its day plots the days it
+            // actually held — which expanding one weekday across the month cannot do.
             var (fromDay, toDay) = WeekDayRange();
             var feeByDate = _weekTrendSource
                 .Where(a => a.IsPaid)
                 .GroupBy(a => a.MarketDate)
                 .ToDictionary(g => g.Key, g => g.Sum(a => a.Fee));
-            pts = MarketDaysOfMonth(CurrentDate.Year, CurrentDate.Month, _marketDay)
+            pts = MarketDatesOfMonth()
                 .Select(d => (
                     Label: d.ToString("MMM d"),
                     Amount: feeByDate.TryGetValue(d, out var amt) ? amt : 0m,

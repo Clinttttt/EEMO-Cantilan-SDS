@@ -34,9 +34,13 @@
         <!-- App Identifier -->
         <ApplicationId>site.stalltrack.collector</ApplicationId>
 
-        <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <!-- Versions. ApplicationVersion is Android's versionCode, and it is what the in-app update check compares
+             against the server's Mobile:LatestVersionCode. These sat at 1.0 / 1 while release collector-1.1.0-2 was
+             published and the server was set to advertise code 2 — so every build reported 1, "2 > 1" was always true,
+             and a freshly installed app announced that a new version was available. Bump BOTH when publishing (or pass
+             them to the publish workflow, which now names the release from what the build actually carries). -->
+        <ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>2</ApplicationVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>

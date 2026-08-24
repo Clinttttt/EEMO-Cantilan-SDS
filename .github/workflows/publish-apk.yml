@@ -95,14 +95,25 @@ jobs:
           VCODE: ${{ github.event.inputs.versionCode }}
         run: |
           set -e
+          # The version the APK will actually carry: the inputs when given, otherwise the csproj's own values. Resolved
+          # here so the release tag below cannot claim a version the build does not carry — which is how
+          # collector-1.1.0-2 came to hold an APK reporting versionCode 1, leaving every install announcing an update.
+          CSPROJ=EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj
+          CS_VNAME=$(sed -n 's:.*<ApplicationDisplayVersion>\(.*\)</ApplicationDisplayVersion>.*:\1:p' "$CSPROJ" | head -1)
+          CS_VCODE=$(sed -n 's:.*<ApplicationVersion>\(.*\)</ApplicationVersion>.*:\1:p' "$CSPROJ" | head -1)
+          EFF_VNAME="${VNAME:-$CS_VNAME}"
+          EFF_VCODE="${VCODE:-$CS_VCODE}"
+          echo "Building version $EFF_VNAME (versionCode $EFF_VCODE)"
+          echo "apk_version_name=$EFF_VNAME" >> "$GITHUB_ENV"
+          echo "apk_version_code=$EFF_VCODE" >> "$GITHUB_ENV"
           ARGS="-c Release -f net10.0-android \
             -p:AndroidKeyStore=true \
             -p:AndroidSigningKeyStore=$RUNNER_TEMP/stalltrack-release.keystore \
             -p:AndroidSigningStorePass=$STORE_PASS \
             -p:AndroidSigningKeyAlias=$KEY_ALIAS \
-            -p:AndroidSigningKeyPass=$KEY_PASS"
-          if [ -n "$VNAME" ]; then ARGS="$ARGS -p:ApplicationDisplayVersion=$VNAME"; fi
-          if [ -n "$VCODE" ]; then ARGS="$ARGS -p:ApplicationVersion=$VCODE"; fi
+            -p:AndroidSigningKeyPass=$KEY_PASS \
+            -p:ApplicationDisplayVersion=$EFF_VNAME \
+            -p:ApplicationVersion=$EFF_VCODE"
           dotnet publish EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj $ARGS
 
       - name: Stage the signed APK
@@ -134,11 +145,12 @@ jobs:
       - name: Attach the APK to a GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VNAME: ${{ github.event.inputs.versionName }}
-          VCODE: ${{ github.event.inputs.versionCode }}
         run: |
           set -e
-          TAG="collector-${VNAME:-build}-${VCODE:-$GITHUB_RUN_NUMBER}"
+          # Named from what the build ACTUALLY carries (resolved in the publish step), never from an input that may have
+          # been left blank. The tag used to fall back to the run number, so collector-1.1.0-2 could hold an APK
+          # reporting versionCode 1 — and the operator, reading the tag, then advertised code 2 to every device.
+          TAG="collector-${apk_version_name}-${apk_version_code}"
           SIZE=$(stat -c%s dist/stalltrack-collector-latest.apk)
           echo "Publishing $TAG ($SIZE bytes)"
           # --clobber so re-running the same tag replaces the asset rather than failing halfway.
@@ -146,8 +158,10 @@ jobs:
             gh release upload "$TAG" dist/stalltrack-collector-latest.apk --clobber
           else
             gh release create "$TAG" dist/stalltrack-collector-latest.apk \
-              --title "Collector app ${VNAME:-build} (${VCODE:-$GITHUB_RUN_NUMBER})" \
-              --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes." \
+              --title "Collector app ${apk_version_name} (versionCode ${apk_version_code})" \
+              --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes.
+
+Set Mobile__LatestVersionCode=${apk_version_code} and Mobile__LatestVersion=${apk_version_name} on the API so installed apps stop being told an update is available." \
               --latest
           fi
           echo "Published: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/stalltrack-collector-latest.apk"

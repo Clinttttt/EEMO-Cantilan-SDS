@@ -208,12 +208,21 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 var feePeriod = minC.Year == maxC.Year && minC.Month == maxC.Month
                     ? minC.ToString("MMM yyyy")
                     : $"{minC.ToString("MMM yyyy")} – {maxC.ToString("MMM yyyy")}";
+                var recordedAt = PhilippineTime.ToPhilippineTime(g.Max(x => x.When));
+
+                // A SINGLE day says which day it is for when that is not the day it was recorded. This page lists what
+                // was recorded today whatever day each fee answers for, and a row reading only "Stall 1" was taken as
+                // today's fee — so an office comparing it against the collector's own screen, which shows today's fee
+                // still owed, saw two screens contradict each other about one stall. Both were right; only this one was
+                // mute. A fee collected on its own day reads exactly as before.
                 var reference = days > 1
                     ? $"Stall {first.StallNo} · {days} days · {feePeriod}"
-                    : $"Stall {first.StallNo}";
+                    : minC == DateOnly.FromDateTime(recordedAt)
+                        ? $"Stall {first.StallNo}"
+                        : $"Stall {first.StallNo} · for {minC.ToString("MMM d")}";
 
                 return new TransactionFeedDto(
-                    first.Id, first.Code, first.FacilityName, PhilippineTime.ToPhilippineTime(g.Max(x => x.When)), true,
+                    first.Id, first.Code, first.FacilityName, recordedAt, true,
                     party, reference, "Daily Fee", amount, first.ORNumber, "Paid",
                     Recorder(first.CollectorId, first.CreatedBy, collectors));
             })
