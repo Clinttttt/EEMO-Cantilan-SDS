@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -141,6 +142,24 @@ public class NpmDailyFeeTests
         // Superseded by TheOfficeMaySetAnAreasRate above: the withholding was phase 1's guard, and phase 3 lifted it once
         // every billing and reporting path read a per-area rate. Kept as the record of why the order was that way round.
         Assert.True(FacilityRateKeys.IsPerAreaDailyKey(FeeRateKey.NpmDailyStallVegetable));
+    }
+
+    [Fact]
+    public void TheRateEditorSaysWhatAZeroAreaRateMeans()
+    {
+        // The editor shows an unstated rate as ₱0, so a bare "₱0" beside an area would read as though that area were
+        // free — while it in fact means the area is billed the market's rate. The label carries the reading, the same way
+        // the monthly rent's label carries its own fallback. Zero is also how the office withdraws an area rate.
+        foreach (var key in new[]
+        {
+            FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat,
+        })
+        {
+            Assert.Contains("0 = market rate", FacilityDisplay.RateLabel(key));
+        }
+
+        // The market's own rate says nothing of the sort: a zero there is the office charging nothing under that head.
+        Assert.DoesNotContain("market rate", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStall));
     }
 
     [Fact]

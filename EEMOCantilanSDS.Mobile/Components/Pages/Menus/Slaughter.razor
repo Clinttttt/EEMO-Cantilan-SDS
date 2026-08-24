@@ -485,8 +485,12 @@
     private int CustomHeads = 1;
     private decimal? CustomRate;
 
-    private decimal HogRate => Collection?.HogRatePerHead ?? 250m;
-    private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 365m;
+    // The office's own per-head rates, as its portal states them. These read "?? 250m" and "?? 365m" — the reference
+    // municipality's ordinance — so a collector whose payload had not loaded was quoted another municipality's figures,
+    // and every amount on this screen was struck from them. Zero where the office has stated nothing: the server refuses
+    // to record a transaction at an unstated rate, so nothing is receipted at zero.
+    private decimal HogRate => Collection?.HogRatePerHead ?? 0m;
+    private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 0m;
 
     private IReadOnlyList<string> KnownOwners => Collection?.KnownOwners ?? Array.Empty<string>();
 
@@ -659,8 +663,8 @@
         SelectedReceipt = null;
     }
 
-    private decimal EditHogRate => Collection?.HogRatePerHead ?? 250m;
-    private decimal EditLargeRate => Collection?.LargeAnimalRatePerHead ?? 365m;
+    private decimal EditHogRate => Collection?.HogRatePerHead ?? 0m;
+    private decimal EditLargeRate => Collection?.LargeAnimalRatePerHead ?? 0m;
 
     private FixedAnimal[] EditFixedAnimals => new[]
     {

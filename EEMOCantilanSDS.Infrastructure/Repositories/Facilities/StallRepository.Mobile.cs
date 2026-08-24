@@ -29,10 +29,9 @@ public partial class StallRepository
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
         var effectiveEnd = GetEffectiveCollectionEnd(monthStart, monthEnd, collectionDate);
 
-        // Resolve the municipality's NPM rates as of the collection date (falls back to the ordinance
-        // constants, so Cantilan's mobile figures are unchanged).
+        // Resolve the municipality's NPM rates as of the collection date. The daily fee is asked PER STALL below, so an
+        // office that prices the areas of its market apart is answered area by area.
         var rateSnapshot = await _feeRateResolver.GetSnapshotAsync(ct);
-        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, collectionDate);
         var npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, collectionDate);
 
         var stalls = await _context.Stalls

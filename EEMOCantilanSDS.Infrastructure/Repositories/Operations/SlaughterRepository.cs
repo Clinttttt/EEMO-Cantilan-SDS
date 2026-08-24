@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -7,15 +8,16 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughterRepository
+public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : ISlaughterRepository
 {
-    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
-    public SlaughterRepository(AppDbContext context) : this(context, new SystemClock()) { }
+    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock and this office's rates.</summary>
+    public SlaughterRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
     public async Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await context.SlaughterTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
 
@@ -88,13 +90,25 @@ public class SlaughterRepository(AppDbContext context, IClock clock) : ISlaughte
             .OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // The rates the COLLECTOR's own office charges, as of the day being collected.
+        //
+        // These were the reference municipality's constants, handed to every LGU: a Carrascal collector recording a hog
+        // was shown Cantilan's ₱250 while its own ordinance says ₱400. The stored amount was safe — the recording
+        // handler resolves the rate itself and refuses one the office has not stated — but the figure on the collector's
+        // screen, and the total they reconcile at the end of the day, were another municipality's.
+        //
+        // Resolve, not ResolveOrNull: the field is a plain decimal on a payload that devices already in the field
+        // deserialize, so an office that has stated nothing sends 0 rather than null. Zero shows as nothing to charge and
+        // the recording handler refuses it, which is the honest answer; hiding an unpriced animal on the device is
+        // recorded as the remaining mobile work.
+        var rates = await feeRateResolver.GetSnapshotAsync(ct);
         return new MobileSlaughterCollectionDto(
             date,
             transactions.Count,
             transactions.Sum(t => t.NumberOfHeads),
             transactions.Sum(t => t.TotalAmount),
-            FeeRates.SlhHogTotalPerHead,
-            FeeRates.SlhLargeTotalPerHead,
+            rates.Resolve(FeeRateKey.SlhHogPerHead, date),
+            rates.Resolve(FeeRateKey.SlhLargePerHead, date),
             transactions,
             knownOwners);
     }
