@@ -232,6 +232,72 @@ public class CollectorRecordsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task SettledOwedDays_AppearOnTheDayTheMoneyWasTaken_WithTheWholeReceipt()
+    {
+        // A collector who settles three owed days this afternoon holds ONE receipt for ₱90. The feed used to select NPM
+        // daily rows by the day the fee was FOR, so that receipt showed ₱30 on today's tab and one ₱30 row on each of
+        // three past tabs. Every other source in this feed keys on the collection timestamp; this one now does too, and
+        // the Records screen collapses a shared OR into one card whose amount is the sum.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Justin Bieber", "Justin Bieber", Today.AddMonths(-1), 3, 900m);
+        var assignment = CollectorFacilityAssignment.Create(me, npm.Id, FacilityCode.NPM);
+
+        var owedDays = new[] { Today.AddDays(-3), Today.AddDays(-2), Today };
+        var settled = owedDays.Select(day =>
+        {
+            var d = DailyCollection.Create(stall.Id, day, dailyFee: 30m);
+            d.MarkPaid("OR-90", me);          // one receipt, taken today
+            return d;
+        }).ToList();
+
+        ctx.AddRange(npm, stall, contract, assignment);
+        ctx.AddRange(settled);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+
+        var today = await repo.GetCollectorRecordsAsync(me, FacilityCode.NPM, Today, Today, CancellationToken.None);
+        Assert.Equal(3, today.Count);                                     // all three days answer for today's receipt
+        Assert.Equal(90m, today.Sum(r => r.Amount));                      // what the payor actually handed over
+        Assert.All(today, r => Assert.Equal("OR-90", r.ORNumber));
+        Assert.Equal(owedDays.OrderBy(d => d), today.Select(r => r.FeeDate!.Value).OrderBy(d => d));
+
+        // The day the fee was for is not a collection day: no money moved then.
+        var thatPastDay = Today.AddDays(-3);
+        Assert.Empty(await repo.GetCollectorRecordsAsync(me, FacilityCode.NPM, thatPastDay, thatPastDay, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task StallInAnAreaTheOfficeAddedItself_CarriesThatAreasOwnName()
+    {
+        // A market may declare areas of its own; such a stall has no canonical Section, and the feed showed nothing at
+        // all where the three canonical areas get a chip — the payor's own area missing from the record of the payment.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "7", 900m, ApplicableFees.DailyRental, customSectionName: "Sari Sari");
+        var contract = Contract.Create(stall.Id, "Karmilita Log", "Karmilita Log", Today.AddMonths(-1), 3, 900m);
+        var assignment = CollectorFacilityAssignment.Create(me, npm.Id, FacilityCode.NPM);
+
+        var day = DailyCollection.Create(stall.Id, Today, dailyFee: 30m);
+        day.MarkPaid("OR-2626261", me);
+
+        ctx.AddRange(npm, stall, contract, assignment, day);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var rec = Assert.Single(await repo.GetCollectorRecordsAsync(me, FacilityCode.NPM, Today, Today, CancellationToken.None));
+
+        Assert.Null(rec.Section);
+        Assert.Equal("Sari Sari", rec.CustomSectionName);
+    }
+
+    [Fact]
     public async Task IncludesAdminRecordedAtAssignedFacility_AndFlagsThem()
     {
         // The Records feed shows the collector's own collections PLUS admin/office-recorded entries

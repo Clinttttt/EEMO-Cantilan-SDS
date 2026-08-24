@@ -128,6 +128,10 @@
                                 {
                                     <span class="record-section">@SectionLabel(rec.Section.Value)</span>
                                 }
+                                else if (!string.IsNullOrWhiteSpace(rec.CustomSectionName))
+                                {
+                                    <span class="record-section">@rec.CustomSectionName</span>
+                                }
                                 @if (rec.IsAdminRecorded)
                                 {
                                     <span class="record-admin-tag">Office</span>
@@ -180,6 +184,10 @@
             {
                 <div class="detail-row"><span class="detail-key">Section</span><span class="detail-val">@SectionLabel(SelectedRecord.Section.Value)</span></div>
             }
+            else if (!string.IsNullOrWhiteSpace(SelectedRecord.CustomSectionName))
+            {
+                <div class="detail-row"><span class="detail-key">Section</span><span class="detail-val">@SelectedRecord.CustomSectionName</span></div>
+            }
             @if (SelectedRecord.FishKilos is > 0)
             {
                 <div class="detail-row"><span class="detail-key">Fish Weight</span><span class="detail-val">@SelectedRecord.FishKilos.Value.ToString("0.##") kg</span></div>
@@ -196,13 +204,17 @@
             }
             <div class="detail-row"><span class="detail-key">Recorded by</span><span class="detail-val">@(SelectedRecord.IsAdminRecorded ? "Office / Admin" : Session.CollectorName)</span></div>
             <div class="detail-row"><span class="detail-key">Date &amp; Time</span><span class="detail-val">@SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt")</span></div>
+            @if (SelectedRow is { IsMerged: false } && SelectedRecord.FeeDate is { } feeDay && feeDay != DateOnly.FromDateTime(SelectedRecord.CollectedAt))
+            {
+                <div class="detail-row"><span class="detail-key">Fee for</span><span class="detail-val">@feeDay.ToString("MMM d, yyyy")</span></div>
+            }
             <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="record-status-pill @PillClass(SelectedRecord)">@StatusLabel(SelectedRecord)</span></span></div>
             @if (SelectedRow is { IsMerged: true })
             {
                 <div class="detail-row"><span class="detail-key">Payments in this receipt</span><span class="detail-val">@SelectedRow.Count</span></div>
-                @foreach (var it in SelectedRow.Items)
+                @foreach (var it in SelectedRow.Items.OrderBy(i => i.FeeDate ?? DateOnly.MaxValue))
                 {
-                    <div class="detail-row"><span class="detail-key">· @it.Nature</span><span class="detail-val">₱@it.Amount.ToString("N0")</span></div>
+                    <div class="detail-row"><span class="detail-key">· @(it.FeeDate is null ? it.Nature : it.FeeDate.Value.ToString("MMM d, yyyy"))</span><span class="detail-val">₱@it.Amount.ToString("N0")</span></div>
                 }
                 <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@SelectedRow.TotalAmount.ToString("N0")</span></div>
                 @if (SelectedRow.AnyPartial)
@@ -678,11 +690,14 @@
         : row.AnyPartial ? $"₱{row.TotalPaid:N0} paid"
         : "Paid";
 
-    // Tag on a collapsed row: monthly rentals collapse months; other facilities show a generic entry count.
+    // Tag on a collapsed row: monthly rentals collapse months; a market receipt that settled several owed days states
+    // the days it covered, since the amount on the card is the whole receipt.
     string MergedLabel(RecordRow row) =>
-        (DailyFacilities.Contains(row.Primary.FacilityCode) || WeeklyFacilities.Contains(row.Primary.FacilityCode))
-            ? $"{row.Count} entries"
-            : $"{row.Count} months";
+        row.Items.All(i => i.FeeDate is not null)
+            ? $"{row.Count} days"
+            : (DailyFacilities.Contains(row.Primary.FacilityCode) || WeeklyFacilities.Contains(row.Primary.FacilityCode))
+                ? $"{row.Count} entries"
+                : $"{row.Count} months";
 
     // ── Offline pending queue (button right of the search bar) ──────────────
     bool ShowPendingSheet = false;

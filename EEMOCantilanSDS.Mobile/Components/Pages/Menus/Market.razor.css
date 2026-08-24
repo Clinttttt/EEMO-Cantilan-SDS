@@ -164,11 +164,21 @@
     background: var(--bg-icon);
     border: 1px solid var(--border);
     border-radius: 12px;
+    /* A market with areas of its own has more than three chips, so the strip scrolls sideways instead of
+       crushing the labels. Four short chips still divide the width exactly as before. */
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.seg-filter::-webkit-scrollbar {
+    display: none;
 }
 
 .seg-filter-btn {
-    flex: 1;
+    flex: 1 0 auto;
     min-height: 36px;
+    padding: 0 12px;
+    white-space: nowrap;
     border-radius: 9px;
     background: transparent;
     color: var(--text-subtle);

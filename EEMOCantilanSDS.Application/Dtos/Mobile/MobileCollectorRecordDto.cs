@@ -34,7 +34,14 @@ public sealed record MobileCollectorRecordDto(
     IReadOnlyList<MobileSlaughterLineDto>? SlaughterLines = null,
     // NPM only: the stall's electricity & water bill for this record's month, shown in the detail
     // (not on the card) so a payor keeps ONE card. Null when there is no utility bill for the month.
-    MobileRecordUtilityDto? Utility = null);
+    MobileRecordUtilityDto? Utility = null,
+    // The office's OWN name for an area it added itself, for a stall standing in one (Section is then null). Without it
+    // the feed showed a chip for each of the three canonical areas and nothing at all for a stall in, say, "Sari Sari" —
+    // the payor's own area, missing from the record of their payment.
+    string? CustomSectionName = null,
+    // NPM only: the day this fee is FOR, which is not the day it was collected when a payor settles what they owe. The
+    // Records feed states the collection day; this lets a settled receipt name the days it covered.
+    DateOnly? FeeDate = null);
 
 /// <summary>A stall's electricity &amp; water bill attached to an NPM collection record (detail view only).</summary>
 public sealed record MobileRecordUtilityDto(

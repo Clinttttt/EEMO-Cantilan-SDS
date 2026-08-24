@@ -99,9 +99,15 @@ public partial class CollectorRepository
             var npmAssigned = assignedSet.Contains(FacilityCode.NPM);
             // Include PAID days and ABSENT/excused days (₱0, no OR) so the collector sees their full
             // daily activity — an absence they marked should still appear on the feed.
+            //
+            // Selected on WHEN THE MONEY WAS TAKEN, like every other source in this feed (monthly rentals, trips and
+            // slaughter receipts all key on their timestamp). This one branch keyed on the day the fee was FOR, so a
+            // collector who settled three owed days this afternoon found nothing of it under Today and one ₱30 row on
+            // each of three past tabs — the receipt they hold said ₱90. A day settled on its own day is unaffected:
+            // then the two dates are the same.
             var rows = await _context.DailyCollections.AsNoTracking()
                 .Where(d => (d.IsPaid || d.IsAbsent)
-                         && d.CollectionDate >= fromDate && d.CollectionDate <= toDate
+                         && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                          && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null)))
                 .Select(d => new
                 {
@@ -112,6 +118,7 @@ public partial class CollectorRepository
                     d.CollectionDate,
                     d.Stall.StallNo,
                     d.Stall.Section,
+                    d.Stall.CustomSectionName,
                     d.DailyFee,
                     d.FishKilos,
                     d.IsAbsent,
@@ -125,6 +132,8 @@ public partial class CollectorRepository
             var billMap = await BuildUtilityDetailMapAsync(
                 rows.Select(r => r.StallId).Distinct().ToList(), fromDate, toDate, cancellationToken);
 
+            // One receipt is already collapsed into one row by the Records screen, which keeps each day as an item so
+            // the detail can name them; the rows here stay per day for that reason.
             results.AddRange(rows.Select(d =>
             {
                 var amount = d.DailyFee + ((d.FishKilos ?? 0) * npmFish);
@@ -134,11 +143,13 @@ public partial class CollectorRepository
                     ? new MobileCollectorRecordDto(
                         "—", payor, d.Code, string.Empty, d.StallNo,
                         "Absent / Excused", 0m, 0m, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, null,
-                        IsAdminRecorded: false, IsAbsent: true, Utility: util)
+                        IsAdminRecorded: false, IsAbsent: true, Utility: util,
+                        CustomSectionName: d.CustomSectionName, FeeDate: d.CollectionDate)
                     : new MobileCollectorRecordDto(
                         d.ORNumber ?? "—", payor, d.Code, string.Empty, d.StallNo,
                         "Daily Fee", amount, amount, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, d.FishKilos,
-                        d.IsAdmin, IsAbsent: false, Utility: util);
+                        d.IsAdmin, IsAbsent: false, Utility: util,
+                        CustomSectionName: d.CustomSectionName, FeeDate: d.CollectionDate);
             }));
         }
 

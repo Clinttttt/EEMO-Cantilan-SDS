@@ -744,7 +744,17 @@
         }
     }
 
-    private readonly string[] FilterOptions = ["All", "Vegetables", "Meat", "Fish"];
+    // The areas of THIS market, named by the office: the three canonical ones only if stalls stand in them, plus any area
+    // the office added itself. It used to be a fixed list of three English words, so a payor in an office-declared area
+    // such as "Sari Sari" could not be filtered for, and a renamed area was headed one way and filtered under another.
+    private IEnumerable<string> FilterOptions =>
+        new[] { "All" }.Concat((Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>())
+            .Where(s => !string.IsNullOrWhiteSpace(s.SectionName))
+            .OrderBy(s => s.Section is null)
+            .ThenBy(s => s.Section)
+            .ThenBy(s => s.SectionName)
+            .Select(s => s.SectionName)
+            .Distinct());
 
     protected override async Task OnInitializedAsync()
     {
@@ -876,17 +886,14 @@
                 || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
                 || s.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
 
-            var matchesFilter = ActiveFilter switch
-            {
-                "Vegetables" => s.Section == MarketSection.VegetableArea,
-                "Meat" => s.Section == MarketSection.MeatSection,
-                "Fish" => s.Section == MarketSection.FishSection,
-                _ => true
-            };
+            // Matched on the area's own name, so an office-declared area filters like any other.
+            var matchesFilter = ActiveFilter == "All" || s.SectionName == ActiveFilter;
 
             return matchesSearch && matchesFilter;
         })
-        .OrderBy(s => s.Section)
+        .OrderBy(s => s.Section is null)
+        .ThenBy(s => s.Section)
+        .ThenBy(s => s.SectionName)
         .ThenBy(s => s.StallNo);
 
     /// <summary>
@@ -1484,22 +1491,6 @@
             catch { /* webview not ready / sheet closed — non-fatal */ }
         }
     }
-
-    private static string GetSectionHeading(MarketSection? section) => section switch
-    {
-        MarketSection.VegetableArea => "Vegetables",
-        MarketSection.FishSection => "Fish",
-        MarketSection.MeatSection => "Meat",
-        _ => "Unassigned"
-    };
-
-    private static string GetSectionShortName(MarketSection? section) => section switch
-    {
-        MarketSection.VegetableArea => "Vegetables",
-        MarketSection.FishSection => "Fish",
-        MarketSection.MeatSection => "Meat",
-        _ => "Unassigned"
-    };
 
     private static string GetBarClass(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "bar-paid" :
