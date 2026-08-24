@@ -768,15 +768,17 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - `publish-apk.yml` no longer stages the APK into the site, so the failing host never serves it. The workflow needs
     `contents: write` for the release and nothing else. The old path redirects (302) to the release, verified, so links already
     shared keep working — which also means the API's built-in default URL stays correct without any app setting.
-  - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect, and
-    `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were set to 2 / 1.1.0 to match the published build. `api/mobile/version`
-    confirmed afterwards.
-  - **Published builds since:** `collector-1.1.1-3` (2026-08-24, the arrears sheet answering for its own day),
-    `collector-1.1.2-4` (2026-08-24, the Records card reading the whole receipt, the payor's own area on that card, and the
-    market round's area chips taken from the areas the market has) and `collector-1.1.3-5` (2026-08-24, one entry per payor
-    with every receipt named inside it). `/releases/latest/download/stalltrack-collector.apk` verified to 302 at
-    `collector-1.1.3-5`. The API still advertises **2 / 1.1.0**, so no device is PROMPTED to update: the two settings above
-    must be raised to `5` / `1.1.3` for that, which restarts the API and so waits for the office to be idle.
+  - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect. The
+    release asset is named **`stalltrack-collector-latest.apk`**: `/releases/latest/download/stalltrack-collector.apk`
+    answers 302 and then 404s, so a check that stops at the redirect proves nothing. Verified 2026-08-25 by following the
+    redirect: the configured name returns 200 at 43,115,349 bytes.
+  - **Published builds:** `collector-1.1.1-3` (the arrears sheet answering for its own day), `collector-1.1.2-4` (the
+    Records card reading the whole receipt, the payor's own area on it, the market round's area chips),
+    `collector-1.1.3-5` (one entry per payor with every receipt named inside it) and `collector-1.1.4-6` (Profile states
+    v1.1.4 rather than "v1.1.3 (5)", and the update prompts name the version on offer). All 2026-08-24.
+  - `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were raised from 2 / 1.1.0 to **6 / 1.1.4** on 2026-08-25 at the
+    office's instruction, which restarted the API. `api/mobile/version` confirmed afterwards, and both containers were
+    re-checked against HEAD. Devices below versionCode 6 are now prompted to update.
   - The 41 MB binary also stopped being tracked in git; the release holds it and `mobile-app-site/download/*.apk` is ignored.
 
 - **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one
