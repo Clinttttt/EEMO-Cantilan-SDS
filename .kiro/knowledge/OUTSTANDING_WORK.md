@@ -726,6 +726,15 @@ day it covers falls in, which is why a late-settled day turns its own calendar c
 of the three days rather than ₱270 on one. Nothing in the facility report repositories reads a record timestamp, so the two
 never disagree by accident. The caption over the trend was corrected the same day; it had said "recorded collections".
 
+**One entry per payor on the collector's Records feed.** Decided 2026-08-24 after the office saw one payor twice on the same
+day, ₱90 on one receipt and ₱30 on another, and asked for the name to appear once. An entry is a payor at one stall for the
+day, whatever number of receipts they were given, and it states the money that payor handed over. Nothing the office answers
+for is collapsed: the entry holds each receipt intact and the detail names every one against its own time and amount, with
+the days or months it covered underneath. Never merged, and each refusal is tested: an absence (a ₱0 statement, not money),
+an office-recorded entry (attribution must stay plain), and two stalls of one payor (the office reads a stall). The rule
+lives in `EEMOCantilanSDS.Mobile.Core/Records/CollectorRecordGrouping.cs` rather than the razor page precisely so it can be
+tested, the mobile UI having no automated coverage; `CollectorRecordGroupingTests` is the record of it.
+
 **The three billing rules** stand as implemented, per the same interview: a term of N years owes exactly N × 12 months'
 rent; an expired contract stops accruing rent but keeps its balance collectable; a current or yearly market report counts
 only the market days elapsed as of the report date.
@@ -762,11 +771,12 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect, and
     `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were set to 2 / 1.1.0 to match the published build. `api/mobile/version`
     confirmed afterwards.
-  - **Published builds since:** `collector-1.1.1-3` (2026-08-24, the arrears sheet answering for its own day) and
+  - **Published builds since:** `collector-1.1.1-3` (2026-08-24, the arrears sheet answering for its own day),
     `collector-1.1.2-4` (2026-08-24, the Records card reading the whole receipt, the payor's own area on that card, and the
-    market round's area chips taken from the areas the market has). `/releases/latest/download/stalltrack-collector.apk`
-    verified to 302 at `collector-1.1.2-4`. The API still advertises **2 / 1.1.0**, so no device is PROMPTED to update: the two
-    settings above must be raised to `4` / `1.1.2` for that, which restarts the API and so waits for the office to be idle.
+    market round's area chips taken from the areas the market has) and `collector-1.1.3-5` (2026-08-24, one entry per payor
+    with every receipt named inside it). `/releases/latest/download/stalltrack-collector.apk` verified to 302 at
+    `collector-1.1.3-5`. The API still advertises **2 / 1.1.0**, so no device is PROMPTED to update: the two settings above
+    must be raised to `5` / `1.1.3` for that, which restarts the API and so waits for the office to be idle.
   - The 41 MB binary also stopped being tracked in git; the release holds it and `mobile-app-site/download/*.apk` is ignored.
 
 - **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one
