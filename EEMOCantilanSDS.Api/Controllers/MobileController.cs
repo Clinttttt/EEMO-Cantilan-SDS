@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 using EEMOCantilanSDS.Application.Command.Notifications.RegisterDeviceToken;
 using EEMOCantilanSDS.Application.Command.Notifications.RemoveDeviceToken;
@@ -112,6 +113,33 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             IsAbsent: request.IsAbsent);
 
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Settles SEVERAL owed days of one market stall against one physical receipt, in a single transaction.
+    ///
+    /// <para>
+    /// A payor settling four owed days at once is ordinary in the field, and the office's own portal has always been able
+    /// to record it; a collector could only do it one day at a time. This is the same command the portal sends, so the
+    /// rules are not restated here: days that are future, market-closed, already paid or excused, or that no term answers
+    /// for are skipped, and one OR may cover the rest.
+    /// </para>
+    ///
+    /// <para>
+    /// Nothing about who may settle is widened. This controller is collectors only, and the command's own guard
+    /// (<c>NpmSettlementAccess</c>) already restricts a collector to a facility they are assigned to — the same rule that
+    /// governs recording a single day above.
+    /// </para>
+    /// </summary>
+    [HttpPost("npm/collections/settle-days")]
+    public async Task<ActionResult<bool>> SettleNpmDaysAsync([FromBody] SettleMobileNpmDaysRequest request)
+    {
+        var result = await Sender.Send(new SettleNpmDaysCommand(
+            request.StallId,
+            request.Dates ?? Array.Empty<DateOnly>(),
+            request.ORNumber));
+
         return HandleResponse(result);
     }
 

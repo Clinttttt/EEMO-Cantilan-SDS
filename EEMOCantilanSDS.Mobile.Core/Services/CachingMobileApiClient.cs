@@ -77,6 +77,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request) =>
         InvalidatingAsync(() => inner.RecordNpmCollectionAsync(request));
 
+    public Task<Result<bool>> SettleNpmDaysAsync(SettleMobileNpmDaysRequest request) =>
+        InvalidatingAsync(() => inner.SettleNpmDaysAsync(request));
+
     public Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
         InvalidatingAsync(() => inner.RecordNpmUtilityPaymentAsync(request));
 

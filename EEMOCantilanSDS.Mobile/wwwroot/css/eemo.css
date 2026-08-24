@@ -626,6 +626,30 @@ html, body, #app {
     color: var(--text-subtle);
 }
 
+/* What one receipt is about to be written for, when a payor is clearing several owed days at once. Stated only for more
+   than one day - a single day already reads on the Collected row - and in the sheet's own colours, so it is the figure
+   that stands out rather than the panel. */
+.day-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.day-total-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-subtle);
+}
+
+.day-total-val {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
 /* ─────────────────────────────────────────────
    Search row: the search box, and beside it the control for payors who are behind.
 

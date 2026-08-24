@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Authorization;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -36,7 +36,6 @@ public class SettleNpmDaysCommandHandler(
 
         // Collectors may only act on an assigned facility (same rule as recording a single daily collection). One rule for both
         // settle paths - see NpmSettlementAccess for why it is not written out here.
-        var isCollectorRequest = currentUser.Role == "Collector";
         if (!await NpmSettlementAccess.MaySettleMarketCollectionsAsync(currentUser, collectorRepository, ct))
             return Result<bool>.Forbidden();
 

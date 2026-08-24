@@ -297,13 +297,13 @@
                    reconcile. Only days the server says are owed appear here. Shown on this sheet only when it was opened
                    from the arrears screen; today's ordinary round answers for today and says so. *@
                 <div class="day-choose">
-                    <div class="form-label">Day being settled</div>
+                    <div class="form-label">Days being settled</div>
                     <div class="day-chips">
                         @foreach (var day in SettleDays)
                         {
-                            <button class="day-chip @(SelectedDate == day ? "on" : "")" type="button"
-                                    aria-pressed="@(SelectedDate == day)"
-                                    @onclick="() => SelectedDate = day">
+                            <button class="day-chip @(IsDayChosen(day) ? "on" : "")" type="button"
+                                    aria-pressed="@IsDayChosen(day)"
+                                    @onclick="() => ToggleDay(day)">
                                 @DayChipLabel(day)
                             </button>
                         }
@@ -315,9 +315,18 @@
                         }
                         else
                         {
-                            <text>@SettleDays.Count days still owed this period. The oldest is chosen first.</text>
+                            <text>@SettleDays.Count days still owed this period. Tap each day this payment covers; the oldest is chosen first.</text>
                         }
                     </div>
+                    @* What one receipt is being written for. A payor clearing four owed days at once is ordinary, and the
+                       collector has to be able to see the figure they are about to take. *@
+                    @if (ChosenDays.Count > 1)
+                    {
+                        <div class="day-total">
+                            <span class="day-total-label">@ChosenDays.Count days</span>
+                            <span class="day-total-val">@FormatCurrency(ChosenDays.Count * SelectedStall.DailyRate)</span>
+                        </div>
+                    }
                 </div>
             }
 
@@ -962,6 +971,31 @@
     /// </summary>
     private DateOnly SelectedDate;
 
+    // The days this one payment covers. A payor clearing four owed days at once is ordinary in the field, and the office's
+    // portal has always been able to record it in one act; the collector could only do one day at a time, which meant four
+    // confirmations and four chances to stop half way. Chosen days are settled together, against one receipt.
+    //
+    // Only the arrears sheet offers this: today's ordinary round answers for today and says so. SelectedDate stays the day
+    // a single-day capture answers for - including the offline queue, which is per day - so nothing about today's round
+    // changes.
+    private readonly HashSet<DateOnly> ChosenDays = new();
+
+    private bool IsDayChosen(DateOnly day) => ChosenDays.Contains(day);
+
+    private void ToggleDay(DateOnly day)
+    {
+        if (!ChosenDays.Remove(day))
+            ChosenDays.Add(day);
+
+        // The sheet always answers for at least one day: un-ticking the last one puts it back rather than leaving a
+        // receipt written for nothing. SelectedDate follows the earliest chosen day, so the single-day path, the sheet's
+        // heading and the chips keep agreeing.
+        if (ChosenDays.Count == 0)
+            ChosenDays.Add(day);
+
+        SelectedDate = ChosenDays.Min();
+    }
+
     /// <summary>
     /// The days this sheet may settle, earliest first - the payor's outstanding days as the server worked them out.
     ///
@@ -1058,6 +1092,11 @@
         var owed = OwedDays(stall);
         SelectedDate = asArrears && owed.Count > 0 ? owed[0] : Today;
 
+        // One day is chosen to begin with — the day this sheet answers for. The collector adds more from the chips when a
+        // payor is clearing several at once.
+        ChosenDays.Clear();
+        ChosenDays.Add(SelectedDate);
+
         // A capture waiting to sync is this stall's answer for the day, so the sheet opens on it. Reading the
         // server's "not collected" instead put the tick on Not Collected for a stall the same screen had just
         // marked "Queued" — and re-confirming it queued a second operation that could overrule the first.
@@ -1134,6 +1173,43 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Several days against one receipt, in one transaction on the server. Only ever reached from the arrears sheet,
+        // and only for money actually collected: "Not collected" and "Absent" are statements about a single day, so they
+        // keep the per-day path below. The server skips any chosen day that turns out to be closed, already paid, excused
+        // or outside a term, and refuses the lot if that leaves nothing — so a stale sheet cannot invent a settlement.
+        if (SelectedIsPaid && !SelectedIsAbsent && ChosenDays.Count > 1)
+        {
+            if (!Sync.IsOnline)
+            {
+                SheetError = "You're offline. Settling several days at once needs a connection — capture them one day at a time.";
+                IsSaving = false;
+                return;
+            }
+
+            var many = await MobileApi.SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(
+                SelectedStall.StallId,
+                ChosenDays.OrderBy(d => d).ToList(),
+                string.IsNullOrWhiteSpace(ORNumber) ? null : ORNumber.Trim()));
+
+            if (!many.IsSuccess)
+            {
+                SheetError = many.Error ?? "Unable to settle the selected days.";
+                IsSaving = false;
+                return;
+            }
+
+            CloseCollectionSheet();
+            try
+            {
+                await LoadCollectionAsync();
+            }
+            finally
+            {
+                IsSaving = false;
+            }
+            return;
+        }
 
         // Offline: queue the collection locally and let it sync when connectivity returns. Collected
         // and Absent (₱0 excused) can be captured offline; only a no-money "Not collected" needs the
