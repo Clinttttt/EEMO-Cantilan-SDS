@@ -57,7 +57,9 @@
         {
             <div class="update-banner">
                 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                <div class="update-banner-text">A new version is available.</div>
+                @* The version on offer comes from the server's own answer, so the banner names it rather than saying
+                   "a new version" and leaving the collector to guess what they are being asked to install. *@
+                <div class="update-banner-text">@(string.IsNullOrWhiteSpace(Update.LatestVersion) ? "A new version is available." : $"Version {Update.LatestVersion} is available.")</div>
                 <button class="update-banner-btn" @onclick="DownloadUpdate">Update</button>
                 <button class="update-banner-x" @onclick="() => Update = null" aria-label="Dismiss">×</button>
             </div>
@@ -167,7 +169,7 @@
             <div class="update-modal">
                 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                 <div class="update-modal-title">Update required</div>
-                <div class="update-modal-sub">This version is no longer supported. Please update to continue using StallTrack.</div>
+                <div class="update-modal-sub">This version is no longer supported.@(string.IsNullOrWhiteSpace(Update.LatestVersion) ? " Please update to continue using StallTrack." : $" Please install version {Update.LatestVersion} to continue using StallTrack.")</div>
                 @if (!string.IsNullOrWhiteSpace(Update.Notes))
                 {
                     <div class="update-modal-notes">@Update.Notes</div>
