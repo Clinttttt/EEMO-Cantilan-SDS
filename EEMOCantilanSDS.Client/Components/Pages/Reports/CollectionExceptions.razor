@@ -875,7 +875,10 @@
     private decimal StatExpected()
     {
         if (SelectedStall is null) return 0m;
-        if (IsNpm) return (CountDays("collected") + CountDays("missed")) * FeeRates.NpmDailyFee;
+        // The office's own daily fee, resolved for this screen (zero until its answer arrives, so nothing is stated on
+        // somebody else's figure). This read FeeRates.NpmDailyFee — the reference municipality's ₱30 — so the expected
+        // total on another office's screen was struck at Cantilan's rate whatever its own ordinance says.
+        if (IsNpm) return (CountDays("collected") + CountDays("missed")) * _npmDailyRate;
         var billable = CountMonths("collected") + CountMonths("missed") + CountMonths("partial");
         return billable * SelectedStall.MonthlyRate;
     }

@@ -867,6 +867,23 @@ Items that were open and are now closed, kept because the reasoning is what stop
     rate has its month as thirty of those. `NpmMonthlyStall` stays market-wide, and the office's stated monthly still
     wins where it states one. The onboarding monthly-rent field is KEPT on the office's own instruction (2026-08-23):
     removing it would silently re-price any office whose ordinance states a month directly (₱1,000 a month with a ₱35
+- **Borrowed ordinance constants: the audit of 2026-08-23/24.** A sweep for `FeeRates.*` and `?? <constant>` outside the
+  Domain, the seeder and the tests found the reference municipality's figures reaching other offices' screens. Fixed in
+  `a293b552` and the commit after it: the mobile slaughterhouse payload (built from `FeeRates.SlhHogTotalPerHead` /
+  `SlhLargeTotalPerHead` for every LGU), the mobile app's own `?? 250m` / `?? 365m`, TPM's `?? 100m` and its uncollected
+  total, TRM's four `?? 30m` and its pending total, and the Collection Manager's expected total at `FeeRates.NpmDailyFee`.
+  Each now reads the office's own resolved rate, and states nothing until that answer arrives.
+  - **Still borrowing, and deliberately left alone — landmines, not live defects.** Five initialisers hold Cantilan's
+    figure as their starting value: `TpmDtos.VendorFee` and `TrmDtos.TripFee` (both always overwritten by their overview
+    handler's `with { }`), and `_npmDailyRate` / `_npmFishRate` on `CollectorRepository`, `FacilityReportsRepository` and
+    `TransactionFeedRepository` (the value before `LoadNpmRatesAsync` runs). Changing them to zero is only safe once every
+    public entry point on those repositories is confirmed to load rates first; doing it without that check would turn a
+    borrowed figure into a silent zero, which is worse. The check is bounded: find every read of the two fields and walk
+    up to its entry point.
+  - **Why the mobile one survived so long:** `GetMobileSlaughterCollectionQueryHandlerTests` mocks the repository, so the
+    constants never ran in a test. The rule this suggests: a payload assembled in a repository needs a repository-level
+    test, not only a handler test. `MobileSlaughterCollectionRatesTests` is that test.
+
 - **Two shell rules used to reach paper, and both are now settled globally (2026-08-23, `50677d49`).** Recorded because every
   printable page inherited them, so a future report does not have to rediscover either.
   - `body { background: var(--bg) }` (#f0f4f8) printed across the whole page whenever background graphics are on, which every

@@ -69,7 +69,7 @@
                 </div>
             </div>
 
-            <div class="tpm-cal-desc">@MarketDayDescription · ₱@((Overview?.VendorFee ?? 100m).ToString("0")) per vendor</div>
+            <div class="tpm-cal-desc">@MarketDayDescription@VendorFeeNote</div>
 
             <div class="tpm-friday-list">
                 @foreach (var friday in MarketDatesInView)
@@ -484,7 +484,14 @@
         : Overview?.CollectedThisMonth ?? 0m;
     private decimal TpmUncollectedAmount => Attendance.Any()
         ? Attendance.Where(v => !v.IsPaid).Sum(v => v.Fee)
-        : TpmUnpaidCount * FeeRates.TpmVendorFee;
+        : TpmUnpaidCount * (Overview?.VendorFee ?? 0m);
+
+    // The office's own vendor fee, stated only once its answer has arrived. This line read "?? 100m" and the amount
+    // above multiplied by FeeRates.TpmVendorFee — the reference municipality's fee — so another office's market was
+    // described, and its uncollected total struck, at ₱100 a vendor whatever its own ordinance says.
+    private string VendorFeeNote => Overview?.VendorFee is { } fee && fee > 0m
+        ? $" · ₱{fee:0} per vendor"
+        : string.Empty;
     private decimal TpmCollectionRate => Attendance.Any()
         ? (TpmPaidCount * 100m) / Attendance.Count
         : Overview?.CollectionRate ?? 0m;
