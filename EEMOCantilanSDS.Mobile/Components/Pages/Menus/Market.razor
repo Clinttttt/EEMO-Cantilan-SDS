@@ -886,8 +886,9 @@
                 || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
                 || s.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
 
-            // Matched on the area's own name, so an office-declared area filters like any other.
-            var matchesFilter = ActiveFilter == "All" || s.SectionName == ActiveFilter;
+            // Matched on the area's own name, so an office-declared area filters like any other. A chosen area that is no
+            // longer among this round's stalls falls back to all of them, rather than leaving the round looking empty.
+            var matchesFilter = ActiveFilter == "All" || !FilterOptions.Contains(ActiveFilter) || s.SectionName == ActiveFilter;
 
             return matchesSearch && matchesFilter;
         })

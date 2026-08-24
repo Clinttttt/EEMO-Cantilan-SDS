@@ -39,8 +39,8 @@
              published and the server was set to advertise code 2 — so every build reported 1, "2 > 1" was always true,
              and a freshly installed app announced that a new version was available. Bump BOTH when publishing (or pass
              them to the publish workflow, which now names the release from what the build actually carries). -->
-        <ApplicationDisplayVersion>1.1.1</ApplicationDisplayVersion>
-        <ApplicationVersion>3</ApplicationVersion>
+        <ApplicationDisplayVersion>1.1.2</ApplicationDisplayVersion>
+        <ApplicationVersion>4</ApplicationVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>
