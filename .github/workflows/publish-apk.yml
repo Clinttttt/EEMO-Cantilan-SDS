@@ -159,9 +159,7 @@ jobs:
           else
             gh release create "$TAG" dist/stalltrack-collector-latest.apk \
               --title "Collector app ${apk_version_name} (versionCode ${apk_version_code})" \
-              --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes.
-
-Set Mobile__LatestVersionCode=${apk_version_code} and Mobile__LatestVersion=${apk_version_name} on the API so installed apps stop being told an update is available." \
+              --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes. Set Mobile__LatestVersionCode=${apk_version_code} and Mobile__LatestVersion=${apk_version_name} on the API, so installed apps stop being told an update is available." \
               --latest
           fi
           echo "Published: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/stalltrack-collector-latest.apk"
