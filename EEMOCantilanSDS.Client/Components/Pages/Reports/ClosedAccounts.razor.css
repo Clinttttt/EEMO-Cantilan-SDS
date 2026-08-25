@@ -139,7 +139,7 @@
 .ca-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
 .ca-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
-@media (max-width: 860px) {
+@media screen and (max-width: 860px) {
     .ca-summary { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
     .ca-actions { flex-basis: 100%; }
     .ca-table { font-size: 11.5px; display: block; overflow-x: auto; white-space: nowrap; }

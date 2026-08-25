@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common;
+using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
@@ -58,8 +59,9 @@ public class GetReportOfCollectionsQueryHandler(
                 g.Key,
                 ReceiptSpan(g.Where(l => !string.IsNullOrWhiteSpace(l.OrNumber)).Select(l => l.OrNumber!)),
                 PayorCount(g),
-                // Money that answered for a day before the one it was taken on.
-                g.Where(l => l.FeeDay is { } fee && fee < g.Key).Sum(l => l.Amount),
+                // Money that answered for a period before the one it was taken in: an owed market day, or a rental paid
+                // after its month. Without it a day appears to collect more than it could possibly owe.
+                g.Where(l => AnswersForAnEarlierPeriod(l, g.Key)).Sum(l => l.Amount),
                 g.Sum(l => l.Amount)))
             .ToList();
 
@@ -113,6 +115,21 @@ public class GetReportOfCollectionsQueryHandler(
         .Count();
 
     /// <summary>
+    /// Whether this money answered for a period earlier than the one it was taken in.
+    ///
+    /// <para>
+    /// The two kinds of charge are measured differently, and conflating them would misstate both. A market day is late when
+    /// its own day precedes the day the money came in. A monthly rental is late when its BILLED MONTH precedes the month the
+    /// money came in: August's rent paid on the twenty fourth of August is not arrears, while July's rent paid on the same
+    /// day is.
+    /// </para>
+    /// </summary>
+    private static bool AnswersForAnEarlierPeriod(CollectorCollectionLine line, DateOnly takenOn)
+        => line.BilledMonth is { } month
+            ? month.Year < takenOn.Year || (month.Year == takenOn.Year && month.Month < takenOn.Month)
+            : line.FeeDay is { } day && day < takenOn;
+
+    /// <summary>
     /// The day or month a receipt answers for. Where several owed days were settled together it names the span and says how
     /// many, since that is the whole reason a receipt can exceed one day's fee.
     /// </summary>
@@ -120,9 +137,15 @@ public class GetReportOfCollectionsQueryHandler(
     {
         var lines = receipt.ToList();
 
-        var months = lines.Where(l => l.PeriodLabel is { Length: > 0 }).Select(l => l.PeriodLabel!).Distinct().ToList();
+        // A rental names its month, which is what tells a payment made within its month from one made after it.
+        var months = lines
+            .Where(l => l.BilledMonth is not null)
+            .Select(l => l.BilledMonth!.Value)
+            .Distinct()
+            .OrderBy(m => m)
+            .ToList();
         if (months.Count > 0)
-            return string.Join(", ", months);
+            return string.Join(", ", months.Select(m => m.ToString("MMM yyyy", CultureInfo.InvariantCulture)));
 
         var days = lines.Where(l => l.FeeDay is not null).Select(l => l.FeeDay!.Value).Distinct().OrderBy(d => d).ToList();
         if (days.Count == 0)

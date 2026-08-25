@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════
    BbqReports.razor.css — BBQ Stand Reports
    Visual language mirrors TccReports / NpmReports. All tokens from app.css.
    BBQ-specific: monthly space rental, no fish/section/daily widgets.
@@ -435,7 +435,7 @@
 .status-sheet .print-report-signatures span  { font-size: 12px; }
 .status-sheet .print-report-signatures strong { font-size: 14px; }
 
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
     .rpt-kpi-strip { grid-template-columns: 1fr 1fr; }
     .rpt-charts-row { grid-template-columns: 1fr; }
 }

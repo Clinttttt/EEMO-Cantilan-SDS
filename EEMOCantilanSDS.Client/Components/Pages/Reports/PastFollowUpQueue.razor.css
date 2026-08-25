@@ -37,7 +37,7 @@
 .fh-stat-val.fh-stat-critical { color: #e5a5a5; }
 .fh-stat-key { font-size: 10.5px; color: rgba(255, 255, 255, .55); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
 .fh-hero-divider { width: 1px; height: 42px; background: rgba(255, 255, 255, .12); flex-shrink: 0; }
-@media (max-width: 1000px) { .fh-hero-stats { width: 100%; } .fh-stat { min-width: 80px; padding: 0 12px; } }
+@media screen and (max-width: 1000px) { .fh-hero-stats { width: 100%; } .fh-stat { min-width: 80px; padding: 0 12px; } }
 
 /* ── Filter bar (mirrors the live queue) ── */
 .fh-filterbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
@@ -122,7 +122,7 @@
 .fh-dd-count { min-width: 18px; padding: 1px 7px; border-radius: 999px; background: var(--bg-icon); color: var(--text-subtle); font-size: 10px; font-weight: 800; text-align: center; flex-shrink: 0; }
 .fh-dd-check { width: 14px; height: 14px; stroke: var(--navy); flex-shrink: 0; }
 
-@media (max-width: 720px) {
+@media screen and (max-width: 720px) {
     .fh-period-select { width: 100%; }
     .fh-dd { flex: 1 1 0; }
     .fh-dd-trigger { width: 100%; }

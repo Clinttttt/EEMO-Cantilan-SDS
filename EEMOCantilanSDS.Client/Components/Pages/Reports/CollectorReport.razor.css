@@ -94,13 +94,25 @@
     .rpt-topbar, .rpt-period-bar { display: none !important; }
     .rpt-content { padding: 0 !important; }
     .print-document-content { display: block !important; background: white !important; }
-    /* 12mm here, matching the facility reports: the sheet supplies its own whitespace and CSS isolation would
-       outrank a bare class in print.css, so the value is stated where it takes effect. */
-    .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 12mm !important; border: none !important; box-shadow: none !important; }
+    /* The sheet supplies its own whitespace on paper, and the page margin above supplies the rest. Stated here because
+       CSS isolation compiles these selectors with an attribute, which outranks the bare classes in print.css. */
+    .print-report-sheet { width: 100% !important; padding: 0 !important; min-height: auto !important; border: none !important; box-shadow: none !important; }
+
     .print-section-block { break-inside: auto; }
+    /* A heading alone at the foot of a page is a heading for nothing. */
+    .print-section-heading { break-after: avoid; }
     .print-status-table thead { display: table-header-group; }
     .print-status-table tfoot { display: table-row-group; }
     .print-status-table tr { break-inside: avoid; }
     .print-status-table tbody tr:last-child { break-after: avoid; }
     .print-status-table tfoot { break-before: avoid; }
+    /* Two or three rows are not worth a page of their own. */
+    .print-status-table tbody { orphans: 3; widows: 3; }
+
+    /* The signatories are the sheet's closing, not a page of their own. The 58mm of air that sets them apart on screen is
+       what pushed them onto an otherwise empty last page, so on paper the gap is a fifth of that, the closing note travels
+       with them, and the pair is never split. */
+    .cr-closing { break-inside: avoid; }
+    .print-report-signatures { margin-top: 12mm; break-inside: avoid; }
+    .cr-closing .cr-note { margin-bottom: 0; }
 }

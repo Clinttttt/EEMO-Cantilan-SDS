@@ -31,7 +31,10 @@ public sealed record CollectorCollectionsData(
     decimal UtilityCollected);
 
 /// <param name="FeeDay">The day an NPM daily fee answers for, which is not the day it was taken when arrears are settled.</param>
-/// <param name="PeriodLabel">The month a rental answers for, e.g. "Aug 2026". Null for anything not billed monthly.</param>
+/// <param name="BilledMonth">
+/// The first day of the month a rental answers for. Null for anything not billed monthly. Held as a date rather than a
+/// label so the sheet can tell a rental paid within its own month from one paid after it, which a label could not.
+/// </param>
 public sealed record CollectorCollectionLine(
     string? OrNumber,
     DateTime TakenAtUtc,
@@ -41,7 +44,7 @@ public sealed record CollectorCollectionLine(
     string Nature,
     decimal Amount,
     DateOnly? FeeDay,
-    string? PeriodLabel);
+    DateOnly? BilledMonth);
 
 public sealed record CollectorAbsenceLine(
     DateOnly Day,

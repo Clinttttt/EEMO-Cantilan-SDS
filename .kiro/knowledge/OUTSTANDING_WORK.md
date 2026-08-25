@@ -872,10 +872,16 @@ Items that were open and are now closed, kept because the reasoning is what stop
         arriving. In what was built a collector could not record one at all, the endpoint being Head and Administrator only
         and the handler refusing anyone holding a collector identity. The decision rests on their other reasons.
 
-- **Monthly facilities have no statement of which month a late payment answers for.** Raised by the office 2026-08-25 and
-  deliberately deferred by them. A monthly payor's earlier unpaid months can be settled, but nothing names the month a late
-  payment covers the way the market sheet now names its days, so a Report of Collections line for a rental states the billed
-  month of the record it was entered against and nothing more.
+- **Monthly facilities now state which month a late payment answers for — DONE 2026-08-25.** Raised and deferred by the office
+  the same day, then closed. A rental line carries its BILLED MONTH as a date rather than a label, so the sheet can tell a
+  rental paid inside its own month from one paid after it: July's rent paid on 24 August counts with the earlier periods in the
+  daily record, while August's rent paid on the same day does not, and the receipt names the month either way. Proven by
+  injection: comparing the month as though it were a day fails the test.
+  - The daily record's column is still headed "For Earlier Days", which is what a market office reads, and the closing note on
+    the sheet states that a rental paid after its month is counted there too.
+
+- **A CSV export of the Report of Collections is NOT wanted.** The office decided 2026-08-25 that print and PDF are enough.
+  Recorded so nobody builds it on the assumption that every report needs one.
 
 - **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
   measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where
@@ -883,10 +889,17 @@ Items that were open and are now closed, kept because the reasoning is what stop
   its 12mm margin. Because those blocks sit AFTER the print block in each file, they win.
   - Fixed where documents are actually printed and were reported: `MonthEndReport`, `StallHolderList` and `ExportData` now scope
     their phone blocks to `screen`.
-  - Still unscoped, and each has a print block that could be overridden the same way: `BbqReports`, `CustomReports`, `IceReports`,
+  - **SWEEP COMPLETED 2026-08-25.** The remaining thirteen stylesheets are scoped: `BbqReports`, `CustomReports`, `IceReports`,
     `NccReports`, `NpmReports` (four blocks), `SlhReports`, `TccReports`, `TpmReports`, `TrmReports`, `ClosedAccounts`,
-    `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. The change is mechanical — add `screen and` — but each one should
-    be printed once before and after, since a print layout could unknowingly be leaning on a phone rule today.
+    `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. Each diff is the two added words and nothing else.
+    - Why it was worth doing rather than leaving: `NpmReports`'s 700px block sets `.print-report-meta`,
+      `.print-report-summary` AND `.print-report-signatures` to a single column. For media queries a printed page measures its
+      CONTENT box, so A4 with 12mm margins is about 703px and A4 with one-inch margins about 601px: the office's own choice of
+      margins decided whether its facility sheets printed with the strip stacked down the page. That is the same fault already
+      proven on the month-end sheet.
+    - What could not be verified: the printed output itself. The change can only stop a phone rule from overriding a print
+      rule, and every rule in those blocks is phone-shaped (single-column grids, reduced padding), the print blocks stating
+      print's own layout. Worth printing one facility sheet to confirm.
 
 - **A market may price its areas apart — PHASE 1 SHIPPED 2026-08-23 (`88e94d92`), phases 2 to 5 open.** The office asked
   for it: Cantilan charges ₱30 across its market, but another LGU may charge ₱35 for vegetables and ₱30 for fish.

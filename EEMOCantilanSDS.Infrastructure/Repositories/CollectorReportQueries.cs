@@ -92,7 +92,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 p.ORNumber, p.When, payor!, p.StallNo, p.Code, "Stall Rental",
                 CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount),
                 null,
-                new DateOnly(p.BillingYear, p.BillingMonth, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)));
+                new DateOnly(p.BillingYear, p.BillingMonth, 1)));
         }
 
         // ── Slaughterhouse: one line per animal type on the receipt, its own date being the day it was taken ──

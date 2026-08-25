@@ -354,7 +354,7 @@
 .ce-form-error { color: var(--red); font-size: 12px; margin-top: 10px; font-weight: 600; }
 
 /* ── Responsive ── */
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
     .ce-layout { grid-template-columns: 1fr; height: auto; min-height: 0; }
     .ce-side { height: auto; }
     .ce-main { height: auto; overflow: visible; }

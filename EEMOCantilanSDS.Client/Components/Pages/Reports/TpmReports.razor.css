@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════
    TpmReports.razor.css — Tabo-an Public Market Reports
    Visual language mirrors TccReports / TrmReports. All tokens from app.css.
    TPM-specific: ₱100 vendor fee per Friday, paid/unpaid attendance, goods mix.
@@ -215,7 +215,7 @@
 .status-sheet .print-report-signatures span  { font-size: 12px; }
 .status-sheet .print-report-signatures strong { font-size: 14px; }
 
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
     .rpt-kpi-strip { grid-template-columns: 1fr 1fr; }
     .rpt-charts-row { grid-template-columns: 1fr; }
     .rpt-audit-row { grid-template-columns: 1fr; }

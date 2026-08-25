@@ -166,6 +166,22 @@ public class CollectorReportTests : TestContext
         });
     }
 
+    [Fact]
+    public void TheClosingNoteAndTheSignatoriesAreOneBlock()
+    {
+        // They printed on a page of their own, the signatories being set apart by a large margin meant for the screen. Kept
+        // as one block so paper cannot split them or leave them stranded; the print stylesheet refuses to break inside it.
+        var cut = RenderSheet(CollectorId, Sheet());
+
+        cut.WaitForAssertion(() =>
+        {
+            var closing = cut.Find(".cr-closing");
+            Assert.NotNull(closing.QuerySelector(".cr-note"));
+            Assert.NotNull(closing.QuerySelector(".print-report-signatures"));
+            Assert.NotEmpty(closing.QuerySelectorAll(".sig-slot"));
+        });
+    }
+
     private static Dictionary<string, decimal> Figures(IRenderedComponent<CollectorReport> cut, string selector) =>
         cut.Find(selector).QuerySelectorAll("div")
             .Where(d => d.QuerySelector("span") is not null && d.QuerySelector("strong") is not null)

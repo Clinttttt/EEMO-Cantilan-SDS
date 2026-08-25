@@ -164,7 +164,7 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 640px) {
+@media screen and (max-width: 640px) {
     .fq-search { flex-basis: 100%; }
     .fq-table { font-size: 12px; }
     .fq-sec-sub { display: none; }
@@ -399,7 +399,7 @@
 .fq-stat-val.fq-stat-critical { color: #e5a5a5; }
 .fq-stat-key { font-size: 10.5px; color: rgba(255, 255, 255, .55); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
 .fq-hero-divider { width: 1px; height: 42px; background: rgba(255, 255, 255, .12); flex-shrink: 0; }
-@media (max-width: 1000px) { .fq-hero-stats { width: 100%; } .fq-stat { min-width: 80px; padding: 0 12px; } }
+@media screen and (max-width: 1000px) { .fq-hero-stats { width: 100%; } .fq-stat { min-width: 80px; padding: 0 12px; } }
 
 
 /* NPM "one OR for several days" mode */

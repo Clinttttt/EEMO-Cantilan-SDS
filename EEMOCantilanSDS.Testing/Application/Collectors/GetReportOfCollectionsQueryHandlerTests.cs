@@ -89,6 +89,31 @@ public class GetReportOfCollectionsQueryHandlerTests
     }
 
     [Fact]
+    public async Task ARentalPaidAfterItsMonthIsCountedWithTheEarlierPeriods()
+    {
+        // The two kinds of charge are late for different reasons, and conflating them would misstate both. July's rent paid
+        // on 24 August is arrears; August's rent paid on the same day is not, even though the month began before that day.
+        var report = await Run(new[]
+        {
+            Rental("OR-JUL", Aug24, 2400m, billedMonth: new DateOnly(2026, 7, 1)),
+            Rental("OR-AUG", Aug24, 2400m, billedMonth: new DateOnly(2026, 8, 1))
+        });
+
+        var day = Assert.Single(report.Days);
+        Assert.Equal(4800m, day.Amount);
+        Assert.Equal(2400m, day.ForEarlierDays);      // July's rent only
+    }
+
+    [Fact]
+    public async Task ARentalNamesTheMonthItAnswersFor()
+    {
+        var report = await Run(new[] { Rental("OR-JUL", Aug24, 2400m, billedMonth: new DateOnly(2026, 7, 1)) });
+
+        var receipt = Assert.Single(report.Receipts);
+        Assert.Equal("Jul 2026", receipt.FeeFor);
+    }
+
+    [Fact]
     public async Task APeriodThatEndsBeforeItBeginsIsRefused()
     {
         var handler = Handler(Array.Empty<CollectorCollectionLine>());
@@ -103,6 +128,12 @@ public class GetReportOfCollectionsQueryHandlerTests
         new(or,
             PhilippineTime.DayUtcRange(takenOn).StartUtc.AddHours(11),
             "Kim Chui", "1", FacilityCode.NPM, "Daily Fee", amount, feeDay ?? takenOn, null);
+
+    /// <summary>A monthly rental: no fee day of its own, a billed month instead.</summary>
+    private static CollectorCollectionLine Rental(string or, DateOnly takenOn, decimal amount, DateOnly billedMonth) =>
+        new(or,
+            PhilippineTime.DayUtcRange(takenOn).StartUtc.AddHours(11),
+            "Juan Cruz", "B-1", FacilityCode.TCC, "Stall Rental", amount, null, billedMonth);
 
     private static async Task<ReportOfCollectionsDto> Run(
         IReadOnlyList<CollectorCollectionLine> lines,

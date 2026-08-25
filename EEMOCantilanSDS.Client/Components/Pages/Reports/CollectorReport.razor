@@ -242,10 +242,6 @@
                         }
                     </table>
                 </div>
-                <p class="cr-note">
-                    Receipt numbers are entered one by one, so the daily record states a range only where the numbers run
-                    unbroken, and their count where they do not.
-                </p>
             </div>
 
             @if (r.Absences.Count > 0)
@@ -311,10 +307,19 @@
                 </div>
             }
 
-            @* The strip hands its layout to whatever hosts it, so a sheet has to supply the footer's three columns. Without
-               this wrapper the lines stacked one under another down the page. *@
-            <div class="print-report-signatures">
-                <SignatureStrip ShowDatePrepared="true" />
+            @* The sheet's closing. Kept as one block so the note and the signatures are never split across a page break, and
+               so they are never left alone on a page of their own.
+
+               The strip hands its layout to whatever hosts it, which is why the footer's columns are supplied here. *@
+            <div class="cr-closing">
+                <p class="cr-note">
+                    Receipt numbers are entered one by one, so the daily record states a range only where the numbers run
+                    unbroken, and their count where they do not. A rental paid after the month it is for is counted with the
+                    earlier periods in that record.
+                </p>
+                <div class="print-report-signatures">
+                    <SignatureStrip ShowDatePrepared="true" />
+                </div>
             </div>
         }
 

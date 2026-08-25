@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════
    TrmReports.razor.css — Transport Terminal Reports
    Visual language mirrors TccReports / SlhReports. All tokens from app.css.
    TRM-specific: per-trip ₱30 fee, OR compliance, organization breakdown.
@@ -205,7 +205,7 @@
 .status-sheet .print-report-signatures span  { font-size: 12px; }
 .status-sheet .print-report-signatures strong { font-size: 14px; }
 
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
     .rpt-kpi-strip { grid-template-columns: 1fr 1fr; }
     .rpt-charts-row { grid-template-columns: 1fr; }
     .rpt-audit-row { grid-template-columns: 1fr; }
