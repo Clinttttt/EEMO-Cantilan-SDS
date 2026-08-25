@@ -819,6 +819,24 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **Report of Collections (per collector) — MOCK LAYOUT ONLY as of 2026-08-25, at `/collectors/report-preview`.** The office
+  asked for a collector report and chose the treasury wording for its title. What was agreed, after checking what every
+  existing page already answers: the document is one collector over one period, and the four things nothing else answers are
+  a per-collector facility breakdown, a daily record whose "For Earlier Days" column explains a day whose collection exceeds
+  what that day could owe, the complete receipt listing that is ticked against the booklet, and the absences that collector
+  marked. Deliberately excluded: payor balances and follow-up lists (the facility reports own them), facility revenue against
+  expected (same), and any comparison with other collectors, because a ranking is not what an accountable officer signs.
+  Utilities keep their own table, a meter charge not being a stall or daily fee. Period tabs are Daily, Weekly and Monthly
+  with Monthly opening, a day being a cash view and a month the accountability view. The office ruled OUT stating an amount
+  in words. Receipt numbers are typed one by one, so a from-to range prints only where the numbers run unbroken.
+  - The mock's figures are written into the razor file and read nothing. It carries a notice, INSIDE the sheet so it prints,
+    saying the figures are not office records, and the route is not linked from the Collectors page. `CollectorReportMockTests`
+    pins the notice, that it prints, and that the reconciliation figures agree.
+  - **Remittance is the open question and it touches money.** Nothing in the system records a collector turning cash in: no
+    amount, no time, no receiving officer. The office asked for it and asked for it to be examined critically first. The mock
+    shows where it would read (a Remittances table plus Collected, Remitted, Not Yet Remitted, and a memo line for what the
+    office itself recorded), so the shape can be judged before anything is written.
+
 - **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
   measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where
   an unscoped `768px` block printed the signatories stacked down the page and gave the sheet a phone's 14px side padding instead of

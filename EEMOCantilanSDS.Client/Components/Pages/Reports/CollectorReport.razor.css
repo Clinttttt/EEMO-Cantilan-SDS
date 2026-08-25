@@ -1,0 +1,98 @@
+/* ══ Report of Collections — mock sheet.
+   The shell and document styles are the ones the facility reports already carry (scoped per page, as they are there),
+   so the office judges this layout against sheets it already signs. Nothing new is introduced beyond the sample notice,
+   the numeric column alignment and the reconciliation strip. ══ */
+
+/* ── Topbar ── */
+.rpt-topbar { background: var(--navy); padding: 18px 28px 16px; display: flex; align-items: center; gap: 14px; position: relative; overflow: hidden; }
+.rpt-topbar::before { content: ""; position: absolute; top: -40px; right: -40px; width: 220px; height: 220px; background: radial-gradient(circle, rgba(200,168,75,.16) 0%, transparent 70%); pointer-events: none; }
+.rpt-topbar-left { display: flex; align-items: center; gap: 14px; flex: 1; position: relative; z-index: 1; }
+.rpt-back-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: rgba(255,255,255,.7); text-decoration: none; transition: background .15s; flex-shrink: 0; }
+.rpt-back-btn:hover { background: rgba(255,255,255,.14); }
+.rpt-back-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.rpt-topbar-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(200,168,75,.18); border: 1px solid rgba(200,168,75,.28); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rpt-topbar-icon svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rpt-eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+.rpt-title { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2; }
+.rpt-subtitle { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }
+.rpt-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 1; }
+.rpt-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s; }
+.rpt-action-btn:hover { background: rgba(255,255,255,.14); }
+.rpt-action-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--gold) 85%, white); outline-offset: 2px; }
+.rpt-action-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Period bar ── */
+.rpt-period-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 28px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+.rpt-period-tabs { display: flex; gap: 5px; background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%); border: 1px solid color-mix(in srgb, var(--border) 82%, transparent); border-radius: 9px; padding: 4px; align-items: center; box-shadow: inset 0 1px 0 rgba(255,255,255,.86); }
+.rpt-period-tab { min-height: 32px; min-width: 92px; padding: 6px 18px; border-radius: 6px; border: 1px solid transparent; background: transparent; font-size: 13px; font-weight: 650; color: color-mix(in srgb, var(--text-muted) 88%, var(--navy)); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; line-height: 1; transition: background .15s, color .15s, border-color .15s, box-shadow .15s; }
+.rpt-period-tab.active { background: linear-gradient(135deg, var(--navy) 0%, #123653 100%); border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 6px 13px rgba(9,31,52,.14); }
+.rpt-date-nav { display: flex; align-items: center; gap: 10px; }
+.rpt-nav-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--border); background: var(--bg-icon); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .13s; }
+.rpt-nav-btn:hover { background: var(--border); }
+.rpt-nav-btn svg { width: 14px; height: 14px; stroke: var(--navy); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rpt-current-period { font-size: 13.5px; font-weight: 600; color: var(--navy); white-space: nowrap; }
+
+/* ── Document shell ── */
+.rpt-content { padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 20px; }
+.print-document-content { display: block; background: #eef3f7; overflow-x: hidden; }
+.print-report-sheet { width: 100%; min-height: 900px; padding: 30px 28px 40px; box-sizing: border-box; background: #fff; border: 1px solid #d5dde5; box-shadow: 0 18px 38px rgba(9, 31, 52, .08); color: #111827; }
+.print-report-header { text-align: center; padding-bottom: 18px; border-bottom: 2px solid #111827; }
+.print-report-logo { display: block; width: 58px; height: 58px; object-fit: contain; margin: 0 auto 10px; }
+.print-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
+.print-report-header h2 { margin: 7px 0 3px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; line-height: 1.15; color: #111827; }
+.print-report-header p { margin: 0; font-size: 12px; color: #4b5563; }
+.print-report-title { margin-top: 18px; text-transform: uppercase; letter-spacing: .08em; font-size: 13px; font-weight: 800; color: #111827; }
+.print-report-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #cfd6de; margin-bottom: 16px; }
+.print-report-meta div { padding: 10px 12px; border-right: 1px solid #cfd6de; }
+.print-report-meta div:last-child { border-right: none; }
+.print-report-meta span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
+.print-report-meta strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
+.print-report-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #cfd6de; margin-bottom: 20px; background: #f8fafc; }
+.print-report-summary div { padding: 10px 12px; border-right: 1px solid #cfd6de; }
+.print-report-summary div:last-child { border-right: none; }
+.print-report-summary span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
+.print-report-summary strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
+
+.print-section-block { margin-top: 24px; }
+.print-section-heading { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--navy); padding: 6px 0 4px; border-bottom: 2px solid var(--navy); margin-bottom: 0; }
+.print-table-wrap { margin-top: 12px; width: 100%; overflow-x: hidden; }
+.print-status-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; color: #111827; }
+.print-status-table th, .print-status-table td { border: 1px solid #cfd6de; padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.print-status-table th { background: #f3f6f9; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; color: #374151; }
+.status-sheet .print-status-table { font-size: 13px !important; }
+.status-sheet .print-status-table th { font-size: 11px !important; }
+.status-sheet .print-status-table td { padding: 9px 10px; }
+.status-sheet .print-report-meta span { font-size: 11px; }
+.status-sheet .print-report-meta strong { font-size: 14px; }
+.status-sheet .print-report-summary span, .status-sheet .print-report-summary strong { font-size: 14px; }
+.text-muted-cell { color: #6b7280; }
+
+/* ── The few additions this sheet needs ── */
+.cr-num { text-align: right; }
+.cr-total-row td { background: #f3f6f9; border-top: 2px solid #cfd6de; }
+.cr-reconcile { margin-top: 12px; margin-bottom: 0; }
+.cr-note { margin: 10px 0 0; font-size: 11px; color: #6b7280; line-height: 1.5; }
+.cr-sample-note { margin: 16px 0; padding: 10px 12px; border: 1px dashed #cfd6de; background: #f8fafc; text-align: center; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #374151; }
+
+@media screen and (max-width: 900px) {
+    .print-report-meta, .print-report-summary { grid-template-columns: 1fr 1fr; }
+    .rpt-content { padding: 14px 12px 30px; }
+    .print-report-sheet { padding: 20px 16px 28px; }
+}
+
+@media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body { background: white !important; }
+    .rpt-topbar, .rpt-period-bar { display: none !important; }
+    .rpt-content { padding: 0 !important; }
+    .print-document-content { display: block !important; background: white !important; }
+    /* 12mm here, matching the facility reports: the sheet supplies its own whitespace and CSS isolation would
+       outrank a bare class in print.css, so the value is stated where it takes effect. */
+    .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 12mm !important; border: none !important; box-shadow: none !important; }
+    .print-section-block { break-inside: auto; }
+    .print-status-table thead { display: table-header-group; }
+    .print-status-table tfoot { display: table-row-group; }
+    .print-status-table tr { break-inside: avoid; }
+    .print-status-table tbody tr:last-child { break-after: avoid; }
+    .print-status-table tfoot { break-before: avoid; }
+}
