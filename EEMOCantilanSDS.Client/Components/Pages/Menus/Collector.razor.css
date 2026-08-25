@@ -277,6 +277,19 @@
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    ACTION BUTTONS
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Three figures rather than four: collected, already remitted, and what the collector still holds. */
+.activity-stats-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* The actions column hugs its buttons. As the last column it otherwise absorbed every pixel the data columns did not
+   need, leaving a broad empty strip inside the table with the row's controls stranded on the left of it. */
+.data-table th:last-child,
+.data-table td:last-child {
+    width: 1%;
+    white-space: nowrap;
+}
+
 .action-btns {
     display: flex;
     gap: 4px;

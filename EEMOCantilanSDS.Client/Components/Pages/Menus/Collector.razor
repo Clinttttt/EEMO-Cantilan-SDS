@@ -4,6 +4,8 @@
 @using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector
 @using EEMOCantilanSDS.Application.Dtos
 @using EEMOCantilanSDS.Application.Dtos.Settings
+@using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorRemittances
+@using EEMOCantilanSDS.Application.Requests.Collectors
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
@@ -483,7 +485,139 @@
             </div>
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowActivity = false">Close</button>
+                <button class="btn-primary" @onclick="() => OpenRemittance(ActivityCollector)">Record Remittance</button>
             </div>
+        </div>
+    </div>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     RECORD REMITTANCE (RIGHT-SIDE DRAWER)
+
+     Cash a collector has turned in, and the days it answers for. The three figures are shown before the amount is typed,
+     because the office's own rule is that a remittance never exceeds what was collected in those days.
+══════════════════════════════════════════════ -->
+@if (ShowRemittance && RemittanceCollector is not null)
+{
+    <div class="eemo-drawer-overlay show" @onclick="CloseRemittance"></div>
+
+    <div class="eemo-drawer eemo-drawer-right show" @onclick:stopPropagation="true">
+        <div class="eemo-drawer-header">
+            <div class="eemo-drawer-header-left">
+                <div class="eemo-drawer-header-icon">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><line x1="6" y1="12" x2="6" y2="12" /></svg>
+                </div>
+                <div>
+                    <div class="eemo-drawer-header-title">Record Remittance</div>
+                    <div class="eemo-drawer-header-sub">Cash received from @RemittanceCollector.FullName.</div>
+                </div>
+            </div>
+            <button class="eemo-drawer-header-close" @onclick="CloseRemittance" aria-label="Close">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+        </div>
+
+        <div class="eemo-modal-body">
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label class="form-label">Days Covered From <span class="req">*</span></label>
+                    <input class="form-input" type="date" @bind="RemitFrom" @bind:after="LoadRemittancePosition" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To <span class="req">*</span></label>
+                    <input class="form-input" type="date" @bind="RemitTo" @bind:after="LoadRemittancePosition" />
+                </div>
+            </div>
+            <p class="form-hint">
+                The days of collection this money answers for. Electricity and water are banked separately and are not
+                part of the figures below.
+            </p>
+
+            <div class="activity-stats activity-stats-3">
+                <div class="act-stat">
+                    <div class="act-stat-val">@(RemitPosition is null ? "—" : "₱" + RemitPosition.FeeCollections.ToString("N2"))</div>
+                    <div class="act-stat-key">Collected</div>
+                </div>
+                <div class="act-stat">
+                    <div class="act-stat-val">@(RemitPosition is null ? "—" : "₱" + RemitPosition.Remitted.ToString("N2"))</div>
+                    <div class="act-stat-key">Already Remitted</div>
+                </div>
+                <div class="act-stat">
+                    <div class="act-stat-val">@(RemitPosition is null ? "—" : "₱" + RemitPosition.NotYetRemitted.ToString("N2"))</div>
+                    <div class="act-stat-key">Not Yet Remitted</div>
+                </div>
+            </div>
+
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label class="form-label">Amount Received <span class="req">*</span></label>
+                    <input class="form-input" type="number" step="0.01" min="0" placeholder="0.00" @bind="RemitAmount" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Received <span class="req">*</span></label>
+                    <input class="form-input" type="datetime-local" @bind="RemitReceivedAt" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Reference No.</label>
+                <input class="form-input" type="text" maxlength="60" placeholder="e.g. RCD-2026-08-021" @bind="RemitReference" @bind:event="oninput" />
+                @if (string.IsNullOrWhiteSpace(RemitReference))
+                {
+                    <div class="form-hint">No reference number entered. The remittance will be filed without one.</div>
+                }
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" rows="2" maxlength="400" placeholder="Optional" @bind="RemitNotes" @bind:event="oninput"></textarea>
+            </div>
+
+            @if (RemitPosition is { Remittances.Count: > 0 })
+            {
+                <div class="act-section-label">Already Recorded</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Received</th>
+                            <th>Days Covered</th>
+                            <th>Reference</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in RemitPosition.Remittances)
+                        {
+                            <tr>
+                                <td>@r.ReceivedAt.ToString("MMM d, yyyy · hh:mm tt")</td>
+                                <td>@r.CoversFrom.ToString("MMM d") to @r.CoversTo.ToString("MMM d, yyyy")</td>
+                                <td>@(string.IsNullOrWhiteSpace(r.ReferenceNo) ? "—" : r.ReferenceNo)</td>
+                                <td class="amount-val">₱@r.Amount.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(RemitError))
+            {
+                <div class="form-error">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @RemitError
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(RemitDone))
+            {
+                <div class="form-hint">@RemitDone</div>
+            }
+        </div>
+
+        <div class="eemo-drawer-footer">
+            <button class="btn-ghost" @onclick="CloseRemittance">Close</button>
+            <button class="btn-primary" disabled="@(RemitSaving || RemitAmount <= 0m)" @onclick="SaveRemittance">
+                @(RemitSaving ? "Recording…" : "Record Remittance")
+            </button>
         </div>
     </div>
 }
@@ -911,6 +1045,108 @@
     /// officer rather than depending on what the screen happened to have selected.
     /// </summary>
     void OpenReport(CollectorListDto c) => Navigation.NavigateTo($"/collectors/{c.Id}/report");
+
+    // ── Remittance: cash the office has received from a collector ──
+    //
+    // Opened from the activity view, which is where the office is already looking at what the collector took. The days
+    // covered lead the form deliberately: the three figures depend on them, and the office's rule is that the amount may
+    // never exceed what was collected in those days.
+
+    bool ShowRemittance;
+    CollectorListDto? RemittanceCollector;
+    CollectorRemittanceSummaryDto? RemitPosition;
+    DateTime RemitFrom = DateTime.Today;
+    DateTime RemitTo = DateTime.Today;
+    DateTime RemitReceivedAt = DateTime.Now;
+    decimal RemitAmount;
+    string RemitReference = string.Empty;
+    string RemitNotes = string.Empty;
+    string? RemitError;
+    string? RemitDone;
+    bool RemitSaving;
+
+    async Task OpenRemittance(CollectorListDto c)
+    {
+        RemittanceCollector = c;
+        ShowActivity = false;
+        ShowRemittance = true;
+        RemitError = null;
+        RemitDone = null;
+        RemitAmount = 0m;
+        RemitReference = string.Empty;
+        RemitNotes = string.Empty;
+        RemitReceivedAt = _now;
+
+        // The month on display, up to today: the ordinary case is money turned in for the days worked so far.
+        RemitFrom = new DateTime(_now.Year, _now.Month, 1);
+        RemitTo = _now.Date;
+
+        await LoadRemittancePosition();
+    }
+
+    void CloseRemittance()
+    {
+        ShowRemittance = false;
+        RemittanceCollector = null;
+        RemitPosition = null;
+    }
+
+    async Task LoadRemittancePosition()
+    {
+        if (RemittanceCollector is null) return;
+        RemitError = null;
+
+        if (RemitTo < RemitFrom)
+        {
+            RemitPosition = null;
+            RemitError = "The last day covered cannot fall before the first.";
+            return;
+        }
+
+        var result = await CollectorsApi.GetCollectorRemittancesAsync(
+            RemittanceCollector.Id, DateOnly.FromDateTime(RemitFrom), DateOnly.FromDateTime(RemitTo));
+
+        RemitPosition = result.IsSuccess ? result.Value : null;
+        if (!result.IsSuccess)
+            RemitError = string.IsNullOrWhiteSpace(result.Error) ? "The figures for those days could not be read." : result.Error;
+    }
+
+    async Task SaveRemittance()
+    {
+        if (RemittanceCollector is null || RemitSaving) return;
+
+        RemitSaving = true;
+        RemitError = null;
+        RemitDone = null;
+
+        var result = await CollectorsApi.RecordCollectorRemittanceAsync(
+            RemittanceCollector.Id,
+            new RecordCollectorRemittanceRequest(
+                RemitAmount,
+                DateOnly.FromDateTime(RemitFrom),
+                DateOnly.FromDateTime(RemitTo),
+                RemitReceivedAt,
+                string.IsNullOrWhiteSpace(RemitReference) ? null : RemitReference.Trim(),
+                string.IsNullOrWhiteSpace(RemitNotes) ? null : RemitNotes.Trim()));
+
+        RemitSaving = false;
+
+        if (!result.IsSuccess)
+        {
+            // The server's refusals name the figures and the days, so they are shown as written rather than summarised.
+            RemitError = string.IsNullOrWhiteSpace(result.Error) ? "The remittance was not recorded." : result.Error;
+            return;
+        }
+
+        var filed = result.Value!;
+        RemitDone = $"₱{filed.Amount:N2} recorded. ₱{filed.NotYetRemittedInPeriod:N2} of the period's collections remains with the collector."
+                  + (filed.ReferenceNoMissing ? " Filed without a reference number." : string.Empty);
+
+        RemitAmount = 0m;
+        RemitReference = string.Empty;
+        RemitNotes = string.Empty;
+        await LoadRemittancePosition();
+    }
 
     async Task OpenActivity(CollectorListDto c)
     {
