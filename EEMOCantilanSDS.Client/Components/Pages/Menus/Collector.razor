@@ -9,6 +9,7 @@
 @inject ICollectorsApiClient CollectorsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject Microsoft.JSInterop.IJSRuntime JS
+@inject NavigationManager Navigation
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>StallTrack — Collectors</PageTitle>
 
@@ -236,6 +237,9 @@
                                                 </button>
                                                 <button class="action-btn" title="View Activity" @onclick="() => OpenActivity(c)">
                                                     <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </button>
+                                                <button class="action-btn" title="Report of Collections" @onclick="() => OpenReport(c)">
+                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="16" y2="17" /></svg>
                                                 </button>
                                                 <button class="action-btn" title="Send message" @onclick="() => OpenMessage(c)">
                                                     <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
@@ -901,6 +905,12 @@
     bool ShowActivity = false;
     CollectorListDto? ActivityCollector = null;
     CollectorActivityDto? ActivityDetails = null;
+
+    /// <summary>
+    /// Opens this collector's Report of Collections. The route carries the collector, so the document names one accountable
+    /// officer rather than depending on what the screen happened to have selected.
+    /// </summary>
+    void OpenReport(CollectorListDto c) => Navigation.NavigateTo($"/collectors/{c.Id}/report");
 
     async Task OpenActivity(CollectorListDto c)
     {
