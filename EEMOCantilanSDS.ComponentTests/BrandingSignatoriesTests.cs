@@ -30,11 +30,14 @@ public class BrandingSignatoriesTests
     }
 
     [Fact]
-    public void NothingStoredMeansTheOfficesDefaultTrio()
+    public void NothingStoredMeansTheOfficesDefaultLines()
     {
+        // Two lines, not three. A "Received by" line went out unsigned on every sheet until the office pointed out that
+        // nobody receives a report of collections from itself.
         var state = WithStored(null);
 
-        Assert.Equal(3, state.Signatories.Count);
+        Assert.Equal(2, state.Signatories.Count);
+        Assert.Equal(new[] { "Prepared by", "Reviewed by" }, state.Signatories.Select(s => s.Caption));
         Assert.True(state.SignatoriesAreOfficeDefault);
         Assert.False(state.HasNoSignatories);
         Assert.Equal("left", state.SignatoryAlignment);
@@ -79,10 +82,11 @@ public class BrandingSignatoriesTests
     public void AValueThatCannotBeReadNeverBlanksTheFooter()
     {
         // A sheet is an official document. Whatever is in the column, it must still carry signatories - so unreadable
-        // falls back to the trio rather than to nothing.
+        // falls back to the office's default lines rather than to nothing.
         var state = WithStored("{ this is not json");
 
-        Assert.Equal(3, state.Signatories.Count);
+        Assert.Equal(state.DefaultSignatories.Count, state.Signatories.Count);
+        Assert.NotEmpty(state.Signatories);
         Assert.Equal("left", state.SignatoryAlignment);
     }
 }

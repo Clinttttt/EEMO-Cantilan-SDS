@@ -141,6 +141,17 @@
     /// <summary>A signature strip is a row on paper; more than six lines cannot be read across a sheet.</summary>
     private const int MaxSlots = 6;
 
+    /// <summary>
+    /// The lines this strip is showing.
+    ///
+    /// <para>
+    /// Held in a field because the dialog edits them, and refreshed in <see cref="OnInitializedAsync"/> once branding has
+    /// actually loaded. The first render of a freshly loaded page happens BEFORE that load returns, when the accessors still
+    /// answer with the office's defaults, so a strip that captured its slots there kept the defaults for the life of the
+    /// page: the office's own footer looked right until the page was refreshed, and then a removed line appeared to come
+    /// back. Nothing was wrong with the saving.
+    /// </para>
+    /// </summary>
     private List<BrandingState.Signatory> Slots => _slots ??= Branding.Signatories.ToList();
     private List<BrandingState.Signatory>? _slots;
 
@@ -155,6 +166,9 @@
     {
         await Branding.EnsureLoadedAsync();
 
+        // Now that the LGU's own lines have arrived, take them. Whatever the first render captured was the office default,
+        // branding being unresolved at that point.
+        _slots = Branding.Signatories.ToList();
         // Only the Head may change what the office prints — the endpoint is SuperAdmin-only, so offering the
         // control to anyone else would only ever end in a refusal.
         var state = await AuthState.GetAuthenticationStateAsync();

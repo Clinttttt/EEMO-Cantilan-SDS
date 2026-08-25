@@ -43,7 +43,7 @@
 <!-- ══ Period: a day is a cash view, a month the accountability view, so Monthly opens ══ -->
 <div class="rpt-period-bar no-print">
     <div class="rpt-period-tabs">
-        @foreach (var p in new[] { "Daily", "Weekly", "Monthly" })
+        @foreach (var p in new[] { "Daily", "Weekly", "Monthly", "Yearly", "Whole Time" })
         {
             var period = p;
             <button type="button" class="rpt-period-tab @(ActivePeriod == period ? "active" : "")"
@@ -51,10 +51,16 @@
                     @onclick="() => SetPeriod(period)">@period</button>
         }
     </div>
-    <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
-                     Label="@PeriodLabel"
-                     OnPrev="PrevPeriod" OnNext="NextPeriod"
-                     OnPick="PickPeriod" OnToday="JumpToCurrent" />
+    @if (ActivePeriod != "Whole Time")
+    {
+        @* Nothing to step through when the period is the whole record, so the navigator stands down rather than
+           pretending a year or a month is being chosen. *@
+        <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
+                         Yearly="@(ActivePeriod == "Yearly")"
+                         Label="@PeriodLabel"
+                         OnPrev="PrevPeriod" OnNext="NextPeriod"
+                         OnPick="PickPeriod" OnToday="JumpToCurrent" />
+    }
 </div>
 
 <div class="rpt-content print-document-content">
@@ -330,16 +336,27 @@
     {
         "Daily" => CurrentDate.ToString("MMMM d, yyyy"),
         "Weekly" => $"Week of {WeekStart:MMM d} to {WeekStart.AddDays(6):MMM d, yyyy}",
+        "Yearly" => CurrentDate.ToString("yyyy"),
+        "Whole Time" => "Every collection on record",
         _ => CurrentDate.ToString("MMMM yyyy")
     };
 
     /// <summary>Weeks run Sunday to Saturday, as the facility reports read them.</summary>
     DateTime WeekStart => CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
 
+    /// <summary>
+    /// The earliest day the whole record can start from. The office's books do not predate the platform, and a report has to
+    /// bound itself somewhere rather than ask the database for every row since the epoch.
+    /// </summary>
+    static readonly DateOnly RecordBegins = new(2020, 1, 1);
+
     (DateOnly From, DateOnly To) Range => ActivePeriod switch
     {
         "Daily" => (DateOnly.FromDateTime(CurrentDate), DateOnly.FromDateTime(CurrentDate)),
         "Weekly" => (DateOnly.FromDateTime(WeekStart), DateOnly.FromDateTime(WeekStart.AddDays(6))),
+        "Yearly" => (new DateOnly(CurrentDate.Year, 1, 1), new DateOnly(CurrentDate.Year, 12, 31)),
+        // Up to today, never beyond it: a document must not imply it covers days that have not happened.
+        "Whole Time" => (RecordBegins, PhilippineTime.Today),
         _ => (new DateOnly(CurrentDate.Year, CurrentDate.Month, 1),
               new DateOnly(CurrentDate.Year, CurrentDate.Month, DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month)))
     };
@@ -383,6 +400,8 @@
     {
         "Daily" => CurrentDate.AddDays(direction),
         "Weekly" => CurrentDate.AddDays(7 * direction),
+        "Yearly" => CurrentDate.AddYears(direction),
+        "Whole Time" => CurrentDate,
         _ => CurrentDate.AddMonths(direction)
     };
 

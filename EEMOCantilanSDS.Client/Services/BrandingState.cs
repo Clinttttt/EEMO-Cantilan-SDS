@@ -140,11 +140,19 @@ public class BrandingState(IMunicipalitiesApiClient api)
     private string? _alignment;
 
     /// <summary>The office's default trio, used until an LGU sets its own.</summary>
+    /// <summary>
+    /// The office's default lines, printed by an LGU that has not set its own.
+    ///
+    /// <para>
+    /// Two, not three. A "Received by" line was here until the office pointed out that nobody receives a report of
+    /// collections from itself: the sheet is prepared and reviewed inside the office, and a third line went out unsigned on
+    /// every document. An office that does need one adds it, and the line then belongs to that LGU rather than to everyone.
+    /// </para>
+    /// </summary>
     public IReadOnlyList<Signatory> DefaultSignatories => new[]
     {
         new Signatory("Prepared by", "Administrative Staff"),
         new Signatory("Reviewed by", $"Head, {OfficeAcronym} Office"),
-        new Signatory("Received by", "Authorized Representative"),
     };
 
     /// <summary>Where the strip sits on the sheet. Stored with the lines; "left" unless the office asks otherwise.</summary>

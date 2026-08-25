@@ -148,6 +148,24 @@ public class CollectorReportTests : TestContext
         });
     }
 
+    [Fact]
+    public void EveryPeriodTheOfficeAsksForIsOffered()
+    {
+        // Five, in the order the office reads them: the day's cash, the week, the month it files by, the year, and the
+        // whole record. Only the last has nothing to step through.
+        var cut = RenderSheet(CollectorId, Sheet());
+
+        var tabs = cut.FindAll(".rpt-period-tab").Select(t => t.TextContent.Trim()).ToList();
+        Assert.Equal(new[] { "Daily", "Weekly", "Monthly", "Yearly", "Whole Time" }, tabs);
+
+        cut.FindAll(".rpt-period-tab").First(t => t.TextContent.Trim() == "Whole Time").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll(".rpt-date-nav"));
+            Assert.Contains("Every collection on record", cut.Markup, StringComparison.Ordinal);
+        });
+    }
+
     private static Dictionary<string, decimal> Figures(IRenderedComponent<CollectorReport> cut, string selector) =>
         cut.Find(selector).QuerySelectorAll("div")
             .Where(d => d.QuerySelector("span") is not null && d.QuerySelector("strong") is not null)
