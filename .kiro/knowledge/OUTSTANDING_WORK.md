@@ -839,7 +839,7 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - The signatory footer needs its own three columns on every sheet. `SignatureStrip` declares `display: contents` on
     purpose, handing layout to its host, so a sheet that omits `.print-report-signatures` gets the lines stacked down the
     page. That is what this document did until the wrapper was added, and a test now pins the slots inside that footer.
-  - **Remittance — BUILT AND IN USE, 2026-08-25.** The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
+  - **Remittance — BUILT AND THEN RETIRED ON THE OFFICE'S DECISION, 2026-08-25.** The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
     collected (a refusal, not a warning, in their words bad design otherwise), electricity and water are banked separately as
     additional income and are therefore outside it, the Head and Administrators are the ones who record it, and a reference
     number is optional but its absence is reported back. `CollectorRemittance` is additive: a new table, two indexes and a
@@ -858,8 +858,24 @@ Items that were open and are now closed, kept because the reasoning is what stop
       the controller stays Head-only, and a drawer opened from the collector's activity view that states the three figures
       before an amount is typed. A refusal is shown as the server wrote it, since those messages name the figures and the
       days another remittance covers.
-    - One definition of fee money serves both the ceiling and the report: `CollectorFeeMoney.MonthlyFeePortion`. A document
-      whose summary and reconciliation disagree would be worse than one that states a single figure and says what it excludes.
+    - One definition of fee money serves the report: `CollectorFeeMoney.MonthlyFeePortion`. A document whose summary and its
+      own tables disagree would be worse than one that states a single figure and says what it excludes.
+    - **RETIRED 2026-08-25, the same day, by the office's decision.** They concluded that what the collector records on the
+      phone IS the basis, that the office handles the handover of cash in its own way, and that the feature added complexity
+      for no gain they could use. Removed: the drawer, both endpoints, the client calls, `RecordCollectorRemittance`,
+      `GetCollectorRemittances`, the repository and the Remittances section of the sheet. The memo line for money recorded at
+      the office stays, standing on its own.
+      - The `CollectorRemittances` table, its entity and its backup wiring REMAIN, written by nothing. Dropping them is the
+        one destructive step in the change, and no data should be risked to delete an empty, unused table. The entity's own
+        comment says so, and dropping it is a one-line migration if the office is sure.
+      - A correction the office should have on record: they worried a collector could press a remittance button without cash
+        arriving. In what was built a collector could not record one at all, the endpoint being Head and Administrator only
+        and the handler refusing anyone holding a collector identity. The decision rests on their other reasons.
+
+- **Monthly facilities have no statement of which month a late payment answers for.** Raised by the office 2026-08-25 and
+  deliberately deferred by them. A monthly payor's earlier unpaid months can be settled, but nothing names the month a late
+  payment covers the way the market sheet now names its days, so a Report of Collections line for a rental states the billed
+  month of the record it was entered against and nothing more.
 
 - **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
   measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where

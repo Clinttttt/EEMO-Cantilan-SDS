@@ -89,19 +89,6 @@ public class GetReportOfCollectionsQueryHandlerTests
     }
 
     [Fact]
-    public async Task RemittancesAreReadNotAdjusted()
-    {
-        var report = await Run(
-            new[] { Line("1616460", Aug24, 300m, feeDay: Aug24) },
-            remitted: new[] { (200m, Aug1, Aug24) });
-
-        Assert.Equal(300m, report.TotalCollected);
-        Assert.Equal(200m, report.Remitted);
-        Assert.Equal(100m, report.NotYetRemitted);
-        Assert.Single(report.Remittances);
-    }
-
-    [Fact]
     public async Task APeriodThatEndsBeforeItBeginsIsRefused()
     {
         var handler = Handler(Array.Empty<CollectorCollectionLine>());
@@ -120,10 +107,9 @@ public class GetReportOfCollectionsQueryHandlerTests
     private static async Task<ReportOfCollectionsDto> Run(
         IReadOnlyList<CollectorCollectionLine> lines,
         decimal officeRecorded = 0m,
-        int officeReceipts = 0,
-        IReadOnlyList<(decimal Amount, DateOnly From, DateOnly To)>? remitted = null)
+        int officeReceipts = 0)
     {
-        var handler = Handler(lines, officeRecorded, officeReceipts, remitted);
+        var handler = Handler(lines, officeRecorded, officeReceipts);
         var result = await handler.Handle(new GetReportOfCollectionsQuery(Collector, Aug1, Aug31), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -133,8 +119,7 @@ public class GetReportOfCollectionsQueryHandlerTests
     private static GetReportOfCollectionsQueryHandler Handler(
         IReadOnlyList<CollectorCollectionLine> lines,
         decimal officeRecorded = 0m,
-        int officeReceipts = 0,
-        IReadOnlyList<(decimal Amount, DateOnly From, DateOnly To)>? remitted = null)
+        int officeReceipts = 0)
     {
         var collectors = new Mock<ICollectorRepository>();
         collectors.Setup(c => c.GetByIdAsync(Collector, It.IsAny<CancellationToken>()))
@@ -146,13 +131,6 @@ public class GetReportOfCollectionsQueryHandlerTests
               .ReturnsAsync(new CollectorCollectionsData(
                   lines, Array.Empty<CollectorAbsenceLine>(), officeRecorded, officeReceipts, 0m, 0m));
 
-        var remittances = new Mock<ICollectorRemittanceRepository>();
-        remittances.Setup(r => r.ListAsync(Collector, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
-                   .ReturnsAsync((remitted ?? Array.Empty<(decimal, DateOnly, DateOnly)>())
-                       .Select(m => CollectorRemittance.Create(
-                           Collector, m.Amount, DateTime.UtcNow, m.From, m.To, Guid.NewGuid(), "head", "RCD-1", null, "head"))
-                       .ToList());
-
-        return new GetReportOfCollectionsQueryHandler(collectors.Object, report.Object, remittances.Object);
+        return new GetReportOfCollectionsQueryHandler(collectors.Object, report.Object);
     }
 }

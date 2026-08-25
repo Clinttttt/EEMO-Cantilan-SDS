@@ -3,12 +3,23 @@ using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.Domain.Entities.Payments
 {
     /// <summary>
+    /// RETIRED 2026-08-25, the day it was built. The office decided against recording remittances: what the collector
+    /// records on the phone IS the basis, and the handover of cash is handled by the office in its own way. Every feature
+    /// surface was removed the same day — the drawer, both endpoints, the client calls, the command, the query, the
+    /// repository and the section on the Report of Collections.
+    ///
+    /// <para>
+    /// The table and this type remain only because removing them is the one destructive step in the change, and no data
+    /// should be put at risk to delete an unused, empty table. It is written by nothing. If the office is sure, dropping it
+    /// is a one-line migration; if the decision is ever revisited, the schema, the backup wiring and the rules below are the
+    /// record of what was agreed the first time.
+    /// </para>
+    ///
     /// Cash a collector has turned over to the office, and the days of collection it answers for.
     ///
     /// <para>
-    /// This is a record of CUSTODY, not of what a payor owes. Nothing here changes a fee, a balance, a collection rate or
-    /// any facility report: those state what was collected, this states what has since been handed in. The office asked for
-    /// it because the system could say what a collector took and never what they remitted.
+    /// This was a record of CUSTODY, not of what a payor owes. Nothing here changed a fee, a balance, a collection rate or
+    /// any facility report: those state what was collected, this stated what had since been handed in.
     /// </para>
     ///
     /// <para>

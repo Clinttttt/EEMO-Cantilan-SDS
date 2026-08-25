@@ -181,61 +181,14 @@
                         }
                     </table>
                 </div>
-            </div>
-
-            <!-- ══ Money turned in, and what remains with the collector ══ -->
-            <div class="print-section-block">
-                <div class="print-section-heading">Remittances</div>
-                <div class="print-table-wrap">
-                    <table class="print-status-table">
-                        <thead>
-                            <tr>
-                                <th>Date &amp; Time</th>
-                                <th>Received By</th>
-                                <th>Reference</th>
-                                <th>Days Covered</th>
-                                <th class="cr-num">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (r.Remittances.Count == 0)
-                            {
-                                <tr><td colspan="5" class="text-muted-cell">Nothing remitted for this period.</td></tr>
-                            }
-                            @foreach (var m in r.Remittances)
-                            {
-                                <tr>
-                                    <td>@m.ReceivedAt.ToString("MMM d, yyyy · hh:mm tt")</td>
-                                    <td>@m.ReceivedByName</td>
-                                    <td class="text-muted-cell">@(string.IsNullOrWhiteSpace(m.ReferenceNo) ? "—" : m.ReferenceNo)</td>
-                                    <td class="text-muted-cell">@m.CoversFrom.ToString("MMM d") to @m.CoversTo.ToString("MMM d, yyyy")</td>
-                                    <td class="cr-num">&#8369;@m.Amount.ToString("N2")</td>
-                                </tr>
-                            }
-                        </tbody>
-                        @if (r.Remittances.Count > 0)
-                        {
-                            <tfoot>
-                                <tr class="cr-total-row">
-                                    <td colspan="4"><strong>Total Remitted</strong></td>
-                                    <td class="cr-num"><strong>&#8369;@r.Remitted.ToString("N2")</strong></td>
-                                </tr>
-                            </tfoot>
-                        }
-                    </table>
-                </div>
-                <div class="print-report-summary cr-reconcile">
-                    <div><span>Total Collected</span><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></div>
-                    <div><span>Total Remitted</span><strong>&#8369;@r.Remitted.ToString("N2")</strong></div>
-                    <div><span>Not Yet Remitted</span><strong>&#8369;@r.NotYetRemitted.ToString("N2")</strong></div>
-                    <div><span>Recorded at the Office</span><strong>&#8369;@r.OfficeRecorded.ToString("N2")</strong></div>
-                </div>
-                <p class="cr-note">
-                    The last figure is money taken at the office for these facilities in the same period, across
-                    @r.OfficeReceipts entr@(r.OfficeReceipts == 1 ? "y" : "ies"). It is not this collector's accountability and
-                    is stated so the facility totals and this sheet can be reconciled. Electricity and water are banked
-                    separately and are shown in their own table below.
-                </p>
+                @if (r.OfficeRecorded > 0m)
+                {
+                    <p class="cr-note">
+                        A further &#8369;@r.OfficeRecorded.ToString("N2") was taken at the office for these facilities in the
+                        same period, across @r.OfficeReceipts entr@(r.OfficeReceipts == 1 ? "y" : "ies"). It is not this
+                        collector's accountability and is stated so the facility totals and this sheet can be reconciled.
+                    </p>
+                }
             </div>
 
             <!-- ══ The evidence: every receipt in the period ══ -->

@@ -79,7 +79,6 @@
 /* ── The few additions this sheet needs ── */
 .cr-num { text-align: right; }
 .cr-total-row td { background: #f3f6f9; border-top: 2px solid #cfd6de; }
-.cr-reconcile { margin-top: 12px; margin-bottom: 0; }
 .cr-note { margin: 10px 0 0; font-size: 11px; color: #6b7280; line-height: 1.5; }
 .print-empty { margin: 22px 0; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border: 1px dashed #cfd6de; background: #f8fafc; }
 

@@ -36,8 +36,6 @@ public class CollectorReportTests : TestContext
         DaysWithCollections: 4,
         OfficeRecorded: 60m,
         OfficeReceipts: 2,
-        Remitted: 300m,
-        NotYetRemitted: 120m,
         Facilities: new[] { new ReportFacilityLineDto(FacilityCode.NPM, 5, 3, 420m) },
         Days: new[]
         {
@@ -51,10 +49,6 @@ public class CollectorReportTests : TestContext
             new ReportReceiptLineDto("2626261", new DateTime(2026, 8, 25, 12, 1, 0), "Karmilita Log", "7", FacilityCode.NPM, "Aug 25, 2026", 210m)
         },
         Absences: Array.Empty<ReportAbsenceLineDto>(),
-        Remittances: new[]
-        {
-            new ReportRemittanceLineDto(new DateTime(2026, 8, 25, 9, 5, 0), 300m, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 24), "head", "RCD-2026-08-021")
-        },
         UtilityBilled: 0m,
         UtilityCollected: 0m);
 
@@ -96,14 +90,20 @@ public class CollectorReportTests : TestContext
     }
 
     [Fact]
-    public void TheReconciliationStripAgreesWithItself()
+    public void TheDailyRecordSaysWhatAnsweredForEarlierDays()
     {
+        // The one column that explains a day collecting more than it could owe. Its total belongs to the sheet, not to a
+        // reader's arithmetic.
         var cut = RenderSheet(CollectorId, Sheet());
 
         cut.WaitForAssertion(() =>
         {
-            var figures = Figures(cut, ".cr-reconcile");
-            Assert.Equal(figures["Total Collected"] - figures["Total Remitted"], figures["Not Yet Remitted"]);
+            var daily = cut.FindAll("table.print-status-table")
+                .First(t => (t.QuerySelector("thead")?.TextContent ?? string.Empty).Contains("For Earlier Days", StringComparison.Ordinal));
+            var footer = daily.QuerySelector("tfoot tr")!.QuerySelectorAll("td");
+
+            Assert.Equal(60m, Money(footer[^2].TextContent));    // answered for earlier days
+            Assert.Equal(420m, Money(footer[^1].TextContent));   // the period's whole collection
         });
     }
 
@@ -114,7 +114,7 @@ public class CollectorReportTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var summary = Figures(cut, ".print-report-summary:not(.cr-reconcile)")["Total Collected"];
+            var summary = Figures(cut, ".print-report-summary")["Total Collected"];
 
             var listing = cut.FindAll("table.print-status-table")
                 .First(t => (t.QuerySelector("thead")?.TextContent ?? string.Empty).Contains("OR No.", StringComparison.Ordinal));

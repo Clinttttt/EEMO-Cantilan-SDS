@@ -1,5 +1,4 @@
 using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
-using EEMOCantilanSDS.Application.Command.Collectors.RecordCollectorRemittance;
 using EEMOCantilanSDS.Application.Command.Collectors.ResetCollectorPassword;
 using EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
@@ -7,7 +6,6 @@ using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Requests.Collectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetAllCollectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorById;
-using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorRemittances;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetNextEmployeeId;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections;
 using MediatR;
@@ -74,39 +72,18 @@ public class CollectorsController : ApiBaseController
         return HandleResponse(result);
     }
 
-    // ── Remittances ──
+    // ── The office's Report of Collections ──
     //
-    // Collector ACCOUNTS stay with the Head, which is why this controller is SuperAdmin. Receiving cash is a different
-    // matter: the office decided the Head AND Administrators do it, being the officers accountable on the portal, so these
-    // two carry their own role list. Nothing else on the controller is widened.
+    // Collector ACCOUNTS stay with the Head, which is why this controller is SuperAdmin. Reading a collector's report is a
+    // different matter and the office decided the Head AND Administrators both do it, so this one carries its own role list.
+    // Nothing else on the controller is widened.
 
-    [HttpGet("{id:guid}/remittances")]
-    [Authorize(Roles = "SuperAdmin,Admin")]
-    public async Task<ActionResult<CollectorRemittanceSummaryDto>> GetRemittancesAsync(
-        Guid id, [FromQuery] DateOnly from, [FromQuery] DateOnly to)
-    {
-        var result = await Sender.Send(new GetCollectorRemittancesQuery(id, from, to));
-        return HandleResponse(result);
-    }
-
-    /// <summary>The office's Report of Collections for one collector over one period.</summary>
     [HttpGet("{id:guid}/report-of-collections")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<ReportOfCollectionsDto>> GetReportOfCollectionsAsync(
         Guid id, [FromQuery] DateOnly from, [FromQuery] DateOnly to)
     {
         var result = await Sender.Send(new GetReportOfCollectionsQuery(id, from, to));
-        return HandleResponse(result);
-    }
-
-    [HttpPost("{id:guid}/remittances")]
-    [Authorize(Roles = "SuperAdmin,Admin")]
-    public async Task<ActionResult<RemittanceRecordedDto>> RecordRemittanceAsync(
-        Guid id, [FromBody] RecordCollectorRemittanceRequest request)
-    {
-        var result = await Sender.Send(new RecordCollectorRemittanceCommand(
-            id, request.Amount, request.CoversFrom, request.CoversTo,
-            request.ReceivedAt, request.ReferenceNo, request.Notes));
         return HandleResponse(result);
     }
 }

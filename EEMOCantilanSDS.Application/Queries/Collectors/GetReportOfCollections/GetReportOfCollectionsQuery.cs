@@ -33,13 +33,10 @@ public sealed record ReportOfCollectionsDto(
     int DaysWithCollections,
     decimal OfficeRecorded,
     int OfficeReceipts,
-    decimal Remitted,
-    decimal NotYetRemitted,
     IReadOnlyList<ReportFacilityLineDto> Facilities,
     IReadOnlyList<ReportDayLineDto> Days,
     IReadOnlyList<ReportReceiptLineDto> Receipts,
     IReadOnlyList<ReportAbsenceLineDto> Absences,
-    IReadOnlyList<ReportRemittanceLineDto> Remittances,
     decimal UtilityBilled,
     decimal UtilityCollected);
 
@@ -78,11 +75,3 @@ public sealed record ReportAbsenceLineDto(
     string PayorName,
     string? StallNo,
     FacilityCode Facility);
-
-public sealed record ReportRemittanceLineDto(
-    DateTime ReceivedAt,
-    decimal Amount,
-    DateOnly CoversFrom,
-    DateOnly CoversTo,
-    string ReceivedByName,
-    string? ReferenceNo);

@@ -10,14 +10,13 @@ namespace EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections;
 ///
 /// <para>
 /// Every figure on the sheet is derived here from the same set of lines, so the summary, the facility breakdown, the daily
-/// record and the receipt listing cannot disagree with one another. The remittance figures come from the record of custody,
-/// which is deliberately a separate ledger: this handler reads it, it never adjusts it.
+/// record and the receipt listing cannot disagree with one another. What the office itself recorded is stated apart, being
+/// somebody else's accountability.
 /// </para>
 /// </summary>
 public class GetReportOfCollectionsQueryHandler(
     ICollectorRepository collectors,
-    ICollectorReportQueries report,
-    ICollectorRemittanceRepository remittances)
+    ICollectorReportQueries report)
     : IRequestHandler<GetReportOfCollectionsQuery, Result<ReportOfCollectionsDto>>
 {
     public async Task<Result<ReportOfCollectionsDto>> Handle(GetReportOfCollectionsQuery request, CancellationToken ct)
@@ -30,11 +29,9 @@ public class GetReportOfCollectionsQueryHandler(
             return Result<ReportOfCollectionsDto>.NotFound();
 
         var data = await report.GetCollectionsAsync(request.CollectorId, request.From, request.To, ct);
-        var filed = await remittances.ListAsync(request.CollectorId, request.From, request.To, ct);
 
         var lines = data.Lines;
         var total = lines.Sum(l => l.Amount);
-        var remitted = filed.Sum(r => r.Amount);
 
         // A receipt is the unit the office answers for. Lines without a number are counted individually, since each is
         // still a collection, but they cannot be presented as a receipt.
@@ -99,17 +96,11 @@ public class GetReportOfCollectionsQueryHandler(
             days.Count,
             data.OfficeRecorded,
             data.OfficeReceipts,
-            remitted,
-            total - remitted,
             facilities,
             days,
             receipts,
             data.Absences
                 .Select(a => new ReportAbsenceLineDto(a.Day, a.PayorName, a.StallNo, a.Facility))
-                .ToList(),
-            filed
-                .Select(r => new ReportRemittanceLineDto(
-                    PhilippineTime.ToPhilippineTime(r.ReceivedAt), r.Amount, r.CoversFrom, r.CoversTo, r.ReceivedByName, r.ReferenceNo))
                 .ToList(),
             data.UtilityBilled,
             data.UtilityCollected));
