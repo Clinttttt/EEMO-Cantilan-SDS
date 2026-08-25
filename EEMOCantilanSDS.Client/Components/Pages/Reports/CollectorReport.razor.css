@@ -78,6 +78,13 @@
 
 /* ── The few additions this sheet needs ── */
 .cr-num { text-align: right; }
+/* Space above a table that continues onto another sheet. Copied in intent from the roster, which met this first: the
+   sheet's own padding is drawn where the sheet STARTS, so a table breaking across pages left its continuation hard against
+   the paper's edge. A head repeats at the top of every page the table runs onto, so a blank first row in the head is the
+   only thing that lands there; it carries no border and no fill, and the page the table begins on is pulled up by exactly
+   its height. A top page margin would be the obvious alternative and is refused: the page margin is nought precisely so
+   the browser has no margin box for its date, URL and page number. */
+.cr-gap-row { display: none; }
 .cr-total-row td { background: #f3f6f9; border-top: 2px solid #cfd6de; }
 .cr-note { margin: 10px 0 0; font-size: 11px; color: #6b7280; line-height: 1.5; }
 .print-empty { margin: 22px 0; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border: 1px dashed #cfd6de; background: #f8fafc; }
@@ -89,27 +96,36 @@
 }
 
 @media print {
-    @page { size: A4 portrait; margin: 12mm; }
     body { background: white !important; }
     .rpt-topbar, .rpt-period-bar { display: none !important; }
     .rpt-content { padding: 0 !important; }
     .print-document-content { display: block !important; background: white !important; }
-    /* The sheet supplies its own whitespace on paper, and the page margin above supplies the rest. Stated here because
-       CSS isolation compiles these selectors with an attribute, which outranks the bare classes in print.css. */
-    .print-report-sheet { width: 100% !important; padding: 0 !important; min-height: auto !important; border: none !important; box-shadow: none !important; }
+
+    /* Page size, page margin and the sheet's own 12mm of inner whitespace are print.css's business, for every printable
+       sheet in the portal: the margin is nought so the browser has no margin box to draw its date and URL into, and the
+       sheet pads itself instead. Nothing here may restate them. CSS isolation compiles these selectors with an attribute,
+       which outranks print.css's bare classes even where both say !important, so a padding stated here would win and did:
+       it printed this sheet flush against the paper on all four sides. Only what is peculiar to this document belongs
+       below. */
+    .print-report-sheet { min-height: auto !important; border: none !important; box-shadow: none !important; }
 
     .print-section-block { break-inside: auto; }
     /* A heading alone at the foot of a page is a heading for nothing. */
     .print-section-heading { break-after: avoid; }
     .print-status-table thead { display: table-header-group; }
     .print-status-table tfoot { display: table-row-group; }
+    .cr-gap-row { display: table-row; }
+    .cr-gap-row td { height: 7mm; padding: 0 !important; border: 0 !important; background: transparent !important; }
+    /* Cancels the spacer on the page the table begins, and only that: the 12px the heading always sits above the table is
+       kept, rather than being swallowed along with it. */
+    .print-table-wrap { margin-top: calc(12px - 7mm); }
     .print-status-table tr { break-inside: avoid; }
     .print-status-table tbody tr:last-child { break-after: avoid; }
     .print-status-table tfoot { break-before: avoid; }
     /* Two or three rows are not worth a page of their own. */
     .print-status-table tbody { orphans: 3; widows: 3; }
 
-    /* The signatories are the sheet's closing, not a page of their own. The 58mm of air that sets them apart on screen is
+    /* The signatories are the sheet's closing, not a page of their own. The 58px of air that sets them apart on screen is
        what pushed them onto an otherwise empty last page, so on paper the gap is a fifth of that, the closing note travels
        with them, and the pair is never split. */
     .cr-closing { break-inside: avoid; }
