@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -43,10 +44,7 @@ public class CollectorRemittanceRepository(AppDbContext context) : ICollectorRem
 
         foreach (var p in monthly)
         {
-            var feeCharge = p.BaseRentalAmount + ((p.FishKilos ?? 0m) * 1.00m);
-            total += p.Status == PaymentStatus.Partial
-                ? Math.Min(p.PartialAmount, feeCharge)
-                : feeCharge;
+            total += CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount);
         }
 
         // ── Slaughterhouse receipts: the transaction's own date IS the day the money was taken. The amount is worked out

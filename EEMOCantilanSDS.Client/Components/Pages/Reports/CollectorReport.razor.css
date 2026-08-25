@@ -67,12 +67,21 @@
 .status-sheet .print-report-summary span, .status-sheet .print-report-summary strong { font-size: 14px; }
 .text-muted-cell { color: #6b7280; }
 
+/* The signatory footer. The strip itself declares `display: contents`, deliberately leaving the layout to its host, so a
+   sheet that omits these columns gets the lines stacked one under another down the page. */
+.print-report-signatures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-top: 58px; }
+.print-report-signatures div { border-top: 1px solid #111827; padding-top: 8px; text-align: center; }
+.print-report-signatures span { display: block; font-size: 10px; color: #6b7280; }
+.print-report-signatures strong { display: block; margin-top: 3px; font-size: 11px; color: #111827; }
+.status-sheet .print-report-signatures span { font-size: 12px; }
+.status-sheet .print-report-signatures strong { font-size: 14px; }
+
 /* ── The few additions this sheet needs ── */
 .cr-num { text-align: right; }
 .cr-total-row td { background: #f3f6f9; border-top: 2px solid #cfd6de; }
 .cr-reconcile { margin-top: 12px; margin-bottom: 0; }
 .cr-note { margin: 10px 0 0; font-size: 11px; color: #6b7280; line-height: 1.5; }
-.cr-sample-note { margin: 16px 0; padding: 10px 12px; border: 1px dashed #cfd6de; background: #f8fafc; text-align: center; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #374151; }
+.print-empty { margin: 22px 0; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border: 1px dashed #cfd6de; background: #f8fafc; }
 
 @media screen and (max-width: 900px) {
     .print-report-meta, .print-report-summary { grid-template-columns: 1fr 1fr; }

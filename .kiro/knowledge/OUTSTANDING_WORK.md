@@ -819,21 +819,27 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
-- **Report of Collections (per collector) — MOCK LAYOUT ONLY as of 2026-08-25, at `/collectors/report-preview`.** The office
-  asked for a collector report and chose the treasury wording for its title. What was agreed, after checking what every
-  existing page already answers: the document is one collector over one period, and the four things nothing else answers are
-  a per-collector facility breakdown, a daily record whose "For Earlier Days" column explains a day whose collection exceeds
-  what that day could owe, the complete receipt listing that is ticked against the booklet, and the absences that collector
-  marked. Deliberately excluded: payor balances and follow-up lists (the facility reports own them), facility revenue against
-  expected (same), and any comparison with other collectors, because a ranking is not what an accountable officer signs.
-  Utilities keep their own table, a meter charge not being a stall or daily fee. Period tabs are Daily, Weekly and Monthly
-  with Monthly opening, a day being a cash view and a month the accountability view. The office ruled OUT stating an amount
-  in words. Receipt numbers are typed one by one, so a from-to range prints only where the numbers run unbroken.
-  - The mock's figures are written into the razor file and read nothing. It carries a notice, INSIDE the sheet so it prints,
-    saying the figures are not office records, and the route is not linked from the Collectors page. `CollectorReportMockTests`
-    pins the notice, that it prints, and that the reconciliation figures agree.
-  - **Remittance — the RECORD IS BUILT, 2026-08-25; the endpoint, the UI and the report's real figures are still to come.**
-    The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
+- **Report of Collections (per collector) — WIRED TO REAL FIGURES 2026-08-25, at `/collectors/{id}/report`, opened from the
+  document action on the collector's row.** The office asked for a collector report and chose the treasury wording for its
+  title. What was agreed, after checking what every existing page already answers: the document is one collector over one
+  period, and the four things nothing else answers are a per-collector facility breakdown, a daily record whose "For Earlier
+  Days" column explains a day whose collection exceeds what that day could owe, the complete receipt listing that is ticked
+  against the booklet, and the absences that collector marked. Deliberately excluded: payor balances and follow-up lists
+  (the facility reports own them), facility revenue against expected (same), and any comparison with other collectors,
+  because a ranking is not what an accountable officer signs. Utilities keep their own table, a meter charge not being a
+  stall or daily fee. Period tabs are Daily, Weekly and Monthly with Monthly opening, a day being a cash view and a month
+  the accountability view. The office ruled OUT stating an amount in words.
+  - Every figure comes from ONE query (`GetReportOfCollections`), so the summary, the facility breakdown, the daily record
+    and the receipt listing cannot disagree. `CollectorReportTests` pins that the receipt listing adds up to the summary and
+    that the reconciliation strip agrees with itself.
+  - Receipt numbers are typed one by one, so a from-to range prints only where the numbers are numeric and run unbroken; a
+    plain count stands in its place otherwise. Tested three ways.
+  - "Days with collections" is a count, NOT "so many of so many": what a collector could have collected depends on each
+    facility's own calendar, and a figure the document cannot substantiate has no place on it.
+  - The signatory footer needs its own three columns on every sheet. `SignatureStrip` declares `display: contents` on
+    purpose, handing layout to its host, so a sheet that omits `.print-report-signatures` gets the lines stacked down the
+    page. That is what this document did until the wrapper was added, and a test now pins the slots inside that footer.
+  - **Remittance — BUILT AND IN USE, 2026-08-25.** The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
     collected (a refusal, not a warning, in their words bad design otherwise), electricity and water are banked separately as
     additional income and are therefore outside it, the Head and Administrators are the ones who record it, and a reference
     number is optional but its absence is reported back. `CollectorRemittance` is additive: a new table, two indexes and a
@@ -848,6 +854,12 @@ Items that were open and are now closed, kept because the reasoning is what stop
       without it would show every peso as still in a collector's hands. The architecture test caught that omission.
     - Proven by injection: with the ceiling rule neutered the refusal test fails, and with utilities counted as fee money two
       repository tests fail.
+    - Recorded from the office side: `GET`/`POST api/Collectors/{id}/remittances`, both `SuperAdmin,Admin` while the rest of
+      the controller stays Head-only, and a drawer opened from the collector's activity view that states the three figures
+      before an amount is typed. A refusal is shown as the server wrote it, since those messages name the figures and the
+      days another remittance covers.
+    - One definition of fee money serves both the ceiling and the report: `CollectorFeeMoney.MonthlyFeePortion`. A document
+      whose summary and reconciliation disagree would be worse than one that states a single figure and says what it excludes.
 
 - **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
   measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where

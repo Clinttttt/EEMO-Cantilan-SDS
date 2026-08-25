@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Queries.Collectors.GetAllCollectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorById;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorRemittances;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetNextEmployeeId;
+using EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -85,6 +86,16 @@ public class CollectorsController : ApiBaseController
         Guid id, [FromQuery] DateOnly from, [FromQuery] DateOnly to)
     {
         var result = await Sender.Send(new GetCollectorRemittancesQuery(id, from, to));
+        return HandleResponse(result);
+    }
+
+    /// <summary>The office's Report of Collections for one collector over one period.</summary>
+    [HttpGet("{id:guid}/report-of-collections")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<ReportOfCollectionsDto>> GetReportOfCollectionsAsync(
+        Guid id, [FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        var result = await Sender.Send(new GetReportOfCollectionsQuery(id, from, to));
         return HandleResponse(result);
     }
 

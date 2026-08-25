@@ -1,21 +1,21 @@
-@page "/collectors/report-preview"
 @page "/collectors/{CollectorId:guid}/report"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections
 @using EEMOCantilanSDS.Domain.Enums
+@inject ICollectorsApiClient CollectorsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IJSRuntime JS
 
 @*
-    MOCK of the Report of Collections, for the office to judge the layout before any of it is wired to data.
+    The office's Report of Collections for one collector: what they took, receipt by receipt, and what they have since
+    turned in. Distinct from the collector's own copy in the app, and from the facility reports, which state a facility
+    across every collector.
 
-    Every figure below is written into this file. Nothing here reads a collection, a receipt or a remittance, which is
-    why the sheet carries a notice that prints with it: a printed sample must never be able to pass for an official
-    document. The route is deliberately not linked from the Collectors page for the same reason.
-
-    The shell (topbar, period bar, sheet, meta, summary, tables, signatories) is the same skeleton the facility reports
-    use, so what the office approves here is what the finished document will look like.
+    Every figure comes from one query, so the summary, the facility breakdown, the daily record and the receipt listing
+    cannot disagree. The shell and document styles are those the facility reports already carry.
 *@
 
-<PageTitle>StallTrack — Report of Collections (sample layout)</PageTitle>
+<PageTitle>StallTrack — Report of Collections</PageTitle>
 
 <!-- ══ Topbar ══ -->
 <div class="rpt-topbar no-print">
@@ -29,18 +29,18 @@
         <div>
             <div class="rpt-eyebrow">COLLECTORS · REPORT OF COLLECTIONS</div>
             <div class="rpt-title">Report of Collections</div>
-            <div class="rpt-subtitle">@PeriodLabel · sample layout</div>
+            <div class="rpt-subtitle">@(Report is null ? PeriodLabel : $"{Report.CollectorName} · {PeriodLabel}")</div>
         </div>
     </div>
     <div class="rpt-topbar-right">
-        <button type="button" class="rpt-action-btn" @onclick="PrintPage">
+        <button type="button" class="rpt-action-btn" disabled="@(Report is null)" @onclick="PrintPage">
             <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
             Print
         </button>
     </div>
 </div>
 
-<!-- ══ Period selector: a day is a cash view, a month is the accountability view, so Monthly opens ══ -->
+<!-- ══ Period: a day is a cash view, a month the accountability view, so Monthly opens ══ -->
 <div class="rpt-period-bar no-print">
     <div class="rpt-period-tabs">
         @foreach (var p in new[] { "Daily", "Weekly", "Monthly" })
@@ -48,7 +48,7 @@
             var period = p;
             <button type="button" class="rpt-period-tab @(ActivePeriod == period ? "active" : "")"
                     aria-pressed="@(ActivePeriod == period)"
-                    @onclick="() => ActivePeriod = period">@period</button>
+                    @onclick="() => SetPeriod(period)">@period</button>
         }
     </div>
     <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
@@ -68,257 +68,307 @@
             <div class="print-report-title">Report of Collections</div>
         </header>
 
-        @* Prints with the sheet on purpose. A sample that can be mistaken for a filed document is worse than no sample. *@
-        <div class="cr-sample-note">
-            Sample layout. Every figure on this sheet is written into the page for review and is not an office record.
-        </div>
+        @if (CollectorId is null)
+        {
+            <div class="print-empty">Open this report from a collector's row so it names the officer it answers for.</div>
+        }
+        else if (Loading)
+        {
+            <div class="print-empty">Reading the period's collections…</div>
+        }
+        else if (!string.IsNullOrWhiteSpace(LoadError))
+        {
+            <div class="print-empty">@LoadError</div>
+        }
+        else if (Report is { } r)
+        {
+            <div class="print-report-meta">
+                <div><span>Collector</span><strong>@r.CollectorName</strong></div>
+                <div><span>Employee ID</span><strong>@(string.IsNullOrWhiteSpace(r.EmployeeId) ? "—" : r.EmployeeId)</strong></div>
+                <div><span>Assigned Facilities</span><strong>@(r.AssignedFacilities.Count == 0 ? "—" : string.Join(", ", r.AssignedFacilities.Select(f => FacilityCatalog.ShortNameOf(f))))</strong></div>
+                <div><span>Report Period</span><strong>@PeriodLabel</strong></div>
+            </div>
 
-        <div class="print-report-meta">
-            <div><span>Collector</span><strong>@Mock.CollectorName</strong></div>
-            <div><span>Employee ID</span><strong>@Mock.EmployeeId</strong></div>
-            <div><span>Assigned Facilities</span><strong>@string.Join(", ", Mock.Facilities.Select(f => f.ShortName))</strong></div>
-            <div><span>Report Period</span><strong>@PeriodLabel</strong></div>
-        </div>
+            <div class="print-report-summary">
+                <div><span>Total Collected</span><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></div>
+                <div><span>Receipts Issued</span><strong>@r.ReceiptsIssued</strong></div>
+                <div><span>Payors Served</span><strong>@r.PayorsServed</strong></div>
+                <div><span>Days With Collections</span><strong>@r.DaysWithCollections</strong></div>
+            </div>
 
-        <div class="print-report-summary">
-            <div><span>Total Collected</span><strong>&#8369;@Mock.TotalCollected.ToString("N2")</strong></div>
-            <div><span>Receipts Issued</span><strong>@Mock.ReceiptsIssued</strong></div>
-            <div><span>Payors Served</span><strong>@Mock.PayorsServed</strong></div>
-            <div><span>Days Collected</span><strong>@Mock.DaysCollected of @Mock.CollectableDays</strong></div>
-        </div>
-
-        <!-- ══ Collections by facility: this collector across their facilities, which no facility report answers ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Collections by Facility</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>Facility</th>
-                            <th class="cr-num">Receipts</th>
-                            <th class="cr-num">Payors</th>
-                            <th class="cr-num">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var f in Mock.Facilities)
-                        {
+            <!-- ══ This collector across their facilities, which no facility report answers ══ -->
+            <div class="print-section-block">
+                <div class="print-section-heading">Collections by Facility</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table">
+                        <thead>
                             <tr>
-                                <td>@f.Name</td>
-                                <td class="cr-num">@f.Receipts</td>
-                                <td class="cr-num">@f.Payors</td>
-                                <td class="cr-num">&#8369;@f.Amount.ToString("N2")</td>
+                                <th>Facility</th>
+                                <th class="cr-num">Receipts</th>
+                                <th class="cr-num">Payors</th>
+                                <th class="cr-num">Amount</th>
                             </tr>
-                        }
-                    </tbody>
-                    <tfoot>
-                        <tr class="cr-total-row">
-                            <td><strong>Total</strong></td>
-                            <td class="cr-num"><strong>@Mock.Facilities.Sum(f => f.Receipts)</strong></td>
-                            <td class="cr-num"><strong>@Mock.PayorsServed</strong></td>
-                            <td class="cr-num"><strong>&#8369;@Mock.Facilities.Sum(f => f.Amount).ToString("N2")</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        </div>
-
-        <!-- ══ Daily record: the treasurer's verification row. "For Earlier Days" explains a day whose collection
-             exceeds what that day alone could owe, now that a payor may settle several owed days at once. ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Daily Record of Collections</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Receipts</th>
-                            <th class="cr-num">Payors</th>
-                            <th class="cr-num">For Earlier Days</th>
-                            <th class="cr-num">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var d in Mock.Days)
+                        </thead>
+                        <tbody>
+                            @if (r.Facilities.Count == 0)
+                            {
+                                <tr><td colspan="4" class="text-muted-cell">No collections in this period.</td></tr>
+                            }
+                            @foreach (var f in r.Facilities)
+                            {
+                                <tr>
+                                    <td>@FacilityCatalog.NameOf(f.Facility)</td>
+                                    <td class="cr-num">@f.Receipts</td>
+                                    <td class="cr-num">@f.Payors</td>
+                                    <td class="cr-num">&#8369;@f.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (r.Facilities.Count > 0)
                         {
-                            <tr>
-                                <td>@d.Date</td>
-                                <td class="text-muted-cell">@d.ReceiptSpan</td>
-                                <td class="cr-num">@d.Payors</td>
-                                <td class="cr-num">@(d.Arrears > 0m ? "₱" + d.Arrears.ToString("N2") : "—")</td>
-                                <td class="cr-num">&#8369;@d.Amount.ToString("N2")</td>
-                            </tr>
+                            <tfoot>
+                                <tr class="cr-total-row">
+                                    <td><strong>Total</strong></td>
+                                    <td class="cr-num"><strong>@r.ReceiptsIssued</strong></td>
+                                    <td class="cr-num"><strong>@r.PayorsServed</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
                         }
-                    </tbody>
-                    <tfoot>
-                        <tr class="cr-total-row">
-                            <td colspan="3"><strong>Total</strong></td>
-                            <td class="cr-num"><strong>&#8369;@Mock.Days.Sum(d => d.Arrears).ToString("N2")</strong></td>
-                            <td class="cr-num"><strong>&#8369;@Mock.Days.Sum(d => d.Amount).ToString("N2")</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
+                    </table>
+                </div>
             </div>
-        </div>
 
-        <!-- ══ Remittances: money turned over to the office. Nothing records this yet; the section shows how it would
-             read, and the three reconciliation lines are the reason the office asked for it. ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Remittances</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>Date &amp; Time</th>
-                            <th>Received By</th>
-                            <th>Reference</th>
-                            <th>Covers</th>
-                            <th class="cr-num">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var r in Mock.Remittances)
+            <!-- ══ The verification row. "For Earlier Days" is why a day can collect more than it could owe ══ -->
+            <div class="print-section-block">
+                <div class="print-section-heading">Daily Record of Collections</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Receipts</th>
+                                <th class="cr-num">Payors</th>
+                                <th class="cr-num">For Earlier Days</th>
+                                <th class="cr-num">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (r.Days.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-muted-cell">No collections in this period.</td></tr>
+                            }
+                            @foreach (var d in r.Days)
+                            {
+                                <tr>
+                                    <td>@d.Day.ToString("MMM d, yyyy")</td>
+                                    <td class="text-muted-cell">@d.ReceiptSpan</td>
+                                    <td class="cr-num">@d.Payors</td>
+                                    <td class="cr-num">@(d.ForEarlierDays > 0m ? "₱" + d.ForEarlierDays.ToString("N2") : "—")</td>
+                                    <td class="cr-num">&#8369;@d.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (r.Days.Count > 0)
                         {
-                            <tr>
-                                <td>@r.When</td>
-                                <td>@r.ReceivedBy</td>
-                                <td class="text-muted-cell">@r.Reference</td>
-                                <td class="text-muted-cell">@r.Covers</td>
-                                <td class="cr-num">&#8369;@r.Amount.ToString("N2")</td>
-                            </tr>
+                            <tfoot>
+                                <tr class="cr-total-row">
+                                    <td colspan="3"><strong>Total</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.Days.Sum(d => d.ForEarlierDays).ToString("N2")</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
                         }
-                    </tbody>
-                    <tfoot>
-                        <tr class="cr-total-row">
-                            <td colspan="4"><strong>Total Remitted</strong></td>
-                            <td class="cr-num"><strong>&#8369;@Mock.Remittances.Sum(r => r.Amount).ToString("N2")</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
+                    </table>
+                </div>
             </div>
-            <div class="print-report-summary cr-reconcile">
-                <div><span>Total Collected</span><strong>&#8369;@Mock.TotalCollected.ToString("N2")</strong></div>
-                <div><span>Total Remitted</span><strong>&#8369;@Mock.Remittances.Sum(r => r.Amount).ToString("N2")</strong></div>
-                <div><span>Not Yet Remitted</span><strong>&#8369;@((Mock.TotalCollected - Mock.Remittances.Sum(r => r.Amount)).ToString("N2"))</strong></div>
-                <div><span>Recorded at the Office</span><strong>&#8369;@Mock.OfficeRecorded.ToString("N2")</strong></div>
-            </div>
-            <p class="cr-note">
-                The last figure is money taken at the office for the same facilities and period. It is not this
-                collector's accountability and is stated so the facility total and this sheet can be reconciled.
-            </p>
-        </div>
 
-        <!-- ══ The evidence: every receipt in the period, which is what is ticked against the booklet ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Receipts Issued</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>OR No.</th>
-                            <th>Date &amp; Time</th>
-                            <th>Payor</th>
-                            <th>Stall / Unit</th>
-                            <th>Facility</th>
-                            <th>Fee For</th>
-                            <th class="cr-num">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var t in Mock.Receipts)
+            <!-- ══ Money turned in, and what remains with the collector ══ -->
+            <div class="print-section-block">
+                <div class="print-section-heading">Remittances</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table">
+                        <thead>
+                            <tr>
+                                <th>Date &amp; Time</th>
+                                <th>Received By</th>
+                                <th>Reference</th>
+                                <th>Days Covered</th>
+                                <th class="cr-num">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (r.Remittances.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-muted-cell">Nothing remitted for this period.</td></tr>
+                            }
+                            @foreach (var m in r.Remittances)
+                            {
+                                <tr>
+                                    <td>@m.ReceivedAt.ToString("MMM d, yyyy · hh:mm tt")</td>
+                                    <td>@m.ReceivedByName</td>
+                                    <td class="text-muted-cell">@(string.IsNullOrWhiteSpace(m.ReferenceNo) ? "—" : m.ReferenceNo)</td>
+                                    <td class="text-muted-cell">@m.CoversFrom.ToString("MMM d") to @m.CoversTo.ToString("MMM d, yyyy")</td>
+                                    <td class="cr-num">&#8369;@m.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (r.Remittances.Count > 0)
                         {
-                            <tr>
-                                <td>@t.OrNumber</td>
-                                <td>@t.When</td>
-                                <td>@t.Payor</td>
-                                <td>@t.Stall</td>
-                                <td>@t.Facility</td>
-                                <td class="text-muted-cell">@t.FeeFor</td>
-                                <td class="cr-num">&#8369;@t.Amount.ToString("N2")</td>
-                            </tr>
+                            <tfoot>
+                                <tr class="cr-total-row">
+                                    <td colspan="4"><strong>Total Remitted</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.Remitted.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
                         }
-                    </tbody>
-                    <tfoot>
-                        <tr class="cr-total-row">
-                            <td colspan="6"><strong>Total</strong></td>
-                            <td class="cr-num"><strong>&#8369;@Mock.Receipts.Sum(t => t.Amount).ToString("N2")</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
+                    </table>
+                </div>
+                <div class="print-report-summary cr-reconcile">
+                    <div><span>Total Collected</span><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></div>
+                    <div><span>Total Remitted</span><strong>&#8369;@r.Remitted.ToString("N2")</strong></div>
+                    <div><span>Not Yet Remitted</span><strong>&#8369;@r.NotYetRemitted.ToString("N2")</strong></div>
+                    <div><span>Recorded at the Office</span><strong>&#8369;@r.OfficeRecorded.ToString("N2")</strong></div>
+                </div>
+                <p class="cr-note">
+                    The last figure is money taken at the office for these facilities in the same period, across
+                    @r.OfficeReceipts entr@(r.OfficeReceipts == 1 ? "y" : "ies"). It is not this collector's accountability and
+                    is stated so the facility totals and this sheet can be reconciled. Electricity and water are banked
+                    separately and are shown in their own table below.
+                </p>
             </div>
-            <p class="cr-note">
-                Receipt numbers are entered one by one, so a range is printed only where the numbers run unbroken.
-                Where they do not, the count stands in its place.
-            </p>
-        </div>
 
-        <!-- ══ Absences the collector marked: ₱0 statements that explain the gaps in the daily record ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Absences and Excused Days Marked</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Payor</th>
-                            <th>Stall / Unit</th>
-                            <th>Facility</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var a in Mock.Absences)
+            <!-- ══ The evidence: every receipt in the period ══ -->
+            <div class="print-section-block">
+                <div class="print-section-heading">Receipts Issued</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table">
+                        <thead>
+                            <tr>
+                                <th>OR No.</th>
+                                <th>Date &amp; Time</th>
+                                <th>Payor</th>
+                                <th>Stall / Unit</th>
+                                <th>Facility</th>
+                                <th>Fee For</th>
+                                <th class="cr-num">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (r.Receipts.Count == 0)
+                            {
+                                <tr><td colspan="7" class="text-muted-cell">No collections in this period.</td></tr>
+                            }
+                            @foreach (var t in r.Receipts)
+                            {
+                                <tr>
+                                    <td>@(t.OrNumber == "—" ? "—" : "#" + t.OrNumber)</td>
+                                    <td>@t.TakenAt.ToString("MMM d, yyyy · hh:mm tt")</td>
+                                    <td>@t.PayorName</td>
+                                    <td>@(string.IsNullOrWhiteSpace(t.StallNo) ? "—" : t.StallNo)</td>
+                                    <td>@FacilityCatalog.ShortNameOf(t.Facility)</td>
+                                    <td class="text-muted-cell">@t.FeeFor</td>
+                                    <td class="cr-num">&#8369;@t.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (r.Receipts.Count > 0)
                         {
-                            <tr>
-                                <td>@a.Date</td>
-                                <td>@a.Payor</td>
-                                <td>@a.Stall</td>
-                                <td>@a.Facility</td>
-                            </tr>
+                            <tfoot>
+                                <tr class="cr-total-row">
+                                    <td colspan="6"><strong>Total</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
                         }
-                    </tbody>
-                </table>
+                    </table>
+                </div>
+                <p class="cr-note">
+                    Receipt numbers are entered one by one, so the daily record states a range only where the numbers run
+                    unbroken, and their count where they do not.
+                </p>
             </div>
-        </div>
 
-        <!-- ══ Utilities stay in their own table: a meter charge is not a stall or daily fee ══ -->
-        <div class="print-section-block">
-            <div class="print-section-heading">Electricity and Water Collected</div>
-            <div class="print-table-wrap">
-                <table class="print-status-table">
-                    <thead>
-                        <tr>
-                            <th>Charge</th>
-                            <th class="cr-num">Billed</th>
-                            <th class="cr-num">Collected</th>
-                            <th class="cr-num">Balance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var u in Mock.Utilities)
-                        {
-                            <tr>
-                                <td>@u.Name</td>
-                                <td class="cr-num">&#8369;@u.Billed.ToString("N2")</td>
-                                <td class="cr-num">&#8369;@u.Collected.ToString("N2")</td>
-                                <td class="cr-num">&#8369;@((u.Billed - u.Collected).ToString("N2"))</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            @if (r.Absences.Count > 0)
+            {
+                <!-- ══ ₱0 statements the collector marked, which explain the gaps above ══ -->
+                <div class="print-section-block">
+                    <div class="print-section-heading">Absences and Excused Days Marked</div>
+                    <div class="print-table-wrap">
+                        <table class="print-status-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Payor</th>
+                                    <th>Stall / Unit</th>
+                                    <th>Facility</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in r.Absences)
+                                {
+                                    <tr>
+                                        <td>@a.Day.ToString("MMM d, yyyy")</td>
+                                        <td>@a.PayorName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(a.StallNo) ? "—" : a.StallNo)</td>
+                                        <td>@FacilityCatalog.ShortNameOf(a.Facility)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @if (r.UtilityBilled > 0m || r.UtilityCollected > 0m)
+            {
+                <!-- ══ A meter charge is not a stall or daily fee, and the office banks it separately ══ -->
+                <div class="print-section-block">
+                    <div class="print-section-heading">Electricity and Water Collected</div>
+                    <div class="print-table-wrap">
+                        <table class="print-status-table">
+                            <thead>
+                                <tr>
+                                    <th>Charge</th>
+                                    <th class="cr-num">Billed</th>
+                                    <th class="cr-num">Collected</th>
+                                    <th class="cr-num">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Electricity and water</td>
+                                    <td class="cr-num">&#8369;@r.UtilityBilled.ToString("N2")</td>
+                                    <td class="cr-num">&#8369;@r.UtilityCollected.ToString("N2")</td>
+                                    <td class="cr-num">&#8369;@((r.UtilityBilled - r.UtilityCollected).ToString("N2"))</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="cr-note">
+                        Banked separately as additional income, so these figures are outside the collections and the
+                        remittances above.
+                    </p>
+                </div>
+            }
+
+            @* The strip hands its layout to whatever hosts it, so a sheet has to supply the footer's three columns. Without
+               this wrapper the lines stacked one under another down the page. *@
+            <div class="print-report-signatures">
+                <SignatureStrip ShowDatePrepared="true" />
             </div>
-        </div>
-
-        <SignatureStrip ShowDatePrepared="true" />
+        }
 
     </section>
 </div>
 
 @code {
-    /// <summary>
-    /// The collector this report answers for, taken from the route. The layout is still a sample, so it is not yet used to
-    /// fetch anything; the route exists now so the action on the Collectors page never has to be pointed somewhere else.
-    /// </summary>
+    /// <summary>The collector this report answers for, taken from the route.</summary>
     [Parameter] public Guid? CollectorId { get; set; }
+
+    ReportOfCollectionsDto? Report;
+    bool Loading;
+    string? LoadError;
 
     string ActivePeriod = "Monthly";
     DateTime CurrentDate = PhilippineTime.Now.Date;
@@ -326,12 +376,55 @@
     string PeriodLabel => ActivePeriod switch
     {
         "Daily" => CurrentDate.ToString("MMMM d, yyyy"),
-        "Weekly" => $"Week of {CurrentDate:MMM d, yyyy}",
+        "Weekly" => $"Week of {WeekStart:MMM d} to {WeekStart.AddDays(6):MMM d, yyyy}",
         _ => CurrentDate.ToString("MMMM yyyy")
     };
 
-    void PrevPeriod() => CurrentDate = Step(-1);
-    void NextPeriod() => CurrentDate = Step(1);
+    /// <summary>Weeks run Sunday to Saturday, as the facility reports read them.</summary>
+    DateTime WeekStart => CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
+
+    (DateOnly From, DateOnly To) Range => ActivePeriod switch
+    {
+        "Daily" => (DateOnly.FromDateTime(CurrentDate), DateOnly.FromDateTime(CurrentDate)),
+        "Weekly" => (DateOnly.FromDateTime(WeekStart), DateOnly.FromDateTime(WeekStart.AddDays(6))),
+        _ => (new DateOnly(CurrentDate.Year, CurrentDate.Month, 1),
+              new DateOnly(CurrentDate.Year, CurrentDate.Month, DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month)))
+    };
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    async Task LoadAsync()
+    {
+        if (CollectorId is not { } id) return;
+
+        Loading = true;
+        LoadError = null;
+
+        var (from, to) = Range;
+        var result = await CollectorsApi.GetReportOfCollectionsAsync(id, from, to);
+
+        Loading = false;
+
+        if (result.IsSuccess)
+        {
+            Report = result.Value;
+            return;
+        }
+
+        Report = null;
+        LoadError = string.IsNullOrWhiteSpace(result.Error)
+            ? "This report could not be read."
+            : result.Error;
+    }
+
+    async Task SetPeriod(string period)
+    {
+        ActivePeriod = period;
+        await LoadAsync();
+    }
+
+    async Task PrevPeriod() { CurrentDate = Step(-1); await LoadAsync(); }
+    async Task NextPeriod() { CurrentDate = Step(1); await LoadAsync(); }
 
     DateTime Step(int direction) => ActivePeriod switch
     {
@@ -340,73 +433,17 @@
         _ => CurrentDate.AddMonths(direction)
     };
 
-    void PickPeriod((int Year, int Month) picked)
-        => CurrentDate = new DateTime(picked.Year, picked.Month, 1);
+    async Task PickPeriod((int Year, int Month) picked)
+    {
+        CurrentDate = new DateTime(picked.Year, picked.Month, 1);
+        await LoadAsync();
+    }
 
-    void JumpToCurrent() => CurrentDate = PhilippineTime.Now.Date;
+    async Task JumpToCurrent()
+    {
+        CurrentDate = PhilippineTime.Now.Date;
+        await LoadAsync();
+    }
 
     async Task PrintPage() => await JS.InvokeVoidAsync("print");
-
-    // ── Sample figures. Written here, read from nothing. ──
-    sealed record FacilityLine(string Name, string ShortName, int Receipts, int Payors, decimal Amount);
-    sealed record DayLine(string Date, string ReceiptSpan, int Payors, decimal Arrears, decimal Amount);
-    sealed record RemittanceLine(string When, string ReceivedBy, string Reference, string Covers, decimal Amount);
-    sealed record ReceiptLine(string OrNumber, string When, string Payor, string Stall, string Facility, string FeeFor, decimal Amount);
-    sealed record AbsenceLine(string Date, string Payor, string Stall, string Facility);
-    sealed record UtilityLine(string Name, decimal Billed, decimal Collected);
-
-    static class Mock
-    {
-        public const string CollectorName = "Juan Dels";
-        public const string EmployeeId = "EEMO-2026-001";
-        public const decimal TotalCollected = 7410m;
-        public const int ReceiptsIssued = 41;
-        public const int PayorsServed = 18;
-        public const int DaysCollected = 21;
-        public const int CollectableDays = 25;
-        public const decimal OfficeRecorded = 1020m;
-
-        public static readonly IReadOnlyList<FacilityLine> Facilities =
-        [
-            new("New Public Market", "NPM", 38, 16, 6930m),
-            new("Tabo-an Public Market", "TPM", 3, 2, 480m)
-        ];
-
-        public static readonly IReadOnlyList<DayLine> Days =
-        [
-            new("Aug 21, 2026", "1616460 to 1616466", 7, 0m, 210m),
-            new("Aug 22, 2026", "1616467 to 1616472", 6, 60m, 240m),
-            new("Aug 23, 2026", "5 receipts", 5, 0m, 150m),
-            new("Aug 24, 2026", "5656565 to 5656569", 4, 180m, 300m),
-            new("Aug 25, 2026", "2626261 to 2626264", 4, 0m, 120m)
-        ];
-
-        public static readonly IReadOnlyList<RemittanceLine> Remittances =
-        [
-            new("Aug 22, 2026 · 04:40 PM", "M. Ferrer, Cashier II", "RCD-2026-08-014", "Aug 17 to Aug 22", 3120m),
-            new("Aug 25, 2026 · 09:05 AM", "M. Ferrer, Cashier II", "RCD-2026-08-021", "Aug 23 to Aug 24", 3780m)
-        ];
-
-        public static readonly IReadOnlyList<ReceiptLine> Receipts =
-        [
-            new("#5656565", "Aug 24, 2026 · 07:53 PM", "Kim Chui", "1", "NPM", "Aug 22 to Aug 24, 3 days", 90m),
-            new("#5656569", "Aug 24, 2026 · 08:02 PM", "Justin Bieber", "2", "NPM", "Aug 24, 2026", 30m),
-            new("#2626261", "Aug 25, 2026 · 12:01 PM", "Karmilita Log", "7", "NPM", "Aug 25, 2026", 30m),
-            new("#2626263", "Aug 25, 2026 · 12:44 PM", "Rosalia Beltran", "11", "NPM", "Aug 19, 2026", 30m),
-            new("#1616470", "Aug 22, 2026 · 09:16 AM", "Ernesto Cabales", "Vendor", "TPM", "Aug 21, 2026", 100m),
-            new("#1616472", "Aug 22, 2026 · 09:31 AM", "Delia Monteza", "Vendor", "TPM", "Aug 21, 2026", 100m)
-        ];
-
-        public static readonly IReadOnlyList<AbsenceLine> Absences =
-        [
-            new("Aug 20, 2026", "Marissa Otig", "9", "NPM"),
-            new("Aug 24, 2026", "Pedro Lumbayan", "14", "NPM")
-        ];
-
-        public static readonly IReadOnlyList<UtilityLine> Utilities =
-        [
-            new("Electricity", 1240m, 1240m),
-            new("Water", 420m, 280m)
-        ];
-    }
 }

@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Command.Collectors.RecordCollectorRemittance;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorRemittances;
+using EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections;
 using EEMOCantilanSDS.Application.Requests.Collectors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.HttpClients.Helper;
@@ -39,6 +40,9 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
     public async Task<Result<CollectorRemittanceSummaryDto>> GetCollectorRemittancesAsync(Guid collectorId, DateOnly from, DateOnly to) =>
         await GetAsync<CollectorRemittanceSummaryDto>(
             $"api/Collectors/{collectorId}/remittances?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+
+    public async Task<Result<ReportOfCollectionsDto>> GetReportOfCollectionsAsync(Guid collectorId, DateOnly from, DateOnly to) =>
+        await GetAsync<ReportOfCollectionsDto>($"api/Collectors/{collectorId}/report-of-collections?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
     public async Task<Result<RemittanceRecordedDto>> RecordCollectorRemittanceAsync(Guid collectorId, RecordCollectorRemittanceRequest request) =>
         await PostAsync<RecordCollectorRemittanceRequest, RemittanceRecordedDto>(
