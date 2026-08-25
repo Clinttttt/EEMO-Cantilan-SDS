@@ -32,6 +32,10 @@ public static class TenantDataTables
         // because it decides which dates were market days: restoring the attendances without it would leave the
         // office's own collections falling on days its schedule says were not market days.
         "TpmMarketDaySchedules",
+        // Cash the collectors turned over, and the days each remittance answers for. Restorable because it is the
+        // office's record of custody: restoring the collections without it would show every peso as still in a
+        // collector's hands.
+        "CollectorRemittances",
     };
 
     /// <summary>

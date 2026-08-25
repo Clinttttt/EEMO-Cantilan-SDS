@@ -34,6 +34,13 @@ public static class PhilippineTime
         => DateTime.SpecifyKind(DateTime.SpecifyKind(utc, DateTimeKind.Unspecified).Add(Offset), DateTimeKind.Unspecified);
 
     /// <summary>
+    /// The inverse: takes a Philippine wall-clock value to the instant it names, for storing a time the office stated
+    /// itself. Without it, an officer correcting "received at 4:40 PM" would file an instant eight hours out.
+    /// </summary>
+    public static DateTime ToUtcFromPhilippine(DateTime philippineWallClock)
+        => DateTime.SpecifyKind(DateTime.SpecifyKind(philippineWallClock, DateTimeKind.Unspecified).Subtract(Offset), DateTimeKind.Utc);
+
+    /// <summary>
     /// UTC instant range [StartUtc, EndUtc) covering a Philippine calendar month —
     /// for filtering/aggregating UTC-stored timestamps by a local (PHT) month.
     /// </summary>

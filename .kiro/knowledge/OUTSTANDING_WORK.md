@@ -832,10 +832,22 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - The mock's figures are written into the razor file and read nothing. It carries a notice, INSIDE the sheet so it prints,
     saying the figures are not office records, and the route is not linked from the Collectors page. `CollectorReportMockTests`
     pins the notice, that it prints, and that the reconciliation figures agree.
-  - **Remittance is the open question and it touches money.** Nothing in the system records a collector turning cash in: no
-    amount, no time, no receiving officer. The office asked for it and asked for it to be examined critically first. The mock
-    shows where it would read (a Remittances table plus Collected, Remitted, Not Yet Remitted, and a memo line for what the
-    office itself recorded), so the shape can be judged before anything is written.
+  - **Remittance — the RECORD IS BUILT, 2026-08-25; the endpoint, the UI and the report's real figures are still to come.**
+    The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
+    collected (a refusal, not a warning, in their words bad design otherwise), electricity and water are banked separately as
+    additional income and are therefore outside it, the Head and Administrators are the ones who record it, and a reference
+    number is optional but its absence is reported back. `CollectorRemittance` is additive: a new table, two indexes and a
+    restricted key to the collector, so production applies it at startup without touching anything that exists.
+    - Two rules make the figure exact rather than a guess. Coverage ranges of one collector may not overlap. And the money is
+      matched on WHEN IT WAS TAKEN, never on the day a fee was for: match on the fee day and a payor settling owed days
+      leaves cash that can never be remitted, since its day already sits inside an earlier remittance.
+    - A part payment on a monthly bill is applied to the fee charge first and capped there, the excess belonging to the
+      separately banked utilities, because the received amount carries no split of its own.
+    - It is never deleted. A mistake is voided with a reason, which frees its days for the correct record.
+    - `CollectorRemittances` is in `TenantDataTables.Restorable` and the export: a restore that reinstated the collections
+      without it would show every peso as still in a collector's hands. The architecture test caught that omission.
+    - Proven by injection: with the ceiling rule neutered the refusal test fails, and with utilities counted as fee money two
+      repository tests fail.
 
 - **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
   measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where

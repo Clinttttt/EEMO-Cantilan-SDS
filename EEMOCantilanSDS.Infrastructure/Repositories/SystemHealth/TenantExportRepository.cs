@@ -51,6 +51,7 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["PayorStallLinks"] = await context.PayorStallLinks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectorFacilityAssignments"] = await context.CollectorFacilityAssignments.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["TpmMarketDaySchedules"] = await context.TpmMarketDaySchedules.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["CollectorRemittances"] = await context.CollectorRemittances.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AuditLogs"] = await context.AuditLogs.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
         };
 
