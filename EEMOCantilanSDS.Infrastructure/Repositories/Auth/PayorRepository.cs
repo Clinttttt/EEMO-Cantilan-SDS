@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
@@ -12,11 +13,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService, IClock clock) : IPayorRepository
+public class PayorRepository(
+    AppDbContext context,
+    INpmMonthSettlementService npmMonthSettlementService,
+    IFeeRateResolver feeRateResolver,
+    IClock clock) : IPayorRepository
 {
-    /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
+    /// <summary>
+    /// Test/non-DI convenience, matching the other repositories: the real clock, and the office's own rate rows read from the
+    /// same context, so a daily fee resolves exactly as it does under dependency injection.
+    /// </summary>
     public PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService)
-        : this(context, npmMonthSettlementService, new SystemClock()) { }
+        : this(context, npmMonthSettlementService, new Fees.FeeRateResolver(context), new SystemClock()) { }
     public async Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default)
     {
         var normalized = contactNumber.Trim();
@@ -116,6 +124,11 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
         var items = await BuildPayableItemsAsync(stalls, ct);
         var byStall = items.GroupBy(i => i.StallId).ToDictionary(g => g.Key, g => g.ToList());
 
+        // The office's wall clock decides which month is current, and its own rates decide a day's fee. The snapshot is read
+        // at most once, and only where a daily-billed stall is actually present.
+        var today = DateOnly.FromDateTime(clock.PhilippineNow);
+        FeeRateSnapshot? snapshot = null;
+
         var result = new List<PayorStallBalanceDto>();
         foreach (var stall in stalls)
         {
@@ -123,6 +136,21 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
             stallItems ??= new List<PayorPayableItemDto>();
             var oldest = stallItems.OrderBy(i => i.Year).ThenBy(i => i.Month).FirstOrDefault();
             var occupant = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant ?? "—";
+
+            // A market stall is charged by the day, so that is what its own portal must say. It was being shown the stall's
+            // monthly rate, a figure the payor is never billed, beside a balance built from days: the two could not be
+            // reconciled by the person paying. The days owed come from the same settlement service the payable item and the
+            // collector's app use, and the day's fee from the same rule, so the screen cannot disagree with the charge.
+            var isDaily = stall.Facility!.Code == FacilityCode.NPM;
+            var dailyRate = 0m;
+            var daysOwed = 0;
+
+            if (isDaily)
+            {
+                var payable = await npmMonthSettlementService.ComputePayableAsync(stall, today.Year, today.Month, ct);
+                daysOwed = payable.Days;
+                dailyRate = NpmDailyFee.ForStall(stall, snapshot ??= await feeRateResolver.GetSnapshotAsync(ct), today);
+            }
 
             result.Add(new PayorStallBalanceDto(
                 stall.Id,
@@ -132,7 +160,10 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
                 stall.MonthlyRate,
                 stallItems.Sum(i => i.BalanceDue),
                 stallItems.Count,
-                oldest?.Period));
+                oldest?.Period,
+                isDaily,
+                dailyRate,
+                daysOwed));
         }
 
         return result.OrderByDescending(r => r.OutstandingBalance).ToList();
@@ -260,7 +291,10 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
                     {
                         items.Add(new PayorPayableItemDto(
                             stall.Id, stall.StallNo, facility, curYear, curMonth,
-                            $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
+                            $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily,
+                            // Stated so the payor can see the amount is a day's fee counted out, which is how they are billed.
+                            Days: payable.Days,
+                            DailyRate: decimal.Round(payable.Amount / payable.Days, 2)));
                     }
                 }
 

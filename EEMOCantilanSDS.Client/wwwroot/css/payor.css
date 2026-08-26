@@ -105,6 +105,9 @@
 .pp-acct-info { flex: 1; min-width: 0; }
 .pp-acct-facility { font-size: 14px; font-weight: 700; color: var(--navy); line-height: 1.2; }
 .pp-acct-sub { font-size: 11.5px; color: var(--text-subtle); margin-top: 2px; }
+/* What a daily-billed space still owes this month, under its own line. Muted, because the figure the payor acts on is the
+   balance above; this only says what that balance is made of. */
+.pp-acct-note { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 .pp-acct-rate { text-align: right; flex-shrink: 0; }
 .pp-acct-rate-val { font-family: 'EB Garamond', serif; font-size: 16px; font-weight: 700; color: var(--navy); }
 .pp-acct-rate-key { display: block; font-size: 10px; color: var(--text-muted); }

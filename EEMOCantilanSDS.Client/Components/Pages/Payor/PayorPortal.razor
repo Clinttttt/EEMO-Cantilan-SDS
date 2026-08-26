@@ -50,10 +50,20 @@ else
                 <div class="pp-acct-info">
                     <div class="pp-acct-facility">@PayorFormat.FacilityName(acct.Facility)</div>
                     <div class="pp-acct-sub">@SpaceNumber.Line(SpaceNumber.Describe(acct.StallNo), acct.Occupant)</div>
+                    @if (acct.IsDailyBilled)
+                    {
+                        @* What this space is actually charged. A market stall is billed for each day it trades, so a monthly
+                           figure here could not be reconciled with the balance above it, which is built from days. *@
+                        <div class="pp-acct-note">
+                            @(acct.DaysOwed > 0
+                                ? $"{acct.DaysOwed} day{(acct.DaysOwed == 1 ? "" : "s")} owed this month"
+                                : "No days owed this month")
+                        </div>
+                    }
                 </div>
                 <div class="pp-acct-rate">
-                    <span class="pp-acct-rate-val">@PayorFormat.Currency(acct.MonthlyRate)</span>
-                    <span class="pp-acct-rate-key">/ month</span>
+                    <span class="pp-acct-rate-val">@PayorFormat.Currency(acct.IsDailyBilled ? acct.DailyRate : acct.MonthlyRate)</span>
+                    <span class="pp-acct-rate-key">@(acct.IsDailyBilled ? "/ day" : "/ month")</span>
                 </div>
             </div>
         }

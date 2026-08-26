@@ -41,7 +41,7 @@ else
                     </div>
                     @* A space the office does not number contributes no stall part; the facility and the payor's own
                        account identify it, as the office's own list does. *@
-                    <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(item.Facility), SpaceNumber.Describe(item.StallNo))@(KindLabel(item.Kind))</div>
+                    <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(item.Facility), SpaceNumber.Describe(item.StallNo))@(KindLabel(item.Kind))@(DaysLabel(item))</div>
                 </div>
                 <div class="pp-bal-right">
                     @if (item.Kind == PayorPayableKind.NpmFish)
@@ -148,6 +148,15 @@ else
         PayorPayableKind.NpmFish => " · Fish daily fee",
         _ => ""
     };
+
+    /// <summary>
+    /// What a daily amount is made of. A market payor is billed a day's fee for each day they traded, so the month's figure
+    /// is stated as that count rather than left as a lump the payor cannot check.
+    /// </summary>
+    private static string DaysLabel(PayorPayableItemDto item)
+        => item is { Kind: PayorPayableKind.NpmDaily, Days: > 0, DailyRate: > 0m }
+            ? $" · {item.Days} day{(item.Days == 1 ? "" : "s")} × {PayorFormat.Currency(item.DailyRate!.Value)}"
+            : string.Empty;
 
     // ── Fish-day self-declare (NPM fish section): pick an uncollected day + declare kilos → base + kg × rate ──
     private PayorPayableItemDto? FishItem;

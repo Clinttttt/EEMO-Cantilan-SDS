@@ -21,4 +21,8 @@ public sealed record PayorPayableItemDto(
     // authoritatively at initiation). Null/empty for every other kind.
     IReadOnlyList<DateOnly>? UncollectedDays = null,
     decimal? BaseFee = null,
-    decimal? FishRatePerKilo = null);
+    decimal? FishRatePerKilo = null,
+    // NpmDaily only: how many days this amount is made of, and the fee for one of them. A market payor was shown a month's
+    // total with no way to see that it is a day's fee counted out, which is the rule they are actually billed under.
+    int? Days = null,
+    decimal? DailyRate = null);
