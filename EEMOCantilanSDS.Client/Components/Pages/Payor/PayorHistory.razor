@@ -25,6 +25,9 @@ else
         @foreach (var h in Rows)
         {
             var paid = h.Item.Status == PaymentStatus.Paid;
+            @* The month and its days are one item, so the rule beneath belongs to the month and never appears between a
+               month and the days that make it up. *@
+            <div class="pp-hist-item">
             <div class="pp-hist-row @(paid ? "pp-hist-click" : "")" @onclick="() => OpenReceipt(h)">
                 <div class="pp-hist-left">
                     <div class="pp-hist-period">@h.Item.Period</div>
@@ -52,6 +55,45 @@ else
                 {
                     <svg class="pp-hist-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                 }
+            </div>
+
+            @if (h.Item.Days is { Count: > 0 } days)
+            {
+                @* A daily-billed month is one row in the office's ledger, but the payor paid a day at a time and is owed
+                   sight of those days, including the ones a collector took in the field. Behind a toggle, so a month of
+                   twenty-odd days does not bury the months around it. *@
+                <div class="pp-hist-days">
+                    <button type="button" class="pp-hist-days-toggle" @onclick="() => ToggleDays(h)" @onclick:stopPropagation="true">
+                        @days.Count day@(days.Count == 1 ? "" : "s") collected
+                        <span class="pp-hist-days-caret">@(IsExpanded(h) ? "Hide" : "Show")</span>
+                    </button>
+
+                    @if (IsExpanded(h))
+                    {
+                        @foreach (var d in days)
+                        {
+                            <div class="pp-hist-day">
+                                <span class="pp-hist-day-date">@d.Day.ToString("MMM d, yyyy")</span>
+                                <span class="pp-hist-day-meta">
+                                    @if (!string.IsNullOrWhiteSpace(d.ORNumber))
+                                    {
+                                        <text>OR @d.ORNumber</text>
+                                    }
+                                    else
+                                    {
+                                        <text>awaiting OR</text>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(d.RecordedByName))
+                                    {
+                                        <text> · @d.RecordedByName</text>
+                                    }
+                                </span>
+                                <span class="pp-hist-day-amount">@PayorFormat.Currency(d.Amount)</span>
+                            </div>
+                        }
+                    }
+                </div>
+            }
             </div>
         }
         @if (Rows.Count == 0)
@@ -139,6 +181,19 @@ else
     private string Name = "—";
     private List<Row> Rows = new();
     private Row? Selected;
+
+    // Which months have their days open. Keyed by the account and the period, so the same month at two stalls is two rows.
+    private readonly HashSet<string> ExpandedDays = new();
+
+    private static string DayKey(Row row) => $"{row.StallNo}|{row.Item.Period}";
+
+    private bool IsExpanded(Row row) => ExpandedDays.Contains(DayKey(row));
+
+    private void ToggleDays(Row row)
+    {
+        var key = DayKey(row);
+        if (!ExpandedDays.Remove(key)) ExpandedDays.Add(key);
+    }
 
     private static decimal RowAmount(PaymentHistoryDto h) =>
         h.Status == PaymentStatus.Unpaid ? h.TotalBill : h.AmountPaid;

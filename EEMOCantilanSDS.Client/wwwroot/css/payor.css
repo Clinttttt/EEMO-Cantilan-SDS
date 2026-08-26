@@ -125,11 +125,30 @@
 
 /* History */
 .pp-history { padding: 4px 15px; }
-.pp-hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.pp-hist-row:last-child { border-bottom: none; }
+.pp-hist-item { border-bottom: 1px solid var(--border); }
+.pp-hist-item:last-child { border-bottom: none; }
+.pp-hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 .pp-hist-period { font-size: 13px; font-weight: 600; color: var(--navy); }
 .pp-hist-sub { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
 .pp-hist-or { color: var(--text-muted); }
+
+/* The days behind a daily-billed month. Quiet by design: the month is what the office reconciles, the days are what the
+   payor paid, and the list must read as detail rather than as a second set of records. */
+.pp-hist-days { padding: 0 0 10px; }
+.pp-hist-days-toggle {
+    display: flex; align-items: center; gap: 8px;
+    background: none; border: none; padding: 2px 0 6px;
+    font-size: 11px; color: var(--text-muted); cursor: pointer;
+}
+.pp-hist-days-caret { color: var(--navy); font-weight: 600; }
+.pp-hist-day {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 5px 0 5px 10px; border-left: 2px solid var(--border);
+    font-size: 11.5px; color: var(--text-subtle);
+}
+.pp-hist-day-date { min-width: 92px; color: var(--navy); }
+.pp-hist-day-meta { flex: 1; min-width: 0; color: var(--text-muted); overflow-wrap: anywhere; }
+.pp-hist-day-amount { font-weight: 600; color: var(--navy); }
 .pp-hist-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
 .pp-hist-amount { font-size: 13.5px; font-weight: 700; color: var(--navy); }
 .pp-empty-inline { padding: 18px 0; text-align: center; font-size: 13px; color: var(--text-subtle); }

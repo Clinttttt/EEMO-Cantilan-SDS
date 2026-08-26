@@ -170,7 +170,17 @@ public partial class PaymentRepository
                 last?.ORNumber,
                 last is not null ? last.CollectionDate.ToDateTime(TimeOnly.MinValue) : null,
                 last?.CollectorId is Guid lcid && collectorNames.TryGetValue(lcid, out var ln) ? ln : null,
-                RecordedByName: last?.CollectorId is Guid rcid && collectorNames.TryGetValue(rcid, out var rln) ? rln : null));
+                RecordedByName: last?.CollectorId is Guid rcid && collectorNames.TryGetValue(rcid, out var rln) ? rln : null,
+                // The days behind the month's total, earliest first. The office reconciles the month; the payor paid a day at
+                // a time, and a total they cannot break down is a total they cannot check.
+                Days: monthDailies
+                    .OrderBy(d => d.CollectionDate)
+                    .Select(d => new PaymentHistoryDayDto(
+                        d.CollectionDate,
+                        d.DailyFee,
+                        string.IsNullOrWhiteSpace(d.ORNumber) ? null : d.ORNumber,
+                        d.CollectorId is Guid dcid && collectorNames.TryGetValue(dcid, out var dn) ? dn : null))
+                    .ToList()));
         }
 
         return result;
