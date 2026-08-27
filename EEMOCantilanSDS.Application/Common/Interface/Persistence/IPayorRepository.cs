@@ -11,6 +11,15 @@ public interface IPayorRepository
     /// <summary>Fetches an unused activation code by its value (null if not found).</summary>
     Task<PayorActivationCode?> GetActivationCodeAsync(string code, CancellationToken ct = default);
 
+    /// <summary>
+    /// The name the office holds for whoever occupies the stall: the active contract's actual occupant. Used at activation
+    /// so the portal greets the payor by the office's own record instead of asking them to type a name that proves nothing.
+    /// <paramref name="municipalityId"/> is required and applied explicitly rather than left to the ambient tenant, because
+    /// activation is anonymous: no session has pinned an LGU yet, and a name must never be read from another LGU's stall.
+    /// Null when the office holds no name (no active contract, or none recorded).
+    /// </summary>
+    Task<string?> GetOccupantNameAsync(Guid stallId, Guid municipalityId, CancellationToken ct = default);
+
     /// <summary>True if any activation code already uses this value (for collision-free generation).</summary>
     Task<bool> ActivationCodeExistsAsync(string code, CancellationToken ct = default);
 

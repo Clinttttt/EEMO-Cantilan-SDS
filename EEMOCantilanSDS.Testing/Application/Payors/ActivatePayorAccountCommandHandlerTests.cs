@@ -61,6 +61,56 @@ public class ActivatePayorAccountCommandHandlerTests
     }
 
     [Fact]
+    public async Task TheNameComesFromTheOfficesRegister_NotTheForm()
+    {
+        // The activation form asked for a full name that proved nothing, and a payor who mistyped it was greeted by their own
+        // typo for good. The office already holds the occupant's name against the stall the code was issued for.
+        var (handler, repo, _) = Build(ValidCode(), existing: null);
+        repo.Setup(r => r.GetOccupantNameAsync(StallId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Godon Lar");
+
+        PayorUser? created = null;
+        repo.Setup(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()))
+            .Callback<PayorUser, CancellationToken>((p, _) => created = p);
+
+        var result = await handler.Handle(new ActivatePayorAccountCommand("ABCD-EFGH", Contact, "Godon Larl", Password), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Godon Lar", created!.FullName);
+    }
+
+    [Fact]
+    public async Task TheNameIsAskedOfTheCodesOwnMunicipality()
+    {
+        // A name must never be read from another LGU's stall. Activation is anonymous, so the municipality is stated rather
+        // than left to whichever tenant the request happened to resolve to.
+        var code = ValidCode();
+        var (handler, repo, _) = Build(code, existing: null);
+
+        await handler.Handle(Command(), CancellationToken.None);
+
+        repo.Verify(r => r.GetOccupantNameAsync(StallId, code.MunicipalityId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task WithNoNameInTheRegister_ActivationStillSucceeds()
+    {
+        // A space the office holds no occupant name for must not be locked out of the portal.
+        var (handler, repo, _) = Build(ValidCode(), existing: null);
+        repo.Setup(r => r.GetOccupantNameAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string?)null);
+
+        PayorUser? created = null;
+        repo.Setup(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()))
+            .Callback<PayorUser, CancellationToken>((p, _) => created = p);
+
+        var result = await handler.Handle(new ActivatePayorAccountCommand("ABCD-EFGH", Contact, null, Password), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(Contact, created!.FullName);   // the number they signed up with, never blank
+    }
+
+    [Fact]
     public async Task ExistingContact_IsConflict_NeverMergesOrCreates()
     {
         // The number already belongs to a payor. Activation must NOT link the code's stall onto that

@@ -1,4 +1,4 @@
-@page "/payor/activate"
+﻿@page "/payor/activate"
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @using EEMOCantilanSDS.Application.Command.Auth.PayorAuth.Activate
@@ -11,11 +11,8 @@
         <div class="pp-auth-title">Activate your account</div>
         <div class="pp-auth-sub">Use the one-time code on your bill and the contact number on file.</div>
 
-        <label class="pp-field">
-            <span class="pp-field-label">Full Name</span>
-            <input class="pp-input" type="text" placeholder="Name on your account" @bind="FullName" />
-        </label>
-
+        @* No name is asked for: the code and the registered number are the whole proof, and the office's own register
+           supplies the payor's name. Asking invited a mismatch with the register. *@
         <label class="pp-field">
             <span class="pp-field-label">Activation Code</span>
             <input class="pp-input pp-input-mono" type="text" placeholder="XXXX-XXXX" @bind="Code" />
@@ -57,7 +54,6 @@
 </div>
 
 @code {
-    private string FullName = string.Empty;
     private string Code = string.Empty;
     private string Contact = string.Empty;
     private string Password = string.Empty;
@@ -69,8 +65,7 @@
     {
         Error = null;
 
-        if (string.IsNullOrWhiteSpace(FullName) || string.IsNullOrWhiteSpace(Code)
-            || string.IsNullOrWhiteSpace(Contact) || string.IsNullOrWhiteSpace(Password))
+        if (string.IsNullOrWhiteSpace(Code) || string.IsNullOrWhiteSpace(Contact) || string.IsNullOrWhiteSpace(Password))
         {
             Error = "Please complete all fields.";
             return;
@@ -84,7 +79,7 @@
 
         Busy = true;
         var (ok, serverError) = await PayorAuth.ActivateWithErrorAsync(new ActivatePayorAccountCommand(
-            Code.Trim(), Contact.Trim(), FullName.Trim(), Password));
+            Code.Trim(), Contact.Trim(), null, Password));
         Busy = false;
 
         if (!ok)

@@ -47,6 +47,31 @@ public class PayorRepository(
             .FirstOrDefaultAsync(c => !c.IsDeleted && c.Code == normalized, ct);
     }
 
+    /// <summary>
+    /// The name the office holds for the stall's occupant, pinned to the code's own municipality.
+    ///
+    /// <para>
+    /// Read across the tenant filter and constrained to <paramref name="municipalityId"/> in the query itself: activation is
+    /// anonymous, so no session has pinned an LGU at this point, and an ambient default must not decide whose name is read.
+    /// Stating the municipality makes it impossible for one LGU's occupant name to answer another LGU's activation.
+    /// </para>
+    /// </summary>
+    public async Task<string?> GetOccupantNameAsync(Guid stallId, Guid municipalityId, CancellationToken ct = default)
+    {
+        var name = await context.Contracts
+            .IgnoreQueryFilters()
+            .Where(c => c.StallId == stallId
+                        && c.MunicipalityId == municipalityId
+                        && !c.IsDeleted
+                        && c.IsActive
+                        && c.ActualOccupant != "")
+            .OrderByDescending(c => c.EffectivityDate)
+            .Select(c => c.ActualOccupant)
+            .FirstOrDefaultAsync(ct);
+
+        return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+    }
+
     public async Task<bool> ActivationCodeExistsAsync(string code, CancellationToken ct = default)
     {
         var normalized = code.Trim();
@@ -144,12 +169,24 @@ public class PayorRepository(
             var isDaily = stall.Facility!.Code == FacilityCode.NPM;
             var dailyRate = 0m;
             var daysOwed = 0;
+            var balance = stallItems.Sum(i => i.BalanceDue);
 
             if (isDaily)
             {
                 var payable = await npmMonthSettlementService.ComputePayableAsync(stall, today.Year, today.Month, ct);
                 daysOwed = payable.Days;
                 dailyRate = NpmDailyFee.ForStall(stall, snapshot ??= await feeRateResolver.GetSnapshotAsync(ct), today);
+
+                // The fish section's payable item deliberately carries NO amount: each of its days costs the base fee plus
+                // that day's weighing fee, which only the payor can declare, so the days are offered one by one instead of
+                // billed as one figure for the month. Summing the items therefore reported nothing owed. The days are owed
+                // all the same, and the base fee for them is certain, so that is this space's balance; the weighing fee is
+                // added to a day as it is declared. Without this a fish stall read ₱0.00 beside "2 days owed this month"
+                // while the office's own stall profile read ₱60, and the payor could not tell which was true. The figure is
+                // the settlement service's own, the same one the office's ledger and the collector's app settle against, so
+                // the two screens cannot disagree. Non-fish sections are untouched: their month item already carries it.
+                if (stall.Section == MarketSection.FishSection)
+                    balance += payable.Amount;
             }
 
             result.Add(new PayorStallBalanceDto(
@@ -158,7 +195,7 @@ public class PayorRepository(
                 stall.Facility!.Code,
                 occupant,
                 stall.MonthlyRate,
-                stallItems.Sum(i => i.BalanceDue),
+                balance,
                 stallItems.Count,
                 oldest?.Period,
                 isDaily,

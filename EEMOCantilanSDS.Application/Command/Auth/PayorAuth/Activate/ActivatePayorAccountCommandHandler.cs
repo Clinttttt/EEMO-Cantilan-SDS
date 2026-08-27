@@ -43,7 +43,17 @@ public class ActivatePayorAccountCommandHandler(
             return Result<TokenResponseDto>.Failure(
                 "This mobile number is already activated. Please sign in instead.", ResultStatus.Conflict);
 
-        var payor = PayorUser.Create(request.FullName!.Trim(), contactNumber, passwordHasher.Hash(request.Password!));
+        // The name is the office's own, not the payor's typing. It was asked for on the activation form and proved nothing:
+        // the code plus the registered number are the whole proof of ownership, and the name was only ever the greeting on
+        // the portal. Asking for it invited a mismatch with the register (a payor typed "Godon Larl" for the office's
+        // "Godon Lar"), so it is read from the active contract for the stall the code was issued for. A typed name is still
+        // accepted as a fallback for a space the office holds no occupant name for, and failing that the number they signed
+        // up with, so activation can never be blocked by a gap in the register.
+        var occupantName = await payorRepository.GetOccupantNameAsync(code.StallId, code.MunicipalityId, cancellationToken);
+        var fullName = occupantName
+                       ?? (string.IsNullOrWhiteSpace(request.FullName) ? contactNumber : request.FullName.Trim());
+
+        var payor = PayorUser.Create(fullName, contactNumber, passwordHasher.Hash(request.Password!));
         await payorRepository.AddPayorAsync(payor, cancellationToken);
 
         await payorRepository.AddStallLinkAsync(PayorStallLink.Create(payor.Id, code.StallId), cancellationToken);

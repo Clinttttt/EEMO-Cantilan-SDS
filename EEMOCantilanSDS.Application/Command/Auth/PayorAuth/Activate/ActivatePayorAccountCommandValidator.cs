@@ -13,8 +13,10 @@ public class ActivatePayorAccountCommandValidator : AbstractValidator<ActivatePa
             .NotEmpty().WithMessage("Contact number is required.")
             .MaximumLength(20).WithMessage("Contact number is too long.");
 
+        // No longer required: the office's register supplies the payor's name at activation, since a name typed on the form
+        // proved nothing about ownership. Still bounded, because a caller may send one as a fallback for a space the office
+        // holds no occupant name for.
         RuleFor(x => x.FullName)
-            .NotEmpty().WithMessage("Full name is required.")
             .MaximumLength(100).WithMessage("Full name is too long.");
 
         RuleFor(x => x.Password)
