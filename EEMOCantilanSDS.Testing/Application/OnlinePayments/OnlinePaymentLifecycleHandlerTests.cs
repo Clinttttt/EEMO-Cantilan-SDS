@@ -122,6 +122,71 @@ public class InitiateOnlinePaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task NpmFacility_ResumesAnUnfinishedCheckoutOnlyWhileItAsksForTheSameMoney()
+    {
+        // Reported from use: the balance read ₱240 and the gateway charged ₱180, from a checkout started two days
+        // earlier. A market stall owes another day's fee every day, so a session priced then is priced for fewer days
+        // than the payor now owes. Resuming it charged the older figure while the screen showed the newer one.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var stale = OnlinePaymentTransaction.CreateForNpmMonth(
+            "EEMO-OP-20260825-OLD", Guid.NewGuid(), stall.Id, 2026, 8, 180m, "PayMongo");
+        stale.SetPending("gw-1", "https://checkout.test/old");
+
+        OnlinePaymentTransaction? created = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, 2026, 8, OnlinePaymentTargetKind.NpmDailyMonth, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stale);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => created = t).Returns(Task.CompletedTask);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.ComputePayableAsync(stall, 2026, 8, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NpmMonthPayable(8, 240m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 8), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual("EEMO-OP-20260825-OLD", result.Value!.Reference);   // a fresh session, not the stale one
+        Assert.NotNull(created);
+        Assert.Equal(240m, created!.Amount);                                // what the payor is actually shown
+        Assert.Equal(OnlinePaymentStatus.Expired, stale.Status);            // and the old link cannot be paid instead
+    }
+
+    [Fact]
+    public async Task NpmFacility_StillResumesWhenTheAmountHasNotMoved()
+    {
+        // The double-payment guard has to survive the fix: a payor who backs out and returns the same day must be sent
+        // back to the SAME checkout rather than opening a second one for the same money.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var pending = OnlinePaymentTransaction.CreateForNpmMonth(
+            "EEMO-OP-20260827-SAME", Guid.NewGuid(), stall.Id, 2026, 8, 240m, "PayMongo");
+        pending.SetPending("gw-2", "https://checkout.test/same");
+
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, 2026, 8, OnlinePaymentTargetKind.NpmDailyMonth, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pending);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.ComputePayableAsync(stall, 2026, 8, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NpmMonthPayable(8, 240m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 8), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("EEMO-OP-20260827-SAME", result.Value!.Reference);
+        Assert.Equal("https://checkout.test/same", result.Value.CheckoutUrl);
+        Assert.Equal(OnlinePaymentStatus.Pending, pending.Status);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task NpmFacility_NoUnpaidDays_ReturnsConflict()
     {
         var stall = StallInFacility(FacilityCode.NPM);

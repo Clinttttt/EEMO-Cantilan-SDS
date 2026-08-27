@@ -77,17 +77,25 @@ public class InitiateOnlinePaymentCommandHandler(
         if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
 
-        // If the payor already has an unfinished checkout for this period (e.g. they backed out), send
-        // them back to the SAME session rather than opening a duplicate — this is the double-payment guard.
+        var amount = record.BalanceDue;
+
+        // If the payor already has an unfinished checkout for this period (e.g. they backed out), send them back to the
+        // SAME session rather than opening a duplicate — that is the double-payment guard. Only while it still asks for
+        // the same money, though: a session opened days ago was priced then, and a market stall owes another day's fee
+        // every day. Resuming it showed the payor one figure on the balance and charged another at the gateway.
         if (!isNewRecord)
         {
             var resumable = await onlinePaymentRepository.GetResumableTransactionForRecordAsync(record.Id, cancellationToken);
             if (resumable is { IsResumable: true })
-                return Result<InitiateOnlinePaymentResultDto>.Success(
-                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
-        }
+            {
+                if (resumable.Amount == amount)
+                    return Result<InitiateOnlinePaymentResultDto>.Success(
+                        new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
 
-        var amount = record.BalanceDue;
+                // Retired rather than left Pending, so the old link cannot be paid for the wrong amount afterwards.
+                resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, amount));
+            }
+        }
 
         string reference;
         do
@@ -135,11 +143,19 @@ public class InitiateOnlinePaymentCommandHandler(
         if (payable.Amount <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", ResultStatus.Conflict);
 
-        // Resume an unfinished checkout for the same stall+month rather than opening a duplicate.
+        // Resume an unfinished checkout for the same stall+month rather than opening a duplicate, but only while it still
+        // asks for the same money. A market stall owes another day's fee every day, so a session opened earlier in the
+        // month is priced for fewer days than the payor now owes: that is how the balance read ₱240 and the gateway
+        // charged ₱180 for a session started two days before.
         var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmDailyMonth, cancellationToken);
         if (resumable is { IsResumable: true })
-            return Result<InitiateOnlinePaymentResultDto>.Success(
-                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+        {
+            if (resumable.Amount == payable.Amount)
+                return Result<InitiateOnlinePaymentResultDto>.Success(
+                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, payable.Amount));
+        }
 
         string reference;
         do
@@ -184,8 +200,15 @@ public class InitiateOnlinePaymentCommandHandler(
 
         var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmUtilityBill, cancellationToken);
         if (resumable is { IsResumable: true })
-            return Result<InitiateOnlinePaymentResultDto>.Success(
-                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+        {
+            // A meter reading corrected, or part of the bill paid at the office, changes what is owed. Resume only while
+            // the old session still asks for it.
+            if (resumable.Amount == bill.BalanceDue)
+                return Result<InitiateOnlinePaymentResultDto>.Success(
+                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, bill.BalanceDue));
+        }
 
         string reference;
         do
@@ -239,11 +262,18 @@ public class InitiateOnlinePaymentCommandHandler(
         if (quote.Amount <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This day has no outstanding balance.", ResultStatus.Conflict);
 
-        // Resume an unfinished checkout for the SAME stall + exact day rather than opening a duplicate.
+        // Resume an unfinished checkout for the SAME stall + exact day rather than opening a duplicate, but only while it
+        // asks for the same money. A payor who declared five kilos, backed out, and now declares eight must be charged for
+        // eight, not sent back to the earlier session's amount.
         var resumable = await onlinePaymentRepository.GetResumableNpmFishDayTransactionAsync(stall.Id, request.Year, request.Month, dayOfMonth, cancellationToken);
         if (resumable is { IsResumable: true })
-            return Result<InitiateOnlinePaymentResultDto>.Success(
-                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+        {
+            if (resumable.Amount == quote.Amount)
+                return Result<InitiateOnlinePaymentResultDto>.Success(
+                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, quote.Amount));
+        }
 
         string reference;
         do
@@ -278,6 +308,13 @@ public class InitiateOnlinePaymentCommandHandler(
 
     /// <param name="now">Passed in rather than read: the reference carries the date it was issued, and a static helper that
     /// reaches for a clock cannot be tested.</param>
+    /// <summary>
+    /// What is written against a checkout retired because the money moved on. Kept as the transaction's payload so the
+    /// office can see why a session it may remember was superseded, rather than finding a bare Expired row.
+    /// </summary>
+    private static string StaleCheckoutNote(decimal was, decimal now) =>
+        $"{{\"supersededBy\":\"re-initiated\",\"reason\":\"amount changed\",\"was\":{was},\"now\":{now}}}";
+
     private static string GenerateReference(DateTime now) =>
         $"EEMO-OP-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..25].ToUpperInvariant();
 }
