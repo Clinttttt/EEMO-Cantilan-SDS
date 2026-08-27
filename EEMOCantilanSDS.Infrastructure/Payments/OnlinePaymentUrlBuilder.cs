@@ -50,10 +50,48 @@ public sealed class OnlinePaymentUrlBuilder(
     }
 
     public string BuildSuccessUrl(string reference) =>
-        $"{PortalBaseUrl}/payor/payment/success?ref={Uri.EscapeDataString(reference)}";
+        $"{PayorReturnBaseUrl}/payor/payment/success?ref={Uri.EscapeDataString(reference)}";
 
     public string BuildCancelUrl(string reference) =>
-        $"{PortalBaseUrl}/payor/payment/cancelled?ref={Uri.EscapeDataString(reference)}";
+        $"{PayorReturnBaseUrl}/payor/payment/cancelled?ref={Uri.EscapeDataString(reference)}";
+
+    /// <summary>
+    /// Where THIS payor should land after checkout.
+    ///
+    /// <para>
+    /// Two payor portals exist during the move to the Angular one, and each must return to itself: a payor who started
+    /// on payor.stalltrack.site cannot be dropped on the other portal's screen, where their session does not exist.
+    /// The browser tells us which one they are on, since a call from a browser app to this API is cross-origin and
+    /// carries an <c>Origin</c> header. The Blazor portal calls this API server-to-server and so sends none, which is
+    /// why it keeps returning to <c>OnlinePayments:PortalBaseUrl</c> with nothing to configure.
+    /// </para>
+    ///
+    /// <para>
+    /// The origin is never trusted as given. It is matched against <c>OnlinePayments:AllowedReturnOrigins</c>, and
+    /// anything not on that list falls back to the configured portal. That keeps the gateway's redirect target decided
+    /// by this server, which was the point of building these URLs here rather than accepting them from a client: a
+    /// caller who could name the return address could send a payor to a page of their own after paying.
+    /// </para>
+    /// </summary>
+    private string PayorReturnBaseUrl
+    {
+        get
+        {
+            var origin = httpContextAccessor?.HttpContext?.Request.Headers["Origin"].ToString();
+            if (string.IsNullOrWhiteSpace(origin)) return PortalBaseUrl;
+
+            var candidate = origin.Trim().TrimEnd('/');
+
+            var allowed = configuration.GetSection("OnlinePayments:AllowedReturnOrigins").Get<string[]>()
+                          ?? Array.Empty<string>();
+
+            var permitted = allowed.Any(a =>
+                !string.IsNullOrWhiteSpace(a)
+                && string.Equals(a.Trim().TrimEnd('/'), candidate, StringComparison.OrdinalIgnoreCase));
+
+            return permitted ? candidate : PortalBaseUrl;
+        }
+    }
 
     public string BuildWebhookUrl(string tenantCode)
     {
