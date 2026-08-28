@@ -4,15 +4,27 @@ namespace EEMOCantilanSDS.Application.Common.Onboarding
     /// Builds the one-time email-verification link. Environment-driven: set
     /// <c>EMAIL_VERIFY_LINK_BASE</c> to override per deployment; when unset it falls back to the known
     /// production console domain. Mirrors <see cref="ActivationLinks"/> / <see cref="PasswordResetLinks"/>.
+    ///
+    /// <para>
+    /// The PLATFORM OPERATOR has its own base for the same reason its reset link does: the operator belongs to no
+    /// municipality and signs in to the platform's own console, not to an LGU's.
+    /// </para>
     /// </summary>
     public static class EmailVerificationLinks
     {
         private const string DefaultBase = "https://console.stalltrack.site/verify-email";
+        private const string DefaultOperatorBase = "https://admin.stalltrack.site/verify-email";
 
         public static string Base =>
             Environment.GetEnvironmentVariable("EMAIL_VERIFY_LINK_BASE") is { Length: > 0 } configured
                 ? configured.TrimEnd('/')
                 : DefaultBase;
+
+        /// <summary>Where the platform's own operator confirms its address.</summary>
+        public static string OperatorBase =>
+            Environment.GetEnvironmentVariable("OPERATOR_EMAIL_VERIFY_LINK_BASE") is { Length: > 0 } configured
+                ? configured.TrimEnd('/')
+                : DefaultOperatorBase;
 
         /// <summary>
         /// Builds the verification URL. The LGU code rides along as a query string so the page can render
@@ -22,5 +34,8 @@ namespace EEMOCantilanSDS.Application.Common.Onboarding
             => string.IsNullOrWhiteSpace(municipalityCode)
                 ? $"{Base}/{token}"
                 : $"{Base}/{token}?lgu={Uri.EscapeDataString(municipalityCode)}";
+
+        /// <summary>The operator's own verification URL. No LGU code: there is no tenant branding to choose.</summary>
+        public static string BuildForOperator(string token) => $"{OperatorBase}/{token}";
     }
 }

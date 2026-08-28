@@ -130,6 +130,26 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
         /// </summary>
         private async Task SendResetEmailAsync(BaseUser user, string rawToken, CancellationToken ct)
         {
+            // The platform's own operator belongs to no municipality, and its reset happens on the platform's own
+            // console. Sending it an LGU's address would land it on a sign-in screen its account is refused by, and
+            // naming a municipality at it would state something untrue. Answered from the account's own flag.
+            if (user is AdminUser { IsPlatformOperator: true })
+            {
+                var operatorLink = PasswordResetLinks.BuildForOperator(rawToken);
+                var operatorBody =
+                    "A password reset was requested for your StallTrack platform operator account.\n\n" +
+                    $"Username: {user.Username}\n\n" +
+                    $"Set a new password using the secure link below:\n{operatorLink}\n\n" +
+                    $"This link can be used once and expires in {TokenLifetimeMinutes} minutes.\n\n" +
+                    "If you did not request this, you can safely ignore this email — your password stays unchanged, " +
+                    "and no one can access your account through this link without your mailbox.\n\n" +
+                    "— StallTrack";
+
+                await emailSender.SendAsync(
+                    user.Email!, user.FullName, "StallTrack — password reset", operatorBody, ct);
+                return;
+            }
+
             var municipalityRow = await context.Municipalities
                 .IgnoreQueryFilters()
                 .Where(m => m.Id == user.MunicipalityId)

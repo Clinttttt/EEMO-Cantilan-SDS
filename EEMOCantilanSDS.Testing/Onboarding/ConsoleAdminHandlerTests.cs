@@ -128,7 +128,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var cmd = new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "console@stalltrack.site", "Passw0rd1");
             using (var ctx = new AppDbContext(options))
             {
-                var r = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher()).Handle(cmd, default);
+                var r = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>()).Handle(cmd, default);
                 Assert.True(r.IsSuccess);
             }
             using (var ctx = new AppDbContext(options))
@@ -139,7 +139,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
             using (var ctx = new AppDbContext(options))
             {
-                var r2 = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher()).Handle(cmd, default);
+                var r2 = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>()).Handle(cmd, default);
                 Assert.False(r2.IsSuccess); // second run refused
                 Assert.Equal(ResultStatus.Conflict, r2.Status);
                 // A bare 409 carries no wording, so the console had to invent it — and it told the office
@@ -173,7 +173,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
 
             using var ctx = new AppDbContext(options);
-            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>())
                 .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "office@cantilan.gov.ph", "Passw0rd1"), default);
 
             Assert.False(result.IsSuccess);
@@ -208,7 +208,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options))
             {
-                var byUsername = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                var byUsername = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>())
                     .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "operator@stalltrack.site", "Passw0rd1"), default);
                 Assert.False(byUsername.IsSuccess);
                 Assert.Contains("username", byUsername.Error!, StringComparison.OrdinalIgnoreCase);
@@ -216,7 +216,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using (var ctx = new AppDbContext(options))
             {
-                var byEmail = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+                var byEmail = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>())
                     .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "operator", "former@cantilan.gov.ph", "Passw0rd1"), default);
                 Assert.False(byEmail.IsSuccess);
                 Assert.Contains("e-mail", byEmail.Error!, StringComparison.OrdinalIgnoreCase);
@@ -242,10 +242,64 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             }
 
             using var ctx = new AppDbContext(options);
-            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher())
+            var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), Moq.Mock.Of<IEmailVerificationSender>())
                 .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "shared@example.gov.ph", "Passw0rd1"), default);
 
             Assert.True(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task TheOperatorIsAskedToConfirmItsAddress_SoItCanEverResetItsOwnPassword()
+        {
+            // A self-service reset is only ever sent to a VERIFIED address, and nothing verified this one. The operator —
+            // the single account with nobody above it to restore its access — was therefore the only account on the
+            // platform that could never reset its own password.
+            var options = Options();
+            await SeedDefaultAsync(options);
+
+            var verification = new Moq.Mock<IEmailVerificationSender>();
+            verification
+                .Setup(v => v.SendAsync(Moq.It.IsAny<EEMOCantilanSDS.Domain.Entities.Users.BaseUser>(), Moq.It.IsAny<bool>(), Moq.It.IsAny<System.Threading.CancellationToken>()))
+                .Returns(Task.FromResult(true));
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), verification.Object)
+                    .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "operator@stalltrack.site", "Passw0rd1"), default);
+
+                Assert.True(result.IsSuccess);
+            }
+
+            // Asked of the account just created, not of some other user.
+            verification.Verify(v => v.SendAsync(
+                Moq.It.Is<EEMOCantilanSDS.Domain.Entities.Users.BaseUser>(u => u.Username == "console.admin"),
+                Moq.It.IsAny<bool>(),
+                Moq.It.IsAny<System.Threading.CancellationToken>()), Moq.Times.Once);
+        }
+
+        [Fact]
+        public async Task AMailerThatFailsDoesNotFailThePlatformsSetup()
+        {
+            // The platform is being set up for the first time. An unconfigured or failing mailer must not leave it with
+            // no operator at all: the account is created and saved before the email is attempted.
+            var options = Options();
+            await SeedDefaultAsync(options);
+
+            var verification = new Moq.Mock<IEmailVerificationSender>();
+            verification
+                .Setup(v => v.SendAsync(Moq.It.IsAny<EEMOCantilanSDS.Domain.Entities.Users.BaseUser>(), Moq.It.IsAny<bool>(), Moq.It.IsAny<System.Threading.CancellationToken>()))
+                .Returns(Task.FromResult(false));
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var result = await new CreateFirstConsoleAdminCommandHandler(ctx, new IdentityPasswordHasher(), verification.Object)
+                    .Handle(new CreateFirstConsoleAdminCommand("Platform Operator", "console.admin", "operator@stalltrack.site", "Passw0rd1"), default);
+
+                Assert.True(result.IsSuccess);
+            }
+
+            using var verify = new AppDbContext(options);
+            Assert.True(await verify.AdminUsers.IgnoreQueryFilters().AnyAsync(u => u.IsPlatformOperator));
         }
     }
 }

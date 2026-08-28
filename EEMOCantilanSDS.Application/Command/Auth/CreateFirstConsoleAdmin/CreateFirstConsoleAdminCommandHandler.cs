@@ -1,7 +1,8 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Security;
+using EEMOCantilanSDS.Application.Common.Interface.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
@@ -22,7 +23,10 @@ namespace EEMOCantilanSDS.Application.Command.Auth.CreateFirstConsoleAdmin
     /// was told setup was finished while <c>/status</c> kept correctly answering that it had not begun.
     /// </para>
     /// </summary>
-    public class CreateFirstConsoleAdminCommandHandler(IAppDbContext context, IPasswordHasher passwordHasher)
+    public class CreateFirstConsoleAdminCommandHandler(
+        IAppDbContext context,
+        IPasswordHasher passwordHasher,
+        IEmailVerificationSender emailVerificationSender)
         : IRequestHandler<CreateFirstConsoleAdminCommand, Result<bool>>
     {
         public async Task<Result<bool>> Handle(CreateFirstConsoleAdminCommand request, CancellationToken ct)
@@ -81,6 +85,13 @@ namespace EEMOCantilanSDS.Application.Command.Auth.CreateFirstConsoleAdmin
 
             context.AdminUsers.Add(operatorAdmin);
             await context.SaveChangesAsync(ct);
+
+            // The address is confirmed the same way every other account's is, and for a reason that only shows up much
+            // later: a self-service password reset is only ever sent to a VERIFIED address, and nothing verified this
+            // one. So the operator — the one account with nobody above it to restore its access — was the single account
+            // on the platform that could never reset its own password. The email is best-effort and never throws, so an
+            // unconfigured or failing mailer cannot turn the platform's own setup into a failure.
+            await emailVerificationSender.SendAsync(operatorAdmin, save: true, ct);
 
             return Result<bool>.Success(true);
         }

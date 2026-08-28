@@ -31,6 +31,28 @@ namespace EEMOCantilanSDS.Application.Common.Services
             if (save)
                 await context.SaveChangesAsync(ct);
 
+            // The platform's own operator belongs to no municipality: it is stamped to the default tenant so it has a
+            // tenant context at all, which is not the same as being that municipality's officer. Naming an LGU at it, or
+            // telling it to ask an office Head for help, would be untrue, and its link belongs to the platform's own
+            // console rather than any LGU's. Answered from the account's own flag, never from which tenant it sits under.
+            if (user is AdminUser { IsPlatformOperator: true })
+            {
+                var operatorLink = EmailVerificationLinks.BuildForOperator(rawToken);
+                var operatorBody =
+                    "Please confirm this email address for your StallTrack platform operator account.\n\n" +
+                    $"Username: {user.Username}\n\n" +
+                    $"Confirm your email:\n{operatorLink}\n\n" +
+                    "Confirming proves the address reaches you, which is what lets you reset your own password later " +
+                    "if you ever forget it. There is no one above this account to restore it for you.\n\n" +
+                    $"This link expires in {TokenLifetimeDays} days.\n\n" +
+                    "If you were not expecting this, you can ignore it — confirming only verifies the address and " +
+                    "changes nothing else about your account.\n\n" +
+                    "— StallTrack";
+
+                return await emailSender.SendAsync(
+                    user.Email!, user.FullName, "StallTrack — confirm your email", operatorBody, ct);
+            }
+
             // Per-LGU branding, falling back to the platform name for an unresolved tenant.
             var municipality = await context.Municipalities
                 .IgnoreQueryFilters()

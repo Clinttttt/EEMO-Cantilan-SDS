@@ -78,6 +78,68 @@ public class PasswordResetHandlerTests
 
     // ── Request: happy path ──────────────────────────────────────────────────────────────────────
 
+    /// <summary>Seeds the platform's own operator: the flag set, and no municipality of its own to be branded by.</summary>
+    private static async Task<Guid> SeedVerifiedOperatorAsync(
+        DbContextOptions<AppDbContext> options, string email = "operator@stalltrack.site")
+    {
+        using var seed = new AppDbContext(options);
+
+        // Stamped to a municipality for tenant context, exactly as the platform's setup does. That is NOT the same as
+        // belonging to it, and this is what the wording and the link must not confuse.
+        var municipality = Municipality.Create("SDS-DEF", "Default Municipality", "Surigao del Sur",
+            MunicipalityStatus.Active, tenantCode: "cantilan");
+        var operatorAdmin = AdminUser.Create("Platform Operator", "operator", email,
+            TestPasswords.Hash("OldPass123"), AdminRole.SuperAdmin, municipality.Id,
+            isActive: true, isPlatformOperator: true, mustChangePassword: false);
+        operatorAdmin.MarkEmailVerified();
+
+        seed.Municipalities.Add(municipality);
+        seed.AdminUsers.Add(operatorAdmin);
+        await seed.SaveChangesAsync();
+        return operatorAdmin.Id;
+    }
+
+    [Fact]
+    public async Task Request_PlatformOperator_IsSentToItsOwnConsole_NotAnLgus()
+    {
+        // The operator signs in to the platform's own console. An LGU's address would land it on a sign-in screen its
+        // account is refused by, holding a token that expires in half an hour.
+        var options = Options();
+        await SeedVerifiedOperatorAsync(options);
+        var email = new RecordingEmailSender();
+
+        using (var ctx = new AppDbContext(options))
+        {
+            var result = await RequestHandler(ctx, email)
+                .Handle(new RequestPasswordResetCommand("operator@stalltrack.site"), default);
+            Assert.True(result.IsSuccess);
+        }
+
+        Assert.Equal(1, email.SendCount);
+        Assert.Contains("admin.stalltrack.site/reset-password", email.LastBody);
+        Assert.DoesNotContain("console.stalltrack.site", email.LastBody);
+    }
+
+    [Fact]
+    public async Task Request_PlatformOperator_IsNotToldItBelongsToAMunicipality()
+    {
+        // It is stamped to the default municipality so it has a tenant context at all. Naming that LGU at it, or telling
+        // it to ask an office Head for help, would state something untrue about the one account with nobody above it.
+        var options = Options();
+        await SeedVerifiedOperatorAsync(options);
+        var email = new RecordingEmailSender();
+
+        using (var ctx = new AppDbContext(options))
+        {
+            await RequestHandler(ctx, email)
+                .Handle(new RequestPasswordResetCommand("operator@stalltrack.site"), default);
+        }
+
+        Assert.DoesNotContain("Default Municipality", email.LastBody);
+        Assert.Contains("platform operator account", email.LastBody);
+        Assert.Contains("Username: operator", email.LastBody);
+    }
+
     [Fact]
     public async Task Request_VerifiedActiveAdmin_IssuesHashedToken_AndEmailsLink()
     {
