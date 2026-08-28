@@ -43,8 +43,47 @@ public sealed class NpmMonthSettlementService(
         return new NpmMonthPayable(quotedDays, amount + adjustment, adjustment);
     }
 
-    public async Task<IReadOnlyList<DateOnly>> GetPayableDaysAsync(Stall stall, int year, int month, CancellationToken ct)
+    /// <inheritdoc />
+    public async Task<NpmMonthPayable> ComputePayableForDaysAsync(Stall stall, int year, int month, int dayCount, CancellationToken ct)
     {
+        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct);
+
+        // What the month may be quoted at all, on exactly the terms the whole-month quote uses. Both come from the one
+        // walk of the month, so a part of a month can never be priced by a different rule than the whole of it.
+        var quotedDays = 0;
+        var monthAmount = 0m;
+        foreach (var (_, fee) in days)
+        {
+            if (monthAmount + fee > remaining - adjustment) break;
+            monthAmount += fee;
+            quotedDays++;
+        }
+
+        // Asking for as many days as the month owes IS the whole month: the same figure, month-end adjustment and all.
+        if (dayCount >= quotedDays)
+            return new NpmMonthPayable(quotedDays, monthAmount + adjustment, adjustment);
+
+        // Part of a month is only payable while the month is still open. Once it has closed short of its rent, the
+        // difference rides on the LAST installment settled, so settling part of the month would collect money for days
+        // the settlement would then decline to mark. Answered as nothing payable, which the caller refuses plainly.
+        if (adjustment > 0m)
+            return new NpmMonthPayable(0, 0m, adjustment);
+
+        // The earliest days, which are the ones the office settles first: the same order settlement itself walks, so the
+        // money quoted here reaches exactly as far down the month as the money charged will.
+        var partial = 0m;
+        var taken = 0;
+        foreach (var (_, fee) in days)
+        {
+            if (taken == dayCount) break;
+            partial += fee;
+            taken++;
+        }
+
+        return new NpmMonthPayable(taken, partial);
+    }
+
+    public async Task<IReadOnlyList<DateOnly>> GetPayableDaysAsync(Stall stall, int year, int month, CancellationToken ct)    {
         // Every uncollected day, uncapped: the fish section settles day by day (each day's total depends on that
         // day's kilos), which is the day-to-day path and not a single charge for the month.
         var (days, _, _, _) = await ResolveMonthAsync(stall, year, month, ct);

@@ -72,6 +72,89 @@ public class NpmMonthSettlementServiceTests
     }
 
     [Fact]
+    public async Task ComputePayableForDays_QuotesTheEarliestDays_AndSettlementSettlesExactlyThose()
+    {
+        // Paying part of a month is only honest if the money quoted reaches exactly as far down the month as the money
+        // charged: quote three days, settle three days, and the three the office would have collected first.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        daily.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
+
+        var quote = await svc.ComputePayableForDaysAsync(stall, 2026, 3, 3, CancellationToken.None);
+
+        Assert.Equal(3, quote.Days);
+        Assert.Equal(FeeRates.NpmDailyFee * 3, quote.Amount);
+        Assert.Equal(0m, quote.Adjustment);                    // part of a month closes nothing
+
+        var settled = await svc.SettleUnpaidDaysAsync(
+            stall, 2026, 3, collectorId: null, recordedBy: "Online", CancellationToken.None, maxAmount: quote.Amount);
+
+        Assert.Equal(3, settled.Count);
+        Assert.Equal(new[] { 1, 2, 3 }, settled.Select(dc => dc.CollectionDate.Day).ToArray());
+    }
+
+    [Fact]
+    public async Task ComputePayableForDays_AskingForTheWholeMonth_IsTheWholeMonthsOwnQuote()
+    {
+        // "All the days I owe" must be the same figure as the month quote, by the same rule, or the two screens that show
+        // them would disagree.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
+
+        var month = await svc.ComputePayableAsync(stall, 2026, 3, CancellationToken.None);
+        var asked = await svc.ComputePayableForDaysAsync(stall, 2026, 3, 31, CancellationToken.None);
+
+        Assert.Equal(month.Days, asked.Days);
+        Assert.Equal(month.Amount, asked.Amount);
+        Assert.Equal(month.Adjustment, asked.Adjustment);
+    }
+
+    [Fact]
+    public async Task ComputePayableForDays_ForAClosedShortMonth_RefusesPartOfIt()
+    {
+        // February's twenty-eight days at ₱30 fall ₱60 short of the ₱900 rent, and that difference rides on the LAST
+        // installment settled. Part-settling such a month would take money for days settlement would then decline to
+        // mark, so nothing is quoted for part of it and the caller refuses.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
+
+        var quote = await svc.ComputePayableForDaysAsync(stall, 2026, 2, 3, CancellationToken.None);
+
+        Assert.Equal(0, quote.Days);
+        Assert.Equal(0m, quote.Amount);
+    }
+
+    [Fact]
     public async Task ComputePayable_ForA31DayMonth_QuotesTheRent_NotAnExtraDay()
     {
         // The payor is shown a balance of ₱900 for the month; the checkout must ask for ₱900, and the day count

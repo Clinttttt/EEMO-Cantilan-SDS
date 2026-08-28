@@ -53,7 +53,12 @@ public class InitiateOnlinePaymentCommandHandler(
             return request.Kind switch
             {
                 PayorPayableKind.NpmUtility => await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken),
-                PayorPayableKind.NpmFish => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
+                // A fish day is priced from that day's own kilos, so ONE day is declared and paid on its own. Several days
+                // at once carry no kilos to declare — the collector's own multi-day settlement records none either — so
+                // they are the day fees of that month, which is what the daily-month path already charges and settles.
+                PayorPayableKind.NpmFish when request.Days is not { } askedDays || askedDays <= 1
+                    => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
+                PayorPayableKind.NpmFish => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken),
                 _ => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken)
             };
 
@@ -137,7 +142,18 @@ public class InitiateOnlinePaymentCommandHandler(
     private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmAsync(
         Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
-        var payable = await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);
+        var payable = request.Days is { } askedDays && askedDays > 0
+            ? await npmMonthSettlementService.ComputePayableForDaysAsync(stall, request.Year, request.Month, askedDays, cancellationToken)
+            : await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);
+
+        // Asked for a number of days and the month cannot answer for that many: some were collected at the stall since
+        // the payor looked, or the month has closed and is settled as one figure. Refused rather than quietly charging
+        // for a different number of days than the payor was shown, which is the same rule the stale-checkout guard below
+        // applies to money.
+        if (request.Days is { } asked && payable.Days != asked)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "Those days have changed since you last looked. Reload your balances and try again.", ResultStatus.Conflict);
+
         // An amount with no days is legitimate: a closed short month whose every day was collected still owes its
         // month-end adjustment, and refusing it would leave the payor no way to settle the month online.
         if (payable.Amount <= 0m)
@@ -168,11 +184,16 @@ public class InitiateOnlinePaymentCommandHandler(
             reference, payorId, stall.Id, request.Year, request.Month, payable.Amount, paymentGateway.Provider);
 
         var periodKey = $"{request.Year:0000}-{request.Month:00}";
+        // A part-month payment says how many days it covers, so the line on the gateway and on the office's own record
+        // reads as what it is rather than as a month settled short.
+        var description = request.Days is { } paidDays
+            ? $"EEMO online payment · NPM daily · {periodKey} · {paidDays} {(paidDays == 1 ? "day" : "days")}"
+            : $"EEMO online payment · NPM daily · {periodKey}";
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionRequest(
                 payable.Amount,
                 reference,
-                $"EEMO online payment · NPM daily · {periodKey}",
+                description,
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

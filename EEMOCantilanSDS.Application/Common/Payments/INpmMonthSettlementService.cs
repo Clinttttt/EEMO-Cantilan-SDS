@@ -13,6 +13,20 @@ public interface INpmMonthSettlementService
     Task<NpmMonthPayable> ComputePayableAsync(Stall stall, int year, int month, CancellationToken ct);
 
     /// <summary>
+    /// The same quote for only the EARLIEST <paramref name="dayCount"/> of those days, so a payor can settle some of a
+    /// month rather than all of it. No mutation.
+    ///
+    /// <para>
+    /// Oldest first, because that is the order settlement itself walks: paying a later day while an earlier one stayed
+    /// open would leave an arrear sitting behind a settled day. Asking for as many days as the month owes returns exactly
+    /// what <see cref="ComputePayableAsync"/> returns, month-end adjustment included, so "all of it" is one figure by one
+    /// rule. A month that has CLOSED short of its rent answers nothing payable for a part of it: its difference rides on
+    /// the last installment settled, so part-settling it would take money for days settlement would decline to mark.
+    /// </para>
+    /// </summary>
+    Task<NpmMonthPayable> ComputePayableForDaysAsync(Stall stall, int year, int month, int dayCount, CancellationToken ct);
+
+    /// <summary>
     /// The stall's still-settleable day DATES for the month (same rule as <see cref="ComputePayableAsync"/>),
     /// for the fish-day picker so the payor can only declare/pay an uncollected, in-term, elapsed, non-closed day.
     /// </summary>

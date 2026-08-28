@@ -14,5 +14,11 @@ public class InitiateOnlinePaymentCommandValidator : AbstractValidator<InitiateO
 
         RuleFor(x => x.Month)
             .InclusiveBetween(1, 12).WithMessage("Invalid billing month.");
+
+        // A count of owed days, when the payor is paying only some of them. No month has more days than this, and a
+        // count of nought would ask for nothing at all.
+        RuleFor(x => x.Days)
+            .InclusiveBetween(1, 31).WithMessage("Choose between one and thirty-one days.")
+            .When(x => x.Days.HasValue);
     }
 }
