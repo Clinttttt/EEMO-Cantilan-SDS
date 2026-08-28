@@ -1,12 +1,14 @@
-using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ChangeMyPassword;
+﻿using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ChangeMyPassword;
 using EEMOCantilanSDS.Api.Extensions;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.SendMyEmailVerification;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
 using EEMOCantilanSDS.Application.Command.Auth.Mfa;
 using EEMOCantilanSDS.Application.Queries.Auth.GetMfaStatus;
 using EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts;
+using EEMOCantilanSDS.Application.Queries.Auth.GetMyEmailConfirmation;
 using EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext;
 using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
@@ -85,11 +87,35 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     /// <summary>
+    /// Whether the signed-in account's own email address has been confirmed. Confirming it is what allows a
+    /// self-service password reset later, so the screen needs to know before it offers the action.
+    /// </summary>
+    [HttpGet("my-email-confirmation")]
+    [Authorize]
+    public async Task<ActionResult<MyEmailConfirmationDto>> GetMyEmailConfirmationAsync()
+    {
+        var result = await Sender.Send(new GetMyEmailConfirmationQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Sends the signed-in account its own confirmation link. Rate-limited like every other mail-sending path, and
+    /// scoped to the caller by the token, so it can never be pointed at another account.
+    /// </summary>
+    [HttpPost("my-email-confirmation/send")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<bool>> SendMyEmailConfirmationAsync()
+    {
+        var result = await Sender.Send(new SendMyEmailVerificationCommand());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
     /// Completes a two-factor sign-in: the challenge from the password step plus an authenticator code (or a
     /// recovery code). Anonymous (no session exists yet) and rate-limited; issues the session on success.
     /// </summary>
-    [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [AllowAnonymous]    [EnableRateLimiting("auth")]
     [HttpPost("mfa/verify-login")]
     public async Task<ActionResult<TokenResponseDto>> VerifyMfaLoginAsync([FromBody] VerifyMfaLoginCommand command)
     {
