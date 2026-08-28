@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Domain.Entities.Audit;
+using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -22,6 +22,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
         DbSet<FacilityRate> FacilityRates { get; }
+
+    /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
+    DbSet<FacilitySectionRate> FacilitySectionRates { get; }
         DbSet<Stall> Stalls { get; }
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }

@@ -21,7 +21,14 @@ namespace EEMOCantilanSDS.Infrastructure.Fees
                 .Select(r => new FeeRateEntry(r.FacilityCode, r.RateKey, r.Amount, r.EffectiveDate))
                 .ToListAsync(cancellationToken);
 
-            return new FeeRateSnapshot(entries);
+            // The office's own sections' rates, read the same way and in the same call: one snapshot answers every
+            // daily-fee question, so no caller has to know there are two tables behind it.
+            var sectionEntries = await context.FacilitySectionRates
+                .AsNoTracking()
+                .Select(r => new FeeSectionRateEntry(r.FacilityCode, r.SectionName, r.Amount, r.EffectiveDate))
+                .ToListAsync(cancellationToken);
+
+            return new FeeRateSnapshot(entries, sectionEntries);
         }
     }
 }

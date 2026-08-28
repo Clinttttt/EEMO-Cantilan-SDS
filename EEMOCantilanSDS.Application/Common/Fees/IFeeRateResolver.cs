@@ -31,6 +31,17 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     public readonly record struct FeeRateEntry(FacilityCode Facility, FeeRateKey Key, decimal Amount, DateOnly EffectiveDate);
 
     /// <summary>
+    /// One effective-dated daily fee for a market section the OFFICE named itself.
+    ///
+    /// <para>
+    /// Held apart from <see cref="FeeRateEntry"/> because it is keyed by a name rather than by an ordinance key: an LGU's
+    /// own section cannot be an enum value, so it cannot be a <see cref="FeeRateKey"/>. Everything else about it is the
+    /// same — one facility's ordinance, an effective date, and the latest row on or before the day being billed.
+    /// </para>
+    /// </summary>
+    public readonly record struct FeeSectionRateEntry(FacilityCode Facility, string Section, decimal Amount, DateOnly EffectiveDate);
+
+    /// <summary>
     /// Immutable point-in-time view of the current tenant's fixed rates.
     ///
     /// <para>
@@ -43,9 +54,52 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     public sealed class FeeRateSnapshot
     {
         private readonly IReadOnlyList<FeeRateEntry> _entries;
+        private readonly IReadOnlyList<FeeSectionRateEntry> _sectionEntries;
 
         public FeeRateSnapshot(IEnumerable<FeeRateEntry> entries)
-            => _entries = entries?.ToList() ?? new List<FeeRateEntry>();
+            : this(entries, null) { }
+
+        public FeeRateSnapshot(IEnumerable<FeeRateEntry> entries, IEnumerable<FeeSectionRateEntry>? sectionEntries)
+        {
+            _entries = entries?.ToList() ?? new List<FeeRateEntry>();
+            _sectionEntries = sectionEntries?.ToList() ?? new List<FeeSectionRateEntry>();
+        }
+
+        /// <summary>
+        /// The daily fee this office has stated for ONE OF ITS OWN sections as of a date (the latest row with an
+        /// effective date on or before it), or <c>null</c> where it has stated none.
+        ///
+        /// <para>
+        /// Matched case-insensitively, as a section name is everywhere else it is compared. A stated ZERO reads as no rate
+        /// — the same reading a cleared area rate has, and for the same reason: an ordinance does not let a market space
+        /// for nothing, so zero is a figure being withdrawn rather than a price, and clearing it is how the office takes a
+        /// section rate back.
+        /// </para>
+        /// </summary>
+        public decimal? ResolveSectionOrNull(FacilityCode facility, string? section, DateOnly asOf)
+        {
+            if (string.IsNullOrWhiteSpace(section)) return null;
+
+            var name = section.Trim();
+            decimal? match = null;
+            var bestDate = DateOnly.MinValue;
+
+            foreach (var e in _sectionEntries)
+            {
+                if (e.Facility != facility
+                    || e.EffectiveDate > asOf
+                    || !string.Equals(e.Section, name, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (match is null || e.EffectiveDate >= bestDate)
+                {
+                    match = e.Amount;
+                    bestDate = e.EffectiveDate;
+                }
+            }
+
+            return match is > 0m ? match : null;
+        }
 
         /// <summary>
         /// The amount this office has STATED for a rate key as of a date (the latest row with

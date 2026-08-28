@@ -19,6 +19,7 @@ namespace EEMOCantilanSDS.Application.Common.Fees
     /// </para>
     /// <list type="number">
     ///   <item>A stall in a market's OWN area is let at its own rate, recorded when the stall was registered.</item>
+    ///   <item>Otherwise the rate the office stated for that OWN section, if it stated one.</item>
     ///   <item>Otherwise the rate the office stated for that stall's area, if it stated one.</item>
     ///   <item>Otherwise the rate the office stated for the market.</item>
     ///   <item>Otherwise nothing: the office has stated no daily rate, and nothing may be charged.</item>
@@ -42,11 +43,20 @@ namespace EEMOCantilanSDS.Application.Common.Fees
             ArgumentNullException.ThrowIfNull(stall);
             ArgumentNullException.ThrowIfNull(snapshot);
 
-            // 1) A market's own area: the stall carries the rate it was let at.
+            // 1) A market's own area: the stall carries the rate it was let at. The office's ruling, and the reason it
+            //    comes first — a stall let at its own rate keeps that rate, whatever the section is priced at.
             if (stall.IsCustomSection && stall.DailyRate is { } own && own > 0m)
                 return own;
 
-            // 2) The office's rate for this stall's area, where it prices its areas apart.
+            // 2) The rate the office stated for THAT section, where the section is one of its own. Effective-dated like
+            //    every rate here, and read as of the day being billed, so stating a rate today leaves every earlier day
+            //    exactly as it was billed. Before this existed, such a section could only be priced one stall at a time,
+            //    and a section with nobody in it yet could not be priced at all.
+            if (stall.IsCustomSection
+                && snapshot.ResolveSectionOrNull(FacilityCode.NPM, stall.CustomSectionName, asOf) is { } sectionRate)
+                return sectionRate;
+
+            // 3) The office's rate for this stall's area, where it prices its areas apart.
             //
             // A stated area rate of ZERO reads as "this area is not priced apart", and the market's rate answers. Two
             // reasons: an ordinance does not let a market space for nothing, so a zero here is a figure being cleared
@@ -59,7 +69,7 @@ namespace EEMOCantilanSDS.Application.Common.Fees
                 && areaRate > 0m)
                 return areaRate;
 
-            // 3) The office's rate for the market.
+            // 4) The office's rate for the market.
             return snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, asOf);
         }
 
