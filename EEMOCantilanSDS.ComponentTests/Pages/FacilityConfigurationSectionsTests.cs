@@ -161,4 +161,100 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("Enter the section's name.", cut.Markup));
         _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>()), Times.Never);
     }
+
+    // ── The rates: a record until the office says it is editing one ───────────────────────────────
+
+    /// <summary>Opens the drawer for a market that has the ordinance rates this office would actually hold.</summary>
+    private IRenderedComponent<FacilityConfiguration> RenderDrawerWithRates(FacilityState? catalog = null)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        _api = new Mock<IFacilitiesApiClient>();
+        _api.Setup(a => a.GetFacilityConfigurationAsync())
+            .ReturnsAsync(Result<FacilityConfigurationDto>.Success(new FacilityConfigurationDto(
+                new List<ConfiguredFacilityDto>
+                {
+                    new(Npm, "New Public Market", "NPM", null, "Daily stall rental", true, 0, new List<ConfiguredRateDto>
+                    {
+                        new(nameof(FeeRateKey.NpmDailyStall), "Daily stall fee", 30m, true),
+                        new(nameof(FeeRateKey.NpmDailyStallMeat), "Meat section", 0m, false),
+                    }),
+                },
+                new List<AvailableFacilityDto>())));
+        _api.Setup(a => a.GetNpmCustomSectionsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(new List<NpmCustomSectionDto>()));
+        _api.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(new List<FacilitySidebarSummaryDto>
+            {
+                new(FacilityCode.NPM, "New Public Market", "NPM", 0),
+            }));
+
+        Services.AddSingleton(_api.Object);
+        Services.AddSingleton(Mock.Of<ITpmApiClient>());
+        Services.AddSingleton(Mock.Of<ITrmApiClient>());
+        Services.AddSingleton(Mock.Of<ISlaughterApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton<BrandingState>();
+        Services.AddSingleton(catalog ?? FacilityCatalogFixture.WithNoRecord());
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
+
+        var cut = RenderComponent<FacilityConfiguration>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-card")));
+        cut.Find(".fac-card").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-drawer")));
+        return cut;
+    }
+
+    [Fact]
+    public void RatesAreStatedNotOfferedForTyping()
+    {
+        // A rate is the ordinance's figure. Opening the drawer on a form of live number fields invited a stray keystroke
+        // to become a rate change on Save, and read as a data-entry screen rather than a record of what the office charges.
+        var cut = RenderDrawerWithRates();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-value")));
+        Assert.Empty(cut.FindAll(".cfg-rate-input input"));
+        Assert.Contains("Edit rates", cut.Markup);
+    }
+
+    [Fact]
+    public void EditingIsADeliberateAct()
+    {
+        var cut = RenderDrawerWithRates();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-value")));
+        cut.FindAll("button").First(b => b.TextContent.Contains("Edit rates")).Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
+        Assert.Empty(cut.FindAll(".cfg-rate-value"));
+        // And the one thing the office must know before changing a rate, said once.
+        Assert.Contains("take effect today", cut.Markup);
+    }
+
+    [Fact]
+    public void AnAreasRateSaysWhatAnUnstatedOneMeans_OnceForTheGroup()
+    {
+        // The reading did not disappear with the long labels: it moved to one line under the group it applies to.
+        var cut = RenderDrawerWithRates();
+
+        cut.WaitForAssertion(() => Assert.Contains("Daily fee by area", cut.Markup));
+        Assert.Contains("billed the market's daily stall fee", cut.Markup);
+        Assert.DoesNotContain("0 = market rate", cut.Markup);
+    }
+
+    [Fact]
+    public void AnAreasRateIsNamedByTheOfficesOwnWordForThatArea()
+    {
+        // Madrid calls its meat area Karne. The label the API sends is the platform's fallback wording, and this screen is
+        // where the office states its own — so the row it edits must be the row it recognises.
+        var cut = RenderDrawerWithRates(FacilityCatalogFixture.NamingTheMarket(
+            "Madrid Public Market", "MPM", "Gulayan", "Isda", "Karne"));
+
+        cut.WaitForAssertion(() => Assert.Contains("Daily fee by area", cut.Markup));
+        Assert.Contains("Karne", cut.Markup);
+        Assert.DoesNotContain("Meat section", cut.Markup);
+    }
 }

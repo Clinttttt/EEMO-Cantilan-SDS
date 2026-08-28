@@ -145,21 +145,30 @@ public class NpmDailyFeeTests
     }
 
     [Fact]
-    public void TheRateEditorSaysWhatAZeroAreaRateMeans()
+    public void AnAreasRateIsLabelledByTheAreaAlone()
     {
-        // The editor shows an unstated rate as ₱0, so a bare "₱0" beside an area would read as though that area were
-        // free — while it in fact means the area is billed the market's rate. The label carries the reading, the same way
-        // the monthly rent's label carries its own fallback. Zero is also how the office withdraws an area rate.
+        // The label used to carry its own reading — "Daily stall fee — meat section (0 = market rate)" — because an
+        // unstated rate shows as ₱0 and a bare zero beside an area reads as though that area were free. The office called
+        // that informal for a government screen, and it was: three rows repeating the heading above them, each with a
+        // parenthetical explaining a fallback. The rows are now named by the area, and the screen states the fallback
+        // once for the group. What must not be lost is the family: the screen can only say it once because these three
+        // are identifiable as one.
+        Assert.Equal("Vegetable area", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStallVegetable));
+        Assert.Equal("Fish section", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStallFish));
+        Assert.Equal("Meat section", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStallMeat));
+
         foreach (var key in new[]
         {
             FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat,
         })
         {
-            Assert.Contains("0 = market rate", FacilityDisplay.RateLabel(key));
+            Assert.True(FacilityDisplay.IsPerAreaDailyRate(key));
         }
 
-        // The market's own rate says nothing of the sort: a zero there is the office charging nothing under that head.
-        Assert.DoesNotContain("market rate", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStall));
+        // The market's own rate is not one of them: a zero there is the office charging nothing under that head, which is
+        // a different statement, and it keeps its place in the ungrouped list.
+        Assert.False(FacilityDisplay.IsPerAreaDailyRate(FeeRateKey.NpmDailyStall));
+        Assert.Equal("Daily stall fee", FacilityDisplay.RateLabel(FeeRateKey.NpmDailyStall));
     }
 
     [Fact]

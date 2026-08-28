@@ -704,6 +704,9 @@
 
 /* The office's own market sections: the same row as a rate, with the stall count that decides whether it may go. */
 .cfg-sec-count { font-size: 11.5px; color: var(--text-muted); }
+
+/* A rate as a stated figure, before the office says it is editing one. */
+.cfg-rate-value { flex: 0 0 auto; font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .cfg-sec-remove {
     flex: 0 0 auto;
     padding: 6px 11px;

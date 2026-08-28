@@ -281,10 +281,7 @@
                     <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
                 </label>
 
-                <div class="cfg-hint">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                    Fixed fees start at the standard ordinance rates and can be adjusted after adding. Monthly-rental rates are set per stall.
-                </div>
+                <div class="cfg-field-note">Fixed fees start at the ordinance rates. Monthly rents are set per stall.</div>
 
                 @if (_addError is not null)
                 {
@@ -344,10 +341,7 @@
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "NPM", StringComparison.OrdinalIgnoreCase))
                 {
                     <div class="cfg-section-label">Market section names</div>
-                    <div class="cfg-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                        Rename how your market sections appear across the dashboard and reports (e.g. &ldquo;Gulayan&rdquo; for the vegetable area). Leave blank to use the default label.
-                    </div>
+                    <div class="cfg-field-note">Your own names for the three areas. Blank keeps the default.</div>
                     <label class="fac-field">
                         <span class="fac-field-label">Vegetable area</span>
                         <input class="fac-input" @bind="_cfgVeg" @bind:event="oninput" maxlength="60" placeholder="Vegetable Area" />
@@ -362,17 +356,11 @@
                     </label>
 
                     @* An LGU's market is not always the three areas the platform starts with. A section added here is
-                       registered for the whole office at once: it becomes a tab on the market page, a choice when a
-                       stall is recorded, and a column the reports carry. Until now it could only come into being as a
-                       side effect of recording a stall in it, which meant the office could not lay out its own market
-                       before there was anyone to put in it. Added and removed as its own act, like the market day
-                       above, because neither waits on the Save below. *@
+                       registered for the whole office: it becomes a tab on the market page, a choice when a stall is
+                       recorded, and a column the reports carry. Until now it could only come into being as a side effect
+                       of recording a stall in it. Added and removed as its own act, like the market day above. *@
                     <div class="cfg-section-label">Your own sections</div>
-                    <div class="cfg-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
-                        Sections your market has beyond the three above. Each one is billed at a flat daily fee, never by
-                        weight, and a stall in it may be let at its own rate.
-                    </div>
+                    <div class="cfg-field-note">Sections beyond the three above. Each is billed a flat daily fee.</div>
 
                     @if (_npmCustomSections.Count > 0)
                     {
@@ -431,10 +419,8 @@
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "TPM", StringComparison.OrdinalIgnoreCase))
                 {
                     <div class="cfg-section-label">Market day</div>
-                    <div class="cfg-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        The market is held on a @_cfgMarketDay. Moving it starts on a date you choose and changes
-                        nothing before that date, so the weeks already collected stay as they were held.
+                    <div class="cfg-field-note">
+                        Held on a @_cfgMarketDay. A move starts on the date you choose and changes nothing before it.
                     </div>
                     @* Not a <label> wrapper, unlike the plain input fields in this drawer: FhSelect's trigger is a
                        button, a label forwards its own clicks to a nested button, and the dropdown would toggle
@@ -451,8 +437,7 @@
                                   Value="@(_newMarketDayFrom?.ToString("yyyy-MM-dd") ?? string.Empty)"
                                   Options="MarketDayStartOptions" ValueChanged="OnMarketDayStartPicked" />
                         <span class="cfg-field-note">
-                            Every @_newMarketDay still to come this month and next. The market keeps its present day
-                            until the date you choose here.
+                            Every @_newMarketDay still to come this month and next.
                         </span>
                     </div>
                     @if (_marketDayError is not null)
@@ -472,15 +457,15 @@
 
                 @if (_cfgFacility.Rates.Count == 0)
                 {
-                    <div class="cfg-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                        This facility has no fixed ordinance rate. Monthly rents are set per stall on the Vendors &amp; Stalls page.
-                    </div>
+                    <div class="cfg-field-note">No fixed ordinance rate. Monthly rents are set per stall.</div>
                 }
                 else
                 {
+                    @* Stated, not offered for typing. A rate is the ordinance's figure and changing one is a deliberate
+                       act, so the drawer reads as a record until the office says it is editing. It also stops a stray
+                       keystroke in a number field from becoming a rate change on Save. *@
                     <div class="cfg-rate-list">
-                        @foreach (var r in _cfgFacility.Rates)
+                        @foreach (var r in _cfgFacility.Rates.Where(x => !IsPerArea(x.Key)))
                         {
                             <div class="cfg-rate">
                                 <div class="cfg-rate-info">
@@ -490,19 +475,66 @@
                                         <span class="cfg-rate-tag">default</span>
                                     }
                                 </div>
-                                <div class="cfg-rate-input">
-                                    <span class="cfg-peso">₱</span>
-                                    <input type="number" step="0.01" min="0" inputmode="decimal"
-                                           value="@FormatRate(_rateEdits.GetValueOrDefault(r.Key, r.Amount))"
-                                           @onchange="e => SetRateEdit(r.Key, e.Value?.ToString())" />
-                                </div>
+                                @if (_editingRates)
+                                {
+                                    <div class="cfg-rate-input">
+                                        <span class="cfg-peso">₱</span>
+                                        <input type="number" step="0.01" min="0" inputmode="decimal"
+                                               value="@FormatRate(_rateEdits.GetValueOrDefault(r.Key, r.Amount))"
+                                               @onchange="e => SetRateEdit(r.Key, e.Value?.ToString())" />
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="cfg-rate-value">₱@FormatRate(r.Amount)</span>
+                                }
                             </div>
                         }
                     </div>
-                    <div class="cfg-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></svg>
-                        Rate changes take effect today and are never applied retroactively — already-billed periods keep their original amounts.
-                    </div>
+
+                    @if (PerAreaRates().Count > 0)
+                    {
+                        <div class="cfg-section-label">Daily fee by area</div>
+                        <div class="cfg-rate-list">
+                            @foreach (var r in PerAreaRates())
+                            {
+                                <div class="cfg-rate">
+                                    <div class="cfg-rate-info">
+                                        <span class="cfg-rate-label">@AreaRateLabel(r)</span>
+                                        @if (!r.IsCustom)
+                                        {
+                                            <span class="cfg-rate-tag">market rate</span>
+                                        }
+                                    </div>
+                                    @if (_editingRates)
+                                    {
+                                        <div class="cfg-rate-input">
+                                            <span class="cfg-peso">₱</span>
+                                            <input type="number" step="0.01" min="0" inputmode="decimal"
+                                                   value="@FormatRate(_rateEdits.GetValueOrDefault(r.Key, r.Amount))"
+                                                   @onchange="e => SetRateEdit(r.Key, e.Value?.ToString())" />
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="cfg-rate-value">₱@FormatRate(r.Amount)</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <div class="cfg-field-note">An area left at nought is billed the market's daily stall fee.</div>
+                    }
+
+                    @if (_editingRates)
+                    {
+                        <div class="cfg-field-note">Changes take effect today. Periods already billed keep their amounts.</div>
+                    }
+                    else
+                    {
+                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" @onclick="() => _editingRates = true">
+                            Edit rates
+                        </button>
+                    }
                 }
 
                 <div class="cfg-section-label">Status &amp; history</div>
@@ -766,6 +798,40 @@
     private string _newNpmSection = string.Empty;
     private string? _npmSectionError;
     private string? _npmSectionSaved;
+
+    /// <summary>
+    /// Whether the rates are open for editing. A rate is the ordinance's figure, so the drawer states it until the office
+    /// says it is changing one: that also keeps a stray keystroke in a number field from becoming a rate change on Save.
+    /// </summary>
+    private bool _editingRates;
+
+    /// <summary>The market's per-area daily rates, which are grouped under their own heading.</summary>
+    private static bool IsPerArea(string key) =>
+        Enum.TryParse<FeeRateKey>(key, ignoreCase: true, out var parsed) && FacilityDisplay.IsPerAreaDailyRate(parsed);
+
+    /// <summary>The open facility's per-area daily rates, in the order the API sent them.</summary>
+    private List<ConfiguredRateDto> PerAreaRates() =>
+        _cfgFacility?.Rates.Where(r => IsPerArea(r.Key)).ToList() ?? new List<ConfiguredRateDto>();
+
+    /// <summary>
+    /// An area's row is named by the office's OWN name for that area. The label the API sends is the platform's wording,
+    /// which is the right fallback and the wrong thing to show an office that calls its areas something else.
+    /// </summary>
+    private string AreaRateLabel(ConfiguredRateDto rate)
+    {
+        if (!Enum.TryParse<FeeRateKey>(rate.Key, ignoreCase: true, out var parsed))
+            return rate.Label;
+
+        var section = parsed switch
+        {
+            FeeRateKey.NpmDailyStallVegetable => (MarketSection?)MarketSection.VegetableArea,
+            FeeRateKey.NpmDailyStallFish => MarketSection.FishSection,
+            FeeRateKey.NpmDailyStallMeat => MarketSection.MeatSection,
+            _ => null,
+        };
+
+        return section is { } s ? FacilityCatalog.SectionLabelOf(FacilityCode.NPM, s) : rate.Label;
+    }
     private DayOfWeek _newMarketDay = DayOfWeek.Friday;
     private DateOnly? _newMarketDayFrom;
     private List<DateOnly> _marketDayStartChoices = new();
@@ -977,6 +1043,7 @@
         _cfgMeat = f.MeatSectionLabel ?? string.Empty;
         _rateEdits.Clear();
         foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
+        _editingRates = false;      // every open starts as a record, not a form
         _cfgError = null;
         _cfgSuccess = null;
         _confirmDeactivate = false;

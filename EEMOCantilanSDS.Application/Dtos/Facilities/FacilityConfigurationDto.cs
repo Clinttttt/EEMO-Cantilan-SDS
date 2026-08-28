@@ -56,17 +56,13 @@ public static class FacilityDisplay
     public static string RateLabel(FeeRateKey key) => key switch
     {
         FeeRateKey.NpmDailyStall => "Daily stall fee",
-        // Per-area daily rates, for an office that prices the areas of its market apart. The editor shows an unstated
-        // rate as ₱0, and a bare "₱0" beside an area reads as though that area were free — so the label says what a zero
-        // here means, exactly as the monthly rent's label states its own fallback. Clearing an area's rate is also how
-        // the office withdraws it, since the editor saves a row only when its value changes.
-        FeeRateKey.NpmDailyStallVegetable => "Daily stall fee — vegetable area (0 = market rate)",
-        FeeRateKey.NpmDailyStallFish => "Daily stall fee — fish section (0 = market rate)",
-        FeeRateKey.NpmDailyStallMeat => "Daily stall fee — meat section (0 = market rate)",
-        // The month-length convention, taken from the rule rather than written out: an LGU that states no monthly rent
-        // has its month read as this many daily fees, and a label saying "30" while the rule said otherwise would be
-        // the office's own screen contradicting the arithmetic behind it.
-        FeeRateKey.NpmMonthlyStall => $"Monthly stall rent (blank = {DomainRules.DailyBilledMonthDays} × daily)",
+        // The area's own name, and nothing else. These three sit under a heading that already says they are the market's
+        // daily fee by area, so repeating it in every row was noise; and an office reads its ordinance, not a
+        // parenthetical explaining what an unstated field falls back to. The screen states that once, for the group.
+        FeeRateKey.NpmDailyStallVegetable => "Vegetable area",
+        FeeRateKey.NpmDailyStallFish => "Fish section",
+        FeeRateKey.NpmDailyStallMeat => "Meat section",
+        FeeRateKey.NpmMonthlyStall => "Monthly stall rent",
         FeeRateKey.NpmFishPerKilo => "Fish fee (per kilo)",
         FeeRateKey.SlhHogPerHead => "Hog (per head)",
         FeeRateKey.SlhLargePerHead => "Large animal (per head)",
@@ -76,4 +72,11 @@ public static class FacilityDisplay
         FeeRateKey.WaterPerCubicMeter => "Water (per m³)",
         _ => key.ToString(),
     };
+
+    /// <summary>
+    /// True for the market's per-area daily rates. The screen groups them and states what an unstated one falls back to
+    /// once, instead of carrying it in every label.
+    /// </summary>
+    public static bool IsPerAreaDailyRate(FeeRateKey key) =>
+        key is FeeRateKey.NpmDailyStallVegetable or FeeRateKey.NpmDailyStallFish or FeeRateKey.NpmDailyStallMeat;
 }
