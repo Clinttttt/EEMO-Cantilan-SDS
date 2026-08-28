@@ -45,7 +45,8 @@ public class FacilityConfigurationSectionsTests : TestContext
                 new List<AvailableFacilityDto>())));
         _api.Setup(a => a.GetNpmCustomSectionsAsync())
             .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(sections.ToList()));
-        _api.Setup(a => a.AddNpmCustomSectionAsync(It.IsAny<string>())).ReturnsAsync(Result<bool>.Success(true));
+        _api.Setup(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>())).ReturnsAsync(Result<bool>.Success(true));
+        _api.Setup(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.RemoveNpmCustomSectionAsync(It.IsAny<string>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(new List<FacilitySidebarSummaryDto>
@@ -89,11 +90,13 @@ public class FacilityConfigurationSectionsTests : TestContext
     public void OnlyASectionNothingIsFiledUnderOffersToBeRemoved()
     {
         // The server refuses to remove a section with stalls in it. Offering the control anyway would invite the office
-        // to ask for something it cannot have, and the two must agree.
+        // to ask for something it cannot have, and the two must agree. The stall count on the row says why.
         var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0), new NpmCustomSectionDto("Bakery Area", 4));
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".cfg-sec-remove")));
-        Assert.Contains("In use", cut.Markup);
+        Assert.Contains("4 stalls", cut.Markup);
+        // Its fee can still be set: a section in use is priced like any other.
+        Assert.Equal(2, cut.FindAll(".cfg-sec-set").Count);
     }
 
     [Fact]
@@ -118,7 +121,7 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => Assert.Contains("already has a section called", cut.Markup));
-        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>()), Times.Never);
+        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>()), Times.Never);
     }
 
     [Fact]
@@ -133,7 +136,7 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => Assert.Contains("already has a section called", cut.Markup));
-        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>()), Times.Never);
+        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>()), Times.Never);
     }
 
     [Fact]
@@ -146,7 +149,7 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         // Trimmed, and stated back to the office in its own words.
-        cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Sari-sari Area"), Times.Once));
+        cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Sari-sari Area", null), Times.Once));
         cut.WaitForAssertion(() => Assert.Contains("is now one of your market's sections", cut.Markup));
     }
 
@@ -159,7 +162,63 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => Assert.Contains("Enter the section's name.", cut.Markup));
-        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>()), Times.Never);
+        _api.Verify(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>()), Times.Never);
+    }
+
+    [Fact]
+    public void ASectionStatesTheFeeTheOfficeSetForIt_OrTheMarketsRate()
+    {
+        // A section left unpriced has its stalls billed the market's own rate, and the row says so rather than showing a
+        // nought that would read as free.
+        var cut = RenderDrawer(
+            new NpmCustomSectionDto("Sari-sari Area", 0, 25m),
+            new NpmCustomSectionDto("Bakery Area", 4, null));
+
+        cut.WaitForAssertion(() => Assert.Contains("₱25 / day", cut.Markup));
+        Assert.Contains("Market rate", cut.Markup);
+    }
+
+    [Fact]
+    public void SettingASectionsFeeAsksTheServerForThatSectionOnly()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, null));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
+        cut.Find(".cfg-rate-input input").Change("25");
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Save").Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionRateAsync("Sari-sari Area", 25m), Times.Once));
+        // And the office is told what it will be billed, and from when.
+        cut.WaitForAssertion(() => Assert.Contains("a day from today", cut.Markup));
+    }
+
+    [Fact]
+    public void ASectionMayBePricedAsItIsCreated()
+    {
+        var cut = RenderDrawer();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("Sari-sari Area");
+        cut.FindAll(".fac-input").First(i => i.GetAttribute("type") == "number").Change("25");
+        cut.FindAll(".cfg-sec-add")[0].Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Sari-sari Area", 25m), Times.Once));
+    }
+
+    [Fact]
+    public void ASectionCreatedWithNoFeeIsAskedForWithNone()
+    {
+        // Not nought: nought is a withdrawn figure, and a section created without a fee is simply unpriced.
+        var cut = RenderDrawer();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("Bakery Area");
+        cut.FindAll(".cfg-sec-add")[0].Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Bakery Area", null), Times.Once));
     }
 
     // ── The rates: a record until the office says it is editing one ───────────────────────────────

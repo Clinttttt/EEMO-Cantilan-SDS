@@ -86,6 +86,12 @@ public class ApplicationEfBoundaryTests
         // Rates and the OR series.
         "GetFacilityRatesQueryHandler.cs",
         "SetFacilityRateCommandHandler.cs",
+        // The same write as SetFacilityRate, for a section the office named itself: one effective-dated row, found by
+        // its key or added. It is here for the same reason that one is — a rate row has no reads to speak of and no
+        // repository of its own would carry any rule this handler does not already state.
+        "SetNpmSectionRateCommandHandler.cs",
+        // Registers the section AND, when the office prices it as it creates it, that same single rate row.
+        "AddNpmCustomSectionCommandHandler.cs",
         "GetNpmRatesQueryHandler.cs",
         "GetSlaughterAnimalRatesQueryHandler.cs",
         "AdvanceOrSeriesCommandHandler.cs",

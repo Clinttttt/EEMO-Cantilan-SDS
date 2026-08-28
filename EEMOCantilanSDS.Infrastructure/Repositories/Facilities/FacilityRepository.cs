@@ -59,11 +59,34 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
         foreach (var r in npm.CustomSectionNames) AddName(r);
         foreach (var c in counts) AddName(c.Name);
 
+        // The fee the office has stated for each section, as of today: the latest row on or before it. Read here rather
+        // than through the fee snapshot because this is the office's own configuration screen and wants the figure it
+        // stated, section by section, not a fee resolved for a particular stall.
+        var today = clock.PhilippineToday;
+        var rates = await context.FacilitySectionRates.AsNoTracking()
+            .Where(r => r.FacilityCode == FacilityCode.NPM && r.EffectiveDate <= today)
+            .Select(r => new { r.SectionName, r.Amount, r.EffectiveDate })
+            .ToListAsync(ct);
+
+        decimal? StatedRateFor(string name)
+        {
+            var latest = rates
+                .Where(r => string.Equals(r.SectionName.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(r => r.EffectiveDate)
+                .Select(r => (decimal?)r.Amount)
+                .FirstOrDefault();
+
+            // Nought is a withdrawn figure, not a price, so it reads as no stated rate — the same reading the billing
+            // rule applies, and the two must not disagree on the office's own configuration screen.
+            return latest is > 0m ? latest : null;
+        }
+
         return names
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
             .Select(n => new NpmCustomSectionDto(
                 n,
-                counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count)))
+                counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count),
+                StatedRateFor(n)))
             .ToList();
     }
 

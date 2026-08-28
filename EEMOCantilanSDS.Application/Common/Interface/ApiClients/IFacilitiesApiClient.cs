@@ -41,7 +41,10 @@ public interface IFacilitiesApiClient
     Task<Result<IReadOnlyList<NpmCustomSectionDto>>> GetNpmCustomSectionsAsync();
 
     /// <summary>Adds a custom NPM section to the registry (Head-only). Idempotent.</summary>
-    Task<Result<bool>> AddNpmCustomSectionAsync(string name);
+    Task<Result<bool>> AddNpmCustomSectionAsync(string name, decimal? dailyRate = null);
+
+    /// <summary>States the daily fee for one of the office's own sections. Effective today, never backwards.</summary>
+    Task<Result<bool>> SetNpmSectionRateAsync(string section, decimal dailyRate);
 
     /// <summary>Removes a custom NPM section (Head-only). Fails if any stall still uses it.</summary>
     Task<Result<bool>> RemoveNpmCustomSectionAsync(string name);

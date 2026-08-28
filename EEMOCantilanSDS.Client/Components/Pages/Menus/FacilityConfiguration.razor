@@ -374,17 +374,35 @@
                                             @cs.StallCount @(cs.StallCount == 1 ? "stall" : "stalls")
                                         </span>
                                     </div>
-                                    @if (cs.StallCount == 0)
+                                    @if (_editingSectionRate is { } editing && string.Equals(editing, cs.Name, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        <button class="cfg-sec-remove" type="button" disabled="@_busy"
-                                                @onclick="() => RemoveNpmCustomSectionAsync(cs.Name)">
-                                            Remove
+                                        <div class="cfg-rate-input">
+                                            <span class="cfg-peso">₱</span>
+                                            <input type="number" step="0.01" min="0" inputmode="decimal"
+                                                   value="@FormatRate(_sectionRateEdit)"
+                                                   @onchange="e => _sectionRateEdit = ParseRate(e.Value?.ToString())" />
+                                        </div>
+                                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
+                                                @onclick="() => SaveSectionRateAsync(cs.Name)">
+                                            Save
                                         </button>
                                     }
                                     else
                                     {
-                                        @* A section with stalls in it is what those stalls are filed under, so it stays. *@
-                                        <span class="cfg-field-note">In use</span>
+                                        <span class="cfg-rate-value">
+                                            @(cs.DailyRate is { } rate ? $"₱{FormatRate(rate)} / day" : "Market rate")
+                                        </span>
+                                        <button class="cfg-sec-set" type="button" disabled="@_busy"
+                                                @onclick="() => BeginSectionRate(cs)">
+                                            Set fee
+                                        </button>
+                                        @if (cs.StallCount == 0)
+                                        {
+                                            <button class="cfg-sec-remove" type="button" disabled="@_busy"
+                                                    @onclick="() => RemoveNpmCustomSectionAsync(cs.Name)">
+                                                Remove
+                                            </button>
+                                        }
                                     }
                                 </div>
                             }
@@ -401,11 +419,18 @@
                             <input class="fac-input" @bind="_newNpmSection" @bind:event="oninput" maxlength="60"
                                    placeholder="e.g. Sari-sari Area" />
                         </label>
+                        <label class="fac-field cfg-sec-fee">
+                            <span class="fac-field-label">Daily fee</span>
+                            <input class="fac-input" type="number" step="0.01" min="0" inputmode="decimal"
+                                   value="@FormatRate(_newNpmSectionRate)"
+                                   @onchange="e => _newNpmSectionRate = ParseRate(e.Value?.ToString())" />
+                        </label>
                         <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
                                 @onclick="AddNpmCustomSectionAsync">
                             Add
                         </button>
                     </div>
+                    <div class="cfg-field-note">Leave the fee blank to bill the market's own daily rate.</div>
                     @if (_npmSectionError is not null)
                     {
                         <div class="cfg-error">@_npmSectionError</div>
@@ -796,8 +821,61 @@
     // The office's own market sections, and the one being added.
     private List<NpmCustomSectionDto> _npmCustomSections = new();
     private string _newNpmSection = string.Empty;
+    private decimal? _newNpmSectionRate;
     private string? _npmSectionError;
     private string? _npmSectionSaved;
+
+    /// <summary>The section whose fee is open for editing, and the figure being typed for it.</summary>
+    private string? _editingSectionRate;
+    private decimal? _sectionRateEdit;
+
+    private void BeginSectionRate(NpmCustomSectionDto section)
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+        _editingSectionRate = section.Name;
+        _sectionRateEdit = section.DailyRate;
+    }
+
+    /// <summary>
+    /// States the section's fee. The server decides the rest: effective today and never backwards, so no elapsed day is
+    /// re-priced, and a stall let at its own rate keeps that rate.
+    /// </summary>
+    private async Task SaveSectionRateAsync(string name)
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+
+        var amount = _sectionRateEdit ?? 0m;
+        if (amount < 0m)
+        {
+            _npmSectionError = "A daily fee cannot be negative.";
+            return;
+        }
+
+        _busy = true;
+        var result = await FacilitiesApi.SetNpmSectionRateAsync(name, amount);
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That fee could not be set." : result.Error;
+            return;
+        }
+
+        _editingSectionRate = null;
+        _sectionRateEdit = null;
+        _npmSectionSaved = amount > 0m
+            ? $"{name} is billed ₱{FormatRate(amount)} a day from today."
+            : $"{name} is billed the market's own daily rate from today.";
+
+        await LoadNpmCustomSectionsAsync();
+        await FacilityCatalog.ReloadAsync();
+    }
+
+    /// <summary>A figure typed into a money field, or nothing where the office cleared it.</summary>
+    private static decimal? ParseRate(string? raw) =>
+        decimal.TryParse((raw ?? string.Empty).Trim(), out var value) && value >= 0m ? value : null;
 
     /// <summary>
     /// Whether the rates are open for editing. A rate is the ordinance's figure, so the drawer states it until the office
@@ -1064,6 +1142,9 @@
         _npmSectionError = null;
         _npmSectionSaved = null;
         _newNpmSection = string.Empty;
+        _newNpmSectionRate = null;
+        _editingSectionRate = null;
+        _sectionRateEdit = null;
         _npmCustomSections.Clear();
         if (string.Equals(f.Code, "NPM", StringComparison.OrdinalIgnoreCase))
         {
@@ -1107,7 +1188,7 @@
         }
 
         _busy = true;
-        var result = await FacilitiesApi.AddNpmCustomSectionAsync(name);
+        var result = await FacilitiesApi.AddNpmCustomSectionAsync(name, _newNpmSectionRate);
         _busy = false;
 
         if (!result.IsSuccess)
@@ -1117,7 +1198,10 @@
         }
 
         _newNpmSection = string.Empty;
-        _npmSectionSaved = $"{name} is now one of your market's sections.";
+        _npmSectionSaved = _newNpmSectionRate is { } stated && stated > 0m
+            ? $"{name} is now one of your market's sections, billed ₱{FormatRate(stated)} a day."
+            : $"{name} is now one of your market's sections.";
+        _newNpmSectionRate = null;
         await LoadNpmCustomSectionsAsync();
         await FacilityCatalog.ReloadAsync();   // the market page's tabs and the stall form's choices read from here
     }
@@ -1205,6 +1289,9 @@
 
     // ── Rates ──
     private static string FormatRate(decimal v) => v.ToString("0.##");
+
+    /// <summary>A figure the office has not stated shows as an empty field rather than as nought, which would read as a price.</summary>
+    private static string FormatRate(decimal? v) => v is { } amount ? FormatRate(amount) : string.Empty;
 
     private void SetRateEdit(string key, string? raw)
     {

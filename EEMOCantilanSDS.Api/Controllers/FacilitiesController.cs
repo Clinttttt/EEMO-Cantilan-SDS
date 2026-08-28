@@ -1,10 +1,11 @@
-using EEMOCantilanSDS.Application.Dtos.Facilities;
+﻿using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
 using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
 using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
+using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
@@ -138,6 +139,18 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     [HttpPost("npm/custom-sections/remove")]
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> RemoveNpmCustomSection([FromBody] RemoveNpmCustomSectionCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// States the daily fee for one of the office's own market sections. Effective today and never backwards, so no
+    /// elapsed day is re-priced; nought withdraws the figure and returns the section to the market's own rate.
+    /// </summary>
+    [HttpPost("npm/custom-sections/rate")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SetNpmSectionRate([FromBody] SetNpmSectionRateCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);
