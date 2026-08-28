@@ -49,10 +49,10 @@ public class SectionNamesComeFromTheOfficeTests
     /// </summary>
     private static readonly Dictionary<string, string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["FacilityConfiguration.razor"] =
-            "This is the screen where the office NAMES its areas. Its field labels and placeholders have to say "
-            + "which area is being named, in the platform's own words, or the form would be labelled with the very "
-            + "answer it is asking for.",
+        // FacilityConfiguration.razor was excused here while its only mention of a canonical area was the field labels
+        // it names them by — the form could not be labelled with the very answer it asks for. It now also REGISTERS the
+        // office's own sections, and refuses a name the market already uses, which it settles by asking the office's
+        // record what it calls its three areas. So it asks, and the excuse is no longer its due.
 
         ["StallHoldersList.razor"] =
             "Mentions the canonical name only in comments, explaining that the label arrives from the server "

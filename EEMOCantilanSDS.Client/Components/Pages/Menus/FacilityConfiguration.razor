@@ -360,6 +360,72 @@
                         <span class="fac-field-label">Meat area</span>
                         <input class="fac-input" @bind="_cfgMeat" @bind:event="oninput" maxlength="60" placeholder="Meat Area" />
                     </label>
+
+                    @* An LGU's market is not always the three areas the platform starts with. A section added here is
+                       registered for the whole office at once: it becomes a tab on the market page, a choice when a
+                       stall is recorded, and a column the reports carry. Until now it could only come into being as a
+                       side effect of recording a stall in it, which meant the office could not lay out its own market
+                       before there was anyone to put in it. Added and removed as its own act, like the market day
+                       above, because neither waits on the Save below. *@
+                    <div class="cfg-section-label">Your own sections</div>
+                    <div class="cfg-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+                        Sections your market has beyond the three above. Each one is billed at a flat daily fee, never by
+                        weight, and a stall in it may be let at its own rate.
+                    </div>
+
+                    @if (_npmCustomSections.Count > 0)
+                    {
+                        <div class="cfg-rate-list">
+                            @foreach (var cs in _npmCustomSections)
+                            {
+                                <div class="cfg-rate">
+                                    <div class="cfg-rate-info">
+                                        <span class="cfg-rate-label">@cs.Name</span>
+                                        <span class="cfg-sec-count">
+                                            @cs.StallCount @(cs.StallCount == 1 ? "stall" : "stalls")
+                                        </span>
+                                    </div>
+                                    @if (cs.StallCount == 0)
+                                    {
+                                        <button class="cfg-sec-remove" type="button" disabled="@_busy"
+                                                @onclick="() => RemoveNpmCustomSectionAsync(cs.Name)">
+                                            Remove
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        @* A section with stalls in it is what those stalls are filed under, so it stays. *@
+                                        <span class="cfg-field-note">In use</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="cfg-field-note">No sections of your own yet.</div>
+                    }
+
+                    <div class="cfg-field-row">
+                        <label class="fac-field">
+                            <span class="fac-field-label">Add a section</span>
+                            <input class="fac-input" @bind="_newNpmSection" @bind:event="oninput" maxlength="60"
+                                   placeholder="e.g. Sari-sari Area" />
+                        </label>
+                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
+                                @onclick="AddNpmCustomSectionAsync">
+                            Add
+                        </button>
+                    </div>
+                    @if (_npmSectionError is not null)
+                    {
+                        <div class="cfg-error">@_npmSectionError</div>
+                    }
+                    @if (_npmSectionSaved is not null)
+                    {
+                        <div class="cfg-success">@_npmSectionSaved</div>
+                    }
                 }
 
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "TPM", StringComparison.OrdinalIgnoreCase))
@@ -694,6 +760,12 @@
     };
 
     private DayOfWeek _cfgMarketDay = DayOfWeek.Friday;      // the day in force now, for the note
+
+    // The office's own market sections, and the one being added.
+    private List<NpmCustomSectionDto> _npmCustomSections = new();
+    private string _newNpmSection = string.Empty;
+    private string? _npmSectionError;
+    private string? _npmSectionSaved;
     private DayOfWeek _newMarketDay = DayOfWeek.Friday;
     private DateOnly? _newMarketDayFrom;
     private List<DateOnly> _marketDayStartChoices = new();
@@ -919,7 +991,100 @@
         {
             _ = LoadMarketDayAsync();
         }
+
+        // The office's own market sections, read when the market's drawer opens so the list is what is registered now
+        // rather than what it held when the page loaded.
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+        _newNpmSection = string.Empty;
+        _npmCustomSections.Clear();
+        if (string.Equals(f.Code, "NPM", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = LoadNpmCustomSectionsAsync();
+        }
     }
+
+    /// <summary>The LGU's own market sections, with the stall count that decides whether one may be removed.</summary>
+    private async Task LoadNpmCustomSectionsAsync()
+    {
+        var result = await FacilitiesApi.GetNpmCustomSectionsAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _npmCustomSections = result.Value.OrderBy(s => s.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Registers a section for the whole office. The server decides: it trims, refuses an empty or over-long name, and
+    /// ignores one already registered, so adding the same name twice cannot produce two sections.
+    /// </summary>
+    private async Task AddNpmCustomSectionAsync()
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+
+        var name = _newNpmSection.Trim();
+        if (name.Length == 0)
+        {
+            _npmSectionError = "Enter the section's name.";
+            return;
+        }
+
+        // A name the platform already means something by would leave two sections that read alike and file apart.
+        // Asked of the office's own labels, so an LGU that renamed its vegetable area to Gulayan is answered for that.
+        if (_npmCustomSections.Any(s => string.Equals(s.Name, name, StringComparison.CurrentCultureIgnoreCase))
+            || CanonicalSectionLabels().Any(label => string.Equals(label, name, StringComparison.CurrentCultureIgnoreCase)))
+        {
+            _npmSectionError = $"Your market already has a section called {name}.";
+            return;
+        }
+
+        _busy = true;
+        var result = await FacilitiesApi.AddNpmCustomSectionAsync(name);
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That section could not be added." : result.Error;
+            return;
+        }
+
+        _newNpmSection = string.Empty;
+        _npmSectionSaved = $"{name} is now one of your market's sections.";
+        await LoadNpmCustomSectionsAsync();
+        await FacilityCatalog.ReloadAsync();   // the market page's tabs and the stall form's choices read from here
+    }
+
+    /// <summary>
+    /// Removes a section nothing is filed under. The server refuses one with stalls in it, and this offers no control
+    /// for such a section either, so the two agree.
+    /// </summary>
+    private async Task RemoveNpmCustomSectionAsync(string name)
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+
+        _busy = true;
+        var result = await FacilitiesApi.RemoveNpmCustomSectionAsync(name);
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That section could not be removed." : result.Error;
+            return;
+        }
+
+        _npmSectionSaved = $"{name} is no longer one of your market's sections.";
+        await LoadNpmCustomSectionsAsync();
+        await FacilityCatalog.ReloadAsync();
+    }
+
+    /// <summary>
+    /// What this office calls the three areas the platform starts with. Read from its own record, never written out
+    /// here, so an office that renamed them is answered for the names it uses.
+    /// </summary>
+    private IEnumerable<string> CanonicalSectionLabels() =>
+        Enum.GetValues<MarketSection>().Select(s => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, s));
 
     /// <summary>The day the market is held on now, from the weekly facility's own overview.</summary>
     private async Task LoadMarketDayAsync()
