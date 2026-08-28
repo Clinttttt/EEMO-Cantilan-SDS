@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
+using System.Collections.Generic;
 
 namespace EEMOCantilanSDS.Domain.Entities.Payments
 {
@@ -33,6 +34,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         // payor self-declared for that day (priced server-side as base + kilos × fish rate).
         public int? TargetDay { get; private set; }
         public decimal? DeclaredFishKilos { get; private set; }
+
+        // Set for NpmFishDays targets only: the several days this payment covers and the kilos declared for EACH of
+        // them, as day:kilos pairs ordered by day (see NpmFishDayDeclarations). A fish day costs the daily fee plus its
+        // own weighing fee, so the days cannot be remembered as one figure and a count — settlement would otherwise
+        // mark them with a weight nobody declared.
+        public string? FishDayDeclarations { get; private set; }
 
         public decimal Amount { get; private set; }
         public OnlinePaymentStatus Status { get; private set; } = OnlinePaymentStatus.Initiated;
@@ -174,6 +181,50 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 CreatedBy = createdBy
             };
         }
+
+        /// <summary>
+        /// Creates a transaction that settles SEVERAL NPM fish-section days of one month, each carrying the kilos the
+        /// payor declared for that day. The amount is priced by the caller from the office's own rates, day by day, and
+        /// settlement marks each day Paid with its own kilos (blank OR, no collector — an online, payor-declared
+        /// collection); staff encode one OR across them afterward.
+        ///
+        /// <para>
+        /// Kept apart from <see cref="CreateForNpmMonth"/> because an ordinary market day is settled by amount alone,
+        /// while a fish day's amount is that day's own weighing fee: the days have to be remembered, not just counted.
+        /// </para>
+        /// </summary>
+        public static OnlinePaymentTransaction CreateForNpmFishDays(
+            string reference,
+            Guid payorUserId,
+            Guid stallId,
+            int year,
+            int month,
+            IEnumerable<NpmFishDayDeclarations.Declaration> declarations,
+            decimal amount,
+            string provider,
+            string createdBy = "Online")
+        {
+            return new OnlinePaymentTransaction
+            {
+                Id = Guid.NewGuid(),
+                Reference = reference,
+                PayorUserId = payorUserId,
+                TargetKind = OnlinePaymentTargetKind.NpmFishDays,
+                TargetStallId = stallId,
+                TargetYear = year,
+                TargetMonth = month,
+                FishDayDeclarations = NpmFishDayDeclarations.Format(declarations),
+                Amount = amount,
+                Provider = provider,
+                Status = OnlinePaymentStatus.Initiated,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
+
+        /// <summary>The days this payment covers and the kilos declared for each, read back from storage. Empty for every other target.</summary>
+        public IReadOnlyList<NpmFishDayDeclarations.Declaration> FishDays() =>
+            NpmFishDayDeclarations.Parse(FishDayDeclarations);
 
         /// <summary>True for end states that must not be mutated further by webhooks.</summary>
         public bool IsTerminal => Status is OnlinePaymentStatus.Completed

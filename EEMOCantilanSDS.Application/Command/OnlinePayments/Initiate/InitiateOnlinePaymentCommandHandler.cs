@@ -53,12 +53,11 @@ public class InitiateOnlinePaymentCommandHandler(
             return request.Kind switch
             {
                 PayorPayableKind.NpmUtility => await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken),
-                // A fish day is priced from that day's own kilos, so ONE day is declared and paid on its own. Several days
-                // at once carry no kilos to declare — the collector's own multi-day settlement records none either — so
-                // they are the day fees of that month, which is what the daily-month path already charges and settles.
-                PayorPayableKind.NpmFish when request.Days is not { } askedDays || askedDays <= 1
-                    => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
-                PayorPayableKind.NpmFish => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken),
+                // Several fish days, each with the kilos declared for it. A fish day's price is that day's own weighing
+                // fee on top of the stall's daily fee, so the days are remembered one by one and settled that way.
+                PayorPayableKind.NpmFish when request.FishDays is { Count: > 1 }
+                    => await InitiateNpmFishDaysAsync(stall, payorId.Value, request, cancellationToken),
+                PayorPayableKind.NpmFish => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
                 _ => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken)
             };
 
@@ -270,10 +269,15 @@ public class InitiateOnlinePaymentCommandHandler(
     private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmFishDayAsync(
         Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
-        if (request.Day is not { } dayOfMonth
+        // One declaration is the same request said the newer way, so a caller need not carry two shapes for one day.
+        var single = request.FishDays is { Count: 1 } only ? only[0] : null;
+        var requestedDay = request.Day ?? single?.Day;
+        var requestedKilos = request.FishKilos ?? single?.Kilos ?? (single is not null ? 0m : null);
+
+        if (requestedDay is not { } dayOfMonth
             || dayOfMonth < 1 || dayOfMonth > DateTime.DaysInMonth(request.Year, request.Month))
             return Result<InitiateOnlinePaymentResultDto>.Failure("Pick a valid day to pay for.", ResultStatus.Invalid);
-        if (request.FishKilos is not { } kilos || kilos < 0m)
+        if (requestedKilos is not { } kilos || kilos < 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("Enter the kilos for that day.", ResultStatus.Invalid);
 
         var day = new DateOnly(request.Year, request.Month, dayOfMonth);
@@ -311,6 +315,104 @@ public class InitiateOnlinePaymentCommandHandler(
                 quote.Amount,
                 reference,
                 $"EEMO online payment · NPM fish · {day:yyyy-MM-dd}",
+                urlBuilder.BuildSuccessUrl(reference),
+                urlBuilder.BuildCancelUrl(reference)),
+            cancellationToken);
+
+        if (!checkout.IsSuccess || checkout.Value is null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
+
+        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
+        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<InitiateOnlinePaymentResultDto>.Success(
+            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
+    }
+
+    /// <summary>
+    /// Several NPM fish days in one payment, each priced from the kilos declared for THAT day.
+    ///
+    /// <para>
+    /// The office's collectors have long settled several owed days at once. Online could pay only one, so a payor three
+    /// days behind opened three checkouts and the office received three payments to receipt apart. Each day is priced by
+    /// the same service that prices a single day, so the figure charged is the office's own; every day must still be
+    /// payable, because a day collected at the stall since the payor looked would otherwise be paid for twice.
+    /// </para>
+    /// </summary>
+    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmFishDaysAsync(
+        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
+    {
+        var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
+
+        // One entry per day, in date order, kilos left out meaning none were sold. Ordered here so the same selection
+        // always stores the same text, which is what the resume guard below compares.
+        var declarations = new List<NpmFishDayDeclarations.Declaration>();
+        foreach (var asked in request.FishDays!.GroupBy(f => f.Day).Select(g => g.First()).OrderBy(f => f.Day))
+        {
+            if (asked.Day < 1 || asked.Day > daysInMonth)
+                return Result<InitiateOnlinePaymentResultDto>.Failure("Pick valid days to pay for.", ResultStatus.Invalid);
+
+            var kilos = asked.Kilos ?? 0m;
+            if (kilos < 0m)
+                return Result<InitiateOnlinePaymentResultDto>.Failure("Kilos can't be negative.", ResultStatus.Invalid);
+
+            declarations.Add(new NpmFishDayDeclarations.Declaration(asked.Day, kilos));
+        }
+
+        if (declarations.Count == 0)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick at least one day to pay for.", ResultStatus.Invalid);
+
+        // Priced day by day by the office's own rule, and every day has to be payable: not future, inside the term, not
+        // a market closure, not already collected or excused.
+        var amount = 0m;
+        foreach (var declaration in declarations)
+        {
+            var day = new DateOnly(request.Year, request.Month, declaration.Day);
+            var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, day, declaration.Kilos, cancellationToken);
+            if (!quote.IsPayable)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    quote.Error ?? "One of those days can't be paid online.", ResultStatus.Conflict);
+
+            amount += quote.Amount;
+        }
+
+        if (amount <= 0m)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("These days have no outstanding balance.", ResultStatus.Conflict);
+
+        var stored = NpmFishDayDeclarations.Format(declarations);
+
+        // Resume an unfinished checkout only while it asks for the SAME money for the SAME days with the SAME kilos. A
+        // payor who declared eight kilos for one of the days, backed out and now declares twelve must be charged for
+        // twelve, and one who has since added another day must be charged for that day too.
+        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(
+            stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmFishDays, cancellationToken);
+        if (resumable is { IsResumable: true })
+        {
+            if (resumable.Amount == amount && resumable.FishDayDeclarations == stored)
+                return Result<InitiateOnlinePaymentResultDto>.Success(
+                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, amount));
+        }
+
+        string reference;
+        do
+        {
+            reference = GenerateReference(clock.PhilippineNow);
+        }
+        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
+
+        var transaction = OnlinePaymentTransaction.CreateForNpmFishDays(
+            reference, payorId, stall.Id, request.Year, request.Month, declarations, amount, paymentGateway.Provider);
+
+        var periodKey = $"{request.Year:0000}-{request.Month:00}";
+        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
+            new CreateCheckoutSessionRequest(
+                amount,
+                reference,
+                $"EEMO online payment · NPM fish · {periodKey} · {declarations.Count} days",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

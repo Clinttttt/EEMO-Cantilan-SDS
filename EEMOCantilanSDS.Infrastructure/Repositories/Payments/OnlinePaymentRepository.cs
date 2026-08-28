@@ -109,10 +109,14 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             }).ToListAsync(ct);
 
         // ── NPM daily-month targets: no PaymentRecord — derive stall/period from the target, and treat as
-        //    still-awaiting only while the settled month has at least one paid day without an OR yet. ──
+        //    still-awaiting only while the settled month has at least one paid day without an OR yet. A fish-DAYS
+        //    payment is the same shape and is receipted by the same handler, so it belongs in the same projection:
+        //    leaving it out would have hidden such a payment from the office's queue entirely. ──
         var npmRows = await (
             from t in context.OnlinePaymentTransactions
-            where t.Status == OnlinePaymentStatus.Paid && t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+            where t.Status == OnlinePaymentStatus.Paid
+                && (t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+                    || t.TargetKind == OnlinePaymentTargetKind.NpmFishDays)
             where year == null || (t.TargetYear == year && t.TargetMonth == month)
             join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id
             join f in context.Facilities on s.FacilityId equals f.Id

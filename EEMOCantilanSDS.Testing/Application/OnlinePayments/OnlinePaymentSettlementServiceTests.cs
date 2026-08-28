@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -284,5 +285,82 @@ public class OnlinePaymentSettlementServiceTests
         // The monthly-record path is never used for an NPM fish-day transaction.
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmFishDaysTransaction_SettlesEachDay_WithItsOwnDeclaredKilos()
+    {
+        // The weighing fee is what makes a fish day cost what it costs, so a payment covering several days has to carry
+        // each day's own kilos through to settlement. Settled as one figure, the office would be marking three days with
+        // a weight nobody declared, and the day-by-day record it reconciles against would be wrong for two of them.
+        var stall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+
+        var declarations = new[]
+        {
+            new NpmFishDayDeclarations.Declaration(26, 12.5m),
+            new NpmFishDayDeclarations.Declaration(27, 0m),
+            new NpmFishDayDeclarations.Declaration(28, 3m),
+        };
+        // ₱30 a day, ₱1 a kilo: (30 + 12.5) + (30 + 0) + (30 + 3) = ₱105.50
+        var txn = OnlinePaymentTransaction.CreateForNpmFishDays(
+            "EEMO-OP-FISHDAYS", Guid.NewGuid(), stall.Id, 2026, 8, declarations, 105.50m, "PayMongo");
+        txn.SetPending("cs_fishdays", "https://checkout");
+
+        var payRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.SettleFishDayAsync(stall, It.IsAny<DateOnly>(), It.IsAny<decimal>(), "Online", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyCollection?)null);
+        var uow = new Mock<IUnitOfWork>();
+
+        var svc = new OnlinePaymentSettlementService(
+            payRepo.Object, stallRepo.Object, npm.Object, new Mock<IUtilityBillRepository>().Object,
+            new Mock<IOnlinePaymentNotifier>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_fishdays", 105.50m, "pay_fishdays", "gcash", DateTime.UtcNow, "{}");
+        var result = await svc.SettleAsync(txn, evt);
+
+        Assert.True(result.IsSuccess);
+        npm.Verify(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 8, 26), 12.5m, "Online", It.IsAny<CancellationToken>()), Times.Once);
+        npm.Verify(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 8, 27), 0m, "Online", It.IsAny<CancellationToken>()), Times.Once);
+        npm.Verify(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 8, 28), 3m, "Online", It.IsAny<CancellationToken>()), Times.Once);
+        npm.Verify(s => s.SettleFishDayAsync(It.IsAny<Stall>(), It.IsAny<DateOnly>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(3));
+
+        // One unit of work for all three days: the office's register gains them together or not at all.
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // And the monthly-record path is never touched, exactly as for a single fish day.
+        payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmFishDaysTransaction_DoesNotUseTheDailyMonthPath()
+    {
+        // Its days are priced from their own kilos, so the amount-capped whole-month settlement must never be reached:
+        // that path records no kilos at all and would settle whichever days the money happened to cover.
+        var stall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var txn = OnlinePaymentTransaction.CreateForNpmFishDays(
+            "EEMO-OP-FISHDAYS2", Guid.NewGuid(), stall.Id, 2026, 8,
+            new[] { new NpmFishDayDeclarations.Declaration(26, 1m), new NpmFishDayDeclarations.Declaration(27, 2m) },
+            63m, "PayMongo");
+        txn.SetPending("cs_fishdays2", "https://checkout");
+
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.SettleFishDayAsync(It.IsAny<Stall>(), It.IsAny<DateOnly>(), It.IsAny<decimal>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyCollection?)null);
+
+        var svc = new OnlinePaymentSettlementService(
+            new Mock<IPaymentRepository>().Object, stallRepo.Object, npm.Object, new Mock<IUtilityBillRepository>().Object,
+            new Mock<IOnlinePaymentNotifier>().Object, new Mock<IUnitOfWork>().Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        await svc.SettleAsync(txn, new PaymentGatewayEvent(
+            PaymentGatewayEventType.Paid, "cs_fishdays2", 63m, "pay", "gcash", DateTime.UtcNow, "{}"));
+
+        npm.Verify(s => s.SettleUnpaidDaysAsync(
+            It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Never);
     }
 }

@@ -10,6 +10,11 @@ namespace EEMOCantilanSDS.Domain.Enums
         MonthlyRecord = 1,   // links a PaymentRecordId (TCC/NCC/BBQ/ICE)
         NpmDailyMonth = 2,   // settles NPM daily fees for TargetStallId + TargetYear/TargetMonth
         NpmUtilityBill = 3,  // settles the NPM electricity + water bill for TargetStallId + TargetYear/TargetMonth
-        NpmFishDay = 4       // settles ONE NPM fish-section day (TargetStallId + TargetYear/TargetMonth/TargetDay) at ₱30 base + payor-declared kilos × ₱/kg
+        NpmFishDay = 4,      // settles ONE NPM fish-section day (TargetStallId + TargetYear/TargetMonth/TargetDay) at ₱30 base + payor-declared kilos × ₱/kg
+
+        // settles SEVERAL NPM fish-section days of one month, each with the kilos the payor declared for THAT day
+        // (TargetStallId + TargetYear/TargetMonth + the day:kilos pairs). A fish day costs the daily fee plus its own
+        // weighing fee, so several days cannot be settled as one figure the way NpmDailyMonth settles ordinary days.
+        NpmFishDays = 5
     }
 }

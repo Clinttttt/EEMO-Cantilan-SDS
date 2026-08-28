@@ -32,8 +32,11 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (transaction.Status != OnlinePaymentStatus.Paid)
             return Result<bool>.Failure("Only an online payment awaiting OR can be receipted.", ResultStatus.Conflict);
 
-        // NPM daily-month: the OR is stamped across the month's settled days, not a monthly record.
-        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
+        // NPM daily-month: the OR is stamped across the month's settled days, not a monthly record. A fish-DAYS payment
+        // is receipted the same way and deliberately so: one physical receipt covers the days it settled, which is what
+        // the office already does when a collector settles several days at once.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+            || transaction.TargetKind == OnlinePaymentTargetKind.NpmFishDays)
             return await IssueNpmOrAsync(transaction, request, cancellationToken);
 
         // NPM utility bill: one OR covers the month's electricity + water.

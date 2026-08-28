@@ -23,4 +23,13 @@ namespace EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 /// is the one thing the payor gets to choose. The amount is always the office's, computed here from its own rates.
 /// </para>
 /// </param>
-public record InitiateOnlinePaymentCommand(Guid StallId, int Year, int Month, PayorPayableKind Kind = PayorPayableKind.Monthly, int? Day = null, decimal? FishKilos = null, int? Days = null) : IRequest<Result<InitiateOnlinePaymentResultDto>>;
+/// <param name="FishDays">
+/// The fish-section days this payment covers and the kilos the payor declared for EACH of them. A fish day costs the
+/// stall's daily fee plus that day's own weighing fee, so several days cannot be paid as one figure and a count: the
+/// office would be marking days with a weight nobody declared. Kilos may be left out, which means none were sold, and
+/// that is what an office with no per-kilo rate charges for anyway. One entry is the day-at-a-time path, unchanged.
+/// </param>
+public record InitiateOnlinePaymentCommand(Guid StallId, int Year, int Month, PayorPayableKind Kind = PayorPayableKind.Monthly, int? Day = null, decimal? FishKilos = null, int? Days = null, IReadOnlyList<FishDayDeclarationInput>? FishDays = null) : IRequest<Result<InitiateOnlinePaymentResultDto>>;
+
+/// <summary>One fish day the payor is paying for, and the kilos they declared for it. Kilos absent means none were sold.</summary>
+public record FishDayDeclarationInput(int Day, decimal? Kilos);

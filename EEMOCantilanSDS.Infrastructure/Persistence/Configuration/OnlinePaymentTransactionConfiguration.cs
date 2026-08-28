@@ -32,6 +32,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.DeclaredFishKilos)
                 .HasColumnType("numeric(18,2)");                     // NpmFishDay only (nullable)
 
+            // NpmFishDays only (nullable): the day:kilos pairs this payment covers. Bounded generously — a month of
+            // fish days with weights is well inside this — and kept as plain text so the office can read its own table.
+            builder.Property(x => x.FishDayDeclarations)
+                .HasMaxLength(400);
+
             builder.Property(x => x.Amount)
                 .IsRequired()
                 .HasColumnType("numeric(18,2)");

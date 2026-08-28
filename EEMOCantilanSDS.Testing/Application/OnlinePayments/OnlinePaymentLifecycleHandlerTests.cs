@@ -266,12 +266,11 @@ public class InitiateOnlinePaymentCommandHandlerTests
     }
 
     [Fact]
-    public async Task NpmFish_SeveralDays_ChargesThoseDaysFeesAsTheMonthsOwn()
+    public async Task NpmDaily_SomeOfTheMonthsDays_ChargesThoseDaysFees()
     {
-        // The office's collectors have long been able to settle several owed days at once, at the day's fee and with no
-        // kilos recorded. Online could only ever pay one day, so a payor three days behind had to open three checkouts.
-        // Several days carry nothing to declare, so they are the month's own day fees: the same target the daily-month
-        // path already creates, settles oldest first, lists for the office's OR, and receipts with one OR across them.
+        // A count of owed days remains the path for an ORDINARY market stall, whose days carry no weighing fee: they are
+        // settled oldest first against the amount captured. The fish section states its days one by one instead, because
+        // each of those has its own kilos.
         var stall = StallInFacility(FacilityCode.NPM);
 
         OnlinePaymentTransaction? captured = null;
@@ -289,15 +288,165 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
 
         var result = await handler.Handle(
-            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, Day: null, FishKilos: null, Days: 3),
-            CancellationToken.None);
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmDaily, Days: 3), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(captured);
         Assert.Equal(OnlinePaymentTargetKind.NpmDailyMonth, captured!.TargetKind);
-        Assert.Equal(90m, captured.Amount);            // three days at the office's own daily fee
-        Assert.Null(captured.TargetDay);               // no single day, and no kilos to declare against one
+        Assert.Equal(90m, captured.Amount);
+        Assert.Null(captured.TargetDay);
         Assert.Null(captured.DeclaredFishKilos);
+    }
+
+    [Fact]
+    public async Task NpmFish_SeveralDays_PricesEachDaysOwnKilos_AndRemembersThem()
+    {
+        // The office's collectors have long settled several owed days at once. Online could pay only one, so a payor
+        // three days behind opened three checkouts. A fish day costs the daily fee plus THAT day's weighing fee, so the
+        // days are priced one by one and stored one by one — a count and a total could not settle them correctly.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OnlinePaymentTargetKind>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OnlinePaymentTransaction?)null);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        // ₱30 a day, ₱1 a kilo, as the office's own quote answers for each day.
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 12.5m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(42.5m, 30m, 1m));
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 16), 0m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(30m, 30m, 1m));
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 17), 3m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(33m, 30m, 1m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, FishDays: new[]
+            {
+                new FishDayDeclarationInput(17, 3m),          // out of order on purpose
+                new FishDayDeclarationInput(15, 12.5m),
+                new FishDayDeclarationInput(16, null),        // no kilos sold
+            }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(captured);
+        Assert.Equal(OnlinePaymentTargetKind.NpmFishDays, captured!.TargetKind);
+        Assert.Equal(105.5m, captured.Amount);                       // 42.50 + 30 + 33
+        Assert.Equal("15:12.5,16:0,17:3", captured.FishDayDeclarations);   // ordered by day, kilos kept per day
+        Assert.Null(captured.TargetDay);                             // no single day owns this payment
+        Assert.Null(captured.PaymentRecordId);
+    }
+
+    [Fact]
+    public async Task NpmFish_SeveralDays_OneOfThemNoLongerPayable_IsRefusedWithoutCharging()
+    {
+        // A day collected at the stall between looking and tapping would otherwise be paid for twice.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(30m, 30m, 0m));
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 16), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.NotPayable("That day is already collected or excused."));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, FishDays: new[]
+            {
+                new FishDayDeclarationInput(15, 0m),
+                new FishDayDeclarationInput(16, 0m),
+            }),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmFish_SeveralDays_AnUnfinishedCheckoutIsResumedOnlyForTheSameDaysAndKilos()
+    {
+        // Kilos changed means the money changed, and one more day means another day's fee. Either way the old session
+        // asks for the wrong amount, so it is retired rather than resumed.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var existing = OnlinePaymentTransaction.CreateForNpmFishDays(
+            "EEMO-OP-OLD", Guid.NewGuid(), stall.Id, 2026, 6,
+            new[] { new NpmFishDayDeclarations.Declaration(15, 5m), new NpmFishDayDeclarations.Declaration(16, 0m) },
+            65m, "PayMongo");
+        existing.SetPending("cs_old", "https://checkout/old");
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, 2026, 6, OnlinePaymentTargetKind.NpmFishDays, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 9m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(39m, 30m, 1m));
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 16), 0m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(30m, 30m, 1m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, FishDays: new[]
+            {
+                new FishDayDeclarationInput(15, 9m),     // was 5 kg
+                new FishDayDeclarationInput(16, null),
+            }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Expired, existing.Status);   // the old price is retired, not offered again
+        Assert.NotNull(captured);
+        Assert.Equal(69m, captured!.Amount);
+        Assert.Equal("15:9,16:0", captured.FishDayDeclarations);
+    }
+
+    [Fact]
+    public async Task NpmFish_OneDeclaredDay_IsStillTheDayAtATimePath()
+    {
+        // One day is the day-at-a-time path, kilos and all, whichever way the caller states it.
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmFishDayTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OnlinePaymentTransaction?)null);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(84m, 30m, 1m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish,
+                FishDays: new[] { new FishDayDeclarationInput(15, 54m) }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentTargetKind.NpmFishDay, captured!.TargetKind);
+        Assert.Equal(15, captured.TargetDay);
+        Assert.Equal(54m, captured.DeclaredFishKilos);
+        Assert.Null(captured.FishDayDeclarations);
     }
 
     [Fact]
