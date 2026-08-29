@@ -893,7 +893,15 @@
             CustomSectionName = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
                 ? string.Empty
                 : s.Section,
-            CustomDailyRate = s.DailyRate > 0m ? s.DailyRate : _npmDailyRate,
+            // A stall with no rate of its own is shown blank where its section carries a stated fee, so the clerk sees
+            // that it follows the section. Pre-filling the market's rate here meant a clerk who merely corrected an
+            // occupant's name saved a stall with its own rate, and an own rate outranks its section's for ever.
+            CustomDailyRate = s.DailyRate > 0m
+                ? s.DailyRate
+                : SectionStatedRate(
+                      (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area") ? null : s.Section) is > 0m
+                    ? 0m
+                    : _npmDailyRate,
             AreaSqm = s.AreaSqm,
             MonthlyRate = s.MonthlyRate,
             ContractDate = s.ContractDate,
@@ -1005,7 +1013,8 @@
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
             SelectedSection = section,
-            CustomDailyRate = _npmDailyRate,
+            // Blank where the section carries a stated fee, so a stall the clerk does not price follows it.
+            CustomDailyRate = SectionStatedRate(section) is > 0m ? 0m : _npmDailyRate,
             AreaSqm = 0,
             MonthlyRate = 0,
             // Default the contract effectivity date to today (business day) — the admin can still change it.
@@ -1063,10 +1072,7 @@
         // section's fee onto every stall would quietly make a later change to that fee apply to none of them. Only where
         // the section carries no stated fee does the form fall back to what it always did — an existing stall's rate in
         // that section, else the market's.
-        var stated = _customSections.FirstOrDefault(
-            c => string.Equals(c.Name, effective, StringComparison.OrdinalIgnoreCase))?.DailyRate;
-
-        if (stated is > 0m)
+        if (SectionStatedRate(effective) is > 0m)
         {
             VendorForm.CustomDailyRate = 0m;
         }
@@ -1075,6 +1081,24 @@
             var existing = Stalls.FirstOrDefault(s => s.Section == effective && s.DailyRate > 0);
             VendorForm.CustomDailyRate = existing?.DailyRate ?? _npmDailyRate;
         }
+    }
+
+    /// <summary>
+    /// The fee the office has stated for one of its OWN sections, or null where it has stated none.
+    ///
+    /// <para>
+    /// Read in one place because three parts of this page have to agree about it: opening a stall, opening the add form,
+    /// and saving. A section with a stated fee means a stall the clerk does not price carries NO rate of its own, so the
+    /// section's fee answers — and a stall's own rate, once stamped, would outrank it for ever.
+    /// </para>
+    /// </summary>
+    private decimal? SectionStatedRate(string? sectionName)
+    {
+        if (string.IsNullOrWhiteSpace(sectionName)) return null;
+
+        return _customSections
+            .FirstOrDefault(c => string.Equals(c.Name, sectionName, StringComparison.OrdinalIgnoreCase))
+            ?.DailyRate;
     }
 
     private void ToggleVendorFee(string fee)
@@ -1113,9 +1137,17 @@
 
         // Custom sections bill their own flat daily rate (from the modal input); canonical use the ordinance
         // rate. Stamped onto Stall.DailyRate, which billing resolves via Stall.ResolveDailyFee.
+        //
+        // Where the office has STATED a fee for the section, a stall the clerk did not price is left carrying NO rate of
+        // its own, so it follows the section. Stamping the market's rate here — which is what happened before sections
+        // could be priced — would have given every stall an own rate, and an own rate outranks its section's for ever:
+        // the office would have set a section fee and gone on collecting the market's from every stall in it.
+        var sectionStatedRate = SectionStatedRate(customSectionName);
         var dailyRate = customSectionName is not null && VendorForm.CustomDailyRate > 0m
             ? VendorForm.CustomDailyRate
-            : _npmDailyRate;
+            : customSectionName is not null && sectionStatedRate is > 0m
+                ? (decimal?)null
+                : _npmDailyRate;
 
         var fees = ApplicableFees.BaseRental;
         if (VendorForm.FeeTypes.Contains("Electricity"))

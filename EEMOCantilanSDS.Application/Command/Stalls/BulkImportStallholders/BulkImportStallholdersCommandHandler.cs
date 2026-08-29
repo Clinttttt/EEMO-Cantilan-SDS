@@ -56,8 +56,22 @@ public class BulkImportStallholdersCommandHandler(
         // The daily rate stamped on imported NPM stalls: a custom section uses the rate from the import form
         // (else inherits the section's existing rate, else the ordinance rate); canonical uses the ordinance
         // rate exactly as before.
-        var npmStallDailyRate = customSectionName is not null
-            ? (request.CustomDailyRate is { } cr && cr > 0m ? cr : (existingStalls.FirstOrDefault()?.DailyRate ?? npmDailyRate))
+        //
+        // Where the office has STATED a fee for that section, an imported stall is left carrying NO rate of its own, so it
+        // follows the section. Stamping a figure here would give every imported stall an own rate, and an own rate
+        // outranks its section's for ever: the office would have priced the section and gone on collecting the market's
+        // rate from every stall the import created. Worse here than on the form, because one import does it to a whole row
+        // of the market at once.
+        var sectionStatedRate = customSectionName is null
+            ? null
+            : rateSnapshot.ResolveSectionOrNull(FacilityCode.NPM, customSectionName, rateAsOf);
+
+        decimal? npmStallDailyRate = customSectionName is not null
+            ? (request.CustomDailyRate is { } cr && cr > 0m
+                ? cr
+                : sectionStatedRate is > 0m
+                    ? null
+                    : existingStalls.FirstOrDefault()?.DailyRate ?? npmDailyRate)
             : npmDailyRate;
 
         // Grouped rather than keyed, so a number that two existing spaces share is DETECTED. It used to be a dictionary
