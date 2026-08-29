@@ -1,4 +1,6 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -80,11 +82,18 @@ public class GetSystemSettingsQueryHandler(
         // list is unchanged; other LGUs show their own facilities, names, rates, and market day.
         var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
 
+        // The market's own areas and sections, so the settings page can state a rate the office has priced APART from the
+        // market's. Read here rather than derived: an area's label is the office's own word for it, and a section of its
+        // own has no key to look up. Nothing is appended for an office that prices nothing apart, which is every office
+        // today, so its line is unchanged.
+        var npmFacility = await facilityRepository.GetByCodeAsync(FacilityCode.NPM, ct);
+        var npmSections = await facilityRepository.GetNpmCustomSectionsAsync(ct);
+
         // Asked of the schedule rather than read off the registry column. A move the office scheduled for a later
         // week updates that column only when it starts, so reading the column here would have gone on stating the
         // old day after the new one had taken effect — this screen contradicting the collections being taken.
         var marketDay = await marketDayProvider.GetMarketDayAsync(asOf, ct);
-        var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay);
+        var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay, npmFacility, npmSections);
 
         var dto = new SystemSettingsDto(office, security, collection, system, facilities);
         return Result<SystemSettingsDto>.Success(dto);
@@ -94,7 +103,8 @@ public class GetSystemSettingsQueryHandler(
     // resolved fixed rate (fallback to the ordinance constants). Filtered to the tenant's actual facilities
     // in canonical order. Cantilan's names/rates equal the constants, so it is byte-for-byte unchanged.
     private static IReadOnlyList<FacilityRuleDto> BuildFacilities(
-        FeeRateSnapshot rates, DateOnly asOf, IReadOnlyDictionary<FacilityCode, string> names, DayOfWeek marketDay)
+        FeeRateSnapshot rates, DateOnly asOf, IReadOnlyDictionary<FacilityCode, string> names, DayOfWeek marketDay,
+        Facility? npm = null, IReadOnlyList<NpmCustomSectionDto>? npmSections = null)
     {
         var npmDaily = rates.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmFish = rates.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
@@ -113,12 +123,36 @@ public class GetSystemSettingsQueryHandler(
         string Name(FacilityCode c, string fallback) =>
             names.TryGetValue(c, out var n) && !string.IsNullOrWhiteSpace(n) ? n : fallback;
 
+        // What the office prices APART from its market: an area of the three, named as the office names it, and a section
+        // of its own. Stated after the market's own line, because the market's rate is what a stall is billed wherever the
+        // office has priced nothing apart — and nothing at all is added where it has, which is every office today.
+        var apart = new List<string>();
+        if (npm is not null)
+        {
+            foreach (var section in Enum.GetValues<MarketSection>())
+            {
+                if (FacilityRateKeys.PerAreaDailyKey(section) is not { } key) continue;
+                if (rates.ResolveOrNull(key, asOf) is not { } areaRate || areaRate <= 0m) continue;
+
+                // The office's own word for the area, or the platform's where it has named none.
+                apart.Add($"{npm.SectionLabel(section)} ₱{areaRate:0}/day");
+            }
+        }
+
+        foreach (var section in npmSections ?? Array.Empty<NpmCustomSectionDto>())
+        {
+            if (section.DailyRate is { } sectionRate && sectionRate > 0m)
+                apart.Add($"{section.Name} ₱{sectionRate:0}/day");
+        }
+
+        var npmApart = apart.Count > 0 ? " · " + string.Join(" · ", apart) : string.Empty;
+
         var catalog = new (FacilityCode Code, FacilityRuleDto Dto)[]
         {
             (FacilityCode.NPM, new("NPM", Name(FacilityCode.NPM, "New Public Market"), "Daily stall",
                 npmFish > 0m
-                    ? $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish"
-                    : $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day", "Daily")),
+                    ? $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish{npmApart}"
+                    : $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day{npmApart}", "Daily")),
             (FacilityCode.TCC, new("TCC", Name(FacilityCode.TCC, "Tampak Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.NCC, new("NCC", Name(FacilityCode.NCC, "New Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.BBQ, new("BBQ", Name(FacilityCode.BBQ, "Barbecue Stand"), "Monthly rental", "Per stall contract", "Monthly")),

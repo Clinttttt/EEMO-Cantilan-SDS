@@ -1,4 +1,5 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Queries.Settings.GetSystemSettings;
 using EEMOCantilanSDS.Domain.Constants;
@@ -101,6 +102,106 @@ public class GetSystemSettingsQueryHandlerTests
         Assert.Equal("Monthly", custom.Cadence);
     }
 
+    // ── What the page states once an office prices part of its market apart ───────────────────────
+    //
+    // The page stated one line: the month, the daily fee it is collected in, and the per-kilo fee. An office that priced an
+    // AREA apart, or one of its OWN sections, read that line and saw nothing of it — the figure it had entered on another
+    // screen was absent from the page that states its rules. Recorded as a gap for the areas on 2026-08-23; the section
+    // fees joined it on 2026-08-29. Appended, never rewritten, so an office that prices nothing apart reads what it always
+    // read, which the first test below holds.
+
+    private static async Task<string> NpmRateLineAsync(
+        IFeeRateResolver rates, Facility? npm = null, IReadOnlyList<NpmCustomSectionDto>? sections = null)
+    {
+        var handler = new GetSystemSettingsQueryHandler(
+            new FakeMunicipalityRepository(Municipality.Create(
+                "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
+            new FakeFacilityRepository(FacilityCatalog.AllCodes)
+            {
+                Npm = npm,
+                Sections = sections ?? new List<NpmCustomSectionDto>(),
+            },
+            CacheTestDoubles.Tenant,
+            rates,
+            new FixedClock(DateTime.UtcNow),
+            CacheTestDoubles.TpmMarketDay);
+
+        var result = await handler.Handle(new GetSystemSettingsQuery("Test"), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        return result.Value!.Facilities.Single(f => f.Code == "NPM").Rate;
+    }
+
+    /// <summary>A market whose three areas the office has named in its own words.</summary>
+    private static Facility MarketNaming(string vegetable, string fish, string meat)
+    {
+        var npm = Facility.Create(FacilityCode.NPM, "Madrid Public Market", "MPM");
+        npm.SetSectionLabels(vegetable, fish, meat);
+        return npm;
+    }
+
+    private static IFeeRateResolver Rates(params FeeRateEntry[] entries) => new StubRateResolver(new FeeRateSnapshot(entries));
+
+    private sealed class StubRateResolver(FeeRateSnapshot snapshot) : IFeeRateResolver
+    {
+        public Task<FeeRateSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(snapshot);
+    }
+
+    [Fact]
+    public async Task An_office_that_prices_nothing_apart_reads_what_it_always_read()
+    {
+        var line = await NpmRateLineAsync(CacheTestDoubles.FeeRateResolver);
+
+        Assert.Contains("/month, collected at", line);
+        // Nothing is appended after the daily (and fish) figures.
+        Assert.DoesNotContain("/day ·", line);
+    }
+
+    [Fact]
+    public async Task An_area_priced_apart_is_stated_in_the_offices_own_word_for_it()
+    {
+        var line = await NpmRateLineAsync(
+            Rates(
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2026, 1, 1)),
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStallMeat, 35m, new DateOnly(2026, 1, 1))),
+            MarketNaming("Gulayan", "Isda", "Karne"));
+
+        Assert.Contains("Karne ₱35/day", line);
+        // The areas it prices no differently say nothing: they are billed the market's rate, which the line already states.
+        Assert.DoesNotContain("Gulayan", line);
+        Assert.DoesNotContain("Isda", line);
+    }
+
+    [Fact]
+    public async Task A_section_of_the_offices_own_is_stated_too()
+    {
+        var line = await NpmRateLineAsync(
+            Rates(new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2026, 1, 1))),
+            MarketNaming("Gulayan", "Isda", "Karne"),
+            new List<NpmCustomSectionDto>
+            {
+                new("Sari-sari Area", 4, 25m),
+                new("Bakery Area", 2, null),   // unpriced, so billed the market's rate and nothing to state
+            });
+
+        Assert.Contains("Sari-sari Area ₱25/day", line);
+        Assert.DoesNotContain("Bakery Area", line);
+    }
+
+    [Fact]
+    public async Task The_markets_own_figure_still_comes_first()
+    {
+        // The market's rate is what a stall is billed wherever the office prices nothing apart, so it leads and the
+        // exceptions follow it.
+        var line = await NpmRateLineAsync(
+            Rates(
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2026, 1, 1)),
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStallFish, 32m, new DateOnly(2026, 1, 1))),
+            MarketNaming("Gulayan", "Isda", "Karne"));
+
+        Assert.True(line.IndexOf("₱30/day", StringComparison.Ordinal) < line.IndexOf("Isda", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -133,11 +234,17 @@ public class GetSystemSettingsQueryHandlerTests
         private readonly IReadOnlyDictionary<FacilityCode, string> _names =
             codes.ToDictionary(c => c, c => c.ToString());
 
+        /// <summary>The market, where a test needs the office's own area names. Null by default, as before.</summary>
+        public Facility? Npm { get; init; }
+
+        /// <summary>The office's own sections and their fees, where a test states them. Empty by default, as before.</summary>
+        public IReadOnlyList<NpmCustomSectionDto> Sections { get; init; } = new List<NpmCustomSectionDto>();
+
         public Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct) =>
             Task.FromResult(_names);
 
         public Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct) =>
-            Task.FromResult<Facility?>(null);
+            Task.FromResult(facilityCode == FacilityCode.NPM ? Npm : null);
 
         public Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ConfiguredFacilityDto>>(new List<ConfiguredFacilityDto>());
@@ -151,6 +258,6 @@ public class GetSystemSettingsQueryHandlerTests
             throw new NotImplementedException();
 
         public Task<IReadOnlyList<NpmCustomSectionDto>> GetNpmCustomSectionsAsync(CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<NpmCustomSectionDto>>(new List<NpmCustomSectionDto>());
+            Task.FromResult(Sections);
     }
 }

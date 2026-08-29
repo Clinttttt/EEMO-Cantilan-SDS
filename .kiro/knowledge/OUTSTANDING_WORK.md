@@ -1078,6 +1078,18 @@ Items that were open and are now closed, kept because the reasoning is what stop
     - **2026-08-29: a market's own SECTIONS can now be priced too, and both remainders above now carry that as well.**
       The mobile app needs a section's rate for the same reason it needs an area's, and the settings figures should list
       section fees beside the per-area rows. See the section-fee entry under Deferred product work.
+    - **2026-08-29, examined: the collector app's NPM reads are ALREADY resolved, and this half of phase 5 is stale.**
+      `StallRepository.Mobile` builds `MobileNpmCollectionDto.DailyRate` through `NpmDailyFee.ForStall`, so an area's rate
+      and a section's both reach the phone; the app multiplies that resolved figure by the days it previews rather than a
+      market-wide one, and the server recomputes on settle. The slaughterhouse per-head rates phase 5 also named were
+      fixed in `a293b552`. `MobileSyncDtos.CustomRate` is the slaughterhouse's custom-animal rate, not a market rate, and
+      is a legitimate per-transaction figure.
+    - **DONE 2026-08-29 for the settings PAGE:** each area or section the office prices apart is stated after the market's
+      own figure, named by the office's own word for the area. Appended only, so an office that prices nothing apart reads
+      what it always read.
+    - **STILL OPEN:** `GetNpmRates` / `NpmRatesDto`, which hands a single market rate to eight screens as a FORM DEFAULT
+      (imports, the vendor form, the profile, the rent reminder, two reports). Listing per-area and per-section rows there
+      changes what those forms pre-fill, which is a wider change than a page's own words and wants its own pass.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
     daily reads) and needs the area's.
   - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own
