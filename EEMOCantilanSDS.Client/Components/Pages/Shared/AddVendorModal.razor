@@ -1,6 +1,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@using EEMOCantilanSDS.Client.Services
 
 @* ══════════════════════════════════════════════════════════════════════
    AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
@@ -327,7 +328,7 @@
                             <div class="avm-group">
                                 <label class="avm-label">Monthly Rental / Rate (₱) <span class="avm-req">*</span></label>
                                 <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
-                                       @bind="Form.MonthlyRate" @bind:event="oninput" />
+                                       @bind="Form.MonthlyRate" @bind:event="oninput" @bind:after="MonthlyRentEntered" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
@@ -345,6 +346,10 @@
                                 <label class="avm-label">Daily fee rate (₱/day) <span class="avm-req">*</span></label>
                                 <input class="avm-input" type="number" min="1" step="0.01" placeholder="e.g. 30"
                                        @bind="Form.CustomDailyRate" @bind:event="oninput" />
+                                @if (_dailyFromMonthlyRent is { } fromRent && Form.CustomDailyRate == fromRent)
+                                {
+                                    <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, thirty days to a month.</div>
+                                }
                                 <div class="avm-hint-muted">This custom section bills this flat daily fee — no fish/weight. Enable Electricity &amp; Water below if the section is metered.</div>
                                 @if (GetFieldError("CustomDailyRate") != string.Empty)
                                 {
@@ -448,7 +453,7 @@
                                 <div class="avm-spin-inner">
                                     <span class="avm-spin-currency">₱</span>
                                     <input type="number" min="0" class="avm-spin-input"
-                                           @bind="Form.MonthlyRate" @bind:event="oninput" />
+                                           @bind="Form.MonthlyRate" @bind:event="oninput" @bind:after="MonthlyRentEntered" />
                                     <span class="avm-spin-freq">/mo</span>
                                 </div>
                                 <button type="button" class="avm-spin-btn avm-spin-right"
@@ -738,8 +743,33 @@
         await OnReuseConfirm.InvokeAsync();
     }
 
-    protected override void OnParametersSet()
+    /// <summary>The daily fee this modal last worked out from the monthly rent, so its own answer is not mistaken for the clerk's.</summary>
+    private decimal? _dailyFromMonthlyRent;
+
+    /// <summary>
+    /// A monthly rent implies a daily fee: ₱900 a month is ₱30 a day, thirty installments to a month, which is the
+    /// office's own arithmetic and already the constant the rest of the platform bills by.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately narrow. It never fires while EDITING, because an existing stall's own rate must not move merely
+    /// because somebody corrected a contract figure. And it never fills a BLANK daily field: a blank field means this
+    /// stall follows its section's stated fee, and a figure there would outrank that fee for ever. The rule itself lives
+    /// in <see cref="DailyFeeFromMonthlyRent"/> with its own tests, because that is the direction that costs money.
+    /// </remarks>
+    private void MonthlyRentEntered()
     {
+        if (IsEditing) return;
+
+        var derived = DailyFeeFromMonthlyRent.DerivedOrNull(
+            Form.MonthlyRate, Form.CustomDailyRate, dailyOnOpen: NpmDailyRate, lastDerived: _dailyFromMonthlyRent);
+
+        if (derived is not { } daily) return;
+
+        Form.CustomDailyRate = daily;
+        _dailyFromMonthlyRent = daily;
+    }
+
+    protected override void OnParametersSet()    {
         if (Show && !IsEditing)
         {
             // Suggest on open, and re-suggest when the context list changes — but preserve a value the
@@ -766,6 +796,8 @@
         {
             _lastSuggested = string.Empty;
             _customYears = false;
+            // The next stall opened works its own daily fee out from its own rent, or is left to follow its section.
+            _dailyFromMonthlyRent = null;
             // "Add a utility charge" applies to the space that was open. Left set, the next stall opened would
             // show two empty toggles instead of the plain statement that it carries no utility charges.
             _showUtilityCharges = false;

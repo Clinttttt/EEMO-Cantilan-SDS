@@ -782,8 +782,10 @@ These cannot be answered by reading code.
 Recorded verbatim in substance, because the message that carried them failed to send and the office asked that none be lost.
 Ordered as they were given, with what each one costs to do and the two that need a decision before anybody writes code.
 
-1. **The fee input renders its value in the MIDDLE of the field.** A money field should sit where a figure is read. Small,
-   presentational, no rule behind it.
+1. **DONE 2026-08-30. The fee field's box was narrower than the box inside it.** `.cfg-sec-fee` was a fixed 110px holding a
+   92px input plus 20px of padding, the peso sign and a gap, about 127px, so the figure was pushed out of its own field. It
+   now sizes to its content and the input fills it. **If this was not the input the office meant, it should say so** - no
+   input in this console centres its value, so this was the only defect the geometry could show.
 
 2. **KEEP the metering default on a section. Decided by the office 2026-08-29, reversing its own earlier request to remove
    it.** The reasoning it gave was that onboarding already sets utilities for a new municipality, so the section block was a
@@ -796,14 +798,21 @@ Ordered as they were given, with what each one costs to do and the two that need
    `FacilitySectionUtilities`, `SetNpmSectionUtilitiesCommand` and `SectionMeterDefaults` all stay as they are, and no
    migration is needed. **Closed, no work.**
 
-3. **The remaining long description in the drawer is still too long.** Shorten to one brief line, as with the others.
-   Not yet done, and the office pointed at it a second time. NOT DONE.
+3. **DONE 2026-08-30. The two longest lines in the drawer cut to one clause each.** The deactivate confirmation went from
+   157 characters to 96, and the inactive note from 99 to 70. Every other note in the drawer was already one short line, so
+   these were the only long descriptions left on the screen.
 
-4. **A monthly rate should fill the daily rate in: ₱900 a month becomes ₱30 a day.** Their words: that is the Cantilan
-   ordinance's own arithmetic. This is `DomainRules.DailyBilledMonthDays` (thirty) read the other way round, and the platform
-   already treats a month as thirty daily fees where an office states no month. Doing it on the form is presentational and
-   safe. **Care needed:** it must remain an assist the clerk can overwrite, not a rule, because an office whose ordinance
-   states ₱1,000 a month with a ₱35 day exists and is why the monthly field was kept at onboarding.
+4. **DONE 2026-08-30, and deliberately narrower than asked. ₱900 a month fills ₱30 a day.** The arithmetic is the office's
+   own and was already a documented constant, `DomainRules.DailyBilledMonthDays`; a stall already runs it the other way to
+   show a monthly equivalent. `Client/Services/DailyFeeFromMonthlyRent.cs` runs it back.
+   **Where it does NOT fire, and why the office should know:** a figure in a custom section stall's daily field becomes that
+   stall's OWN rate, and an own rate outranks its section's stated fee for ever. The form already leaves that field blank
+   wherever the office has priced the section, so filling it from the rent would have re-created the fault fixed in
+   `971acbcd` for every stall recorded in a priced section. It therefore fills only a field that already holds a figure,
+   never one left blank, never while editing an existing stall, and never over a figure the clerk typed.
+   Eleven unit tests and seven component tests. **An injection proof earned its keep here**: deleting the blank-field guard
+   left every test passing, because another guard masked it on those inputs. A test that isolates the rule was added and the
+   proof now fails as it should.
 
 5. **DONE 2026-08-29. Electricity and water open at ₱1.00 on the FORM, and nowhere else.** The office chose the form over
    the resolver when the difference was put to it, which keeps the rule adopted after Madrid was found charging Cantilan's
@@ -821,7 +830,13 @@ Ordered as they were given, with what each one costs to do and the two that need
    to. Where the market itself has no stated fee the row reads "Not set" rather than inventing a figure. `AreaRateStated` in
    `FacilityConfiguration.razor`; three tests in `FacilityConfigurationRatesTests`.
 
-7. **A section's name field should carry its own label rather than relying on a placeholder.** Presentational. NOT DONE.
+7. **DONE 2026-08-30. The three canonical areas read as a record, and state the name in use.** They were three open fields
+   showing the office's own name as a value and the platform's as a grey placeholder, so an area nobody had renamed read as
+   blank where it meant "called the default". Each now states its name with a "default" tag where it is the platform's, and
+   the fields appear behind "Edit names" - the same ruling already applied to the rates and the sections. The fields stay
+   EMPTY while editing, because pre-filling the default would store it as the office's own name on the next Save.
+   Its own CSS classes rather than the rate rows': an existing test reads `.cfg-rate-value` as meaning a stated rate, and
+   reusing it broke seven tests before the classes were separated.
 
 ### Found while examining the above, 2026-08-29
 

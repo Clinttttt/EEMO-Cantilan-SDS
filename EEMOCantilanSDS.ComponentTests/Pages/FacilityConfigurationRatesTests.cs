@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
+using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Client.Services;
@@ -83,6 +84,77 @@ public class FacilityConfigurationRatesTests : TestContext
 
     private static void PressEditRates(IRenderedComponent<FacilityConfiguration> cut) =>
         cut.FindAll("button").First(b => b.TextContent.Contains("Edit rates")).Click();
+
+    private static void PressEditNames(IRenderedComponent<FacilityConfiguration> cut) =>
+        cut.FindAll("button").First(b => b.TextContent.Contains("Edit names")).Click();
+
+    // ── The three canonical area names ───────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AnAreaTheOfficeHasNotRenamedStatesTheNameInUseRatherThanReadingBlank()
+    {
+        // It used to show the office's own name as a value and the platform's as a grey placeholder, so an area nobody had
+        // renamed read as an empty field - which says "no name" where it means "called the default".
+        var cut = RenderDrawer();
+
+        var names = cut.FindAll(".cfg-name-value").Select(e => e.TextContent.Trim()).ToList();
+        Assert.Equal(new[] { "Vegetable Area", "Fish Area", "Meat Area" }, names);
+        Assert.Equal(3, cut.FindAll(".cfg-name-tag").Count);   // each one marked as the default
+    }
+
+    [Fact]
+    public void TheNamesAreStatedAndNotOfferedForTypingUntilTheOfficeSaysSo()
+    {
+        var cut = RenderDrawer();
+
+        Assert.Empty(cut.FindAll("input.fac-input[maxlength='60']"));
+
+        PressEditNames(cut);
+
+        // Three fields, and the record they replaced is gone.
+        Assert.Equal(3, cut.FindAll("input.fac-input[maxlength='60']").Count);
+        Assert.Empty(cut.FindAll(".cfg-name-value"));
+    }
+
+    [Fact]
+    public void EditingTheNamesLeavesTheFieldsEmptyWhereTheOfficeHasStatedNothing()
+    {
+        // Empty, not pre-filled with the platform's word. Pre-filling would store the default AS the office's own name on
+        // the next Save, which is the same fault as stamping a resolved fee onto a stall's own rate.
+        var cut = RenderDrawer();
+
+        PressEditNames(cut);
+
+        var values = cut.FindAll("input.fac-input[maxlength='60']").Select(e => e.GetAttribute("value")).ToList();
+        Assert.All(values, v => Assert.True(string.IsNullOrEmpty(v)));
+        // The name in use is still visible, as the field's own placeholder.
+        Assert.Contains(cut.FindAll("input.fac-input[maxlength='60']"),
+            e => e.GetAttribute("placeholder") == "Vegetable Area");
+    }
+
+    [Fact]
+    public void NothingIsSavedMerelyByOpeningTheNamesForm()
+    {
+        var cut = RenderDrawer();
+
+        PressEditNames(cut);
+
+        _api.Verify(a => a.UpdateFacilityAsync(It.IsAny<UpdateFacilityCommand>()), Times.Never);
+    }
+
+    [Fact]
+    public void EveryOpenStartsAsARecordRatherThanAsWhateverWasLeftOpen()
+    {
+        // The drawer is closed and reopened. A form left open from last time would invite a clerk who came to read.
+        var cut = RenderDrawer(Rate(FeeRateKey.NpmDailyStall, 30m, stated: true));
+        PressEditNames(cut);
+        PressEditRates(cut);
+
+        cut.Find(".fac-card").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-name-value")));
+        Assert.Empty(cut.FindAll(".cfg-rate-input input"));
+    }
 
     // ── An area the office has not priced ────────────────────────────────────────────────────────────────────────────
 

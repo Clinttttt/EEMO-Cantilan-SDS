@@ -3,9 +3,12 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# A commit message written to a file and passed with -F, because a PowerShell here-string mangles an em dash and a peso
+# sign. One escaped into 29806915 through a "git add -A"; ignored so the next one cannot.
+tmp-msg.txt
+
 # User-specific files
-*.rsuser
-*.suo
+*.rsuser*.suo
 *.user
 *.userosscache
 *.sln.docstates

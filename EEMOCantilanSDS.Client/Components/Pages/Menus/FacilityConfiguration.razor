@@ -342,19 +342,52 @@
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "NPM", StringComparison.OrdinalIgnoreCase))
                 {
                     <div class="cfg-section-label">Market section names</div>
-                    <div class="cfg-field-note">Your own names for the three areas. Blank keeps the default.</div>
-                    <label class="fac-field">
-                        <span class="fac-field-label">Vegetable area</span>
-                        <input class="fac-input" @bind="_cfgVeg" @bind:event="oninput" maxlength="60" placeholder="Vegetable Area" />
-                    </label>
-                    <label class="fac-field">
-                        <span class="fac-field-label">Fish area</span>
-                        <input class="fac-input" @bind="_cfgFish" @bind:event="oninput" maxlength="60" placeholder="Fish Area" />
-                    </label>
-                    <label class="fac-field">
-                        <span class="fac-field-label">Meat area</span>
-                        <input class="fac-input" @bind="_cfgMeat" @bind:event="oninput" maxlength="60" placeholder="Meat Area" />
-                    </label>
+                    @* Stated, not offered for typing, like the rates below. A row that showed an office's own name as a
+                       VALUE and the platform's as a grey placeholder read as blank where it meant "called the default",
+                       which is the same fault the per-area fees had at nought. Both now state what is in use. *@
+                    @if (_editingSectionNames)
+                    {
+                        <div class="cfg-field-note">Blank keeps the name shown.</div>
+                        <label class="fac-field">
+                            <span class="fac-field-label">Vegetable area</span>
+                            <input class="fac-input" @bind="_cfgVeg" @bind:event="oninput" maxlength="60"
+                                   placeholder="@SectionNameStated(MarketSection.VegetableArea)" />
+                        </label>
+                        <label class="fac-field">
+                            <span class="fac-field-label">Fish area</span>
+                            <input class="fac-input" @bind="_cfgFish" @bind:event="oninput" maxlength="60"
+                                   placeholder="@SectionNameStated(MarketSection.FishSection)" />
+                        </label>
+                        <label class="fac-field">
+                            <span class="fac-field-label">Meat area</span>
+                            <input class="fac-input" @bind="_cfgMeat" @bind:event="oninput" maxlength="60"
+                                   placeholder="@SectionNameStated(MarketSection.MeatSection)" />
+                        </label>
+                    }
+                    else
+                    {
+                        @* Its own classes rather than the rate rows': a stated RATE and a stated NAME look alike and are
+                           not the same thing, and the drawer's tests read the rate classes as meaning a rate. *@
+                        <div class="cfg-name-list">
+                            @foreach (var (caption, section) in NpmAreas)
+                            {
+                                <div class="cfg-name">
+                                    <div class="cfg-name-info">
+                                        <span class="cfg-name-label">@caption</span>
+                                        @if (!HasOwnSectionName(section))
+                                        {
+                                            <span class="cfg-name-tag">default</span>
+                                        }
+                                    </div>
+                                    <span class="cfg-name-value">@SectionNameStated(section)</span>
+                                </div>
+                            }
+                        </div>
+                        <button class="fac-btn fac-btn-ghost cfg-name-edit" type="button"
+                                @onclick="() => _editingSectionNames = true">
+                            Edit names
+                        </button>
+                    }
 
                     @* An LGU's market is not always the three areas the platform starts with. A section added here is
                        registered for the whole office: it becomes a tab on the market page, a choice when a stall is
@@ -635,7 +668,7 @@
                     @if (_confirmDeactivate)
                     {
                         <div class="cfg-danger">
-                            <div class="cfg-danger-text">Deactivate <strong>@_cfgFacility.Name</strong>? It will be hidden from the operational menus (sidebar &amp; dashboard). All history is kept and you can reactivate it anytime.</div>
+                            <div class="cfg-danger-text">Deactivate <strong>@_cfgFacility.Name</strong>? It leaves the menus. History is kept and you can reactivate it.</div>
                             <div class="cfg-danger-actions">
                                 <button class="fac-btn fac-btn-ghost" @onclick="() => _confirmDeactivate = false" disabled="@_busy">Keep active</button>
                                 <button class="fac-btn fac-btn-danger" @onclick="() => SetStatus(false)" disabled="@_busy">@(_busy ? "Working…" : "Deactivate")</button>
@@ -651,7 +684,7 @@
                 {
                     <div class="cfg-inactive-note">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></svg>
-                        Hidden from the operational menus. History stays available above; reactivate to resume collections.
+                        Not in the menus. History stays above; reactivate to resume collections.
                     </div>
                     <button class="fac-btn fac-btn-primary cfg-reactivate" @onclick="() => SetStatus(true)" disabled="@_busy">@(_busy ? "Working…" : "Reactivate facility")</button>
                 }
@@ -1021,6 +1054,9 @@
     /// </summary>
     private bool _editingRates;
 
+    /// <summary>Whether the three canonical area names are a form. Every open starts as a record, like the rates.</summary>
+    private bool _editingSectionNames;
+
     /// <summary>The market's per-area daily rates, which are grouped under their own heading.</summary>
     private static bool IsPerArea(string key) =>
         Enum.TryParse<FeeRateKey>(key, ignoreCase: true, out var parsed) && FacilityDisplay.IsPerAreaDailyRate(parsed);
@@ -1260,6 +1296,7 @@
         _rateEdits.Clear();
         foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
         _editingRates = false;      // every open starts as a record, not a form
+        _editingSectionNames = false;
         _cfgError = null;
         _cfgSuccess = null;
         _confirmDeactivate = false;
@@ -1432,6 +1469,45 @@
 
     /// <summary>A figure the office has not stated shows as an empty field rather than as nought, which would read as a price.</summary>
     private static string FormatRate(decimal? v) => v is { } amount ? FormatRate(amount) : string.Empty;
+
+    /// <summary>
+    /// What an area is called on this office's own screens: its own name where it has stated one, the platform's otherwise.
+    /// </summary>
+    /// <remarks>
+    /// Read from the open facility rather than from the catalogue, so the row states what was just saved rather than what
+    /// the catalogue last loaded.
+    /// </remarks>
+    private string SectionNameStated(MarketSection section)
+    {
+        var own = section switch
+        {
+            MarketSection.VegetableArea => _cfgFacility?.VegetableSectionLabel,
+            MarketSection.FishSection => _cfgFacility?.FishSectionLabel,
+            MarketSection.MeatSection => _cfgFacility?.MeatSectionLabel,
+            _ => null,
+        };
+
+        return string.IsNullOrWhiteSpace(own)
+            ? FacilityState.CanonicalSectionLabel(section)
+            : own.Trim();
+    }
+
+    /// <summary>Whether the name shown is the office's own, which is what the "default" tag beside it depends on.</summary>
+    private bool HasOwnSectionName(MarketSection section) => section switch
+    {
+        MarketSection.VegetableArea => !string.IsNullOrWhiteSpace(_cfgFacility?.VegetableSectionLabel),
+        MarketSection.FishSection => !string.IsNullOrWhiteSpace(_cfgFacility?.FishSectionLabel),
+        MarketSection.MeatSection => !string.IsNullOrWhiteSpace(_cfgFacility?.MeatSectionLabel),
+        _ => false,
+    };
+
+    /// <summary>The three the platform starts with, in the order the office reads them.</summary>
+    private static readonly (string Caption, MarketSection Section)[] NpmAreas =
+    {
+        ("Vegetable area", MarketSection.VegetableArea),
+        ("Fish area", MarketSection.FishSection),
+        ("Meat area", MarketSection.MeatSection),
+    };
 
     private void SetRateEdit(string key, string? raw)
     {
