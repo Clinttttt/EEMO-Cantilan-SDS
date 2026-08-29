@@ -81,12 +81,27 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
             return latest is > 0m ? latest : null;
         }
 
+        // Whether a stall recorded in each section is usually metered. A default for the form, so it bills nothing and is
+        // read as the office's current answer rather than as a history.
+        var utilities = await context.FacilitySectionUtilities.AsNoTracking()
+            .Where(u => u.FacilityCode == FacilityCode.NPM)
+            .Select(u => new { u.SectionName, u.Electricity, u.Water })
+            .ToListAsync(ct);
+
         return names
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .Select(n => new NpmCustomSectionDto(
-                n,
-                counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count),
-                StatedRateFor(n)))
+            .Select(n =>
+            {
+                var metered = utilities.FirstOrDefault(u =>
+                    string.Equals(u.SectionName.Trim(), n, StringComparison.OrdinalIgnoreCase));
+
+                return new NpmCustomSectionDto(
+                    n,
+                    counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count),
+                    StatedRateFor(n),
+                    metered?.Electricity ?? false,
+                    metered?.Water ?? false);
+            })
             .ToList();
     }
 

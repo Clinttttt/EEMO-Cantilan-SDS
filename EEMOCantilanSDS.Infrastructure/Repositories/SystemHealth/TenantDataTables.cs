@@ -24,7 +24,7 @@ public static class TenantDataTables
     /// </summary>
     public static readonly IReadOnlySet<string> Restorable = new HashSet<string>(StringComparer.Ordinal)
     {
-        "Facilities", "FacilityRates", "FacilitySectionRates", "OrSeriesConfigs", "Stalls", "Contracts", "PaymentRecords",
+        "Facilities", "FacilityRates", "FacilitySectionRates", "FacilitySectionUtilities", "OrSeriesConfigs", "Stalls", "Contracts", "PaymentRecords",
         "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures",
         "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "TpmVendors",
         "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "CollectorFacilityAssignments",

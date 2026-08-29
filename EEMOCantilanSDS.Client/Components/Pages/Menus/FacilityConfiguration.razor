@@ -392,6 +392,18 @@
                                         <span class="cfg-rate-value">
                                             @(cs.DailyRate is { } rate ? $"₱{FormatRate(rate)} / day" : "Market rate")
                                         </span>
+                                        @* Metering is a default for a stall recorded here, not a charge: the meters
+                                           belong to the space, so this changes no stall that already exists. *@
+                                        <label class="cfg-sec-util">
+                                            <input type="checkbox" checked="@cs.Electricity"
+                                                   @onchange="e => SetSectionUtilitiesAsync(cs, electricity: (bool?)e.Value ?? false, water: cs.Water)" />
+                                            Electricity
+                                        </label>
+                                        <label class="cfg-sec-util">
+                                            <input type="checkbox" checked="@cs.Water"
+                                                   @onchange="e => SetSectionUtilitiesAsync(cs, electricity: cs.Electricity, water: (bool?)e.Value ?? false)" />
+                                            Water
+                                        </label>
                                         <button class="cfg-sec-set" type="button" disabled="@_busy"
                                                 @onclick="() => BeginSectionRate(cs)">
                                             Set fee
@@ -876,6 +888,41 @@
     /// <summary>A figure typed into a money field, or nothing where the office cleared it.</summary>
     private static decimal? ParseRate(string? raw) =>
         decimal.TryParse((raw ?? string.Empty).Trim(), out var value) && value >= 0m ? value : null;
+
+    /// <summary>
+    /// Records whether a stall recorded in this section is usually metered.
+    ///
+    /// <para>
+    /// A default for the stall form and nothing else: the meters belong to the space, so no stall that already exists
+    /// gains or loses a utility from here, and nothing is billed by it.
+    /// </para>
+    /// </summary>
+    private async Task SetSectionUtilitiesAsync(NpmCustomSectionDto section, bool electricity, bool water)
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+
+        _busy = true;
+        var result = await FacilitiesApi.SetNpmSectionUtilitiesAsync(section.Name, electricity, water);
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That could not be saved." : result.Error;
+            return;
+        }
+
+        _npmSectionSaved = (electricity, water) switch
+        {
+            (true, true) => $"A stall recorded in {section.Name} starts with electricity and water.",
+            (true, false) => $"A stall recorded in {section.Name} starts with electricity.",
+            (false, true) => $"A stall recorded in {section.Name} starts with water.",
+            _ => $"A stall recorded in {section.Name} starts with no meters.",
+        };
+
+        await LoadNpmCustomSectionsAsync();
+        await FacilityCatalog.ReloadAsync();
+    }
 
     /// <summary>
     /// Whether the rates are open for editing. A rate is the ordinance's figure, so the drawer states it until the office

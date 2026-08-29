@@ -61,6 +61,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<OrSeriesConfig> OrSeriesConfigs { get; set; }
         public DbSet<FacilityRate> FacilityRates { get; set; }
         public DbSet<FacilitySectionRate> FacilitySectionRates { get; set; }
+        public DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; set; }
         public DbSet<Stall> Stalls { get; set; }
         public DbSet<Contract> Contracts { get; set; }
 

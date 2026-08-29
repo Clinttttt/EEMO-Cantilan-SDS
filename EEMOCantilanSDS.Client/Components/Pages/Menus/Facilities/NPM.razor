@@ -1,4 +1,4 @@
-@page "/npm"
+﻿@page "/npm"
 @page "/facility/npm"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
@@ -1042,11 +1042,39 @@
         VendorForm.FeeTypes = VendorForm.FeeTypes
             .Where(f => f is "Electricity" or "Water")
             .ToList();
-        // Pre-fill the custom-section daily-rate input: inherit the section's existing rate (so stalls in the
-        // same custom section stay consistent), else fall back to the ordinance rate. Ignored for canonical.
+
         var effective = EffectiveSelectedSectionName();
-        var existing = Stalls.FirstOrDefault(s => s.Section == effective && s.DailyRate > 0);
-        VendorForm.CustomDailyRate = existing?.DailyRate ?? _npmDailyRate;
+
+        // The section's own metering default, and ONLY as a suggestion on a stall being ADDED. The rule is stated in
+        // SectionMeterDefaults so the dangerous direction can be tested: it never removes a utility the clerk has ticked
+        // or a stall already carries, and it says nothing on an edit, because an existing space's meters are its own
+        // record and a clerk correcting its section must not have them rewritten underneath.
+        if (effective is { Length: > 0 })
+        {
+            var section = _customSections.FirstOrDefault(
+                c => string.Equals(c.Name, effective, StringComparison.OrdinalIgnoreCase));
+
+            VendorForm.FeeTypes = EEMOCantilanSDS.Client.Services.SectionMeterDefaults.Apply(
+                IsEditingVendor, VendorForm.FeeTypes, section?.Electricity ?? false, section?.Water ?? false);
+        }
+
+        // The custom-section daily-rate input. Where the office has stated a fee for the SECTION, this is left blank on
+        // purpose: a figure typed here becomes the stall's OWN rate, which outranks the section's for ever, so copying the
+        // section's fee onto every stall would quietly make a later change to that fee apply to none of them. Only where
+        // the section carries no stated fee does the form fall back to what it always did — an existing stall's rate in
+        // that section, else the market's.
+        var stated = _customSections.FirstOrDefault(
+            c => string.Equals(c.Name, effective, StringComparison.OrdinalIgnoreCase))?.DailyRate;
+
+        if (stated is > 0m)
+        {
+            VendorForm.CustomDailyRate = 0m;
+        }
+        else
+        {
+            var existing = Stalls.FirstOrDefault(s => s.Section == effective && s.DailyRate > 0);
+            VendorForm.CustomDailyRate = existing?.DailyRate ?? _npmDailyRate;
+        }
     }
 
     private void ToggleVendorFee(string fee)

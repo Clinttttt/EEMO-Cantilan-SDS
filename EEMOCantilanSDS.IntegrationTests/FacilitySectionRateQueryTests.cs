@@ -143,4 +143,82 @@ public class FacilitySectionRateQueryTests(PostgresFixture db)
         // is what the handler does, and this is the guard behind it.
         await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
     }
+
+    [SkippableFact]
+    public async Task ASectionsMeteringDefaultRoundTrips_AndBelongsToOneOfficeOnly()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // Two offices, each entitled to a section of the same name.
+        var (first, _) = await SeedAsync("SDS-U1", "Utility Municipality One", "Sari-sari Area");
+        var (second, _) = await SeedAsync("SDS-U2", "Utility Municipality Two", "Sari-sari Area");
+
+        await using (var write = db.CreateContext(first))
+        {
+            write.FacilitySectionUtilities.Add(FacilitySectionUtilities.Create(
+                FacilityCode.NPM, "Sari-sari Area", electricity: true, water: false, municipalityId: first));
+            await write.SaveChangesAsync();
+        }
+
+        await using (var read = db.CreateContext(first))
+        {
+            var row = Assert.Single(await read.FacilitySectionUtilities.ToListAsync());
+            Assert.Equal("Sari-sari Area", row.SectionName);
+            Assert.True(row.Electricity);
+            Assert.False(row.Water);
+        }
+
+        await using (var read = db.CreateContext(second))
+        {
+            // The other office has said nothing about its own section of that name, and must not inherit this answer.
+            Assert.Empty(await read.FacilitySectionUtilities.ToListAsync());
+        }
+    }
+
+    [SkippableFact]
+    public async Task OneSectionHoldsOneMeteringAnswer()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        var (municipalityId, _) = await SeedAsync("SDS-U3", "Utility Municipality Three", "Sari-sari Area");
+
+        await using var write = db.CreateContext(municipalityId);
+        write.FacilitySectionUtilities.Add(FacilitySectionUtilities.Create(
+            FacilityCode.NPM, "Sari-sari Area", true, false, municipalityId));
+        write.FacilitySectionUtilities.Add(FacilitySectionUtilities.Create(
+            FacilityCode.NPM, "Sari-sari Area", false, true, municipalityId));
+
+        // The database refuses a second answer for one section, which is why the handler sets the row it finds rather than
+        // adding another. A default has no history to keep.
+        await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
+    }
+
+    [SkippableFact]
+    public async Task AMeteringDefaultChangesNoStallAndNoFee()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        var (municipalityId, stallId) = await SeedAsync("SDS-U4", "Utility Municipality Four", "Sari-sari Area");
+
+        await using (var write = db.CreateContext(municipalityId))
+        {
+            write.FacilityRates.Add(FacilityRate.Create(
+                FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2026, 1, 1), municipalityId));
+            write.FacilitySectionUtilities.Add(FacilitySectionUtilities.Create(
+                FacilityCode.NPM, "Sari-sari Area", true, true, municipalityId));
+            await write.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(municipalityId);
+        var stall = await read.Stalls.FirstAsync(s => s.Id == stallId);
+        var snapshot = await new FeeRateResolver(read).GetSnapshotAsync();
+
+        // The stall in that section keeps exactly the fees its own record carries, and its daily fee is untouched: the
+        // meters belong to the space, and a default bills nothing.
+        Assert.Equal(ApplicableFees.DailyRental, stall.Fees);
+        Assert.Equal(30m, NpmDailyFee.ForStall(stall, snapshot, new DateOnly(2026, 8, 29)));
+    }
 }

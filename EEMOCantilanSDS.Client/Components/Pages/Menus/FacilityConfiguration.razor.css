@@ -723,6 +723,9 @@
 .cfg-sec-add { flex: 0 0 auto; }
 /* The fee sits beside the name when a section is added: narrow, because it holds a figure and not a sentence. */
 .cfg-sec-fee { flex: 0 0 110px; }
+/* A section's metering default, stated on its row beside the fee. */
+.cfg-sec-util { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-subtle); white-space: nowrap; }
+.cfg-sec-util input { accent-color: var(--navy); }
 /* Setting a fee is an ordinary act; only removal is destructive, so only removal is red. */
 .cfg-sec-set {
     flex: 0 0 auto;

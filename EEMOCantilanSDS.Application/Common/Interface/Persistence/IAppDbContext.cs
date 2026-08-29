@@ -25,6 +25,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
 
     /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
     DbSet<FacilitySectionRate> FacilitySectionRates { get; }
+
+    /// <summary>Whether stalls in an office's own section are metered, as a default for a stall recorded there.</summary>
+    DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; }
         DbSet<Stall> Stalls { get; }
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
