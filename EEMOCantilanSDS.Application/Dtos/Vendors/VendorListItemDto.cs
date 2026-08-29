@@ -31,5 +31,12 @@ public sealed record VendorListItemDto(
     bool HasWater = false,
 
     /// <summary>How the space is held; a space let without a signed contract has no term or leasee name.</summary>
-    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract,
+
+    /// <summary>
+    /// What this stall IS billed for a day, settled by <c>NpmDailyFee</c>: its own rate, then its section's, then its
+    /// area's, then the market's. Null where the space is not billed by the day. The detail card stated the MARKET's
+    /// figure, so a stall in an area or a section the office prices apart was described at a rate it is not charged.
+    /// </summary>
+    decimal? ResolvedDailyFee = null
 );

@@ -1095,7 +1095,14 @@ Items that were open and are now closed, kept because the reasoning is what stop
         `NpmDailyFee.ForAreaOrNull`, so a screen and the collector cannot answer by different rules. Corrected: both import
         section pickers and the vendor fee breakdown's three area lines. All three figures equal the market's for an office
         that prices nothing apart, and an office that has stated nothing states nothing rather than borrowing.
-      - **STILL WRONG, and recorded rather than half-fixed: three surfaces state a figure for ONE STALL from the market's
+      - **DONE 2026-08-29: the three per-STALL surfaces now state the fee that stall is billed.** The stall read carries
+        `ResolvedDailyFee` beside `DailyRate`: what the stall IS billed, settled by `NpmDailyFee`, beside the rate the
+        space was LET at as recorded on it. Kept apart deliberately, because the forms that EDIT a stall must show what was
+        recorded against it, and a form pre-filled with a resolved figure would stamp it as the stall's own rate, which
+        outranks its section's for ever. Corrected: the stall profile's Rate field, the vendor detail card, and
+        `CollectionExceptions.StatExpected()`. The vendor registry projection carries it too. Five tests, and with the read
+        handing back the stored rate instead, three of them fail.
+      - Kept as the record of what was wrong: three surfaces stated a figure for ONE STALL from the market's
         rate.** The stall profile's Rate field (`Profile.razor`), the vendor detail card's "Daily Fee Rate"
         (`Vendor.razor`), and `CollectionExceptions.StatExpected()`, which multiplies days by it. Latent today, wrong the
         moment an office prices an area or one of its own sections apart. Each needs its stall's RESOLVED fee carried on the

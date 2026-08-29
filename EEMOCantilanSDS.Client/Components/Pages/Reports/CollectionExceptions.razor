@@ -1,4 +1,4 @@
-@page "/reports/collections"
+﻿@page "/reports/collections"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
@@ -676,7 +676,7 @@
         {
             _payors.Add(new CeStall(
                 s.Id, s.StallNo, string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!,
-                SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate,
+                SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate, s.ResolvedDailyFee,
                 CarriesSectionFee: s.Section == MarketSection.FishSection));
         }
         CachedPayors = new CollectionExceptionsPayorState(CurrentFacility, _payors.ToList());
@@ -878,7 +878,7 @@
         // The office's own daily fee, resolved for this screen (zero until its answer arrives, so nothing is stated on
         // somebody else's figure). This read FeeRates.NpmDailyFee — the reference municipality's ₱30 — so the expected
         // total on another office's screen was struck at Cantilan's rate whatever its own ordinance says.
-        if (IsNpm) return (CountDays("collected") + CountDays("missed")) * _npmDailyRate;
+        if (IsNpm) return (CountDays("collected") + CountDays("missed")) * (SelectedStall.ResolvedDailyFee ?? _npmDailyRate);
         var billable = CountMonths("collected") + CountMonths("missed") + CountMonths("partial");
         return billable * SelectedStall.MonthlyRate;
     }
@@ -1118,6 +1118,9 @@
 
     public sealed record CeStall(Guid Id, string StallNo, string Occupant, string Section,
         decimal MonthlyRate, decimal? DailyRate, DateTime? ContractDate,
+        // What this stall IS billed for a day, settled by the office's own rule. The expected total used the MARKET's
+        // rate, so a stall in an area or a section the office prices apart was struck at the wrong figure.
+        decimal? ResolvedDailyFee,
         // From the section ENUM, not its label: the label is one municipality's wording.
         bool CarriesSectionFee = false);
 }

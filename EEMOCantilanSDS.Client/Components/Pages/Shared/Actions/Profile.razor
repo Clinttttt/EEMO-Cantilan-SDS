@@ -1,4 +1,4 @@
-@page "/profile/{FacilityId}/{StallKey}"
+﻿@page "/profile/{FacilityId}/{StallKey}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Domain.Constants
@@ -222,7 +222,7 @@
                                     @if (IsNpm)
                                     {
                                         @* Nothing until the tenant's own rate answers — never a borrowed figure. *@
-                                        <text>@(_npmDailyRate > 0m ? $"₱{_npmDailyRate:0}/day" : "—")</text>
+                                        <text>@(StallDailyFee() is { } fee && fee > 0m ? $"₱{fee:0}/day" : "—")</text>
                                     }
                                     else
                                     {
@@ -319,7 +319,7 @@
                                     @if (IsNpm)
                                     {
                                         @* Nothing until the tenant's own rate answers — never a borrowed figure. *@
-                                        <text>@(_npmDailyRate > 0m ? $"₱{_npmDailyRate:0}/day" : "—")</text>
+                                        <text>@(StallDailyFee() is { } fee && fee > 0m ? $"₱{fee:0}/day" : "—")</text>
                                     }
                                     else
                                     {
@@ -972,6 +972,14 @@
     // something else, or whose rates call failed. The rate line states nothing rather than a wrong figure.
     private decimal _npmDailyRate;
 
+    /// <summary>
+    /// The fee THIS stall is billed for a day, as the server resolved it: its own rate, then its section's, then its
+    /// area's, then the market's. The field used to state the market's figure, so a stall in an area or a section the
+    /// office prices apart was described at a rate it is not charged, on its own profile. The market's figure remains
+    /// the fallback for a stall the server answered nothing for.
+    /// </summary>
+    private decimal? StallDailyFee() => Stall.ResolvedDailyFee is { } fee && fee > 0m ? fee : _npmDailyRate;
+
     // The tenant's own per-kilo section fee. Zero means this office charges none, and the profile then states
     // no such fee at all rather than quoting another municipality's.
     private decimal _npmFishRate;
@@ -1090,6 +1098,8 @@
         public DateTime? ContractExpiry { get; set; }
         public decimal MonthlyRate { get; set; }
         public decimal? DailyRate { get; set; }
+        /// <summary>What this stall IS billed for a day, settled by the office's own rule: its own rate, then its section's, then its area's, then the market's.</summary>
+        public decimal? ResolvedDailyFee { get; set; }
         public bool HasElectricity { get; set; }
         public decimal ElecReading { get; set; }
         public decimal ElecAmount { get; set; }
@@ -1266,6 +1276,7 @@
                     ContractExpiry = stallDto.ContractYears > 0 ? stallDto.ContractDate?.AddYears(stallDto.ContractYears) : null,
                     MonthlyRate = stallDto.MonthlyRate,
                     DailyRate = stallDto.DailyRate,
+            ResolvedDailyFee = stallDto.ResolvedDailyFee,
                     HasElectricity = hasElec,
                     ElecReading = 0,
                     ElecAmount = elecAmount,

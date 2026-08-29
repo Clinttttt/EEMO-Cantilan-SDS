@@ -379,7 +379,7 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                             </div>
                             <div>
-                                <div class="detail-stat-val">₱@(_npmDailyRate.ToString("0")) / day</div>
+                                <div class="detail-stat-val">₱@((DetailVendor.ResolvedDailyFee is { } fee && fee > 0m ? fee : _npmDailyRate).ToString("0")) / day</div>
                                 <div class="detail-stat-key">Daily Fee Rate</div>
                             </div>
                         </div>
@@ -898,6 +898,7 @@
                 ContractYears = item.ContractYears,
                 Arrangement = item.Arrangement,
                 MonthlyRate = item.MonthlyRate,
+            ResolvedDailyFee = item.ResolvedDailyFee,
                 ActualMonthlyRental = item.MonthlyRate,
                 AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
                 FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay, item.HasElectricity, item.HasWater, FishFeeLabel),
@@ -1020,6 +1021,8 @@
         public Domain.Enums.OccupancyArrangement Arrangement { get; set; } = Domain.Enums.OccupancyArrangement.SignedContract;
         public bool HasSignedContract => Arrangement == Domain.Enums.OccupancyArrangement.SignedContract;
         public decimal MonthlyRate { get; set; }
+        /// <summary>What this stall is billed for a day, as the server resolved it. Null where the space is not billed by the day.</summary>
+        public decimal? ResolvedDailyFee { get; set; }
         public decimal ActualMonthlyRental { get; set; }
         public string AreaLocation { get; set; } = string.Empty;
         public List<string> FeeTypes { get; set; } = new();

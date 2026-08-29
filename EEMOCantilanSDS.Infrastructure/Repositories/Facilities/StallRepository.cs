@@ -65,6 +65,11 @@ public partial class StallRepository(AppDbContext context, IFeeRateResolver feeR
         var pagedResult = await query
             .ToCursorPagedResultAsync(pageSize, s => s.CreatedAt, ct);
 
+        // The fee each stall IS billed, settled by the one rule, so a screen stating a stall's rate cannot answer by a
+        // different rule than the collector charging for it. Only for the market: nothing else is billed by the day.
+        var rateSnapshot = facilityCode == FacilityCode.NPM ? await _feeRateResolver.GetSnapshotAsync(ct) : null;
+        var rateAsOf = _clock.PhilippineToday;
+
         return new CursorPagedResult<StallDto>
         {
             Items = pagedResult.Items.Select(s =>
@@ -88,7 +93,8 @@ public partial class StallRepository(AppDbContext context, IFeeRateResolver feeR
                     activeContract?.DurationYears ?? 0,
                     s.CustomSectionName,
                     s.Fees.HasFlag(ApplicableFees.Electricity),
-                    s.Fees.HasFlag(ApplicableFees.Water)
+                    s.Fees.HasFlag(ApplicableFees.Water),
+                    rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf)
                 );
             }).ToList(),
             NextCursor = pagedResult.NextCursor,
@@ -106,6 +112,10 @@ public partial class StallRepository(AppDbContext context, IFeeRateResolver feeR
             query = query.Where(s => s.Section == section.Value);
 
         var stalls = await query.ToListAsync(ct);
+
+        // The same resolved fee as the paged read above: one rule, so two lists of the same stalls cannot disagree.
+        var rateSnapshot = facilityCode == FacilityCode.NPM ? await _feeRateResolver.GetSnapshotAsync(ct) : null;
+        var rateAsOf = _clock.PhilippineToday;
 
         return stalls.Select(s =>
         {
@@ -129,7 +139,8 @@ public partial class StallRepository(AppDbContext context, IFeeRateResolver feeR
                 activeContract?.DurationYears ?? 0,
                 s.CustomSectionName,
                 s.Fees.HasFlag(ApplicableFees.Electricity),
-                s.Fees.HasFlag(ApplicableFees.Water)
+                s.Fees.HasFlag(ApplicableFees.Water),
+                rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf)
             );
         }).ToList();
     }

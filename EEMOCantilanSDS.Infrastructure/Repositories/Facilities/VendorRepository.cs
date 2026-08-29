@@ -89,6 +89,8 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
 
         var monthlyTarget = monthlyStalls.Sum(s => s.MonthlyRate);
 
+        var rateAsOf = clock.PhilippineToday;
+
         var vendors = visibleStalls.Select(s =>
         {
             var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
@@ -117,7 +119,9 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 // record rather than assumed from the facility.
                 s.Fees.HasFlag(ApplicableFees.Electricity),
                 s.Fees.HasFlag(ApplicableFees.Water),
-                activeContract?.Arrangement ?? OccupancyArrangement.SignedContract
+                activeContract?.Arrangement ?? OccupancyArrangement.SignedContract,
+                // The fee this stall is billed, by the one rule, so the registry and the collector cannot disagree.
+                s.Facility!.Code == FacilityCode.NPM ? NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf) : null
             );
         }).ToList();
 
