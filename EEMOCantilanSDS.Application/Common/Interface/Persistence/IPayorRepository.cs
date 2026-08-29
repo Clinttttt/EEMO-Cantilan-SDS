@@ -8,6 +8,13 @@ public interface IPayorRepository
     /// <summary>Looks up a payor by their login identifier (registered contact number).</summary>
     Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default);
 
+    /// <summary>
+    /// The payor's own row by id. The id comes from the caller's token, so this can only ever load the caller: it exists
+    /// because the payor's portal holds no token it can read, and therefore cannot see its own name or number without
+    /// asking. Both are the office's record rather than anything the payor typed.
+    /// </summary>
+    Task<PayorUser?> GetPayorByIdAsync(Guid payorUserId, CancellationToken ct = default);
+
     /// <summary>Fetches an unused activation code by its value (null if not found).</summary>
     Task<PayorActivationCode?> GetActivationCodeAsync(string code, CancellationToken ct = default);
 

@@ -35,6 +35,13 @@ public class PayorRepository(
             .FirstOrDefaultAsync(p => !p.IsDeleted && p.Username == normalized, ct);
     }
 
+    public async Task<PayorUser?> GetPayorByIdAsync(Guid payorUserId, CancellationToken ct = default)
+    {
+        // The id is the caller's own, taken from the token, so no other payor is reachable from here. Soft-deleted rows
+        // stay excluded by the global filter.
+        return await context.PayorUsers.FirstOrDefaultAsync(p => p.Id == payorUserId, ct);
+    }
+
     public async Task<PayorActivationCode?> GetActivationCodeAsync(string code, CancellationToken ct = default)
     {
         var normalized = code.Trim();
