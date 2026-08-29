@@ -4,7 +4,7 @@ Everything known to be unfinished, with what was VERIFIED against the code rathe
 risk-adjusted value. Update this file in the same commit that changes an item's status — a backlog that lags the code is
 worse than none.
 
-Last reviewed: 2026-08-12.
+Last reviewed: 2026-08-29.
 
 ---
 
@@ -620,6 +620,19 @@ DONE:
 - **Application free of ASP.NET Identity** and **of AutoMapper** (earlier commits).
 - A third stale tenancy comment corrected, on `ApplyQueryFilters`, which still described the filter as "a no-op while
   CurrentMunicipalityId is empty".
+- **`SectionRateReadersAreNamedTests` — added 2026-08-29**, when an office's own market section gained its own daily fee.
+  A section's rate and its metering default have a NAMED readership, each entry with its reason: the resolver that loads the
+  rate into the fee snapshot, and the office's own configuration screen, which states back what the office entered.
+  Everything else asks `NpmDailyFee`, which settles the order in one place — the stall's own rate, then its section's, then
+  its area's, then the market's. The danger is a second reader answering the same question by a different rule and missing
+  that order, which is the shape of every borrowed-rate defect this platform has had, and each of those was found by an
+  office reading its own collections rather than by the code. Proven load-bearing: a report that starts naming the table
+  fails the test. The dead-entry check earned its keep immediately — it rejected the entity's own file, which never names
+  the SET.
+- Two allowances were added to `ApplicationEfBoundaryTests` the same day, with their reasons: the two handlers that write
+  one effective-dated section rate, and the one that writes the metering default, beside `SetFacilityRateCommandHandler`,
+  which is the same single-row write in the same feature. The test refused them until they were named, which is the layer
+  rule staying enforced rather than eroding one handler at a time.
 
 STILL TO DO, and each is blocked by an unfinished item rather than by effort:
 
@@ -683,6 +696,25 @@ same hazard.
 
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
+
+**Month-End does not count utilities the way the Financial report does.** Asked and answered 2026-08-29: it stays as it
+is. A meter charge is not a stall or a daily fee, and the sheet's own Miscellaneous table already states electricity and
+water on their own. Recorded because the two documents will keep looking inconsistent to anyone comparing their totals,
+and that difference is deliberate.
+
+**A section's rate applies from the day it is stated, and never backwards.** Ruled 2026-08-29, when the office asked to
+price its own market sections. Their words: nothing already recorded is touched. The rows are effective-dated exactly as
+`FacilityRates` are, and the daily fee is resolved as of the day being billed — which the settlement service already does,
+one day at a time — so a rate stated today leaves yesterday's unpaid day on the figure it was always owed at.
+
+**A stall let at its own rate keeps that rate.** Ruled 2026-08-29 in the same breath: an own rate is what that space was
+allocated at, so a section's figure does not overrule it. `NpmDailyFee` answers in that order — the stall's own rate, then
+its section's, then its area's, then the market's — and the order is stated once, there.
+
+**Activation asks a payor for no name.** Decided 2026-08-27 after the office saw a payor type "Godon Larl" for the
+register's "Godon Lar". The one-time code and the registered mobile number are the whole proof of ownership; the name was
+only ever the greeting. It now comes from the active contract for the stall the code was issued for, so an account cannot
+be greeted by its owner's typo for ever.
 
 **The sheet is a Monthly Collection Report, not a month-end one.** Renamed 2026-08-22 at the office's request, after they
 pointed out the title claimed something the document does not do: nothing about it waits for the month to close, and the
@@ -818,6 +850,91 @@ Items that were open and are now closed, kept because the reasoning is what stop
   by this; the comments in `LoginCommand` and `LoginCommandHandler` explaining the old divergence were corrected.
 
 ## Deferred product work
+
+- **The payor's own portal moved to Angular — `payor.stalltrack.site`, built 2026-08-27 to 08-29.** One host serves every
+  LGU, so the office is read from the payor's own account rather than from the address. Sign-in holds NOTHING readable by
+  script: the API sets HttpOnly, Secure, SameSite=Strict cookies, the app holds one boolean and a display name, and a
+  reload asks the API whether the refresh cookie is still good. Verified in the deployed bundle that no `localStorage` or
+  `sessionStorage` appears anywhere in it.
+  - Screens: sign-in, activation, accounts, balances, history, and the two the gateway returns to. A payment started at
+    `payor.stalltrack.site` returns there and not to the console, because the API validates the request's Origin against
+    `OnlinePayments:AllowedReturnOrigins` and falls back to the configured portal. Blazor sends no Origin (server to
+    server) and is unchanged.
+  - **The Blazor payor pages are still live and have NOT been retired.** Remaining before they can be: a Profile screen,
+    the OR toaster over `/hubs/payor`, and the receipt sheet a payor sees on tapping a paid month.
+  - `deploy-payor.yml` is still `workflow_dispatch` only. The push trigger is written out in a comment, ready to enable
+    once the portal is judged complete.
+  - The layout was rebuilt twice on the office's own reading: first as a statement rather than a stack of cards, then with
+    both filled navy panels removed. Their words: this is government things. Navy is left on the masthead, the thin gold
+    rule under it, and one action button per screen.
+
+- **A fish stall's own portal read ₱0.00 while the office's stall profile read ₱60 — fixed 2026-08-27.** The fish
+  section's payable item carries no amount by design, because each of its days costs the base fee plus that day's weighing
+  fee, so the days are offered one by one instead of billed as one figure. The payor's balance was summed from those items
+  and therefore summed to nothing. It now takes the base fee for the owed days from the same settlement service the
+  office's ledger and the collector's app settle against. Proven by injection: without the fix the test reports 0, exactly
+  as photographed.
+
+- **Online payment settles SEVERAL owed days — 2026-08-28.** The collector's app had done this for months; online could
+  pay only one day, so a payor three days behind opened three checkouts.
+  - An ordinary market stall pays a COUNT of owed days, oldest first, because that is the order the office's settlement
+    walks a month: paying a later day while an earlier one stayed open would leave an arrear behind a settled day. The
+    existing daily-month target already settles a partial amount that way, so nothing downstream changed.
+  - The fish section states its days one by one, each with the kilos declared for THAT day — the office's instruction of
+    2026-08-29, and right: a payment covering three days owes three weights. A fifth target kind and one nullable text
+    column of `day:kilos` pairs. Plain text and ordered, because the office reads its own tables by hand when reconciling,
+    and because the resume guard compares that text.
+  - Two office-side consumers had to learn the new kind, and one mattered more than any rule: the awaiting-receipt queue
+    is a SQL projection, and a payment missing from it can never be receipted — invisible rather than wrong. Injection
+    proved it: without the change the queue returns empty.
+  - **A stale checkout is never resumed at yesterday's price.** A session is resumed only while it still asks for the same
+    money — and for fish days, the same days with the same kilos. That was the ₱240-shown, ₱180-charged defect.
+
+- **An office prices and lays out its OWN market sections from Facility Configuration — 2026-08-28/29.** A section of an
+  LGU's own could previously only come into being as a side effect of recording a stall in it, and could be priced only
+  one stall at a time.
+  - Sections are added, listed with their stall counts, and removed (only while empty) in the market's own configuration
+    drawer, beside the three canonical areas it already renames there. A name the market already uses is refused against
+    the office's OWN labels.
+  - A section carries its own effective-dated daily fee in `FacilitySectionRates`, kept apart from `FacilityRate` because
+    a rate keyed by a NAME is not a rate keyed by an ordinance key, and widening the snapshot's key would have meant
+    reworking the one read path every peso passes through. The snapshot answers both, so no caller learns there are two
+    tables.
+  - A section also records whether its stalls are usually metered, in `FacilitySectionUtilities`. A DEFAULT for a stall
+    being recorded there and nothing more: the meters belong to the space, the portal already refuses to strip a stall's
+    electricity when a clerk corrects its section, and this must not become a second way to do the same thing. Undated,
+    because a default bills nothing and has no history worth keeping.
+  - **The audit of 2026-08-29 found the two paths that would have made the section fee inert**, and it was found by
+    auditing rather than reported by the office. The stall form and the stallholder import both stamped a figure onto a
+    custom-section stall's OWN daily rate — the clerk's, else another stall's, else the market's. An own rate outranks its
+    section's for ever, so an office pricing a section at ₱25 would have gone on collecting ₱30 from every stall either
+    path created. Both now leave a stall unpriced where its section carries a fee. The import was the worse of the two: one
+    file does it to a whole row of the market at once.
+  - Also cleared by that audit, stated because it nearly went the other way: three reports read the market's rate key
+    directly and looked like the old precedence. They are correct — the per-stall figure they receive is already resolved
+    through `NpmDailyFee`, and the market's rate is only the fallback for an office that has stated no rate at all.
+  - The drawer itself was made formal on the office's reading: rates are STATED with an explicit Edit action rather than
+    opening as live number fields (a stray keystroke used to become a rate change on Save), the three area rates are
+    grouped and named by the office's own word for each area, and four boxed paragraphs became one line each.
+  - **Remaining:** `GetSystemSettings` / `GetNpmRates` state the market's rate only, and should list the per-area rows and
+    now the section fees; and onboarding accepts a new LGU's section NAMES but no fees, so a newly activated office prices
+    them afterwards here.
+
+- **The platform operator can recover its own account — 2026-08-28.** It was the one account on the platform with nobody
+  above it to restore access, and the only way back was editing the database by hand. Three things were in the way, all
+  the same omission from different sides.
+  - A reset link is only ever emailed to a CONFIRMED address, and nothing ever asked the operator to confirm its own. The
+    forgot-password endpoint therefore found the account, judged it ineligible, and returned its usual neutral success:
+    silence by design, for a request that could never work. Creating the first operator now sends the same confirmation
+    every other account gets, and any signed-in account can ask for its own (the command carries no id — the subject is
+    the token's account).
+  - Both the reset and the confirmation link defaulted to the LGU console, whose sign-in refuses an operator. Each builder
+    now has an operator base, environment-driven exactly as the existing one is.
+  - The emails no longer name a municipality at the operator, or tell it to ask an office Head for help. It is stamped to
+    the default tenant for context, which is not the same as belonging to it.
+  - The console gained `/forgot-password` and `/reset-password/:token`, and a one-line notice above the workspace while
+    the address is unconfirmed. Neither screen reports whether an address is known, because the API is enumeration-safe
+    and this passes that through.
 
 - **Report of Collections (per collector) — WIRED TO REAL FIGURES 2026-08-25, at `/collectors/{id}/report`, opened from the
   document action on the collector's row.** The office asked for a collector report and chose the treasury wording for its
@@ -958,6 +1075,9 @@ Items that were open and are now closed, kept because the reasoning is what stop
     receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM daily reads) and needs the area's; and
     `GetSystemSettings` / `GetNpmRates`, which state the MARKET's rate as a settings figure - correct as far as it goes,
     but they should list the per-area rows now that an office can set them.
+    - **2026-08-29: a market's own SECTIONS can now be priced too, and both remainders above now carry that as well.**
+      The mobile app needs a section's rate for the same reason it needs an area's, and the settings figures should list
+      section fees beside the per-area rows. See the section-fee entry under Deferred product work.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
     daily reads) and needs the area's.
   - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own

@@ -40,6 +40,16 @@ the fault this document exists to prevent repeating.
 The token link for step 6 is built by `OnboardingLinks.Build(token)` and **e-mailed** by the operator. That is the only correct use
 of `OnboardingLinks.Base`.
 
+**Before any of this: the platform's first operator (2026-08-28).** `POST api/platform-setup/create-first-operator` runs
+once, when no operator exists, and now also sends that account an email-confirmation link. The reason shows up much later
+rather than at setup: a self-service password reset is only ever emailed to a CONFIRMED address, so without this the
+operator — the one account with nobody above it to restore its access — was the only account on the platform that could
+never reset its own password. The email is best-effort, and the account is saved before it is attempted, so an
+unconfigured or failing mailer cannot leave a platform with no operator at all.
+
+An operator that already existed before that change carries an unconfirmed address. The console states so in one line
+above the workspace and offers to send the confirmation; any signed-in account can ask for its own the same way.
+
 ## Where an unactivated municipality belongs
 
 **Step 2 — its own page**, `municipalities/{code}`, built by `LandingSiteLinks.MunicipalityPage(code)`. That is where its status
@@ -198,6 +208,17 @@ into the first stall filed under it.
 | Landing onboarding | a section whose `kind` is `CustomArea`, named by the office (the name is required; an unnamed one holds the facility open) |
 | Admin console | `isCustomArea` routes it into `ActivationFacility.customSections`; `CustomArea` is deliberately NOT a member of `MarketSectionKind`, so nothing reading a collection area can be handed one |
 | API | `ActivationFacility.CustomSections` → `Facility.AddCustomSection` per area |
+
+**An office's own area can now be PRICED, but not at onboarding (2026-08-29).** Activation still carries a custom area's
+NAME only. Its daily fee is stated afterwards in Facility Configuration, where the office also records whether stalls in it
+are usually metered. Two things follow from that, and both are deliberate:
+
+- Until a fee is stated, stalls in a custom area are billed the market's own daily rate, which is what happened before an
+  area of one's own could be priced at all.
+- A fee stated there applies from that day forward and never backwards, and a stall let at its own rate keeps that rate.
+  See the confirmed rules in `OUTSTANDING_WORK.md`.
+
+Whether onboarding should collect the fee at the same time as the name is an open product question, not an oversight.
 | Portal | the area is a filter and a sheet grouping already; the Head adds and removes them afterwards |
 
 Its rules are the registry's own, asserted in `ActivationCustomMarketAreaTests`: a name is required and capped at 60
@@ -226,6 +247,14 @@ LGU entered them — on screen, before the operator commits, and warned about in
 |---|---|---|
 | `OnboardingLinks` | `Base`, `Build(token)` — the workspace link the operator e-mails | `ONBOARDING_LINK_BASE` |
 | `LandingSiteLinks` | `Base`, `MunicipalityPage(code)` | `LANDING_SITE_BASE` |
+| `PasswordResetLinks` | `Base`, `Build(token, lgu)` and `OperatorBase`, `BuildForOperator(token)` | `PASSWORD_RESET_LINK_BASE`, `OPERATOR_PASSWORD_RESET_LINK_BASE` |
+| `EmailVerificationLinks` | `Base`, `Build(token, lgu)` and `OperatorBase`, `BuildForOperator(token)` | `EMAIL_VERIFY_LINK_BASE`, `OPERATOR_EMAIL_VERIFY_LINK_BASE` |
+
+The operator's two bases exist because the platform operator belongs to no municipality and signs in to the platform's own
+console. Its links default to `admin.stalltrack.site`; an LGU's default to `console.stalltrack.site`. Sending an operator
+to a municipality's console would land it on a sign-in screen its account is refused by, holding a token that expires in
+half an hour. Which base is used is decided by the ACCOUNT's own operator flag, never by which tenant it happens to sit
+under.
 
 Both fall back to the production domain when unset, so existing deployments are unchanged. `MunicipalityPage` lower-cases the code,
 because the landing site's own links are written that way (`?lgu=carrascal`) and a casing its router does not match would fall
