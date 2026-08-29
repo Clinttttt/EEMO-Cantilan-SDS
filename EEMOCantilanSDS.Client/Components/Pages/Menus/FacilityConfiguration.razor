@@ -367,54 +367,77 @@
                         <div class="cfg-rate-list">
                             @foreach (var cs in _npmCustomSections)
                             {
-                                <div class="cfg-rate">
-                                    <div class="cfg-rate-info">
-                                        <span class="cfg-rate-label">@cs.Name</span>
-                                        <span class="cfg-sec-count">
-                                            @cs.StallCount @(cs.StallCount == 1 ? "stall" : "stalls")
-                                        </span>
-                                    </div>
-                                    @if (_editingSectionRate is { } editing && string.Equals(editing, cs.Name, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        <div class="cfg-rate-input">
-                                            <span class="cfg-peso">₱</span>
-                                            <input type="number" step="0.01" min="0" inputmode="decimal"
-                                                   value="@FormatRate(_sectionRateEdit)"
-                                                   @onchange="e => _sectionRateEdit = ParseRate(e.Value?.ToString())" />
+                                var editing = _editingSectionRate is { } open && string.Equals(open, cs.Name, StringComparison.OrdinalIgnoreCase);
+
+                                <div class="cfg-sec">
+                                    <div class="cfg-sec-head">
+                                        <div class="cfg-sec-ident">
+                                            <div class="cfg-sec-name">@cs.Name</div>
+                                            <div class="cfg-sec-meta">@SectionMeta(cs)</div>
                                         </div>
-                                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
-                                                @onclick="() => SaveSectionRateAsync(cs.Name)">
-                                            Save
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <span class="cfg-rate-value">
-                                            @(cs.DailyRate is { } rate ? $"₱{FormatRate(rate)} / day" : "Market rate")
-                                        </span>
-                                        @* Metering is a default for a stall recorded here, not a charge: the meters
-                                           belong to the space, so this changes no stall that already exists. *@
-                                        <label class="cfg-sec-util">
-                                            <input type="checkbox" checked="@cs.Electricity"
-                                                   @onchange="e => SetSectionUtilitiesAsync(cs, electricity: (bool?)e.Value ?? false, water: cs.Water)" />
-                                            Electricity
-                                        </label>
-                                        <label class="cfg-sec-util">
-                                            <input type="checkbox" checked="@cs.Water"
-                                                   @onchange="e => SetSectionUtilitiesAsync(cs, electricity: cs.Electricity, water: (bool?)e.Value ?? false)" />
-                                            Water
-                                        </label>
-                                        <button class="cfg-sec-set" type="button" disabled="@_busy"
-                                                @onclick="() => BeginSectionRate(cs)">
-                                            Set fee
-                                        </button>
-                                        @if (cs.StallCount == 0)
+                                        @if (!editing)
                                         {
-                                            <button class="cfg-sec-remove" type="button" disabled="@_busy"
-                                                    @onclick="() => RemoveNpmCustomSectionAsync(cs.Name)">
-                                                Remove
-                                            </button>
+                                            <div class="cfg-sec-actions">
+                                                <button class="cfg-sec-set" type="button" disabled="@_busy"
+                                                        @onclick="() => BeginSectionRate(cs)">
+                                                    Edit
+                                                </button>
+                                                @if (cs.StallCount == 0)
+                                                {
+                                                    <button class="cfg-sec-remove" type="button" disabled="@_busy"
+                                                            @onclick="() => RemoveNpmCustomSectionAsync(cs.Name)">
+                                                        Remove
+                                                    </button>
+                                                }
+                                            </div>
                                         }
+                                    </div>
+
+                                    @* Open only when the office says it is editing this section. The fee and the metering are
+                                       saved together on Save, so a stray click on a checkbox cannot write to the office's
+                                       record on its own. *@
+                                    @if (editing)
+                                    {
+                                        <div class="cfg-sec-edit">
+                                            <label class="fac-field cfg-sec-fee">
+                                                <span class="fac-field-label">Daily fee</span>
+                                                <div class="cfg-rate-input">
+                                                    <span class="cfg-peso">₱</span>
+                                                    <input type="number" step="0.01" min="0" inputmode="decimal"
+                                                           value="@FormatRate(_sectionRateEdit)"
+                                                           @onchange="e => _sectionRateEdit = ParseRate(e.Value?.ToString())" />
+                                                </div>
+                                                <span class="cfg-field-note">Blank bills the market's own daily rate.</span>
+                                            </label>
+
+                                            <div class="fac-field">
+                                                <span class="fac-field-label">Meters a new stall starts with</span>
+                                                <div class="cfg-sec-utils">
+                                                    <label class="cfg-sec-util">
+                                                        <input type="checkbox" checked="@_sectionElectricityEdit"
+                                                               @onchange="e => _sectionElectricityEdit = (bool?)e.Value ?? false" />
+                                                        Electricity
+                                                    </label>
+                                                    <label class="cfg-sec-util">
+                                                        <input type="checkbox" checked="@_sectionWaterEdit"
+                                                               @onchange="e => _sectionWaterEdit = (bool?)e.Value ?? false" />
+                                                        Water
+                                                    </label>
+                                                </div>
+                                                <span class="cfg-field-note">A default for a stall recorded here. No existing stall changes.</span>
+                                            </div>
+
+                                            <div class="cfg-sec-edit-actions">
+                                                <button class="fac-btn fac-btn-ghost" type="button" disabled="@_busy"
+                                                        @onclick="CancelSectionEdit">
+                                                    Cancel
+                                                </button>
+                                                <button class="fac-btn fac-btn-ghost cfg-sec-save" type="button" disabled="@_busy"
+                                                        @onclick="() => SaveSectionAsync(cs)">
+                                                    Save section
+                                                </button>
+                                            </div>
+                                        </div>
                                     }
                                 </div>
                             }
@@ -425,24 +448,45 @@
                         <div class="cfg-field-note">No sections of your own yet.</div>
                     }
 
-                    <div class="cfg-field-row">
-                        <label class="fac-field">
-                            <span class="fac-field-label">Add a section</span>
-                            <input class="fac-input" @bind="_newNpmSection" @bind:event="oninput" maxlength="60"
-                                   placeholder="e.g. Sari-sari Area" />
-                        </label>
-                        <label class="fac-field cfg-sec-fee">
-                            <span class="fac-field-label">Daily fee</span>
-                            <input class="fac-input" type="number" step="0.01" min="0" inputmode="decimal"
-                                   value="@FormatRate(_newNpmSectionRate)"
-                                   @onchange="e => _newNpmSectionRate = ParseRate(e.Value?.ToString())" />
-                        </label>
-                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
-                                @onclick="AddNpmCustomSectionAsync">
-                            Add
+                    @* The form is asked for, not left open. A drawer that presents empty fields invites a clerk to fill
+                       them in when they came to read. *@
+                    @if (!_addingSection)
+                    {
+                        <button class="fac-btn fac-btn-ghost cfg-sec-add-open" type="button" disabled="@_busy"
+                                @onclick="() => { _addingSection = true; _npmSectionError = null; _npmSectionSaved = null; }">
+                            Add section
                         </button>
-                    </div>
-                    <div class="cfg-field-note">Leave the fee blank to bill the market's own daily rate.</div>
+                    }
+                    else
+                    {
+                        <div class="cfg-sec-edit">
+                            <label class="fac-field">
+                                <span class="fac-field-label">Section name</span>
+                                <input class="fac-input" @bind="_newNpmSection" @bind:event="oninput" maxlength="60"
+                                       placeholder="e.g. Sari-sari Area" />
+                            </label>
+                            <label class="fac-field cfg-sec-fee">
+                                <span class="fac-field-label">Daily fee</span>
+                                <div class="cfg-rate-input">
+                                    <span class="cfg-peso">₱</span>
+                                    <input type="number" step="0.01" min="0" inputmode="decimal"
+                                           value="@FormatRate(_newNpmSectionRate)"
+                                           @onchange="e => _newNpmSectionRate = ParseRate(e.Value?.ToString())" />
+                                </div>
+                                <span class="cfg-field-note">Blank bills the market's own daily rate.</span>
+                            </label>
+                            <div class="cfg-sec-edit-actions">
+                                <button class="fac-btn fac-btn-ghost" type="button" disabled="@_busy"
+                                        @onclick="CancelAddSection">
+                                    Cancel
+                                </button>
+                                <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" disabled="@_busy"
+                                        @onclick="AddNpmCustomSectionAsync">
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                    }
                     @if (_npmSectionError is not null)
                     {
                         <div class="cfg-error">@_npmSectionError</div>
@@ -837,23 +881,69 @@
     private string? _npmSectionError;
     private string? _npmSectionSaved;
 
-    /// <summary>The section whose fee is open for editing, and the figure being typed for it.</summary>
+    /// <summary>The section whose fee is open for editing, and the figures being typed for it.</summary>
     private string? _editingSectionRate;
     private decimal? _sectionRateEdit;
+    private bool _sectionElectricityEdit;
+    private bool _sectionWaterEdit;
+
+    /// <summary>Whether the office has asked for the add form. A drawer that presents empty fields invites filling them in.</summary>
+    private bool _addingSection;
+
+    /// <summary>What a section's row states under its name: what is filed there, and what a new stall starts with.</summary>
+    private static string SectionMeta(NpmCustomSectionDto section)
+    {
+        var stalls = section.StallCount == 1 ? "1 stall" : $"{section.StallCount} stalls";
+        var fee = section.DailyRate is { } rate ? $"₱{FormatRate(rate)} a day" : "Market rate";
+
+        var meters = (section.Electricity, section.Water) switch
+        {
+            (true, true) => "electricity and water",
+            (true, false) => "electricity",
+            (false, true) => "water",
+            _ => null,
+        };
+
+        return meters is null ? $"{stalls} · {fee}" : $"{stalls} · {fee} · new stall starts with {meters}";
+    }
 
     private void BeginSectionRate(NpmCustomSectionDto section)
     {
         _npmSectionError = null;
         _npmSectionSaved = null;
+        _addingSection = false;
         _editingSectionRate = section.Name;
         _sectionRateEdit = section.DailyRate;
+        _sectionElectricityEdit = section.Electricity;
+        _sectionWaterEdit = section.Water;
+    }
+
+    private void CancelSectionEdit()
+    {
+        _editingSectionRate = null;
+        _sectionRateEdit = null;
+        _npmSectionError = null;
+    }
+
+    private void CancelAddSection()
+    {
+        _addingSection = false;
+        _newNpmSection = string.Empty;
+        _newNpmSectionRate = null;
+        _npmSectionError = null;
     }
 
     /// <summary>
-    /// States the section's fee. The server decides the rest: effective today and never backwards, so no elapsed day is
-    /// re-priced, and a stall let at its own rate keeps that rate.
+    /// Saves the section as one act: its fee and the meters a stall recorded there starts with.
+    ///
+    /// <para>
+    /// Together, and only on Save, because a checkbox that wrote to the office's record the moment it was clicked is not
+    /// how a government form behaves. Each half is asked of the server only where it CHANGED, so a fee left alone does not
+    /// gain a new effective-dated row for today, and the office's rate history stays a record of decisions rather than of
+    /// visits to this drawer.
+    /// </para>
     /// </summary>
-    private async Task SaveSectionRateAsync(string name)
+    private async Task SaveSectionAsync(NpmCustomSectionDto section)
     {
         _npmSectionError = null;
         _npmSectionSaved = null;
@@ -865,21 +955,51 @@
             return;
         }
 
-        _busy = true;
-        var result = await FacilitiesApi.SetNpmSectionRateAsync(name, amount);
-        _busy = false;
+        var feeChanged = (section.DailyRate ?? 0m) != amount;
+        var metersChanged = section.Electricity != _sectionElectricityEdit || section.Water != _sectionWaterEdit;
 
-        if (!result.IsSuccess)
+        if (!feeChanged && !metersChanged)
         {
-            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That fee could not be set." : result.Error;
+            CancelSectionEdit();
             return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (feeChanged)
+            {
+                var fee = await FacilitiesApi.SetNpmSectionRateAsync(section.Name, amount);
+                if (!fee.IsSuccess)
+                {
+                    _npmSectionError = string.IsNullOrWhiteSpace(fee.Error) ? "That fee could not be set." : fee.Error;
+                    return;
+                }
+            }
+
+            if (metersChanged)
+            {
+                var meters = await FacilitiesApi.SetNpmSectionUtilitiesAsync(
+                    section.Name, _sectionElectricityEdit, _sectionWaterEdit);
+                if (!meters.IsSuccess)
+                {
+                    _npmSectionError = string.IsNullOrWhiteSpace(meters.Error) ? "That could not be saved." : meters.Error;
+                    return;
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
         }
 
         _editingSectionRate = null;
         _sectionRateEdit = null;
-        _npmSectionSaved = amount > 0m
-            ? $"{name} is billed ₱{FormatRate(amount)} a day from today."
-            : $"{name} is billed the market's own daily rate from today.";
+        _npmSectionSaved = feeChanged
+            ? (amount > 0m
+                ? $"{section.Name} is billed ₱{FormatRate(amount)} a day from today."
+                : $"{section.Name} is billed the market's own daily rate from today.")
+            : $"{section.Name} is saved.";
 
         await LoadNpmCustomSectionsAsync();
         await FacilityCatalog.ReloadAsync();
@@ -888,41 +1008,6 @@
     /// <summary>A figure typed into a money field, or nothing where the office cleared it.</summary>
     private static decimal? ParseRate(string? raw) =>
         decimal.TryParse((raw ?? string.Empty).Trim(), out var value) && value >= 0m ? value : null;
-
-    /// <summary>
-    /// Records whether a stall recorded in this section is usually metered.
-    ///
-    /// <para>
-    /// A default for the stall form and nothing else: the meters belong to the space, so no stall that already exists
-    /// gains or loses a utility from here, and nothing is billed by it.
-    /// </para>
-    /// </summary>
-    private async Task SetSectionUtilitiesAsync(NpmCustomSectionDto section, bool electricity, bool water)
-    {
-        _npmSectionError = null;
-        _npmSectionSaved = null;
-
-        _busy = true;
-        var result = await FacilitiesApi.SetNpmSectionUtilitiesAsync(section.Name, electricity, water);
-        _busy = false;
-
-        if (!result.IsSuccess)
-        {
-            _npmSectionError = string.IsNullOrWhiteSpace(result.Error) ? "That could not be saved." : result.Error;
-            return;
-        }
-
-        _npmSectionSaved = (electricity, water) switch
-        {
-            (true, true) => $"A stall recorded in {section.Name} starts with electricity and water.",
-            (true, false) => $"A stall recorded in {section.Name} starts with electricity.",
-            (false, true) => $"A stall recorded in {section.Name} starts with water.",
-            _ => $"A stall recorded in {section.Name} starts with no meters.",
-        };
-
-        await LoadNpmCustomSectionsAsync();
-        await FacilityCatalog.ReloadAsync();
-    }
 
     /// <summary>
     /// Whether the rates are open for editing. A rate is the ordinance's figure, so the drawer states it until the office
@@ -1190,6 +1275,7 @@
         _npmSectionSaved = null;
         _newNpmSection = string.Empty;
         _newNpmSectionRate = null;
+        _addingSection = false;
         _editingSectionRate = null;
         _sectionRateEdit = null;
         _npmCustomSections.Clear();
@@ -1245,6 +1331,7 @@
         }
 
         _newNpmSection = string.Empty;
+        _addingSection = false;
         _npmSectionSaved = _newNpmSectionRate is { } stated && stated > 0m
             ? $"{name} is now one of your market's sections, billed ₱{FormatRate(stated)} a day."
             : $"{name} is now one of your market's sections.";

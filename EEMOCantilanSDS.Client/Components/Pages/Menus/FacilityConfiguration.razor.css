@@ -702,7 +702,33 @@
 .cfg-rate-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cfg-rate-label { font-size: 13px; font-weight: 600; color: var(--text); }
 
-/* The office's own market sections: the same row as a rate, with the stall count that decides whether it may go. */
+/* The office's own market sections. Each is a small record, not a row of controls: its name, what is filed under it and
+   what it costs on one line beneath, and its actions to the right. The old single line crowded a name, a stall count, a
+   fee, two checkboxes and two buttons together, and a two-word section name wrapped underneath itself. */
+.cfg-sec {
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg);
+    padding: 11px 13px;
+}
+.cfg-sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cfg-sec-ident { min-width: 0; }
+.cfg-sec-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.cfg-sec-meta { margin-top: 3px; font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.cfg-sec-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+
+/* Open only while the office is editing that section: the fee and the meters, saved together. */
+.cfg-sec-edit {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.cfg-sec-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.cfg-sec-utils { display: flex; gap: 16px; flex-wrap: wrap; }
+.cfg-sec-add-open { align-self: flex-start; }
 .cfg-sec-count { font-size: 11.5px; color: var(--text-muted); }
 
 /* A rate as a stated figure, before the office says it is editing one. */

@@ -47,6 +47,7 @@ public class FacilityConfigurationSectionsTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(sections.ToList()));
         _api.Setup(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>())).ReturnsAsync(Result<bool>.Success(true));
+        _api.Setup(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.RemoveNpmCustomSectionAsync(It.IsAny<string>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(new List<FacilitySidebarSummaryDto>
@@ -116,7 +117,7 @@ public class FacilityConfigurationSectionsTests : TestContext
     {
         var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0));
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        OpenAddForm(cut);
         cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("  sari-sari area  ");
         cut.FindAll(".cfg-sec-add")[0].Click();
 
@@ -131,7 +132,7 @@ public class FacilityConfigurationSectionsTests : TestContext
         // would read alike and file apart.
         var cut = RenderDrawer();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        OpenAddForm(cut);
         cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("Fish Area");
         cut.FindAll(".cfg-sec-add")[0].Click();
 
@@ -144,7 +145,7 @@ public class FacilityConfigurationSectionsTests : TestContext
     {
         var cut = RenderDrawer();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        OpenAddForm(cut);
         cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("  Sari-sari Area  ");
         cut.FindAll(".cfg-sec-add")[0].Click();
 
@@ -158,7 +159,7 @@ public class FacilityConfigurationSectionsTests : TestContext
     {
         var cut = RenderDrawer();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-add")));
+        OpenAddForm(cut);
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => Assert.Contains("Enter the section's name.", cut.Markup));
@@ -174,13 +175,15 @@ public class FacilityConfigurationSectionsTests : TestContext
             new NpmCustomSectionDto("Sari-sari Area", 0, 25m),
             new NpmCustomSectionDto("Bakery Area", 4, null));
 
-        cut.WaitForAssertion(() => Assert.Contains("₱25 / day", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("₱25 a day", cut.Markup));
         Assert.Contains("Market rate", cut.Markup);
     }
 
     [Fact]
-    public void SettingASectionsFeeAsksTheServerForThatSectionOnly()
+    public void SavingAFeeTellsTheOfficeWhatItWillBeBilledAndFromWhen()
     {
+        // The one thing an office must be told when it changes a fee: from when. The rows are effective-dated, so a rate
+        // stated today leaves yesterday's unpaid day on the figure it was always owed at.
         var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, null));
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".cfg-sec-set")));
@@ -188,11 +191,12 @@ public class FacilityConfigurationSectionsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
         cut.Find(".cfg-rate-input input").Change("25");
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Save").Click();
+        cut.Find(".cfg-sec-save").Click();
 
         cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionRateAsync("Sari-sari Area", 25m), Times.Once));
-        // And the office is told what it will be billed, and from when.
         cut.WaitForAssertion(() => Assert.Contains("a day from today", cut.Markup));
+        // The meters were not touched, so nothing was asked about them.
+        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]
@@ -200,9 +204,9 @@ public class FacilityConfigurationSectionsTests : TestContext
     {
         var cut = RenderDrawer();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        OpenAddForm(cut);
         cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("Sari-sari Area");
-        cut.FindAll(".fac-input").First(i => i.GetAttribute("type") == "number").Change("25");
+        cut.Find(".cfg-rate-input input").Change("25");
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Sari-sari Area", 25m), Times.Once));
@@ -214,11 +218,99 @@ public class FacilityConfigurationSectionsTests : TestContext
         // Not nought: nought is a withdrawn figure, and a section created without a fee is simply unpriced.
         var cut = RenderDrawer();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+        OpenAddForm(cut);
         cut.Find("input[placeholder='e.g. Sari-sari Area']").Input("Bakery Area");
         cut.FindAll(".cfg-sec-add")[0].Click();
 
         cut.WaitForAssertion(() => _api.Verify(a => a.AddNpmCustomSectionAsync("Bakery Area", null), Times.Once));
+    }
+
+    /// <summary>Opens the add form, which the drawer keeps shut until the office asks for it.</summary>
+    private static void OpenAddForm(IRenderedComponent<FacilityConfiguration> cut)
+    {
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-add-open")));
+        cut.Find(".cfg-sec-add-open").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']")));
+    }
+
+    [Fact]
+    public void TheAddFormIsAskedForRatherThanLeftOpen()
+    {
+        // A drawer that presents empty fields invites a clerk to fill them in when they came to read the office's record.
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, null));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-add-open")));
+        Assert.Empty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']"));
+
+        OpenAddForm(cut);
+        Assert.NotEmpty(cut.FindAll("input[placeholder='e.g. Sari-sari Area']"));
+    }
+
+    [Fact]
+    public void TheMetersAreNotEditableUntilTheOfficeSaysItIsEditingTheSection()
+    {
+        // A checkbox that wrote to the office's record the moment it was clicked is not how a government form behaves. The
+        // section states what a new stall starts with; changing it is a deliberate act, saved with the fee.
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m, Electricity: true, Water: false));
+
+        cut.WaitForAssertion(() => Assert.Contains("Sari-sari Area", cut.Markup));
+        Assert.Empty(cut.FindAll(".cfg-sec-util input"));
+        // Stated as words instead.
+        Assert.Contains("new stall starts with electricity", cut.Markup);
+
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".cfg-sec-util input").Count));
+    }
+
+    [Fact]
+    public void ClosingTheEditWithoutSavingAsksNothingOfTheServer()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-util input")));
+        cut.FindAll(".cfg-sec-util input")[0].Change(true);
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Cancel").Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-util input")));
+        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
+        _api.Verify(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>()), Times.Never);
+    }
+
+    [Fact]
+    public void SavingWithNothingChangedAsksNothingOfTheServer()
+    {
+        // An office that opens a section to read it and closes it again must not gain a rate row dated today: the history is
+        // a record of decisions, not of visits to this drawer.
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m, Electricity: true, Water: true));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-save")));
+        cut.Find(".cfg-sec-save").Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-save")));
+        _api.Verify(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>()), Times.Never);
+        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public void TheFeeAndTheMetersAreSavedAsOneAct()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, null, Electricity: false, Water: false));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
+        cut.Find(".cfg-rate-input input").Change("25");
+        cut.FindAll(".cfg-sec-util input")[1].Change(true);   // water
+        cut.Find(".cfg-sec-save").Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionRateAsync("Sari-sari Area", 25m), Times.Once));
+        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionUtilitiesAsync("Sari-sari Area", false, true), Times.Once));
     }
 
     // ── The rates: a record until the office says it is editing one ───────────────────────────────
