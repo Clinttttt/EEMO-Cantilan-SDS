@@ -785,15 +785,19 @@ Ordered as they were given, with what each one costs to do and the two that need
 1. **The fee input renders its value in the MIDDLE of the field.** A money field should sit where a figure is read. Small,
    presentational, no rule behind it.
 
-2. **REMOVE the metering default from a section — the office's own decision, reversing what shipped earlier the same day.**
-   Their reasoning, and it is sound: a vendor is recorded either by import or by hand, and BOTH already offer the utilities
-   as a choice at that point. Setting them on the section as well is a second place to say the same thing, and the office
-   calls that informal. What this costs: the `FacilitySectionUtilities` table, its command and endpoint, the drawer's
-   checkboxes, and the stall form's pre-fill through `SectionMeterDefaults`. **Decision needed:** whether to drop the table
-   too (a migration removing a table is not additive, so the safer path is to stop writing and reading it, leave the empty
-   table, and record why) or keep the mechanism dormant.
+2. **KEEP the metering default on a section. Decided by the office 2026-08-29, reversing its own earlier request to remove
+   it.** The reasoning it gave was that onboarding already sets utilities for a new municipality, so the section block was a
+   second place to say one thing. **That premise is not accurate and the record should say so: onboarding collects a custom
+   area's NAME and nothing else** (see `ONBOARDING_FLOW.md`, "An office's own area can now be PRICED, but not at
+   onboarding"). No utility rate and no metering is stated anywhere during activation.
+   The decision is nevertheless the right one, for a better reason than the one given: Facility Configuration is the ONLY
+   place a municipality that is not Cantilan can record that stalls in one of its areas are usually metered. Removing it
+   would leave those offices ticking two boxes by hand on every stall they record, with nothing to state the pattern. So
+   `FacilitySectionUtilities`, `SetNpmSectionUtilitiesCommand` and `SectionMeterDefaults` all stay as they are, and no
+   migration is needed. **Closed, no work.**
 
 3. **The remaining long description in the drawer is still too long.** Shorten to one brief line, as with the others.
+   Not yet done, and the office pointed at it a second time. NOT DONE.
 
 4. **A monthly rate should fill the daily rate in: ₱900 a month becomes ₱30 a day.** Their words: that is the Cantilan
    ordinance's own arithmetic. This is `DomainRules.DailyBilledMonthDays` (thirty) read the other way round, and the platform
@@ -801,17 +805,34 @@ Ordered as they were given, with what each one costs to do and the two that need
    safe. **Care needed:** it must remain an assist the clerk can overwrite, not a rule, because an office whose ordinance
    states ₱1,000 a month with a ₱35 day exists and is why the monthly field was kept at onboarding.
 
-5. **Electricity and water should default to ₱1 rather than 0.** **Decision needed, and I would push back before building
-   it.** An unstated rate resolving to NOTHING is a deliberate platform rule, adopted after Madrid was found charging
-   Cantilan's ₱1.00 per kilo: a figure nobody stated must never become a figure somebody is billed. A ₱1 default on the
-   FORM, which the office must still save, keeps that rule; a ₱1 default in the RESOLVER breaks it. I will do the first and
-   not the second unless the office instructs otherwise.
+5. **DONE 2026-08-29. Electricity and water open at ₱1.00 on the FORM, and nowhere else.** The office chose the form over
+   the resolver when the difference was put to it, which keeps the rule adopted after Madrid was found charging Cantilan's
+   per-kilo fee: a figure nobody stated must never become a figure somebody is billed. `Client/Services/UtilityRateSuggestion.cs`
+   holds the figure and says in its own remarks that a resolver, report, bill or settlement asking it for a figure would be
+   that fault in a new place. It is seeded only when the office presses Edit rates, sits in the field where the office can
+   change it, and becomes a rate on Save like every other figure there. Covered by `UtilityRateSuggestionTests` and
+   `FacilityConfigurationRatesTests`; injection-proved both ways.
+   **One consequence the office should know:** because Save writes every changed rate, opening Edit rates and saving now also
+   states ₱1.00 for a metered rate that had none. The field shows the figure and a one-line note says so, so nothing is
+   hidden, but it is a real change in what Save does.
 
-6. **The three canonical area rates display ₱0, which the office reads as a bug.** It is a display fault of mine: those rows
-   render the stored amount, and an unstated area rate is nought, so a row reads "₱0" where it means "billed the market's
-   rate". The read-only row should say what the group note says. Mine to fix.
+6. **DONE 2026-08-29. The three canonical area rates no longer read ₱0.** They state the figure the area is actually billed:
+   its own where the office has stated one, otherwise the market's own daily stall fee, which is what the fee rule resolves
+   to. Where the market itself has no stated fee the row reads "Not set" rather than inventing a figure. `AreaRateStated` in
+   `FacilityConfiguration.razor`; three tests in `FacilityConfigurationRatesTests`.
 
-7. **A section's name field should carry its own label rather than relying on a placeholder.** Presentational.
+7. **A section's name field should carry its own label rather than relying on a placeholder.** Presentational. NOT DONE.
+
+### Found while examining the above, 2026-08-29
+
+- **`InitiateOnlinePaymentCommand.Days` has no caller.** The payor portal's day picker became fish-specific when per-day
+  kilos arrived, so a plain daily month is paid in full, which is the API's own documented default ("Full balance only").
+  The multi-day count and its guards are still tested server-side and still correct; they simply have no client. Not a
+  defect, and not to be "fixed" by sending a count nobody chose.
+- **The platform repository's CI never ran a test until 2026-08-29.** It built three apps and stopped, so the admin
+  console's forty specs had never run on a runner. Both projects are now named explicitly in `ci.yml`.
+- **`apps/payor` had no specs at all** and now has sixty, over the session, the shared token refresh, the initiate request
+  shape and the fish day arithmetic. The landing site still has none.
 
 1. **Two Postgres firewall rules — REMOVED 2026-08-17** on the office's instruction. They opened `180.194.5.178` and
    `180.195.158.234` indefinitely, for machines nobody uses. `AllowAllAzureServicesAndResourcesWithinAzureIps` remains, which is how

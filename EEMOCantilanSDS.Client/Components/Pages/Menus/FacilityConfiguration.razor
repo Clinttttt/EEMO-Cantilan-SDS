@@ -1,4 +1,4 @@
-﻿@page "/settings/facilities"
+@page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
 @using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility
@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Services
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -573,6 +574,11 @@
                         }
                     </div>
 
+                    @if (ShowingUtilityStartingRate())
+                    {
+                        <div class="cfg-field-note">Electricity and water start at ₱1.00. Set your own before saving.</div>
+                    }
+
                     @if (PerAreaRates().Count > 0)
                     {
                         <div class="cfg-section-label">Daily fee by area</div>
@@ -598,7 +604,7 @@
                                     }
                                     else
                                     {
-                                        <span class="cfg-rate-value">₱@FormatRate(r.Amount)</span>
+                                        <span class="cfg-rate-value">@AreaRateStated(r)</span>
                                     }
                                 </div>
                             }
@@ -612,7 +618,7 @@
                     }
                     else
                     {
-                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" @onclick="() => _editingRates = true">
+                        <button class="fac-btn fac-btn-ghost cfg-sec-add" type="button" @onclick="BeginEditingRates">
                             Edit rates
                         </button>
                     }
@@ -1430,6 +1436,50 @@
     private void SetRateEdit(string key, string? raw)
     {
         if (decimal.TryParse(raw, out var d) && d >= 0m) _rateEdits[key] = decimal.Round(d, 2);
+    }
+
+    /// <summary>
+    /// Turns the stated rates into a form, and opens a metered rate the office has never stated at one peso.
+    /// </summary>
+    /// <remarks>
+    /// Pressing Edit rates is the office asking for a form, which is the only place a suggested figure belongs. It sits in
+    /// the field where the office can see it and change it, and it becomes a rate only on Save, like every other figure here.
+    /// </remarks>
+    private void BeginEditingRates()
+    {
+        _editingRates = true;
+        if (_cfgFacility is null) return;
+
+        foreach (var r in _cfgFacility.Rates)
+        {
+            if (UtilityRateSuggestion.StartingValueOrNull(r.Key, r.Amount) is { } starting)
+                _rateEdits[r.Key] = starting;
+        }
+    }
+
+    /// <summary>Whether the form is currently suggesting a metered rate, so the note is shown only when it is true.</summary>
+    private bool ShowingUtilityStartingRate()
+        => _editingRates && _cfgFacility is not null
+           && _cfgFacility.Rates.Any(r => UtilityRateSuggestion.IsMetered(r.Key)
+                                          && r.Amount <= 0m
+                                          && _rateEdits.GetValueOrDefault(r.Key) == UtilityRateSuggestion.StartingRate);
+
+    /// <summary>
+    /// What an area is billed, stated plainly: its own daily fee, or the market's where the office has stated none.
+    /// </summary>
+    /// <remarks>
+    /// The row used to render the stored amount, so an area nobody had priced read "₱0.00" - which the office read as free,
+    /// and reasonably so. Nought in this column means the area follows the market's daily stall fee, so that is the figure
+    /// the row now states. The "market rate" tag beside the label already says where it comes from.
+    /// </remarks>
+    private string AreaRateStated(ConfiguredRateDto rate)
+    {
+        if (rate.Amount > 0m) return $"₱{FormatRate(rate.Amount)}";
+
+        var market = _cfgFacility?.Rates
+            .FirstOrDefault(r => string.Equals(r.Key, nameof(FeeRateKey.NpmDailyStall), StringComparison.OrdinalIgnoreCase));
+
+        return market is { Amount: > 0m } ? $"₱{FormatRate(market.Amount)}" : "Not set";
     }
 
     private bool HasIdentityChanges()

@@ -1,0 +1,31 @@
+An area states what it is billed, and a metered rate opens at a peso
+
+Two faults the office found by reading its own screen, and one of them was mine.
+
+THE AREA ROWS READ NOUGHT. The three canonical areas rendered the stored amount, so an area nobody had priced showed
+P0.00. The office called that a bug and it was right: nought in that column does not mean free, it means the area follows
+the market's own daily stall fee, which is what the fee rule resolves to. The row now states the figure the area is
+actually billed - its own where the office has stated one, the market's otherwise - and where the market itself has no
+stated fee it reads "Not set" rather than inventing a figure. The note under the group already said as much; the value
+now agrees with it.
+
+A METERED RATE OPENED AT NOUGHT. The office asked for a peso instead, and the difference between where that peso goes was
+put to it plainly: on the FORM it is an offer the office confirms; in the RESOLVER it is this platform pricing a utility,
+which is the exact fault found when Madrid was billing Cantilan's per-kilo fee. The office chose the form, so the figure
+lives in Client/Services/UtilityRateSuggestion.cs, which says in its own remarks that a resolver, a report, a bill or a
+settlement asking it for a figure would be that fault in a new place. It is seeded when the office presses Edit rates,
+because that press is the office asking for a form and a form is the only place a suggested figure belongs. It sits in the
+field where the office can see and change it, and it becomes a rate on Save like every other figure there.
+
+One consequence stated rather than buried: Save writes every changed rate, so saving now also states a peso for a metered
+rate that had none. The field shows the figure and one line says what it is doing, so nothing is hidden, but Save does
+more than it did.
+
+Twenty-one tests, both directions injection-proved: the old P0.00 display fails two of them, and removing the suggestion
+fails two more. The suggestion reaches only the two metered keys, never a rate the office has already stated, never a fee
+that is not metered, and nothing is sent to the office's record merely by opening the form.
+
+Also recorded, because the office's reasoning for keeping the section metering rested on it: onboarding does NOT set
+utilities. It carries a custom area's name and nothing else. Keeping the block is still the right call, for a better
+reason - Facility Configuration is the only place a municipality that is not Cantilan can state that an area's stalls are
+usually metered.
