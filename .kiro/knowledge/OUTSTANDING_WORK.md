@@ -777,6 +777,42 @@ only the market days elapsed as of the report date.
 
 These cannot be answered by reading code.
 
+### Asked by the office 2026-08-29, on Facility Configuration and the stall form — NOT YET DONE
+
+Recorded verbatim in substance, because the message that carried them failed to send and the office asked that none be lost.
+Ordered as they were given, with what each one costs to do and the two that need a decision before anybody writes code.
+
+1. **The fee input renders its value in the MIDDLE of the field.** A money field should sit where a figure is read. Small,
+   presentational, no rule behind it.
+
+2. **REMOVE the metering default from a section — the office's own decision, reversing what shipped earlier the same day.**
+   Their reasoning, and it is sound: a vendor is recorded either by import or by hand, and BOTH already offer the utilities
+   as a choice at that point. Setting them on the section as well is a second place to say the same thing, and the office
+   calls that informal. What this costs: the `FacilitySectionUtilities` table, its command and endpoint, the drawer's
+   checkboxes, and the stall form's pre-fill through `SectionMeterDefaults`. **Decision needed:** whether to drop the table
+   too (a migration removing a table is not additive, so the safer path is to stop writing and reading it, leave the empty
+   table, and record why) or keep the mechanism dormant.
+
+3. **The remaining long description in the drawer is still too long.** Shorten to one brief line, as with the others.
+
+4. **A monthly rate should fill the daily rate in: ₱900 a month becomes ₱30 a day.** Their words: that is the Cantilan
+   ordinance's own arithmetic. This is `DomainRules.DailyBilledMonthDays` (thirty) read the other way round, and the platform
+   already treats a month as thirty daily fees where an office states no month. Doing it on the form is presentational and
+   safe. **Care needed:** it must remain an assist the clerk can overwrite, not a rule, because an office whose ordinance
+   states ₱1,000 a month with a ₱35 day exists and is why the monthly field was kept at onboarding.
+
+5. **Electricity and water should default to ₱1 rather than 0.** **Decision needed, and I would push back before building
+   it.** An unstated rate resolving to NOTHING is a deliberate platform rule, adopted after Madrid was found charging
+   Cantilan's ₱1.00 per kilo: a figure nobody stated must never become a figure somebody is billed. A ₱1 default on the
+   FORM, which the office must still save, keeps that rule; a ₱1 default in the RESOLVER breaks it. I will do the first and
+   not the second unless the office instructs otherwise.
+
+6. **The three canonical area rates display ₱0, which the office reads as a bug.** It is a display fault of mine: those rows
+   render the stored amount, and an unstated area rate is nought, so a row reads "₱0" where it means "billed the market's
+   rate". The read-only row should say what the group note says. Mine to fix.
+
+7. **A section's name field should carry its own label rather than relying on a placeholder.** Presentational.
+
 1. **Two Postgres firewall rules — REMOVED 2026-08-17** on the office's instruction. They opened `180.194.5.178` and
    `180.195.158.234` indefinitely, for machines nobody uses. `AllowAllAzureServicesAndResourcesWithinAzureIps` remains, which is how
    the API and the backup workflow reach the database — verified straight after removal by `/health/ready` answering `ready` and
