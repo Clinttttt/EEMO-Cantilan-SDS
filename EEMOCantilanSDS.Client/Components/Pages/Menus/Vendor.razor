@@ -555,7 +555,7 @@
                                         <div class="fee-item-sub">Vegetable vendor · Collected daily</div>
                                     </div>
                                 </div>
-                                <div class="fee-item-amount">₱@(_npmDailyRate.ToString("0"))<span class="fee-freq">/day</span></div>
+                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.VegetableArea).ToString("0"))<span class="fee-freq">/day</span></div>
                             </div>
                         }
 
@@ -571,7 +571,7 @@
                                         <div class="fee-item-sub">Fish vendor · Collected daily</div>
                                     </div>
                                 </div>
-                                <div class="fee-item-amount">₱@(_npmDailyRate.ToString("0"))<span class="fee-freq">/day</span></div>
+                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.FishSection).ToString("0"))<span class="fee-freq">/day</span></div>
                             </div>
                         }
 
@@ -587,7 +587,7 @@
                                         <div class="fee-item-sub">Meat vendor · Collected daily</div>
                                     </div>
                                 </div>
-                                <div class="fee-item-amount">₱@(_npmDailyRate.ToString("0"))<span class="fee-freq">/day</span></div>
+                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.MeatSection).ToString("0"))<span class="fee-freq">/day</span></div>
                             </div>
                         }
 
@@ -775,6 +775,18 @@
     // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), used
     // for the NPM daily-fee labels in the vendor detail + fee breakdown.
     private decimal _npmDailyRate = 30m;
+    private decimal _npmVegetableRate;
+    private decimal _npmFishSectionRate;
+    private decimal _npmMeatRate;
+
+    /// <summary>What a stall in this area is billed: the area's own rate where the office prices it apart, else the market's.</summary>
+    private decimal AreaDailyRate(MarketSection section) => section switch
+    {
+        MarketSection.VegetableArea => _npmVegetableRate > 0m ? _npmVegetableRate : _npmDailyRate,
+        MarketSection.FishSection => _npmFishSectionRate > 0m ? _npmFishSectionRate : _npmDailyRate,
+        MarketSection.MeatSection => _npmMeatRate > 0m ? _npmMeatRate : _npmDailyRate,
+        _ => _npmDailyRate,
+    };
     // Unknown until the tenant's rates arrive. Zero on purpose: a label built from a default would put this
     // platform's reference ordinance on another municipality's screen if the rates call failed.
     private decimal _npmFishRate;
@@ -789,6 +801,10 @@
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            // Per-area figures, so a fee line stated against an AREA is that area's own.
+            _npmVegetableRate = result.Value.VegetableAreaDailyRate;
+            _npmFishSectionRate = result.Value.FishSectionDailyRate;
+            _npmMeatRate = result.Value.MeatSectionDailyRate;
             _npmMonthlyRentInUse = result.Value.MonthlyRentInUse > 0m
                 ? result.Value.MonthlyRentInUse
                 : result.Value.MonthlyRent;

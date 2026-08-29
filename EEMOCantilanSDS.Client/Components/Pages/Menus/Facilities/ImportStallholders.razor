@@ -607,6 +607,10 @@
     // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), shown
     // in the section-picker descriptions. Loaded once.
     private decimal _npmDailyRate = 30m;
+    // Per-area figures, so a rate stated against an AREA is that area's. Zero where the office prices it no differently.
+    private decimal _npmVegetableRate;
+    private decimal _npmFishSectionRate;
+    private decimal _npmMeatRate;
     private decimal _npmFishRate = 1m;
     private bool _ratesLoaded;
 
@@ -618,6 +622,9 @@
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            _npmVegetableRate = result.Value.VegetableAreaDailyRate;
+            _npmFishSectionRate = result.Value.FishSectionDailyRate;
+            _npmMeatRate = result.Value.MeatSectionDailyRate;
         }
         _ratesLoaded = true;
     }
@@ -633,9 +640,20 @@
             : (sectionKey ?? string.Empty);
 
     // Section-option description with the tenant's resolved rate appended (Fish adds the per-kilo fee). The area is
-    // named as the office names it; "Vegetable stalls" was this platform's wording on another municipality's screen.
+    // named as the office names it; "Vegetable stalls" was this platform's wording on another municipality's screen. The
+    // FIGURE is that area's too: where an office prices its vegetable row apart, stating the market's rate here told it
+    // the row costs something it does not.
     private string SectionDesc(NpmSectionOption sec) =>
-        $"{SectionOptionLabel(sec.Name)} stalls · ₱{_npmDailyRate:0}/day" + (sec.Name == "Fish" ? $" + ₱{_npmFishRate:0}/kg" : "");
+        $"{SectionOptionLabel(sec.Name)} stalls · ₱{AreaDailyRate(sec.Name):0}/day" + (sec.Name == "Fish" ? $" + ₱{_npmFishRate:0}/kg" : "");
+
+    /// <summary>What a stall in this area is billed: the area's own rate where the office prices it apart, else the market's.</summary>
+    private decimal AreaDailyRate(string? sectionKey) => MapSection(sectionKey) switch
+    {
+        MarketSection.VegetableArea => _npmVegetableRate > 0m ? _npmVegetableRate : _npmDailyRate,
+        MarketSection.FishSection => _npmFishSectionRate > 0m ? _npmFishSectionRate : _npmDailyRate,
+        MarketSection.MeatSection => _npmMeatRate > 0m ? _npmMeatRate : _npmDailyRate,
+        _ => _npmDailyRate,
+    };
 
     // Per-LGU custom NPM sections offered as import targets (in addition to Vegetable/Fish/Meat).
     private List<string> _customSections = new();

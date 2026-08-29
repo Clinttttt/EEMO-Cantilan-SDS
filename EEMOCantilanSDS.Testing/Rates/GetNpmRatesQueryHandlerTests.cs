@@ -84,5 +84,67 @@ namespace EEMOCantilanSDS.Testing.Rates
             Assert.NotEqual(FeeRates.NpmDailyFee, result.Value!.DailyRate);
             Assert.NotEqual(FeeRates.NpmFishFeePerKilo, result.Value!.FishRate);
         }
+
+        [Fact]
+        public async Task EachAreaAnswersItsOwnRate_OrTheMarketsWhereItIsPricedNoDifferently()
+        {
+            // Several screens state a rate against an AREA — an import's section picker, for one — and they all read this
+            // query. Stating the market's figure there told an office that prices its meat row at ₱35 that the row costs
+            // ₱30, on the very screen where it files that row's history.
+            var options = Options();
+            var lgu = Guid.NewGuid();
+
+            using (var seed = new AppDbContext(options, new FixedMunicipality(lgu)))
+            {
+                seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1), lgu));
+                seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStallMeat, 35m, new DateOnly(2020, 1, 1), lgu));
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options, new FixedMunicipality(lgu));
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(35m, result.Value!.MeatSectionDailyRate);          // priced apart
+            Assert.Equal(30m, result.Value!.VegetableAreaDailyRate);        // priced no differently
+            Assert.Equal(30m, result.Value!.FishSectionDailyRate);
+            Assert.Equal(30m, result.Value!.DailyRate);                     // the market's own figure is untouched
+        }
+
+        [Fact]
+        public async Task AnOfficeThatPricesNoAreaApartReadsItsMarketRateForAllThree()
+        {
+            // Every office today. The three figures exist so a screen need not decide; they are simply the market's rate
+            // until an office prices an area apart.
+            var options = Options();
+            var lgu = Guid.NewGuid();
+
+            using (var seed = new AppDbContext(options, new FixedMunicipality(lgu)))
+            {
+                seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1), lgu));
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options, new FixedMunicipality(lgu));
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
+
+            Assert.Equal(30m, result.Value!.VegetableAreaDailyRate);
+            Assert.Equal(30m, result.Value!.FishSectionDailyRate);
+            Assert.Equal(30m, result.Value!.MeatSectionDailyRate);
+        }
+
+        [Fact]
+        public async Task AnOfficeThatHasStatedNothingStatesNothingPerAreaEither()
+        {
+            // Nothing borrowed, on any of the three: a screen shows nothing rather than another municipality's figure.
+            var options = Options();
+
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.NewGuid()));
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx, new FixedClock(DateTime.UtcNow)).Handle(new GetNpmRatesQuery(), default);
+
+            Assert.Equal(0m, result.Value!.VegetableAreaDailyRate);
+            Assert.Equal(0m, result.Value!.FishSectionDailyRate);
+            Assert.Equal(0m, result.Value!.MeatSectionDailyRate);
+        }
     }
 }

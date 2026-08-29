@@ -47,6 +47,12 @@ public class GetNpmRatesQueryHandler(
         return Result<NpmRatesDto>.Success(new NpmRatesDto(
             daily, fish, monthly, monthlyInUse,
             IsMonthlyRentConfirmed: monthly > 0m,
-            NeedsMonthlyRentConfirmation: monthly <= 0m && !isReferenceTenant));
+            NeedsMonthlyRentConfirmation: monthly <= 0m && !isReferenceTenant,
+            // What a stall in each of the three areas is billed: the area's own rate where the office prices it apart,
+            // else the market's. Asked of NpmDailyFee rather than read key by key, so a screen stating an area's rate and
+            // the collector charging for a stall in it cannot answer by different rules.
+            VegetableAreaDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.VegetableArea, snapshot, asOf) ?? 0m,
+            FishSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.FishSection, snapshot, asOf) ?? 0m,
+            MeatSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.MeatSection, snapshot, asOf) ?? 0m));
     }
 }

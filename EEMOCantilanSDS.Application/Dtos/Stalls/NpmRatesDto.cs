@@ -7,6 +7,19 @@ namespace EEMOCantilanSDS.Application.Dtos.Stalls;
 /// which case <see cref="MonthlyRentInUse"/> — thirty of the daily fee — is what the system charges until it does.
 /// <see cref="NeedsMonthlyRentConfirmation"/> is the portal's cue to ask the office to confirm its ordinance figure:
 /// it is never raised for the reference tenant, whose ordinance IS the constants this platform derives from.</para>
+///
+/// <para>
+/// The three per-area figures are what a stall IN THAT AREA is billed: the office's own rate for the area where it prices
+/// that area apart, and the market's rate where it does not. They exist because several screens state a rate against an
+/// AREA — an import's section picker, for one — and stating the market's figure there told an office that prices its
+/// vegetable row at ₱35 that the row costs ₱30. Every one of them equals <see cref="DailyRate"/> for an office that
+/// prices nothing apart, which is every office today.
+/// </para>
+///
+/// <para>
+/// A stall's OWN rate is deliberately not here and cannot be: it belongs to the stall, and a screen stating one stall's
+/// fee asks the server for that stall's resolved figure rather than deriving it from a table of areas.
+/// </para>
 /// </summary>
 public sealed record NpmRatesDto(
     decimal DailyRate,
@@ -14,4 +27,7 @@ public sealed record NpmRatesDto(
     decimal MonthlyRent = 0m,
     decimal MonthlyRentInUse = 0m,
     bool IsMonthlyRentConfirmed = false,
-    bool NeedsMonthlyRentConfirmation = false);
+    bool NeedsMonthlyRentConfirmation = false,
+    decimal VegetableAreaDailyRate = 0m,
+    decimal FishSectionDailyRate = 0m,
+    decimal MeatSectionDailyRate = 0m);

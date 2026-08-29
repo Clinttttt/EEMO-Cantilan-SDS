@@ -1090,6 +1090,19 @@ Items that were open and are now closed, kept because the reasoning is what stop
     - **STILL OPEN:** `GetNpmRates` / `NpmRatesDto`, which hands a single market rate to eight screens as a FORM DEFAULT
       (imports, the vendor form, the profile, the rent reminder, two reports). Listing per-area and per-section rows there
       changes what those forms pre-fill, which is a wider change than a page's own words and wants its own pass.
+      - **DONE 2026-08-29 for the figures stated against an AREA.** The query now answers what a stall in each of the three
+        areas is billed — the area's own rate where the office prices it apart, else the market's — through
+        `NpmDailyFee.ForAreaOrNull`, so a screen and the collector cannot answer by different rules. Corrected: both import
+        section pickers and the vendor fee breakdown's three area lines. All three figures equal the market's for an office
+        that prices nothing apart, and an office that has stated nothing states nothing rather than borrowing.
+      - **STILL WRONG, and recorded rather than half-fixed: three surfaces state a figure for ONE STALL from the market's
+        rate.** The stall profile's Rate field (`Profile.razor`), the vendor detail card's "Daily Fee Rate"
+        (`Vendor.razor`), and `CollectionExceptions.StatExpected()`, which multiplies days by it. Latent today, wrong the
+        moment an office prices an area or one of its own sections apart. Each needs its stall's RESOLVED fee carried on the
+        DTO it already holds, the way `FacilityReportsRepository.NpmFeeFor` does it for the compliance projection — three
+        queries and their shapes, which is why it was not bundled into the DTO pass.
+      - A stall's own rate is deliberately NOT in `NpmRatesDto` and should not be: it belongs to the stall, and a screen
+        stating one stall's fee asks the server for that stall's figure rather than deriving it from a table of areas.
   - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
     daily reads) and needs the area's.
   - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own

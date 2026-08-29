@@ -701,12 +701,29 @@
     /// <summary>The tenant's resolved daily fee and fish rate, for the chooser's descriptions.</summary>
     private decimal _dailyRate;
     private decimal _fishRate;
+    // Per-area figures, so a rate stated against an AREA is that area's. Zero where the office prices it no differently.
+    private decimal _vegetableRate;
+    private decimal _fishSectionRate;
+    private decimal _meatRate;
 
     private bool SectionChosen => _section is not null || !string.IsNullOrWhiteSpace(_customSectionName);
 
     private string SectionDesc(DailySectionOption option) =>
-        $"{SectionLabel(option.Section)} stalls · ₱{_dailyRate:0}/day"
+        $"{SectionLabel(option.Section)} stalls · ₱{AreaDailyRate(option.Section):0}/day"
         + (option.Section == MarketSection.FishSection && _fishRate > 0m ? $" + ₱{_fishRate:0}/kg" : "");
+
+    /// <summary>
+    /// What a stall in this area is billed: the area's own rate where the office prices it apart, else the market's. The
+    /// chooser used to state the market's figure against every area, so an office pricing its vegetable row at ₱35 was
+    /// told the row costs ₱30 on the very screen where it files that row's history.
+    /// </summary>
+    private decimal AreaDailyRate(MarketSection section) => section switch
+    {
+        MarketSection.VegetableArea => _vegetableRate > 0m ? _vegetableRate : _dailyRate,
+        MarketSection.FishSection => _fishSectionRate > 0m ? _fishSectionRate : _dailyRate,
+        MarketSection.MeatSection => _meatRate > 0m ? _meatRate : _dailyRate,
+        _ => _dailyRate,
+    };
 
     /// <summary>
     /// The office's own name for a collection area. This was a private mapping to the platform's canonical wording,
@@ -752,6 +769,9 @@
             {
                 _dailyRate = rates.Value.DailyRate;
                 _fishRate = rates.Value.FishRate;
+                _vegetableRate = rates.Value.VegetableAreaDailyRate;
+                _fishSectionRate = rates.Value.FishSectionDailyRate;
+                _meatRate = rates.Value.MeatSectionDailyRate;
             }
         }
         catch { /* see the summary above */ }
