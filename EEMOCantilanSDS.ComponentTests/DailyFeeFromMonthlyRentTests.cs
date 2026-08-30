@@ -59,10 +59,36 @@ public class DailyFeeFromMonthlyRentTests
     }
 
     [Fact]
-    public void ARentThatDoesNotDivideCleanlyIsKeptToCentavos()
+    public void ARentThatDoesNotDivideCleanlyIsRoundedToTheNearestPeso()
     {
-        // ₱1,000 a month is ₱33.33 a day. Two decimals, because that is what a rate field holds and what a bill states.
-        Assert.Equal(33.33m, DailyFeeFromMonthlyRent.DerivedOrNull(1000m, MarketRate, MarketRate, null));
+        // ₱800 a month is ₱26.67 a day exactly, and a collector cannot make change for 67 centavos at a stall. Every fee
+        // this platform bills daily is a whole peso, and an ordinance schedule is written that way.
+        Assert.Equal(27m, DailyFeeFromMonthlyRent.DerivedOrNull(800m, MarketRate, MarketRate, null));
+
+        // ₱1,000 a month is ₱33.33 a day, which rounds down.
+        Assert.Equal(33m, DailyFeeFromMonthlyRent.DerivedOrNull(1000m, MarketRate, MarketRate, null));
+    }
+
+    [Fact]
+    public void RoundingIsToTheNEARESTPesoRatherThanDownwards()
+    {
+        // Rounding down would leave the office collecting less than its own ordinance every month: ₱800 would bill ₱780
+        // over thirty days instead of ₱810. Nearest is the smaller error, and the form states where the figure came from.
+        Assert.Equal(27m, DailyFeeFromMonthlyRent.DerivedOrNull(805m, MarketRate, MarketRate, null));   // 26.83
+        Assert.Equal(27m, DailyFeeFromMonthlyRent.DerivedOrNull(795m, MarketRate, MarketRate, null));   // 26.50, up
+        Assert.Equal(26m, DailyFeeFromMonthlyRent.DerivedOrNull(780m, MarketRate, MarketRate, null));   // 26.00 exactly
+    }
+
+    [Fact]
+    public void ANeverExactRentStillLeavesAFigureAClerkCanCollect()
+    {
+        // No centavos reach the field at all, whatever is typed above it.
+        foreach (var rent in new[] { 1m, 7m, 99m, 1001m, 12345m })
+        {
+            var derived = DailyFeeFromMonthlyRent.DerivedOrNull(rent, MarketRate, MarketRate, null);
+            Assert.NotNull(derived);
+            Assert.Equal(decimal.Truncate(derived!.Value), derived.Value);
+        }
     }
 
     [Fact]
@@ -94,10 +120,10 @@ public class DailyFeeFromMonthlyRentTests
     }
 
     [Fact]
-    public void ARentSoSmallItWouldPriceAStallAtNothingIsStillStatedAsTheOfficeTypedIt()
+    public void ARentSoSmallItWouldPriceAStallAtAlmostNothingIsStillAnswered()
     {
-        // ₱15 a month is 50 centavos a day. Absurd, and not this class's business to refuse: the form validates, and an
-        // office that types 15 needs to see what it means rather than have it silently ignored.
-        Assert.Equal(0.50m, DailyFeeFromMonthlyRent.DerivedOrNull(15m, MarketRate, MarketRate, null));
+        // ₱15 a month is 50 centavos a day, which rounds to a peso. Absurd, and not this class's business to refuse: the
+        // form validates, and an office that types 15 needs to see what it means rather than have it silently ignored.
+        Assert.Equal(1m, DailyFeeFromMonthlyRent.DerivedOrNull(15m, MarketRate, MarketRate, null));
     }
 }

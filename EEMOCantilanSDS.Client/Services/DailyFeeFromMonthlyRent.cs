@@ -41,6 +41,12 @@ public static class DailyFeeFromMonthlyRent
         // The clerk's own figure stands. Only the form's own suggestion, or this method's own last answer, is replaced.
         if (dailyNow != dailyOnOpen && dailyNow != lastDerived) return null;
 
-        return decimal.Round(monthlyRent / DomainRules.DailyBilledMonthDays, 2);
+        // WHOLE PESOS, because a collector takes cash at a stall and cannot make change for 67 centavos. Every fee this
+        // platform bills daily is a whole peso for the same reason, and an ordinance schedule is written that way.
+        //
+        // The office should know what that costs: the month is billed as thirty daily fees, so ₱800 a month rounds to ₱27
+        // a day and the month collects ₱810. Rounding down would collect ₱780 and leave the office short of its own
+        // ordinance, which is the worse of the two. Nearest, and stated on the form.
+        return decimal.Round(monthlyRent / DomainRules.DailyBilledMonthDays, 0, MidpointRounding.AwayFromZero);
     }
 }

@@ -348,7 +348,7 @@
                                        @bind="Form.CustomDailyRate" @bind:event="oninput" />
                                 @if (_dailyFromMonthlyRent is { } fromRent && Form.CustomDailyRate == fromRent)
                                 {
-                                    <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, thirty days to a month.</div>
+                                    <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, to the nearest peso.</div>
                                 }
                                 <div class="avm-hint-muted">This custom section bills this flat daily fee — no fish/weight. Enable Electricity &amp; Water below if the section is metered.</div>
                                 @if (GetFieldError("CustomDailyRate") != string.Empty)
