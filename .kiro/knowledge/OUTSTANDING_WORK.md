@@ -847,6 +847,18 @@ Ordered as they were given, with what each one costs to do and the two that need
 
 ### Found while examining the above, 2026-08-29
 
+- **An operator locked out with an UNCONFIRMED address has no self-service path (2026-08-30).** Diagnosed from a real
+  report: the office set the operator's `Email` directly in the database, asked for a password reset, and no email arrived.
+  Working as designed, and the design has a dead end. `RequestPasswordResetCommandHandler` requires
+  `IsActive && EmailVerified`, and `EmailVerified` is set only by `CompleteActivation` or by confirming an emailed link, so
+  a SQL-set address is unconfirmed. `OnEmailChanged` clears the flag on purpose, so that an address swapped in cannot
+  inherit the old one's trust and start receiving reset links.
+  The in-app fix exists and works: signing in shows a one-line notice with "Send confirmation" (`ad075ba7`, `8b6ad26`).
+  It requires knowing the current password. An operator who has BOTH forgotten its password and never confirmed its
+  address needs a database write (`UPDATE "Users" SET "EmailVerified" = true`), because the operator has nobody above it.
+  Not fixed: any anonymous "resend confirmation" would send mail to an address chosen by whoever last edited the database,
+  which is a decision for the office rather than an oversight to patch.
+
 - **`InitiateOnlinePaymentCommand.Days` has no caller.** The payor portal's day picker became fish-specific when per-day
   kilos arrived, so a plain daily month is paid in full, which is the API's own documented default ("Full balance only").
   The multi-day count and its guards are still tested server-side and still correct; they simply have no client. Not a
