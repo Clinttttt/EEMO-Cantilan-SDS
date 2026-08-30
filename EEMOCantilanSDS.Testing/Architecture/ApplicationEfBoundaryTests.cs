@@ -92,9 +92,6 @@ public class ApplicationEfBoundaryTests
         "SetNpmSectionRateCommandHandler.cs",
         // Registers the section AND, when the office prices it as it creates it, that same single rate row.
         "AddNpmCustomSectionCommandHandler.cs",
-        // The one row holding a section's metering default: found and set, or added. A default bills nothing, so there is
-        // no rule for a repository to hold beyond what this handler already states.
-        "SetNpmSectionUtilitiesCommandHandler.cs",
         "GetNpmRatesQueryHandler.cs",
         "GetSlaughterAnimalRatesQueryHandler.cs",
         "AdvanceOrSeriesCommandHandler.cs",

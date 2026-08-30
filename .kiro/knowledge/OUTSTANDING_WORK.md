@@ -787,16 +787,23 @@ Ordered as they were given, with what each one costs to do and the two that need
    now sizes to its content and the input fills it. **If this was not the input the office meant, it should say so** - no
    input in this console centres its value, so this was the only defect the geometry could show.
 
-2. **KEEP the metering default on a section. Decided by the office 2026-08-29, reversing its own earlier request to remove
-   it.** The reasoning it gave was that onboarding already sets utilities for a new municipality, so the section block was a
-   second place to say one thing. **That premise is not accurate and the record should say so: onboarding collects a custom
-   area's NAME and nothing else** (see `ONBOARDING_FLOW.md`, "An office's own area can now be PRICED, but not at
-   onboarding"). No utility rate and no metering is stated anywhere during activation.
-   The decision is nevertheless the right one, for a better reason than the one given: Facility Configuration is the ONLY
-   place a municipality that is not Cantilan can record that stalls in one of its areas are usually metered. Removing it
-   would leave those offices ticking two boxes by hand on every stall they record, with nothing to state the pattern. So
-   `FacilitySectionUtilities`, `SetNpmSectionUtilitiesCommand` and `SectionMeterDefaults` all stay as they are, and no
-   migration is needed. **Closed, no work.**
+2. **REMOVED 2026-08-30. The section metering default is gone, and the office was right both times it asked.**
+   It first asked for removal on 2026-08-29, then decided to keep it on the reasoning that onboarding sets utilities for
+   other municipalities. That reasoning was wrong (onboarding carries a custom area's NAME and nothing else), and so was
+   the reason I gave for keeping it: that Facility Configuration was the only place a non-Cantilan office could state the
+   pattern. **Reading the code settles it.** `NPM.razor` opens every new market stall's form with `FeeTypes = { Electricity,
+   Water }` already ticked, and `SectionMeterDefaults.Apply` could only ever ADD. So the section default could add nothing
+   that was not there. Its only reachable effect was to re-tick a meter a clerk had just unticked, if they then changed the
+   section, which is worse than nothing. It could not express the one thing that would have helped an unmetered market -
+   starting with FEWER meters - because removing a meter is the direction proven dangerous and forbidden.
+   **What went:** the two checkboxes and their note, the metering words in a section's row, the half of Save that wrote
+   them, `SectionMeterDefaults` and its tests, `SetNpmSectionUtilitiesCommand` with its handler, endpoint, API client
+   method and tests, the repository read, the two DTO fields, and three integration tests.
+   **What stayed, and why:** the `FacilitySectionUtilities` table, its entity and its mapping. Production applies
+   migrations at startup and this platform is additive only, so dropping a table would fail a running instance mid-deploy.
+   Keeping it also means rows an office already has are still carried by its backup and still removed with the tenant. The
+   entity says DORMANT in its own remarks, and `SectionRateReadersAreNamedTests.TheMeteringDefaultStaysDormant` fails if
+   anything reads it again. Injection-proved.
 
 3. **DONE 2026-08-30. The two longest lines in the drawer cut to one clause each.** The deactivate confirmation went from
    157 characters to 96, and the inactive note from 99 to 70. Every other note in the drawer was already one short line, so

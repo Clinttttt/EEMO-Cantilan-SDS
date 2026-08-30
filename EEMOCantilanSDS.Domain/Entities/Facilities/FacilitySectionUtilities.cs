@@ -4,21 +4,27 @@ using EEMOCantilanSDS.Domain.Enums;
 namespace EEMOCantilanSDS.Domain.Entities.Facilities
 {
     /// <summary>
-    /// Whether stalls in one of the office's OWN market sections are metered, as a DEFAULT for a stall being recorded
-    /// there.
+    /// DORMANT since 2026-08-30. Nothing reads this and nothing writes it.
     ///
     /// <para>
-    /// A default and not a rule, deliberately. The meters belong to the space, not to the section it trades in: a section
-    /// may be wired throughout while one stall in it has no connection, and a stall already carrying electricity keeps it
-    /// when a clerk corrects its section. This row only says what a NEW stall in that section usually has, so the clerk
-    /// is not ticking the same two boxes for every space in a wired row. What is billed remains the stall's own
-    /// applicable fees and its own metered bill.
+    /// It once held whether stalls in one of the office's own market sections are metered, as a default for a stall being
+    /// recorded there. The office asked for the control to be removed and was right: a new market stall's form already
+    /// opens with BOTH meters ticked, and the section default could only ever ADD one, so it could add nothing that was
+    /// not already there. Its only reachable effect was to re-tick a meter a clerk had just unticked, if they then changed
+    /// the section, which is the opposite of a help.
     /// </para>
     ///
     /// <para>
-    /// Undated, unlike <see cref="FacilitySectionRate"/>, and for the same reason that one is dated: a rate is money owed
-    /// for a day and must never move retroactively, while this is a form default that bills nothing and has no history
-    /// worth keeping.
+    /// The type and its table remain because production applies migrations at startup and this platform is additive only:
+    /// dropping a table would fail a running instance mid-deploy. Keeping them also means rows an office already has are
+    /// still carried by its backup and still removed with the tenant. <c>SectionRateReadersAreNamedTests</c> holds it to
+    /// exactly that, and will fail if anything starts reading it again.
+    /// </para>
+    ///
+    /// <para>
+    /// A stall's meters belong to the SPACE, not to the section it trades in, and always did: a section may be wired
+    /// throughout while one stall in it has no connection. That is why this was only ever a default, and why removing it
+    /// changes nothing that is billed.
     /// </para>
     /// </summary>
     public class FacilitySectionUtilities : AuditableEntity, IMunicipalityOwned

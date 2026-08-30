@@ -46,9 +46,6 @@ public interface IFacilitiesApiClient
     /// <summary>States the daily fee for one of the office's own sections. Effective today, never backwards.</summary>
     Task<Result<bool>> SetNpmSectionRateAsync(string section, decimal dailyRate);
 
-    /// <summary>Records whether a stall recorded in one of the office's own sections is usually metered. A form default.</summary>
-    Task<Result<bool>> SetNpmSectionUtilitiesAsync(string section, bool electricity, bool water);
-
     /// <summary>Removes a custom NPM section (Head-only). Fails if any stall still uses it.</summary>
     Task<Result<bool>> RemoveNpmCustomSectionAsync(string name);
 }

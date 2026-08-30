@@ -1054,19 +1054,6 @@
 
         var effective = EffectiveSelectedSectionName();
 
-        // The section's own metering default, and ONLY as a suggestion on a stall being ADDED. The rule is stated in
-        // SectionMeterDefaults so the dangerous direction can be tested: it never removes a utility the clerk has ticked
-        // or a stall already carries, and it says nothing on an edit, because an existing space's meters are its own
-        // record and a clerk correcting its section must not have them rewritten underneath.
-        if (effective is { Length: > 0 })
-        {
-            var section = _customSections.FirstOrDefault(
-                c => string.Equals(c.Name, effective, StringComparison.OrdinalIgnoreCase));
-
-            VendorForm.FeeTypes = EEMOCantilanSDS.Client.Services.SectionMeterDefaults.Apply(
-                IsEditingVendor, VendorForm.FeeTypes, section?.Electricity ?? false, section?.Water ?? false);
-        }
-
         // The custom-section daily-rate input. Where the office has stated a fee for the SECTION, this is left blank on
         // purpose: a figure typed here becomes the stall's OWN rate, which outranks the section's for ever, so copying the
         // section's fee onto every stall would quietly make a later change to that fee apply to none of them. Only where

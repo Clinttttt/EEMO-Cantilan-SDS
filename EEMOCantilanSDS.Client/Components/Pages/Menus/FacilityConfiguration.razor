@@ -427,9 +427,7 @@
                                         }
                                     </div>
 
-                                    @* Open only when the office says it is editing this section. The fee and the metering are
-                                       saved together on Save, so a stray click on a checkbox cannot write to the office's
-                                       record on its own. *@
+                                    @* Open only when the office says it is editing this section. *@
                                     @if (editing)
                                     {
                                         <div class="cfg-sec-edit">
@@ -443,23 +441,6 @@
                                                 </div>
                                                 <span class="cfg-field-note">Blank bills the market's own daily rate.</span>
                                             </label>
-
-                                            <div class="fac-field">
-                                                <span class="fac-field-label">Meters a new stall starts with</span>
-                                                <div class="cfg-sec-utils">
-                                                    <label class="cfg-sec-util">
-                                                        <input type="checkbox" checked="@_sectionElectricityEdit"
-                                                               @onchange="e => _sectionElectricityEdit = (bool?)e.Value ?? false" />
-                                                        Electricity
-                                                    </label>
-                                                    <label class="cfg-sec-util">
-                                                        <input type="checkbox" checked="@_sectionWaterEdit"
-                                                               @onchange="e => _sectionWaterEdit = (bool?)e.Value ?? false" />
-                                                        Water
-                                                    </label>
-                                                </div>
-                                                <span class="cfg-field-note">A default for a stall recorded here. No existing stall changes.</span>
-                                            </div>
 
                                             <div class="cfg-sec-edit-actions">
                                                 <button class="fac-btn fac-btn-ghost" type="button" disabled="@_busy"
@@ -920,30 +901,20 @@
     private string? _npmSectionError;
     private string? _npmSectionSaved;
 
-    /// <summary>The section whose fee is open for editing, and the figures being typed for it.</summary>
+    /// <summary>The section whose fee is open for editing, and the figure being typed for it.</summary>
     private string? _editingSectionRate;
     private decimal? _sectionRateEdit;
-    private bool _sectionElectricityEdit;
-    private bool _sectionWaterEdit;
 
     /// <summary>Whether the office has asked for the add form. A drawer that presents empty fields invites filling them in.</summary>
     private bool _addingSection;
 
-    /// <summary>What a section's row states under its name: what is filed there, and what a new stall starts with.</summary>
+    /// <summary>What a section's row states under its name: what is filed there, and what it costs.</summary>
     private static string SectionMeta(NpmCustomSectionDto section)
     {
         var stalls = section.StallCount == 1 ? "1 stall" : $"{section.StallCount} stalls";
         var fee = section.DailyRate is { } rate ? $"₱{FormatRate(rate)} a day" : "Market rate";
 
-        var meters = (section.Electricity, section.Water) switch
-        {
-            (true, true) => "electricity and water",
-            (true, false) => "electricity",
-            (false, true) => "water",
-            _ => null,
-        };
-
-        return meters is null ? $"{stalls} · {fee}" : $"{stalls} · {fee} · new stall starts with {meters}";
+        return $"{stalls} · {fee}";
     }
 
     private void BeginSectionRate(NpmCustomSectionDto section)
@@ -953,8 +924,6 @@
         _addingSection = false;
         _editingSectionRate = section.Name;
         _sectionRateEdit = section.DailyRate;
-        _sectionElectricityEdit = section.Electricity;
-        _sectionWaterEdit = section.Water;
     }
 
     private void CancelSectionEdit()
@@ -973,13 +942,11 @@
     }
 
     /// <summary>
-    /// Saves the section as one act: its fee and the meters a stall recorded there starts with.
+    /// Sets the section's daily fee, and only where it CHANGED.
     ///
     /// <para>
-    /// Together, and only on Save, because a checkbox that wrote to the office's record the moment it was clicked is not
-    /// how a government form behaves. Each half is asked of the server only where it CHANGED, so a fee left alone does not
-    /// gain a new effective-dated row for today, and the office's rate history stays a record of decisions rather than of
-    /// visits to this drawer.
+    /// A fee left alone does not gain a new effective-dated row for today, so the office's rate history stays a record of
+    /// decisions rather than of visits to this drawer.
     /// </para>
     /// </summary>
     private async Task SaveSectionAsync(NpmCustomSectionDto section)
@@ -995,9 +962,8 @@
         }
 
         var feeChanged = (section.DailyRate ?? 0m) != amount;
-        var metersChanged = section.Electricity != _sectionElectricityEdit || section.Water != _sectionWaterEdit;
 
-        if (!feeChanged && !metersChanged)
+        if (!feeChanged)
         {
             CancelSectionEdit();
             return;
@@ -1006,25 +972,11 @@
         _busy = true;
         try
         {
-            if (feeChanged)
+            var fee = await FacilitiesApi.SetNpmSectionRateAsync(section.Name, amount);
+            if (!fee.IsSuccess)
             {
-                var fee = await FacilitiesApi.SetNpmSectionRateAsync(section.Name, amount);
-                if (!fee.IsSuccess)
-                {
-                    _npmSectionError = string.IsNullOrWhiteSpace(fee.Error) ? "That fee could not be set." : fee.Error;
-                    return;
-                }
-            }
-
-            if (metersChanged)
-            {
-                var meters = await FacilitiesApi.SetNpmSectionUtilitiesAsync(
-                    section.Name, _sectionElectricityEdit, _sectionWaterEdit);
-                if (!meters.IsSuccess)
-                {
-                    _npmSectionError = string.IsNullOrWhiteSpace(meters.Error) ? "That could not be saved." : meters.Error;
-                    return;
-                }
+                _npmSectionError = string.IsNullOrWhiteSpace(fee.Error) ? "That fee could not be set." : fee.Error;
+                return;
             }
         }
         finally
@@ -1034,11 +986,9 @@
 
         _editingSectionRate = null;
         _sectionRateEdit = null;
-        _npmSectionSaved = feeChanged
-            ? (amount > 0m
-                ? $"{section.Name} is billed ₱{FormatRate(amount)} a day from today."
-                : $"{section.Name} is billed the market's own daily rate from today.")
-            : $"{section.Name} is saved.";
+        _npmSectionSaved = amount > 0m
+            ? $"{section.Name} is billed ₱{FormatRate(amount)} a day from today."
+            : $"{section.Name} is billed the market's own daily rate from today.";
 
         await LoadNpmCustomSectionsAsync();
         await FacilityCatalog.ReloadAsync();

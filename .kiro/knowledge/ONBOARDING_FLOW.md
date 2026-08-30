@@ -210,8 +210,8 @@ into the first stall filed under it.
 | API | `ActivationFacility.CustomSections` → `Facility.AddCustomSection` per area |
 
 **An office's own area can now be PRICED, but not at onboarding (2026-08-29).** Activation still carries a custom area's
-NAME only. Its daily fee is stated afterwards in Facility Configuration, where the office also records whether stalls in it
-are usually metered. Two things follow from that, and both are deliberate:
+NAME only. Its daily fee is stated afterwards in Facility Configuration. Two things follow from that, and both are
+deliberate:
 
 - Until a fee is stated, stalls in a custom area are billed the market's own daily rate, which is what happened before an
   area of one's own could be priced at all.
@@ -219,6 +219,12 @@ are usually metered. Two things follow from that, and both are deliberate:
   See the confirmed rules in `OUTSTANDING_WORK.md`.
 
 Whether onboarding should collect the fee at the same time as the name is an open product question, not an oversight.
+
+**A section never carried a metering default, as of 2026-08-30.** It briefly could, between 2026-08-29 and 2026-08-30. It
+was removed because it could not do anything: a new market stall's form already opens with both meters ticked, and the
+section default could only ADD one. Nothing about metering is stated at onboarding either. A stall's meters are the stall's
+own, offered on its own form. The `FacilitySectionUtilities` table survives as dormant storage because migrations here are
+additive only; see `OUTSTANDING_WORK.md` for the full reasoning.
 | Portal | the area is a filter and a sheet grouping already; the Head adds and removes them afterwards |
 
 Its rules are the registry's own, asserted in `ActivationCustomMarketAreaTests`: a name is required and capped at 60

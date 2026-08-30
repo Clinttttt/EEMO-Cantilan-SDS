@@ -3,7 +3,6 @@ using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
-using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionUtilities;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -62,9 +61,6 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
 
     public async Task<Result<bool>> AddNpmCustomSectionAsync(string name, decimal? dailyRate = null) =>
         await PostAsync<AddNpmCustomSectionCommand, bool>("api/Facilities/npm/custom-sections", new AddNpmCustomSectionCommand(name, dailyRate));
-
-    public async Task<Result<bool>> SetNpmSectionUtilitiesAsync(string section, bool electricity, bool water) =>
-        await PostAsync<SetNpmSectionUtilitiesCommand, bool>("api/Facilities/npm/custom-sections/utilities", new SetNpmSectionUtilitiesCommand(section, electricity, water));
 
     public async Task<Result<bool>> SetNpmSectionRateAsync(string section, decimal dailyRate) =>
         await PostAsync<SetNpmSectionRateCommand, bool>("api/Facilities/npm/custom-sections/rate", new SetNpmSectionRateCommand(section, dailyRate));

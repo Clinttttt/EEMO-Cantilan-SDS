@@ -47,7 +47,6 @@ public class FacilityConfigurationSectionsTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(sections.ToList()));
         _api.Setup(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>())).ReturnsAsync(Result<bool>.Success(true));
-        _api.Setup(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.RemoveNpmCustomSectionAsync(It.IsAny<string>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(new List<FacilitySidebarSummaryDto>
@@ -195,8 +194,6 @@ public class FacilityConfigurationSectionsTests : TestContext
 
         cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionRateAsync("Sari-sari Area", 25m), Times.Once));
         cut.WaitForAssertion(() => Assert.Contains("a day from today", cut.Markup));
-        // The meters were not touched, so nothing was asked about them.
-        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]
@@ -247,19 +244,33 @@ public class FacilityConfigurationSectionsTests : TestContext
     }
 
     [Fact]
-    public void TheMetersAreNotEditableUntilTheOfficeSaysItIsEditingTheSection()
+    public void ASectionStatesWhatIsFiledUnderItAndWhatItCosts_AndNothingElse()
     {
-        // A checkbox that wrote to the office's record the moment it was clicked is not how a government form behaves. The
-        // section states what a new stall starts with; changing it is a deliberate act, saved with the fee.
-        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m, Electricity: true, Water: false));
+        // A section's metering default was removed on 2026-08-30: every new market stall already opens with both meters
+        // ticked, and the default could only ever ADD one, so it could add nothing that was not there. Its only reachable
+        // effect was to re-tick a meter the clerk had just unticked, if they then changed the section. The row states what
+        // is filed under the section and what it costs, and the meters belong to the stall's own form.
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 1, 25m));
 
         cut.WaitForAssertion(() => Assert.Contains("Sari-sari Area", cut.Markup));
-        Assert.Empty(cut.FindAll(".cfg-sec-util input"));
-        // Stated as words instead.
-        Assert.Contains("new stall starts with electricity", cut.Markup);
+        Assert.Contains("1 stall · ₱25 a day", cut.Markup);
 
+        Assert.DoesNotContain("Electricity", cut.Markup);
+        Assert.DoesNotContain("Water", cut.Markup);
+        Assert.DoesNotContain("new stall starts with", cut.Markup);
+        Assert.Empty(cut.FindAll(".cfg-sec-util input"));
+    }
+
+    [Fact]
+    public void EditingASectionOffersItsFeeAndNoMeters()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
         cut.Find(".cfg-sec-set").Click();
-        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".cfg-sec-util input").Count));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".cfg-rate-input input")));
+        Assert.Empty(cut.FindAll("input[type=checkbox]"));
     }
 
     [Fact]
@@ -270,12 +281,11 @@ public class FacilityConfigurationSectionsTests : TestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
         cut.Find(".cfg-sec-set").Click();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-util input")));
-        cut.FindAll(".cfg-sec-util input")[0].Change(true);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
+        cut.Find(".cfg-rate-input input").Change("40");
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Cancel").Click();
 
-        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-util input")));
-        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-rate-input input")));
         _api.Verify(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>()), Times.Never);
     }
 
@@ -284,7 +294,7 @@ public class FacilityConfigurationSectionsTests : TestContext
     {
         // An office that opens a section to read it and closes it again must not gain a rate row dated today: the history is
         // a record of decisions, not of visits to this drawer.
-        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m, Electricity: true, Water: true));
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, 25m));
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
         cut.Find(".cfg-sec-set").Click();
@@ -293,24 +303,6 @@ public class FacilityConfigurationSectionsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-save")));
         _api.Verify(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>()), Times.Never);
-        _api.Verify(a => a.SetNpmSectionUtilitiesAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never);
-    }
-
-    [Fact]
-    public void TheFeeAndTheMetersAreSavedAsOneAct()
-    {
-        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 0, null, Electricity: false, Water: false));
-
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
-        cut.Find(".cfg-sec-set").Click();
-
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-rate-input input")));
-        cut.Find(".cfg-rate-input input").Change("25");
-        cut.FindAll(".cfg-sec-util input")[1].Change(true);   // water
-        cut.Find(".cfg-sec-save").Click();
-
-        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionRateAsync("Sari-sari Area", 25m), Times.Once));
-        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionUtilitiesAsync("Sari-sari Area", false, true), Times.Once));
     }
 
     // ── The rates: a record until the office says it is editing one ───────────────────────────────

@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
@@ -6,7 +6,6 @@ using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
 using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
-using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionUtilities;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
@@ -140,18 +139,6 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     [HttpPost("npm/custom-sections/remove")]
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> RemoveNpmCustomSection([FromBody] RemoveNpmCustomSectionCommand command)
-    {
-        var result = await Sender.Send(command);
-        return HandleResponse(result);
-    }
-
-    /// <summary>
-    /// Records whether stalls in one of the office's own sections are usually metered. A default for the stall form: it
-    /// changes no stall that already exists and bills nothing.
-    /// </summary>
-    [HttpPost("npm/custom-sections/utilities")]
-    [Authorize(Roles = "SuperAdmin")]
-    public async Task<ActionResult<bool>> SetNpmSectionUtilities([FromBody] SetNpmSectionUtilitiesCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);
