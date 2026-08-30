@@ -44,9 +44,15 @@ public static class DailyFeeFromMonthlyRent
         // WHOLE PESOS, because a collector takes cash at a stall and cannot make change for 67 centavos. Every fee this
         // platform bills daily is a whole peso for the same reason, and an ordinance schedule is written that way.
         //
-        // The office should know what that costs: the month is billed as thirty daily fees, so ₱800 a month rounds to ₱27
-        // a day and the month collects ₱810. Rounding down would collect ₱780 and leave the office short of its own
-        // ordinance, which is the worse of the two. Nearest, and stated on the form.
+        // WHAT THE OFFICE IS ACCEPTING, measured rather than reasoned about, because two attempts at reasoning got it
+        // wrong. This figure only ever reaches a stall in one of the office's OWN sections, and such a stall is let at its
+        // own daily rate: Stall.ResolveMonthlyRent makes its month thirty of those, since the office's stated market month
+        // does not apply to a section it does not price. So ₱800 a month derives ₱27 a day, and the month that stall owes
+        // is ₱810 - while the monthly figure typed above it, which is the CONTRACT's record, still reads ₱800.
+        //
+        // The divergence is not caused by rounding: at ₱26.67 the month owed ₱800.10. Rounding widens it from ten centavos
+        // to ten pesos, and buys a fee a collector can actually take in cash. Pinned by
+        // NpmMonthSettlementServiceTests.ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee.
         return decimal.Round(monthlyRent / DomainRules.DailyBilledMonthDays, 0, MidpointRounding.AwayFromZero);
     }
 }

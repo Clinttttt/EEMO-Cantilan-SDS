@@ -72,8 +72,9 @@ public class DailyFeeFromMonthlyRentTests
     [Fact]
     public void RoundingIsToTheNEARESTPesoRatherThanDownwards()
     {
-        // Rounding down would leave the office collecting less than its own ordinance every month: ₱800 would bill ₱780
-        // over thirty days instead of ₱810. Nearest is the smaller error, and the form states where the figure came from.
+        // Nearest, so the installment stays as close as a whole peso can be to a thirtieth of the rent. Always rounding
+        // down would make every derived fee too small by up to 99 centavos a day, and a custom-section stall's month is
+        // thirty of these, so the office would collect up to ₱29.70 less a month than its own figure implies.
         Assert.Equal(27m, DailyFeeFromMonthlyRent.DerivedOrNull(805m, MarketRate, MarketRate, null));   // 26.83
         Assert.Equal(27m, DailyFeeFromMonthlyRent.DerivedOrNull(795m, MarketRate, MarketRate, null));   // 26.50, up
         Assert.Equal(26m, DailyFeeFromMonthlyRent.DerivedOrNull(780m, MarketRate, MarketRate, null));   // 26.00 exactly

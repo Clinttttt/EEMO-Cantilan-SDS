@@ -44,6 +44,56 @@ public class NpmMonthSettlementServiceTests
         Assert.All(settled, dc => Assert.True(dc.IsPaid));
     }
 
+    /// <summary>
+    /// What a custom-section stall's month owes once its daily fee is a rounded whole peso.
+    /// </summary>
+    /// <remarks>
+    /// Written during an audit of the form that works a daily fee out from a monthly rent, after reasoning about it twice
+    /// and being wrong twice. The measurement is the point.
+    ///
+    /// <para>
+    /// A stall in one of the office's own sections is let at its OWN daily rate, and
+    /// <c>Stall.ResolveMonthlyRent</c> makes its month thirty of those - the office's stated market month does not apply to
+    /// a section it does not price. So a clerk who types ₱800 a month gets a derived ₱27 a day, and the month this stall
+    /// owes is ₱810, not the ₱800 typed above it. The stall's own MonthlyRate field records what the CONTRACT says; it is
+    /// not what a daily-billed month bills.
+    /// </para>
+    /// <para>
+    /// The divergence is not created by rounding - at ₱26.67 the month owed ₱800.10 - but rounding widens it from ten
+    /// centavos to ten pesos. Recorded rather than "fixed", because the alternative is centavos in a fee a collector takes
+    /// in cash. See OUTSTANDING_WORK.md.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee()
+    {
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+
+        // A stall in the office's own section, let at the ₱27 a day the form derives from ₱800 a month.
+        var stall = Stall.Create(
+            npm.Id, "12", monthlyRate: 800m, fees: ApplicableFees.DailyRental,
+            section: null, dailyRate: 27m, customSectionName: "Sari-sari Area");
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 800m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(DateTime.UtcNow));
+
+        // March 2026 is a fully past month, so every day of it is payable.
+        var month = await svc.ComputePayableAsync(stall, 2026, 3, CancellationToken.None);
+
+        // Thirty installments of ₱27, and no thirty-first: the month is let for thirty, whatever the calendar gave it.
+        Assert.Equal(30, month.Days);
+        Assert.Equal(810m, month.Amount);
+        Assert.Equal(0m, month.Adjustment);
+    }
+
     [Fact]
     public async Task SettleUnpaidDays_WithoutACapturedAmount_SettlesTheMonthsRent()
     {

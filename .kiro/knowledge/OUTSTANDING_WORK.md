@@ -845,6 +845,47 @@ Ordered as they were given, with what each one costs to do and the two that need
    Its own CSS classes rather than the rate rows': an existing test reads `.cfg-rate-value` as meaning a stated rate, and
    reusing it broke seven tests before the classes were separated.
 
+### Audit of 2026-08-30's work, done at the office's request
+
+Three findings, and two of them are corrections to claims I made myself the same day. Recorded so the record is the
+measurement rather than the reasoning.
+
+- **FALSE CLAIM, corrected: the rollout page said every user needs an email address.** A COLLECTOR's email is optional -
+  `CreateCollectorCommandValidator` only validates a format when one was entered, blanks are stored NULL so several
+  collectors may have none, and `CreateCollectorCommandHandler` takes the collector's password from the Head. Only an
+  ADMIN's email is required (`CreateAdminCommandValidator`: "Email is required"). The label now says so.
+- **FALSE CLAIM, corrected: the rollout page said mobile numbers are prepared for import.** The stallholder importer has no
+  such column. Its columns are occupant, name on contract, stall or space number, effectivity, years, area, monthly rental,
+  actual monthly, whole year and delinquent, plus Section for the market and Area Location for NCC. A payor supplies their
+  own number at activation, so there is nothing for the office to prepare. Reverted to the accurate list.
+- **MEASURED, after reasoning wrongly twice: what rounding the derived daily fee actually costs.** The figure reaches only
+  a stall in one of the office's own sections, and `Stall.ResolveMonthlyRent` makes such a stall's month thirty of its OWN
+  daily rate, because the office's stated market month does not apply to a section it does not price. So ₱800 a month
+  derives ₱27 a day and the month owes ₱810, while the monthly figure typed above it, the contract's record, still reads
+  ₱800. The divergence is not caused by rounding - at ₱26.67 the month owed ₱800.10 - but rounding widens it from ten
+  centavos to ten pesos.
+  My first attempt reasoned from `DailyBilledMonthCoverage` and concluded the month cannot exceed a stated rent, which is
+  true for a CANONICAL stall and false for a custom-section one. The second attempt asserted ₱780 and the service answered
+  ₱900, because the stall's own `MonthlyRate` field is not what a daily-billed month bills. Both are now pinned by
+  `NpmMonthSettlementServiceTests.ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee`.
+  **Open question for the office:** whether a ₱10 gap between a contract's monthly figure and the month the platform bills
+  is acceptable, given the alternative is centavos in a fee a collector takes in cash.
+
+### Verified accurate and left alone during that audit
+
+- The rollout page's facility list against `FacilityCode` (NPM, TCC, NCC, BBQ, ICE, SLH, TRM, TPM, Custom1-5).
+- Its billing models against the console's own words: daily stall, weekly market, monthly rental, per trip, per head, per
+  kilo.
+- Its four rollout stages against the registry's `rolloutStage` and the admin app's own pages.
+- "Report & receipt setup" after removing the payment-account claim: `ActivateMunicipalityCommand` carries branding,
+  facilities, rates, one administrator and an OR series, and no payment account. Online payment runs through the platform's
+  own gateway, not a per-LGU one.
+- The rounding rule is reachable from `AddVendorModal` and its tests only; no server path derives a daily fee from a
+  monthly rent.
+- The controller move: all 38 files are renames at 100% similarity, so no `[Route]` and no class name changed. Twelve live
+  routes probed across all eight new folders, and `api/onboarding/{token}` was confirmed matched rather than missing by a
+  DELETE returning 405 where an absent route returns 404.
+
 ### Found while examining the above, 2026-08-29
 
 - **An operator locked out with an UNCONFIRMED address has no self-service path (2026-08-30).** Diagnosed from a real
