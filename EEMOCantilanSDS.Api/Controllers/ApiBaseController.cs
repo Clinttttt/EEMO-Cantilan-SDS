@@ -2,6 +2,18 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// Controllers are grouped into folders by the audience they serve — Admin, Payor, Mobile, Facilities, Collections,
+// Reporting, Municipality, Platform — while every one of them stays in THIS namespace, deliberately.
+//
+// Two reasons, and the second is the one that matters. Routing never reads a folder: a route comes from a [Route]
+// attribute, or from the [controller] token above, which resolves to the class NAME. So moving a file cannot move a URL,
+// and that is what made the grouping safe to do at all. And a namespace per folder would mean forty files gaining usings
+// for their own base class, plus the two test files that reference this namespace, for no behaviour whatsoever.
+//
+// Only this base type and SealUrl sit at the root, because everything else uses them. If a tool offers to "fix" the
+// namespace to match the folder, decline: nothing about routing improves, and every cross-reference breaks at once.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 namespace EEMOCantilanSDS.Api.Controllers
 {
     [Route("api/[controller]")]

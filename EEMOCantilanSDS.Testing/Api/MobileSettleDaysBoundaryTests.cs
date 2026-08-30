@@ -23,6 +23,26 @@ public class MobileSettleDaysBoundaryTests
     private static string Source(params string[] parts) =>
         File.ReadAllText(Path.Combine(new[] { RepositoryRoot() }.Concat(parts).ToArray()));
 
+    /// <summary>
+    /// Reads a controller's source by FILE NAME, wherever it sits under the API project.
+    /// </summary>
+    /// <remarks>
+    /// It used to name the folder as well, and broke the day the controllers were grouped into subfolders. The boundary this
+    /// test guards is about which endpoint sends which command, and that does not care where the file lives, so neither
+    /// does the lookup. A duplicate name is refused rather than picked from, because reading the wrong file would assert
+    /// nothing while looking green.
+    /// </remarks>
+    private static string Controller(string fileName)
+    {
+        var api = Path.Combine(RepositoryRoot(), "EEMOCantilanSDS.Api");
+        var matches = Directory.GetFiles(api, fileName, SearchOption.AllDirectories);
+
+        Assert.True(matches.Length == 1,
+            $"Expected exactly one {fileName} under EEMOCantilanSDS.Api, found {matches.Length}.");
+
+        return File.ReadAllText(matches[0]);
+    }
+
     private static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -36,7 +56,7 @@ public class MobileSettleDaysBoundaryTests
     [Fact]
     public void TheCollectorAppSettlesSeveralDaysThroughItsOwnCollectorOnlyController()
     {
-        var mobile = Source("EEMOCantilanSDS.Api", "Controllers", "MobileController.cs");
+        var mobile = Controller("MobileController.cs");
 
         // Collectors only, as this controller has always been.
         Assert.Contains("[Authorize(Roles = \"Collector\")]", mobile);
@@ -52,7 +72,7 @@ public class MobileSettleDaysBoundaryTests
         // The point of the shape above: nobody gained access to the portal's endpoint, which sits beside settle-month and
         // the receipt editors. If a later change adds Collector here, it should be a decision taken deliberately - this
         // records that it was not needed for the collector app to settle several days.
-        var controller = Source("EEMOCantilanSDS.Api", "Controllers", "DailyCollectionsController.cs");
+        var controller = Controller("DailyCollectionsController.cs");
 
         var settleDays = Regex.Match(
             controller,
