@@ -775,6 +775,48 @@ only the market days elapsed as of the report date.
 
 ## Open questions for the office
 
+### PROPOSED, not built: closing one of the office's own market sections (asked 2026-08-30)
+
+The office wants an option on a section's Edit that CLOSES it, so it hides from the NPM page, and asked whether the payors
+in it "remain frozen". Examined before proposing anything. It is possible, and the shape below is the one that cannot lose
+an office money. **Nothing is built yet.**
+
+**The finding that decides the design: this platform ALREADY has the freeze, and it is per STALL.** `Stall.Close(today)`
+sets `Status = Closed` and `ClosedAt`, which drops the stall out of the register (`StallRepository.Register`) and into Closed
+Accounts. On `Reopen`, `ToggleStallStatusCommandHandler.ExcuseClosurePeriodAsync` writes the whole frozen span as excused -
+absent daily collections for the market - so a temporary closure never back-bills as arrears. That path is tested and in
+use. **A section closure must therefore NOT invent a second freezing rule**, or one click would rewrite the billing of every
+stall in the section, creating excusals nobody reviewed.
+
+**So closing a section should mean availability and visibility, and nothing else:**
+- it is no longer offered when a stall is recorded (`AddVendorModal` receives the list from `NPM.razor`), nor by the
+  stallholder importer;
+- it is hidden from the market page's own section tabs;
+- it still appears in Facility Configuration, marked closed, so it can be reopened;
+- it still appears in reports, in the payment-history importer and on the settings screen, because collections happened
+  there and a report has to reconcile;
+- **no stall, balance, contract or payment changes.** A payor in a closed section keeps their balances, their history and
+  their ability to pay, and the payor portal never reads a section at all (confirmed: only the console and the collector app
+  do), so nothing about their screens changes.
+
+**The guard, which is the whole safety of it: refuse to close while any stall in the section is still ACTIVE**, naming the
+count, in the same shape as the existing removal guard ("N stall(s) still use it"). Hiding a tab hides the stalls under it,
+and a section with active stalls still owes daily fees. An office that means to stop billing closes those stalls first,
+through the path that already excuses correctly.
+
+**Storage:** a small undated table (`FacilitySectionClosures`, unique on municipality + facility + section, additive
+migration), not a flag encoded into the `CustomSectionNames` text[] column. Same shape as `FacilitySectionRates`.
+
+**Six readers to touch, and two that must NOT be:** the market page (tabs + picker) and the stallholder importer filter
+closed sections out; Facility Configuration, the payment-history importer and the settings screen keep them and mark them;
+`FacilityReportsRepository.Sections` and the collector app are left exactly alone. Note that
+`FacilityRepository.GetNpmCustomSectionsAsync` derives its list from the registry AND from names found on stalls, so a
+closed section with stalls still resolves - which is what keeps history intact.
+
+**The one decision needed before this is built:** whether "closed" should be refused while active stalls remain (the safe
+option above), or whether the office wants to close a section and have the platform close its stalls in the same act. The
+second is a mass billing change from one control, and I would not build it without the office saying so in as many words.
+
 These cannot be answered by reading code.
 
 ### Asked by the office 2026-08-29, on Facility Configuration and the stall form — NOT YET DONE
