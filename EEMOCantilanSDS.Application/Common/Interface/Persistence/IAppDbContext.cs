@@ -28,6 +28,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
 
     /// <summary>Whether stalls in an office's own section are metered, as a default for a stall recorded there.</summary>
     DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; }
+    DbSet<FacilitySectionClosure> FacilitySectionClosures { get; }
         DbSet<Stall> Stalls { get; }
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }

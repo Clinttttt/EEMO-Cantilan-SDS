@@ -9,4 +9,8 @@ namespace EEMOCantilanSDS.Application.Dtos.Facilities;
 /// The office's stated daily fee for this section as of today, or null where it has stated none and the stalls in it are
 /// billed the market's own rate. A stall let at its own rate keeps that rate regardless.
 /// </param>
-public record NpmCustomSectionDto(string Name, int StallCount, decimal? DailyRate = null);
+/// <param name="IsClosed">
+/// True where the office has closed the section: it is no longer offered when a stall is recorded and is gone from the
+/// market's tabs. Its stalls were closed with it, and reopening the section returns exactly those.
+/// </param>
+public record NpmCustomSectionDto(string Name, int StallCount, decimal? DailyRate = null, bool IsClosed = false);

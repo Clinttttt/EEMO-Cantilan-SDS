@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
 using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
+using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionClosed;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
@@ -151,6 +152,24 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     [HttpPost("npm/custom-sections/rate")]
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> SetNpmSectionRate([FromBody] SetNpmSectionRateCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Closes one of the office's own market sections along with the stalls in it, or reopens both. Answers with the number
+    /// of stalls the act changed.
+    /// </summary>
+    /// <remarks>
+    /// The Head's decision and nobody else's, so SuperAdmin only. Closing stops the section being offered for a new stall
+    /// and takes it off the market's tabs, and closes every stall still open in it through the same path the per-stall
+    /// control uses - which excuses the frozen span on reopen, so nothing back-bills. Reopening returns exactly the stalls
+    /// this closure closed, never one the office had closed itself beforehand.
+    /// </remarks>
+    [HttpPost("npm/custom-sections/closed")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<int>> SetNpmSectionClosed([FromBody] SetNpmSectionClosedCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

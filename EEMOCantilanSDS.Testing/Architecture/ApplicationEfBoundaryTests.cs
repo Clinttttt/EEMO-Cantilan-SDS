@@ -90,6 +90,10 @@ public class ApplicationEfBoundaryTests
         // its key or added. It is here for the same reason that one is — a rate row has no reads to speak of and no
         // repository of its own would carry any rule this handler does not already state.
         "SetNpmSectionRateCommandHandler.cs",
+        // One closure row, found by its key or added, and removed on reopen. The stalls are NOT touched through this
+        // context: each is closed and reopened by sending ToggleStallStatusCommand, so the tested per-stall path - and the
+        // excusing of a frozen span that comes with it - stays the only rule for that money.
+        "SetNpmSectionClosedCommandHandler.cs",
         // Registers the section AND, when the office prices it as it creates it, that same single rate row.
         "AddNpmCustomSectionCommandHandler.cs",
         "GetNpmRatesQueryHandler.cs",

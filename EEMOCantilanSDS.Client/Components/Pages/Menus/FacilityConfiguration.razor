@@ -452,6 +452,49 @@
                                                     Save section
                                                 </button>
                                             </div>
+
+                                            @* Closing a section closes the stalls in it, so it is stated before it is done
+                                               and the act is a second press. The office asked for this deliberately; the
+                                               warning is what keeps it deliberate. *@
+                                            @if (cs.IsClosed)
+                                            {
+                                                <div class="cfg-sec-close">
+                                                    <span class="cfg-field-note">Closed. Reopening returns @StallsInWords(cs) and excuses the closed days.</span>
+                                                    <button class="cfg-sec-set" type="button" disabled="@_busy"
+                                                            @onclick="() => SetSectionClosedAsync(cs, false)">
+                                                        Reopen section
+                                                    </button>
+                                                </div>
+                                            }
+                                            else if (string.Equals(_confirmCloseSection, cs.Name, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <div class="cfg-danger cfg-sec-close-warn">
+                                                    <div class="cfg-danger-text">
+                                                        Closing <strong>@cs.Name</strong> also closes @StallsInWords(cs). Those spaces leave
+                                                        the collection register and stop being billed from today. Reopening returns them and
+                                                        excuses the closed days, so nothing bills backwards.
+                                                    </div>
+                                                    <div class="cfg-danger-actions">
+                                                        <button class="fac-btn fac-btn-ghost" type="button" disabled="@_busy"
+                                                                @onclick="() => _confirmCloseSection = null">
+                                                            Keep open
+                                                        </button>
+                                                        <button class="fac-btn fac-btn-danger" type="button" disabled="@_busy"
+                                                                @onclick="() => SetSectionClosedAsync(cs, true)">
+                                                            @(_busy ? "Working…" : $"Close section and {(cs.StallCount == 1 ? "1 stall" : $"{cs.StallCount} stalls")}")
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="cfg-sec-close">
+                                                    <button class="cfg-sec-remove" type="button" disabled="@_busy"
+                                                            @onclick="() => _confirmCloseSection = cs.Name">
+                                                        Close section
+                                                    </button>
+                                                </div>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -905,6 +948,16 @@
     private string? _editingSectionRate;
     private decimal? _sectionRateEdit;
 
+    /// <summary>
+    /// The section whose closing the office is being asked to confirm.
+    /// </summary>
+    /// <remarks>
+    /// Closing a section closes the stalls in it, which stops them being billed. That is far too much to happen on one
+    /// click, so the button opens a statement of what will happen and how many spaces it reaches, and the act itself is a
+    /// second, separate press.
+    /// </remarks>
+    private string? _confirmCloseSection;
+
     /// <summary>Whether the office has asked for the add form. A drawer that presents empty fields invites filling them in.</summary>
     private bool _addingSection;
 
@@ -914,7 +967,55 @@
         var stalls = section.StallCount == 1 ? "1 stall" : $"{section.StallCount} stalls";
         var fee = section.DailyRate is { } rate ? $"₱{FormatRate(rate)} a day" : "Market rate";
 
-        return $"{stalls} · {fee}";
+        return section.IsClosed ? $"Closed · {stalls} · {fee}" : $"{stalls} · {fee}";
+    }
+
+    /// <summary>How many spaces the office is about to close, in words, for the confirmation.</summary>
+    private static string StallsInWords(NpmCustomSectionDto section) =>
+        section.StallCount == 1 ? "its 1 stall" : $"its {section.StallCount} stalls";
+
+    /// <summary>
+    /// Closes a section and the stalls in it, or reopens both. Asked of the server as ONE act.
+    /// </summary>
+    /// <remarks>
+    /// The server closes each stall through the same path the per-stall control uses, so a closed span is excused on
+    /// reopen and nothing back-bills. It answers with the number of stalls it changed, which is what the office is told -
+    /// a count from the server rather than the count this screen last read, because they can differ if somebody recorded a
+    /// stall while the drawer was open.
+    /// </remarks>
+    private async Task SetSectionClosedAsync(NpmCustomSectionDto section, bool closed)
+    {
+        _npmSectionError = null;
+        _npmSectionSaved = null;
+        _busy = true;
+
+        try
+        {
+            var result = await FacilitiesApi.SetNpmSectionClosedAsync(section.Name, closed);
+            if (!result.IsSuccess)
+            {
+                _npmSectionError = string.IsNullOrWhiteSpace(result.Error)
+                    ? "That could not be saved."
+                    : result.Error;
+                return;
+            }
+
+            var stalls = result.Value == 1 ? "1 stall" : $"{result.Value} stalls";
+            _npmSectionSaved = closed
+                ? $"{section.Name} is closed. {stalls} closed with it."
+                : $"{section.Name} is open again. {stalls} reopened, and the closed days are excused.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        _confirmCloseSection = null;
+        _editingSectionRate = null;
+        _sectionRateEdit = null;
+
+        await LoadNpmCustomSectionsAsync();
+        await FacilityCatalog.ReloadAsync();
     }
 
     private void BeginSectionRate(NpmCustomSectionDto section)
@@ -928,6 +1029,7 @@
 
     private void CancelSectionEdit()
     {
+        _confirmCloseSection = null;
         _editingSectionRate = null;
         _sectionRateEdit = null;
         _npmSectionError = null;

@@ -1,4 +1,4 @@
-﻿@page "/import/{Facility}"
+@page "/import/{Facility}"
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using System.IO
@@ -663,7 +663,8 @@
     {
         var result = await FacilitiesApi.GetNpmCustomSectionsAsync();
         if (result.IsSuccess && result.Value is not null)
-            _customSections = result.Value.Select(c => c.Name).ToList();
+            // A closed section is not offered for an import either: nothing new is filed under it.
+            _customSections = result.Value.Where(c => !c.IsClosed).Select(c => c.Name).ToList();
     }
 
     private string StepClass(int step)

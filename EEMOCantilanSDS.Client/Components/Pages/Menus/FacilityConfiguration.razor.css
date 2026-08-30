@@ -1049,3 +1049,7 @@
     color: var(--text-muted);
     font-style: italic;
 }
+
+/* Closing a section sits under the fee, separated: it is a different kind of act from setting a figure. */
+.cfg-sec-close { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.cfg-sec-close-warn { margin-top: 12px; }

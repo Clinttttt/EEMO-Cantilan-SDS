@@ -775,7 +775,7 @@ only the market days elapsed as of the report date.
 
 ## Open questions for the office
 
-### PROPOSED, not built: closing one of the office's own market sections (asked 2026-08-30)
+### BUILT 2026-08-30: closing one of the office's own market sections (asked, planned, then built the same day)
 
 The office wants an option on a section's Edit that CLOSES it, so it hides from the NPM page, and asked whether the payors
 in it "remain frozen". Examined before proposing anything. It is possible, and the shape below is the one that cannot lose
@@ -788,7 +788,8 @@ absent daily collections for the market - so a temporary closure never back-bill
 use. **A section closure must therefore NOT invent a second freezing rule**, or one click would rewrite the billing of every
 stall in the section, creating excusals nobody reviewed.
 
-**So closing a section should mean availability and visibility, and nothing else:**
+**So closing a section means availability and visibility for the SECTION, and the office chose for it to close the stalls
+too:**
 - it is no longer offered when a stall is recorded (`AddVendorModal` receives the list from `NPM.razor`), nor by the
   stallholder importer;
 - it is hidden from the market page's own section tabs;
@@ -799,10 +800,9 @@ stall in the section, creating excusals nobody reviewed.
   their ability to pay, and the payor portal never reads a section at all (confirmed: only the console and the collector app
   do), so nothing about their screens changes.
 
-**The guard, which is the whole safety of it: refuse to close while any stall in the section is still ACTIVE**, naming the
-count, in the same shape as the existing removal guard ("N stall(s) still use it"). Hiding a tab hides the stalls under it,
-and a section with active stalls still owes daily fees. An office that means to stop billing closes those stalls first,
-through the path that already excuses correctly.
+**The guard as first proposed was to refuse closing while any stall is still ACTIVE.** The office chose otherwise, so the
+guard became a confirmation instead; the reasoning is kept because it is why the confirmation states what it states. Hiding a
+tab hides the stalls under it, and a section with active stalls still owes daily fees.
 
 **Storage:** a small undated table (`FacilitySectionClosures`, unique on municipality + facility + section, additive
 migration), not a flag encoded into the `CustomSectionNames` text[] column. Same shape as `FacilitySectionRates`.
@@ -813,9 +813,29 @@ closed sections out; Facility Configuration, the payment-history importer and th
 `FacilityRepository.GetNpmCustomSectionsAsync` derives its list from the registry AND from names found on stalls, so a
 closed section with stalls still resolves - which is what keeps history intact.
 
-**The one decision needed before this is built:** whether "closed" should be refused while active stalls remain (the safe
-option above), or whether the office wants to close a section and have the platform close its stalls in the same act. The
-second is a mass billing change from one control, and I would not build it without the office saying so in as many words.
+**The office's answer, given 2026-08-30 in as many words: close the stalls in the same act, with a warning on screen.** So
+that is what was built, and the guard is no longer a refusal but a confirmation. Closing a section closes every stall still
+open in it; `FacilitySectionClosure` records WHICH stalls the act closed, so reopening returns exactly those and leaves a
+stall the office had already closed itself exactly as it was. Closing twice adds any stall recorded in between.
+
+**The freeze is not reimplemented.** Each stall is closed and reopened by sending `ToggleStallStatusCommand`, the path the
+per-stall control already uses, which drops a stall out of the register and, on reopen, writes its frozen span as excused so
+nothing back-bills. A second copy of that arithmetic would have been a second rule for the same money.
+
+**It is never one press.** "Close section" appears only inside a section's Edit and opens a statement rather than acting: it
+names the section, says how many spaces it reaches, and says that they stop being billed from today and that reopening
+excuses the closed days. The act is a second press that repeats the count. Reopening carries no warning, because returning a
+space and excusing its days takes nothing away. What the office is told afterwards uses the count the SERVER reports, since a
+stall may have been recorded while the drawer was open.
+
+**One refinement to the plan above, found while building it:** a closed section is filtered out of what the market page
+DISPLAYS and OFFERS, not out of the page's own section list. That list is also what `SectionStatedRate` reads, and a stall
+being edited in a closed section must still resolve its section's fee, or the form would fall back to the market's rate and
+stamp it on as the stall's own, which outranks its section's for ever.
+
+Migration `20260830131709_AddFacilitySectionClosures`, additive: one table, one unique index, and a `uuid[]` of stall ids.
+Seven handler tests and four component tests. Both properties injection-proved: closing every stall rather than only the open
+ones fails one test, and reporting a change where the section was never closed fails another.
 
 These cannot be answered by reading code.
 

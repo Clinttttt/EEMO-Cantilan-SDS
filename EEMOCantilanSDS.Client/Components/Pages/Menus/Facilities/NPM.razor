@@ -1,4 +1,4 @@
-﻿@page "/npm"
+@page "/npm"
 @page "/facility/npm"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
@@ -91,7 +91,7 @@
                 }
                 @* Per-LGU CUSTOM sections (registry ∪ stall names). A custom section with no stalls shows a
                    remove control; one with stalls cannot be removed (guarded server-side too). *@
-                @foreach (var cs in _customSections)
+                @foreach (var cs in OpenCustomSections())
                 {
                     var custCount = StallsBySection(cs.Name).Count();
                     var custUnpaid = StallsBySection(cs.Name).Count(s => !s.PaidToday && !s.AbsentToday);
@@ -201,7 +201,7 @@
             {
                 var sectionGroups = Sections
                     .Select(sec => (Key: sec.Key, Icon: sec.Value.Icon, Stalls: FilteredStallsFor(sec.Key).ToList()))
-                    .Concat(_customSections.Select(cs => (Key: cs.Name, Icon: CustomSectionIconSvg, Stalls: FilteredStallsFor(cs.Name).ToList())))
+                    .Concat(OpenCustomSections().Select(cs => (Key: cs.Name, Icon: CustomSectionIconSvg, Stalls: FilteredStallsFor(cs.Name).ToList())))
                     .Where(g => g.Stalls.Count > 0)
                     .ToList();
 
@@ -297,7 +297,7 @@
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="NpmFacilityOptions"
                 FacilityLocked="true"
-                CustomSectionNames="_customSections.Select(c => c.Name).ToList()"
+                CustomSectionNames="OpenCustomSections().Select(c => c.Name).ToList()"
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
                 NpmFishRate="_npmFishRate"
@@ -364,6 +364,18 @@
     // Per-LGU custom NPM sections (registry ∪ stall names, with stall counts). Drives the extra tabs/cards
     // and the remove-when-empty control; empty for Cantilan so the page is unchanged.
     private List<NpmCustomSectionDto> _customSections = new();
+
+    /// <summary>
+    /// The sections this page shows and offers: the office's own, less the ones it has closed.
+    /// </summary>
+    /// <remarks>
+    /// Filtered HERE and not in <see cref="_customSections"/> itself, deliberately. That list is also what
+    /// <c>SectionStatedRate</c> reads, and a stall being EDITED in a closed section must still resolve its section's fee -
+    /// otherwise the form would fall back to the market's rate and stamp it onto the stall as its own, which outranks its
+    /// section's for ever. So the full list stays, and only what is displayed or offered is narrowed.
+    /// </remarks>
+    private List<NpmCustomSectionDto> OpenCustomSections() =>
+        _customSections.Where(c => !c.IsClosed).ToList();
     private string CustomSectionError = string.Empty;
     private const string CustomSectionIconSvg = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/></svg>";
 

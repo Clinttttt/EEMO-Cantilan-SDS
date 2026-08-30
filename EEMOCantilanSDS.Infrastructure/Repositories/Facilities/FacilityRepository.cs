@@ -81,12 +81,19 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
             return latest is > 0m ? latest : null;
         }
 
+        // Which sections the office has closed. A closure is a state, not a history, so one row answers per section.
+        var closed = await context.FacilitySectionClosures.AsNoTracking()
+            .Where(c => c.FacilityCode == FacilityCode.NPM)
+            .Select(c => c.SectionName)
+            .ToListAsync(ct);
+
         return names
             .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
             .Select(n => new NpmCustomSectionDto(
                 n,
                 counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count),
-                StatedRateFor(n)))
+                StatedRateFor(n),
+                closed.Any(c => string.Equals(c.Trim(), n, StringComparison.OrdinalIgnoreCase))))
             .ToList();
     }
 

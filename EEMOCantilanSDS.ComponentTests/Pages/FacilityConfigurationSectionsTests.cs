@@ -47,6 +47,7 @@ public class FacilityConfigurationSectionsTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(sections.ToList()));
         _api.Setup(a => a.AddNpmCustomSectionAsync(It.IsAny<string>(), It.IsAny<decimal?>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>())).ReturnsAsync(Result<bool>.Success(true));
+        _api.Setup(a => a.SetNpmSectionClosedAsync(It.IsAny<string>(), It.IsAny<bool>())).ReturnsAsync(Result<int>.Success(1));
         _api.Setup(a => a.RemoveNpmCustomSectionAsync(It.IsAny<string>())).ReturnsAsync(Result<bool>.Success(true));
         _api.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(new List<FacilitySidebarSummaryDto>
@@ -303,6 +304,84 @@ public class FacilityConfigurationSectionsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-save")));
         _api.Verify(a => a.SetNpmSectionRateAsync(It.IsAny<string>(), It.IsAny<decimal>()), Times.Never);
+    }
+
+    // ── Closing a section, which closes the stalls in it ───────────────────────────────────────────
+
+    [Fact]
+    public void ClosingASectionIsOfferedOnlyInsideTheEdit_AndAsksBeforeItActs()
+    {
+        // The office chose for closing a section to close its stalls too, so this must never happen on one press. The first
+        // press states what will happen and how many spaces it reaches; the act is a second, separate press.
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 2, 25m));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        Assert.Empty(cut.FindAll(".cfg-sec-close"));            // nothing offered while the section is only stated
+
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close")));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Close section").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close-warn")));
+        Assert.Contains("also closes its 2 stalls", cut.Markup);
+        Assert.Contains("stop being billed from today", cut.Markup);
+        Assert.Contains("excuses the closed days", cut.Markup);
+
+        // And nothing has been asked of the server yet.
+        _api.Verify(a => a.SetNpmSectionClosedAsync(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public void TheWarningCanBeDeclined()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 1, 25m));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close")));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Close section").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close-warn")));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Keep open").Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".cfg-sec-close-warn")));
+        _api.Verify(a => a.SetNpmSectionClosedAsync(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Fact]
+    public void ConfirmingClosesTheSectionAndSaysWhatItDid()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 1, 25m));
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-set")));
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close")));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Close section").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close-warn")));
+        cut.FindAll("button").First(b => b.TextContent.Contains("Close section and")).Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionClosedAsync("Sari-sari Area", true), Times.Once));
+        // The count comes from the server's answer, not from what this screen last read.
+        cut.WaitForAssertion(() => Assert.Contains("1 stall closed with it", cut.Markup));
+    }
+
+    [Fact]
+    public void AClosedSectionStatesSoAndOffersToReopen()
+    {
+        var cut = RenderDrawer(new NpmCustomSectionDto("Sari-sari Area", 1, 25m, IsClosed: true));
+
+        cut.WaitForAssertion(() => Assert.Contains("Closed · 1 stall", cut.Markup));
+
+        cut.Find(".cfg-sec-set").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-sec-close")));
+
+        // No second warning to reopen: returning a space and excusing its closed days takes nothing away.
+        Assert.Empty(cut.FindAll(".cfg-sec-close-warn"));
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Reopen section").Click();
+
+        cut.WaitForAssertion(() => _api.Verify(a => a.SetNpmSectionClosedAsync("Sari-sari Area", false), Times.Once));
     }
 
     // ── The rates: a record until the office says it is editing one ───────────────────────────────
