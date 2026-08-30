@@ -868,8 +868,15 @@ measurement rather than the reasoning.
   true for a CANONICAL stall and false for a custom-section one. The second attempt asserted ₱780 and the service answered
   ₱900, because the stall's own `MonthlyRate` field is not what a daily-billed month bills. Both are now pinned by
   `NpmMonthSettlementServiceTests.ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee`.
-  **Open question for the office:** whether a ₱10 gap between a contract's monthly figure and the month the platform bills
-  is acceptable, given the alternative is centavos in a fee a collector takes in cash.
+  **DECIDED by the office 2026-08-30: keep whole-peso daily rates and accept the divergence.** A contract monthly figure of
+  ₱800 with a daily rate of ₱27 billing ₱810 a month is the answer it wants, on the grounds that a whole-peso fee is the
+  truth a collector works with. The office added the condition that Cantilan's own rule must not be contradicted - ₱900 a
+  month is ₱30 a day - and believed that already held by design. **It does, and it is now pinned rather than believed:**
+  the derived figure only ever reaches a CUSTOM-section stall, `Stall.ResolveDailyFee` reads a stall's own daily rate only
+  when it is in a custom section, and the form renders no daily fee field for one of the three canonical areas at all. So a
+  canonical Cantilan stall keeps the ordinance's ₱30 whatever rent is typed against it. `ACantilanAreaStallKeepsTheOrdinanceRateWhateverRentIsTyped`
+  asserts both halves and fails if the field is ever offered for a canonical area; ₱900 dividing to exactly ₱30 is asserted
+  too, since rounding cannot disturb a figure that already divides. **Closed.**
 
 ### Verified accurate and left alone during that audit
 

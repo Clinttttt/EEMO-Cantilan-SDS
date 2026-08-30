@@ -59,6 +59,50 @@ public class AddVendorModalDailyFromRentTests : TestContext
     private static decimal DailyShown(IRenderedComponent<AddVendorModal> cut) =>
         cut.Instance.Form.CustomDailyRate;
 
+    /// <summary>A stall in one of the three areas the platform starts with, which the ordinance prices.</summary>
+    private static AddVendorModal.VendorModalForm CanonicalAreaStall() => new()
+    {
+        FacilityCode = "NPM",
+        StallNo = "7",
+        SelectedSection = "Vegetables",
+        CustomDailyRate = 0m,
+        FeeTypes = new List<string> { "Electricity", "Water" },
+    };
+
+    [Fact]
+    public void ACantilanAreaStallKeepsTheOrdinanceRateWhateverRentIsTyped()
+    {
+        // The office's own rule, which this must never contradict: ₱900 a month is ₱30 a day in the ordinance, and a stall
+        // in one of the three canonical areas is billed that ₱30 no matter what a clerk types as its contract rent.
+        //
+        // Guarded twice over, and both are asserted here. The form offers no daily fee field for a canonical area at all,
+        // so there is nothing for the assist to write into. And Stall.ResolveDailyFee reads a stall's OWN daily rate only
+        // when it is in a custom section, so even a figure that reached the field could not change what this stall is
+        // billed.
+        var cut = RenderForm(CanonicalAreaStall());
+
+        Assert.Empty(cut.FindAll("input.avm-input[placeholder='e.g. 30']"));
+
+        TypeMonthlyRent(cut, "900");
+        Assert.Equal(0m, DailyShown(cut));
+
+        TypeMonthlyRent(cut, "1234");
+        Assert.Equal(0m, DailyShown(cut));
+        Assert.DoesNotContain("to the nearest peso", cut.Markup);
+    }
+
+    [Fact]
+    public void WhereTheOfficesOwnArithmeticIsExactTheDerivedFeeAgreesWithIt()
+    {
+        // ₱900 and ₱30 is Cantilan's own schedule. Rounding cannot disturb a figure that already divides exactly, so an
+        // office whose sections follow the market's rule sees its own numbers back.
+        var cut = RenderForm(CustomAreaStall(dailyOnOpen: 30m));
+
+        TypeMonthlyRent(cut, "900");
+
+        Assert.Equal(30m, DailyShown(cut));
+    }
+
     [Fact]
     public void NineHundredAMonthFillsThirtyADay()
     {
