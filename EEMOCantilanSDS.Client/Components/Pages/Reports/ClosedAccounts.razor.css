@@ -200,6 +200,16 @@
 }
 .ca-row-icon:hover { box-shadow: 0 4px 10px rgba(9, 31, 52, .12); }
 .ca-row-icon:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* An action that cannot be taken has to LOOK like one. Resume is refused while the stall's own market section is closed,
+   and a button that is unclickable but indistinguishable from a live one reads as a broken screen rather than a rule. */
+.ca-row-icon:disabled {
+    cursor: not-allowed;
+    color: var(--text-subtle);
+    background: var(--bg-icon);
+    border-color: var(--border);
+    opacity: .55;
+}
+.ca-row-icon:disabled:hover { box-shadow: none; }
 
 /* ── Renew form (inside the shared eemo-modal) ── */
 .ca-form { display: flex; flex-direction: column; gap: 12px; }

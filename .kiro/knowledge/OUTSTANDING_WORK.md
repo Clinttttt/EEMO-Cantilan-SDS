@@ -775,6 +775,53 @@ only the market days elapsed as of the report date.
 
 ## Open questions for the office
 
+### EXAMINED, not built: letting each municipality choose how a daily-billed month is measured (asked 2026-08-31)
+
+The office wants a control on Facility Configuration where a municipality picks its own basis: either **the rent** (a month
+owes ₱900 however many days the calendar gave it, which is Cantilan's rule and stays its default) or **the days** (31 × ₱30 =
+₱930, with no month-end adjustment). Examined before quoting it. **It is feasible, and this codebase is unusually well
+shaped for it, but it changes the platform's definition of an obligation and there are three consequences the office has to
+accept first.**
+
+**What exists today, precisely.** `DomainRules.DailyBilledMonthObligation` reads:
+`var rent = monthlyRent > 0 ? monthlyRent : dailyFee * 30; if (daysHeld >= daysInMonth) return rent;`
+So a full month owes the rent whether the calendar gave 28 days or 31, and where the office has stated NO monthly rent the
+rent is thirty installments. **Both of the office's options therefore collapse to ₱900 today: there is no mode that bills
+₱930.** The second basis is genuinely new.
+
+**Why it is feasible: the rule is already in one place.** Thirteen production files compute a daily-billed month - the
+stall ledger and its grid, the closed-accounts register, the market settlement service, the settle-month command, the
+collector's own report, the revenue report, three report handlers, the register, `Stall.ResolveMonthlyRent` and the
+monthly-rent assist - and **every one of them goes through those two `DomainRules` functions.** So the basis has one natural
+home rather than thirteen. Better still, **all thirteen already hold a `FeeRateSnapshot`** (verified file by file), which is
+already tenant-resolved, so the snapshot is the carrier: `DomainRules` gains the basis as a parameter, and callers pass
+`snapshot.MonthBasis`. `FeeRateSnapshot` is a sealed class with two constructors, so an optional third argument leaves every
+existing construction, including some thirty in tests, compiling unchanged.
+
+**The three consequences to accept before it is built:**
+1. **February loses its top-up.** On the days basis a 28-day February owes 28 × ₱30 = ₱840, and the ₱60 month-end adjustment
+   that exists to bring a short month up to its rent must be switched OFF - the office's own words were "no adjustment".
+   Over a year the days basis collects 365 installments against the rent basis's 360.
+2. **"A month" stops being a fixed figure.** The roster's "Monthly Rentals per Contract" column, the "Whole Year" line on the
+   stall form, and the coverage column on the reports all currently mean "the rent × 12". On the days basis a year is 365
+   installments, so those labels and figures need revising for that municipality or they will state something untrue.
+3. **The monthly-to-daily assist becomes advisory.** It divides a typed monthly figure by thirty; on the days basis a monthly
+   figure is not the billing basis at all.
+
+**The real risk is partial adoption, not arithmetic.** If the basis reaches twelve of the thirteen paths, one screen says
+₱900 while another says ₱930 - the exact fault `EarnedThrough`'s own remarks record, where "one stall carried two different
+balances depending on which screen the office opened". Mitigation is cheap and should be part of the work: remove the
+basis-less overloads and add an architecture test that fails the build if any production file computes a month without one.
+
+**Shape of the work, if the office says go:** an additive per-municipality setting defaulting to Rent (so Cantilan and every
+live tenant is byte-for-byte unchanged); the basis carried on `FeeRateSnapshot`; a branch in `NpmMonthSettlementService` that
+disables the month-end adjustment on the days basis; the thirteen call sites threaded; the architecture test; the control on
+Facility Configuration stating in one line what each basis means; and tests for both bases across February, a 30-day month
+and a 31-day month, plus a part-month.
+
+**Not started. The office's decision on the three consequences comes first**, particularly the February one, since it is the
+month where the two bases differ most and the difference is money.
+
 ### BUILT 2026-08-30: closing one of the office's own market sections (asked, planned, then built the same day)
 
 The office wants an option on a section's Edit that CLOSES it, so it hides from the NPM page, and asked whether the payors
