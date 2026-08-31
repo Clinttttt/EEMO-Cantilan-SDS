@@ -624,6 +624,13 @@
                                     {
                                         <span class="cfg-rate-tag">default</span>
                                     }
+                                    @* Kept, not removed. An office that goes back to the monthly goal needs its own figure
+                                       still on record, so the row states that the rule in force does not read it rather
+                                       than losing the number to a change of basis. *@
+                                    @if (IsUnusedMonthlyRate(r))
+                                    {
+                                        <span class="cfg-rate-tag">not in use</span>
+                                    }
                                 </div>
                                 @if (_editingRates)
                                 {
@@ -978,6 +985,24 @@
 @code {
     /// <summary>Whether this office runs a market at all. Nothing else has a market month to measure.</summary>
     private bool _hasMarket;
+
+    /// <summary>
+    /// The market's month rule as the API reports it, so the rates list can say which figures the rule actually reads.
+    /// </summary>
+    private NpmMonthBasis _marketBasis = NpmMonthBasis.RentGoal;
+
+    /// <summary>
+    /// A monthly market rate the rule in force does not read.
+    /// </summary>
+    /// <remarks>
+    /// True only for the market's monthly stall rate, and only where the office measures a month by the days it has. The row
+    /// stays: an office that goes back to the monthly goal would otherwise have lost its own figure to a change of basis,
+    /// and a rate is the office's record rather than this screen's.
+    /// </remarks>
+    private bool IsUnusedMonthlyRate(ConfiguredRateDto rate) =>
+        _marketBasis == NpmMonthBasis.PureDays
+        && string.Equals(_cfgFacility?.Code, "NPM", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(rate.Key, nameof(FeeRateKey.NpmMonthlyStall), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Whether the month-rule dialog is open, and the basis the office is looking at inside it.</summary>
     private bool _monthBasisOpen;
@@ -1476,6 +1501,22 @@
         // Whether this office runs a market, which is the only thing with a market month to measure. Read from the
         // configuration it just loaded rather than asked for separately.
         _hasMarket = _model?.Configured.Any(f => string.Equals(f.Code, "NPM", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        // And which rule that market's month is measured by, so the rates list can mark a figure the rule does not read.
+        // FAILS QUIET, deliberately: this is a label on a row, and a rule this screen could not read is no reason to
+        // withhold the facilities it has already loaded. Without the catch, one failing read would empty the whole page.
+        if (_hasMarket)
+        {
+            try
+            {
+                var rates = await StallsApi.GetNpmRatesAsync();
+                if (rates.IsSuccess && rates.Value is not null) _marketBasis = rates.Value.MonthBasis;
+            }
+            catch
+            {
+                _marketBasis = NpmMonthBasis.RentGoal;
+            }
+        }
     }
 
     // ── Drawer control ──
