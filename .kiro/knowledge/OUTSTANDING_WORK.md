@@ -1009,6 +1009,39 @@ Ordered as they were given, with what each one costs to do and the two that need
    Its own CSS classes rather than the rate rows': an existing test reads `.cfg-rate-value` as meaning a stated rate, and
    reusing it broke seven tests before the classes were separated.
 
+### Audit of the market month basis, 2026-08-31
+
+Asked for after the basis shipped, with the import named first. **Three blockers found, all the same shape, all fixed.** Two
+of the three were mine from the same afternoon.
+
+- **FIXED. The stallholder import refused every row from an office on the days basis.** It required a monthly figure on every
+  row. Such an office states none on its own List of Stallholders because it has none, so it could choose the rule and then
+  import nothing. The requirement now applies only where the office HAS a monthly rent.
+- **FIXED, and mine. `CreateStallCommandValidator` refused every market stall on the days basis.** I hid the monthly field
+  from the vendor form and left the validator demanding a figure greater than nought.
+- **FIXED, and mine. `UpdateStallCommandValidator` refused every EDIT of one.** Same cause. That validator now looks the
+  stall up, because its command carries a stall id rather than a facility and the relaxation is only for a market; a stall id
+  that answers nothing is refused rather than excused.
+
+**Cleared after examination, and stated because each looked like a defect until read:**
+
+- **The Follow-up Queue and the market reports are correct already.** Both funnel into
+  `FacilityReportsRepository.CalculateNpmDailyObligation`, which walks the months and asks
+  `_rateSnapshot.MonthRule.Obligation` for each - converted with the other ten call sites. The queue reads
+  `GetDelinquentStallsAsync` and `GetFacilityReportsAsync`, so it inherits the same answer rather than computing its own.
+- **`DomainRules.DailyBilledMonthCredit` needs no basis.** It takes the obligation as an INPUT and credits forgiven days at
+  one installment each, capped at that obligation. On the days basis that leaves exactly the days charged; on the rent goal it
+  leaves the rent less the forgiven days. Correct on both without knowing which.
+- **The daily-history and payment-history imports record what was PAID**, per day and per period, and never compute what a
+  month owes. Basis-agnostic.
+- **The payor portal shows a market stall's DAILY rate** (`isDailyBilled ? dailyRate : monthlyRate`), so no payor has ever
+  been shown a monthly figure for a market space.
+- **The collector app bills per day** and takes its month totals through the same helpers, so it follows the rule object.
+
+**Not yet audited against the basis:** report SCREEN COPY (the figures come through the rule, but wording in places still
+says a month is thirty days), the export, and the Taboan/terminal/slaughterhouse paths - none of which have a market month,
+but which share report scaffolding worth a read.
+
 ### Audit of 2026-08-30's work, done at the office's request
 
 Three findings, and two of them are corrections to claims I made myself the same day. Recorded so the record is the
