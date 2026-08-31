@@ -50,14 +50,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
     public NpmMonthBasis MonthBasis { get; private set; } = NpmMonthBasis.RentGoal;
 
     /// <summary>
+    /// When the office STATED its basis, or null while it has only ever had the default.
+    /// </summary>
+    /// <remarks>
+    /// The difference matters because the two are indistinguishable from the basis alone: an office that chose the monthly
+    /// goal and an office that has never been asked both read as <see cref="NpmMonthBasis.RentGoal"/>. This is what lets the
+    /// console ask the question once and never again, and what stops it nagging an office that has already answered.
+    /// </remarks>
+    public DateTime? MonthBasisStatedAt { get; private set; }
+
+    /// <summary>
     /// States how this office measures a market month. Nothing already billed is re-priced: the rule answers what a month
     /// owes when it is asked, so periods already collected keep the figures they were collected at.
     /// </summary>
+    /// <remarks>
+    /// Recorded even when the basis does not change, because CONFIRMING the rule in force is itself a decision the office
+    /// took - and it is the answer that stops the question being asked again.
+    /// </remarks>
     public void SetMonthBasis(NpmMonthBasis basis, string updatedBy = "System")
     {
-        if (MonthBasis == basis) return;
-
         MonthBasis = basis;
+        MonthBasisStatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

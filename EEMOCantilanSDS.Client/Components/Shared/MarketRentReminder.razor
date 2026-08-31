@@ -41,8 +41,50 @@
             </svg>
         </div>
 
-        <div id="rent-confirm-title" class="rent-confirm-title">Confirm the monthly market rent</div>
+        <div id="rent-confirm-title" class="rent-confirm-title">
+            @(_askingBasis ? "How does your office measure a market month?" : "Confirm the monthly market rent")
+        </div>
 
+        @if (_askingBasis)
+        {
+            @* Asked FIRST, and asked before the office records vendors, because the answer decides what every month those
+               vendors owe adds up to. Stated in the office's OWN figures rather than by naming two conventions: both are
+               defensible ordinances and the difference only becomes plain when the numbers sit side by side. *@
+            <p class="rent-confirm-text">
+                A market space is collected per day. What a MONTH owes is your ordinance's decision, and both answers below
+                are ordinary. Your daily fee is <strong>@Money(_daily)</strong>.
+            </p>
+
+            <div class="rent-basis-choices">
+                <label class="rent-basis-choice @(_basisChoice == NpmMonthBasis.RentGoal ? "rent-basis-on" : "")">
+                    <input type="radio" name="rent-basis" checked="@(_basisChoice == NpmMonthBasis.RentGoal)"
+                           @onchange="() => _basisChoice = NpmMonthBasis.RentGoal" />
+                    <span class="rent-basis-name">A monthly rent, collected daily</span>
+                    <span class="rent-basis-meta">Every month owes @Money(_daily * DaysInMonthConvention), whatever the calendar gave it.</span>
+                </label>
+
+                <label class="rent-basis-choice @(_basisChoice == NpmMonthBasis.PureDays ? "rent-basis-on" : "")">
+                    <input type="radio" name="rent-basis" checked="@(_basisChoice == NpmMonthBasis.PureDays)"
+                           @onchange="() => _basisChoice = NpmMonthBasis.PureDays" />
+                    <span class="rent-basis-name">The days the month has</span>
+                    <span class="rent-basis-meta">A 31-day month owes @Money(_daily * 31), February owes @Money(_daily * 28).</span>
+                </label>
+            </div>
+
+            @if (_error is not null)
+            {
+                <p class="rent-confirm-error">@_error</p>
+            }
+
+            <div class="rent-confirm-actions">
+                <button type="button" class="rent-confirm-later" @onclick="Later" disabled="@_saving">Not now</button>
+                <button type="button" class="rent-confirm-go" @onclick="ConfirmBasisAsync" disabled="@_saving">
+                    @(_saving ? "Saving…" : "Save this rule")
+                </button>
+            </div>
+        }
+        else
+        {
         <p class="rent-confirm-text">
             A market space is let for a monthly rent and collected in daily installments. Your office has not yet
             stated its monthly amount, so the system is using
@@ -66,6 +108,7 @@
                 @(_saving ? "Confirming…" : $"Confirm {Money(_inUse)}")
             </button>
         </div>
+        }
     </div>
 }
 
@@ -77,6 +120,51 @@
     private decimal _daily;
     private ElementReference _dialog;
     private bool _focused;
+
+    /// <summary>
+    /// Whether the office is being asked which RULE it measures a month by, rather than to confirm a monthly amount.
+    /// </summary>
+    /// <remarks>
+    /// The rule comes first and supersedes the rent question: an office that has not said how it measures a month cannot
+    /// sensibly be asked to confirm a monthly figure, and on the days basis it will never have one to confirm. Answering
+    /// "a monthly rent" then falls through to the rent question in the same dialog, so the office is never shown two.
+    /// </remarks>
+    private bool _askingBasis;
+    private NpmMonthBasis _basisChoice = NpmMonthBasis.RentGoal;
+
+    /// <summary>
+    /// Records the office's rule. Nothing already collected is re-priced; what changes is what the next month is measured by.
+    /// </summary>
+    private async Task ConfirmBasisAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            var result = await FacilitiesApi.SetNpmMonthBasisAsync(_basisChoice);
+            if (!result.IsSuccess)
+            {
+                _error = result.Error ?? "That could not be saved. Set it in Settings → Facilities & Rates.";
+                return;
+            }
+
+            _askingBasis = false;
+
+            // A monthly rent still has to be confirmed where the office says its month IS one and has not stated a figure.
+            // On the days basis there is nothing further to ask, so the dialog closes.
+            _show = _basisChoice == NpmMonthBasis.RentGoal && _inUse > 0m;
+        }
+        catch
+        {
+            _error = "That could not be saved. Set it in Settings → Facilities & Rates.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 
     /// <summary>Escape closes it, as a dialog must for anyone working from the keyboard.</summary>
     private void OnKeyDown(KeyboardEventArgs e)
@@ -118,11 +206,16 @@
             if (!rates.IsSuccess || rates.Value is null) return;
 
             // The API decides whether this LGU should be asked at all — the reference tenant never is.
-            if (!rates.Value.NeedsMonthlyRentConfirmation) return;
+            if (!rates.Value.NeedsMonthRuleConfirmation && !rates.Value.NeedsMonthlyRentConfirmation) return;
 
             _daily = rates.Value.DailyRate;
             _inUse = rates.Value.MonthlyRentInUse;
-            _show = _inUse > 0m;
+
+            // The rule first: it decides whether a monthly amount is even a thing this office has.
+            _askingBasis = rates.Value.NeedsMonthRuleConfirmation;
+            _basisChoice = rates.Value.MonthBasis;
+
+            _show = _askingBasis ? _daily > 0m : _inUse > 0m;
         }
         catch
         {

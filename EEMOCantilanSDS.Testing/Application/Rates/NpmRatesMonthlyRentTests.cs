@@ -54,6 +54,76 @@ public class NpmRatesMonthlyRentTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task AnOfficeOnThePureDaysBasis_IsNeverAskedForAMonthlyRent()
+    {
+        // It will never have one. A month owes the days it has on that basis, so a monthly amount is a figure no month
+        // actually owes - and a question the office cannot answer would sit on its screen for ever.
+        var context = NewContext();
+        var lgu = Lgu("Madrid", "madrid-sds", isDefault: false);
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        npm.SetMonthBasis(NpmMonthBasis.PureDays);
+        context.AddRange(lgu, npm);
+        await context.SaveChangesAsync();
+
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow))
+            .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
+
+        Assert.Equal(NpmMonthBasis.PureDays, rates.MonthBasis);
+        Assert.False(rates.NeedsMonthlyRentConfirmation);
+        Assert.False(rates.NeedsMonthRuleConfirmation);          // it has stated its rule, so that is settled too
+    }
+
+    [Fact]
+    public async Task AnOfficeThatHasNeverStatedItsRule_IsAskedWhichRule()
+    {
+        var context = NewContext();
+        var lgu = Lgu("Madrid", "madrid-sds", isDefault: false);
+        context.AddRange(lgu, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+        await context.SaveChangesAsync();
+
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow))
+            .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
+
+        Assert.True(rates.NeedsMonthRuleConfirmation);
+        Assert.Equal(NpmMonthBasis.RentGoal, rates.MonthBasis);   // the default it is on until it says otherwise
+    }
+
+    [Fact]
+    public async Task AnOfficeThatStatedTheMonthlyGoal_IsNotAskedTheRuleAgain()
+    {
+        // Confirming the rule in force is an answer. Without recording it, the console could not tell that office from one
+        // that had never been asked, and would ask again on every visit.
+        var context = NewContext();
+        var lgu = Lgu("Madrid", "madrid-sds", isDefault: false);
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        npm.SetMonthBasis(NpmMonthBasis.RentGoal);
+        context.AddRange(lgu, npm);
+        await context.SaveChangesAsync();
+
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(lgu.Id), context, new FixedClock(DateTime.UtcNow))
+            .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
+
+        Assert.False(rates.NeedsMonthRuleConfirmation);
+        // Its monthly amount is still unstated, so THAT question stands - which is the fall-through the dialog relies on.
+        Assert.True(rates.NeedsMonthlyRentConfirmation);
+    }
+
+    [Fact]
+    public async Task TheReferenceTenant_IsNeverAskedItsRuleEither()
+    {
+        var context = NewContext();
+        var cantilan = Lgu("Cantilan", "cantilan-sds", isDefault: true);
+        context.AddRange(cantilan, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+        await context.SaveChangesAsync();
+
+        var rates = (await new GetNpmRatesQueryHandler(new FeeRateResolver(context), CallerOf(cantilan.Id), context, new FixedClock(DateTime.UtcNow))
+            .Handle(new GetNpmRatesQuery(), CancellationToken.None)).Value!;
+
+        Assert.False(rates.NeedsMonthRuleConfirmation);
+        Assert.Equal(NpmMonthBasis.RentGoal, rates.MonthBasis);
+    }
+
+    [Fact]
     public async Task TheReferenceTenant_IsNeverAsked()
     {
         // Cantilan's ordinance IS the constants this platform derives from, so thirty of its daily fee is already the

@@ -44,10 +44,23 @@ public class GetNpmRatesQueryHandler(
         var isReferenceTenant = currentUser.MunicipalityId is { } municipalityId
             && await context.Municipalities.AnyAsync(m => m.Id == municipalityId && m.IsDefault, ct);
 
+        // Whether this office has ever STATED how it measures a month, as against merely having the default. The two are
+        // indistinguishable from the basis alone, so the facility row records the statement. The reference tenant is
+        // exempt on the same positive proof and for the same reason as the rent question: its ordinance IS these constants.
+        var basisStated = await context.Facilities
+            .AsNoTracking()
+            .Where(f => f.Code == FacilityCode.NPM)
+            .Select(f => f.MonthBasisStatedAt)
+            .FirstOrDefaultAsync(ct) is not null;
+
+        var onPureDays = snapshot.MonthRule.Basis == NpmMonthBasis.PureDays;
+
         return Result<NpmRatesDto>.Success(new NpmRatesDto(
             daily, fish, monthly, monthlyInUse,
             IsMonthlyRentConfirmed: monthly > 0m,
-            NeedsMonthlyRentConfirmation: monthly <= 0m && !isReferenceTenant,
+            // Asked only of an office whose month IS a monthly rent. On the days basis there is no monthly amount to
+            // confirm and never will be, so asking would be a question the office cannot answer and would be shown for ever.
+            NeedsMonthlyRentConfirmation: monthly <= 0m && !isReferenceTenant && !onPureDays,
             // What a stall in each of the three areas is billed: the area's own rate where the office prices it apart,
             // else the market's. Asked of NpmDailyFee rather than read key by key, so a screen stating an area's rate and
             // the collector charging for a stall in it cannot answer by different rules.
@@ -56,6 +69,7 @@ public class GetNpmRatesQueryHandler(
             MeatSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.MeatSection, snapshot, asOf) ?? 0m,
             // The rule in force, from the same snapshot every billing path reads, so a screen cannot state one
             // basis while the ledger applies another.
-            MonthBasis: snapshot.MonthRule.Basis));
+            MonthBasis: snapshot.MonthRule.Basis,
+            NeedsMonthRuleConfirmation: !basisStated && !isReferenceTenant));
     }
 }

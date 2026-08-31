@@ -66,16 +66,36 @@ public class NpmMonthBasisHandlerTests
     }
 
     [Fact]
-    public async Task StatingTheBasisAlreadyInForceChangesNothingOnTheRecord()
+    public async Task ConfirmingTheBasisAlreadyInForceIsStillRecorded()
     {
-        // The row is not touched, so the office's audit trail does not gain an entry for a decision nobody took.
-        var (handler, npm, _) = Build();
-        var before = npm.UpdatedAt;
+        // Changed deliberately from an earlier version of this test, which asserted the row was left untouched.
+        // Confirming the rule in force IS a decision the office took, and recording it is what stops the console asking
+        // the same question on every visit. A confirmation that changed nothing would leave the office answering for ever.
+        var (handler, npm, uow) = Build();
+        Assert.Null(npm.MonthBasisStatedAt);
 
         var result = await handler.Handle(new SetNpmMonthBasisCommand(NpmMonthBasis.RentGoal), default);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(before, npm.UpdatedAt);
+        Assert.Equal(NpmMonthBasis.RentGoal, npm.MonthBasis);
+        Assert.NotNull(npm.MonthBasisStatedAt);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnOfficeThatHasNeverBeenAskedIsDistinguishableFromOneThatChoseTheDefault()
+    {
+        // Both read as RentGoal, which is why the statement is recorded separately. Without it the console could not tell
+        // "chose the monthly goal" from "has never been asked", and would either nag an office that had answered or never
+        // ask one that had not.
+        var (handler, npm, _) = Build();
+        Assert.Equal(NpmMonthBasis.RentGoal, npm.MonthBasis);
+        Assert.Null(npm.MonthBasisStatedAt);
+
+        await handler.Handle(new SetNpmMonthBasisCommand(NpmMonthBasis.RentGoal), default);
+
+        Assert.Equal(NpmMonthBasis.RentGoal, npm.MonthBasis);
+        Assert.NotNull(npm.MonthBasisStatedAt);
     }
 
     [Fact]

@@ -40,4 +40,12 @@ public sealed record NpmRatesDto(
     /// Stated back to the office so a screen can say which rule is in force, and so a form knows whether a MONTHLY field
     /// belongs on it at all. On the days basis no monthly amount is meaningful, because no two months owe the same.
     /// </remarks>
-    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal);
+    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal,
+    /// <summary>
+    /// True where this office has never STATED how it measures a market month, so the console asks it once.
+    /// </summary>
+    /// <remarks>
+    /// Asked before the office records vendors, because the answer decides what every month those vendors owe adds up to.
+    /// The reference tenant is never asked: its own ordinance is the convention this platform's constants come from.
+    /// </remarks>
+    bool NeedsMonthRuleConfirmation = false);

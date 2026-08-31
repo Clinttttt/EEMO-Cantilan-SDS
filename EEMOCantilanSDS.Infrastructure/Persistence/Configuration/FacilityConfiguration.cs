@@ -52,6 +52,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasConversion<int>()
                 .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.NpmMonthBasis.RentGoal);
 
+            // Null until the office has stated one. The basis alone cannot say whether it was chosen or merely defaulted, and
+            // that difference is what lets the console ask once rather than for ever.
+            builder.Property(s => s.MonthBasisStatedAt);
+
             builder.Property(s => s.IsActive)
                 .IsRequired()
                 .HasDefaultValue(true);
