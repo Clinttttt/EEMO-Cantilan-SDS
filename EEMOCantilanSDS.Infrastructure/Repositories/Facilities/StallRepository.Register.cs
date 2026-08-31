@@ -74,8 +74,14 @@ public partial class StallRepository
         // thirty of the fee THIS stall is billed at — its own rate in an area of the market's own, its area's rate
         // where the office prices areas apart, the market's rate otherwise. Cantilan resolves to ₱30 × 30 = ₱900,
         // exactly what it showed before.
+        //
+        // NOUGHT where the office measures a market month by the DAYS it has. There is no monthly rent on that basis, and
+        // thirty installments would be a figure no month actually owes: a 31-day month owes thirty-one and February
+        // twenty-eight. The official roster states a dash for it rather than a rent the office never charges.
         decimal MonthlyOf(Stall s) => isDailyBilled
-            ? s.ResolveMonthlyRent(NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf), npmMonthlyRent)
+            ? (rateSnapshot!.MonthRule.HasMonthlyGoal
+                ? s.ResolveMonthlyRent(NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf), npmMonthlyRent)
+                : 0m)
             : s.MonthlyRate;
 
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection

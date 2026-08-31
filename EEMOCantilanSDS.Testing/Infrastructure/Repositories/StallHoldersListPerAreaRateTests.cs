@@ -51,6 +51,53 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task OnThePureDaysBasisTheRosterStatesNoMonthlyRent()
+    {
+        // The official roster's "Monthly Rentals per Contract" column asks for a figure the office does not have on that
+        // basis: a 31-day month owes thirty-one fees and February twenty-eight, so thirty of them is a rent nobody is
+        // charged. Answered as nought, which the page prints as a dash - the same thing it prints for a space with no
+        // contract - rather than as a rent the office never collects.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "Public Market", "NPM");
+        facility.SetMonthBasis(NpmMonthBasis.PureDays);
+        var (veg, vegContract) = StallIn(facility.Id, "1", MarketSection.VegetableArea);
+
+        context.AddRange(
+            facility, veg, vegContract,
+            FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, RateEffective, Guid.Empty));
+        await context.SaveChangesAsync();
+
+        var dto = await new StallRepository(context)
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+
+        var row = dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1");
+
+        Assert.Equal(0m, row.MonthlyRentalRate);
+        Assert.Equal(0m, dto.GrandTotalMonthlyRate);
+        Assert.Equal(0m, dto.GrandTotalWholeYearRental);
+    }
+
+    [Fact]
+    public async Task OnTheMonthlyGoalTheRosterStillStatesTheRent()
+    {
+        // The same market, on the basis every live office is on. This figure moving would be a regression rather than a
+        // feature, which is why it is asserted beside the other.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "Public Market", "NPM");
+        var (veg, vegContract) = StallIn(facility.Id, "1", MarketSection.VegetableArea);
+
+        context.AddRange(
+            facility, veg, vegContract,
+            FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, RateEffective, Guid.Empty));
+        await context.SaveChangesAsync();
+
+        var dto = await new StallRepository(context)
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+
+        Assert.Equal(900m, dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1").MonthlyRentalRate);
+    }
+
+    [Fact]
     public async Task AnOfficeWithOneMarketRateIsUnchanged()
     {
         // The reference case. Every area reads the market's rate, which is what the roster showed before per-area rates

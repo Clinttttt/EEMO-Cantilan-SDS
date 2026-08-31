@@ -518,9 +518,9 @@
                             <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
                             <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
                         }
-                        <td class="sh-r">@(r.IsClosed || noContract ? "—" : Money(r.MonthlyRentalRate))</td>
+                        <td class="sh-r">@(r.IsClosed || noContract || r.MonthlyRentalRate <= 0m ? "—" : Money(r.MonthlyRentalRate))</td>
                         <td class="sh-r">@(r.IsClosed ? "—" : Money(r.ActualMonthlyRental))</td>
-                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.WholeYearRental))</td>
+                        <td class="sh-r">@(r.IsClosed || r.WholeYearRental <= 0m ? "—" : Money(r.WholeYearRental))</td>
                         @if (isNcc)
                         {
                             <td class="sh-c">@(string.IsNullOrWhiteSpace(r.AreaLocation) ? "—" : r.AreaLocation)</td>
