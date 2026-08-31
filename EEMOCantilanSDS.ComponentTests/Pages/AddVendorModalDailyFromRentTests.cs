@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Enums;
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -40,6 +41,62 @@ public class AddVendorModalDailyFromRentTests : TestContext
             .Add(c => c.Form, form)
             .Add(c => c.NpmDailyRate, 30m)
             .Add(c => c.NpmFishRate, 1m));
+    }
+
+    /// <summary>The same form for an office that bills the days a month has.</summary>
+    private IRenderedComponent<AddVendorModal> RenderFormOnPureDays(AddVendorModal.VendorModalForm form)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(FacilityCatalogFixture.WithNoRecord());
+
+        return RenderComponent<AddVendorModal>(p => p
+            .Add(c => c.Show, true)
+            .Add(c => c.IsEditing, false)
+            .Add(c => c.Form, form)
+            .Add(c => c.NpmDailyRate, 30m)
+            .Add(c => c.NpmFishRate, 1m)
+            .Add(c => c.MonthBasis, NpmMonthBasis.PureDays));
+    }
+
+    [Fact]
+    public void OnPureDaysTheFormAsksForNoMonthlyAmountAtAll()
+    {
+        // A month owes the days it has on that basis, so no two months owe the same and a monthly figure is a number no
+        // month actually owes. Dropped rather than shown and ignored: a form that collects something nothing reads teaches
+        // a clerk the screen is decorative.
+        var cut = RenderFormOnPureDays(CustomAreaStall(dailyOnOpen: 30m));
+
+        Assert.Empty(cut.FindAll("input.avm-input[placeholder='e.g. 900']"));
+        Assert.DoesNotContain("Monthly Rental", cut.Markup);
+        Assert.DoesNotContain("Whole Year", cut.Markup);
+
+        // The daily fee is still asked for, since that is the whole basis.
+        Assert.NotEmpty(cut.FindAll("input.avm-input[placeholder='e.g. 30']"));
+    }
+
+    [Fact]
+    public void OnTheMonthlyGoalTheFormStillAsksForTheMonthlyAmount()
+    {
+        var cut = RenderForm(CustomAreaStall(dailyOnOpen: 30m));
+
+        Assert.NotEmpty(cut.FindAll("input.avm-input[placeholder='e.g. 900']"));
+        Assert.Contains("Monthly Rental", cut.Markup);
+    }
+
+    [Fact]
+    public void AFormWithNoBasisGivenKeepsTheMonthlyAmount()
+    {
+        // Every caller that passes no basis, and every facility other than the market, must behave exactly as before.
+        var monthlyFacility = new AddVendorModal.VendorModalForm { FacilityCode = "TCC", StallNo = "101" };
+        var cut = RenderForm(monthlyFacility);
+
+        Assert.NotEmpty(cut.FindAll("input.avm-input[placeholder='e.g. 900']"));
     }
 
     /// <summary>A stall being recorded in an area of the office's own, which is the only place a daily fee is typed.</summary>

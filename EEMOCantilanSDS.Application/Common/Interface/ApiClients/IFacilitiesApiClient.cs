@@ -49,6 +49,9 @@ public interface IFacilitiesApiClient
     /// <summary>Closes one of the office's own sections and the stalls in it, or reopens both. Answers with the stalls changed.</summary>
     Task<Result<int>> SetNpmSectionClosedAsync(string section, bool closed);
 
+    /// <summary>States how this office measures a market month: a monthly goal, or the days the month has.</summary>
+    Task<Result<bool>> SetNpmMonthBasisAsync(NpmMonthBasis basis);
+
     /// <summary>Removes a custom NPM section (Head-only). Fails if any stall still uses it.</summary>
     Task<Result<bool>> RemoveNpmCustomSectionAsync(string name);
 }

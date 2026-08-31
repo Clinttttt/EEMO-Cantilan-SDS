@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Client.Services
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IStallsApiClient StallsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject ITpmApiClient TpmApi
 @inject ITrmApiClient TrmApi
@@ -106,6 +107,16 @@
                     <div class="set-card-title">Configured facilities</div>
                     <div class="set-card-sub">@(loaded ? $"{configuredCount} facilit{(configuredCount == 1 ? "y" : "ies")} · select one to configure its rates" : "Select a facility to configure its rates")</div>
                 </div>
+
+                @* The market's own month rule, stated where the office reads its facilities rather than buried in a drawer:
+                   it decides what every daily rate adds up to, so it belongs beside the list and not inside one card. Shown
+                   only to an office that runs a market, since nothing else has a market month. *@
+                @if (loaded && _hasMarket)
+                {
+                    <button class="fac-btn fac-btn-ghost set-card-action" type="button" @onclick="OpenMonthBasis">
+                        Market month rule
+                    </button>
+                }
             </div>
 
             @if (!loaded)
@@ -681,8 +692,7 @@
                     }
                 }
 
-                <div class="cfg-section-label">Status &amp; history</div>
-                <button class="cfg-history-btn" @onclick="() => OpenHistory(_cfgFacility)">
+                <div class="cfg-section-label">Status &amp; history</div>                <button class="cfg-history-btn" @onclick="() => OpenHistory(_cfgFacility)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
                     View collection history
                 </button>
@@ -912,7 +922,147 @@
     </div>
 }
 
+@* ── The market's month rule ──────────────────────────────────────────────────────────────────────────────
+   Stated before it can be changed. An office reads which rule is in force and what it means in its OWN figures,
+   because "a month owes its days" and "a month owes its rent" are both defensible and the difference only becomes
+   obvious when the numbers are put beside each other. Nothing already collected moves: the rule answers a month
+   when it is asked, so worked periods keep the figures they were worked at.
+*@
+@if (_monthBasisOpen)
+{
+    <div class="cfg-drawer-backdrop" @onclick="CloseMonthBasis"></div>
+    <div class="cfg-basis" role="dialog" aria-modal="true" aria-labelledby="cfg-basis-title">
+        <div id="cfg-basis-title" class="cfg-basis-title">How a market month is measured</div>
+        <div class="cfg-field-note">Your ordinance decides this. Periods already collected keep their figures.</div>
+
+        @if (_monthBasisError is not null)
+        {
+            <div class="cfg-error">@_monthBasisError</div>
+        }
+
+        <div class="cfg-basis-choices">
+            <label class="cfg-basis-choice @(_monthBasisChoice == NpmMonthBasis.RentGoal ? "cfg-basis-on" : "")">
+                <input type="radio" name="cfg-basis" checked="@(_monthBasisChoice == NpmMonthBasis.RentGoal)"
+                       @onchange="() => _monthBasisChoice = NpmMonthBasis.RentGoal" />
+                <span class="cfg-basis-name">Monthly rent, collected daily</span>
+                <span class="cfg-basis-meta">@MonthBasisExample(NpmMonthBasis.RentGoal)</span>
+            </label>
+
+            <label class="cfg-basis-choice @(_monthBasisChoice == NpmMonthBasis.PureDays ? "cfg-basis-on" : "")">
+                <input type="radio" name="cfg-basis" checked="@(_monthBasisChoice == NpmMonthBasis.PureDays)"
+                       @onchange="() => _monthBasisChoice = NpmMonthBasis.PureDays" />
+                <span class="cfg-basis-name">The days the month has</span>
+                <span class="cfg-basis-meta">@MonthBasisExample(NpmMonthBasis.PureDays)</span>
+            </label>
+        </div>
+
+        @if (_monthBasisChoice != _monthBasisInForce)
+        {
+            <div class="cfg-field-note">
+                @(_monthBasisChoice == NpmMonthBasis.PureDays
+                    ? "No monthly amount is asked for on this basis, and a short month carries no adjustment."
+                    : "A monthly amount applies again, and a short month is topped up to it at month end.")
+            </div>
+        }
+
+        <div class="cfg-basis-actions">
+            <button class="fac-btn fac-btn-ghost" type="button" disabled="@_busy" @onclick="CloseMonthBasis">Close</button>
+            <button class="fac-btn fac-btn-primary" type="button" disabled="@(_busy || _monthBasisChoice == _monthBasisInForce)"
+                    @onclick="SaveMonthBasisAsync">
+                @(_busy ? "Working…" : "Save rule")
+            </button>
+        </div>
+    </div>
+}
+
 @code {
+    /// <summary>Whether this office runs a market at all. Nothing else has a market month to measure.</summary>
+    private bool _hasMarket;
+
+    /// <summary>Whether the month-rule dialog is open, and the basis the office is looking at inside it.</summary>
+    private bool _monthBasisOpen;
+    private NpmMonthBasis _monthBasisInForce = NpmMonthBasis.RentGoal;
+    private NpmMonthBasis _monthBasisChoice = NpmMonthBasis.RentGoal;
+    private decimal _monthBasisDailyRate;
+    private string? _monthBasisError;
+    private string? _monthBasisSaved;
+
+    /// <summary>
+    /// Opens the market's month rule, reading the basis in force from the API rather than from anything this page kept.
+    /// </summary>
+    private async Task OpenMonthBasis()
+    {
+        _monthBasisError = null;
+        _monthBasisSaved = null;
+
+        var rates = await StallsApi.GetNpmRatesAsync();
+        if (!rates.IsSuccess || rates.Value is null)
+        {
+            _monthBasisError = "The market's rule could not be read just now.";
+            _monthBasisOpen = true;
+            return;
+        }
+
+        _monthBasisInForce = rates.Value.MonthBasis;
+        _monthBasisChoice = _monthBasisInForce;
+        _monthBasisDailyRate = rates.Value.DailyRate;
+        _monthBasisOpen = true;
+    }
+
+    private void CloseMonthBasis()
+    {
+        _monthBasisOpen = false;
+        _monthBasisError = null;
+    }
+
+    /// <summary>
+    /// States the office's choice. Nothing already collected is re-priced: the rule answers a month when it is asked, so
+    /// periods already worked keep the figures they were worked at.
+    /// </summary>
+    private async Task SaveMonthBasisAsync()
+    {
+        if (_monthBasisChoice == _monthBasisInForce)
+        {
+            CloseMonthBasis();
+            return;
+        }
+
+        _busy = true;
+        _monthBasisError = null;
+        try
+        {
+            var result = await FacilitiesApi.SetNpmMonthBasisAsync(_monthBasisChoice);
+            if (!result.IsSuccess)
+            {
+                _monthBasisError = string.IsNullOrWhiteSpace(result.Error) ? "That could not be saved." : result.Error;
+                return;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        _monthBasisInForce = _monthBasisChoice;
+        _monthBasisSaved = _monthBasisChoice == NpmMonthBasis.PureDays
+            ? "A market month now owes the days it has."
+            : "A market month is now let for its monthly rent.";
+        _monthBasisOpen = false;
+
+        await LoadAsync();
+    }
+
+    /// <summary>What a month comes to on a basis, in the office's own figures, for the dialog to state.</summary>
+    private string MonthBasisExample(NpmMonthBasis basis)
+    {
+        var daily = _monthBasisDailyRate;
+        if (daily <= 0m) return "State the market's daily fee first.";
+
+        return basis == NpmMonthBasis.PureDays
+            ? $"A 31-day month owes ₱{daily * 31:N2}, February owes ₱{daily * 28:N2}."
+            : $"Every month owes the same rent, ₱{daily * 30:N2} at ₱{daily:N2} a day.";
+    }
+
     private FacilityConfigurationDto? _model;
     private string? _error;
 
@@ -1322,6 +1472,10 @@
             _model = result.Value;
         else
             _error = string.IsNullOrWhiteSpace(result.Error) ? "The facility configuration could not be retrieved." : result.Error;
+
+        // Whether this office runs a market, which is the only thing with a market month to measure. Read from the
+        // configuration it just loaded rather than asked for separately.
+        _hasMarket = _model?.Configured.Any(f => string.Equals(f.Code, "NPM", StringComparison.OrdinalIgnoreCase)) ?? false;
     }
 
     // ── Drawer control ──

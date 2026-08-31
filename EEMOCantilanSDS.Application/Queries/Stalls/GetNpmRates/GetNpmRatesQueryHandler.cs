@@ -53,6 +53,9 @@ public class GetNpmRatesQueryHandler(
             // the collector charging for a stall in it cannot answer by different rules.
             VegetableAreaDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.VegetableArea, snapshot, asOf) ?? 0m,
             FishSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.FishSection, snapshot, asOf) ?? 0m,
-            MeatSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.MeatSection, snapshot, asOf) ?? 0m));
+            MeatSectionDailyRate: NpmDailyFee.ForAreaOrNull(MarketSection.MeatSection, snapshot, asOf) ?? 0m,
+            // The rule in force, from the same snapshot every billing path reads, so a screen cannot state one
+            // basis while the ledger applies another.
+            MonthBasis: snapshot.MonthRule.Basis));
     }
 }

@@ -301,6 +301,7 @@
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
                 NpmFishRate="_npmFishRate"
+                     MonthBasis="_npmMonthBasis"
                 SectionFeeLabel="@($"{FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)} fee")"
                 ReuseOfferMessage="@_vendorReuseOffer"
                 OnReuseConfirm="ConfirmStallTakeOverAsync"
@@ -950,6 +951,10 @@
     private decimal _npmDailyRate = 30m;
     private decimal _npmFishRate = 1m;
 
+    // How this office measures a market month. The form drops its MONTHLY field where the office bills the days the
+    // month has, because a monthly amount is a figure no month actually owes on that basis.
+    private NpmMonthBasis _npmMonthBasis = NpmMonthBasis.RentGoal;
+
     private async Task LoadNpmRatesAsync()
     {
         var result = await StallsApi.GetNpmRatesAsync();
@@ -957,6 +962,7 @@
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            _npmMonthBasis = result.Value.MonthBasis;
             SyncSectionRateDescriptions();
         }
     }

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Enums;
 namespace EEMOCantilanSDS.Application.Dtos.Stalls;
 
 /// <summary>
@@ -30,4 +31,13 @@ public sealed record NpmRatesDto(
     bool NeedsMonthlyRentConfirmation = false,
     decimal VegetableAreaDailyRate = 0m,
     decimal FishSectionDailyRate = 0m,
-    decimal MeatSectionDailyRate = 0m);
+    decimal MeatSectionDailyRate = 0m,
+    /// <summary>
+    /// How this office measures what a market month owes: a monthly goal collected in installments, or the days the month
+    /// actually has.
+    /// </summary>
+    /// <remarks>
+    /// Stated back to the office so a screen can say which rule is in force, and so a form knows whether a MONTHLY field
+    /// belongs on it at all. On the days basis no monthly amount is meaningful, because no two months owe the same.
+    /// </remarks>
+    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal);

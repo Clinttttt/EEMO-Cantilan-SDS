@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionClosed;
+using EEMOCantilanSDS.Application.Command.Facilities.SetNpmMonthBasis;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
@@ -157,6 +158,21 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    /// <summary>
+    /// States how this office measures what a daily-collected market month owes: a monthly goal collected in installments,
+    /// or the days the month actually has. The Head's decision, since it decides what every daily rate adds up to.
+    /// </summary>
+    /// <remarks>
+    /// Nothing already collected is re-priced: the rule answers a month when it is asked, so periods already worked keep the
+    /// figures they were worked at.
+    /// </remarks>
+    [HttpPost("npm/month-basis")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SetNpmMonthBasis([FromBody] SetNpmMonthBasisCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
     /// <summary>
     /// Closes one of the office's own market sections along with the stalls in it, or reopens both. Answers with the number
     /// of stalls the act changed.

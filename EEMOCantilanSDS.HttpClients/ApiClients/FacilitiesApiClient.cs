@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionRate;
 using EEMOCantilanSDS.Application.Command.Facilities.SetNpmSectionClosed;
+using EEMOCantilanSDS.Application.Command.Facilities.SetNpmMonthBasis;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -62,6 +63,9 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
 
     public async Task<Result<bool>> AddNpmCustomSectionAsync(string name, decimal? dailyRate = null) =>
         await PostAsync<AddNpmCustomSectionCommand, bool>("api/Facilities/npm/custom-sections", new AddNpmCustomSectionCommand(name, dailyRate));
+
+    public async Task<Result<bool>> SetNpmMonthBasisAsync(NpmMonthBasis basis) =>
+        await PostAsync<SetNpmMonthBasisCommand, bool>("api/Facilities/npm/month-basis", new SetNpmMonthBasisCommand(basis));
 
     public async Task<Result<int>> SetNpmSectionClosedAsync(string section, bool closed) =>
         await PostAsync<SetNpmSectionClosedCommand, int>("api/Facilities/npm/custom-sections/closed", new SetNpmSectionClosedCommand(section, closed));

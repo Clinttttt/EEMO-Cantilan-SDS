@@ -1053,3 +1053,35 @@
 /* Closing a section sits under the fee, separated: it is a different kind of act from setting a figure. */
 .cfg-sec-close { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cfg-sec-close-warn { margin-top: 12px; }
+
+/* ── The market's month rule ──
+   A small centred dialog rather than another drawer: it asks one question, and the office reads both answers in its own
+   figures before choosing. Built from the same tokens as the drawer so the two do not look like different products. */
+.cfg-basis {
+    position: fixed; z-index: 1001; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: min(520px, calc(100vw - 32px));
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(9, 31, 52, .22);
+}
+.cfg-basis-title { font-size: 16px; font-weight: 800; color: var(--navy); }
+.cfg-basis-choices { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.cfg-basis-choice {
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 2px 10px;
+    align-items: start;
+    padding: 12px 13px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg);
+    cursor: pointer;
+}
+.cfg-basis-choice input { grid-row: 1 / span 2; margin-top: 3px; accent-color: var(--navy); }
+.cfg-basis-on { border-color: var(--gold); }
+.cfg-basis-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+.cfg-basis-meta { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.cfg-basis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+/* The rule sits beside the facility list's own heading, so it reads as belonging to the whole market rather than a card. */
+.set-card-action { flex: 0 0 auto; margin-left: auto; align-self: center; }

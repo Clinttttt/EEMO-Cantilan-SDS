@@ -322,7 +322,7 @@
                             <div class="avm-info-box-hint">These are fixed per-head charges for slaughterhouse</div>
                         </div>
                     }
-                    else
+                    else if (ShowsMonthlyRental)
                     {
                         <div class="avm-row-2">
                             <div class="avm-group">
@@ -396,7 +396,9 @@
                 </div>
 
                 <!-- §6 Applicable Charges — hidden for SLH -->
-                @if (!string.IsNullOrEmpty(Form.FacilityCode) && Form.FacilityCode != "SLH")
+                @* Dropped entirely where the office bills the days a month has: a monthly rent card would state a figure no
+                   month owes on that basis. Every other facility and the monthly-goal basis are untouched. *@
+                @if (!string.IsNullOrEmpty(Form.FacilityCode) && Form.FacilityCode != "SLH" && ShowsMonthlyRental)
                 {
                     <div class="avm-section">
 
@@ -903,6 +905,21 @@
 
     /// NPM per-LGU custom section names (host-supplied) — shown as selectable options in the Section dropdown.
     [Parameter] public IReadOnlyList<string> CustomSectionNames { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// How the office measures a market month, which decides whether a MONTHLY field belongs on this form.
+    /// </summary>
+    /// <remarks>
+    /// On the pure-days basis a month owes the days it has, so no two months owe the same and a monthly amount would be a
+    /// figure no month actually owes. The field is dropped rather than shown and ignored, because a form that collects a
+    /// number nothing reads teaches a clerk that the screen is decorative. Defaults to the monthly goal, so every caller
+    /// that does not pass a basis - and every facility other than the market - behaves exactly as before.
+    /// </remarks>
+    [Parameter] public NpmMonthBasis MonthBasis { get; set; } = NpmMonthBasis.RentGoal;
+
+    /// <summary>Whether a monthly amount means anything for the facility on this form.</summary>
+    private bool ShowsMonthlyRental =>
+        Form.FacilityCode != "NPM" || MonthBasis != NpmMonthBasis.PureDays;
 
     // ── Private relay handlers ────────────────────────────────────────────────
 
