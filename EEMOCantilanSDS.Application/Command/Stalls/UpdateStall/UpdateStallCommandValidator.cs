@@ -1,16 +1,42 @@
+using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
 
 namespace EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 
 public class UpdateStallCommandValidator : AbstractValidator<UpdateStallCommand>
 {
-    public UpdateStallCommandValidator()
+    private readonly IStallRepository _stallRepo;
+    private readonly IFeeRateResolver _feeRateResolver;
+
+    public UpdateStallCommandValidator(IStallRepository stallRepo, IFeeRateResolver feeRateResolver)
     {
+        _stallRepo = stallRepo;
+        _feeRateResolver = feeRateResolver;
+
         RuleFor(x => x.StallId)
             .NotEmpty().WithMessage("Stall ID is required");
 
+        // Required only where the office HAS a monthly rent. Where its market month owes the days that month has there is
+        // none, and the vendor form does not ask for one - so editing a market stall would have been refused for a figure
+        // the screen never offered. Found by audit, and the reason this validator now needs to look the stall up: the
+        // command carries a stall id rather than a facility, and the rule is only relaxed for a MARKET.
         RuleFor(x => x.MonthlyRate)
-            .GreaterThan(0).WithMessage("Monthly rate must be greater than ₱0");
+            .MustAsync(BeStatedWhereAMonthIsARent)
+            .WithMessage("Monthly rate must be greater than ₱0");
+
+        // Declared after the rules so the helper reads beside them rather than at the end of a long file.
+        async Task<bool> BeStatedWhereAMonthIsARent(UpdateStallCommand command, decimal monthlyRate, CancellationToken ct)
+        {
+            if (monthlyRate > 0m) return true;
+
+            var stall = await _stallRepo.GetByIdAsync(command.StallId, ct);
+            if (stall?.Facility?.Code != FacilityCode.NPM) return false;
+
+            var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
+            return !snapshot.MonthRule.HasMonthlyGoal;
+        }
 
         RuleFor(x => x.ActualOccupant)
             .NotEmpty().WithMessage("Actual occupant is required")

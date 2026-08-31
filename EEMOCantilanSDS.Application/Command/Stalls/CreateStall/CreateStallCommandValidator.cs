@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
@@ -10,11 +11,13 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
 {
     private readonly IStallRepository _stallRepo;
     private readonly IClock _clock;
+    private readonly IFeeRateResolver _feeRateResolver;
 
-    public CreateStallCommandValidator(IStallRepository stallRepo, IClock clock)
+    public CreateStallCommandValidator(IStallRepository stallRepo, IClock clock, IFeeRateResolver feeRateResolver)
     {
         _stallRepo = stallRepo;
         _clock = clock;
+        _feeRateResolver = feeRateResolver;
 
         RuleFor(x => x.StallNo)
             .NotEmpty().WithMessage("Stall number is required")
@@ -24,8 +27,12 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
             .MustAsync(BeUniqueStallNo).WithMessage("Stall number already exists in this facility")
             .When(x => !string.IsNullOrWhiteSpace(x.StallNo));
 
+        // A monthly figure is required only where the office HAS a monthly rent. Where its market month owes the days that
+        // month has, there is no monthly amount to give: the vendor form does not ask for one, so requiring one here would
+        // refuse every market stall that office tried to record. Found by audit.
         RuleFor(x => x.MonthlyRate)
-            .GreaterThan(0).WithMessage("Monthly rate must be greater than ₱0");
+            .MustAsync(BeStatedWhereAMonthIsARent)
+            .WithMessage("Monthly rate must be greater than ₱0");
 
         RuleFor(x => x.ActualOccupant)
             .NotEmpty().WithMessage("Actual occupant is required")
@@ -64,6 +71,24 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
     /// stall that already carries it AND that stall is genuinely vacant (closed, or its contract has lapsed).
     /// A stall with a live contract is never reusable: that would be two occupants in one space.
     /// </summary>
+    /// <summary>
+    /// Whether a monthly figure had to be stated for this stall.
+    /// </summary>
+    /// <remarks>
+    /// It has to be, unless the office measures its MARKET month by the days that month has. There is no monthly rent on
+    /// that basis, the vendor form does not ask for one, and requiring one refused every market stall such an office tried
+    /// to record. Every other facility, and a market on the monthly goal, are unchanged.
+    /// </remarks>
+    private async Task<bool> BeStatedWhereAMonthIsARent(
+        CreateStallCommand command, decimal monthlyRate, CancellationToken ct)
+    {
+        if (monthlyRate > 0m) return true;
+        if (command.FacilityCode != FacilityCode.NPM) return false;
+
+        var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
+        return !snapshot.MonthRule.HasMonthlyGoal;
+    }
+
     private async Task<bool> BeUniqueStallNo(CreateStallCommand command, string stallNo, CancellationToken cancellationToken)
     {
         if (await _stallRepo.IsStallNoUniqueAsync(command.FacilityCode, command.Section, command.CustomSectionName, stallNo, cancellationToken))

@@ -105,13 +105,18 @@ public class UpdateStallContractYearsTests
     }
 
     [Fact]
-    public void TheVALIDATORMustKeepAcceptingNoughtYears()
+    public async Task TheVALIDATORMustKeepAcceptingNoughtYears()
     {
         // The assertion that would have caught the mistake. The tests above go through the handler, so a rule added to the
         // validator would have refused the command before any of them ran — and all four would still have looked like handler
         // failures rather than the edge closing on a legitimate edit. Stated here directly against the validator so the reason
         // nought is allowed cannot be "tidied up" later without something failing.
-        var result = new UpdateStallCommandValidator().Validate(Command(Guid.NewGuid(), 0));
+        // The validator now looks a stall up, because the monthly requirement is relaxed only for a MARKET whose month owes
+        // the days it has and the command carries a stall id rather than a facility. That makes the rule asynchronous, so it
+        // is awaited here as the pipeline awaits it (ValidationBehavior calls ValidateAsync). This edit states a monthly
+        // rate, so it never reaches the lookup: the repository double is never asked.
+        var result = await new UpdateStallCommandValidator(Mock.Of<IStallRepository>(), CacheTestDoubles.FeeRateResolver)
+            .ValidateAsync(Command(Guid.NewGuid(), 0));
 
         Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.ErrorMessage)));
     }
