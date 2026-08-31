@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Domain.Common.Billing;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -60,10 +61,35 @@ namespace EEMOCantilanSDS.Application.Common.Fees
             : this(entries, null) { }
 
         public FeeRateSnapshot(IEnumerable<FeeRateEntry> entries, IEnumerable<FeeSectionRateEntry>? sectionEntries)
+            : this(entries, sectionEntries, NpmMonthBasis.RentGoal) { }
+
+        public FeeRateSnapshot(
+            IEnumerable<FeeRateEntry> entries,
+            IEnumerable<FeeSectionRateEntry>? sectionEntries,
+            NpmMonthBasis monthBasis)
         {
             _entries = entries?.ToList() ?? new List<FeeRateEntry>();
             _sectionEntries = sectionEntries?.ToList() ?? new List<FeeSectionRateEntry>();
+            MonthRule = DailyBilledMonthRules.For(monthBasis);
         }
+
+        /// <summary>
+        /// How this office measures what a daily-collected market month owes.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Carried on the snapshot because the snapshot is already resolved per municipality and already reaches every path
+        /// that bills: the stall ledger and its grid, the closed-accounts register, the settlement service, the settle-month
+        /// command, the collector's report, the revenue report, the three report handlers and the register. A basis that
+        /// reached twelve of those and not the thirteenth would put one figure on one screen and another on the next, which
+        /// is the fault <c>EarnedThrough</c> was written about.
+        /// </para>
+        /// <para>
+        /// Defaults to the rent goal, so a snapshot built without a basis - as every test and every older caller does -
+        /// behaves exactly as this platform always has.
+        /// </para>
+        /// </remarks>
+        public IDailyBilledMonthRule MonthRule { get; }
 
         /// <summary>
         /// The daily fee this office has stated for ONE OF ITS OWN sections as of a date (the latest row with an

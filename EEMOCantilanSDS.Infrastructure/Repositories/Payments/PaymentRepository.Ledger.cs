@@ -125,7 +125,7 @@ public partial class PaymentRepository
             var daysHeld = CountCollectableDays(stall, monthStart, earnedEnd);
             var daysForgiven = absentDates.Count(d => d >= monthStart && d <= earnedEnd);
             var fee = NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd);
-            var obligation = DomainRules.DailyBilledMonthObligation(
+            var obligation = rateSnapshot.MonthRule.Obligation(
                 fee,
                 stall.ResolveMonthlyRent(
                     NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd),
@@ -309,7 +309,7 @@ public partial class PaymentRepository
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
                 var fee = NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd);
-                var obligation = DomainRules.DailyBilledMonthObligation(
+                var obligation = rateSnapshot.MonthRule.Obligation(
                     fee,
                     stall.ResolveMonthlyRent(
                         NpmDailyFee.ForStall(stall, rateSnapshot, monthEnd),
@@ -436,7 +436,7 @@ public partial class PaymentRepository
                 var excusedDays = excused.Count(d => d >= from && d <= to);
                 if (daysHeld - excusedDays <= 0) continue;
                 var fee = NpmDailyFee.ForStall(stall, rateSnapshot, mEndFull);
-                var obligation = DomainRules.DailyBilledMonthObligation(
+                var obligation = rateSnapshot.MonthRule.Obligation(
                     fee,
                     stall.ResolveMonthlyRent(
                         NpmDailyFee.ForStall(stall, rateSnapshot, mEndFull),

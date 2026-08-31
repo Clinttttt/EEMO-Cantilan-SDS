@@ -68,7 +68,7 @@ public class GetCollectionReportQueryHandler(
                 // its market apart is measured area by area. Cantilan's every stall carries its ₱30, unchanged.
                 var stallDaily = isNpm ? (s.DailyRate > 0 ? s.DailyRate : npmDaily) : 0m;
                 // NPM full-month coverage (the month the space is let for, less excused days), same as Month-End.
-                var coverage = isNpm ? DomainRules.DailyBilledMonthCoverage(stallDaily, npmMonthlyStated, s.AbsentDays) : 0m;
+                var coverage = isNpm ? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays) : 0m;
                 var coverageBalance = isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m;
                 var rate = isNpm ? stallDaily : s.MonthlyRate;
                 var fishKilos = isNpm ? npmFishByStall.GetValueOrDefault(s.StallId) : 0m;

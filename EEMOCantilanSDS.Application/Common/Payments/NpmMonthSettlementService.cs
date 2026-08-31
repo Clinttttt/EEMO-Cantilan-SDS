@@ -268,16 +268,22 @@ public sealed class NpmMonthSettlementService(
         var monthRent = stall.ResolveMonthlyRent(
             NpmDailyFee.ForStall(stall, snapshot, rateDay),
             snapshot.Resolve(FeeRateKey.NpmMonthlyStall, rateDay));
-        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, daysInMonth, daysHeld);
+        var obligation = snapshot.MonthRule.Obligation(monthFee, monthRent, daysInMonth, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var remaining = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
 
         // A month whose installments cannot reach its rent — February's 28 days at ₱30 fall ₱60 short of ₱900 —
         // carries the difference as a month-end balance adjustment. It becomes collectible only once the month has
         // closed: before its due date it is not yet owed, so it is never quoted, never settled and never arrears.
+        //
+        // Only where the office bills a monthly GOAL. On the pure-days basis a short month is simply a shorter month:
+        // February owes twenty-eight fees and there is no shortfall to carry, so an adjustment there would invent money
+        // the office's own rule does not ask for. The rule says which, so this service does not have to know the bases.
         var dueDatePassed = today > monthEnd;
         var installments = days.Sum(d => d.Fee);
-        var adjustment = dueDatePassed && remaining > installments ? remaining - installments : 0m;
+        var adjustment = snapshot.MonthRule.AdjustsShortMonthToRent && dueDatePassed && remaining > installments
+            ? remaining - installments
+            : 0m;
 
         return (days, remaining, adjustment, lastCollected);
     }

@@ -171,7 +171,7 @@ public class GetFinancialReportQueryHandler(
                     // the areas of its market apart.
                     decimal StallDaily(StallComplianceDto s) => s.DailyRate > 0 ? s.DailyRate : npmDaily;
                     decimal Coverage(StallComplianceDto s) =>
-                        DomainRules.DailyBilledMonthCoverage(StallDaily(s), npmMonthlyStated, s.AbsentDays);
+                        rateSnapshot.MonthRule.Coverage(StallDaily(s), npmMonthlyStated, asOf.Day, s.AbsentDays);
 
                     coverage = report.StallCompliance.Sum(Coverage);
                     coverageBalance = report.StallCompliance.Sum(s => Math.Max(0m, Coverage(s) - s.AmountPaid));

@@ -479,7 +479,7 @@ public partial class CollectorRepository
                 // the collector's own figure and the office's figure identical.
                 var assessedDays = CountNpmCollectableDays(
                     s, monthStart, DomainRules.EarnedThrough(collectionEnd, _clock.PhilippineToday));
-                var assessed = DomainRules.DailyBilledMonthObligation(
+                var assessed = _rateSnapshot.MonthRule.Obligation(
                     dailyRate,
                     s.ResolveMonthlyRent(NpmFeeFor(s), npmMonthlyRent),
                     DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month),

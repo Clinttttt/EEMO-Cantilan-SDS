@@ -148,7 +148,7 @@ public partial class FacilityReportsRepository
             var daysHeld = CountNpmCollectableDays(stall, monthStart, monthEnd);
             var daysCharged = CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates);
 
-            var obligation = DomainRules.DailyBilledMonthObligation(fee, rent, daysInMonth, daysHeld);
+            var obligation = _rateSnapshot.MonthRule.Obligation(fee, rent, daysInMonth, daysHeld);
             var credit = DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysHeld - daysCharged);
 
             total += obligation - credit;

@@ -1,4 +1,5 @@
-﻿using System.Threading;
+using EEMOCantilanSDS.Domain.Enums;
+using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -28,7 +29,17 @@ namespace EEMOCantilanSDS.Infrastructure.Fees
                 .Select(r => new FeeSectionRateEntry(r.FacilityCode, r.SectionName, r.Amount, r.EffectiveDate))
                 .ToListAsync(cancellationToken);
 
-            return new FeeRateSnapshot(entries, sectionEntries);
+            // How this office measures a market month, stated on its own market facility row. Read in the same call as the
+            // rates because every path that bills already asks this snapshot: a basis fetched separately would be a second
+            // read that some caller eventually forgets, and a month measured two ways is the fault this platform has been
+            // bitten by before. An office with no market row keeps the default, which is the rule it has always had.
+            var monthBasis = await context.Facilities
+                .AsNoTracking()
+                .Where(f => f.Code == FacilityCode.NPM)
+                .Select(f => (NpmMonthBasis?)f.MonthBasis)
+                .FirstOrDefaultAsync(cancellationToken) ?? NpmMonthBasis.RentGoal;
+
+            return new FeeRateSnapshot(entries, sectionEntries, monthBasis);
         }
     }
 }

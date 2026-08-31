@@ -37,6 +37,31 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         // Names are unique per facility (case-insensitive) and trimmed.
         public List<string> CustomSectionNames { get; private set; } = new();
 
+    /// <summary>
+    /// How this office measures what a daily-collected month owes: a monthly goal collected in installments, or the days
+    /// the month actually has.
+    /// </summary>
+    /// <remarks>
+    /// Stated by the office and never inferred from which municipality it is. Defaults to
+    /// <see cref="NpmMonthBasis.RentGoal"/>, so Cantilan and every facility already recorded keep the behaviour this
+    /// platform has always had, byte for byte. Only a daily-collected market uses it; a monthly-rental facility's rent falls
+    /// due by the month and has no basis to choose.
+    /// </remarks>
+    public NpmMonthBasis MonthBasis { get; private set; } = NpmMonthBasis.RentGoal;
+
+    /// <summary>
+    /// States how this office measures a market month. Nothing already billed is re-priced: the rule answers what a month
+    /// owes when it is asked, so periods already collected keep the figures they were collected at.
+    /// </summary>
+    public void SetMonthBasis(NpmMonthBasis basis, string updatedBy = "System")
+    {
+        if (MonthBasis == basis) return;
+
+        MonthBasis = basis;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
         public ICollection<Stall> Stalls { get; private set; } = new List<Stall>();
         public ICollection<CollectorFacilityAssignment> CollectorAssignments { get; private set; } = new List<CollectorFacilityAssignment>();
         private Facility() { }

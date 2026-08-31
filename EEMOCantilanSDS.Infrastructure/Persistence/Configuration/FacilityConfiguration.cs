@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -44,6 +44,13 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.CustomSectionNames)
                 .HasColumnType("text[]")
                 .HasDefaultValueSql("'{}'::text[]");
+
+            // The office's stated basis for a market month. An int column defaulting to 1 (RentGoal), so every facility row
+            // already recorded reads as the behaviour it already had.
+            builder.Property(s => s.MonthBasis)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.NpmMonthBasis.RentGoal);
 
             builder.Property(s => s.IsActive)
                 .IsRequired()

@@ -88,7 +88,7 @@ public class GetMonthEndReportQueryHandler(
                     // report carries per stall, so an office pricing its areas apart is measured area by area.
                     var stallDaily = s.DailyRate > 0 ? s.DailyRate : npmDaily;
                     var coverage = isNpm
-                        ? DomainRules.DailyBilledMonthCoverage(stallDaily, npmMonthlyStated, s.AbsentDays)
+                        ? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays)
                         : 0m;
                     return new MonthEndPayorDto(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,

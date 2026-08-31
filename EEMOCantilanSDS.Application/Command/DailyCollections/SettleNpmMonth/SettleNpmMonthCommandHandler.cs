@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Authorization;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
@@ -108,7 +108,7 @@ public class SettleNpmMonthCommandHandler(
         var monthRent = stall.ResolveMonthlyRent(
             NpmDailyFee.ForStall(stall, snapshot, monthCeilingDay),
             snapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthCeilingDay));
-        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, monthEnd.Day, daysHeld);
+        var obligation = snapshot.MonthRule.Obligation(monthFee, monthRent, monthEnd.Day, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var collectable = DomainRules.DailyBilledMonthOutstanding(obligation, alreadyCollected, credit);
 
