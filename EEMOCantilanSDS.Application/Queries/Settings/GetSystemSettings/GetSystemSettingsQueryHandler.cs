@@ -115,6 +115,7 @@ public class GetSystemSettingsQueryHandler(
         var npmMonthly = npmMonthlyStated > 0m
             ? npmMonthlyStated
             : npmDaily * DomainRules.DailyBilledMonthDays;
+
         var slhHog = rates.Resolve(FeeRateKey.SlhHogPerHead, asOf);
         var slhLarge = rates.Resolve(FeeRateKey.SlhLargePerHead, asOf);
         var trmTrip = rates.Resolve(FeeRateKey.TrmPerTrip, asOf);
@@ -146,13 +147,18 @@ public class GetSystemSettingsQueryHandler(
         }
 
         var npmApart = apart.Count > 0 ? " · " + string.Join(" · ", apart) : string.Empty;
+        // The market's rule in the office's own words, and it must not name a monthly figure the office does not have.
+        // FOUND BY AUDIT: this line stated "₱900/month, collected at ₱30/day" for every office, including one whose month
+        // owes the days that month has - where no month owes ₱900 and the sentence was simply untrue on its own settings page.
+        var npmFishSuffix = npmFish > 0m ? $" + ₱{npmFish:0}/kg fish" : string.Empty;
+        var npmMonthRule = rates.MonthRule.HasMonthlyGoal
+            ? $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day{npmFishSuffix}{npmApart}"
+            : $"₱{npmDaily:0}/day for the days each month has{npmFishSuffix}{npmApart}";
 
         var catalog = new (FacilityCode Code, FacilityRuleDto Dto)[]
         {
             (FacilityCode.NPM, new("NPM", Name(FacilityCode.NPM, "New Public Market"), "Daily stall",
-                npmFish > 0m
-                    ? $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish{npmApart}"
-                    : $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day{npmApart}", "Daily")),
+                npmMonthRule, "Daily")),
             (FacilityCode.TCC, new("TCC", Name(FacilityCode.TCC, "Tampak Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.NCC, new("NCC", Name(FacilityCode.NCC, "New Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.BBQ, new("BBQ", Name(FacilityCode.BBQ, "Barbecue Stand"), "Monthly rental", "Per stall contract", "Monthly")),

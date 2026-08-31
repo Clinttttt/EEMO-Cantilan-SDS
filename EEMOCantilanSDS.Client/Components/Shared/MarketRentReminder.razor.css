@@ -154,7 +154,9 @@
 /* ── Which rule a month is measured by ──
    Two answers, each stated in the office's own figures. Built from the dialog's existing tokens: this is the same calm
    notice, asking one more question, not a second design. */
-.rent-basis-choices { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px; }
+/* Side by side, so the two rules are compared rather than read in sequence. Stacks on a narrow screen. */
+.rent-basis-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 4px; }
+@media (max-width: 560px) { .rent-basis-choices { grid-template-columns: 1fr; } }
 .rent-basis-choice {
     display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 2px 10px;
     align-items: start; padding: 12px 13px; cursor: pointer;

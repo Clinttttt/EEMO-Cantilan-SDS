@@ -59,15 +59,15 @@
                 <label class="rent-basis-choice @(_basisChoice == NpmMonthBasis.RentGoal ? "rent-basis-on" : "")">
                     <input type="radio" name="rent-basis" checked="@(_basisChoice == NpmMonthBasis.RentGoal)"
                            @onchange="() => _basisChoice = NpmMonthBasis.RentGoal" />
-                    <span class="rent-basis-name">A monthly rent, collected daily</span>
-                    <span class="rent-basis-meta">Every month owes @Money(_daily * DaysInMonthConvention), whatever the calendar gave it.</span>
+                    <span class="rent-basis-name">Fixed monthly rent</span>
+                    <span class="rent-basis-meta">The monthly obligation remains the same regardless of the number of days in the month. Every month owes @Money(_daily * DaysInMonthConvention).</span>
                 </label>
 
                 <label class="rent-basis-choice @(_basisChoice == NpmMonthBasis.PureDays ? "rent-basis-on" : "")">
                     <input type="radio" name="rent-basis" checked="@(_basisChoice == NpmMonthBasis.PureDays)"
                            @onchange="() => _basisChoice = NpmMonthBasis.PureDays" />
-                    <span class="rent-basis-name">The days the month has</span>
-                    <span class="rent-basis-meta">A 31-day month owes @Money(_daily * 31), February owes @Money(_daily * 28).</span>
+                    <span class="rent-basis-name">Calendar-day billing</span>
+                    <span class="rent-basis-meta">The monthly obligation is based on the actual number of days in the month. A 31-day month owes @Money(_daily * 31), February @Money(_daily * 28).</span>
                 </label>
             </div>
 

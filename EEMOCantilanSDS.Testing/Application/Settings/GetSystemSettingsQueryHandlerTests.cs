@@ -141,10 +141,38 @@ public class GetSystemSettingsQueryHandlerTests
 
     private static IFeeRateResolver Rates(params FeeRateEntry[] entries) => new StubRateResolver(new FeeRateSnapshot(entries));
 
+    /// <summary>The same rates, for an office whose market month owes the days that month has.</summary>
+    private static IFeeRateResolver RatesOnPureDays(params FeeRateEntry[] entries) =>
+        new StubRateResolver(new FeeRateSnapshot(entries, null, NpmMonthBasis.PureDays));
+
     private sealed class StubRateResolver(FeeRateSnapshot snapshot) : IFeeRateResolver
     {
         public Task<FeeRateSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(snapshot);
+    }
+
+    [Fact]
+    public async Task AnOfficeBilledByTheDaysAMonthHasIsNotToldItOwesAMonthlyAmount()
+    {
+        // FOUND BY AUDIT. This line read "₱900/month, collected at ₱30/day" for every office, including one whose month owes
+        // the days that month has - where no month owes ₱900. The page that states an office's rules was stating a figure the
+        // office never charges, on its own settings screen.
+        var line = await NpmRateLineAsync(RatesOnPureDays(
+            new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1))));
+
+        Assert.DoesNotContain("/month", line);
+        Assert.Contains("₱30/day for the days each month has", line);
+    }
+
+    [Fact]
+    public async Task AnOfficeBilledByAMonthlyRentStillReadsItsMonth()
+    {
+        // The path every live office is on. This sentence moving would be a regression rather than a feature.
+        var line = await NpmRateLineAsync(Rates(
+            new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1))));
+
+        Assert.Contains("₱900/month", line);
+        Assert.Contains("₱30/day", line);
     }
 
     [Fact]

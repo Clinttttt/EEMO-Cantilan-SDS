@@ -1,6 +1,7 @@
-﻿@page "/npm/reports"
+@page "/npm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Constants
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IStallsApiClient StallsApi
 @inject IUtilitiesApiClient UtilitiesApi
@@ -1527,9 +1528,9 @@ else
                             <td>@r.Effectivity</td>
                             <td>@r.Years yrs</td>
                             <td>@r.AreaSqm.ToString("0.##")</td>
-                            <td>₱@r.Monthly.ToString("N2")</td>
-                            <td>₱@r.Monthly.ToString("N2")</td>
-                            <td class="register-year">₱@r.WholeYear.ToString("N2")</td>
+                            <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
+                            <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
+                            <td class="register-year">@(r.WholeYear > 0m ? $"₱{r.WholeYear:N2}" : "—")</td>
                         </tr>
                     }
                 }
@@ -1580,6 +1581,17 @@ else
     private decimal _npmDailyRate = 30m;
     private decimal _npmFishRate = 1m;
 
+    /// <summary>
+    /// How the office measures a market month, so the register states a monthly figure only where one exists.
+    /// </summary>
+    /// <remarks>
+    /// FOUND BY AUDIT. This page multiplied a stall's daily rate by thirty directly, so a market billed by the days its
+    /// months have was shown a monthly amount nobody is charged - ₱900 against a market that owes ₱930 in a long month and
+    /// ₱840 in February - on the office's own report. The architecture test could not catch it, because the arithmetic was
+    /// written out here rather than asked of the rule.
+    /// </remarks>
+    private NpmMonthBasis _npmMonthBasis = NpmMonthBasis.RentGoal;
+
     private async Task LoadNpmRatesAsync()
     {
         var result = await StallsApi.GetNpmRatesAsync();
@@ -1587,6 +1599,7 @@ else
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            _npmMonthBasis = result.Value.MonthBasis;
         }
     }
 
@@ -2291,7 +2304,9 @@ else
     IEnumerable<RegisterRow> RegisterRows => (R?.StallCompliance ?? new List<StallComplianceDto>())
         .Select(s =>
         {
-            var monthly = s.DailyRate * 30m;        // paper convention: 30 days per month
+            var monthly = _npmMonthBasis == NpmMonthBasis.PureDays
+                        ? 0m                                              // no monthly amount exists on that basis
+                        : s.DailyRate * DomainRules.DailyBilledMonthDays;
             return new RegisterRow(
                 s.StallNo,
                 s.Occupant,

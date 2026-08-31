@@ -951,15 +951,15 @@
             <label class="cfg-basis-choice @(_monthBasisChoice == NpmMonthBasis.RentGoal ? "cfg-basis-on" : "")">
                 <input type="radio" name="cfg-basis" checked="@(_monthBasisChoice == NpmMonthBasis.RentGoal)"
                        @onchange="() => _monthBasisChoice = NpmMonthBasis.RentGoal" />
-                <span class="cfg-basis-name">Monthly rent, collected daily</span>
-                <span class="cfg-basis-meta">@MonthBasisExample(NpmMonthBasis.RentGoal)</span>
+                <span class="cfg-basis-name">Fixed monthly rent</span>
+                <span class="cfg-basis-meta">The monthly obligation remains the same regardless of the number of days in the month. @MonthBasisExample(NpmMonthBasis.RentGoal)</span>
             </label>
 
             <label class="cfg-basis-choice @(_monthBasisChoice == NpmMonthBasis.PureDays ? "cfg-basis-on" : "")">
                 <input type="radio" name="cfg-basis" checked="@(_monthBasisChoice == NpmMonthBasis.PureDays)"
                        @onchange="() => _monthBasisChoice = NpmMonthBasis.PureDays" />
-                <span class="cfg-basis-name">The days the month has</span>
-                <span class="cfg-basis-meta">@MonthBasisExample(NpmMonthBasis.PureDays)</span>
+                <span class="cfg-basis-name">Calendar-day billing</span>
+                <span class="cfg-basis-meta">The monthly obligation is based on the actual number of days in the month. @MonthBasisExample(NpmMonthBasis.PureDays)</span>
             </label>
         </div>
 
@@ -1084,8 +1084,8 @@
         if (daily <= 0m) return "State the market's daily fee first.";
 
         return basis == NpmMonthBasis.PureDays
-            ? $"A 31-day month owes ₱{daily * 31:N2}, February owes ₱{daily * 28:N2}."
-            : $"Every month owes the same rent, ₱{daily * 30:N2} at ₱{daily:N2} a day.";
+            ? $"A 31-day month owes ₱{daily * 31:N2}, February ₱{daily * 28:N2}."
+            : $"Every month owes ₱{daily * 30:N2} at ₱{daily:N2} a day.";
     }
 
     private FacilityConfigurationDto? _model;
