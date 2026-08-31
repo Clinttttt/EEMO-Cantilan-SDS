@@ -775,6 +775,61 @@ only the market days elapsed as of the report date.
 
 ## Open questions for the office
 
+### EXAMINED 2026-08-31 (second pass): a per-municipality market billing basis, done as a rule object
+
+The office refined its own idea and it is a better design than the first pass. Two bases for the market:
+
+- **Daily with a monthly goal** — the month is let for a rent and collected in installments. Cantilan's rule, and the default.
+- **Pure days** — the month owes the days it has, ₱30 × 31 = ₱930 in a long month, and the monthly figure is REMOVED from the
+  screens, because a monthly amount is meaningless when no two months owe the same.
+
+Chosen at onboarding, changeable afterwards from Facility Configuration, with a one-time confirmation of the rule in force
+before vendors are added or imported.
+
+**Feasible, and three of the four pieces already exist in this codebase.**
+
+1. **The one-time confirmation modal exists.** `Client/Components/Shared/MarketRentReminder.razor` already asks an LGU to
+   confirm the monthly rent in force, once. It is Head-only ("an Admin cannot edit rates, so a question they cannot answer
+   would be noise"), skips a tenant with no market, and FAILS QUIET - "a setup question must never stand between the office
+   and its work". The new question is that same component's next version, not a new invention.
+2. **The choke point exists.** Thirteen production paths compute a daily-billed month and every one goes through
+   `DomainRules.DailyBilledMonthObligation` / `DailyBilledMonthCoverage`, and every one already holds a `FeeRateSnapshot`
+   (verified file by file). The snapshot is the carrier for the basis.
+3. **The per-municipality home exists.** `Facility` is `IMunicipalityOwned`, so a basis lives on the market's own facility row
+   as an additive column, exactly as `CustomSectionNames` already does.
+4. **Missing:** the pure-days arithmetic, and the rule object that chooses between them.
+
+**THE CORRECTION, and it matters more than the feature.** The office described the logic as "if it is Cantilan do this, if it
+is a non-Cantilan municipality do that". **The code must not decide that way, and this codebase already refuses to.** In
+`GetNpmRatesQueryHandler` - the very handler that would host the new option - the exemption is decided by POSITIVE PROOF of
+the caller's own municipality row being the default one, and the reason is written out beside it: a request carrying no
+municipality claim resolves to the default tenant code by a platform-wide fallback, so a code comparison would have exempted
+the very LGU that most needed asking. Behaviour follows the office's STATED CONFIGURATION. Cantilan behaves as it does
+because its configuration says monthly goal, which is also the default - so a second LGU choosing the monthly goal gets
+identical behaviour with no code change, and no LGU can be given the wrong rule by a rename or a missing claim.
+
+**The rule object, which is what makes partial adoption impossible.**
+`NpmMonthBasis { RentGoal, PureDays }` on the facility; one interface with two implementations - one that answers a month
+with its rent and tops a short month up, one that answers a month with its days and has no adjustment at all. Resolved once
+per request, carried on the snapshot, asked by all thirteen paths. `DomainRules` keeps the arithmetic; the rule object
+chooses which. Then **delete the basis-less overloads** so a path that has not been converted cannot compile, and add an
+architecture test naming the readership - the pattern this repository already uses three times
+(`SectionRateReadersAreNamedTests`, `ApplicationEfBoundaryTests`, `CrossTenantReadsAreNamedTests`).
+
+**What "remove the monthly table" actually reaches**, so the office can see the size: the vendor form's Monthly Rental input
+and its Whole Year line; `Stall.MonthlyRate` as it applies to market stalls; the roster's "Monthly Rentals per Contract"
+column; the coverage column on the ledger and the three reports; the payor portal's `monthlyRate` field on a balance; the
+monthly-to-daily assist; and `MarketRentReminder` itself, which stops being about a rent and becomes about a basis. The
+collector app needs no change on the daily side - it already bills per day - but its month totals come through the same
+helpers, so they follow the rule object.
+
+**Still to confirm before building:** February. On pure days a 28-day February owes ₱840 with no ₱60 top-up, and a year
+collects 365 installments rather than 360. The office's plan implies accepting that, since it is the whole point of the
+basis, but it should be said out loud once because it is money.
+
+**Cantilan's safety:** the default is RentGoal, so its behaviour and every live tenant's is unchanged byte for byte, and the
+existing suites are the proof - they encode today's rule and must all stay green without amendment.
+
 ### EXAMINED, not built: letting each municipality choose how a daily-billed month is measured (asked 2026-08-31)
 
 The office wants a control on Facility Configuration where a municipality picks its own basis: either **the rent** (a month
