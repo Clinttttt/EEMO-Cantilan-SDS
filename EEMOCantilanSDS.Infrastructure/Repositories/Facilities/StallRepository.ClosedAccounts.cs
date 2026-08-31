@@ -98,6 +98,12 @@ public partial class StallRepository
         var exceptions = await _context.StallMonthlyExceptions.AsNoTracking()
             .Where(e => stallIds.Contains(e.StallId))
             .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth }).ToListAsync(ct);
+        // Sections the office has closed. A row in one of them must not offer to resume on its own: the stall would start
+        // being billed in a section the market page does not show. Read once for the whole register.
+        var closedSections = await _context.FacilitySectionClosures.AsNoTracking()
+            .Where(c => c.FacilityCode == FacilityCode.NPM)
+            .Select(c => c.SectionName)
+            .ToListAsync(ct);
         // Days the market itself was shut. Nothing is owed for them, so charging them here would state a debt the
         // office cannot collect — and the Record-payment dialog, which has always excluded them, would then offer a
         // smaller total than this register. One closure list serves every stall: a closure is facility-wide.
@@ -328,7 +334,10 @@ public partial class StallRepository
                 contract.Id,
                 // The space as measured on the stall today — what a renewal is checked against.
                 stall.AreaSqm,
-                stall.AreaNote));
+                stall.AreaNote,
+                // Its section is closed, so this row states its balance and refuses to resume on its own.
+                !string.IsNullOrWhiteSpace(stall.CustomSectionName)
+                    && closedSections.Any(s => string.Equals(s.Trim(), stall.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase))));
         }
 
         return result

@@ -46,5 +46,15 @@ public sealed record ClosedStallAccountDto(
     /// <summary>The space as currently measured, so a renewal can be checked against the record and corrected.</summary>
     double? AreaSqm = null,
     /// <summary>The office's note on the space (e.g. "Corner", "Extension"), shown alongside the area on renewal.</summary>
-    string? AreaNote = null
+    string? AreaNote = null,
+    /// <summary>
+    /// True when this stall sits in one of the office's own market sections that the office has CLOSED.
+    /// </summary>
+    /// <remarks>
+    /// Such a row must not be resumed on its own. The stall would start being billed again in a section the market page
+    /// does not show and no form offers, so the money would accrue where nobody can see it. Reopening the SECTION returns
+    /// every stall its closure closed, which is the one act that makes sense. The register still shows the row, and the
+    /// server refuses the resume as well, because a disabled button is not a guard.
+    /// </remarks>
+    bool SectionClosed = false
 );

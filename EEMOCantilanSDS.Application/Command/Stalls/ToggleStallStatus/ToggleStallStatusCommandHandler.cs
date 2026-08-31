@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 
@@ -23,6 +24,7 @@ public class ToggleStallStatusCommandHandler(
     IStallMonthlyExceptionRepository monthlyExceptionRepository,
     IDailyCollectionRepository dailyCollectionRepository,
     IPaymentRepository paymentRepository,
+    IAppDbContext context,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
@@ -42,6 +44,22 @@ public class ToggleStallStatusCommandHandler(
         }
         else
         {
+            // A space cannot resume into a section the office has CLOSED. Reopening it would start billing a stall that
+            // the market page does not show and that no form offers, so the money would accrue where nobody can see it.
+            // The office reopens the section, which returns every stall that closure closed, including this one.
+            if (!string.IsNullOrWhiteSpace(stall.CustomSectionName))
+            {
+                var sectionClosed = await context.FacilitySectionClosures
+                    .AsNoTracking()
+                    .AnyAsync(c => c.FacilityCode == FacilityCode.NPM
+                                && c.SectionName.ToLower() == stall.CustomSectionName!.Trim().ToLower(), ct);
+
+                if (sectionClosed)
+                    return Result<bool>.Failure(
+                        $"{stall.CustomSectionName} is closed. Reopen the section to bring its stalls back.",
+                        ResultStatus.Conflict);
+            }
+
             var closedOn = stall.ClosedAt;
             stall.Reopen(actor);
 

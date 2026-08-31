@@ -107,8 +107,16 @@ public class SetNpmSectionClosedCommandHandler(
     {
         if (existing is null) return 0;   // not closed: nothing to undo, and nothing to report as changed
 
+        var ids = existing.ClosedStallIds.ToList();
+
+        // The section is reopened FIRST, and committed, because reopening a stall is refused while its section is closed -
+        // a stall must never resume into a section the market page does not show. Removing the row first is what makes this
+        // act the one legitimate way through that guard.
+        context.FacilitySectionClosures.Remove(existing);
+        await context.SaveChangesAsync(ct);
+
         var reopened = 0;
-        foreach (var id in existing.ClosedStallIds)
+        foreach (var id in ids)
         {
             var result = await sender.Send(new ToggleStallStatusCommand(id, Close: false), ct);
             if (result.IsSuccess) reopened++;
@@ -116,7 +124,6 @@ public class SetNpmSectionClosedCommandHandler(
             // because one of its spaces has gone would strand the whole section.
         }
 
-        context.FacilitySectionClosures.Remove(existing);
         return reopened;
     }
 }

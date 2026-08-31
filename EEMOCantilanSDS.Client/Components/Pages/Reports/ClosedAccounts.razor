@@ -335,11 +335,19 @@
                                                        lessee can be put back in the same space. "Resume" is the plain
                                                        word for that: where the space was let without a contract there
                                                        is no term to renew, and "Reopen" read as an office procedure
-                                                       rather than what happens to the vendor. *@
+                                                       rather than what happens to the vendor.
+
+                                                       Refused while its SECTION is closed: resuming would start billing
+                                                       a space the market page does not show, so the money would accrue
+                                                       where nobody can see it. Reopening the section returns every stall
+                                                       its closure closed, this one among them. The server refuses it too. *@
                                                     <button class="ca-row-icon ca-row-reopen" type="button"
+                                                            disabled="@r.SectionClosed"
                                                             @onclick="() => OpenReopen(r)"
                                                             aria-label="Resume account"
-                                                            title="Resume this account — put this lessee back in the same space. The balance stays exactly as it is.">
+                                                            title="@(r.SectionClosed
+                                                                ? $"{r.Section} is closed. Reopen the section in Facility Configuration to bring its stalls back."
+                                                                : "Resume this account — put this lessee back in the same space. The balance stays exactly as it is.")">
                                                         @IconResume
                                                     </button>
                                                 }

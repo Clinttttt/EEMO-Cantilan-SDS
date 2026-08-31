@@ -56,7 +56,12 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         // made the profile read ₱1,740 for stall 23 beside a grid counting 33 elapsed days; the truthful figure is
         // the two whole months behind plus the days so far this month, less the ₱60 collected.
         var elapsedThisMonth = today.Day;
-        var expected = (2 * 900m) + (elapsedThisMonth * FeeRates.NpmDailyFee) - summary.TotalCollected;
+        // A daily-collected month is LET for a rent, so the days elapsed are what is owed UNTIL they reach it: a 31-day
+        // month owes ₱900 and not ₱930, which is the rule DomainRules.DailyBilledMonthCoverage exists to state. Capped
+        // here for the same reason - without it this test asserted ₱930 on the 31st of a 31-day month and failed on those
+        // days only, which is how it was found.
+        var thisMonthOwed = Math.Min(elapsedThisMonth * FeeRates.NpmDailyFee, 900m);
+        var expected = (2 * 900m) + thisMonthOwed - summary.TotalCollected;
         Assert.Equal(expected, summary.TotalOutstanding);
     }
 
@@ -77,7 +82,8 @@ public class StallLedgerSummaryTests : RepositoryTestBase
 
         var summary = await new PaymentRepository(context).GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
 
-        Assert.Equal(today.Day * FeeRates.NpmDailyFee, summary.TotalOutstanding);
+        // Capped at the month's rent: the days elapsed are owed until they reach it, and a 31-day month owes ₱900.
+        Assert.Equal(Math.Min(today.Day * FeeRates.NpmDailyFee, 900m), summary.TotalOutstanding);
         Assert.True(summary.TotalOutstanding <= 900m, "a month in progress cannot owe more than a whole month's rent");
     }
 
@@ -248,7 +254,9 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         // effective on the 1st. The month in progress bills its elapsed days only — a whole month at ₱35 would be
         // ₱1,050, and that is what will be owed once the month is out.
         Assert.Equal(DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, today.Day), summary.TotalOutstanding);
-        Assert.Equal(today.Day * 35m, summary.TotalOutstanding);
-        Assert.Equal(1_050m, DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, daysInMonth));
+        // Stated as "not the old rate" rather than as today's day count times 35: the month is capped at its rent, so
+        // multiplying out by hand asserted ₱1,085 on the 31st of a 31-day month against an obligation of ₱1,050, and
+        // failed on those days only. The line above already states the figure through the rule itself.
+        Assert.NotEqual(DomainRules.DailyBilledMonthObligation(30m, 0m, daysInMonth, today.Day), summary.TotalOutstanding);        Assert.Equal(1_050m, DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, daysInMonth));
     }
 }

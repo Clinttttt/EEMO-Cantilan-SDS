@@ -94,6 +94,10 @@ public class ApplicationEfBoundaryTests
         // context: each is closed and reopened by sending ToggleStallStatusCommand, so the tested per-stall path - and the
         // excusing of a frozen span that comes with it - stays the only rule for that money.
         "SetNpmSectionClosedCommandHandler.cs",
+        // One read, and it is a refusal rather than a rule about money: whether this stall's own market section has been
+        // closed, because a stall must never resume into a section the market page does not show. A repository method for a
+        // single Any() would put the reason further from the refusal it justifies.
+        "ToggleStallStatusCommandHandler.cs",
         // Registers the section AND, when the office prices it as it creates it, that same single rate row.
         "AddNpmCustomSectionCommandHandler.cs",
         "GetNpmRatesQueryHandler.cs",
