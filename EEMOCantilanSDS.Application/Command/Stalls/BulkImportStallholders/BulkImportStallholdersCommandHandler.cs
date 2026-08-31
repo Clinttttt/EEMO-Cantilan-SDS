@@ -118,7 +118,8 @@ public class BulkImportStallholdersCommandHandler(
                     ? OccupancyArrangement.SpaceOnly
                     : row.Arrangement;
 
-            var error = ValidateRow(stallNo, occupant, row, usedStallNos, monthlyRate, arrangement);
+            var error = ValidateRow(stallNo, occupant, row, usedStallNos, monthlyRate, arrangement,
+                monthlyRateRequired: !isNpm || rateSnapshot.MonthRule.HasMonthlyGoal);
             if (error is not null)
             {
                 results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false, error));
@@ -287,7 +288,8 @@ public class BulkImportStallholdersCommandHandler(
         ImportStallRow row,
         HashSet<string> usedStallNos,
         decimal monthlyRate,
-        OccupancyArrangement arrangement)
+        OccupancyArrangement arrangement,
+        bool monthlyRateRequired)
     {
         if (string.IsNullOrWhiteSpace(occupant))
             return "Actual occupant is required.";
@@ -304,7 +306,11 @@ public class BulkImportStallholdersCommandHandler(
         if (stallNo.Length > 20)
             return "Stall number cannot exceed 20 characters.";
 
-        if (monthlyRate <= 0)
+        // A monthly figure is required only where the office HAS a monthly rent. Where it measures a market month by the days
+        // that month has, its own List of Stallholders states no monthly amount - there is none to state - and requiring one
+        // turned every row of that office's list away at the door. Found by audit, and it would have made the days basis
+        // unusable for exactly the offices it was built for: they could choose the rule and then not import their vendors.
+        if (monthlyRateRequired && monthlyRate <= 0)
             return "Monthly rate must be greater than ₱0 — fill either the contract rental or the actual monthly rental.";
         if (monthlyRate > MaxAmount)
             return "Monthly rate is unreasonably large — please check the value.";

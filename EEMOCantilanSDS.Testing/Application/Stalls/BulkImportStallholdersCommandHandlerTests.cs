@@ -41,6 +41,10 @@ public class BulkImportStallholdersCommandHandlerTests
     private BulkImportStallholdersCommandHandler Handler()
         => new(_stallRepo.Object, _facilityRepo.Object, _payorRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
+    /// <summary>The same import, for an office that measures its market month by the DAYS that month has.</summary>
+    private BulkImportStallholdersCommandHandler HandlerOnPureDays()
+        => new(_stallRepo.Object, _facilityRepo.Object, _payorRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.PureDaysFeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+
     private void SetupFacility(FacilityCode code)
         => _facilityRepo.Setup(r => r.GetByCodeAsync(code, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Facility.Create(code, code.ToString(), code.ToString()));
@@ -53,6 +57,67 @@ public class BulkImportStallholdersCommandHandlerTests
     private static ImportStallRow Row(int n, string occupant, string stallNo,
         decimal monthly = 900m, int years = 3, string? areaLoc = null)
         => new(n, occupant, occupant, stallNo, new DateTime(2023, 6, 7), years, 4.8, monthly, null, areaLoc);
+
+    [Fact]
+    public async Task AMarketOnThePureDaysBasis_ImportsRowsThatStateNoMonthlyRent()
+    {
+        // FOUND BY AUDIT. The import required every row to state a monthly figure. An office that measures its market month
+        // by the days that month has states none on its own List of Stallholders, because it has none - so it could choose
+        // the rule and then be unable to import a single vendor. The basis would have been unusable for exactly the offices
+        // it was built for.
+        SetupFacility(FacilityCode.NPM);
+        SetupUnique(true);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.NPM, MarketSection.VegetableArea, new List<ImportStallRow>
+        {
+            Row(1, "Juan Dela Cruz", "1", monthly: 0m),
+            Row(2, "Maria Santos", "2", monthly: 0m),
+        });
+
+        var result = await HandlerOnPureDays().Handle(cmd, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(2, result.Value!.CreatedCount);
+    }
+
+    [Fact]
+    public async Task AMarketOnTheMonthlyGoal_StillRequiresAMonthlyRent()
+    {
+        // The other half, and the one every live office depends on: a row with no monthly figure is still an error there,
+        // because that office's month IS a monthly rent and a blank column is a missing figure.
+        SetupFacility(FacilityCode.NPM);
+        SetupUnique(true);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.NPM, MarketSection.VegetableArea, new List<ImportStallRow>
+        {
+            Row(1, "Juan Dela Cruz", "1", monthly: 0m),
+        });
+
+        var result = await Handler().Handle(cmd, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Contains("Monthly rate must be greater than", result.Value.Results.Single().Error);
+    }
+
+    [Fact]
+    public async Task AMonthlyRentalFacility_StillRequiresAMonthlyRent_WhateverTheMarketsBasisIs()
+    {
+        // An iceplant's rent falls due by the month. The market's rule has nothing to say about it, so the requirement
+        // stands even for an office whose market is on the days basis.
+        SetupFacility(FacilityCode.ICE);
+        SetupUnique(true);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.ICE, null, new List<ImportStallRow>
+        {
+            Row(1, "Juan Dela Cruz", "1", monthly: 0m),
+        });
+
+        var result = await HandlerOnPureDays().Handle(cmd, CancellationToken.None);
+
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Contains("Monthly rate must be greater than", result.Value.Results.Single().Error);
+    }
 
     [Fact]
     public async Task ValidRows_AreCreated_InOneTransaction()

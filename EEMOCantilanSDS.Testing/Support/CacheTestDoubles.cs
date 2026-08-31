@@ -21,6 +21,9 @@ internal static class CacheTestDoubles
     /// </summary>
     public static IFeeRateResolver FeeRateResolver { get; } = new StubFeeRateResolver();
 
+    /// <summary>The same office, measuring a market month by the days it has.</summary>
+    public static IFeeRateResolver PureDaysFeeRateResolver { get; } = new StubPureDaysFeeRateResolver();
+
     /// <summary>Market-day provider fixed to Friday (the Cantilan default) for existing tests.</summary>
     public static EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider TpmMarketDay { get; } = new StubTpmMarketDayProvider();
 }
@@ -50,6 +53,19 @@ internal sealed class StubFeeRateResolver : IFeeRateResolver
 }
 
 /// <summary>
+/// The same stated ordinance, for an office that measures a market month by the DAYS it has.
+/// </summary>
+/// <remarks>
+/// Its own double rather than a parameter on the other, so a test that says nothing about a basis cannot accidentally be
+/// run on one: every existing expectation in this suite belongs to an office on the monthly goal.
+/// </remarks>
+internal sealed class StubPureDaysFeeRateResolver : IFeeRateResolver
+{
+    public Task<FeeRateSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(TestFeeRates.StatedOrdinanceOnPureDays());
+}
+
+/// <summary>
 /// The rate rows a test office states, so a test about billing bills under an ordinance of its own rather than
 /// under another municipality's constants. Effective from a date long past, so every asOf in the suite is covered.
 /// </summary>
@@ -58,6 +74,10 @@ internal static class TestFeeRates
     private static readonly DateOnly EffectiveFrom = new(2020, 1, 1);
 
     public static FeeRateSnapshot StatedOrdinance() => new(Entries());
+
+    /// <summary>The same rates, for an office whose market month owes the days it has.</summary>
+    public static FeeRateSnapshot StatedOrdinanceOnPureDays() =>
+        new(Entries(), null, EEMOCantilanSDS.Domain.Enums.NpmMonthBasis.PureDays);
 
     /// <summary>The same amounts the suite has always expected, now stated by the office rather than assumed.</summary>
     public static IEnumerable<FeeRateEntry> Entries()
