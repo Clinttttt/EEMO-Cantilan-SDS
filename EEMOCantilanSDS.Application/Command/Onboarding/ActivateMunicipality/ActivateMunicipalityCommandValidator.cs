@@ -88,6 +88,21 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             });
 
             RuleFor(x => x.Rates).NotNull();
+
+            // An office that measures its market month by the DAYS it has must not also declare a monthly rent. The rule
+            // ignores such a figure by design, so accepting it would file a number in the office's own rate table that
+            // nothing reads and that contradicts the basis printed on its screens. Refused at the door, where the
+            // contradiction is still the sender's to fix.
+            RuleFor(x => x).Must(c =>
+                {
+                    var market = c.Facilities?.FirstOrDefault(f => f.Code == FacilityCode.NPM);
+                    if (market is null || market.MonthBasis != NpmMonthBasis.PureDays) return true;
+
+                    return c.Rates?.Any(r => r.Key == FeeRateKey.NpmMonthlyStall && r.Amount > 0m) != true;
+                })
+                .WithMessage(
+                    "A market measured by the days a month has cannot also state a monthly rent. Remove the monthly stall "
+                    + "rate, or declare the monthly-rent basis instead.");
             RuleForEach(x => x.Rates).ChildRules(r =>
             {
                 r.RuleFor(x => x.Amount).GreaterThanOrEqualTo(0m).WithMessage("Rate amount cannot be negative.");

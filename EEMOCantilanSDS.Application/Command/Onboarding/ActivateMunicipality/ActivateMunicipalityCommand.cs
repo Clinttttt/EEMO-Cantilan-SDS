@@ -45,7 +45,23 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         BillingArchetype Archetype,
         IReadOnlyList<ActivationStallGroup>? StallGroups = null,
         ActivationSectionLabels? SectionLabels = null,
-        IReadOnlyList<string>? CustomSections = null);
+        IReadOnlyList<string>? CustomSections = null,
+        /// <summary>
+        /// How this office measures what a daily-collected market month owes, declared at onboarding.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Optional and defaulting to <see cref="NpmMonthBasis.RentGoal"/>, so an activation that says nothing about it -
+        /// every one recorded before the basis existed, and every facility that is not a daily-collected market - behaves
+        /// exactly as this platform always has.
+        /// </para>
+        /// <para>
+        /// Declared here so an office starts on its OWN rule rather than discovering later that its first month was measured
+        /// by somebody else's convention. It stays changeable from Facility Configuration afterwards: an office that finds
+        /// its paper says otherwise must not need a developer.
+        /// </para>
+        /// </remarks>
+        NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal);
 
     /// <summary>
     /// The LGU's own names for the three collection areas of its public-market daily sheet, as it declared
