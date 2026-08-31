@@ -48,8 +48,12 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var row = history.Single(h => h.Period == currentKey);
 
         Assert.Equal(days.Length * FeeRates.NpmDailyFee, row.AmountPaid);  // ₱30 × days
-        Assert.Equal(PaymentStatus.Partial, row.Status);                    // not a full month
-        Assert.True(row.BalanceDue > 0m);
+        // Partial only while something is still owed for the month so far. On the FIRST of a month one day is owed, this
+        // test pays it, and the month-to-date is genuinely settled - which is why the status is asserted against the days
+        // rather than fixed as Partial. Written after the roll into September made every paid day the whole month to date.
+        var monthToDateSettled = days.Length == today.Day;
+        Assert.Equal(monthToDateSettled ? PaymentStatus.Paid : PaymentStatus.Partial, row.Status);
+        if (!monthToDateSettled) Assert.True(row.BalanceDue > 0m);
         Assert.Equal("Juan Dela Cruz", row.CollectorName);
         Assert.False(string.IsNullOrEmpty(row.ORNumber));
     }

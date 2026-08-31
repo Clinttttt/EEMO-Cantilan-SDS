@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Client.Services
 @attribute [Authorize(Roles = "SuperAdmin")]
@@ -1085,7 +1086,7 @@
 
         return basis == NpmMonthBasis.PureDays
             ? $"A 31-day month owes ₱{daily * 31:N2}, February ₱{daily * 28:N2}."
-            : $"Every month owes ₱{daily * 30:N2} at ₱{daily:N2} a day.";
+            : $"Every month owes ₱{daily * DomainRules.DailyBilledMonthDays:N2} at ₱{daily:N2} a day.";
     }
 
     private FacilityConfigurationDto? _model;

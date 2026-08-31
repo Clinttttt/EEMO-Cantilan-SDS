@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;

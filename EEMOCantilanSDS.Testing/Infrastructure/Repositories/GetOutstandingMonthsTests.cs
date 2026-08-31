@@ -33,9 +33,14 @@ public class GetOutstandingMonthsTests : RepositoryTestBase
         Assert.NotEmpty(months);                                    // was: empty → "fully paid" bug
         Assert.All(months, m => Assert.True(m.BalanceDue > 0m));
 
-        // A full past month owes daysInMonth × ₱30.
+        // A full past month owes the month's RENT, whatever the calendar gave it — 28 days or 31 alike. Asked of the rule
+        // rather than multiplied out here, because multiplying passed only while "two months ago" happened to have thirty
+        // days and failed the moment it had thirty-one. The figures themselves are pinned in DailyBilledMonthRuleTests.
+        var daysInMonth = DateTime.DaysInMonth(startMonth.Year, startMonth.Month);
         var fullMonth = months.First(m => m.Period == $"{startMonth.Year:0000}-{startMonth.Month:00}");
-        Assert.Equal(DateTime.DaysInMonth(startMonth.Year, startMonth.Month) * FeeRates.NpmDailyFee, fullMonth.BalanceDue);
+        Assert.Equal(
+            DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth),
+            fullMonth.BalanceDue);
     }
 
     [Fact]

@@ -46,9 +46,14 @@ public class StallLedgerSummaryTests : RepositoryTestBase
 
         // Collected = exactly the daily fees paid (₱30 × paid days) — not MonthlyRate × count.
         Assert.Equal(days.Length * FeeRates.NpmDailyFee, summary.TotalCollected);
-        // 3 collectable months, none fully covered (current is partial, prior two unpaid).
-        Assert.Equal(0, summary.MonthsPaid);
-        Assert.Equal(3, summary.MonthsUnpaid);
+
+        // Three collectable months. The two whole months behind are unpaid; the month in progress is covered only where
+        // every day elapsed of it has been paid — which on the FIRST of a month is one day, and this test pays it.
+        // Asserted as a rule rather than as "0 and 3", which held only while the month was far enough in for two paid days
+        // to leave something owed, and broke on the first of September.
+        var currentMonthCovered = days.Length == today.Day;
+        Assert.Equal(currentMonthCovered ? 1 : 0, summary.MonthsPaid);
+        Assert.Equal(currentMonthCovered ? 2 : 3, summary.MonthsUnpaid);
         Assert.True(summary.TotalOutstanding > 0m);
 
         // The month in progress is billed for the days that have been EARNED, not the whole month. NPM rent accrues
@@ -150,22 +155,35 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
 
         var d1 = DailyCollection.Create(stall.Id, monthStart); d1.MarkPaid("OR-D1", collector.Id);
-        var d2 = DailyCollection.Create(stall.Id, monthStart.AddDays(1)); d2.MarkPaid("OR-D2", collector.Id);
+        // Only days that have actually been EARNED are seeded. Paying a day in the future is not a payment the ledger
+        // counts, and on the first of a month the second day of it has not happened - which is how this test came to seed
+        // one and expect it back.
+        var secondDay = monthStart.AddDays(1);
+        var d2 = secondDay <= today ? DailyCollection.Create(stall.Id, secondDay) : null;
+        d2?.MarkPaid("OR-D2", collector.Id);
+        var paidDays = d2 is null ? 1 : 2;
 
         var monthly = PaymentRecord.Create(stall.Id, today.Year, today.Month, 900m);
         monthly.UpdateStatus(PaymentStatus.Partial, 500m);
         monthly.SetOrNumber("MONTHLY-OR-500");
 
-        context.AddRange(facility, stall, contract, collector);
-        context.AddRange(d1, d2, monthly);
+        context.AddRange(facility, stall, collector);
+        context.AddRange(contract, monthly);
+        context.Add(d1);
+        if (d2 is not null) context.Add(d2);
         await context.SaveChangesAsync();
 
         var repo = new PaymentRepository(context);
         var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
 
-        Assert.Equal(2 * FeeRates.NpmDailyFee, summary.TotalCollected);  // ₱60 daily-truth, NOT ₱500
-        Assert.Equal(0, summary.MonthsPaid);                             // current month only partially covered
-        Assert.Equal(3, summary.MonthsUnpaid);                           // 3 collectable months, none fully paid
+        // The point of the test: the daily collections win over the flat ₱500 monthly partial.
+        Assert.Equal(paidDays * FeeRates.NpmDailyFee, summary.TotalCollected);
+        Assert.NotEqual(500m, summary.TotalCollected);
+
+        // The month in progress is covered only where every day elapsed of it has been paid.
+        var currentMonthCovered = paidDays == today.Day;
+        Assert.Equal(currentMonthCovered ? 1 : 0, summary.MonthsPaid);
+        Assert.Equal(currentMonthCovered ? 2 : 3, summary.MonthsUnpaid);
         Assert.True(summary.TotalOutstanding > 0m);
     }
 
@@ -242,7 +260,11 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         var contract = Contract.Create(stall.Id, "Funny Valentine", "Funny Valentine", monthStart, 3, 900m); // full current month, unpaid
 
         var rateOld = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 45m, new DateOnly(2020, 1, 1), Guid.Empty);
-        var rateNew = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, monthStart.AddDays(1), Guid.Empty);
+        // Effective the SECOND of the month, except on the first itself - where the second has not happened, so a rate dated
+        // then is not yet in force and the resolved rate would still be the ₱45 this test exists to rule out. The scenario is
+        // "the office has changed its rate this month", which needs the change to be in the past.
+        var newRateFrom = today.Day > 1 ? monthStart.AddDays(1) : monthStart;
+        var rateNew = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, newRateFrom, Guid.Empty);
 
         context.AddRange(facility, stall, contract, rateOld, rateNew);
         await context.SaveChangesAsync();

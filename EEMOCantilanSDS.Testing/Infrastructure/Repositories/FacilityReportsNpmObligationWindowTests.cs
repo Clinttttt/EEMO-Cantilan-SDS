@@ -73,6 +73,10 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, anchor.Year, anchor.Month, null, CancellationToken.None);
 
         var c = Assert.Single(report.StallCompliance);
-        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee, c.ExpectedBill);
+        // A month held in full owes the month's RENT, whatever the calendar gave it. Asked of the rule rather than
+        // multiplied out, because multiplying passed only while the month under test had thirty days.
+        Assert.Equal(
+            DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth),
+            c.ExpectedBill);
     }
 }

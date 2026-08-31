@@ -159,8 +159,21 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         Assert.Equal(earned, thisMonth.TotalBill);
 
         // 3) The payment dialog's billable months — what a clerk can actually take money for.
+        //
+        // A month appears here only while something is still owed for it. On the FIRST of a month one day is earned, this
+        // test pays it, and there is nothing left for a clerk to take — so the month is absent rather than listed at nought.
+        // Asserted that way rather than as "always earned", which held only while more than one day had elapsed.
         var billable = await payments.GetOutstandingMonthsAsync(stall.Id, null, null, CancellationToken.None);
-        Assert.Equal(earned, billable.Where(m => m.Period == $"{today.Year:0000}-{today.Month:00}").Sum(m => m.TotalBill));
+        var thisMonthBillable = billable.Where(m => m.Period == $"{today.Year:0000}-{today.Month:00}").ToList();
+
+        if (earned - Fee > 0m)
+        {
+            Assert.Equal(earned, thisMonthBillable.Sum(m => m.TotalBill));
+        }
+        else
+        {
+            Assert.Empty(thisMonthBillable);
+        }
 
         // 4) The office's report, which also drives the arrears and delinquency lists and the follow-up queue.
         var office = await reports.GetFacilityReportsAsync(

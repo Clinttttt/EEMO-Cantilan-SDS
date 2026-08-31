@@ -161,7 +161,13 @@ public class SettleNpmMonthCommandHandlerTests
             new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-1001"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(daysInMonth, captured.Count);        // the departed lessee's whole month, not zero days
+        // The departed lessee's whole month, not zero days. "Whole" is the installments the month's RENT covers, not the
+        // calendar's day count: a month is let for a rent, so a 31-day month is settled in thirty installments and not
+        // thirty-one. Asserting daysInMonth passed only while the month six back happened to have thirty days.
+        var wholeMonthInstallments =
+            (int)(DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth)
+                  / FeeRates.NpmDailyFee);
+        Assert.Equal(wholeMonthInstallments, captured.Count);
         Assert.All(captured, dc => Assert.True(dc.IsPaid));
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }

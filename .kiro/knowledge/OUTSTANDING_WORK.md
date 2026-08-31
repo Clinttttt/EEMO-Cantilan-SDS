@@ -1042,6 +1042,25 @@ of the three were mine from the same afternoon.
 says a month is thirty days), the export, and the Taboan/terminal/slaughterhouse paths - none of which have a market month,
 but which share report scaffolding worth a read.
 
+**AUDIT COMPLETED 2026-08-31 (second pass).** Two more screens were stating a month nobody owes, and both are fixed:
+
+- **FIXED. The Public Market Report's register** computed `DailyRate * 30m` written out in the page, so it stated ₱900 for a
+  market that owes ₱930 in a long month. It now prints a dash where no monthly amount exists.
+- **FIXED. The settings page** read "₱900/month, collected at ₱30/day" for every office, including one whose month owes the
+  days it has. It now names the rule in force.
+
+**THE GUARD WAS TIGHTENED because it could not have caught either.** `MonthBasisIsAskedOfTheRuleTests` named the
+`DomainRules` helpers only, and both faults wrote the arithmetic out themselves. It now also polices `DailyBilledMonthDays`
+and a literal `* 30m`, with ten named files and a reason each - the constant's own definition, `Stall.ResolveMonthlyRent`,
+the two rate readers, the four screens that state the convention to an office, and the assist that runs it backwards.
+Injection-proved: a raw multiplication added to a report handler fails it by name. The dead-entry half immediately caught a
+wrong entry of mine, which is the reason to have it.
+
+**Cleared on this pass:**
+- **The export** reads the report's own `Coverage` and `CoverageBalance` and adds nothing, so it inherits the rule. Its
+  monthly rental table is scoped to TCC, NCC, BBQ and ICE, none of which has a market month.
+- **Taboan, the terminal and the slaughterhouse** bill per market day, per trip and per head. None has a month to measure.
+
 ### Audit of 2026-08-30's work, done at the office's request
 
 Three findings, and two of them are corrections to claims I made myself the same day. Recorded so the record is the
