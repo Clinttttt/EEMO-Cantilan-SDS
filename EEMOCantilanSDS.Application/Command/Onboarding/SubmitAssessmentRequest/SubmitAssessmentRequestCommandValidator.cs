@@ -16,8 +16,11 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SubmitAssessmentRequest
                 .EmailAddress().WithMessage("Official email is not valid.")
                 .MaximumLength(160);
             RuleFor(x => x.ContactNumber).NotEmpty().MaximumLength(40);
+            // Not required. The assessment form stopped asking an LGU to tick which facilities it manages: the office judged
+            // the checklist unnecessary and slow, and the facilities are established properly at onboarding, where each one
+            // is named, priced and given a collection model. An empty value therefore means "not stated at assessment"
+            // rather than "none", and the console says so rather than showing a blank.
             RuleFor(x => x.FacilitiesManaged)
-                .NotEmpty().WithMessage("Please indicate the facilities managed.")
                 .MaximumLength(500);
             RuleFor(x => x.ApproxVendors).MaximumLength(60);
             RuleFor(x => x.AuthorizationStatus).MaximumLength(120);
