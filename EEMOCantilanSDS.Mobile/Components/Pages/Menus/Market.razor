@@ -521,7 +521,10 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseCollectionSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled alongside Confirm, so a save that hung left the collector with
+                   no way out of the sheet at all - closing the app was the only exit. Backing out cannot lose money: a write
+                   already sent either lands or is queued regardless of this screen. *@
+                <button class="btn-cancel" type="button" @onclick="CloseCollectionSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmCollectionAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm")
                 </button>
@@ -1168,7 +1171,98 @@
         _scrollToMisc = true;
     }
 
+    /// <summary>
+    /// Confirms the sheet, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// A collector reported the sheet freezing on "Saving..." with nothing clickable but the app switcher, and the cause was
+    /// here: the write throws on a timeout, nothing caught it, so IsSaving stayed true and both buttons stayed disabled for the
+    /// life of the page. A thin signal became a dead screen and the round stopped.
+    ///
+    /// <para>So the work is wrapped. A connectivity-shaped failure queues the collection, exactly as being offline does, and
+    /// says so; anything else states itself and hands the sheet back. IsSaving is cleared in a finally, which is the only
+    /// promise that matters: whatever happens, the collector can act again.</para>
+    /// </remarks>
     private async Task ConfirmCollectionAsync()
+    {
+        try
+        {
+            await ConfirmCollectionCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            // The timeout that used to freeze the sheet. Queue what can be queued and say so.
+            if (await QueueSelectedCollectionAsync())
+            {
+                CloseCollectionSheet();
+                return;
+            }
+
+            SheetError = "The connection is too weak to reach the office. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to save the collection status. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>A failure the collector cannot answer for: no usable response, or the office's own server faulting.</summary>
+    /// <remarks>
+    /// Deliberately narrow. A definitive answer - already collected, outside the term, a day in the future - is the server's
+    /// ruling and belongs on the screen; queueing it would replay a refusal every time the signal returned.
+    /// </remarks>
+    private static bool IsTransientFailure(int? statusCode) => statusCode is null or 0 or >= 500;
+
+    /// <summary>A timeout or an unreachable server, as opposed to a fault in this app.</summary>
+    private static bool IsConnectivityShaped(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
+
+    /// <summary>
+    /// Writes the sheet's answer to the on-device queue, to replay when the signal returns.
+    /// </summary>
+    /// <returns>
+    /// False where the answer cannot be queued, which is the no-money "Not collected": it carries nothing to replay and is a
+    /// plain state change the server must make, so it has to be recorded online or not at all.
+    /// </returns>
+    private async Task<bool> QueueSelectedCollectionAsync()
+    {
+        if (SelectedStall is null)
+            return false;
+
+        if (!SelectedIsPaid && !SelectedIsAbsent)
+            return false;
+
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.NpmDaily,
+            // The day the collector chose, not the day the phone happens to be switched on. The sync endpoint records
+            // against this date, so a day settled offline stays the day it answered for when it replays.
+            BusinessDate = SelectedDate,
+            StallId = SelectedStall.StallId,
+            IsPaid = SelectedIsPaid,
+            IsAbsent = SelectedIsAbsent,
+            FishKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
+            ORNumber = SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
+            FacilityLabel = "NPM",
+            Title = SelectedStall.PayorName,
+            Detail = SelectedIsAbsent ? $"No. {SelectedStall.StallNo} · Absent" : $"No. {SelectedStall.StallNo}",
+            Amount = SelectedIsAbsent ? 0m : SelectedStall.DailyRate
+        });
+
+        // The card's "Queued" marker speaks for the ROUND'S day, so it is only set when that is the day just captured.
+        // Queueing an earlier day would otherwise claim today was queued - and the next refresh, which matches on the
+        // round's date, would quietly drop it again.
+        if (Collection is not null && SelectedDate == Collection.CollectionDate)
+            QueuedOfflineStalls.Add(SelectedStall.StallId);
+
+        return true;
+    }
+
+    private async Task ConfirmCollectionCoreAsync()
     {
         if (SelectedStall is null || Collection is null)
             return;
@@ -1231,28 +1325,7 @@
                 return;
             }
 
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.NpmDaily,
-                // The day the collector chose, not the day the phone happens to be switched on. The sync endpoint records
-                // against this date, so a day settled offline stays the day it answered for when it replays.
-                BusinessDate = SelectedDate,
-                StallId = SelectedStall.StallId,
-                IsPaid = SelectedIsPaid,
-                IsAbsent = SelectedIsAbsent,
-                FishKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
-                ORNumber = SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
-                FacilityLabel = "NPM",
-                Title = SelectedStall.PayorName,
-                Detail = SelectedIsAbsent ? $"No. {SelectedStall.StallNo} · Absent" : $"No. {SelectedStall.StallNo}",
-                Amount = SelectedIsAbsent ? 0m : SelectedStall.DailyRate
-            });
-
-            // The card's "Queued" marker speaks for the ROUND'S day, so it is only set when that is the day just captured.
-            // Queueing an earlier day would otherwise claim today was queued - and the next refresh, which matches on the
-            // round's date, would quietly drop it again.
-            if (Collection is not null && SelectedDate == Collection.CollectionDate)
-                QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
+            await QueueSelectedCollectionAsync();
             CloseCollectionSheet();
             IsSaving = false;
             return;
@@ -1271,6 +1344,20 @@
         var result = await MobileApi.RecordNpmCollectionAsync(request);
         if (!result.IsSuccess)
         {
+            // The signal was there when the round loaded and has since gone thin: the phone still reports a connection, so the
+            // offline branch above did not run, and the server did not answer within the client's timeout. For the collector
+            // standing at the stall this is the SAME situation as being offline, so it is answered the same way - the
+            // collection is queued and replays idempotently - rather than left as an error he can do nothing about.
+            //
+            // Only a transient failure. A definitive answer from the server (already collected, outside the term, a day ahead)
+            // is the server's ruling and must be shown, never queued: queueing it would replay a refusal for ever.
+            if (IsTransientFailure(result.StatusCode) && await QueueSelectedCollectionAsync())
+            {
+                CloseCollectionSheet();
+                IsSaving = false;
+                return;
+            }
+
             SheetError = result.Error ?? "Unable to save the collection status.";
             IsSaving = false;
             return;
