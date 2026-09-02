@@ -44,9 +44,11 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 
+    public async Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month) =>
+        await GetAsync<MobileNpmArrearsDto>($"api/Mobile/npm/arrears?year={year}&month={month}");
+
     public async Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request) =>
         await PostAsync<RecordMobileNpmCollectionRequest, bool>("api/Mobile/npm/collections/record", request);
-
     public async Task<Result<bool>> SettleNpmDaysAsync(SettleMobileNpmDaysRequest request) =>
         await PostAsync<SettleMobileNpmDaysRequest, bool>("api/Mobile/npm/collections/settle-days", request);
 

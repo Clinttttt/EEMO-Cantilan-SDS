@@ -20,6 +20,15 @@ public interface IMobileApiClient
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
+
+    /// <summary>
+    /// What the market is behind on: months that closed owing, and the days of this month gone by.
+    /// </summary>
+    /// <remarks>
+    /// Its own call rather than more fields on the round, which is fetched at every stall and must stay light. Asked once, when
+    /// the collector opens the arrears screen.
+    /// </remarks>
+    Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month);
     Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request);
 
     /// <summary>Several owed days of one stall, settled together against one receipt, in a single transaction.</summary>

@@ -58,6 +58,11 @@ public sealed class CachingMobileApiClient(
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         ReadThroughAsync($"npm|{year}|{month}|{Today}", () => inner.GetNpmCollectionAsync(year, month));
 
+    // Cached on the same terms as the round, so a collector who loses the signal after opening the arrears screen keeps the list
+    // he was working from instead of an empty one.
+    public Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month) =>
+        ReadThroughAsync($"npm-arrears|{year}|{month}|{Today}", () => inner.GetNpmArrearsAsync(year, month));
+
     public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
         ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
 

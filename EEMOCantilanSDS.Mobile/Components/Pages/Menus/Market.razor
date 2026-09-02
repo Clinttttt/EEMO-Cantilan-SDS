@@ -193,11 +193,25 @@
         </div>
 
         <div class="arrears-body">
-            @if (ArrearsPayors.Count == 0)
+            @if (ArrearsLoading)
+            {
+                <div class="state-card">
+                    <div class="state-title">Loading</div>
+                    <div class="state-text">Reading what each payor still owes.</div>
+                </div>
+            }
+            else if (ArrearsError is not null)
+            {
+                <div class="state-card">
+                    <div class="state-title">Not available</div>
+                    <div class="state-text">@ArrearsError</div>
+                </div>
+            }
+            else if (ArrearsPayors.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">Nothing outstanding</div>
-                    <div class="state-text">Every payor is settled or excused for the days gone by this period.</div>
+                    <div class="state-text">Every payor is settled or excused for the days gone by.</div>
                 </div>
             }
             else
@@ -209,12 +223,16 @@
                         <span class="arrears-summary-val">@ArrearsPayors.Count</span>
                     </div>
                     <div class="arrears-summary-line">
-                        <span class="arrears-summary-label">Days owed</span>
-                        <span class="arrears-summary-val">@ArrearsPayors.Sum(s => OwedDays(s).Count)</span>
+                        <span class="arrears-summary-label">Months behind</span>
+                        <span class="arrears-summary-val">@ArrearsPayors.Sum(p => p.PastMonths.Count)</span>
+                    </div>
+                    <div class="arrears-summary-line">
+                        <span class="arrears-summary-label">Days owed this month</span>
+                        <span class="arrears-summary-val">@ArrearsPayors.Sum(p => p.DaysOwedThisMonth.Count)</span>
                     </div>
                     <div class="arrears-summary-line arrears-summary-total">
                         <span class="arrears-summary-label">Still to collect</span>
-                        <span class="arrears-summary-val">@FormatCurrency(ArrearsPayors.Sum(OwedAmount))</span>
+                        <span class="arrears-summary-val">@FormatCurrency(Arrears?.TotalOutstanding ?? 0m)</span>
                     </div>
                 </div>
 
@@ -226,23 +244,23 @@
                 {
                     <div class="section-label">@sectionGroup.Key</div>
 
-                    @foreach (var stall in sectionGroup)
+                    @foreach (var payor in sectionGroup)
                     {
-                        <button class="tx-card" type="button" @onclick="() => OpenArrearsFor(stall)">
-                            @* The unpaid marker, which is what every one of these rows is: days gone by with money still
-                               owed on them. bar-pending does not exist in this stylesheet; the plain bar is grey. *@
+                        <button class="tx-card" type="button" @onclick="() => OpenArrearsFor(payor)">
+                            @* The unpaid marker, which is what every one of these rows is: money still owed. bar-pending does
+                               not exist in this stylesheet; the plain bar is grey. *@
                             <div class="tx-left-bar bar-unpaid"></div>
                             <div class="tx-body">
                                 <div class="tx-col-info">
-                                    <span class="tx-owner">@stall.PayorName</span>
+                                    <span class="tx-owner">@payor.PayorName</span>
                                     <span class="tx-sub">
-                                        <span class="tx-tag">No. @stall.StallNo</span>
-                                        <span class="tx-or">@OwedDaysLabel(stall)</span>
+                                        <span class="tx-tag">No. @payor.StallNo</span>
+                                        <span class="tx-or">@ArrearsSummaryLabel(payor)</span>
                                     </span>
                                 </div>
                                 <div class="tx-col-right">
-                                    <span class="tx-amount">@FormatCurrency(OwedAmount(stall))</span>
-                                    @if (IsQueuedOffline(stall))
+                                    <span class="tx-amount">@FormatCurrency(payor.TotalOutstanding)</span>
+                                    @if (IsQueuedOffline(payor.StallId))
                                     {
                                         @* A capture for this payor is still waiting to sync. Said here, not only on the
                                            round, or a collector working without signal could settle the same day twice
@@ -252,11 +270,38 @@
                                     }
                                     else
                                     {
-                                        <span class="arrears-oldest">from @OldestOwedLabel(stall)</span>
+                                        <span class="arrears-oldest">from @OldestOwedLabel(payor)</span>
                                     }
                                 </div>
                             </div>
                         </button>
+
+                        @if (payor.PastMonths.Count > 0)
+                        {
+                            @* The months named, each at the figure the office settles it for. A single total tells the collector
+                               how much without telling him what for, and a payor asked for eighteen hundred pesos will ask which
+                               months - so the answer is on the screen before the question is put. *@
+                            <div class="arrears-months">
+                                @foreach (var m in payor.PastMonths)
+                                {
+                                    <div class="arrears-month-line">
+                                        <span class="arrears-month-name">@MonthName(m.Year, m.Month)</span>
+                                        <span class="arrears-month-amount">@FormatCurrency(m.Amount)</span>
+                                    </div>
+                                }
+                                @if (payor.DaysOwedThisMonth.Count > 0)
+                                {
+                                    <div class="arrears-month-line">
+                                        <span class="arrears-month-name">@MonthLabel · @DaysLabel(payor.DaysOwedThisMonth.Count)</span>
+                                        <span class="arrears-month-amount">@FormatCurrency(payor.AmountThisMonth)</span>
+                                    </div>
+                                }
+                                @* A closed month short of its rent keeps a month-end difference, and a difference is not a day:
+                                   it cannot be taken day by day here. Said plainly, so a collector who settles every day of such
+                                   a month and still sees a balance knows why rather than suspecting the app. *@
+                                <div class="arrears-month-note">A closed month is settled at the office.</div>
+                            </div>
+                        }
                     }
                 }
             }
@@ -811,6 +856,14 @@
             }
 
             await RefreshQueuedOfflineAsync();
+
+            // What the market is behind on, read after the round rather than with it.
+            //
+            // It could have waited until the collector opens the arrears screen, but then the badge on the search row - which is
+            // the only invitation to open it - would count only the days of the month in hand. A payor behind on August alone
+            // would show as nobody behind, and the arrears would stay hidden behind a zero. The round is already assigned above,
+            // so this adds nothing to what the collector waits to see.
+            await LoadArrearsAsync();
         }
         catch
         {
@@ -853,6 +906,9 @@
     }
 
     private bool IsQueuedOffline(MobileNpmStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
+
+    /// <summary>The same question asked by stall id, for the arrears screen, which reads its own payors rather than the round's.</summary>
+    private bool IsQueuedOffline(Guid stallId) => QueuedOfflineStalls.Contains(stallId);
 
     // Loads the month's electricity/water bills — plus anything still owed from earlier months — so a stall's
     // bill can be settled inline from the sheet. A bill does not stop being collectible when the month turns
@@ -916,12 +972,17 @@
     private static bool HasOwedDays(MobileNpmStallCollectionDto stall) => OwedDays(stall).Count > 0;
 
     /// <summary>
-    /// How many payors are behind this period. The badge on the search row, so the number is visible before anybody is
-    /// opened - counted over the WHOLE round rather than the current section, because a collector wants to know if there is
-    /// anything outstanding at all.
+    /// How many payors are behind. The badge on the search row, so the number is visible before anybody is opened.
     /// </summary>
+    /// <remarks>
+    /// The arrears figure once it is read, which counts closed months as well as the days of the month in hand. It used to count
+    /// only this month's days, so a payor behind on an earlier month showed as nobody behind - and since this badge is the only
+    /// invitation to open the arrears screen, the debt stayed hidden behind a zero. Falls back to the round's own days until the
+    /// arrears read answers, so the badge is never blank and never overstates.
+    /// </remarks>
     private int OwedPayorCount =>
-        (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Count(HasOwedDays);
+        Arrears?.Payors.Count
+        ?? (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Count(HasOwedDays);
 
     /// <summary>Showing the payors who are behind, on their own screen over the round.</summary>
     private bool ShowArrears;
@@ -937,35 +998,110 @@
     /// </summary>
     private bool SheetIsArrears;
 
-    /// <summary>The payors with a day gone by still owed, in the round's own order.</summary>
-    private IReadOnlyList<MobileNpmStallCollectionDto> ArrearsPayors =>
-        (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>()).Where(HasOwedDays).ToList();
+    /// <summary>
+    /// What the market is behind on, fetched when this screen is opened.
+    /// </summary>
+    /// <remarks>
+    /// Its own read, not a slice of the round. The round covers one calendar month, so it could only ever show the days of the
+    /// month in hand: a day missed in August was invisible in September and there was no way to see the debt from the app at
+    /// all. This carries every unsettled month as well, each priced by the office's own settlement of it - never by counting
+    /// days and multiplying, because a month let for a rent owes that rent whatever its calendar gave it.
+    /// </remarks>
+    private MobileNpmArrearsDto? Arrears;
 
-    /// <summary>What a payor still owes for the days gone by: their own daily rate for each day outstanding.</summary>
-    private static decimal OwedAmount(MobileNpmStallCollectionDto stall) =>
-        OwedDays(stall).Count * stall.DailyRate;
+    private bool ArrearsLoading;
 
-    private static string OwedDaysLabel(MobileNpmStallCollectionDto stall) =>
-        OwedDays(stall).Count == 1 ? "1 day owed" : $"{OwedDays(stall).Count} days owed";
+    private string? ArrearsError;
 
-    private string OldestOwedLabel(MobileNpmStallCollectionDto stall)
+    /// <summary>The payors who are behind, as the office states them.</summary>
+    private IReadOnlyList<MobileNpmStallArrearsDto> ArrearsPayors =>
+        Arrears?.Payors ?? Array.Empty<MobileNpmStallArrearsDto>();
+
+    /// <summary>What a payor is behind by, in words: the months first, then the days of the month in hand.</summary>
+    private static string ArrearsSummaryLabel(MobileNpmStallArrearsDto payor)
     {
-        var owed = OwedDays(stall);
-        return owed.Count == 0
-            ? string.Empty
-            : DayChipLabel(owed[0]);
+        var parts = new List<string>(2);
+
+        if (payor.PastMonths.Count > 0)
+            parts.Add(payor.PastMonths.Count == 1 ? "1 month behind" : $"{payor.PastMonths.Count} months behind");
+
+        if (payor.DaysOwedThisMonth.Count > 0)
+            parts.Add(DaysLabel(payor.DaysOwedThisMonth.Count));
+
+        return string.Join(" · ", parts);
     }
 
-    private void OpenArrears() => ShowArrears = true;
+    private static string DaysLabel(int days) => days == 1 ? "1 day owed" : $"{days} days owed";
+
+    private static string MonthName(int year, int month) =>
+        new DateOnly(year, month, 1).ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>Where a payor's debt starts: the oldest month behind, or the oldest day of the month in hand.</summary>
+    private string OldestOwedLabel(MobileNpmStallArrearsDto payor)
+    {
+        if (payor.PastMonths.Count > 0)
+            return MonthName(payor.PastMonths[0].Year, payor.PastMonths[0].Month);
+
+        return payor.DaysOwedThisMonth.Count > 0 ? DayChipLabel(payor.DaysOwedThisMonth[0]) : string.Empty;
+    }
+
+    /// <summary>
+    /// Opens the arrears screen and reads what the market is behind on.
+    /// </summary>
+    /// <remarks>
+    /// Read here rather than with the round: the round is fetched at every stall and must stay light, while this walks each
+    /// unsettled month of every payor. A collector who is not chasing arrears never waits for it.
+    /// </remarks>
+    private async Task OpenArrears()
+    {
+        ShowArrears = true;
+        await LoadArrearsAsync();
+    }
+
+    private async Task LoadArrearsAsync()
+    {
+        if (Collection is null)
+            return;
+
+        ArrearsLoading = true;
+        ArrearsError = null;
+
+        try
+        {
+            var result = await MobileApi.GetNpmArrearsAsync(Collection.Year, Collection.Month);
+
+            if (result.IsSuccess && result.Value is not null)
+                Arrears = result.Value;
+            else
+                ArrearsError = result.Error ?? "Unable to read what is still owed.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            // The same rule the sheet follows: a thin signal states itself and hands the screen back, rather than leaving the
+            // collector looking at a spinner he cannot dismiss.
+            ArrearsError = "The connection is too weak to read what is still owed. Try again where the signal is better.";
+        }
+        finally
+        {
+            ArrearsLoading = false;
+        }
+    }
 
     private void CloseArrears() => ShowArrears = false;
 
     /// <summary>
-    /// Opens the record sheet for a payor who is behind, on the oldest day they owe. The oldest first, matching the
-    /// rule this screen already states for utility arrears, and the collector can pick another from the chips.
+    /// Opens the record sheet for a payor who is behind, on the oldest day of the month in hand that they owe.
     /// </summary>
-    private void OpenArrearsFor(MobileNpmStallCollectionDto stall)
+    /// <remarks>
+    /// The month in hand only. A closed month is settled at the office: what it owes can include a month-end difference, and a
+    /// difference is not a day, so it cannot be taken through a day's sheet. The screen says so beside the months.
+    /// </remarks>
+    private void OpenArrearsFor(MobileNpmStallArrearsDto payor)
     {
+        var stall = Collection?.Stalls.FirstOrDefault(s => s.StallId == payor.StallId);
+        if (stall is null)
+            return;
+
         OpenCollectionSheet(stall, asArrears: true);
     }
 
