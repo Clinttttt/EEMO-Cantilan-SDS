@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
@@ -25,7 +26,11 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // One class in six files, not six classes: the mobile screens reuse the same private obligation and eligibility arithmetic the
 // register uses, and duplicating that is how two screens start disagreeing about the same peso. What IS separate is the
 // contracts, so a handler serving the app cannot reach a stall aggregate.
-public partial class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
+public partial class StallRepository(
+    AppDbContext context,
+    IFeeRateResolver feeRateResolver,
+    IClock clock,
+    INpmMonthSettlementService? npmMonthSettlement = null)
     : IStallRepository, IStallMobileQueries, IClosedStallAccountQueries, IContractAttentionQueries, IStallRegisterQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
@@ -40,6 +45,24 @@ public partial class StallRepository(AppDbContext context, IFeeRateResolver feeR
 
     private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
     private readonly IClock _clock = clock;
+
+    private INpmMonthSettlementService? _npmMonthSettlement = npmMonthSettlement;
+
+    /// <summary>
+    /// How the office settles one market month. Asked rather than reimplemented: what a month owes depends on whether the
+    /// office lets it for a rent or bills its days, and a second copy of that arithmetic is how the collector's screen and the
+    /// payor's own screen start disagreeing about the same peso.
+    /// </summary>
+    /// <remarks>
+    /// OPTIONAL in the constructor, and built from the context when absent, so that the sixty-odd tests and the one convenience
+    /// constructor that already say <c>new StallRepository(context)</c> keep working untouched. DI supplies the real one.
+    /// </remarks>
+    private INpmMonthSettlementService NpmMonthSettlement =>
+        _npmMonthSettlement ??= new NpmMonthSettlementService(
+            new DailyCollectionRepository(_context),
+            new NpmMarketClosureRepository(_context),
+            _feeRateResolver,
+            _clock);
 
 
 

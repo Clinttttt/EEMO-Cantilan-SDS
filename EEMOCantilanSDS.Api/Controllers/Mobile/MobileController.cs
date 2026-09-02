@@ -19,6 +19,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
 using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
@@ -95,6 +96,21 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<MobileNpmCollectionDto>> GetNpmCollectionsAsync([FromQuery] int year, [FromQuery] int month)
     {
         var result = await Sender.Send(new GetMobileNpmCollectionQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// What the market is behind on: months that closed owing, and the days of this month gone by.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the round above, which is fetched at every stall and must stay light. This walks each unsettled month of
+    /// every payor and asks the office's own settlement to price it, so the collector pays for that only when opening the
+    /// arrears screen.
+    /// </remarks>
+    [HttpGet("npm/arrears")]
+    public async Task<ActionResult<MobileNpmArrearsDto>> GetNpmArrearsAsync([FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetMobileNpmArrearsQuery(year, month));
         return HandleResponse(result);
     }
 
