@@ -1206,6 +1206,24 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **The collector cannot take a closed month to zero from the phone.** Recorded 2026-09-02, when the arrears screen began stating
+  past months. `SettleNpmDaysCommandHandler` marks days paid at each day's own fee and applies no month-end difference, so
+  settling all twenty-eight days of a February leaves the ₱60 that its installments could not reach still owed. That is the
+  correct figure, not a bug, and the screen says "A closed month is settled at the office" rather than letting a collector doubt
+  the app. What is missing is a collector path that settles a whole closed month, difference included, the way the staff
+  `SettleNpmMonth` command and the online payment path already do. It needs its own command, its own receipt handling and its own
+  tests; it was not bolted onto the day sheet.
+- **The arrears read costs a query per stall per month.** `StallRepository.GetMobileNpmArrearsAsync` asks
+  `NpmMonthSettlementService.ComputePayableAsync` once per stall per unsettled month, and each of those reads that month's daily
+  collections and closures. Bounded to twelve months, so Cantilan's ten stalls cost tens of queries and it is comfortably fast.
+  A hundred-stall market would cost thousands. The fix, when a market needs it, is to prefetch the span once and let the
+  settlement service walk it from memory — which means extracting its per-month walk behind the fetch, NOT reimplementing the
+  month rule anywhere else.
+- **The same save freeze sits on nine sheets across `MonthlyCollection`, `Slaughter`, `Taboan` and `Terminal`.** Fixed on
+  `Market.razor` 2026-09-02: their `try/finally` wraps only the reload, not the write, so a timeout throws past it and leaves
+  `IsSaving` true with Cancel disabled beside it — the app has to be killed. Each needs the same three changes: clear `IsSaving`
+  in a `finally`, keep Cancel live, and queue a transient failure instead of failing it.
+
 - **The payor's own portal moved to Angular — `payor.stalltrack.site`, built 2026-08-27 to 08-29.** One host serves every
   LGU, so the office is read from the payor's own account rather than from the address. Sign-in holds NOTHING readable by
   script: the API sets HttpOnly, Secure, SameSite=Strict cookies, the app holds one boolean and a display name, and a
