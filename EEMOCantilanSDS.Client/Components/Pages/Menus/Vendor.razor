@@ -1,4 +1,4 @@
-﻿@page "/vendors"
+@page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
@@ -307,8 +307,12 @@
                                                     <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(v)">
                                                         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
                                                     </button>
+                                                    @* A stall whose section the office closed cannot be reopened here: the section
+                                                       reopen returns every stall its closure closed. Disabled AND explained, because
+                                                       a control that cannot act must look as though it cannot. Closing is unaffected. *@
                                                     <button class="action-btn @(v.IsActive ? "action-danger" : "action-success")"
-                                                            title="@(v.IsActive ? "Close Stall" : "Reopen Stall")"
+                                                            disabled="@(!v.IsActive && v.SectionClosed)"
+                                                            title="@(v.IsActive ? "Close Stall" : v.SectionClosed ? $"{v.Section} is closed. Reopen the section to return this stall." : "Reopen Stall")"
                                                             @onclick="() => ToggleVendor(v)">
                                                         @if (v.IsActive)
                                                         {
@@ -899,6 +903,7 @@
                 Arrangement = item.Arrangement,
                 MonthlyRate = item.MonthlyRate,
             ResolvedDailyFee = item.ResolvedDailyFee,
+                SectionClosed = item.SectionClosed,
                 ActualMonthlyRental = item.MonthlyRate,
                 AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
                 FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay, item.HasElectricity, item.HasWater, FishFeeLabel),
@@ -1023,6 +1028,16 @@
         public decimal MonthlyRate { get; set; }
         /// <summary>What this stall is billed for a day, as the server resolved it. Null where the space is not billed by the day.</summary>
         public decimal? ResolvedDailyFee { get; set; }
+
+        /// <summary>
+        /// True where the office has CLOSED the market section this stall sits in.
+        /// </summary>
+        /// <remarks>
+        /// Such a stall must not be reopened from this list: it would start being billed in a section the market page does not
+        /// show, so its arrears would accrue where nobody looks. Reopening the SECTION returns every stall its closure closed.
+        /// The server refuses it too - a disabled button is not a guard.
+        /// </remarks>
+        public bool SectionClosed { get; set; }
         public decimal ActualMonthlyRental { get; set; }
         public string AreaLocation { get; set; } = string.Empty;
         public List<string> FeeTypes { get; set; } = new();

@@ -38,5 +38,16 @@ public sealed record VendorListItemDto(
     /// area's, then the market's. Null where the space is not billed by the day. The detail card stated the MARKET's
     /// figure, so a stall in an area or a section the office prices apart was described at a rate it is not charged.
     /// </summary>
-    decimal? ResolvedDailyFee = null
+    decimal? ResolvedDailyFee = null,
+
+    /// <summary>
+    /// True where this stall sits in one of the office's own market sections that the office has CLOSED.
+    /// </summary>
+    /// <remarks>
+    /// Such a stall must not be reopened from this list. Reopening it would start billing a space the market page does not
+    /// show and no form offers, so the arrears would accrue where nobody can see them. Reopening the SECTION returns every
+    /// stall its closure closed. The server refuses it as well - a disabled button is not a guard - and the register on the
+    /// Closed Accounts page carries the same rule.
+    /// </remarks>
+    bool SectionClosed = false
 );

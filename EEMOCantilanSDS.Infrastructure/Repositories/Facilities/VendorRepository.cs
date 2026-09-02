@@ -91,6 +91,14 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
 
         var rateAsOf = clock.PhilippineToday;
 
+        // Sections the office has closed. A row in one of them must not offer to reopen on its own: the stall would start
+        // being billed in a section the market page does not show, so the arrears would accrue where nobody looks. Reopening
+        // the SECTION returns every stall its closure closed. Read once for the whole registry.
+        var closedSections = await context.FacilitySectionClosures.AsNoTracking()
+            .Where(c => c.FacilityCode == FacilityCode.NPM)
+            .Select(c => c.SectionName)
+            .ToListAsync(cancellationToken);
+
         var vendors = visibleStalls.Select(s =>
         {
             var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
@@ -121,7 +129,10 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 s.Fees.HasFlag(ApplicableFees.Water),
                 activeContract?.Arrangement ?? OccupancyArrangement.SignedContract,
                 // The fee this stall is billed, by the one rule, so the registry and the collector cannot disagree.
-                s.Facility!.Code == FacilityCode.NPM ? NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf) : null
+                s.Facility!.Code == FacilityCode.NPM ? NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf) : null,
+                // Its section is closed, so this row states its status and refuses to reopen on its own.
+                !string.IsNullOrWhiteSpace(s.CustomSectionName)
+                    && closedSections.Any(n => string.Equals(n.Trim(), s.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase))
             );
         }).ToList();
 

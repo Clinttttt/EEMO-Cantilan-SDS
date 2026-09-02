@@ -2036,3 +2036,16 @@ TABLE
         width: 100%;
     }
 }
+
+
+/* An action that cannot be taken must LOOK as though it cannot. The reopen icon on a stall whose section the office closed
+   was unclickable but pixel-identical to a live one, so the office pressed it and nothing happened. Same figures as the
+   inactive register on the Closed Accounts page, so one rule reads one way in both places. */
+.action-btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+    .action-btn:disabled:hover {
+        background: var(--bg-icon);
+    }
