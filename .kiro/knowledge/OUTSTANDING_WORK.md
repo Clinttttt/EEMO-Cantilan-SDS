@@ -1206,6 +1206,29 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **From the 2026-09-03 audit, not fixed and why.** An independent review of that day's commits found three bugs (all fixed: the
+  multi-day settlement queueing one day, arrears naming the wrong payor on a re-let stall, and the activation mapper deriving
+  "Region XIII" as an office acronym from the new address). It also found these, left deliberately:
+  - **`api/Mobile/npm/arrears` does not validate year/month.** Ask it for a month that has already closed and it takes the
+    current-month branch, where the month-end difference is not yet applied, so the figure comes out at bare installments. Not
+    reachable from the app - `Market.razor` passes the round's own month - but an authenticated collector could call it directly.
+    The fix belongs with the closed-month collector path below, since both turn on treating a closed month as closed.
+  - **`SectionClosed` matches a section name without a facility predicate.** `VendorRepository` filters closures to NPM but not
+    the stalls, so a non-NPM stall whose `CustomSectionName` collides with a closed NPM section name would be flagged. The
+    server-side reopen guard has the identical gap, so screen and server agree rather than disagree - which is why this is a
+    tidiness item and not a live defect.
+  - **Three of the new architecture tests are weaker than their names.** They are `Contains` checks over file text:
+    `EveryPageThatSavesHandlesTheFailureThatSavingThrows` never looks for `finally { IsSaving = false; }`;
+    `OnlyTransientFailuresAreQueued` never checks that a queue call is actually guarded;
+    `PrintIsOfferedOnlyOnTheTabsThatAreDocuments` only requires the gate string to appear somewhere in the file. Each still holds
+    its rule at file granularity and each has a dead-entry check, but none would catch a regression confined to one call site.
+  - **The admin console shows no province for a request recorded before the address change.** The Province row was dropped
+    because the new requesting-office line contains it; older records hold an office name there instead, so their province is
+    now absent from that screen.
+  - **A catalogue click with the picker already open is a silent no-op** when a facility became unfinished in the meantime
+    (`onboarding-workspace.ts`, the guard returns before `picking.set(false)`). Reaching it needs a field cleared while the
+    picker is open.
+
 - **The collector cannot take a closed month to zero from the phone.** Recorded 2026-09-02, when the arrears screen began stating
   past months. `SettleNpmDaysCommandHandler` marks days paid at each day's own fee and applies no month-end difference, so
   settling all twenty-eight days of a February leaves the ₱60 that its installments could not reach still owed. That is the
