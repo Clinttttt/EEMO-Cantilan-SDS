@@ -1219,10 +1219,25 @@ Items that were open and are now closed, kept because the reasoning is what stop
   A hundred-stall market would cost thousands. The fix, when a market needs it, is to prefetch the span once and let the
   settlement service walk it from memory — which means extracting its per-month walk behind the fetch, NOT reimplementing the
   month rule anywhere else.
-- **The same save freeze sits on nine sheets across `MonthlyCollection`, `Slaughter`, `Taboan` and `Terminal`.** Fixed on
-  `Market.razor` 2026-09-02: their `try/finally` wraps only the reload, not the write, so a timeout throws past it and leaves
-  `IsSaving` true with Cancel disabled beside it — the app has to be killed. Each needs the same three changes: clear `IsSaving`
-  in a `finally`, keep Cancel live, and queue a transient failure instead of failing it.
+- **The save freeze is fixed on all ten sheets — DONE 2026-09-03.** `Market.razor` on 09-02, then the nine across
+  `MonthlyCollection`, `Slaughter`, `Taboan` and `Terminal`. Each had a `try/finally` wrapping only the reload after the write, so
+  a timeout threw past it and left the saving flag set with Cancel disabled beside it. All ten now clear the flag in a `finally`
+  and keep Cancel live, and four architecture tests in `CollectionSheetsCannotLockTheCollectorOutTests` hold the rule — they read
+  the `.razor` files as text, because no test project references the MAUI app and no harness renders these pages.
+  - **What is queued on a thin signal was decided per sheet, not uniformly.** Queued: a tabo vendor entry, an ad-hoc trip, a
+    registered transporter's trip, a monthly rental payment, a balance collection, slaughter lines — each creates a record the
+    office does not hold and replays idempotently. NOT queued, and the screen says so: marking a tabo vendor paid and correcting
+    a slaughter line both amend a row the server already holds, and replaying an amendment against a row that may have been paid,
+    voided or superseded meanwhile is how one payment becomes two records. Registering a transporter reloads and auto-opens its
+    trip sheet, which a queued write cannot do.
+  - **Slaughter queues only the lines not yet recorded.** Its lines are submitted one at a time and it stops on the first
+    failure; the earlier ones were accepted under no client operation id of their own, so queueing them again would charge the
+    owner twice. Where the exception gives no line number, nothing is queued and the day is reloaded instead.
+  - **Two Cancels are still disabled, deliberately.** The activation-code generator and the online-payment OR encoder already
+    wrap their writes in `try/catch/finally`, so their flags always clear and no wedge is possible.
+  - **A defect in my own Market fix, found by the sweep:** its connectivity catch would have queued a DAILY COLLECTION when the
+    sheet was a utility payment, recording a day's stall fee for money taken for electricity and water. The catch now refuses the
+    misc sheet explicitly rather than relying on the flags happening to be false.
 
 - **The payor's own portal moved to Angular — `payor.stalltrack.site`, built 2026-08-27 to 08-29.** One host serves every
   LGU, so the office is read from the payor's own account rather than from the address. Sign-in holds NOTHING readable by
