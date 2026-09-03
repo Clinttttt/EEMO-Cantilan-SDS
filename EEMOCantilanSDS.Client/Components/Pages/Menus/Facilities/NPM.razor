@@ -300,6 +300,7 @@
                 CustomSectionNames="OpenCustomSections().Select(c => c.Name).ToList()"
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
+                SectionStatesItsOwnRate="@(SectionStatedRate(VendorForm.CustomSectionName) is > 0m)"
                 NpmFishRate="_npmFishRate"
                      MonthBasis="_npmMonthBasis"
                 SectionFeeLabel="@($"{FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)} fee")"

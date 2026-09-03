@@ -1792,6 +1792,57 @@
     }
 
     .rpt-compliance-table-wrap { overflow: visible !important; }
+
+    /* ── How these sheets break across pages ──────────────────────────────────
+       The Status Report and the History run past one sheet of A4, and the browser's default breaking made a document an office
+       would not file: a section's heading and its summary strip sat at the foot of page one while its rows began page two under a
+       column header with nothing above it to say which section it belonged to.
+
+       The same three rules the List of Stallholders already prints by, so the two documents paginate alike:
+         - a table's header row REPEATS on every page it continues onto (table-header-group), rather than appearing once and
+           leaving later pages headerless - or, worse, appearing alone at the top of a page;
+         - a row is never split down the middle;
+         - a section block may span pages, because a market area with forty stalls has to.
+
+       Plus the two joins that were actually breaking here: a section heading stays with what follows it, and the letterhead and
+       the meta strip are never split. */
+    .print-status-table thead {
+        display: table-header-group;
+    }
+
+    .print-status-table tfoot {
+        display: table-footer-group;
+    }
+
+    .print-status-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* A heading with its rows on the next page is a heading for nothing. */
+    .print-section-heading {
+        break-after: avoid;
+        page-break-after: avoid;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* The letterhead, and the four-cell facility/period/prepared-by strip, are single units. */
+    .print-report-header,
+    .print-report-meta {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* A section may run onto the next page - some areas hold forty stalls - but its wrapper must not clip or scroll on paper. */
+    .print-section-block {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+    .print-table-wrap {
+        overflow: visible !important;
+    }
 }
 
 /* ── Formal empty state (shown when a chart has no data) ── */

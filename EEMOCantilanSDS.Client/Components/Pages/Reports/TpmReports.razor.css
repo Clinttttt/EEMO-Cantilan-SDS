@@ -234,4 +234,36 @@
        `.print-report-sheet[b-xxxxx]`, and a class-plus-attribute selector outranks a bare class even when both are
        !important. So this rule quietly won and printed the sheet hard against the paper edge. */
     .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 12mm !important; border: none !important; box-shadow: none !important; }
+    /* ── How these sheets break across pages ──────────────────────────────────
+       The same three rules the List of Stallholders prints by, so every document this platform issues paginates alike: a table's
+       header row REPEATS on each page it continues onto rather than appearing alone at the top of one, a row is never split, and
+       a section block may span pages because some areas hold forty rows. Plus the joins that actually broke: a section heading
+       stays with what follows it, and the letterhead and meta strip are never split. */
+    .print-status-table thead { display: table-header-group; }
+    .print-status-table tfoot { display: table-footer-group; }
+
+    .print-status-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .print-section-heading {
+        break-after: avoid;
+        page-break-after: avoid;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .print-report-header,
+    .print-report-meta {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .print-section-block {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+    .print-table-wrap { overflow: visible !important; }
 }

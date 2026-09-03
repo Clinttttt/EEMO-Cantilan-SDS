@@ -169,7 +169,10 @@
                         <div class="avm-group">
                             @if (Form.HasSignedContract)
                             {
-                                <label class="avm-label">Stall / Space No. <span class="avm-req">*</span></label>
+                                @* "Stall No.", not "Stall / Space No.". The two cases are separate branches here: a space
+                                   held without a signed contract is handled below and is not numbered at all, so the slash
+                                   offered the clerk a choice this field never presented. *@
+                                <label class="avm-label">Stall No. <span class="avm-req">*</span></label>
                                 <input class="avm-input @(GetFieldError("StallNo") != string.Empty ? "form-input-error" : "")" type="text" placeholder="e.g. 01, T4, B-02"
                                        @bind="Form.StallNo" @bind:event="oninput" />
                                 @if (GetFieldError("StallNo") != string.Empty)
@@ -178,7 +181,7 @@
                                 }
                                 else if (!IsEditing && !string.IsNullOrEmpty(_lastSuggested) && Form.StallNo == _lastSuggested)
                                 {
-                                    <span class="avm-hint-muted">Auto-suggested next number — you can edit it.</span>
+                                    <span class="avm-hint-muted">Auto-suggested next Stall No.</span>
                                 }
                             }
                             else
@@ -343,14 +346,26 @@
                     {
                         <div class="avm-row-2">
                             <div class="avm-group">
-                                <label class="avm-label">Daily fee rate (₱/day) <span class="avm-req">*</span></label>
+                                @* Required only when the section has no rate of its own. Where it HAS one, a nought here is a
+                                   valid answer - it files the stall with no own rate so the section's applies - and marking it
+                                   required said the opposite. *@
+                                <label class="avm-label">Daily fee rate (₱/day)@if (!SectionStatesItsOwnRate){<span class="avm-req"> *</span>}</label>
                                 <input class="avm-input" type="number" min="1" step="0.01" placeholder="e.g. 30"
                                        @bind="Form.CustomDailyRate" @bind:event="oninput" />
                                 @if (_dailyFromMonthlyRent is { } fromRent && Form.CustomDailyRate == fromRent)
                                 {
                                     <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, to the nearest peso.</div>
                                 }
-                                <div class="avm-hint-muted">This custom section bills this flat daily fee — no fish/weight. Enable Electricity &amp; Water below if the section is metered.</div>
+                                @* Why a nought here is an answer rather than a blank the clerk forgot.
+                                   The office had already stated a rate for this section, so leaving this at nought files the
+                                   stall with no rate of its own and the section's applies. Typing one prices THIS stall apart,
+                                   and a stall's own rate outranks its section's for ever, so a later section-wide change would
+                                   skip it. Said in one line, because a nought in a field marked required looked like the form
+                                   was broken - and it is also why a monthly rent typed above it derives nothing. *@
+                                @if (SectionStatesItsOwnRate && Form.CustomDailyRate <= 0m)
+                                {
+                                    <div class="avm-hint-muted">Leave at 0 to use the section&rsquo;s rate.</div>
+                                }
                                 @if (GetFieldError("CustomDailyRate") != string.Empty)
                                 {
                                     <span class="form-error">@GetFieldError("CustomDailyRate")</span>
@@ -667,6 +682,17 @@
     /// unchanged). Drives the NPM daily-collection labels and the daily-equivalent monthly hint, so a
     /// ₱40 LGU never shows ₱30. Display only — nothing here is stored.
     [Parameter] public decimal NpmDailyRate { get; set; } = 30m;
+
+    /// <summary>
+    /// True when the office has already stated a daily rate for the market section being filed under.
+    /// </summary>
+    /// <remarks>
+    /// Decides two things about the daily-fee field, and both were previously wrong. It is not REQUIRED where a section rate
+    /// exists, because leaving it at nought is the answer that makes the stall follow that rate - the page sends null for the
+    /// stall's own rate in exactly that case. And it explains the nought, which otherwise reads as a field the clerk failed to
+    /// fill in a form that also refuses to derive one from the monthly rent.
+    /// </remarks>
+    [Parameter] public bool SectionStatesItsOwnRate { get; set; }
 
     /// <summary>
     /// The tenant's resolved per-kilo fee for the fish section. Zero (the default) means this office does not
