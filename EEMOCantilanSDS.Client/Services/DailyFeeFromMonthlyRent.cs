@@ -55,4 +55,36 @@ public static class DailyFeeFromMonthlyRent
         // NpmMonthSettlementServiceTests.ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee.
         return decimal.Round(monthlyRent / DomainRules.DailyBilledMonthDays, 0, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>
+    /// The other direction: the monthly rent a daily fee implies, or null to leave the field alone.
+    /// </summary>
+    /// <remarks>
+    /// A stall in one of the office's OWN market sections is let at its own daily rate, and its month IS thirty of those -
+    /// <see cref="Domain.Entities.Facilities.Stall.ResolveMonthlyRent"/> says so, ignoring the monthly field entirely for such a
+    /// stall. So where the daily rate is known and the monthly is empty, the monthly figure is not a guess: it is the same
+    /// arithmetic the platform bills by, read the other way.
+    ///
+    /// <para>Why it is needed rather than merely convenient: on the rent-goal basis the SERVER refuses a market stall with no
+    /// monthly rate (<c>CreateStallCommandValidator.BeStatedWhereAMonthIsARent</c>). The form opened a custom-section stall with
+    /// a daily rate of ₱30 and a monthly of nought, so the office filled the form in, pressed Add Vendor, and was refused with
+    /// nothing on screen to say what figure was wanted.</para>
+    ///
+    /// <para>Restrained exactly as the forward direction is: never while EDITING, never over a figure somebody typed, and only
+    /// into an EMPTY monthly field - a rent already recorded is the contract's own record and must not move because a daily rate
+    /// was corrected.</para>
+    /// </remarks>
+    /// <param name="dailyFee">The daily fee the stall is let at.</param>
+    /// <param name="monthlyNow">What the monthly field holds at this moment.</param>
+    /// <param name="lastDerived">The figure this method last put there, so its own work is not mistaken for the clerk's.</param>
+    public static decimal? MonthlyFromDailyOrNull(decimal dailyFee, decimal monthlyNow, decimal? lastDerived)
+    {
+        // Nothing to work from.
+        if (dailyFee <= 0m) return null;
+
+        // Only an empty field, or this method's own last answer, is filled. A rent the clerk typed stands.
+        if (monthlyNow > 0m && monthlyNow != lastDerived) return null;
+
+        return dailyFee * DomainRules.DailyBilledMonthDays;
+    }
 }

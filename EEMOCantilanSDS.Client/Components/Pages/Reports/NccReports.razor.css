@@ -512,4 +512,22 @@
     }
 
     .print-table-wrap { overflow: visible !important; }
+    /* ── Why page two used to start hard against the paper edge ───────────────
+       The page box is margin-free and the 12mm of whitespace came from padding on the SHEET. A block's padding applies once, at
+       its own top and bottom, not at every page break - so pages after the first began at y=0 with a table header touching the
+       edge. Only a page MARGIN repeats per page, so these two documents ask for one of their own; a named page applies solely to
+       what asks for it, leaving the roster, the statements and the receipts on the margin-free box they were tuned for.
+
+       Stated rather than buried: a top margin gives the browser somewhere to print its automatic date and page numbers. Untick
+       "Headers and footers" in the print dialog if it does. The alternative was figures against the paper edge on every page. */
+    @page status-doc {
+        size: A4 portrait;
+        margin: 12mm 0;
+    }
+
+    .print-report-sheet.status-sheet,
+    .print-report-sheet.history-sheet {
+        page: status-doc;
+        padding: 0 12mm !important;
+    }
 }

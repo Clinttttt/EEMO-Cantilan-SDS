@@ -351,7 +351,7 @@
                                    required said the opposite. *@
                                 <label class="avm-label">Daily fee rate (₱/day)@if (!SectionStatesItsOwnRate){<span class="avm-req"> *</span>}</label>
                                 <input class="avm-input" type="number" min="1" step="0.01" placeholder="e.g. 30"
-                                       @bind="Form.CustomDailyRate" @bind:event="oninput" />
+                                       @bind="Form.CustomDailyRate" @bind:event="oninput" @bind:after="DailyFeeEntered" />
                                 @if (_dailyFromMonthlyRent is { } fromRent && Form.CustomDailyRate == fromRent)
                                 {
                                     <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, to the nearest peso.</div>
@@ -795,6 +795,32 @@
 
         Form.CustomDailyRate = daily;
         _dailyFromMonthlyRent = daily;
+    }
+
+    /// <summary>The monthly rent this modal last worked out from the daily fee, so its own answer is not mistaken for the clerk's.</summary>
+    private decimal? _monthlyFromDailyFee;
+
+    /// <summary>
+    /// A daily fee implies a monthly rent: a stall in one of the office's own sections is let at its own daily rate and its month
+    /// IS thirty of those, which is what <c>Stall.ResolveMonthlyRent</c> bills.
+    /// </summary>
+    /// <remarks>
+    /// Not a convenience. On the rent-goal basis the server REFUSES a market stall with no monthly rate, and this form opened a
+    /// custom-section stall with a daily rate already filled and the monthly at nought - so the office completed the form and was
+    /// refused, with nothing on screen to say which figure was missing. Same restraint as the other direction: never while
+    /// editing, and never over a rent somebody typed.
+    /// </remarks>
+    private void DailyFeeEntered()
+    {
+        if (IsEditing) return;
+
+        var derived = DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(
+            Form.CustomDailyRate, Form.MonthlyRate, lastDerived: _monthlyFromDailyFee);
+
+        if (derived is not { } monthly) return;
+
+        Form.MonthlyRate = monthly;
+        _monthlyFromDailyFee = monthly;
     }
 
     protected override void OnParametersSet()    {

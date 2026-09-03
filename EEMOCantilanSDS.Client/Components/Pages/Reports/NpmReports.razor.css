@@ -1791,6 +1791,30 @@
         page-break-inside: avoid;
     }
 
+    /* ── Why page two used to start hard against the paper edge ───────────────
+       The page box is margin-free and the 12mm of whitespace came from padding on the SHEET. A block's padding applies once, at
+       its own top and bottom - not at every page break - so the first page got its margin, the last page got its footer space,
+       and every page between them began at y=0 with a table header touching the edge. Repeating the header row fixed WHICH
+       header appeared; it could not create the whitespace above it, because no CSS inserts padding at a page break.
+
+       Only a page MARGIN repeats on every page, so these two documents ask for one of their own. A named page applies solely to
+       what asks for it, so the roster, the statements and the receipts keep the margin-free box they were tuned for. Top and
+       bottom come from the page, left and right stay as the sheet's padding.
+
+       ONE CONSEQUENCE, stated rather than buried: a page with a top margin gives the browser somewhere to print its automatic
+       date, URL and page numbers. Chromium offers "Headers and footers" as a checkbox in the print dialog; if it is on, untick
+       it. The alternative was leaving a filed document with its figures against the paper edge on every page after the first. */
+    @page status-doc {
+        size: A4 portrait;
+        margin: 12mm 0;
+    }
+
+    .print-report-sheet.status-sheet,
+    .print-report-sheet.history-sheet {
+        page: status-doc;
+        padding: 0 12mm !important;
+    }
+
     .rpt-compliance-table-wrap { overflow: visible !important; }
 
     /* ── How these sheets break across pages ──────────────────────────────────

@@ -127,4 +127,53 @@ public class DailyFeeFromMonthlyRentTests
         // form validates, and an office that types 15 needs to see what it means rather than have it silently ignored.
         Assert.Equal(1m, DailyFeeFromMonthlyRent.DerivedOrNull(15m, MarketRate, MarketRate, null));
     }
+
+    // ── The other direction: a daily fee implies a monthly rent ─────────────────────────────────────────────────────
+    //
+    // Needed rather than convenient. On the rent-goal basis the server REFUSES a market stall with no monthly rate, and the form
+    // opened a custom-section stall with its daily rate filled and the monthly at nought - so the office completed the form and
+    // was refused with nothing on screen to say which figure was wanted.
+
+    /// <summary>Thirty of the stall's own daily fee, which is exactly what Stall.ResolveMonthlyRent bills it.</summary>
+    [Fact]
+    public void ThirtyPesosADayIsNineHundredAMonth()
+    {
+        Assert.Equal(900m, DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(30m, monthlyNow: 0m, lastDerived: null));
+    }
+
+    /// <summary>The office's own figure stands: a recorded rent is the contract's record, not something a rate edit may move.</summary>
+    [Fact]
+    public void ARentAlreadyRecordedIsNotOverwritten()
+    {
+        Assert.Null(DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(30m, monthlyNow: 850m, lastDerived: null));
+    }
+
+    /// <summary>But its own previous answer may be revised, or a corrected daily rate would leave a stale rent behind it.</summary>
+    [Fact]
+    public void ItsOwnPreviousAnswerIsRevised()
+    {
+        Assert.Equal(810m, DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(27m, monthlyNow: 900m, lastDerived: 900m));
+    }
+
+    /// <summary>Nothing to work from leaves the field alone rather than writing a nought over it.</summary>
+    [Fact]
+    public void NoDailyFeeMeansNoSuggestion()
+    {
+        Assert.Null(DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(0m, monthlyNow: 0m, lastDerived: null));
+    }
+
+    /// <summary>
+    /// The two directions agree at the figures that matter.
+    /// </summary>
+    /// <remarks>
+    /// ₱27 a day is the case that proves it: the office types ₱800 a month, the daily rounds to ₱27, and the month that stall
+    /// actually owes is thirty of those - ₱810. Both directions state that, so the form cannot show one figure and bill another.
+    /// </remarks>
+    [Fact]
+    public void TheTwoDirectionsAgree()
+    {
+        var daily = DailyFeeFromMonthlyRent.DerivedOrNull(800m, MarketRate, MarketRate, null);
+        Assert.Equal(27m, daily);
+        Assert.Equal(810m, DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(daily!.Value, 0m, null));
+    }
 }
