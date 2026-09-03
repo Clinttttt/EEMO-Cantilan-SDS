@@ -27,6 +27,28 @@
         </div>
     </div>
     <div class="rpt-topbar-right">
+        @* Print, on the two tabs that ARE documents. The Status Report and the History both render a
+           .print-report-sheet with the office's own letterhead, so what leaves the printer is the sheet on screen and
+           nothing else - the print rules below hide this bar along with the rest of the app's chrome.
+
+           Not on Weekly, Monthly or Yearly: those are charts and cards for reading, not an issued document, and printing
+           them would put the office's seal on a screenshot. Not on the utility tabs either, which carry their own Print
+           beside the statement list.
+
+           Never disabled, including when the History has no rows. A sheet stating that nothing was collected is a nil
+           report, which is a document an office is sometimes required to produce; refusing to print it would withhold the
+           evidence rather than protect anything.
+
+           Portrait, through the same window.print() the statements use. These sheets are six columns at their widest, so
+           they fit A4 portrait; the landscape helper exists for the ten-column roster, and using it here would turn a
+           document that fits into one that does not. *@
+        @if (ShowPrintReport || ShowHistory)
+        {
+            <button type="button" class="rpt-action-btn" @onclick="PrintPage" title="Print this report">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print
+            </button>
+        }
         <LiveClock />
     </div>
     <div class="rpt-header-progress">
