@@ -672,9 +672,23 @@
     private static bool IsConnectivityShaped(Exception ex) =>
         ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
 
-    /// <summary>Writes the ad-hoc trip to the on-device queue, to replay when the signal returns.</summary>
-    private async Task QueueQuickTripAsync()
+    /// <summary>
+    /// Writes the ad-hoc trip to the on-device queue, to replay when the signal returns.
+    /// </summary>
+    /// <returns>
+    /// False where there is nothing worth queueing. The confirm path validates every field before it writes, so this cannot
+    /// normally be reached empty - but the sheet's fields outlive CloseQuickTripSheet, which clears only the flag and the error,
+    /// so a helper that queued whatever it found could file a blank trip against the day. It refuses instead of trusting its
+    /// caller.
+    /// </returns>
+    private async Task<bool> QueueQuickTripAsync()
     {
+        if (string.IsNullOrWhiteSpace(QuickDriverName)
+            || string.IsNullOrWhiteSpace(QuickPlate)
+            || string.IsNullOrWhiteSpace(QuickRoute)
+            || string.IsNullOrWhiteSpace(QuickORNumber))
+            return false;
+
         await Sync.EnqueueAsync(new PendingOperation
         {
             Kind = OfflineOperationKind.Trip,
@@ -693,13 +707,21 @@
         });
 
         await RefreshQueuedAsync();
+        return true;
     }
 
-    /// <summary>Writes the registered transporter's trip to the on-device queue, to replay when the signal returns.</summary>
-    private async Task QueueRegisteredTripAsync()
+    /// <summary>
+    /// Writes the registered transporter's trip to the on-device queue, to replay when the signal returns.
+    /// </summary>
+    /// <returns>False where there is nothing worth queueing, on the same reasoning as the ad-hoc trip above.</returns>
+    private async Task<bool> QueueRegisteredTripAsync()
     {
-        if (SelectedTransporter is null)
-            return;
+        if (SelectedTransporter is null
+            || string.IsNullOrWhiteSpace(DriverName)
+            || string.IsNullOrWhiteSpace(PlateNumber)
+            || string.IsNullOrWhiteSpace(Route)
+            || string.IsNullOrWhiteSpace(ORNumber))
+            return false;
 
         await Sync.EnqueueAsync(new PendingOperation
         {
@@ -718,6 +740,7 @@
         });
 
         await RefreshQueuedAsync();
+        return true;
     }
 
     private async Task ConfirmQuickTripCoreAsync()

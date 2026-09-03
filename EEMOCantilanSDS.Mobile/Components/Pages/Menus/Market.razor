@@ -1329,10 +1329,18 @@
         {
             // The timeout that used to freeze the sheet. Queue what can be queued and say so.
             //
-            // NOT when the sheet was a utility payment. That path has its own queued operation, carrying the bill, its period and
-            // the two receipt numbers; queueing a DAILY collection instead would record a day's stall fee for a payment that was
-            // for electricity and water. A misc sheet states itself and is re-entered.
-            if (!SelectedIsMisc && await QueueSelectedCollectionAsync())
+            // NOT a MULTI-DAY settlement. That path sends several days against one receipt through SettleNpmDaysAsync, and the
+            // queue has no operation for it - one queued NpmDaily carries a single date and a single day's fee. Queueing here
+            // would record ONE day of a payment the collector has taken several days' cash for, close the sheet as though it had
+            // worked, and lose the rest. The offline branch already refuses multi-day for the same reason; a signal too thin to
+            // reach the office is the same situation, so it is refused the same way and the collector is told nothing was saved.
+            //
+            // NOT a utility payment either. That path has its own queued operation, carrying the bill, its period and the two
+            // receipt numbers; queueing a DAILY collection instead would record a day's stall fee for money taken for
+            // electricity and water.
+            var isMultiDay = SelectedIsPaid && !SelectedIsAbsent && ChosenDays.Count > 1;
+
+            if (!isMultiDay && !SelectedIsMisc && await QueueSelectedCollectionAsync())
             {
                 CloseCollectionSheet();
                 return;

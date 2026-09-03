@@ -498,9 +498,19 @@
     private static bool IsConnectivityShaped(Exception ex) =>
         ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
 
-    /// <summary>Writes the vendor entry to the on-device queue, to replay when the signal returns.</summary>
-    private async Task QueueVendorEntryAsync()
+    /// <summary>
+    /// Writes the vendor entry to the on-device queue, to replay when the signal returns.
+    /// </summary>
+    /// <returns>
+    /// False where there is nothing worth queueing. The confirm path validates both fields before it writes, so this cannot
+    /// normally be reached empty - but the sheet's fields outlive CloseSheets, which clears only the flags, so a helper that
+    /// queued whatever it found could file a blank vendor against the day's tabo. It refuses instead of trusting its caller.
+    /// </returns>
+    private async Task<bool> QueueVendorEntryAsync()
     {
+        if (string.IsNullOrWhiteSpace(VendorName) || string.IsNullOrWhiteSpace(Goods))
+            return false;
+
         await Sync.EnqueueAsync(new PendingOperation
         {
             Kind = OfflineOperationKind.TpmVendor,
@@ -515,6 +525,7 @@
         });
 
         await RefreshQueuedAsync();
+        return true;
     }
 
     private async Task ConfirmAddCoreAsync()

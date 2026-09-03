@@ -144,6 +144,41 @@ public class MobileNpmArrearsTests : RepositoryTestBase
         Assert.NotEqual(february.Days * 30m, february.Amount);
     }
 
+    /// <summary>
+    /// A month belonging to a previous lessee is not shown against the payor sitting there now.
+    /// </summary>
+    /// <remarks>
+    /// A re-let stall holds more than one occupancy, and StallOccupancy.AnsweringForMonth is the rule of record for which of them
+    /// a month belongs to - the register, the reports and the settlement all read it. The amount was always right because the
+    /// settlement asks that rule; the NAME on the row was not. A row labelled with the sitting lessee that carried the previous
+    /// one's months would have the collector demanding money from the wrong person. Those arrears are the office's to pursue, and
+    /// its Closed Accounts register states them occupancy by occupancy.
+    /// </remarks>
+    [Fact]
+    public async Task AMonthOwedByThePreviousLesseeIsNotShownAgainstTheOneSittingThereNow()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "9", 900m, ApplicableFees.BaseRental, MarketSection.VegetableArea);
+
+        // Held from July, handed over at the end of August with July and August never collected.
+        var departed = Contract.Create(stall.Id, "Departed Payor", "Departed Payor", new DateOnly(2026, 7, 1), 3, 900m);
+        departed.Terminate("System", new DateOnly(2026, 8, 31));
+
+        // The sitting lessee took the space on 1 September, so nothing before that is theirs to owe.
+        var sitting = Contract.Create(stall.Id, "Sitting Payor", "Sitting Payor", new DateOnly(2026, 9, 1), 3, 900m);
+
+        context.AddRange(facility, stall, departed, sitting);
+        await context.SaveChangesAsync();
+
+        var arrears = await Repo(context).GetMobileNpmArrearsAsync(Today.Year, Today.Month, Today, CancellationToken.None);
+
+        var payor = Assert.Single(arrears.Payors);
+
+        Assert.Equal("Sitting Payor", payor.PayorName);
+        Assert.DoesNotContain(payor.PastMonths, m => m.Month is 7 or 8);
+    }
+
     /// <summary>A month settled in full is not an arrear, and does not appear.</summary>
     [Fact]
     public async Task AMonthAlreadyCollectedIsNotListed()
