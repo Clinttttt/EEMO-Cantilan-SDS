@@ -1328,13 +1328,17 @@
         catch (Exception ex) when (IsConnectivityShaped(ex))
         {
             // The timeout that used to freeze the sheet. Queue what can be queued and say so.
-            if (await QueueSelectedCollectionAsync())
+            //
+            // NOT when the sheet was a utility payment. That path has its own queued operation, carrying the bill, its period and
+            // the two receipt numbers; queueing a DAILY collection instead would record a day's stall fee for a payment that was
+            // for electricity and water. A misc sheet states itself and is re-entered.
+            if (!SelectedIsMisc && await QueueSelectedCollectionAsync())
             {
                 CloseCollectionSheet();
                 return;
             }
 
-            SheetError = "The connection is too weak to reach the office. Try again where the signal is better.";
+            SheetError = "The connection is too weak to reach the office. Nothing was recorded. Try again where the signal is better.";
         }
         catch (Exception)
         {

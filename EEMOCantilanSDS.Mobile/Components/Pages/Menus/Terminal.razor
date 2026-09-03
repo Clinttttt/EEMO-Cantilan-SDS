@@ -1,4 +1,4 @@
-﻿@page "/terminal"
+@page "/terminal"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
@@ -337,7 +337,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseQuickTripSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseQuickTripSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmQuickTripAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm Trip")
                 </button>
@@ -375,7 +376,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseNewTransporterSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseNewTransporterSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmNewTransporterAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Register")
                 </button>
@@ -418,7 +420,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm Trip")
                 </button>
@@ -629,7 +632,95 @@
         QuickTripError = null;
     }
 
+    /// <summary>
+    /// Records an ad-hoc trip, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// The write throws on a timeout and nothing caught it, so <c>IsSaving</c> stayed true for the life of the page with Cancel
+    /// disabled beside it: a thin signal became a dead screen and the only way out was killing the app. IsSaving is now cleared in
+    /// a finally, and a connectivity-shaped failure queues the trip the way being offline already does.
+    /// </remarks>
     private async Task ConfirmQuickTripAsync()
+    {
+        try
+        {
+            await ConfirmQuickTripCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            await QueueQuickTripAsync();
+            CloseQuickTripSheet();
+        }
+        catch (Exception)
+        {
+            QuickTripError = "Unable to save the trip. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>A failure the collector cannot answer for: no usable response, or the office's own server faulting.</summary>
+    /// <remarks>
+    /// Deliberately narrow. A definitive refusal is the server's ruling and belongs on the screen; queueing it would replay that
+    /// refusal every time the signal returned.
+    /// </remarks>
+    private static bool IsTransientFailure(int? statusCode) => statusCode is null or 0 or >= 500;
+
+    /// <summary>A timeout or an unreachable server, as opposed to a fault in this app.</summary>
+    private static bool IsConnectivityShaped(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
+
+    /// <summary>Writes the ad-hoc trip to the on-device queue, to replay when the signal returns.</summary>
+    private async Task QueueQuickTripAsync()
+    {
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.Trip,
+            BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+            OccurredAt = DateTime.UtcNow,
+            TransporterId = null,
+            DriverName = QuickDriverName.Trim(),
+            PlateNumber = QuickPlate.Trim(),
+            Route = QuickRoute.Trim(),
+            Organization = string.IsNullOrWhiteSpace(QuickOrg) ? "Non-associated" : QuickOrg.Trim(),
+            ORNumber = QuickORNumber.Trim(),
+            FacilityLabel = "TRM",
+            Title = QuickDriverName.Trim(),
+            Detail = $"{QuickPlate.Trim()} · {QuickRoute.Trim()}",
+            Amount = Collection?.TripFee ?? 0m
+        });
+
+        await RefreshQueuedAsync();
+    }
+
+    /// <summary>Writes the registered transporter's trip to the on-device queue, to replay when the signal returns.</summary>
+    private async Task QueueRegisteredTripAsync()
+    {
+        if (SelectedTransporter is null)
+            return;
+
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.Trip,
+            BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+            OccurredAt = DateTime.UtcNow,
+            TransporterId = SelectedTransporter.Id,
+            DriverName = DriverName.Trim(),
+            PlateNumber = PlateNumber.Trim(),
+            Route = Route.Trim(),
+            ORNumber = ORNumber.Trim(),
+            FacilityLabel = "TRM",
+            Title = DriverName.Trim(),
+            Detail = $"{PlateNumber.Trim()} · {Route.Trim()}",
+            Amount = Collection?.TripFee ?? 0m
+        });
+
+        await RefreshQueuedAsync();
+    }
+
+    private async Task ConfirmQuickTripCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(QuickDriverName)) { QuickTripError = "Driver name is required."; return; }
         if (string.IsNullOrWhiteSpace(QuickPlate)) { QuickTripError = "Plate number is required."; return; }
@@ -642,24 +733,7 @@
         // Offline: queue the ad-hoc trip; it syncs (idempotently) when connectivity returns.
         if (!Sync.IsOnline)
         {
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.Trip,
-                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
-                OccurredAt = DateTime.UtcNow,
-                TransporterId = null,
-                DriverName = QuickDriverName.Trim(),
-                PlateNumber = QuickPlate.Trim(),
-                Route = QuickRoute.Trim(),
-                Organization = string.IsNullOrWhiteSpace(QuickOrg) ? "Non-associated" : QuickOrg.Trim(),
-                ORNumber = QuickORNumber.Trim(),
-                FacilityLabel = "TRM",
-                Title = QuickDriverName.Trim(),
-                Detail = $"{QuickPlate.Trim()} · {QuickRoute.Trim()}",
-                Amount = Collection?.TripFee ?? 0m
-            });
-
-            await RefreshQueuedAsync();
+            await QueueQuickTripAsync();
             CloseQuickTripSheet();
             IsSaving = false;
             return;
@@ -677,6 +751,18 @@
 
         if (!result.IsSuccess)
         {
+            // The signal was there when the screen loaded and has since gone thin, so the offline branch above never ran and the
+            // server did not answer in time. For the collector at the terminal that is the same situation as being offline, and it
+            // is answered the same way - the trip replays idempotently. Only transient failures: a definitive refusal is the
+            // server's ruling and must be shown, never queued, or it would replay for ever.
+            if (IsTransientFailure(result.StatusCode))
+            {
+                await QueueQuickTripAsync();
+                CloseQuickTripSheet();
+                IsSaving = false;
+                return;
+            }
+
             QuickTripError = result.Error ?? "Unable to save the trip.";
             IsSaving = false;
             return;
@@ -700,7 +786,35 @@
         NewTransporterError = null;
     }
 
+    /// <summary>
+    /// Registers a transporter, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// NOT queued on a thin signal, unlike a trip: this adds to the permanent roster, the sheet then reloads and auto-opens the
+    /// new transporter's trip sheet, and neither of those can happen from a queued write. It states itself and hands the sheet
+    /// back. No money is involved, so nothing is lost by asking again where the signal is better.
+    /// </remarks>
     private async Task ConfirmNewTransporterAsync()
+    {
+        try
+        {
+            await ConfirmNewTransporterCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            NewTransporterError = "The connection is too weak to reach the office. Nothing was registered. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            NewTransporterError = "Unable to register the transporter. Nothing was registered.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ConfirmNewTransporterCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(NewName)) { NewTransporterError = "Name is required."; return; }
         if (string.IsNullOrWhiteSpace(NewRoute)) { NewTransporterError = "Default route is required."; return; }
@@ -741,7 +855,31 @@
         ShowSheet = true;
     }
 
+    /// <summary>
+    /// Records a registered transporter's trip, and is answerable for the sheet never being left locked.
+    /// </summary>
     private async Task ConfirmAsync()
+    {
+        try
+        {
+            await ConfirmCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            await QueueRegisteredTripAsync();
+            CloseSheet();
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to save the trip. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ConfirmCoreAsync()
     {
         if (SelectedTransporter is null)
             return;
@@ -773,23 +911,7 @@
         // Offline: queue the trip against the registered transporter; syncs when connectivity returns.
         if (!Sync.IsOnline)
         {
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.Trip,
-                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
-                OccurredAt = DateTime.UtcNow,
-                TransporterId = SelectedTransporter.Id,
-                DriverName = DriverName.Trim(),
-                PlateNumber = PlateNumber.Trim(),
-                Route = Route.Trim(),
-                ORNumber = ORNumber.Trim(),
-                FacilityLabel = "TRM",
-                Title = DriverName.Trim(),
-                Detail = $"{PlateNumber.Trim()} · {Route.Trim()}",
-                Amount = Collection!.TripFee
-            });
-
-            await RefreshQueuedAsync();
+            await QueueRegisteredTripAsync();
             CloseSheet();
             IsSaving = false;
             return;
@@ -805,6 +927,16 @@
         var result = await MobileApi.RecordTripAsync(request);
         if (!result.IsSuccess)
         {
+            // A thin signal is the same situation as no signal for the collector at the terminal, and it is answered the same
+            // way: the trip goes to the queue and replays idempotently. Transient failures only.
+            if (IsTransientFailure(result.StatusCode))
+            {
+                await QueueRegisteredTripAsync();
+                CloseSheet();
+                IsSaving = false;
+                return;
+            }
+
             SheetError = result.Error ?? "Unable to save the trip.";
             IsSaving = false;
             return;

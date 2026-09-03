@@ -1,4 +1,4 @@
-﻿@page "/slaughter"
+@page "/slaughter"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
@@ -218,7 +218,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm")
                 </button>
@@ -379,7 +380,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseEdit" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseEdit">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmEditAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Save Changes")
                 </button>
@@ -711,7 +713,35 @@
         EditError = null;
     }
 
+    /// <summary>
+    /// Corrects a recorded slaughter line, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// NOT queued on a thin signal: this amends a record the server already holds, and replaying an amendment against a row that
+    /// may have been amended or voided meanwhile is how a correction becomes a corruption. It states itself and hands the sheet
+    /// back.
+    /// </remarks>
     private async Task ConfirmEditAsync()
+    {
+        try
+        {
+            await ConfirmEditCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            SheetError = "The connection is too weak to reach the office. Nothing was changed. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to save the correction. Nothing was changed.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ConfirmEditCoreAsync()
     {
         if (EditReceipt is null) return;
 
@@ -797,7 +827,91 @@
         SheetError = null;
     }
 
+    /// <summary>
+    /// Records the sheet's animal lines, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// The write throws on a timeout and nothing caught it, so <c>IsSaving</c> stayed true for the life of the page with Cancel
+    /// disabled beside it: a thin signal became a dead screen and the only way out was killing the app. IsSaving is now cleared in
+    /// a finally, and a connectivity-shaped failure queues the lines the way being offline already does.
+    /// </remarks>
     private async Task ConfirmAsync()
+    {
+        try
+        {
+            await ConfirmCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            // Thrown out of one of the line writes. Which line is not known here, so nothing is queued: the earlier lines may
+            // already be recorded, and queueing them again would charge the owner twice. The reload shows what did land, and the
+            // collector re-enters what did not - which is the safe direction for money.
+            SheetError = "The connection is too weak to reach the office. Check the day's records for what was saved before entering the rest.";
+            await ReloadQuietlyAsync();
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to save. Check the day's records for what was saved before entering the rest.";
+            await ReloadQuietlyAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>A failure the collector cannot answer for: no usable response, or the office's own server faulting.</summary>
+    private static bool IsTransientFailure(int? statusCode) => statusCode is null or 0 or >= 500;
+
+    /// <summary>A timeout or an unreachable server, as opposed to a fault in this app.</summary>
+    private static bool IsConnectivityShaped(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
+
+    /// <summary>Reloads the day without letting a second failure throw out of an error path.</summary>
+    private async Task ReloadQuietlyAsync()
+    {
+        try { await LoadCollectionAsync(); }
+        catch (Exception) { /* The message above already stands; a failed refresh must not replace it with a crash. */ }
+    }
+
+    /// <summary>Writes animal lines to the on-device queue, each its own idempotent operation, to replay when the signal returns.</summary>
+    private async Task QueueSlaughterLinesAsync(IReadOnlyList<RecordMobileSlaughterRequest> lines)
+    {
+        var bizDate = DateOnly.FromDateTime(DateTime.Now);
+
+        foreach (var line in lines)
+        {
+            var rate = line.AnimalType switch
+            {
+                AnimalType.Hog => HogRate,
+                AnimalType.Carabao or AnimalType.Cow => LargeRate,
+                _ => line.CustomRate ?? 0m
+            };
+            var animalLabel = line.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(line.CustomAnimalType)
+                ? line.CustomAnimalType!
+                : line.AnimalType.ToString();
+
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.Slaughter,
+                BusinessDate = bizDate,
+                OwnerName = line.OwnerName,
+                ORNumber = line.ORNumber,
+                AnimalType = line.AnimalType,
+                NumberOfHeads = line.NumberOfHeads,
+                CustomAnimalType = line.CustomAnimalType,
+                CustomRate = line.CustomRate,
+                FacilityLabel = "SLH",
+                Title = line.OwnerName,
+                Detail = $"{animalLabel} ×{line.NumberOfHeads}",
+                Amount = rate * line.NumberOfHeads
+            });
+        }
+
+        await RefreshQueuedAsync();
+    }
+
+    private async Task ConfirmCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(OwnerName))
         {
@@ -843,37 +957,7 @@
         // Offline: queue each animal line as its own idempotent operation (shared owner + OR).
         if (!Sync.IsOnline)
         {
-            var bizDate = DateOnly.FromDateTime(DateTime.Now);
-            foreach (var line in lines)
-            {
-                var rate = line.AnimalType switch
-                {
-                    AnimalType.Hog => HogRate,
-                    AnimalType.Carabao or AnimalType.Cow => LargeRate,
-                    _ => line.CustomRate ?? 0m
-                };
-                var animalLabel = line.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(line.CustomAnimalType)
-                    ? line.CustomAnimalType!
-                    : line.AnimalType.ToString();
-
-                await Sync.EnqueueAsync(new PendingOperation
-                {
-                    Kind = OfflineOperationKind.Slaughter,
-                    BusinessDate = bizDate,
-                    OwnerName = line.OwnerName,
-                    ORNumber = line.ORNumber,
-                    AnimalType = line.AnimalType,
-                    NumberOfHeads = line.NumberOfHeads,
-                    CustomAnimalType = line.CustomAnimalType,
-                    CustomRate = line.CustomRate,
-                    FacilityLabel = "SLH",
-                    Title = line.OwnerName,
-                    Detail = $"{animalLabel} ×{line.NumberOfHeads}",
-                    Amount = rate * line.NumberOfHeads
-                });
-            }
-
-            await RefreshQueuedAsync();
+            await QueueSlaughterLinesAsync(lines);
             CloseSheet();
             IsSaving = false;
             return;
@@ -881,12 +965,25 @@
 
         // Record each line under the same owner + OR (mirrors the web admin's per-animal rows).
         // Submitted sequentially; stop on the first failure and surface the error.
-        foreach (var line in lines)
+        for (var i = 0; i < lines.Count; i++)
         {
-            var result = await MobileApi.RecordSlaughterAsync(line);
+            var result = await MobileApi.RecordSlaughterAsync(lines[i]);
             if (!result.IsSuccess)
             {
-                SheetError = result.Error ?? $"Unable to save the {line.AnimalType} line.";
+                // A thin signal is the same situation as no signal for the collector at the slaughterhouse, so the lines go to
+                // the queue - but ONLY THE ONES NOT YET RECORDED. The lines before this one were accepted by the server under no
+                // client operation id of their own, so queueing them too would replay them as fresh records and charge the owner
+                // twice. Transient failures only; a definitive refusal is the server's ruling and is shown.
+                if (IsTransientFailure(result.StatusCode))
+                {
+                    await QueueSlaughterLinesAsync(lines.Skip(i).ToList());
+                    CloseSheet();
+                    IsSaving = false;
+                    await LoadCollectionAsync(); // reflect the lines that did save
+                    return;
+                }
+
+                SheetError = result.Error ?? $"Unable to save the {lines[i].AnimalType} line.";
                 IsSaving = false;
                 await LoadCollectionAsync(); // reflect any lines that did save
                 return;

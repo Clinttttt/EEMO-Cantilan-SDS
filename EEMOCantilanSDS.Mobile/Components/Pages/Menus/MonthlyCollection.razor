@@ -1,4 +1,4 @@
-﻿@page "/collect/{Facility}"
+@page "/collect/{Facility}"
 @using System.Globalization
 @using Microsoft.JSInterop
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
@@ -297,7 +297,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseSheet">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm")
                 </button>
@@ -420,7 +421,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseCollectBalance" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseCollectBalance">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmCollectBalanceAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm Payment")
                 </button>
@@ -950,7 +952,46 @@
         SelectedStall = null;
     }
 
+    /// <summary>
+    /// Collects part of an outstanding balance, and is answerable for the sheet never being left locked.
+    /// </summary>
     private async Task ConfirmCollectBalanceAsync()
+    {
+        try
+        {
+            await ConfirmCollectBalanceCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            // The figures were settled before the write was attempted, so they can be queued as they stood. Recomputing them here
+            // would risk quoting a different amount from the one the payor was shown.
+            if (SelectedStall is not null && BalanceCollectNow is > 0m)
+            {
+                var newTotalPaid = SelectedStall.AmountPaid + BalanceCollectNow.Value;
+                var status = newTotalPaid >= SelectedStall.MonthlyRate ? PaymentStatus.Paid : PaymentStatus.Partial;
+
+                await QueueBalanceCollectionAsync(
+                    status,
+                    newTotalPaid,
+                    !string.IsNullOrWhiteSpace(BalanceOrNumber) ? BalanceOrNumber.Trim() : null);
+
+                CloseCollectBalance();
+                return;
+            }
+
+            CollectBalanceError = "The connection is too weak to reach the office. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            CollectBalanceError = "Unable to save the payment. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ConfirmCollectBalanceCoreAsync()
     {
         if (SelectedStall is null || Collection is null) return;
 
@@ -977,20 +1018,7 @@
 
         if (!Sync.IsOnline)
         {
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.MonthlyRental,
-                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
-                StallId = SelectedStall.StallId,
-                Status = status,
-                PartialAmount = status == PaymentStatus.Partial ? newTotalPaid : null,
-                ORNumber = orNumber,
-                FacilityLabel = FacilityCodeUpper,
-                Title = SelectedStall.PayorName,
-                Detail = $"No. {SelectedStall.StallNo} · balance",
-                Amount = BalanceCollectNow.Value
-            });
-            QueuedOfflineStalls.Add(SelectedStall.StallId);
+            await QueueBalanceCollectionAsync(status, newTotalPaid, orNumber);
             CloseCollectBalance();
             IsSaving = false;
             return;
@@ -1005,6 +1033,17 @@
         var result = await MobileApi.RecordMonthlyCollectionAsync(request);
         if (!result.IsSuccess)
         {
+            // A thin signal is the same situation as no signal for the collector standing at the space, and it is answered the
+            // same way: the payment goes to the queue and replays idempotently. Transient failures only; a definitive refusal is
+            // the server's ruling and is shown, never queued, or it would replay for ever.
+            if (IsTransientFailure(result.StatusCode))
+            {
+                await QueueBalanceCollectionAsync(status, newTotalPaid, orNumber);
+                CloseCollectBalance();
+                IsSaving = false;
+                return;
+            }
+
             CollectBalanceError = result.Error ?? "Unable to save the payment.";
             IsSaving = false;
             return;
@@ -1037,7 +1076,105 @@
         SheetError = null;
     }
 
+    /// <summary>
+    /// Records the sheet's payment, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// The write throws on a timeout and nothing caught it, so <c>IsSaving</c> stayed true for the life of the page with Cancel
+    /// disabled beside it: a thin signal became a dead screen and the only way out was killing the app. IsSaving is now cleared in
+    /// a finally, and a connectivity-shaped failure queues the payment the way being offline already does.
+    /// </remarks>
     private async Task ConfirmAsync()
+    {
+        try
+        {
+            await ConfirmCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            if (await QueueMonthlyCollectionAsync())
+            {
+                CloseSheet();
+                return;
+            }
+
+            SheetError = "The connection is too weak to reach the office. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to save the payment. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>A failure the collector cannot answer for: no usable response, or the office's own server faulting.</summary>
+    /// <remarks>
+    /// Deliberately narrow. A definitive refusal is the server's ruling and belongs on the screen; queueing it would replay that
+    /// refusal every time the signal returned.
+    /// </remarks>
+    private static bool IsTransientFailure(int? statusCode) => statusCode is null or 0 or >= 500;
+
+    /// <summary>A timeout or an unreachable server, as opposed to a fault in this app.</summary>
+    private static bool IsConnectivityShaped(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
+
+    /// <summary>
+    /// Writes the sheet's payment to the on-device queue, to replay when the signal returns.
+    /// </summary>
+    /// <returns>
+    /// False where the answer cannot be queued, which is "Unpaid": it carries no money to replay and is a plain state change the
+    /// server must make, so it has to be recorded online or not at all.
+    /// </returns>
+    private async Task<bool> QueueMonthlyCollectionAsync()
+    {
+        if (SelectedStall is null || SelectedStatus == PaymentStatus.Unpaid)
+            return false;
+
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.MonthlyRental,
+            BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+            StallId = SelectedStall.StallId,
+            Status = SelectedStatus,
+            PartialAmount = SelectedStatus == PaymentStatus.Partial ? PartialAmount : null,
+            ORNumber = !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
+            FacilityLabel = FacilityCodeUpper,
+            Title = SelectedStall.PayorName,
+            Detail = $"No. {SelectedStall.StallNo}",
+            Amount = SelectedStatus == PaymentStatus.Partial ? (PartialAmount ?? 0m) : SelectedStall.MonthlyRate
+        });
+
+        QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
+        return true;
+    }
+
+    /// <summary>Writes a balance collection to the on-device queue, to replay when the signal returns.</summary>
+    private async Task QueueBalanceCollectionAsync(PaymentStatus status, decimal newTotalPaid, string? orNumber)
+    {
+        if (SelectedStall is null)
+            return;
+
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.MonthlyRental,
+            BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+            StallId = SelectedStall.StallId,
+            Status = status,
+            PartialAmount = status == PaymentStatus.Partial ? newTotalPaid : null,
+            ORNumber = orNumber,
+            FacilityLabel = FacilityCodeUpper,
+            Title = SelectedStall.PayorName,
+            Detail = $"No. {SelectedStall.StallNo} · balance",
+            Amount = BalanceCollectNow ?? 0m
+        });
+
+        QueuedOfflineStalls.Add(SelectedStall.StallId);
+    }
+
+    private async Task ConfirmCoreAsync()
     {
         if (SelectedStall is null || Collection is null)
             return;
@@ -1061,21 +1198,7 @@
                 return;
             }
 
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.MonthlyRental,
-                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
-                StallId = SelectedStall.StallId,
-                Status = SelectedStatus,
-                PartialAmount = SelectedStatus == PaymentStatus.Partial ? PartialAmount : null,
-                ORNumber = !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
-                FacilityLabel = FacilityCodeUpper,
-                Title = SelectedStall.PayorName,
-                Detail = $"No. {SelectedStall.StallNo}",
-                Amount = SelectedStatus == PaymentStatus.Partial ? (PartialAmount ?? 0m) : SelectedStall.MonthlyRate
-            });
-
-            QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
+            await QueueMonthlyCollectionAsync();
             CloseSheet();
             IsSaving = false;
             return;
@@ -1090,6 +1213,16 @@
         var result = await MobileApi.RecordMonthlyCollectionAsync(request);
         if (!result.IsSuccess)
         {
+            // A thin signal is answered as no signal is: the payment goes to the queue and replays idempotently. Transient
+            // failures only, and never for "Unpaid" - that carries no money to replay and the offline branch above refuses it
+            // too, so the guard inside the queue write covers both paths.
+            if (IsTransientFailure(result.StatusCode) && await QueueMonthlyCollectionAsync())
+            {
+                CloseSheet();
+                IsSaving = false;
+                return;
+            }
+
             SheetError = result.Error ?? "Unable to save the payment.";
             IsSaving = false;
             return;

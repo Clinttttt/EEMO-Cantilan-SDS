@@ -1,4 +1,4 @@
-﻿@page "/taboan"
+@page "/taboan"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
@@ -178,7 +178,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseSheets" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseSheets">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAddAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Add Vendor")
                 </button>
@@ -207,7 +208,8 @@
 
             <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
-                <button class="btn-cancel" type="button" @onclick="CloseSheets" disabled="@IsSaving">Cancel</button>
+                @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
+                    <button class="btn-cancel" type="button" @onclick="CloseSheets">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmPayAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Save")
                 </button>
@@ -455,7 +457,67 @@
         ShowPaySheet = true;
     }
 
+    /// <summary>
+    /// Adds a vendor to the day's tabo, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// The write throws on a timeout and nothing caught it, so <c>IsSaving</c> stayed true for the life of the page with Cancel
+    /// disabled beside it: a thin signal became a dead screen and the only way out was killing the app. The work is wrapped, a
+    /// connectivity-shaped failure queues the entry the way being offline already does, and IsSaving is cleared in a finally -
+    /// which is the promise that matters, because whatever happens the collector can act again.
+    /// </remarks>
     private async Task ConfirmAddAsync()
+    {
+        try
+        {
+            await ConfirmAddCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            await QueueVendorEntryAsync();
+            CloseSheets();
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to add the vendor. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    /// <summary>A failure the collector cannot answer for: no usable response, or the office's own server faulting.</summary>
+    /// <remarks>
+    /// Deliberately narrow. A definitive refusal is the server's ruling and belongs on the screen; queueing it would replay that
+    /// refusal every time the signal returned.
+    /// </remarks>
+    private static bool IsTransientFailure(int? statusCode) => statusCode is null or 0 or >= 500;
+
+    /// <summary>A timeout or an unreachable server, as opposed to a fault in this app.</summary>
+    private static bool IsConnectivityShaped(Exception ex) =>
+        ex is HttpRequestException or TaskCanceledException or OperationCanceledException;
+
+    /// <summary>Writes the vendor entry to the on-device queue, to replay when the signal returns.</summary>
+    private async Task QueueVendorEntryAsync()
+    {
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            Kind = OfflineOperationKind.TpmVendor,
+            BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+            VendorName = VendorName.Trim(),
+            Goods = Goods.Trim(),
+            ORNumber = string.IsNullOrWhiteSpace(AddORNumber) ? null : AddORNumber.Trim(),
+            FacilityLabel = "TPM",
+            Title = VendorName.Trim(),
+            Detail = Goods.Trim(),
+            Amount = Collection?.VendorFee ?? 0m
+        });
+
+        await RefreshQueuedAsync();
+    }
+
+    private async Task ConfirmAddCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(VendorName))
         {
@@ -474,20 +536,7 @@
         // Offline: queue the vendor entry (the ₱100 fee on entry); syncs when connectivity returns.
         if (!Sync.IsOnline)
         {
-            await Sync.EnqueueAsync(new PendingOperation
-            {
-                Kind = OfflineOperationKind.TpmVendor,
-                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
-                VendorName = VendorName.Trim(),
-                Goods = Goods.Trim(),
-                ORNumber = string.IsNullOrWhiteSpace(AddORNumber) ? null : AddORNumber.Trim(),
-                FacilityLabel = "TPM",
-                Title = VendorName.Trim(),
-                Detail = Goods.Trim(),
-                Amount = Collection?.VendorFee ?? 0m
-            });
-
-            await RefreshQueuedAsync();
+            await QueueVendorEntryAsync();
             CloseSheets();
             IsSaving = false;
             return;
@@ -499,6 +548,18 @@
             string.IsNullOrWhiteSpace(AddORNumber) ? null : AddORNumber.Trim()));
         if (!result.IsSuccess)
         {
+            // The signal was there when the screen loaded and has since gone thin, so the offline branch above never ran and the
+            // server did not answer in time. For the collector standing at the tabo that is the same situation as being offline,
+            // and it is answered the same way. Only transient failures: a definitive refusal is the server's ruling and must be
+            // shown, never queued, or it would replay for ever.
+            if (IsTransientFailure(result.StatusCode))
+            {
+                await QueueVendorEntryAsync();
+                CloseSheets();
+                IsSaving = false;
+                return;
+            }
+
             SheetError = result.Error ?? "Unable to add the vendor.";
             IsSaving = false;
             return;
@@ -509,7 +570,36 @@
         finally { IsSaving = false; }
     }
 
+    /// <summary>
+    /// Marks a tabo vendor paid, and is answerable for the sheet never being left locked.
+    /// </summary>
+    /// <remarks>
+    /// Same fault as the add sheet: an unguarded write left IsSaving true and Cancel disabled after a timeout. NOT queued on a
+    /// thin signal, unlike a vendor entry: this settles an attendance row the server already holds, and replaying "mark paid"
+    /// against a row that may have been paid, voided or superseded meanwhile is how one payment becomes two records. It states
+    /// itself and hands the sheet back, and the collector tries again where the signal is better.
+    /// </remarks>
     private async Task ConfirmPayAsync()
+    {
+        try
+        {
+            await ConfirmPayCoreAsync();
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex))
+        {
+            SheetError = "The connection is too weak to reach the office. Nothing was recorded. Try again where the signal is better.";
+        }
+        catch (Exception)
+        {
+            SheetError = "Unable to update the payment. Nothing was recorded.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private async Task ConfirmPayCoreAsync()
     {
         if (SelectedAttendance is null)
             return;
