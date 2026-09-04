@@ -1858,14 +1858,32 @@
         page-break-inside: avoid;
     }
 
-    /* A section may run onto the next page - some areas hold forty stalls - but its wrapper must not clip or scroll on paper. */
+    /* A SECTION IS ONE UNIT: its name, its four-cell summary and its rows. This was `auto`, which is what put "KAHOY SALE" and
+       its summary at the foot of a page with the stalls they describe on the next - a heading and a total for rows the reader
+       cannot see. `avoid` is a request, not a constraint: a section taller than the page is still split by the browser, and the
+       repeating header above keeps that readable. So small sections stay whole and large ones still fit. */
     .print-section-block {
-        break-inside: auto;
-        page-break-inside: auto;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* And the summary strip stays with the table it summarises, for the same reason. */
+    .print-section-summary {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        break-after: avoid;
+        page-break-after: avoid;
     }
 
     .print-table-wrap {
         overflow: visible !important;
+    }
+
+    /* Signatures are never split down the middle: "Prepared by" on one page and "Reviewed by" on the next is not a document
+       anybody signs. */
+    .print-report-signatures {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 }
 

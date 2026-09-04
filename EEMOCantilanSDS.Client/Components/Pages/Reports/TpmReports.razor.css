@@ -260,9 +260,26 @@
         page-break-inside: avoid;
     }
 
+    /* A SECTION IS ONE UNIT: its name, its summary strip and its rows. This was uto, which put a heading and a total at the
+       foot of a page with the rows they describe on the next. void is a request, not a constraint: a section taller than the
+       page is still split, and the repeating header keeps that readable - so small sections stay whole and large ones still fit. */
     .print-section-block {
-        break-inside: auto;
-        page-break-inside: auto;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .print-section-summary {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    /* Signatures are never split down the middle: "Prepared by" on one page and "Reviewed by" on the next is not a document
+       anybody signs. */
+    .print-report-signatures {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     .print-table-wrap { overflow: visible !important; }
