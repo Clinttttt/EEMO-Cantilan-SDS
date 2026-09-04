@@ -537,14 +537,8 @@
 
        Stated rather than buried: a top margin gives the browser somewhere to print its automatic date and page numbers. Untick
        "Headers and footers" in the print dialog if it does. The alternative was figures against the paper edge on every page. */
-    @page status-doc {
-        size: A4 portrait;
-        margin: 12mm 0;
-    }
-
-    .print-report-sheet.status-sheet,
-    .print-report-sheet.history-sheet {
-        page: status-doc;
-        padding: 0 12mm !important;
-    }
+    /* The page margin these sheets need is injected at print time by stalltrackPrint.reportDocument, NOT set here. An @page in a
+       scoped stylesheet does not reach the print engine, and a NAMED page is not honoured at all - print.css assigns a landscape
+       named page to .print-report-sheet and this document still printed portrait, which is the proof. Left and right padding is
+       injected with it, so nothing about the paper margin is stated in CSS any more. */
 }

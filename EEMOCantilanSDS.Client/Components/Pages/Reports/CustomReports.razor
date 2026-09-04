@@ -505,7 +505,10 @@ else
     async Task SetPeriod(string p) { ShowPrintReport = false; ShowHistory = false; ActivePeriod = p; await LoadAsync(); }
     async Task ShowPrintReportView() { ShowPrintReport = true; ShowHistory = false; await LoadAsync(); }
     async Task ShowHistoryView() { ShowHistory = true; ShowPrintReport = false; await LoadHistoryAsync(); }
-    async Task PrintPage() => await JS.InvokeVoidAsync("print");
+    // Through the injected-rule helper, not a bare window.print(). The page margin these sheets need cannot be set from a
+    // stylesheet: an @page in a scoped stylesheet does not reach the print engine, and a NAMED page is not honoured at all -
+    // print.css assigns a landscape named page to .print-report-sheet and this document still printed portrait.
+    async Task PrintPage() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 
     async Task PrevPeriod()
     {
