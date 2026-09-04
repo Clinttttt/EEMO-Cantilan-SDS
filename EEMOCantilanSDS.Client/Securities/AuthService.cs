@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common;
+﻿using EEMOCantilanSDS.Application.Common;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System.Text.Json;
@@ -118,7 +118,7 @@ public class AuthService(
     private static LoginOutcome ParseOutcome(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
-            return new LoginOutcome(false, false, Error: "Authentication failed.");
+            return new LoginOutcome(false, false, Error: "Sign-in could not be completed. Please try again in a moment.");
 
         try
         {
@@ -137,7 +137,7 @@ public class AuthService(
         }
         catch { /* fall through to the generic failure */ }
 
-        return new LoginOutcome(false, false, Error: "Authentication failed.");
+        return new LoginOutcome(false, false, Error: "Sign-in could not be completed. Please try again in a moment.");
     }
 
     public async Task LogoutAsync()

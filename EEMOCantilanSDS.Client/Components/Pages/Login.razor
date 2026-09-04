@@ -1,4 +1,4 @@
-@page "/login"
+﻿@page "/login"
 @attribute [AllowAnonymous]
 
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
@@ -754,6 +754,21 @@
         ErrorMessage = string.Empty;
         FieldErrors.Clear();
 
+        // Asked here rather than at the server. An empty box is not a failed sign-in, and answering it with the same
+        // "these details do not match" the server gives a wrong password told the reader nothing and cost a round trip.
+        // Naming the empty field is the one thing this screen may safely be specific about.
+        var noUser = string.IsNullOrWhiteSpace(Username);
+        var noPass = string.IsNullOrWhiteSpace(Password);
+
+        if (noUser || noPass)
+        {
+            ErrorMessage = noUser && noPass
+                ? "Enter your username and password."
+                : noUser ? "Enter your username." : "Enter your password.";
+            StateHasChanged();
+            return;
+        }
+
         IsLoading = true;
         StateHasChanged();
 
@@ -783,13 +798,15 @@
             else if (!outcome.Success)
             {
                 ErrorMessage = string.IsNullOrWhiteSpace(outcome.Error)
-                    ? "Invalid username or password."
+                    ? "Those sign-in details do not match an account for this office. Check them and try again."
                     : outcome.Error!;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            ErrorMessage = $"An error occurred: {ex.Message}";
+            // The exception's own text is not shown. It is written for a developer, it can name internal addresses and
+            // types, and a sign-in screen is a page anybody can reach - so the reader is told what to do instead.
+            ErrorMessage = "Unable to reach the office's server. Check the connection and try again.";
         }
         finally
         {
@@ -849,9 +866,11 @@
                 FormNonce++;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            ErrorMessage = $"An error occurred: {ex.Message}";
+            // The exception's own text is written for a developer and can name internal addresses; a sign-in screen
+            // shows the reader what to do instead.
+            ErrorMessage = "Unable to reach the office's server. Check the connection and try again.";
         }
         finally
         {
