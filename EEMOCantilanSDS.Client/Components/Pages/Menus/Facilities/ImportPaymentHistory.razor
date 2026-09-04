@@ -1,4 +1,4 @@
-﻿@page "/import-history/{Facility}"
+@page "/import-history/{Facility}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory
 @using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory
@@ -1102,14 +1102,22 @@
     /// The template, as a data URI so it needs no endpoint. Written through CsvCell so the file the office opens
     /// cannot itself be read as a formula, and so it round-trips through the same escaping the exports use.
     /// </summary>
+    /// <remarks>
+    /// HEADER ONLY, and this one mattered more than tidiness. The template used to carry a worked row -
+    /// <c>1, Kim Chui, 2025-03, 12, OR-100234</c> - and the parser skips only the HEADER line, so an office that filled its own
+    /// rows in beneath it uploaded that row too. It names a stall, a payor, a period, a day count and a receipt number: a
+    /// fabricated twelve-day payment against a real occupant with a real-looking OR.
+    ///
+    /// <para>Cantilan happened to be safe, because the server refuses a period no occupancy answers for and its terms begin after
+    /// the sample's 2025-03. That is accident, not protection - an LGU whose contract ran in 2025 would have had the payment
+    /// accepted. "Use sample data instead" already loads a worked example straight into the grid, where the office can see it for
+    /// what it is and can never upload it as a file.</para>
+    /// </remarks>
     private string TemplateHref
     {
         get
         {
-            var csv = CsvCell.Row(Columns) + "\n"
-                      + (IsDaily
-                          ? CsvCell.Row("1", "Kim Chui", "2025-03", "12", "OR-100234") + "\n"
-                          : CsvCell.Row("1", "Joseph Villamor", "2025-03", "2400.00", "OR-100234", "2025-03-05") + "\n");
+            var csv = CsvCell.Row(Columns) + "\n";
             return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(csv);
         }
     }

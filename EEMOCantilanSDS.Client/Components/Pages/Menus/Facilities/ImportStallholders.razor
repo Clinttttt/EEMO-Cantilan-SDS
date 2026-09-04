@@ -1623,20 +1623,18 @@
             if (_facility is null) return "#";
             var header = string.Join(",", _facility.Columns.Select(c => c.Label));
 
-            // A guidance line showing WHERE the office writes the basis for a space let without a signed contract,
-            // in its own wording. It names no occupant, so it is skipped on upload (a data row must name one) and
-            // can never be imported as a stallholder — it is there to be read and typed over.
-            var basis = _facility.Code is FacilityCode.BBQ or FacilityCode.ICE
-                ? "No contract (space only)"
-                : $"No contract (Extension {_facility.ShortCode})";
-            var guidance = string.Join(",", _facility.Columns.Select(c => c.Key == "contractName" ? basis : string.Empty));
-
+            // HEADER ONLY. This file used to carry a guidance line with the "no contract" wording in the contract-name column,
+            // meant to be read and typed over. It could not be imported - a row naming no occupant is skipped - but it opened in
+            // the office's spreadsheet as a second row of the sheet they were about to fill in, which reads as data the platform
+            // put there. The note beside this link already states both wordings in full, so nothing is lost by leaving the file
+            // clean, and "Use sample data instead" loads a worked example into the grid where it can be seen for what it is.
+            //
             // A byte-order mark, and it is load-bearing. The office opens this in Excel, which ignores the charset on a
             // data URI and reads a .csv in the system's ANSI codepage: the peso sign in "Delinquent (₱)" arrived as
             // "â‚±". A BOM is what tells Excel the file is UTF-8. Reported from use, with the mangled header visible in
             // the sheet.
             const string bom = "\uFEFF";
-            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(bom + header + "\n" + guidance + "\n");
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(bom + header + "\n");
         }
     }
 
