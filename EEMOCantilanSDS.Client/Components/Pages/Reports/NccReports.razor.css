@@ -512,6 +512,13 @@
     .print-section-block {
         break-inside: avoid;
         page-break-inside: avoid;
+        /* The top space is PADDING here, not the margin this block carries on screen. A margin is dropped at a page break; a
+           padding is part of the box and survives, so a section that begins a page opens clear of the paper edge instead of
+           against it. The page margin is nought, because a page margin is where Chromium prints its own date, title and URL and
+           no CSS turns that off - so the document supplies its own whitespace. Sections are kept whole above, which is what makes
+           a continued page always begin with one. */
+        margin-top: 0 !important;
+        padding-top: 10mm;
     }
 
     .print-section-summary {
