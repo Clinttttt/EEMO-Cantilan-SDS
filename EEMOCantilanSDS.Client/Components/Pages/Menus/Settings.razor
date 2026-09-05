@@ -274,18 +274,29 @@
                         </div>
                     </div>
                     <div class="set-rows">
+                        @* What an office can rely on, and nothing it cannot.
+                           The row that used to sit here said "Automated - Daily 01:00 PH time", on a card headed "your
+                           municipality's data". No such thing exists for one municipality: the nightly job is a pg_dump of the
+                           WHOLE database, kept as a platform artefact, and an office can neither reach it nor restore from it -
+                           that restore is operator-only and would replace every LGU at once. Nothing schedules a per-tenant
+                           backup at all; CreateTenantBackupCommand is only ever reached by somebody pressing "Create backup now".
+                           So the office was being told its data was backed up nightly when in truth its own backups are the ones
+                           it takes.
+
+                           These three are true, checked, and the ones that matter when something has gone wrong: what this page
+                           can do, how many backups are kept (RetentionCount = 15), and that a restore touches nobody else. *@
                         <div class="set-row"><span class="set-key">Your municipality</span><span class="set-val">Data archive · restore point · restore</span></div>
-                        <div class="set-row"><span class="set-key">Automated</span><span class="set-val">Daily · 01:00 PH time</span></div>
+                        <div class="set-row"><span class="set-key">Backups kept</span><span class="set-val">15 most recent</span></div>
+                        <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your records only</span></div>
                         @* Point-in-time recovery is the OPERATOR's tool, and this card was the one place that told an office
                            otherwise. Azure PITR restores the whole PostgreSQL server as it stood at a chosen moment: it has no
-                           notion of a tenant, so it cannot roll back one municipality without rolling back the others. An office
-                           reading it here would have taken it for something available to them, when in truth it is neither theirs
-                           to invoke nor scoped to their records - and it would have been a plain misstatement had this LGU been
-                           the only one on the platform.
+                           notion of a tenant, so it cannot roll back one municipality without rolling back the others.
 
-                           The Backups page has always gated the same row this way. This card had not, which is the whole defect. *@
+                           The nightly whole-database dump belongs here for the same reason - it is real, but it is the platform's,
+                           not the office's. The Backups page has always gated its equivalents this way. *@
                         @if (_isPlatformOperator)
                         {
+                            <div class="set-row"><span class="set-key">Automated</span><span class="set-val">Daily · 01:00 PH time · whole database</span></div>
                             <div class="set-row"><span class="set-key">Point-in-time recovery</span><span class="set-val">7-day Azure PITR · whole database</span></div>
                             <div class="set-row"><span class="set-key">Whole database</span><span class="set-val">Run &amp; download · restore</span></div>
                         }
