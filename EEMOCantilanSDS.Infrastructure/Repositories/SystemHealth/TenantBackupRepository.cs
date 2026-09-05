@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -24,7 +24,17 @@ public class TenantBackupRepository(
     private const int RetentionCount = 15;
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = false };
 
-    public async Task<TenantBackupInfo> CreateAsync(string? note, CancellationToken ct)
+    public async Task<TenantBackupInfo> CreateAsync(string? note, CancellationToken ct) =>
+        await CreateAsync(note, automated: false, ct);
+
+    /// <summary>
+    /// Takes a backup of the caller's municipality, recording whether the platform asked for it or the office did.
+    /// </summary>
+    /// <param name="automated">
+    /// True only for the scheduled nightly run. It decides which allowance the entry is pruned against, so a nightly backup can
+    /// never push out one the office took deliberately.
+    /// </param>
+    public async Task<TenantBackupInfo> CreateAsync(string? note, bool automated, CancellationToken ct)
     {
         var snapshot = await restoreRepository.CreateSnapshotAsync(ct);
         var json = JsonSerializer.Serialize(snapshot, Options);
@@ -39,12 +49,13 @@ public class TenantBackupRepository(
             tableCount: tableCount,
             sizeBytes: sizeBytes,
             snapshotJson: json,
-            note: note);
+            note: note,
+            isAutomated: automated);
 
         context.TenantBackups.Add(backup);          // MunicipalityId stamped by the interceptor
         await context.SaveChangesAsync(ct);
 
-        await TrimHistoryAsync(ct);
+        await TrimHistoryAsync(automated, ct);
 
         return ToInfo(backup);
     }
@@ -180,10 +191,16 @@ public class TenantBackupRepository(
         return (rows, tables, snap, Array.Empty<TenantBackupTableDto>());
     }
 
-    // Keep only the most recent RetentionCount backups for the caller's municipality (query-filter scoped).
-    private async Task TrimHistoryAsync(CancellationToken ct)
+    // Keep only the most recent RetentionCount backups OF EACH CLASS for the caller's municipality (query-filter scoped).
+    //
+    // Separate allowances, and that is the whole point. One shared list of fifteen meant a nightly automated backup would evict a
+    // manual one within a fortnight - including the deliberate backup an office takes before doing something risky, which is the
+    // most valuable entry in the list. Automating the platform's convenience must not consume the office's own safety net, so each
+    // class is trimmed against its own count and neither can push the other out.
+    private async Task TrimHistoryAsync(bool automated, CancellationToken ct)
     {
         var stale = await context.TenantBackups
+            .Where(b => b.IsAutomated == automated)
             .OrderByDescending(b => b.CreatedAtUtc)
             .Skip(RetentionCount)
             .ToListAsync(ct);

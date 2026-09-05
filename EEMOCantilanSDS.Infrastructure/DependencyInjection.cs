@@ -172,6 +172,14 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITenantExportRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantExportRepository>();
             service.AddScoped<ITenantRestoreRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantRestoreRepository>();
             service.AddScoped<ITenantBackupRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantBackupRepository>();
+
+            // One backup of every active municipality per day, so an office's records are recoverable without somebody remembering
+            // to ask. Deliberately the LAST thing registered here and answerable to nothing: it holds no other component's
+            // dependencies, and if it never runs - Always On is switched off from time to time to keep the bill down - the platform
+            // is exactly what it was. See DailyTenantBackupService for why it asks "has today's been taken?" rather than sleeping
+            // for a day, which is what makes a sleeping app's schedule self-healing.
+            service.AddHostedService<EEMOCantilanSDS.Infrastructure.Services.DailyTenantBackupService>();
+
             return service;
         }
 

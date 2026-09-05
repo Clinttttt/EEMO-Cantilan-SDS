@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -254,6 +254,72 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
                 var list = await repo.ListAsync(CancellationToken.None);
                 Assert.Single(list);
             }
+        }
+    
+        /// <summary>
+        /// A nightly backup never evicts one the office took.
+        /// </summary>
+        /// <remarks>
+        /// The reason the two classes are counted apart. One shared allowance of fifteen meant a daily automated backup would push
+        /// out every manual entry within a fortnight - including the deliberate backup an office takes before doing something
+        /// risky, which is the most valuable row in the list. Automating the platform's convenience must not consume the office's
+        /// own safety net.
+        /// </remarks>
+        [Fact]
+        public async Task AutomatedBackupsNeverPushOutManualOnes()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot(2)), User());
+
+            // What the office took, deliberately.
+            await repo.CreateAsync(note: "before the rate change", automated: false, CancellationToken.None);
+
+            // Then a month of nightly runs - more than the allowance, so the automated class prunes itself.
+            for (var i = 0; i < 30; i++)
+                await repo.CreateAsync(note: "Automated daily backup", automated: true, CancellationToken.None);
+
+            var list = await repo.ListAsync(CancellationToken.None);
+
+            // Fifteen automated, and the office's own is still there.
+            Assert.Equal(16, list.Count);
+            Assert.Contains(list, b => b.Note == "before the rate change");
+            Assert.Equal(15, list.Count(b => b.Note == "Automated daily backup"));
+        }
+
+        /// <summary>Each class keeps up to fifteen, counted against its own allowance.</summary>
+        [Fact]
+        public async Task EachClassKeepsItsOwnFifteen()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot(2)), User());
+
+            for (var i = 0; i < 18; i++)
+            {
+                await repo.CreateAsync(note: $"manual {i}", automated: false, CancellationToken.None);
+                await repo.CreateAsync(note: $"auto {i}", automated: true, CancellationToken.None);
+            }
+
+            var list = await repo.ListAsync(CancellationToken.None);
+
+            Assert.Equal(30, list.Count);
+            Assert.Equal(15, list.Count(b => b.Note!.StartsWith("manual")));
+            Assert.Equal(15, list.Count(b => b.Note!.StartsWith("auto")));
+        }
+
+        /// <summary>The one-argument overload is still a MANUAL backup, so the office's own button is unchanged.</summary>
+        [Fact]
+        public async Task TheOfficesOwnButtonStillTakesAManualBackup()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Tenant));
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot(2)), User());
+
+            await repo.CreateAsync(note: "by hand", CancellationToken.None);
+
+            var stored = await ctx.TenantBackups.AsNoTracking().SingleAsync();
+            Assert.False(stored.IsAutomated);
         }
     }
 }

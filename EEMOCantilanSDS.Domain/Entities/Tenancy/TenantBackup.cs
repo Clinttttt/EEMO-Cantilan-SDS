@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Domain.Common;
+﻿using EEMOCantilanSDS.Domain.Common;
 
 namespace EEMOCantilanSDS.Domain.Entities.Tenancy;
 
@@ -41,6 +41,17 @@ public class TenantBackup : IMunicipalityOwned
     /// <summary>Optional short label (e.g. "Manual", "Before restore").</summary>
     public string? Note { get; private set; }
 
+    /// <summary>
+    /// True where the platform took this backup on a schedule, false where somebody in the office asked for it.
+    /// </summary>
+    /// <remarks>
+    /// A COLUMN rather than a reading of <see cref="CreatedBy"/>. The two classes are pruned against separate allowances, so which
+    /// class a backup belongs to decides whether it survives - and deciding that by matching a display string would let a nightly
+    /// run evict the deliberate backup an office took before doing something risky. <c>CreatedBy</c> already falls back to "system"
+    /// when there is no signed-in user, so it could not tell the two apart in any case.
+    /// </remarks>
+    public bool IsAutomated { get; private set; }
+
     private TenantBackup() { } // EF Core
 
     public static TenantBackup Create(
@@ -50,7 +61,8 @@ public class TenantBackup : IMunicipalityOwned
         int tableCount,
         long sizeBytes,
         string snapshotJson,
-        string? note = null)
+        string? note = null,
+        bool isAutomated = false)
     {
         if (string.IsNullOrWhiteSpace(snapshotJson))
             throw new ArgumentException("Snapshot content is required.", nameof(snapshotJson));
@@ -66,6 +78,7 @@ public class TenantBackup : IMunicipalityOwned
             SizeBytes = sizeBytes,
             SnapshotJson = snapshotJson,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
+            IsAutomated = isAutomated,
         };
     }
 }

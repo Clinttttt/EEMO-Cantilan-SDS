@@ -13,6 +13,15 @@ public interface ITenantBackupRepository
     /// <summary>Capture and store a new backup of the caller's municipality; enforces retention (keep last N).</summary>
     Task<TenantBackupInfo> CreateAsync(string? note, CancellationToken ct);
 
+    /// <summary>
+    /// The same, recording whether the platform asked for the backup or the office did.
+    /// </summary>
+    /// <remarks>
+    /// The two classes are pruned against SEPARATE allowances, so a nightly automated backup can never push out one an office took
+    /// deliberately before doing something risky. Only the scheduled service passes true.
+    /// </remarks>
+    Task<TenantBackupInfo> CreateAsync(string? note, bool automated, CancellationToken ct);
+
     /// <summary>The caller's stored backups, newest first (metadata only — no payload).</summary>
     Task<IReadOnlyList<TenantBackupInfo>> ListAsync(CancellationToken ct);
 
