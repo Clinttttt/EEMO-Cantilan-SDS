@@ -80,6 +80,11 @@ app.UseAuthorization();
 // handler at all.
 app.UseMiddleware<MustChangePasswordMiddleware>();
 
+// The operator may reach the platform's own endpoints and nothing belonging to a municipality. Sits here, after authorisation, for
+// the same reason its sibling above does: the claim it reads is only present once the token has been validated. Ordinary LGU
+// accounts carry no operator claim and pass straight through.
+app.UseMiddleware<PlatformOperatorBoundaryMiddleware>();
+
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 // Readiness probe: confirms the database is reachable (for load-balancer/monitoring readiness checks).
