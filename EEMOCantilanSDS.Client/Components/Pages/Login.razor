@@ -216,7 +216,7 @@
                                class="form-input"
                                placeholder="Enter your username"
                                autocomplete="username"
-                               disabled="@IsLocked" />
+                               disabled="@(IsLocked || !FormReady)" />
                     </div>
                     @if (GetFieldError("Username") != string.Empty)
                     {
@@ -251,7 +251,7 @@
                                class="form-input form-input-password"
                                placeholder="Enter your password"
                                autocomplete="current-password"
-                               disabled="@IsLocked" />
+                               disabled="@(IsLocked || !FormReady)" />
                         <button type="button"
                                 class="form-eye-btn"
                                 @onclick="TogglePassword"
@@ -282,7 +282,7 @@
                 <!-- Remember me + forgot password -->
                 <div class="login-options">
                     <label class="login-remember">
-                        <input type="checkbox" @bind="RememberMe" disabled="@IsLocked" />
+                        <input type="checkbox" @bind="RememberMe" disabled="@(IsLocked || !FormReady)" />
                         <span>Remember me</span>
                     </label>
                     <button type="button" class="login-forgot" @onclick="GoToForgotPassword">Forgot password?</button>
@@ -340,7 +340,7 @@
                 <!-- Submit button -->
                 <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "") @(IsLocked ? "setup-submit-locked" : "")"
                         @onclick="HandleLogin"
-                        disabled="@(IsLoading || IsLocked)">
+                        disabled="@(IsLoading || IsLocked || !FormReady)">
                     @if (IsLoading)
                     {
                         <span class="setup-spinner"></span>
@@ -353,6 +353,13 @@
                             <path d="M7 11V7a5 5 0 0110 0v4" />
                         </svg>
                         <span>Account Locked — @LockoutRemaining</span>
+                    }
+                    else if (!FormReady)
+                    {
+                        @* Says why the form will not take input yet, rather than leaving a dead button. A moment on a fast
+                           connection; longer on a slow one, which is exactly when this matters. *@
+                        <span class="setup-spinner"></span>
+                        <span>Connecting…</span>
                     }
                     else
                     {
@@ -407,6 +414,27 @@
     // ── Form state ────────────────────────────────────────────────────────────
     string Username = string.Empty;
     string Password = string.Empty;
+
+    /// <summary>
+    /// Whether this form can keep what is typed into it.
+    /// </summary>
+    /// <remarks>
+    /// WHY A LOGIN FORM NEEDS THIS. The app prerenders (App.razor uses InteractiveServerRenderMode with prerender: true), and the
+    /// boot splash hides itself the moment prerendered markup is on the page - it looks for <c>.setup-root</c> among others, which
+    /// is this page's own root element. So on a slow connection the office sees a complete, inviting login form a moment before the
+    /// SignalR circuit finishes connecting. That form is static HTML: nothing is wired to it yet.
+    ///
+    /// <para>When the circuit does connect, Blazor performs its interactive first render and replaces those inputs with the
+    /// component's state - where Username and Password are empty. Everything typed in that window disappears, and the slower the
+    /// link the longer the window. Reported from use as the form "refreshing" and losing what had been typed.</para>
+    ///
+    /// <para>So the fields are disabled until the render is interactive, and the button says so. Nothing is lost, because nothing
+    /// can be entered before it would be kept. The page still paints at once - the seal, the office's name, the layout - so it
+    /// still reads as ready rather than blank; only the fields wait, and they wait for as long as the connection takes and no
+    /// longer. RendererInfo.IsInteractive is the framework's own answer to the question, so this cannot drift from what Blazor
+    /// actually did.</para>
+    /// </remarks>
+    private bool FormReady => RendererInfo.IsInteractive;
     Dictionary<string, string> FieldErrors = new();
     bool ShowPassword = false;
     bool IsLoading = false;
