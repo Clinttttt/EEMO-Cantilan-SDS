@@ -14,7 +14,8 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 /// global query filter (and the stamp interceptor). Creating a backup delegates the faithful snapshot
 /// capture to <see cref="ITenantRestoreRepository"/> and stores it as JSON text with lightweight metadata;
 /// restore-from-stored reuses the same atomic scoped restore. Retention keeps the last
-/// <see cref="RetentionCount"/> backups per municipality so the table stays bounded.
+/// <see cref="RetentionCount"/> backups per municipality FOR EACH CLASS - the office's own and the platform's automated
+/// ones are counted apart, so a nightly run can never evict a backup somebody took deliberately.
 /// </summary>
 public class TenantBackupRepository(
     AppDbContext context,

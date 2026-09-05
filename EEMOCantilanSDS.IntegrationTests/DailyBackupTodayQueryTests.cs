@@ -21,9 +21,11 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public class DailyBackupTodayQueryTests(PostgresFixture db)
 {
     /// <summary>A Philippine day compared as a UTC range, exactly as the scheduled service asks it.</summary>
-    [Fact]
+    [SkippableFact]
     public async Task TheTodaysAutomatedBackupQueryTranslatesToSql()
     {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+
         var municipalityId = Guid.NewGuid();
 
         await using var context = db.CreateContext(municipalityId);
@@ -47,9 +49,11 @@ public class DailyBackupTodayQueryTests(PostgresFixture db)
     /// Translating is not the same as being right. Without this, a range with the bounds the wrong way round would still translate
     /// and would still have taken a backup every half hour.
     /// </remarks>
-    [Fact]
+    [SkippableFact]
     public async Task ItFindsTodaysAutomatedBackupAndIgnoresYesterdays()
     {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+
         var municipalityId = Guid.NewGuid();
         var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 
@@ -86,9 +90,11 @@ public class DailyBackupTodayQueryTests(PostgresFixture db)
     }
 
     /// <summary>A MANUAL backup taken today must not satisfy the question, or the nightly one would never be taken.</summary>
-    [Fact]
+    [SkippableFact]
     public async Task AManualBackupTodayDoesNotCountAsTheAutomatedOne()
     {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+
         var municipalityId = Guid.NewGuid();
         var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 

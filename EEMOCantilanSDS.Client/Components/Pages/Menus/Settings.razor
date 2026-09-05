@@ -276,17 +276,17 @@
                     <div class="set-rows">
                         @* What an office can rely on, and nothing it cannot.
                            The row that used to sit here said "Automated - Daily 01:00 PH time", on a card headed "your
-                           municipality's data". No such thing exists for one municipality: the nightly job is a pg_dump of the
-                           WHOLE database, kept as a platform artefact, and an office can neither reach it nor restore from it -
-                           that restore is operator-only and would replace every LGU at once. Nothing schedules a per-tenant
-                           backup at all; CreateTenantBackupCommand is only ever reached by somebody pressing "Create backup now".
-                           So the office was being told its data was backed up nightly when in truth its own backups are the ones
-                           it takes.
+                           municipality's data". That nightly job is a pg_dump of the WHOLE database kept as a platform artefact,
+                           which an office can neither reach nor restore from - so it read as a promise about this LGU's data that
+                           nothing kept. A per-tenant backup IS taken daily now, by DailyTenantBackupService, but it can miss a day
+                           when the app is asleep, so it is stated on the Backups page where the caveat can be read rather than
+                           compressed into a row here.
 
-                           These three are true, checked, and the ones that matter when something has gone wrong: what this page
-                           can do, how many backups are kept (RetentionCount = 15), and that a restore touches nobody else. *@
+                           These three are checked rather than asserted: what this page can do, how many backups are kept
+                           (RetentionCount = 15 for each class, so up to fifteen the office took plus fifteen the platform took),
+                           and that a restore touches nobody else. *@
                         <div class="set-row"><span class="set-key">Your municipality</span><span class="set-val">Data archive · restore point · restore</span></div>
-                        <div class="set-row"><span class="set-key">Backups kept</span><span class="set-val">15 most recent</span></div>
+                        <div class="set-row"><span class="set-key">Backups kept</span><span class="set-val">15 yours · 15 automated</span></div>
                         <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your records only</span></div>
                         @* Point-in-time recovery is the OPERATOR's tool, and this card was the one place that told an office
                            otherwise. Azure PITR restores the whole PostgreSQL server as it stood at a chosen moment: it has no
