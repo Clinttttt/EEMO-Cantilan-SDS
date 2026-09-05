@@ -38,7 +38,6 @@ namespace EEMOCantilanSDS.Infrastructure.Services;
 /// </remarks>
 public sealed class DailyTenantBackupService(
     IServiceScopeFactory scopeFactory,
-    IClock clock,
     ILogger<DailyTenantBackupService> logger) : BackgroundService
 {
     /// <summary>How long to leave the app alone after start, so migrations and warm-up finish first.</summary>
@@ -100,8 +99,6 @@ public sealed class DailyTenantBackupService(
 
     private async Task RunOncePerMunicipalityAsync(CancellationToken ct)
     {
-        var today = clock.PhilippineToday;
-
         // Read the roster on its own scope, and materialise it before taking any backup: each backup runs in a scope of its own,
         // and holding a context open across all of them would keep one connection for the whole pass.
         List<MunicipalityToBackUp> municipalities;
@@ -122,7 +119,7 @@ public sealed class DailyTenantBackupService(
 
             try
             {
-                await BackUpIfNotDoneTodayAsync(municipality, today, ct);
+                await BackUpIfNotDoneTodayAsync(municipality, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -132,7 +129,7 @@ public sealed class DailyTenantBackupService(
         }
     }
 
-    private async Task BackUpIfNotDoneTodayAsync(MunicipalityToBackUp municipality, DateOnly today, CancellationToken ct)
+    private async Task BackUpIfNotDoneTodayAsync(MunicipalityToBackUp municipality, CancellationToken ct)
     {
         using var scope = scopeFactory.CreateScope();
 
@@ -142,12 +139,20 @@ public sealed class DailyTenantBackupService(
 
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Philippine days, because that is the day the office keeps. Comparing UTC dates would take a second backup just after
+        // Philippine days, because that is the day the office keeps: comparing UTC dates would take a second backup just after
         // midnight PH and skip the one for the day that had actually begun.
+        //
+        // Compared as a UTC RANGE, not by converting each row's timestamp. The obvious spelling -
+        // DateOnly.FromDateTime(b.CreatedAtUtc.Add(PhilippineTime.Offset)) == today - cannot be translated to SQL: Npgsql refused
+        // it with "Translation of method 'System.DateTime.Add' failed", so every municipality's first pass threw. The service
+        // caught it and the platform was unharmed, but no backup was taken. Two fixed bounds computed in C# translate to a plain
+        // BETWEEN, and PhilippineTime.TodayUtcRange already exists for exactly this.
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
+
         var alreadyToday = await context.TenantBackups
             .AsNoTracking()
             .Where(b => b.IsAutomated)
-            .AnyAsync(b => DateOnly.FromDateTime(b.CreatedAtUtc.Add(PhilippineTime.Offset)) == today, ct);
+            .AnyAsync(b => b.CreatedAtUtc >= startUtc && b.CreatedAtUtc < endUtc, ct);
 
         if (alreadyToday) return;
 
