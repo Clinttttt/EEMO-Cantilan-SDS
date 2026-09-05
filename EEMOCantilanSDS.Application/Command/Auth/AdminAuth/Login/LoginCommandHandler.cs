@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -91,6 +91,25 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         if (request.RequirePlatformOperator && !user.IsPlatformOperator)
             return Result<TokenResponseDto>.Failure(
                 "This account is not a platform operator, so it cannot sign in to the onboarding console.",
+                ResultStatus.Forbidden);
+
+        // AND THE OTHER DIRECTION: the operator cannot sign in to a municipality's own portal.
+        //
+        // The operator account is created under the DEFAULT municipality "for tenant context" - see
+        // CreateFirstConsoleAdminCommandHandler - so its MunicipalityId equals that LGU's. The boundary check above
+        // therefore PASSED for the default municipality, and this endpoint does not require the operator flag: the
+        // consequence was that the platform operator could sign in to the default LGU's console and read its
+        // collections, vendors and reports. Another municipality was never reachable, because its id did not match, so
+        // the exposure was one office - and it was the one office that never agreed to it.
+        //
+        // The operator's business is onboarding, activation and the platform's own tools, all of which live behind
+        // console-login. Nothing it does requires a municipal session. An LGU's records belong to that LGU.
+        //
+        // Checked AFTER the password, exactly like the two above, so it cannot be used to discover that the operator
+        // account exists or which username it holds.
+        if (!request.RequirePlatformOperator && user is AdminUser { IsPlatformOperator: true })
+            return Result<TokenResponseDto>.Failure(
+                "The platform operator account cannot sign in to a municipality's portal. Use the onboarding console.",
                 ResultStatus.Forbidden);
 
         user.RecordLogin();
