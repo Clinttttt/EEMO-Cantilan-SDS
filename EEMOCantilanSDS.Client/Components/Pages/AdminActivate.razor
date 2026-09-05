@@ -1,4 +1,4 @@
-@page "/activate/{Token}"
+﻿@page "/activate/{Token}"
 @attribute [AllowAnonymous]
 
 @using EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
@@ -154,7 +154,7 @@
                                        vanished and came back as the server's older value overwrote what was typed.
                                        @bind tracks what it last put in the element and leaves it alone. *@
                                     <input class="form-input"
-                                           @bind="Username"
+                                           @bind="Username" disabled="@(!FormReady)"
                                            @bind:event="oninput"
                                            placeholder="Choose your sign-in username"
                                            autocomplete="username" />
@@ -180,7 +180,7 @@
                                         <path d="M7 11V7a5 5 0 0110 0v4" />
                                     </svg>
                                     <input @key="@ShowPassword"
-                                           @bind="Password"
+                                           @bind="Password" disabled="@(!FormReady)"
                                            @bind:event="oninput"
                                            type="@(ShowPassword ? "text" : "password")"
                                            class="form-input form-input-password"
@@ -218,7 +218,7 @@
                                     <path d="M7 11V7a5 5 0 0110 0v4" />
                                 </svg>
                                 <input @key="@ShowPassword"
-                                       @bind="ConfirmPassword"
+                                       @bind="ConfirmPassword" disabled="@(!FormReady)"
                                        @bind:event="oninput"
                                        type="@(ShowPassword ? "text" : "password")"
                                        class="form-input"
@@ -261,7 +261,7 @@
                         <!-- Submit -->
                         <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "")"
                                 @onclick="HandleSubmit"
-                                disabled="@IsLoading">
+                                disabled="@(IsLoading || !FormReady)">
                             @if (IsLoading)
                             {
                                 <span class="setup-spinner"></span>
@@ -295,6 +295,8 @@
 </div>
 
 @code {
+    /// <summary>Whether this form can keep what is typed into it. Same fault and same root as Login.razor - see there.</summary>
+    private bool FormReady => RendererInfo.IsInteractive;
     [Parameter] public string? Token { get; set; }
 
     // Carried across the prerender boundary. The page is opened by a full page load from the activation email, so the

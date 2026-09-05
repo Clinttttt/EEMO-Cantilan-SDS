@@ -1,4 +1,4 @@
-@page "/account-setup-admin"
+﻿@page "/account-setup-admin"
 @attribute [AllowAnonymous]
 
 
@@ -112,7 +112,7 @@
                             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                             <circle cx="12" cy="7" r="4" />
                         </svg>
-                        <input @bind="Form.FullName"
+                        <input @bind="Form.FullName" disabled="@(!FormReady)"
                                type="text"
                                class="form-input"
                                placeholder="e.g. Juan D. Dela Cruz" />
@@ -132,7 +132,7 @@
                                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                                 <circle cx="12" cy="7" r="4" />
                             </svg>
-                            <input @bind="Form.Username"
+                            <input @bind="Form.Username" disabled="@(!FormReady)"
                                    type="text"
                                    class="form-input"
                                    placeholder="e.g. head.admin" />
@@ -154,7 +154,7 @@
                                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                 <polyline points="22,6 12,13 2,6" />
                             </svg>
-                            <input @bind="Form.Email"
+                            <input @bind="Form.Email" disabled="@(!FormReady)"
                                    type="email"
                                    class="form-input"
                                    placeholder="e.g. name@lgu.gov.ph" />
@@ -181,7 +181,8 @@
                                        @oninput="@((e) => Form.Password = e.Value?.ToString() ?? string.Empty)"
                                        type="@(ShowPassword ? "text" : "password")"
                                        class="form-input form-input-password"
-                                       placeholder="Min. 8 characters" />
+                                       placeholder="Min. 8 characters"
+                                       disabled="@(!FormReady)" />
                                 <button type="button" 
                                         class="form-eye-btn" 
                                         @onclick="TogglePassword"
@@ -221,7 +222,8 @@
                                    @oninput="@((e) => Form.ConfirmPassword = e.Value?.ToString() ?? string.Empty)"
                                    type="@(ShowPassword ? "text" : "password")"
                                    class="form-input"
-                                   placeholder="Re-enter password" />
+                                   placeholder="Re-enter password"
+                                   disabled="@(!FormReady)" />
                         </div>
                         @if (GetFieldError("ConfirmPassword") != string.Empty)
                         {
@@ -261,7 +263,7 @@
                 <!-- Submit -->
                 <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "")"
                         @onclick="HandleSubmit"
-                        disabled="@IsLoading">
+                        disabled="@(IsLoading || !FormReady)">
                     @if (IsLoading)
                     {
                         <span class="setup-spinner"></span>
@@ -296,6 +298,8 @@
 </div>
 
 @code {
+    /// <summary>Whether this form can keep what is typed into it. Same fault and same root as Login.razor - see there.</summary>
+    private bool FormReady => RendererInfo.IsInteractive;
 
     class SetupForm
     {

@@ -1,4 +1,4 @@
-# Outstanding work
+﻿# Outstanding work
 
 Everything known to be unfinished, with what was VERIFIED against the code rather than assumed. Ordered by
 risk-adjusted value. Update this file in the same commit that changes an item's status — a backlog that lags the code is
@@ -1144,6 +1144,43 @@ measurement rather than the reasoning.
 
 Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
 
+- **Closing the operator's sign-in did not close the operator's API access — FIXED 2026-09-05 (`PlatformOperatorBoundaryMiddleware`).**
+  Recorded from an independent audit that was right and a commit message of mine that was wrong. `LoginCommandHandler` refuses the
+  platform operator a municipal portal session, and that part worked. But `TokenService` mints the SAME token for `console-login` as
+  for the municipal login: `Role = SuperAdmin` and `MunicipalityId = user.MunicipalityId`, which for the operator is the DEFAULT
+  municipality. Municipal controllers authorise on role alone — `StallsController` and `ReportsController` are
+  `[Authorize(Roles = "SuperAdmin,Admin")]` — and the tenant filter resolves from that same claim. So an operator holding a console
+  session could still read the default LGU's stalls, collections and reports through the API directly.
+  - My commit message for `821a0ac3` said closing the sign-in door had "the same effect" as restructuring account ownership. That
+    was wrong, and the audit was right to catch it. The screen was closed; the boundary was not.
+  - **The fix is DEFAULT DENY, allow-listed by prefix**, in middleware placed after `UseAuthorization` beside
+    `MustChangePasswordMiddleware`. Listing municipal endpoints to forbid would leave every new controller exposed until somebody
+    remembered to add it; listing what the operator needs is short and fails closed. The allow-list was enumerated from the admin
+    console's OWN sources rather than assumed — activation, adminauth, assessment, municipalities, onboarding, platform-setup,
+    health — and nothing else was found to call the API with an operator token. 24 tests, both directions, because getting the list
+    wrong one way exposes an office's records and the other way locks the operator out of the platform it runs.
+  - **STILL OPEN: `RefreshTokenCommandHandler` has no operator check**, so a refresh cookie issued before `821a0ac3` keeps minting
+    access tokens until it expires. The middleware now blunts what such a token can reach, so this is a loose end rather than a hole.
+  - **A CONSEQUENCE worth knowing:** the operator-only whole-database backup and restore panel lives in the BLAZOR `Backups.razor`
+    behind `_isOperator`, and reaching it needs a Blazor session the operator can no longer obtain. That UI is unreachable. It is not
+    lost — `backup.yml` and `restore.yml` both carry `workflow_dispatch` and are how those actually run in production, from the
+    Actions tab — but it was a side effect of `821a0ac3` rather than a decision. If the operator wants a screen for it, it belongs in
+    the Angular console, which today has no backup endpoints at all.
+
+- **Six credential pages discarded input typed before the circuit connects — FIXED 2026-09-05.** AccountSetup, AdminActivate,
+  ChangePassword, ForgotPassword and ResetPassword now carry the same `FormReady => RendererInfo.IsInteractive` gate as Login.razor,
+  with inputs and submit disabled until it is true. They all root on `.setup-root`, which `App.razor` treats as the signal to hide the
+  boot splash immediately — so each showed a complete but dead form while the SignalR circuit was still connecting, and Blazor's
+  interactive first render then replaced the inputs with empty component state. Anything typed in that window was lost, and the slower
+  the connection the wider it was.
+  - **VerifyEmail was on the list and did not need it:** same root, but it has no inputs at all, so it has nothing to lose.
+  - `CredentialPagesWaitForInteractivityTests` holds the convention, because nothing in the compiler requires a new credential page to
+    remember it and the failure is silent — the form looks perfect and quietly discards work. It checks the property AND that it
+    actually reaches at least two controls, since gating only the button is the case that still loses typing.
+  - **One trap for whoever adds the next one:** bUnit throws `MissingRendererInfoException` unless a test states the renderer info, and
+    `SetRendererInfo` initialises the service provider — so it must come after every `Services.Add…` call in the harness. When it does
+    not, the stack trace names `AddTestAuthorization`, not `SetRendererInfo`. `ChangePasswordTests` carries the note.
+
 - **The 0 KB collector download — FIXED 2026-08-22.** Collectors scanning the QR and tapping Download were sometimes left with a
   0 KB `.apk`. Measured against production before changing anything: **four of eight** full downloads of the 41 MB file returned
   Azure Static Web Apps' own "500 Internal Server Error" page. The file itself was sound — `HEAD` answered 200 with the right
@@ -1205,34 +1242,6 @@ Items that were open and are now closed, kept because the reasoning is what stop
   by this; the comments in `LoginCommand` and `LoginCommandHandler` explaining the old divergence were corrected.
 
 ## Deferred product work
-
-- **Six credential pages still discard input typed before the circuit connects. Recorded 2026-09-05; Login.razor is FIXED, these
-  are not.** AccountSetup, AdminActivate, ChangePassword, ForgotPassword, ResetPassword and VerifyEmail all use
-  .setup-root, which App.razor treats as the signal to hide the boot splash immediately - so each shows a complete but dead form
-  while the SignalR circuit is still connecting, and Blazor's interactive first render then replaces the inputs with empty component
-  state. Anything typed in that window is lost, and the slower the connection the wider it is.
-  - The fix is the one already applied to Login.razor: a FormReady => RendererInfo.IsInteractive property, the inputs and submit
-    disabled until it is true, and the button saying "Connecting...". One property and a few attributes per page.
-  - Worth doing together, since a reader who hits it on Forgot password will report the same complaint again.
-
-- **Closing the operator's sign-in did not close the operator's API access. Recorded 2026-09-05 from an independent audit; NOT yet
-  fixed.** `LoginCommandHandler` now refuses the platform operator a municipal portal session, and that part works. But
-  `TokenService` mints the SAME token for `console-login` as for the municipal login: it carries `Role = SuperAdmin` and
-  `MunicipalityId = user.MunicipalityId`, which for the operator is the DEFAULT municipality. Municipal controllers authorise on
-  role alone — `StallsController` and `ReportsController` are `[Authorize(Roles = "SuperAdmin,Admin")]` — and the tenant filter
-  resolves from that same claim. So an operator holding a console session can still read the default LGU's stalls, collections and
-  reports through the API directly.
-  - My commit message for `821a0ac3` said closing the sign-in door had "the same effect" as restructuring account ownership. That
-    was wrong, and the audit was right to catch it. The screen is closed; the boundary is not.
-  - `RefreshTokenCommandHandler` has no operator check either, so a refresh cookie issued before that change keeps minting access
-    tokens until it expires.
-  - The fix is a default-deny for operator tokens on municipal endpoints, not another per-controller attribute. There is already a
-    `"PlatformOperator"` policy used to RESTRICT operator-only endpoints (`BackupController`); what is missing is its inverse. It
-    needs care: the console legitimately calls onboarding, activation, assessment, municipalities and tenant-usage endpoints with
-    an operator token, so every one of those has to be enumerated first or the console breaks. Not something to attempt at the end
-    of a long session.
-  - Not urgent in the same way the sign-in was: reaching this needs the operator's own credentials and a deliberate API call, not a
-    login form. But it is the same privacy question the office actually asked about.
 
 - **From the 2026-09-03 audit, not fixed and why.** An independent review of that day's commits found three bugs (all fixed: the
   multi-day settlement queueing one day, arrears naming the wrong payor on a re-let stall, and the activation mapper deriving

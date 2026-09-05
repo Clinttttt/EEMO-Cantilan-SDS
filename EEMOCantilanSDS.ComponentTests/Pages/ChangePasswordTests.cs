@@ -1,4 +1,4 @@
-using Bunit;
+﻿using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Tenancy;
@@ -56,6 +56,16 @@ public class ChangePasswordTests : TestContext
             new AuthStateProvider(Mock.Of<IHttpContextAccessor>()),
             new TokenService(),
             NullLogger<AuthService>.Instance));
+
+        // The page asks the framework whether its render is interactive, so it can refuse input it would otherwise discard - see
+        // ChangePassword.razor's FormReady, and Login.razor for the full account. bUnit throws MissingRendererInfoException unless a
+        // test states it.
+        //
+        // The position matters and cost some time to find: this initialises the service provider, and a TestContext refuses further
+        // registrations once that has happened - the stack trace names AddTestAuthorization, not this line. So it goes after every
+        // registration above and before the render. Interactive is what production is once the circuit connects; the pre-interactive
+        // case is what the page guards and is not what these tests exercise.
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
 
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(required ? "/change-password?required=1" : "/change-password");
