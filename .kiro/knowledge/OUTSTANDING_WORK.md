@@ -1206,6 +1206,15 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **Six credential pages still discard input typed before the circuit connects. Recorded 2026-09-05; Login.razor is FIXED, these
+  are not.** AccountSetup, AdminActivate, ChangePassword, ForgotPassword, ResetPassword and VerifyEmail all use
+  .setup-root, which App.razor treats as the signal to hide the boot splash immediately - so each shows a complete but dead form
+  while the SignalR circuit is still connecting, and Blazor's interactive first render then replaces the inputs with empty component
+  state. Anything typed in that window is lost, and the slower the connection the wider it is.
+  - The fix is the one already applied to Login.razor: a FormReady => RendererInfo.IsInteractive property, the inputs and submit
+    disabled until it is true, and the button saying "Connecting...". One property and a few attributes per page.
+  - Worth doing together, since a reader who hits it on Forgot password will report the same complaint again.
+
 - **Closing the operator's sign-in did not close the operator's API access. Recorded 2026-09-05 from an independent audit; NOT yet
   fixed.** `LoginCommandHandler` now refuses the platform operator a municipal portal session, and that part works. But
   `TokenService` mints the SAME token for `console-login` as for the municipal login: it carries `Role = SuperAdmin` and
