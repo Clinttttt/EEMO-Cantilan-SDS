@@ -1206,6 +1206,25 @@ Items that were open and are now closed, kept because the reasoning is what stop
 
 ## Deferred product work
 
+- **Closing the operator's sign-in did not close the operator's API access. Recorded 2026-09-05 from an independent audit; NOT yet
+  fixed.** `LoginCommandHandler` now refuses the platform operator a municipal portal session, and that part works. But
+  `TokenService` mints the SAME token for `console-login` as for the municipal login: it carries `Role = SuperAdmin` and
+  `MunicipalityId = user.MunicipalityId`, which for the operator is the DEFAULT municipality. Municipal controllers authorise on
+  role alone — `StallsController` and `ReportsController` are `[Authorize(Roles = "SuperAdmin,Admin")]` — and the tenant filter
+  resolves from that same claim. So an operator holding a console session can still read the default LGU's stalls, collections and
+  reports through the API directly.
+  - My commit message for `821a0ac3` said closing the sign-in door had "the same effect" as restructuring account ownership. That
+    was wrong, and the audit was right to catch it. The screen is closed; the boundary is not.
+  - `RefreshTokenCommandHandler` has no operator check either, so a refresh cookie issued before that change keeps minting access
+    tokens until it expires.
+  - The fix is a default-deny for operator tokens on municipal endpoints, not another per-controller attribute. There is already a
+    `"PlatformOperator"` policy used to RESTRICT operator-only endpoints (`BackupController`); what is missing is its inverse. It
+    needs care: the console legitimately calls onboarding, activation, assessment, municipalities and tenant-usage endpoints with
+    an operator token, so every one of those has to be enumerated first or the console breaks. Not something to attempt at the end
+    of a long session.
+  - Not urgent in the same way the sign-in was: reaching this needs the operator's own credentials and a deliberate API call, not a
+    login form. But it is the same privacy question the office actually asked about.
+
 - **From the 2026-09-03 audit, not fixed and why.** An independent review of that day's commits found three bugs (all fixed: the
   multi-day settlement queueing one day, arrears naming the wrong payor on a re-let stall, and the activation mapper deriving
   "Region XIII" as an office acronym from the new address). It also found these, left deliberately:
