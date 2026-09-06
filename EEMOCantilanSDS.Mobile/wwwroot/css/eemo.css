@@ -979,8 +979,34 @@ html, body, #app {
     color: var(--text-primary);
 }
 
-/* Why a closed month can still show a balance after every one of its days has been collected: the difference between its
-   installments and its rent is not a day, so it cannot be taken through a day's sheet. */
+/* A closed month the collector may settle: a row that acts, so it looks like one. Kept quiet all the same — it sits inside a
+   payor's breakdown and must not compete with the payor row above it. */
+.arrears-month-act {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    gap: 8px;
+    cursor: pointer;
+    align-items: center;
+}
+
+.arrears-month-act .arrears-month-name { flex: 1 1 auto; }
+
+.arrears-month-chev {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: var(--text-subtle);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* How a closed month is settled, and why it is one act rather than a set of days: where the market is let for a monthly rent,
+   the month owes that rent whatever its calendar gave it, so the difference between its installments and its rent is not a day
+   and cannot be taken through a day's sheet. */
 .arrears-month-note {
     font-size: 11px;
     color: var(--text-subtle);

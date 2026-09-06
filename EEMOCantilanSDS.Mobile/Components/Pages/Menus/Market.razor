@@ -284,10 +284,16 @@
                             <div class="arrears-months">
                                 @foreach (var m in payor.PastMonths)
                                 {
-                                    <div class="arrears-month-line">
-                                        <span class="arrears-month-name">@MonthName(m.Year, m.Month)</span>
-                                        <span class="arrears-month-amount">@FormatCurrency(m.Amount)</span>
-                                    </div>
+                                    var month = m;
+                                    @* Tappable: the office rules that collectors may take past months. Settled as a MONTH at the
+                                       figure shown, not day by day - a month let for a rent owes that rent whatever its calendar
+                                       gave it, so days would collect too much on a 31-day month. *@
+                                    <button type="button" class="arrears-month-line arrears-month-act"
+                                            @onclick="() => OpenMonthSettle(payor, month)">
+                                        <span class="arrears-month-name">@MonthName(month.Year, month.Month)</span>
+                                        <span class="arrears-month-amount">@FormatCurrency(month.Amount)</span>
+                                        <svg class="arrears-month-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                                    </button>
                                 }
                                 @if (payor.DaysOwedThisMonth.Count > 0)
                                 {
@@ -296,15 +302,55 @@
                                         <span class="arrears-month-amount">@FormatCurrency(payor.AmountThisMonth)</span>
                                     </div>
                                 }
-                                @* A closed month short of its rent keeps a month-end difference, and a difference is not a day:
-                                   it cannot be taken day by day here. Said plainly, so a collector who settles every day of such
-                                   a month and still sees a balance knows why rather than suspecting the app. *@
-                                <div class="arrears-month-note">A closed month is settled at the office.</div>
+                                @* Why a closed month is one act rather than a set of days. Said plainly, so a collector does not
+                                   go looking for its days among the chips on the daily sheet. *@
+                                <div class="arrears-month-note">Tap a closed month to settle it in full.</div>
                             </div>
                         }
                     }
                 }
             }
+        </div>
+    </div>
+}
+
+@if (MonthSettlePayor is not null && MonthSettleMonth is not null)
+{
+    @* A month is money, so it is confirmed rather than taken on one tap. The figure is the office's own settlement of that
+       month, restated here so the collector reads the same number he is about to receipt. *@
+    <div class="sheet-overlay" @onclick="CloseMonthSettle">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">@MonthName(MonthSettleMonth.Year, MonthSettleMonth.Month)</div>
+            <div class="sheet-sub">@MonthSettlePayor.PayorName · No. @MonthSettlePayor.StallNo</div>
+
+            <div class="misc-collect">
+                <span>Settling in full</span>
+                <strong>@FormatCurrency(MonthSettleMonth.Amount)</strong>
+            </div>
+
+            @* Stated because the figure is not simply the days times the fee where the market is let for a monthly rent: the
+               last installments of a month that cannot reach its rent are folded into a month-end difference. A collector who
+               counts the days and gets a different answer should not have to wonder which is right. *@
+            @if (MonthSettleMonth.Days > 0)
+            {
+                <div class="arrears-month-note">@DaysLabel(MonthSettleMonth.Days) plus the month-end difference, as the office settles it.</div>
+            }
+
+            <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50"
+                   placeholder="OR no." @bind="MonthSettleOr" @bind:event="oninput" />
+
+            @if (!string.IsNullOrWhiteSpace(MonthSettleError))
+            {
+                <div class="form-error">@MonthSettleError</div>
+            }
+
+            <div class="sheet-actions">
+                <button class="btn-ghost" type="button" disabled="@MonthSettleSaving" @onclick="CloseMonthSettle">Cancel</button>
+                <button class="btn-primary" type="button" disabled="@MonthSettleSaving" @onclick="ConfirmMonthSettleAsync">
+                    @(MonthSettleSaving ? "Saving…" : "Confirm")
+                </button>
+            </div>
         </div>
     </div>
 }
@@ -1234,6 +1280,86 @@
     }
 
     private void CloseArrears() => ShowArrears = false;
+
+    // ── Settling a closed month in the field ──
+    //
+    // The office confirmed 2026-09-06 that collectors may take past months. A closed month is settled AS A MONTH, at the
+    // office's own figure for it, and never as a set of days: where the market is let for a monthly rent, the month owes that
+    // rent whatever its calendar gave it, so a 31-day month taken day by day would collect a day too much and report the
+    // month closed. The server prices it through the same settlement the office's portal uses.
+    private MobileNpmStallArrearsDto? MonthSettlePayor;
+    private MobileNpmMonthArrearDto? MonthSettleMonth;
+    private string MonthSettleOr = string.Empty;
+    private bool MonthSettleSaving;
+    private string? MonthSettleError;
+
+    private void OpenMonthSettle(MobileNpmStallArrearsDto payor, MobileNpmMonthArrearDto month)
+    {
+        MonthSettlePayor = payor;
+        MonthSettleMonth = month;
+        MonthSettleOr = string.Empty;
+        MonthSettleError = null;
+    }
+
+    private void CloseMonthSettle()
+    {
+        MonthSettlePayor = null;
+        MonthSettleMonth = null;
+        MonthSettleOr = string.Empty;
+        MonthSettleError = null;
+    }
+
+    /// <summary>
+    /// Takes the month, then re-reads the arrears so the screen states what is still owed rather than what was.
+    /// </summary>
+    /// <remarks>
+    /// Answerable for never leaving the sheet stuck on "Saving...": the write can throw on a timeout out in the market, and a
+    /// dead sheet stops the round. The flag is cleared in a finally, exactly as the daily sheet learned to do.
+    /// </remarks>
+    private async Task ConfirmMonthSettleAsync()
+    {
+        if (MonthSettlePayor is null || MonthSettleMonth is null || MonthSettleSaving) return;
+
+        // The office issues a receipt for money taken, so the number is required here as it is on every other collection.
+        if (string.IsNullOrWhiteSpace(MonthSettleOr))
+        {
+            MonthSettleError = "Enter the OR number.";
+            return;
+        }
+
+        MonthSettleSaving = true;
+        MonthSettleError = null;
+
+        try
+        {
+            var result = await MobileApi.SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(
+                MonthSettlePayor.StallId,
+                MonthSettleMonth.Year,
+                MonthSettleMonth.Month,
+                MonthSettleOr.Trim()));
+
+            if (!result.IsSuccess)
+            {
+                MonthSettleError = string.IsNullOrWhiteSpace(result.Error)
+                    ? "That month could not be settled just now."
+                    : result.Error;
+                return;
+            }
+
+            CloseMonthSettle();
+            await LoadArrearsAsync();
+            await LoadCollectionAsync();
+        }
+        catch (Exception)
+        {
+            MonthSettleError = "That month could not be settled just now. Check the signal and try again.";
+        }
+        finally
+        {
+            MonthSettleSaving = false;
+        }
+    }
+
 
     /// <summary>
     /// Opens the record sheet for a payor who is behind, on the oldest day of the month in hand that they owe.

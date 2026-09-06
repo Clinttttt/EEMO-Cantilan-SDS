@@ -33,6 +33,16 @@ public interface IMobileApiClient
 
     /// <summary>Several owed days of one stall, settled together against one receipt, in a single transaction.</summary>
     Task<Result<bool>> SettleNpmDaysAsync(SettleMobileNpmDaysRequest request);
+
+    /// <summary>
+    /// A closed month of one stall, settled at the office's own figure for that month.
+    /// </summary>
+    /// <remarks>
+    /// Kept apart from <see cref="SettleNpmDaysAsync"/> because a closed month is not a set of days: where the office lets a
+    /// stall for a monthly rent, the month owes that rent whatever its calendar gave it, so settling it day by day would
+    /// over-collect on a 31-day month.
+    /// </remarks>
+    Task<Result<bool>> SettleNpmMonthAsync(SettleMobileNpmMonthRequest request);
     Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
     Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);

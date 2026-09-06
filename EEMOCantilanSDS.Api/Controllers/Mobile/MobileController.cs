@@ -1,5 +1,6 @@
-using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+﻿using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 using EEMOCantilanSDS.Application.Command.Notifications.RegisterDeviceToken;
 using EEMOCantilanSDS.Application.Command.Notifications.RemoveDeviceToken;
@@ -154,6 +155,35 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(new SettleNpmDaysCommand(
             request.StallId,
             request.Dates ?? Array.Empty<DateOnly>(),
+            request.ORNumber));
+
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Settles a CLOSED month of one market stall, at the office's own figure for that month.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A month that closed owing is not a set of days. Where the office lets a stall for a monthly rent, the month owes that
+    /// rent whatever its calendar gave it - a 31-day month at ₱30 owes ₱900, not ₱930 - so offering its days as chips would
+    /// have over-collected and called the month settled. It is therefore sent as a month and priced by
+    /// <c>SettleNpmMonthCommand</c>, the SAME settlement the office's own portal uses, rather than by a second rule written for
+    /// the phone.
+    /// </para>
+    /// <para>
+    /// The office confirmed 2026-09-06 that collectors may take past months in the field. The handler already knew how: it
+    /// checks the collector's assigned facility through the shared <c>NpmSettlementAccess</c> rule and attributes the money to
+    /// the collector, so a month taken on the round reaches that collector's remittance. Only the route was closed to them.
+    /// </para>
+    /// </remarks>
+    [HttpPost("npm/collections/settle-month")]
+    public async Task<ActionResult<bool>> SettleNpmMonthAsync([FromBody] SettleMobileNpmMonthRequest request)
+    {
+        var result = await Sender.Send(new SettleNpmMonthCommand(
+            request.StallId,
+            request.Year,
+            request.Month,
             request.ORNumber));
 
         return HandleResponse(result);

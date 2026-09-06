@@ -82,6 +82,49 @@ public class MobileSettleDaysBoundaryTests
         Assert.Equal("SuperAdmin,Admin", settleDays.Groups["roles"].Value);
     }
 
+    /// <summary>
+    /// A collector may settle a CLOSED month, and does so as a month rather than as a set of days.
+    /// </summary>
+    /// <remarks>
+    /// The office ruled on 2026-09-06 that collectors may take past months in the field. The screen had said "a closed month is
+    /// settled at the office", which was not merely a permission: a month let for a monthly rent owes that rent whatever its
+    /// calendar gave it, so a 31-day month at ₱30 owes ₱900, not ₱930, the last installments being folded into a month-end
+    /// difference.
+    ///
+    /// <para>WHICH IS WHY THE MONTH IS NOT ADDED TO THE DAY CHIPS. Offering its days would have collected ₱930 and reported the
+    /// month closed. It goes through <c>SettleNpmMonthCommand</c> - the same settlement the office's portal uses - so there is
+    /// one rule for what a month costs and not a second one written for the phone. This test exists to stop a later change
+    /// "simplifying" it into the day path.</para>
+    /// </remarks>
+    [Fact]
+    public void TheCollectorAppSettlesAClosedMonthAsAMonth()
+    {
+        var mobile = Controller("MobileController.cs");
+
+        Assert.Contains("npm/collections/settle-month", mobile);
+        Assert.Contains("new SettleNpmMonthCommand(", mobile);
+
+        var client = Source("EEMOCantilanSDS.HttpClients", "ApiClients", "MobileApiClient.cs");
+        Assert.Contains("api/Mobile/npm/collections/settle-month", client);
+
+        var sheet = Source("EEMOCantilanSDS.Mobile", "Components", "Pages", "Menus", "Market.razor");
+        Assert.Contains("SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(", sheet);
+    }
+
+    /// <summary>The administrators' month endpoint was left as it was, exactly as the days one was.</summary>
+    [Fact]
+    public void TheAdministratorsSettleMonthEndpointWasNotWidened()
+    {
+        var controller = Controller("DailyCollectionsController.cs");
+
+        var settleMonth = Regex.Match(
+            controller,
+            @"\[HttpPost\(""settle-month""\)\]\s*\r?\n\s*\[Authorize\(Roles = ""(?<roles>[^""]+)""\)\]");
+
+        Assert.True(settleMonth.Success, "settle-month should still declare its roles right above the action.");
+        Assert.Equal("SuperAdmin,Admin", settleMonth.Groups["roles"].Value);
+    }
+
     [Fact]
     public void TheAppSendsTheDaysTheCollectorChose()
     {

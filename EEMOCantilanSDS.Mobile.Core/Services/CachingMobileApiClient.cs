@@ -85,6 +85,11 @@ public sealed class CachingMobileApiClient(
     public Task<Result<bool>> SettleNpmDaysAsync(SettleMobileNpmDaysRequest request) =>
         InvalidatingAsync(() => inner.SettleNpmDaysAsync(request));
 
+    // Invalidating like the other settle paths: a month taken in the field changes the round, the arrears screen and the
+    // collector's own totals, and a cached copy of any of them would show the money still owing.
+    public Task<Result<bool>> SettleNpmMonthAsync(SettleMobileNpmMonthRequest request) =>
+        InvalidatingAsync(() => inner.SettleNpmMonthAsync(request));
+
     public Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
         InvalidatingAsync(() => inner.RecordNpmUtilityPaymentAsync(request));
 
