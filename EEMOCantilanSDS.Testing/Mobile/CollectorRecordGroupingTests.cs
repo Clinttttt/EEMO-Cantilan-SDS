@@ -86,6 +86,67 @@ public class CollectorRecordGroupingTests
         Assert.True(entries.Single(e => e.Primary.IsAbsent).Primary.IsAbsent);
     }
 
+    /// <summary>
+    /// A closure that excuses several days is one card naming the days, not one card per day.
+    /// </summary>
+    /// <remarks>
+    /// Reported from use 2026-09-06: the office closed the Sari Sari section and the feed filled with identical cards - same
+    /// payor, same section, same time on every one. They were different days: a closure excuses its whole frozen span in a
+    /// single act, so every row carries the moment it was written, and the feed keys on that moment rather than on the day
+    /// being settled. So the office saw six cards for one decision, on a day it had not touched the section.
+    /// </remarks>
+    [Fact]
+    public void SeveralExcusedDaysForOnePayorAreOneCardNamingTheDays()
+    {
+        // One act, written at one moment, covering three days - which is what a section closure produces.
+        var writtenAt = Morning;
+        var records = new[]
+        {
+            Daily("Karmilita Log", "—", 0m, writtenAt, new DateOnly(2026, 9, 1), absent: true),
+            Daily("Karmilita Log", "—", 0m, writtenAt, new DateOnly(2026, 9, 2), absent: true),
+            Daily("Karmilita Log", "—", 0m, writtenAt, new DateOnly(2026, 9, 3), absent: true),
+        };
+
+        var entry = Assert.Single(CollectorRecordGrouping.Build(records));
+
+        Assert.Equal(3, entry.Count);
+        Assert.Equal(
+            new[] { new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 3) },
+            entry.FeeDays.ToArray());
+
+        // The card names the span, not the moment it was written - the write time is the same on all three and says nothing.
+        Assert.Equal("Sep 1–3", entry.FeeDayLabel);
+    }
+
+    /// <summary>A single excused day still names that day outright rather than a span of one.</summary>
+    [Fact]
+    public void OneExcusedDayNamesThatDay()
+    {
+        var entry = Assert.Single(CollectorRecordGrouping.Build(
+            [Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 8, 20), absent: true)]));
+
+        Assert.Equal("Aug 20", entry.FeeDayLabel);
+    }
+
+    /// <summary>
+    /// A closure that runs across the turn of a month names both months.
+    /// </summary>
+    /// <remarks>
+    /// A section left closed over a month end is ordinary, and "Aug 30–2" would read as a span inside August. The month is
+    /// repeated only when it actually changes, so the common case stays short.
+    /// </remarks>
+    [Fact]
+    public void AnExcusalAcrossAMonthEndNamesBothMonths()
+    {
+        var entry = Assert.Single(CollectorRecordGrouping.Build(
+        [
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 8, 30), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 2), absent: true),
+        ]));
+
+        Assert.Equal("Aug 30 – Sep 2", entry.FeeDayLabel);
+    }
+
     [Fact]
     public void OfficeRecordedEntriesStayApartFromTheCollectorsOwn()
     {

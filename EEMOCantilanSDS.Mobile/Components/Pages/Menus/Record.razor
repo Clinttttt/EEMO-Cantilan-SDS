@@ -697,9 +697,13 @@
     // The line under the name: the time the last money came in, and the receipt number while there is only one to name.
     // Where an entry holds several receipts the numbers are in its detail, each against its own time and amount, rather
     // than one of them standing for all.
+    //
+    // An absence names the DAY it excuses, not the moment it was written. A section closure excuses a whole frozen span in
+    // one act, so every day of it shares one written-at time; stating that time told the office nothing and put the excusal
+    // on a day nobody had touched the section.
     static string RowTimeLine(RecordRow row) =>
         row.Primary.IsAbsent
-            ? row.Primary.CollectedAt.ToString("hh:mm tt") + " · marked absent"
+            ? (row.FeeDayLabel.Length > 0 ? row.FeeDayLabel + " · excused" : "excused")
             : row.ReceiptCount == 1
                 ? row.LatestAt.ToString("hh:mm tt") + " · OR #" + row.Primary.ORNumber
                 : row.LatestAt.ToString("hh:mm tt") + " · last of " + row.ReceiptCount + " receipts";
