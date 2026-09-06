@@ -46,8 +46,9 @@
 
 /* The search gives way first when the row runs short of room, so the buttons and the year beside it stay on one line
    instead of wrapping. A ceiling as well as a floor: on a wide screen the field used to swallow the slack and leave the
-   controls stranded at the far edge. */
-.sh-search { flex: 0 1 300px; max-width: 300px; }
+   controls stranded at the far edge. The floor is small because the buttons no longer shrink at all — something has to
+   absorb a narrow window, and a shortened search box is the one control here that is still usable narrow. */
+.sh-search { flex: 0 1 300px; max-width: 300px; min-width: 130px; }
 
 /* The year sits at the end of the row and never shrinks, since a date that has been squeezed is unreadable. */
 .sh-year-nav { display: flex; align-items: center; flex: 0 0 auto; margin-left: 2px; }
@@ -63,6 +64,10 @@
     display: inline-flex; align-items: center; gap: 8px;
     background: var(--navy); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+    /* A button label never wraps. With the year now on this row the space grew tight and "Save as PDF" broke across two
+       lines, which made the whole toolbar taller and read as an error. The buttons hold their width and the search gives way
+       instead, which is the order of precedence the row already follows. */
+    white-space: nowrap; flex: 0 0 auto;
 }
 .sh-print-btn:hover { background: var(--navy-2, #112d47); }
 .sh-print-btn:disabled { opacity: .5; cursor: default; }
