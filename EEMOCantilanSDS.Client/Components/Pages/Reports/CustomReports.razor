@@ -214,8 +214,10 @@ else if (ShowHistory)
                                     <td><strong>Total</strong></td>
                                     <td>—</td>
                                     <td><strong>₱@HistoryMonthlyRows.Sum(r => r.Collected).ToString("N2")</strong></td>
-                                    <td><strong>₱@HistoryMonthlyRows.Max(r => r.Outstanding).ToString("N2")</strong></td>
-                                    <td><strong>@HistoryMonthlyRows.Max(r => r.FollowUp) payors</strong></td>
+                                    <td><strong>₱@HistoryMonthlyRows.Sum(r => r.Outstanding).ToString("N2")</strong></td>
+                                    @* Not totalled: a payor unpaid in two months is one person, not two, and this row has only the
+                                       monthly counts to work from, so no true figure can be formed here. Dashed like Total Stalls. *@
+                                    <td>—</td>
                                     <td>—</td>
                                 </tr>
                             </tfoot>

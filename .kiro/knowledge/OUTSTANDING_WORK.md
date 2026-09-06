@@ -1144,6 +1144,24 @@ measurement rather than the reasoning.
 
 Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
 
+- **The Collection History Total row took the biggest month instead of adding the months up — FIXED 2026-09-06.** Reported from use on
+  the New Public Market history: August showed ₱1,140.00 outstanding and September ₱840.00, and the Total row said ₱1,140.00 rather
+  than the ₱1,980.00 the office is still owed. All six facility report pages totalled Outstanding with `Max` while totalling Collected
+  beside it with `Sum`, so the row contradicted itself on the same line and every one of them understated arrears.
+  - **Summing is right because each monthly row is that month ALONE.** `CurrentAccountStart` bounds the obligation below by the period
+    start (`max(newest occupancy start, periodStart)`), and the compliance balance is period obligation minus period collections — so
+    the months are disjoint and add up. Checked in the code rather than assumed, because if the figures had been CUMULATIVE arrears the
+    right answer would have been the LAST month, not the sum, and `Max` would have been nearly right by accident.
+  - `FacilityReportsHistoryTests.History_MonthlyOutstanding_AddsUpToTheYearsOwnFigure` states it as a property, not an arithmetic
+    example: the months must add up to what the same code computes over the whole YEAR. If the monthly figures ever become cumulative,
+    that test fails and the total has to change with them.
+  - **For Follow-up is deliberately NOT totalled — it is dashed.** It counts people: the same payor unpaid in several months would be
+    counted once per month, and the page holds only the monthly counts, so no true figure can be formed there. Consistent with Total
+    Stalls beside it, which was already dashed for the same reason. `Max` was not defensible there either — a payor owing in August and
+    settled in September is still someone the office chased.
+  - `FacilityHistoryTotalsTests` guards the presentation across all six pages, because the markup is duplicated and the original fault
+    was in all six: a fix applied to whichever page somebody happened to be looking at would leave five reports quietly understating.
+
 - **Closing the operator's sign-in did not close the operator's API access — FIXED 2026-09-05 (`PlatformOperatorBoundaryMiddleware`).**
   Recorded from an independent audit that was right and a commit message of mine that was wrong. `LoginCommandHandler` refuses the
   platform operator a municipal portal session, and that part worked. But `TokenService` mints the SAME token for `console-login` as
