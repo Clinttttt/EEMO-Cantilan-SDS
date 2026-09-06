@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -77,7 +77,8 @@ public class ToggleStallStatusCommandHandler(
     /// <summary>
     /// Persists the frozen span [start, reopenOn) as excused for every contract-effective day/month.
     /// NPM → absent daily collections; monthly facilities → excused billing months (full-month).
-    /// Idempotent: skips days/months already absent/excused and never overwrites a real payment.
+    /// Idempotent, and it never overwrites a record that is already there — paid or owed. Only a day nobody recorded is
+    /// excused, because a record is a fact somebody entered and a section toggle must not overturn it.
     /// </summary>
     private async Task ExcuseClosurePeriodAsync(
         Stall stall, DateOnly start, DateOnly reopenOn, string actor, CancellationToken ct)
@@ -97,15 +98,18 @@ public class ToggleStallStatusCommandHandler(
                 if (!ContractEffectiveOn(d)) continue;
 
                 var existing = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, d, ct);
+
+                // ONLY A DAY NOBODY RECORDED IS EXCUSED. A day with a record already on it is a fact somebody entered -
+                // a collector who called and found the space shut, or the office settling arrears at the counter - and a
+                // section toggle is not the place to overturn it. Until 2026-09-06 an existing UNPAID day was rewritten
+                // as excused here, which forgave debt the office had positively recorded: closing and reopening a section
+                // wiped the owed days of every stall in it. The paid case was already protected; owed was not, and owed is
+                // the one that costs the municipality money.
                 if (existing is null)
                 {
                     var absent = DailyCollection.Create(stall.Id, d, actor);
                     absent.MarkAbsent(actor);
                     await dailyCollectionRepository.AddAsync(absent, ct);
-                }
-                else if (!existing.IsPaid && !existing.IsAbsent)
-                {
-                    existing.MarkAbsent(actor);   // tracked entity → persists on SaveChanges
                 }
             }
         }

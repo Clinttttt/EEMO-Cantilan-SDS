@@ -199,6 +199,56 @@ public class ToggleStallStatusCommandHandlerTests
         Assert.All(captured, x => Assert.True(x.IsAbsent));
     }
 
+    /// <summary>
+    /// Reopening does not forgive a day the office had already recorded as owed.
+    /// </summary>
+    /// <remarks>
+    /// Reported from use 2026-09-06: the office closed the Sari Sari section, and a stallholder's owed days came back
+    /// EXCUSED. Reopening rewrote every unpaid day in the frozen span as absent, so a section toggle wrote off debt a
+    /// collector had positively recorded. The paid case was already guarded; owed was not, and owed is the one that costs
+    /// the municipality money.
+    ///
+    /// <para>The rule now: only a day NOBODY recorded is excused. A record on the day is a fact somebody entered - a
+    /// collector who called and found the space shut, or the office settling at the counter - and a section toggle is not
+    /// the place to overturn it. Days with no record at all are still excused, which is the point of the frozen span: a
+    /// closure must not come back as arrears.</para>
+    /// </remarks>
+    [Fact]
+    public async Task Reopen_Npm_DoesNotExcuse_ADayAlreadyRecordedAsOwed()
+    {
+        var stall = StallInFacility(FacilityCode.NPM, rate: 900m);
+        var today = PhilippineTime.Today;
+        var closedOn = today.AddDays(-3);
+        stall.Close(closedOn, "tester");
+
+        var (handler, _, daily, _) = Build(stall);
+
+        // The middle day of the frozen span was recorded NOT COLLECTED - a real debt, entered by a person.
+        var owedDay = closedOn.AddDays(1);
+        var owed = DailyCollection.Create(stall.Id, owedDay, "collector");
+        daily.Setup(r => r.GetByStallAndDateAsync(stall.Id, owedDay, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(owed);
+
+        var captured = new List<DailyCollection>();
+        daily.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
+            .Callback<DailyCollection, CancellationToken>((d, _) => captured.Add(d))
+            .Returns(Task.CompletedTask);
+
+        var result = await handler.Handle(new ToggleStallStatusCommand(stall.Id, Close: false), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        // The recorded day is untouched: still owed, not excused.
+        Assert.False(owed.IsAbsent);
+        Assert.False(owed.IsPaid);
+
+        // The days nobody recorded are still excused, so the closure does not come back as arrears.
+        Assert.Equal(
+            new[] { closedOn, closedOn.AddDays(2) },
+            captured.Select(x => x.CollectionDate).OrderBy(x => x).ToArray());
+        Assert.All(captured, x => Assert.True(x.IsAbsent));
+    }
+
     [Fact]
     public async Task Reopen_Monthly_DoesNotExcuse_AMonthAlreadyPaidInFull()
     {
