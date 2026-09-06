@@ -1,4 +1,4 @@
-@page "/market"
+﻿@page "/market"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
@@ -493,12 +493,27 @@
                             <div class="misc-period-more">@SelectedOutstandingCount unpaid bills on this stall — the oldest is settled first.</div>
                         }
 
-                        @* Only the utilities this bill actually charges for. A stall metered for water alone is
-                           not asked about electricity. *@
+                        @* Marked by tapping the utility itself, not by choosing one of three equal buttons. Unmarked means unpaid,
+                           which is how the sheet opens: nothing is collected until the collector says it was. A part payment is
+                           the exception, so it sits behind its own small action rather than competing for the same weight. *@
                         @if (SelectedBill.ElecCharge > 0m)
                         {
-                            <div class="misc-util-head">
-                                <span class="misc-util-name">Electricity</span>
+                            <button type="button" class="misc-util @(MiscElecPay != PaymentStatus.Unpaid ? "misc-util-on" : "")"
+                                    @onclick="ToggleElecCollected">
+                                <span class="misc-util-check" aria-hidden="true">
+                                    @if (MiscElecPay == PaymentStatus.Paid)
+                                    {
+                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                    else if (MiscElecPay == PaymentStatus.Partial)
+                                    {
+                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                    }
+                                </span>
+                                <span class="misc-util-body">
+                                    <span class="misc-util-name">Electricity</span>
+                                    <span class="misc-util-state">@UtilityStateLabel(MiscElecPay, MiscElecPartial)</span>
+                                </span>
                                 <span class="misc-util-amt">
                                     @FormatPeso(SelectedBill.ElecBalanceDue)
                                     @if (SelectedBill.ElecBalanceDue < SelectedBill.ElecCharge)
@@ -506,26 +521,37 @@
                                         <span class="misc-util-of">of @FormatPeso(SelectedBill.ElecCharge)</span>
                                     }
                                 </span>
-                            </div>
-                            <div class="util-pay-row">
-                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Unpaid">Unpaid</button>
-                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Paid">Paid</button>
-                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Partial">Partial</button>
+                            </button>
+                            <div class="misc-util-aside">
+                                <button type="button" class="misc-part-link @(MiscElecPay == PaymentStatus.Partial ? "on" : "")"
+                                        @onclick="ToggleElecPartial">
+                                    @(MiscElecPay == PaymentStatus.Partial ? "Collect in full instead" : "Part payment")
+                                </button>
                             </div>
                             @if (MiscElecPay == PaymentStatus.Partial)
                             {
                                 <input class="form-input" type="number" min="0" step="0.01" placeholder="Electricity partial amount" @bind="MiscElecPartial" @bind:event="oninput" />
                             }
-                            @if (MiscElecPay != PaymentStatus.Unpaid)
-                            {
-                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
-                            }
                         }
 
                         @if (SelectedBill.WaterCharge > 0m)
                         {
-                            <div class="misc-util-head @(SelectedBill.ElecCharge > 0m ? "misc-util-head-gap" : "")">
-                                <span class="misc-util-name">Water</span>
+                            <button type="button" class="misc-util @(MiscWaterPay != PaymentStatus.Unpaid ? "misc-util-on" : "") @(SelectedBill.ElecCharge > 0m ? "misc-util-gap" : "")"
+                                    @onclick="ToggleWaterCollected">
+                                <span class="misc-util-check" aria-hidden="true">
+                                    @if (MiscWaterPay == PaymentStatus.Paid)
+                                    {
+                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                    else if (MiscWaterPay == PaymentStatus.Partial)
+                                    {
+                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                    }
+                                </span>
+                                <span class="misc-util-body">
+                                    <span class="misc-util-name">Water</span>
+                                    <span class="misc-util-state">@UtilityStateLabel(MiscWaterPay, MiscWaterPartial)</span>
+                                </span>
                                 <span class="misc-util-amt">
                                     @FormatPeso(SelectedBill.WaterBalanceDue)
                                     @if (SelectedBill.WaterBalanceDue < SelectedBill.WaterCharge)
@@ -533,19 +559,51 @@
                                         <span class="misc-util-of">of @FormatPeso(SelectedBill.WaterCharge)</span>
                                     }
                                 </span>
-                            </div>
-                            <div class="util-pay-row">
-                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Unpaid">Unpaid</button>
-                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Paid">Paid</button>
-                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Partial">Partial</button>
+                            </button>
+                            <div class="misc-util-aside">
+                                <button type="button" class="misc-part-link @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")"
+                                        @onclick="ToggleWaterPartial">
+                                    @(MiscWaterPay == PaymentStatus.Partial ? "Collect in full instead" : "Part payment")
+                                </button>
                             </div>
                             @if (MiscWaterPay == PaymentStatus.Partial)
                             {
                                 <input class="form-input" type="number" min="0" step="0.01" placeholder="Water partial amount" @bind="MiscWaterPartial" @bind:event="oninput" />
                             }
-                            @if (MiscWaterPay != PaymentStatus.Unpaid)
+                        }
+
+                        @* The receipt, asked for ONCE. A payor handed one receipt for the whole bill is the ordinary case, and the
+                           sheet used to demand the number under each utility separately. Where the office does issue one per
+                           utility, that is still available - it is just no longer the only way. *@
+                        @if (MiscElecPay != PaymentStatus.Unpaid || MiscWaterPay != PaymentStatus.Unpaid)
+                        {
+                            @if (!MiscSeparateOr)
                             {
-                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
+                                       placeholder="OR no." @bind="MiscSharedOr" @bind:event="oninput" />
+                            }
+                            else
+                            {
+                                @if (MiscElecPay != PaymentStatus.Unpaid)
+                                {
+                                    <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
+                                           placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
+                                }
+                                @if (MiscWaterPay != PaymentStatus.Unpaid)
+                                {
+                                    <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
+                                           placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                                }
+                            }
+
+                            @* Offered only where both are being settled, since one utility cannot have two receipts. *@
+                            @if (MiscElecPay != PaymentStatus.Unpaid && MiscWaterPay != PaymentStatus.Unpaid)
+                            {
+                                <div class="misc-util-aside">
+                                    <button type="button" class="misc-part-link @(MiscSeparateOr ? "on" : "")" @onclick="ToggleSeparateOr">
+                                        @(MiscSeparateOr ? "One receipt for both" : "Separate receipts")
+                                    </button>
+                                </div>
                             }
                         }
 
@@ -740,6 +798,25 @@
     private decimal WaterAlreadyPaid => SelectedBill is null ? 0m : SelectedBill.WaterCharge - SelectedBill.WaterBalanceDue;
     private string MiscElecOr = string.Empty;
     private string MiscWaterOr = string.Empty;
+
+    /// <summary>
+    /// The one receipt number covering whatever is being settled on this bill.
+    /// </summary>
+    /// <remarks>
+    /// A payor handed one receipt for the whole bill is the ordinary case, and the sheet used to demand the number twice - once
+    /// under electricity and once under water - so the collector typed it out again to satisfy a field. This holds it once and
+    /// it is copied to each utility being settled on confirm.
+    /// </remarks>
+    private string MiscSharedOr = string.Empty;
+
+    /// <summary>
+    /// True where the office issued a separate receipt per utility, which some do.
+    /// </summary>
+    /// <remarks>
+    /// Off by default because one receipt is the common case, and the collector should not have to say so. Turning it on reveals
+    /// a field per utility, which is exactly what the sheet used to insist on.
+    /// </remarks>
+    private bool MiscSeparateOr;
     private bool _scrollToMisc;
     // Every utility bill a stall still has to answer for, keyed by stall number and oldest first: this month's
     // bill and any earlier one left owed. The sheet settles them one at a time, starting with the oldest.
@@ -790,6 +867,75 @@
                       : MiscWaterPay == PaymentStatus.Partial ? MiscWaterPartial : 0m;
             return elec + water;
         }
+    }
+
+    /// <summary>What the utility row says about itself under its name.</summary>
+    /// <remarks>
+    /// The row states its own condition in words, so the sheet does not rely on a tick alone to carry the difference between a
+    /// bill settled in full and one part-paid — which is the difference between the office chasing it again and not.
+    /// </remarks>
+    private string UtilityStateLabel(PaymentStatus status, decimal partial) => status switch
+    {
+        PaymentStatus.Paid => "Collected in full",
+        PaymentStatus.Partial => partial > 0m ? $"Part payment · {FormatPeso(partial)}" : "Part payment",
+        _ => "Not collected",
+    };
+
+    // Tapping the utility marks it collected, and tapping it again unmarks it. The amount and the receipt are cleared on the way
+    // back to unpaid: leaving a partial figure or an OR number behind on a row nobody is collecting is how a receipt ends up
+    // against money that was never taken.
+    private void ToggleElecCollected()
+    {
+        MiscElecPay = MiscElecPay == PaymentStatus.Unpaid ? PaymentStatus.Paid : PaymentStatus.Unpaid;
+        if (MiscElecPay == PaymentStatus.Unpaid) { MiscElecPartial = 0m; MiscElecOr = string.Empty; }
+        SheetError = null;
+    }
+
+    private void ToggleWaterCollected()
+    {
+        MiscWaterPay = MiscWaterPay == PaymentStatus.Unpaid ? PaymentStatus.Paid : PaymentStatus.Unpaid;
+        if (MiscWaterPay == PaymentStatus.Unpaid) { MiscWaterPartial = 0m; MiscWaterOr = string.Empty; }
+        SheetError = null;
+    }
+
+    // A part payment is a way of collecting, so choosing it marks the utility collected as well — the collector should not have
+    // to tap twice to say one thing.
+    private void ToggleElecPartial()
+    {
+        if (MiscElecPay == PaymentStatus.Partial)
+        {
+            MiscElecPay = PaymentStatus.Paid;
+            MiscElecPartial = 0m;
+        }
+        else
+        {
+            MiscElecPay = PaymentStatus.Partial;
+        }
+        SheetError = null;
+    }
+
+    private void ToggleWaterPartial()
+    {
+        if (MiscWaterPay == PaymentStatus.Partial)
+        {
+            MiscWaterPay = PaymentStatus.Paid;
+            MiscWaterPartial = 0m;
+        }
+        else
+        {
+            MiscWaterPay = PaymentStatus.Partial;
+        }
+        SheetError = null;
+    }
+
+    // Switching between one receipt and two clears whichever fields are being left behind, so a number typed under the other
+    // arrangement cannot be submitted unseen.
+    private void ToggleSeparateOr()
+    {
+        MiscSeparateOr = !MiscSeparateOr;
+        MiscSharedOr = string.Empty;
+        MiscElecOr = MiscWaterOr = string.Empty;
+        SheetError = null;
     }
 
     // The areas of THIS market, named by the office: the three canonical ones only if stalls stand in them, plus any area
@@ -1276,7 +1422,8 @@
                     ?? bills?.LastOrDefault();
         MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = string.Empty;
+        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
+        MiscSeparateOr = false;
         SheetError = null;
         ShowCollectionSheet = true;
     }
@@ -1296,13 +1443,15 @@
         SelectedIsPaid = false;
         SelectedIsAbsent = false;
         SelectedIsMisc = true;
-        if (SelectedBill is not null)
-        {
-            MiscElecPay = SelectedBill.ElecBalanceDue > 0m ? PaymentStatus.Paid : PaymentStatus.Unpaid;
-            MiscWaterPay = SelectedBill.WaterBalanceDue > 0m ? PaymentStatus.Paid : PaymentStatus.Unpaid;
-        }
+
+        // NOTHING IS MARKED COLLECTED UNTIL THE COLLECTOR SAYS SO. This used to open with each owing utility already set to Paid,
+        // which decided on the collector's behalf that money had changed hands: confirming without looking would receipt a bill
+        // nobody had paid. The sheet now opens stating what is owed and waits.
+        MiscElecPay = PaymentStatus.Unpaid;
+        MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = string.Empty;
+        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
+        MiscSeparateOr = false;
         SheetError = null;
         _scrollToMisc = true;
     }
@@ -1550,8 +1699,27 @@
             SheetError = $"Water has {FormatPeso(SelectedBill.WaterBalanceDue)} still owed. Enter no more than that, or mark it Paid.";
             return;
         }
-        if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
-        if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
+        // Which receipt each utility is settled under. The rule lives in Mobile.Core so it is tested: it decides what is written
+        // to the office's record, and a receipt number copied onto a row nobody collected would read back as a collection.
+        (MiscElecOr, MiscWaterOr) = EEMOCantilanSDS.Mobile.Collections.UtilityReceiptEntry.Resolve(
+            MiscSeparateOr,
+            MiscSharedOr,
+            MiscElecOr,
+            MiscWaterOr,
+            collectingElec: MiscElecPay != PaymentStatus.Unpaid,
+            collectingWater: MiscWaterPay != PaymentStatus.Unpaid);
+
+        // Worded for the field the collector is actually looking at: telling them "Electricity OR number is required" while one
+        // shared box is on screen sends them hunting for a field that is not there.
+        if (!MiscSeparateOr)
+        {
+            if (string.IsNullOrWhiteSpace(MiscSharedOr)) { SheetError = "Enter the OR number."; return; }
+        }
+        else
+        {
+            if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
+            if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
+        }
         // A utility this bill does not charge for cannot be receipted on it: a water-only bill has no
         // electricity to settle, and marking it would receipt ₱0.
         if (SelectedBill.ElecCharge <= 0m && MiscElecPay != PaymentStatus.Unpaid) { SheetError = "This bill has no electricity charge."; return; }
@@ -1634,7 +1802,8 @@
         SelectedBill = null;
         MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = string.Empty;
+        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
+        MiscSeparateOr = false;
         SheetError = null;
     }
 
