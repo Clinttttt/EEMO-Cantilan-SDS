@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Domain.Common;
+﻿using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -42,7 +42,7 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var rows = dto.Sections.SelectMany(s => s.Rows).ToDictionary(r => r.StallNo, r => r.MonthlyRentalRate);
 
@@ -68,7 +68,7 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var row = dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1");
 
@@ -92,7 +92,7 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         Assert.Equal(900m, dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1").MonthlyRentalRate);
     }
@@ -113,7 +113,7 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         foreach (var row in dto.Sections.SelectMany(s => s.Rows))
             Assert.Equal(900m, row.MonthlyRentalRate);
@@ -136,7 +136,7 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var row = Assert.Single(Assert.Single(dto.Sections).Rows);
         Assert.Equal(1_000m, row.MonthlyRentalRate);

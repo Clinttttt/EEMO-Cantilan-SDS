@@ -18,7 +18,8 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
     public async Task<Result<StallHoldersListDto>> GetStallHoldersListAsync(
         FacilityCode facilityCode, 
         MarketSection? section = null, 
-        string? searchTerm = null)
+        string? searchTerm = null,
+        int? year = null)
     {
         var query = $"api/Stalls/facility/{facilityCode}/holders-list";
         var queryParams = new List<string>();
@@ -28,6 +29,10 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
         
         if (!string.IsNullOrWhiteSpace(searchTerm))
             queryParams.Add($"searchTerm={Uri.EscapeDataString(searchTerm)}");
+
+        // Sent only when the office is reading an earlier year, so the everyday request is the same URL it always was.
+        if (year.HasValue)
+            queryParams.Add($"year={year.Value}");
         
         if (queryParams.Any())
             query += "?" + string.Join("&", queryParams);

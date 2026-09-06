@@ -64,15 +64,24 @@
                 <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                 Print
             </button>
-            <a class="sh-print-btn" download="@CsvFileName" href="@CsvHref">
+            <a class="sh-print-btn" download="@CsvFileName" href="@CsvHref" title="Downloads this list as a CSV spreadsheet.">
                 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Download CSV
+                CSV
             </a>
             <button class="sh-print-btn sh-print-btn-primary" type="button" disabled="@_loading" @onclick="Print"
                     title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                 Save as PDF
             </button>
+
+            @* The year the roster is stated AS OF, so the office can answer who held the stalls in an earlier year. The same
+               control the report pages use, in year mode - a roster is always as of some year, so there is no "all years".
+               The current year means today, which is why this changes nothing until it is stepped back. *@
+            <div class="sh-year-nav">
+                <ReportPeriodNav Year="_year" Month="1" Yearly="true" Label="@YearLabel"
+                                 OnPrev="PrevYear" OnNext="NextYear"
+                                 OnPick="PickYear" OnToday="JumpToCurrentYear" />
+            </div>
         </div>
     </div>
 
@@ -183,6 +192,13 @@
                    instead of both crammed into one sentence. *@
                 <div class="sh-doc">List of Stallholders</div>
                 <div class="sh-doc-scope">@(_facility is null ? "ALL FACILITIES" : FacilityCatalog.NameOf(_facility.Value).ToUpper())</div>
+                @if (AsOfYear is { } statedYear)
+                {
+                    @* A historical roster says so ON THE SHEET, not merely in the toolbar that produced it. A printed page
+                       leaves the screen behind, and a 2019 register handed to a panel while presenting itself as the current
+                       one is the sort of document nobody can correct later. *@
+                    <div class="sh-doc-asof">AS OF DECEMBER 31, @statedYear</div>
+                }
                 @if (IsSectionFiltered)
                 {
                     @* Stated once here, so the band inside the table is not repeated. *@
@@ -249,6 +265,15 @@
     private string? _section;          // null = every section of the selected facility
     private string _search = "";
 
+    // The year the roster is stated AS OF. Defaults to the current year, where it means today — so the register the office
+    // opens every day is what it has always been, and only stepping back changes the question being asked.
+    private int _year = DateTime.Now.Year;
+
+    /// <summary>Null for the current year, so the everyday request is the same one it always was.</summary>
+    private int? AsOfYear => _year == DateTime.Now.Year ? null : _year;
+
+    private string YearLabel => _year == DateTime.Now.Year ? $"{_year}" : $"As of {_year}";
+
     [PersistentState(AllowUpdates = true)]
     public List<StallHolderFacilityState>? CachedStallHolders { get; set; }
 
@@ -265,6 +290,31 @@
     private void SelectSection(string? section) => _section = section;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
+
+    // Stepping the year re-reads the register, because the answer comes from the server: an earlier year is drawn from the
+    // contract history, and the rows already on screen hold only the people who are here now.
+    //
+    // Not stepped past the current year. There is no roster for a year that has not happened, and offering one would invite
+    // the office to print an empty sheet and wonder what it had done wrong.
+    private Task PrevYear() => GoToYear(_year - 1);
+
+    private Task NextYear() => GoToYear(Math.Min(_year + 1, DateTime.Now.Year));
+
+    private Task PickYear((int Year, int Month) picked) => GoToYear(Math.Min(picked.Year, DateTime.Now.Year));
+
+    private Task JumpToCurrentYear() => GoToYear(DateTime.Now.Year);
+
+    private async Task GoToYear(int year)
+    {
+        if (year == _year) return;
+
+        _year = year;
+
+        // The cached copy is this page's fast reopen for the CURRENT register. A historical read must not overwrite it, or
+        // the office would come back tomorrow to a roster stating 2019 with nothing on screen saying so.
+        CachedStallHolders = null;
+        await Load();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -293,7 +343,7 @@
             // sequential ones. Mirrors the Task.WhenAll pattern used by the facility pages.
             var tasks = StallFacilities.ToDictionary(
                 code => code,
-                code => StallsApi.GetStallHoldersListAsync(code, null, null));
+                code => StallsApi.GetStallHoldersListAsync(code, null, null, AsOfYear));
             await Task.WhenAll(tasks.Values);
 
             var loaded = new Dictionary<FacilityCode, StallHoldersListDto>();
@@ -310,9 +360,12 @@
             if (!authPending)
             {
                 foreach (var kvp in loaded) _data[kvp.Key] = kvp.Value;
-                CachedStallHolders = _data
-                    .Select(kvp => new StallHolderFacilityState(kvp.Key, kvp.Value))
-                    .ToList();
+
+                // Only the CURRENT register is cached for a fast reopen. Persisting a historical read would have the office
+                // return to a 2019 roster presented as today's.
+                CachedStallHolders = AsOfYear is null
+                    ? _data.Select(kvp => new StallHolderFacilityState(kvp.Key, kvp.Value)).ToList()
+                    : null;
                 break;
             }
             await Task.Delay(400);
@@ -375,8 +428,10 @@
     // rule just before printing, because a scoped stylesheet's @page does not reach the print engine.
     private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
 
+    // The as-of year is in the filename when there is one, so a historical export cannot be mistaken on disk for the
+    // current register. Today's export keeps the name it always had.
     private string CsvFileName =>
-        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
+        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}{(AsOfYear is { } y ? $"_as-of-{y}" : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
 
     /// <summary>
     /// The roster as CSV, in the printed form's column order, honouring the current facility filter, section

@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
+﻿using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -464,7 +464,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         context.AddRange(facility, stall, term, daily, monthly);
         await context.SaveChangesAsync();
 
-        var roster = await new StallRepository(context).GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+        var roster = await new StallRepository(context).GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var row = Assert.Single(roster.Sections.SelectMany(s => s.Rows));
         Assert.Equal(1_000m, row.MonthlyRentalRate);

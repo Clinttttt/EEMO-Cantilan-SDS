@@ -20,7 +20,8 @@ public class GetStallHoldersListQueryHandler(
             tenantContext.TenantCode,
             request.FacilityCode,
             request.Section,
-            request.SearchTerm);
+            request.SearchTerm,
+            request.Year);
         var regions = EemoCacheRegions.StallHolderListRegions(tenantContext.TenantCode);
         var result = await cache.GetOrCreateAsync(
             key,
@@ -30,6 +31,7 @@ public class GetStallHoldersListQueryHandler(
                 request.FacilityCode,
                 request.Section,
                 request.SearchTerm,
+                request.Year,
                 token),
             ct);
 

@@ -1,4 +1,5 @@
-using EEMOCantilanSDS.Domain.Entities.Facilities;
+﻿using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 
@@ -13,6 +14,73 @@ namespace EEMOCantilanSDS.Testing;
 /// </summary>
 public class StallHoldersListTests : RepositoryTestBase
 {
+    /// <summary>
+    /// Reading an earlier year names who held the stall THEN, including a stall since closed.
+    /// </summary>
+    /// <remarks>
+    /// Asked for 2026-09-06 so the office can answer "who held the stalls in 2019?" at a panel. It could not: the roster
+    /// lists current holders and drops closed and expired accounts, so filtering the rows it returns would never bring back
+    /// somebody who has left. The year is therefore an AS-OF point read against the contract history, not a filter.
+    ///
+    /// <para>Both directions are asserted, because the risk in this change is not the new answer but the old one: the year
+    /// defaults to null and the current year means today, so the register the office opens every day must be exactly what it
+    /// was. A first lessee who left, a second who followed, and a stall closed since - the 2019 read names the first, and
+    /// today's read names neither.</para>
+    /// </remarks>
+    [Fact]
+    public async Task HoldersList_AnEarlierYear_NamesWhoHeldTheStallThen()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        // One space, let twice: the first lessee through 2019, the second from 2021. The stall is CLOSED now, so today's
+        // roster excludes it altogether - which is why the 2019 question cannot be answered by filtering.
+        var stall = Stall.Create(facility.Id, "1", 2_400m, ApplicableFees.BaseRental);
+        var first = Contract.Create(stall.Id, "Nineteen Lessee", "Nineteen Lessee", new DateOnly(2018, 1, 1), 3, 2_400m);
+        var second = Contract.Create(stall.Id, "Later Lessee", "Later Lessee", new DateOnly(2021, 1, 1), 3, 2_400m);
+        stall.Close(new DateOnly(2025, 6, 30));
+
+        context.AddRange(facility, stall, first, second);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+
+        var y2019 = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, 2019, CancellationToken.None);
+        var occupants2019 = y2019.Sections.SelectMany(s => s.Rows).Select(r => r.ActualOccupant).ToList();
+        Assert.Contains("Nineteen Lessee", occupants2019);
+        Assert.DoesNotContain("Later Lessee", occupants2019);
+
+        // Today is unchanged: a closed stall is still off the roster, exactly as before this feature existed.
+        var current = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, null, CancellationToken.None);
+        Assert.Empty(current.Sections.SelectMany(s => s.Rows));
+    }
+
+    /// <summary>The current year means today, so the everyday view cannot drift from the no-year one.</summary>
+    [Fact]
+    public async Task HoldersList_TheCurrentYear_ReadsTheSameAsNoYearAtAll()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        var stall = Stall.Create(facility.Id, "1", 2_400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Sitting Lessee", "Sitting Lessee", new DateOnly(2026, 1, 1), 3, 2_400m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+        var thisYear = PhilippineTime.Today.Year;
+
+        var withYear = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, thisYear, CancellationToken.None);
+        var withoutYear = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, null, CancellationToken.None);
+
+        Assert.Equal(withoutYear.TotalStalls, withYear.TotalStalls);
+        Assert.Equal(withoutYear.GrandTotalMonthlyRate, withYear.GrandTotalMonthlyRate);
+        Assert.Equal(
+            withoutYear.Sections.SelectMany(s => s.Rows).Select(r => r.ActualOccupant),
+            withYear.Sections.SelectMany(s => s.Rows).Select(r => r.ActualOccupant));
+    }
+
     [Fact]
     public async Task HoldersList_UsesContractTerm_ActiveOnlyTotals_AndBaseRentalOnly()
     {
@@ -33,7 +101,7 @@ public class StallHoldersListTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new StallRepository(context);
-        var dto = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, CancellationToken.None);
+        var dto = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, null, CancellationToken.None);
 
         Assert.Equal(2, dto.TotalStalls);                      // closed stall excluded from the roster
         Assert.Equal(2, dto.GrandTotalActiveStalls);
@@ -74,7 +142,7 @@ public class StallHoldersListTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new StallRepository(context);
-        var dto = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, CancellationToken.None);
+        var dto = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, null, CancellationToken.None);
 
         var section = Assert.Single(dto.Sections);
         Assert.DoesNotContain(section.Rows, r => r.StallNo == "2");   // expired contract → excluded

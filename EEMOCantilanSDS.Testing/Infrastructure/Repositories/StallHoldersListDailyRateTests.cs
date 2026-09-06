@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Domain.Common;
+﻿using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -50,7 +50,7 @@ public class StallHoldersListDailyRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var row = Assert.Single(Assert.Single(dto.Sections).Rows);
         Assert.Equal(1_200m, row.MonthlyRentalRate);      // ₱40 × 30 — NOT the stored ₱900
@@ -77,7 +77,7 @@ public class StallHoldersListDailyRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var row = Assert.Single(Assert.Single(dto.Sections).Rows);
         Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, row.MonthlyRentalRate);
@@ -99,7 +99,7 @@ public class StallHoldersListDailyRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         Assert.Equal(1_200m, Assert.Single(Assert.Single(dto.Sections).Rows).MonthlyRentalRate);
     }
@@ -118,7 +118,7 @@ public class StallHoldersListDailyRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
         var section = Assert.Single(dto.Sections);
         Assert.Equal("Sari-sari Area", section.SectionName);
@@ -143,7 +143,7 @@ public class StallHoldersListDailyRateTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var dto = await new StallRepository(context)
-            .GetStallHoldersListAsync(FacilityCode.TCC, null, null, CancellationToken.None);
+            .GetStallHoldersListAsync(FacilityCode.TCC, null, null, null, CancellationToken.None);
 
         var row = Assert.Single(Assert.Single(dto.Sections).Rows);
         Assert.Equal(2_760m, row.MonthlyRentalRate);

@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -20,14 +20,39 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // stating each lessee, their space, the term and what a whole year of it comes to.
 public partial class StallRepository
 {
-    public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
+    /// <summary>
+    /// The official List of Stallholders, as the register stood on a stated day.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="year"/> is an AS-OF point, not a filter on the rows. Null and the current year both mean today, so
+    /// the view the office opens every day is unchanged; an earlier year means the last day of that year. Asked for so the
+    /// office can answer "who held the stalls in 2019?" - a question this roster could not answer at all, because it lists
+    /// CURRENT holders and drops closed and expired accounts, and no amount of filtering the rows it returns would bring
+    /// back somebody who has since left.
+    /// </remarks>
+    public async Task<StallHoldersListDto> GetStallHoldersListAsync(
+        FacilityCode facilityCode, MarketSection? section, string? searchTerm, int? year, CancellationToken ct)
     {
+        var today = _clock.PhilippineToday;
+
+        // The day the roster is stated as of. An earlier year is read at its close; the current year, and no year at all,
+        // are read today - so a stall let in November is not missing from this year's list because December has not come.
+        var asOf = year is { } y && y < today.Year
+            ? new DateOnly(y, 12, 31)
+            : today;
+
+        var isHistorical = asOf != today;
+
         var query = _context.Stalls
             .AsNoTracking()
             .Include(s => s.Contracts)
             // The stallholder roster lists CURRENT holders only — closed accounts are excluded entirely
             // (they still appear in the transaction/collection history for transparency, just not here).
-            .Where(s => s.Facility!.Code == facilityCode && s.Status != StallStatus.Closed);
+            //
+            // Reading an EARLIER year is the one exception, and it has to be: a stall closed in 2024 was still let in 2019,
+            // and excluding it by its present status would answer the office's question with a lie of omission. Which
+            // occupancy held it then is settled below, from the contract history.
+            .Where(s => s.Facility!.Code == facilityCode && (isHistorical || s.Status != StallStatus.Closed));
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -51,7 +76,12 @@ public partial class StallRepository
         // already lapsed — as well as Closed (frozen) ones. Uses the same central rule (Stall.IsContractExpired)
         // as the closed-accounts register and the remove-inactive guard, so they can never diverge.
         // Expired/closed rows still appear in the transaction/collection history — just not on this roster.
-        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired(_clock.PhilippineToday)).ToList();
+        //
+        // Read AS OF the stated day, so an earlier year asks "was this let then?" rather than "is it let now?". For today
+        // that is the identical question it always asked, which is why the daily view is unchanged.
+        stalls = isHistorical
+            ? stalls.Where(s => s.OccupanciesOverlapping(new DateOnly(asOf.Year, 1, 1), asOf, asOf).Count > 0).ToList()
+            : stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired(asOf)).ToList();
 
         // ── The monetary columns must state what the stall is actually billed ──
         // A daily-collected facility (NPM) has no monthly contract rate. The official form's "Monthly
@@ -84,6 +114,19 @@ public partial class StallRepository
                 : 0m)
             : s.MonthlyRate;
 
+        // The occupancy whose name belongs on the row.
+        //
+        // Today that is the active contract, exactly as it always was. Reading an earlier year it is the contract that held
+        // the space THEN, taken from the occupancy windows the rest of the system settles history with - otherwise a 2019
+        // roster would print the name of whoever holds the stall now, which is the same lie in a different place.
+        Contract? HolderOn(Stall s)
+        {
+            if (!isHistorical) return s.Contracts.FirstOrDefault(c => c.IsActive);
+
+            var held = s.OccupanciesOverlapping(new DateOnly(asOf.Year, 1, 1), asOf, asOf);
+            return held.Count > 0 ? held[0].Contract : s.Contracts.FirstOrDefault(c => c.IsActive);
+        }
+
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection
         // enum stays the logical key; only the SHOWN label becomes tenant-aware, falling back to the canonical
         // name ("Vegetable Area"/…) when no custom label is set (so Cantilan is unchanged).
@@ -100,7 +143,7 @@ public partial class StallRepository
                 StallCount = g.Count(),
                 Rows = g.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+                    var contract = HolderOn(s);
                     var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {
@@ -144,7 +187,7 @@ public partial class StallRepository
                 StallCount = groupStalls.Count,
                 Rows = groupStalls.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+                    var contract = HolderOn(s);
                     return new StallHolderRowDto
                     {
                         // The stall itself, so a caller can act on it rather than on its number: a number identifies a
@@ -182,7 +225,7 @@ public partial class StallRepository
                 StallCount = stallsWithoutSection.Count,
                 Rows = stallsWithoutSection.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+                    var contract = HolderOn(s);
                     var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {

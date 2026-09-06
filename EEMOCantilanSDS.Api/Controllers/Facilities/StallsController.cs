@@ -61,9 +61,10 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<StallHoldersListDto>> GetStallHoldersList(
         FacilityCode facilityCode,
         [FromQuery] MarketSection? section = null,
-        [FromQuery] string? searchTerm = null)
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] int? year = null)
     {
-        var query = new GetStallHoldersListQuery(facilityCode, section, searchTerm);
+        var query = new GetStallHoldersListQuery(facilityCode, section, searchTerm, year);
         var result = await Sender.Send(query);
         return HandleResponse(result);
     }

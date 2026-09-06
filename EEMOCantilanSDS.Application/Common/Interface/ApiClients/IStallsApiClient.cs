@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IStallsApiClient
 {
-    Task<Result<StallHoldersListDto>> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section = null, string? searchTerm = null);
+    Task<Result<StallHoldersListDto>> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section = null, string? searchTerm = null, int? year = null);
     Task<Result<CursorPagedResult<StallDto>>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section = null, DateTime? cursor = null, int pageSize = 20);
     Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command);
 

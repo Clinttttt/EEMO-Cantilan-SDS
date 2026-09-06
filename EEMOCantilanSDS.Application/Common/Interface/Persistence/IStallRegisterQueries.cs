@@ -30,7 +30,7 @@ public interface IStallRegisterQueries
     Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct);
 
     /// <summary>Who holds each space, optionally narrowed by section or searched by name or number.</summary>
-    Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct);
+    Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, int? year, CancellationToken ct);
 
     /// <summary>
     /// How each section of a facility stands for one month — the summary strip above the register. Month-scoped because a

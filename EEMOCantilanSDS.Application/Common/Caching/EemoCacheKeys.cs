@@ -62,7 +62,8 @@ public static class EemoCacheKeys
         string tenantCode,
         FacilityCode facilityCode,
         MarketSection? section,
-        string? searchTerm)
+        string? searchTerm,
+        int? year = null)
     {
         var sectionSegment = section?.ToString().ToLowerInvariant() ?? "all";
         // The search term comes from a query string, so it is unbounded in both length and variety. It reaches a
@@ -72,7 +73,10 @@ public static class EemoCacheKeys
         var searchSegment = string.IsNullOrWhiteSpace(searchTerm)
             ? "all"
             : StableHash(searchTerm.Trim().ToLowerInvariant());
-        return $"{NormalizeTenant(tenantCode)}:stalls:holders:{facilityCode.ToString().ToLowerInvariant()}:{sectionSegment}:{searchSegment}";
+        // The year is part of the key. Without it the 2019 roster and today's would share one entry, and whichever was asked
+        // for first would be served to the other - a historical answer printed as the current register, or worse.
+        var yearSegment = year is { } y ? y.ToString("0000") : "current";
+        return $"{NormalizeTenant(tenantCode)}:stalls:holders:{facilityCode.ToString().ToLowerInvariant()}:{sectionSegment}:{searchSegment}:{yearSegment}";
     }
 
     public static string ClosedAccounts(string tenantCode)

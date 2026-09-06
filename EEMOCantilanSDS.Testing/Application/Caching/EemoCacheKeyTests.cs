@@ -93,8 +93,18 @@ public class EemoCacheKeyTests
             "tenant", FacilityCode.NPM, MarketSection.FishSection, new string('x', 5_000));
         Assert.True(fromAVeryLongTerm.Length < 100, $"key grew to {fromAVeryLongTerm.Length} characters");
 
-        // An absent term is still plainly readable as such.
-        Assert.EndsWith(":all", EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, null));
+        // An absent term is still plainly readable as such, and the as-of year is its own segment at the end.
+        Assert.EndsWith(":all:current", EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, MarketSection.FishSection, null));
+
+        // THE YEAR MUST SEPARATE THE ENTRIES. Without it a 2019 roster and today's would share one cache entry and whichever
+        // was asked for first would be served to the other - a historical register printed as the current one.
+        var current = EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, null, null);
+        var y2019 = EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, null, null, 2019);
+        var y2020 = EemoCacheKeys.StallHolderList("tenant", FacilityCode.NPM, null, null, 2020);
+
+        Assert.NotEqual(current, y2019);
+        Assert.NotEqual(y2019, y2020);
+        Assert.EndsWith(":2019", y2019);
     }
 
     [Fact]

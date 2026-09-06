@@ -43,6 +43,14 @@
     height: 38px; padding: 0 12px; flex: 1 1 auto; min-width: 0;
     transition: border-color .12s ease, box-shadow .12s ease;
 }
+
+/* The search gives way first when the row runs short of room, so the buttons and the year beside it stay on one line
+   instead of wrapping. A ceiling as well as a floor: on a wide screen the field used to swallow the slack and leave the
+   controls stranded at the far edge. */
+.sh-search { flex: 0 1 300px; max-width: 300px; }
+
+/* The year sits at the end of the row and never shrinks, since a date that has been squeezed is unreadable. */
+.sh-year-nav { display: flex; align-items: center; flex: 0 0 auto; margin-left: 2px; }
 .sh-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 .sh-search svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .sh-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13px; color: var(--navy); }
@@ -276,6 +284,18 @@
     color: #b98f27;
     text-transform: uppercase;
     letter-spacing: .1em;
+    text-align: center;
+}
+
+/* The as-of line, when the roster is stated for an earlier year. Deliberately in the document's own ink rather than the
+   gold of the scope line: it is a fact about what this sheet IS, and it has to survive being printed in one colour. */
+.sh-doc-asof {
+    margin-top: 3px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .09em;
     text-align: center;
 }
 
