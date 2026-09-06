@@ -1,4 +1,4 @@
-@page "/reports"
+﻿@page "/reports"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @inject NavigationManager Navigation
@@ -196,124 +196,69 @@
             {
                 <div class="section-label">Collection Summary</div>
 
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("collected"))" @onkeydown="@(e => OnCardKey(e, "collected"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+                @* ── What the collector answers for ──
+                   Restructured 2026-09-06. This screen was ten identical rows, every figure the same size and weight, so the sum a
+                   collector remits sat level with a count of excused records. Grouped by what the numbers ARE: the money he hands
+                   over first, then the money he does not, then the payors, then the plain counts. *@
+                <button type="button" class="rpt-primary" @onclick="@(() => OpenDetail("collected"))">
+                    <span class="rpt-primary-label">@(HasOffice ? "Collected by you" : "Total collected")</span>
+                    <span class="rpt-primary-value">&#8369;@(HasOffice ? OwnTotal.ToString("N0") : GrandTotal.ToString("N0"))</span>
+                    <span class="rpt-primary-scope">@ScopeLabel · @PeriodTitle</span>
+                </button>
+
+                @* The two figures next to it are money too, but not the collector's to remit - one was taken at the office and the
+                   other has not been taken at all. Stated together, smaller, so the figure above cannot be mistaken for a total. *@
+                <div class="rpt-pair">
+                    @if (HasOffice)
+                    {
+                        <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("collected"))">
+                            <span class="rpt-tile-value">&#8369;@OfficeTotal.ToString("N0")</span>
+                            <span class="rpt-tile-label">At the office</span>
+                            <span class="rpt-tile-note">Not collected by you</span>
+                        </button>
+                    }
+                    <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("outstanding"))">
+                        <span class="rpt-tile-value">&#8369;@Outstanding.ToString("N0")</span>
+                        <span class="rpt-tile-label">Still owed</span>
+                        <span class="rpt-tile-note">From current payors</span>
+                    </button>
+                </div>
+
+                @* ── The payors, by where they stand ──
+                   These four counts partition the SAME people, so they belong in one block rather than as four rows a reader has to
+                   recognise as related. "Payees served" is their total, so it heads the block instead of being a seventh row that
+                   restates it. Each cell still opens its own list, as each row did. *@
+                <div class="rpt-block">
+                    <div class="rpt-block-head">
+                        <span class="rpt-block-title">Payors</span>
+                        <span class="rpt-block-total">@PayeeCount served</span>
                     </div>
-                    <div class="facility-info">
-                        <div class="facility-name">@(HasOffice ? "Collected by You" : "Total Collected")</div>
-                        <div class="facility-meta"><span class="facility-count">@ScopeLabel · @PeriodTitle</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">&#8369;@(HasOffice ? OwnTotal.ToString("N0") : GrandTotal.ToString("N0"))</div>
+                    <div class="rpt-grid">
+                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("paid"))">
+                            <span class="rpt-cell-value">@PaidPayorCount</span>
+                            <span class="rpt-cell-label">Fully paid</span>
+                        </button>
+                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("partial"))">
+                            <span class="rpt-cell-value">@PartialCount</span>
+                            <span class="rpt-cell-label">Part paid</span>
+                        </button>
+                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("unpaid"))">
+                            <span class="rpt-cell-value">@UnpaidPayorCount</span>
+                            <span class="rpt-cell-label">Not collected</span>
+                        </button>
+                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("absent-excused"))">
+                            <span class="rpt-cell-value">@AbsentExcusedCount</span>
+                            <span class="rpt-cell-label">Excused</span>
+                        </button>
                     </div>
                 </div>
 
-                @if (HasOffice)
-                {
-                    <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("collected"))" @onkeydown="@(e => OnCardKey(e, "collected"))">
-                        <div class="facility-icon">
-                            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                        </div>
-                        <div class="facility-info">
-                            <div class="facility-name">Recorded at Office</div>
-                            <div class="facility-meta"><span class="facility-count">Encoded by an admin, not collected by you</span></div>
-                        </div>
-                        <div class="facility-amount-col">
-                            <div class="facility-amount">&#8369;@OfficeTotal.ToString("N0")</div>
-                        </div>
-                    </div>
-                }
-
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("outstanding"))" @onkeydown="@(e => OnCardKey(e, "outstanding"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Outstanding Balance</div>
-                        <div class="facility-meta"><span class="facility-count">Remaining collectible from current payors</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">&#8369;@Outstanding.ToString("N0")</div>
-                    </div>
-                </div>
-
-                <div class="facility-row">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Recorded Transactions</div>
-                        <div class="facility-meta"><span class="facility-count">Paid and partial collection events</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@TotalTransactions</div>
-                    </div>
-                </div>
-
-                <div class="facility-row">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Payees Served</div>
-                        <div class="facility-meta"><span class="facility-count">Unique payors in this period</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@PayeeCount</div>
-                    </div>
-                </div>
-
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("paid"))" @onkeydown="@(e => OnCardKey(e, "paid"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Paid Payors</div>
-                        <div class="facility-meta"><span class="facility-count">Fully settled for this period</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@PaidPayorCount</div>
-                    </div>
-                </div>
-
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("partial"))" @onkeydown="@(e => OnCardKey(e, "partial"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Partial Payors</div>
-                        <div class="facility-meta"><span class="facility-count">Payors with remaining balance</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@PartialCount</div>
-                    </div>
-                </div>
-
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("unpaid"))" @onkeydown="@(e => OnCardKey(e, "unpaid"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Unpaid Payors</div>
-                        <div class="facility-meta"><span class="facility-count">Current valid payors not yet collected</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@UnpaidPayorCount</div>
-                    </div>
-                </div>
-
-                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("absent-excused"))" @onkeydown="@(e => OnCardKey(e, "absent-excused"))">
-                    <div class="facility-icon">
-                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
-                    </div>
-                    <div class="facility-info">
-                        <div class="facility-name">Absent / Excused</div>
-                        <div class="facility-meta"><span class="facility-count">Excused records — not counted as unpaid</span></div>
-                    </div>
-                    <div class="facility-amount-col">
-                        <div class="facility-amount">@AbsentExcusedCount</div>
-                    </div>
+                @* One plain fact, and it opens nothing - so it is stated as a line rather than dressed as a card that invites a tap.
+                   It counts EVENTS, not people, which is why it is not in the block above: a payor who paid twice is one payor and
+                   two transactions, and putting them side by side invited the office to read one as the other. *@
+                <div class="rpt-note-line">
+                    <span>Recorded transactions</span>
+                    <strong>@TotalTransactions</strong>
                 </div>
 
                 @if (Utility is not null)
