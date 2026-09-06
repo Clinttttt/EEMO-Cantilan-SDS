@@ -25,7 +25,7 @@ using NpmReports = EEMOCantilanSDS.Client.Components.Pages.Reports.NpmReports;
 /// <para>
 /// The rule worth having a test for is the exclusion. A stall with no reading recorded has no charge, and issuing it a
 /// statement would put "amount due ₱0.00" over the office's letterhead for a payor who may well owe something once the
-/// meter is read. Those payors are left out and counted on screen instead.
+/// meter is read. Those payors are left out, and the count of them is declared on the button that produces the run.
 /// </para>
 /// </summary>
 public class UtilityStatementViewTests : TestContext
@@ -64,6 +64,25 @@ public class UtilityStatementViewTests : TestContext
         HasElectricity: true, HasWater: true);
 
     private IRenderedComponent<NpmReports> RenderStatements(params UtilityRegisterRowDto[] rows)
+    {
+        var page = RenderUtilityView(rows);
+
+        page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement")).Click();
+
+        // Waited for, not assumed. Reading the markup straight after the click passed on a warm run and failed on a cold
+        // one - the statements had not been rendered yet, so the assertions were racing the second click.
+        //
+        // The toolbar is the marker, not a sheet title: with nothing billed there is no sheet, and waiting for one would
+        // hang the very test that checks the screen says so.
+        page.WaitForState(() => page.FindAll(".statement-actions").Count > 0, TimeSpan.FromSeconds(5));
+
+        return page;
+    }
+
+    /// <summary>
+    /// Stops one click earlier, on the utility billing table, so a test can read the Generate button before it is pressed.
+    /// </summary>
+    private IRenderedComponent<NpmReports> RenderUtilityView(params UtilityRegisterRowDto[] rows)
     {
         this.AddTestAuthorization().SetAuthorized("cly.sullano").SetRoles("SuperAdmin");
 
@@ -111,14 +130,6 @@ public class UtilityStatementViewTests : TestContext
         // Into the utility view, then produce the statements — the same two clicks the office makes.
         page.FindAll("button").First(b => b.TextContent.Contains("Utility", StringComparison.OrdinalIgnoreCase)).Click();
         page.WaitForState(() => page.Markup.Contains("Generate Billing Statement"), TimeSpan.FromSeconds(5));
-        page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement")).Click();
-
-        // Waited for, not assumed. Reading the markup straight after the click passed on a warm run and failed on a cold
-        // one - the statements had not been rendered yet, so the assertions were racing the second click.
-        //
-        // The toolbar is the marker, not a sheet title: with nothing billed there is no sheet, and waiting for one would
-        // hang the very test that checks the screen says so.
-        page.WaitForState(() => page.FindAll(".statement-actions").Count > 0, TimeSpan.FromSeconds(5));
 
         return page;
     }
@@ -200,20 +211,56 @@ public class UtilityStatementViewTests : TestContext
         Assert.Single(page.FindAll(".statement-sheet"));
     }
 
+    /// <summary>
+    /// A payor with no reading is left out of the statements, and the office is not told twice.
+    /// </summary>
+    /// <remarks>
+    /// The exclusion is the rule that matters and is unchanged: a stall with no reading has no charge, and a statement over the
+    /// office's letterhead saying nought is due is a false one a payor could wave at a later bill.
+    ///
+    /// <para>The count used to be repeated as a line of its own in this view's action bar. Removed on the office's instruction
+    /// 2026-09-06: it wrapped the toolbar onto a second row for a fact already carried by the Generate Billing Statement button that
+    /// leads here ("N on screen have no reading recorded and are left out"). So this asserts the exclusion, and asserts the note is
+    /// NOT back — reinstating it here is a layout regression, not a fix.</para>
+    /// </remarks>
     [Fact]
-    public void APayorWithNOREADINGIsLeftOutAndCounted()
+    public void APayorWithNOREADINGIsLeftOutAndTheExclusionIsNotRepeatedInTheToolbar()
     {
         var page = RenderStatements(Billed(), Unbilled());
         var markup = page.Markup;
 
         Assert.Contains(BilledPayor, markup);
-        Assert.DoesNotContain(UnbilledPayor, markup);       // no statement may be issued for them
-        Assert.Contains("no reading", markup);               // and the office is told why
+        Assert.DoesNotContain(UnbilledPayor, markup);        // no statement may be issued for them
+        Assert.Empty(page.FindAll(".statement-actions-note"));
+        Assert.DoesNotContain("with no reading, not included", markup);
 
         // Still excluded when the sheets are produced, not just in the summary.
         SwitchTo(page, "Per payor");
         Assert.DoesNotContain(UnbilledPayor, page.Markup);
         Assert.Single(page.FindAll(".statement-sheet"));
+    }
+
+    /// <summary>
+    /// The excluded payors are still declared to the office — on the button that produces the statements.
+    /// </summary>
+    /// <remarks>
+    /// This is now the ONLY place the count appears, the second line in the statements toolbar having been removed on the office's
+    /// instruction. So it is worth a test of its own: without one, a later tidy-up of this tooltip would take the fact away entirely
+    /// and a payor would drop out of the billing run with nothing on screen saying so.
+    /// </remarks>
+    [Fact]
+    public void TheGenerateButtonDeclaresHowManyAreLeftOutForWantOfAReading()
+    {
+        var page = RenderUtilityView(Billed(), Unbilled());
+
+        var generate = page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement"));
+        var tooltip = generate.GetAttribute("title") ?? string.Empty;
+
+        Assert.Contains("1 on screen have no reading recorded and are left out", tooltip);
+
+        // The button still offers the payor who CAN be billed, rather than refusing the whole run.
+        Assert.Contains("1", generate.TextContent);
+        Assert.False(generate.HasAttribute("disabled"));
     }
 
     [Fact]

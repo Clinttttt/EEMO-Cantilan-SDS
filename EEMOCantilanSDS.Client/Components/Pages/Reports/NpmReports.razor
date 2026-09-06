@@ -1,4 +1,4 @@
-@page "/npm/reports"
+﻿@page "/npm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Constants
@@ -566,18 +566,6 @@ else if (ShowUtilityStatements)
                 <button type="button" class="utility-section-tab @(_statementMode == "PerPayor" ? "active" : "")"
                         aria-pressed="@(_statementMode == "PerPayor")"
                         @onclick="@(() => _statementMode = "PerPayor")">Per payor</button>
-            </div>
-
-            <div class="statement-actions-note">
-                @if (UnbilledOnScreen > 0)
-                {
-                    @* The count of payors is on the button itself, so it is not repeated here. What is NOT obvious
-                       anywhere else is who has been left out: a payor with no reading recorded cannot be issued a
-                       statement, and the office needs to know some are still waiting on a reading. *@
-                    <span class="statement-actions-warn">
-                        @UnbilledOnScreen with no reading, not included
-                    </span>
-                }
             </div>
 
             <button type="button" class="utility-secondary-btn statement-print-btn" disabled="@(StatementRows.Count == 0)" @onclick="PrintPage">
@@ -1891,8 +1879,9 @@ else
     //
     // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no reading entered has no
     // charge, and a statement for it would state an amount due of nought - a false statement over the office's own
-    // letterhead, and one a payor could reasonably wave at a later bill. The count is reported on the button's own
-    // line so the office can see it decided that rather than losing a payor silently.
+    // letterhead, and one a payor could reasonably wave at a later bill. The count of those left out is stated on the
+    // Generate Billing Statement button's tooltip, so the exclusion is a decision the office can see rather than a
+    // payor going missing quietly.
     IReadOnlyList<UtilityRegisterRowDto> StatementRows =>
         (UtilityRegister?.Rows ?? Array.Empty<UtilityRegisterRowDto>())
         .Where(r => r.HasBill)
