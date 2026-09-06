@@ -54,6 +54,51 @@ public class FacilityReportsNpmCustomSectionTests : RepositoryTestBase
         Assert.Equal(60m, report.TotalRevenue);
     }
 
+    /// <summary>
+    /// A section the office has closed leaves the report — unless it holds money for the period, which must still add up.
+    /// </summary>
+    /// <remarks>
+    /// Reported from use 2026-09-06: Sari Sari was closed and still sat among the trading areas at ₱0, so the report showed
+    /// the office a section it had just shut as though it were still open.
+    ///
+    /// <para>Both halves are asserted together on purpose. Simply filtering closed sections out would have been wrong: a
+    /// section that took money earlier in the period still holds that money, and the section cards are required to sum to
+    /// the facility's revenue - this file says so of itself. Dropping a card with ₱30 in it would lose revenue from the
+    /// breakdown while the total kept it, which is a worse fault than the one being fixed.</para>
+    /// </remarks>
+    [Fact]
+    public async Task NpmSectionBreakdown_AClosedSectionLeavesTheReport_UnlessItHoldsMoney()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+
+        // Closed and EMPTY for the period — this is the card the office wants gone.
+        var quiet = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, customSectionName: "Sari Sari");
+        var quietContract = Contract.Create(quiet.Id, "Karmilita Log", "Karmilita Log", new DateOnly(2026, 1, 1), 3, 900m);
+
+        // Closed but it TOOK ₱30 inside the period, so its card has to stay or the breakdown stops reconciling.
+        var earner = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental, customSectionName: "Kahoy Sale");
+        var earnerContract = Contract.Create(earner.Id, "Pucci Lor", "Pucci Lor", new DateOnly(2026, 1, 1), 3, 900m);
+        var earnerDaily = DailyCollection.Create(earner.Id, new DateOnly(2026, 1, 10));
+        earnerDaily.MarkPaid("OR-K1", Guid.NewGuid());
+
+        context.AddRange(facility, quiet, quietContract, earner, earnerContract, earnerDaily);
+        context.FacilitySectionClosures.AddRange(
+            FacilitySectionClosure.Create(FacilityCode.NPM, "Sari Sari", new DateOnly(2026, 1, 5), [quiet.Id], createdBy: "tester"),
+            FacilitySectionClosure.Create(FacilityCode.NPM, "Kahoy Sale", new DateOnly(2026, 1, 20), [earner.Id], createdBy: "tester"));
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 1, null, CancellationToken.None);
+
+        Assert.DoesNotContain(report.SectionBreakdown, s => s.SectionName == "Sari Sari");
+        Assert.Equal(30m, report.SectionBreakdown.Single(s => s.SectionName == "Kahoy Sale").Revenue);
+
+        // The reconciliation this file exists to protect: cards still sum to the facility's revenue.
+        Assert.Equal(report.TotalRevenue, report.SectionBreakdown.Sum(s => s.Revenue));
+    }
+
     [Fact]
     public async Task NpmSectionBreakdown_NoCustomSections_IsExactlyTheThreeCanonicalCards()
     {

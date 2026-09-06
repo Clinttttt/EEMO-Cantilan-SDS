@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -149,11 +149,32 @@ public partial class FacilityReportsRepository
             .Include(s => s.Contracts.Where(c => c.IsActive))
             .ToListAsync(ct);
 
+        // A section the office has CLOSED is not a live part of the market, so it does not get a card among the open ones -
+        // reported 2026-09-06, where Sari Sari was closed and still sat in the report at ₱0 beside the trading areas.
+        //
+        // WITH ONE CONDITION, and it is the reason this is not simply a filter on the stalls above: these cards must
+        // reconcile to the facility total, which this file says of itself. A closed section that took money earlier in the
+        // reported period still holds that money, and dropping its card would lose revenue out of the breakdown while the
+        // total kept it. So a closed section is omitted only when it has nothing to report - which is the state the office
+        // is complaining about - and is otherwise shown, because ₱620 of cards must still add to ₱620.
+        var closedSections = await _context.FacilitySectionClosures
+            .AsNoTracking()
+            .Where(c => c.FacilityCode == FacilityCode.NPM)
+            .Select(c => c.SectionName)
+            .ToListAsync(ct);
+
+        var closedSet = new HashSet<string>(closedSections.Select(s => s.Trim()), StringComparer.OrdinalIgnoreCase);
+
         foreach (var group in customStalls
             .GroupBy(s => s.CustomSectionName!.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
         {
-            breakdown.Add(await BuildCardAsync(group.Key, group.ToList()));
+            var card = await BuildCardAsync(group.Key, group.ToList());
+
+            if (closedSet.Contains(group.Key) && card.Revenue <= 0m)
+                continue;
+
+            breakdown.Add(card);
         }
 
         return breakdown;
