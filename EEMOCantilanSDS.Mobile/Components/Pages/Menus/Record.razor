@@ -1,4 +1,4 @@
-@page "/records"
+﻿@page "/records"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
@@ -115,45 +115,47 @@
                     </div>
                 }
 
-                @foreach (var row in group.Value)
+                @* The market is read by area, so the entries are banded by it — the same band the Menu's collection screen uses,
+                   which is where the collector has just come from. The area is stated ONCE at the head of its band instead of on
+                   every card in it. *@
+                @foreach (var band in BandsOf(group.Value))
                 {
-                    var rec = row.Primary;
-                    <div class="record-card @RowCardClass(row)" @onclick="() => OpenDetail(row)">
-                        <div class="record-info">
-                            <div class="record-name">@rec.PayorName</div>
-                            <div class="record-meta">
-                                @if (AssignedFacilities.Count > 1)
-                                {
-                                    <span class="record-facility">@rec.FacilityCode</span>
-                                }
-                                @if (rec.Section is not null)
-                                {
-                                    <span class="record-section">@SectionLabel(rec.Section.Value)</span>
-                                }
-                                else if (!string.IsNullOrWhiteSpace(rec.CustomSectionName))
-                                {
-                                    <span class="record-section">@rec.CustomSectionName</span>
-                                }
-                                @if (rec.IsAdminRecorded)
-                                {
-                                    <span class="record-admin-tag">Office</span>
-                                }
-                                @if (row.IsMerged)
-                                {
-                                    <span class="record-section">@MergedLabel(row)</span>
-                                }
-                                else if (rec.SlaughterLines is { Count: > 1 })
-                                {
-                                    <span class="record-section">@rec.SlaughterLines.Count animal types</span>
-                                }
-                                <span class="record-time">@RowTimeLine(row)</span>
+                    <div class="section-label">@band.Label</div>
+
+                    @foreach (var row in band.Rows)
+                    {
+                        var rec = row.Primary;
+                        <div class="record-card @RowCardClass(row)" @onclick="() => OpenDetail(row)">
+                            <div class="record-info">
+                                <div class="record-name">@rec.PayorName</div>
+                                <div class="record-meta">
+                                    @* The area is not repeated here: the band above says it. The facility is stated only when the
+                                       band is an area rather than the facility itself, so it is never said twice either. *@
+                                    @if (AssignedFacilities.Count > 1 && !BandNamesTheFacility(row))
+                                    {
+                                        <span class="record-facility">@rec.FacilityCode</span>
+                                    }
+                                    @if (rec.IsAdminRecorded)
+                                    {
+                                        <span class="record-admin-tag">Office</span>
+                                    }
+                                    @if (row.IsMerged)
+                                    {
+                                        <span class="record-section">@MergedLabel(row)</span>
+                                    }
+                                    else if (rec.SlaughterLines is { Count: > 1 })
+                                    {
+                                        <span class="record-section">@rec.SlaughterLines.Count animal types</span>
+                                    }
+                                    <span class="record-time">@RowTimeLine(row)</span>
+                                </div>
+                            </div>
+                            <div class="record-amount-col">
+                                <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalAmount.ToString("N0"))</div>
+                                <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
                             </div>
                         </div>
-                        <div class="record-amount-col">
-                            <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalAmount.ToString("N0"))</div>
-                            <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
-                        </div>
-                    </div>
+                    }
                 }
 
                 <div class="group-spacer"></div>
@@ -669,6 +671,15 @@
 
     IEnumerable<RecordRow> AllRows => GroupedRows.SelectMany(g => g.Value);
 
+    /// <summary>
+    /// One day's entries banded by the area they were collected in — the rule lives in Mobile.Core so it is tested.
+    /// </summary>
+    static IReadOnlyList<CollectorRecordBand> BandsOf(IReadOnlyList<RecordRow> rows)
+        => CollectorRecordBands.Build(rows);
+
+    /// <summary>True where the band already names the facility, so the card need not repeat it.</summary>
+    static bool BandNamesTheFacility(RecordRow row) => CollectorRecordBands.NamesTheFacility(row);
+
     decimal TotalCollected => FilteredRecords.Sum(r => r.AmountPaid);
     int PaidCount => AllRows.Count(row => !row.Primary.IsAbsent && !row.AnyPartial);
     int PartialCount => AllRows.Count(row => !row.Primary.IsAbsent && row.AnyPartial);
@@ -844,11 +855,7 @@
         : r.IsPartial ? $"₱{r.AmountPaid:N0} paid"
         : "Paid";
 
-    static string SectionLabel(MarketSection s) => s switch
-    {
-        MarketSection.VegetableArea => "Vegetable",
-        MarketSection.FishSection => "Fish",
-        MarketSection.MeatSection => "Meat",
-        _ => s.ToString()
-    };
+    // The market's own area names. Kept as one rule in Mobile.Core so the band at the head of a group and the detail sheet
+    // below it can never call the same area by two different names.
+    static string SectionLabel(MarketSection s) => CollectorRecordBands.SectionLabel(s);
 }
