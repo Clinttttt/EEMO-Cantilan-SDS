@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -465,6 +465,20 @@ public partial class FacilityReportsRepository
             .GroupBy(r => (r.BillingYear, r.BillingMonth))
             .ToDictionary(g => g.Key, g => g.Sum(r => r.BaseRentalAmount));
 
+        // What was actually handed over toward RENT in each recorded month. Needed only for an excused month — see below.
+        // A part payment is credited to rent FIRST and capped at the month's own rent: a rent exception excuses rent, so it must
+        // not quietly forgive a light or water bill as well.
+        var paidTowardRentByMonth = records
+            .GroupBy(r => (r.BillingYear, r.BillingMonth))
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(r => r.Status switch
+                {
+                    PaymentStatus.Paid => r.BaseRentalAmount,
+                    PaymentStatus.Partial => r.PartialAmount,
+                    _ => 0m,
+                }));
+
         var today = _clock.PhilippineToday;
         decimal total = 0m;
         var cursor = new DateOnly(start.Year, start.Month, 1);
@@ -472,21 +486,46 @@ public partial class FacilityReportsRepository
         while (cursor <= last)
         {
             var key = (cursor.Year, cursor.Month);
-            if (excusedMonths is null || !excusedMonths.Contains(key))
+
+            if (excusedMonths is not null && excusedMonths.Contains(key))
             {
-                if (recordedByMonth.TryGetValue(key, out var snapshot))
+                // AN EXCUSED MONTH THAT WAS PART PAID STILL OWES WHAT IT TOOK.
+                //
+                // Skipping the month outright was the fault. The caller differences one obligation against one payment total over
+                // the whole period, so removing an excused month's rent while its payment stayed in the total left a surplus - and
+                // the surplus came off OTHER months. ₱500 taken for September quietly reduced what October appeared to owe. Ruled
+                // on by the office 2026-09-07: the money paid belongs to the month it was paid for, and only what REMAINS is
+                // excused.
+                //
+                // Expressed by billing the month exactly what it was paid, so obligation and payment cancel inside their own month
+                // and there is no surplus to travel. September owing ₱900 with ₱500 paid is billed ₱500: nil remaining, ₱400
+                // forgiven, October untouched. A month with nothing paid is billed nothing, as before.
+                if (paidTowardRentByMonth.TryGetValue(key, out var paidTowardRent) && paidTowardRent > 0m)
                 {
-                    total += snapshot;   // bill exactly what was recorded (rate at that time)
+                    var billed = recordedByMonth.GetValueOrDefault(key);
+
+                    // Never more than the month's own rent: a part payment large enough to cover utilities too must not inflate
+                    // the rent obligation to match it.
+                    total += billed > 0m ? Math.Min(paidTowardRent, billed) : paidTowardRent;
                 }
-                else
-                {
-                    var mStart = cursor;
-                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-                    if (mStart <= today
-                        && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
-                        total += stall.MonthlyRate;   // no record yet → current rate
-                }
+
+                cursor = cursor.AddMonths(1);
+                continue;
             }
+
+            if (recordedByMonth.TryGetValue(key, out var snapshot))
+            {
+                total += snapshot;   // bill exactly what was recorded (rate at that time)
+            }
+            else
+            {
+                var mStart = cursor;
+                var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                if (mStart <= today
+                    && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
+                    total += stall.MonthlyRate;   // no record yet → current rate
+            }
+
             cursor = cursor.AddMonths(1);
         }
         return total;
