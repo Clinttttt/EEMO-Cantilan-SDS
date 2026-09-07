@@ -1,4 +1,4 @@
--- ============================================================================
+﻿-- ============================================================================
 -- Excusal audit — READ ONLY. Nothing here writes, updates or deletes.
 -- ============================================================================
 --
@@ -16,16 +16,44 @@
 --   indistinguishable, field by field, from a day a collector genuinely marked
 --   absent.
 --
---   What DOES distinguish them is the shape of the write. A reopen excuses every
---   day of the frozen span in ONE act, so a run of absent days for one stall
---   shares a single "UpdatedAt" to the millisecond. A collector marks one day at
---   a time, in the field, minutes or hours apart. Query 1 looks for that shape.
+--   What DOES distinguish them is the shape of the write. QUERY 2b is the
+--   reliable test: an absent row whose CreatedAt is meaningfully earlier than its
+--   UpdatedAt was not created as an excusal, so something stood on that day first.
+--
+--   Query 1 below groups by an exact UpdatedAt looking for one act covering many
+--   days. RUN 2026-09-07 SHOWED THAT DOES NOT WORK: each row's UpdatedAt is set
+--   per entity as it is marked, so six days written by one reopen differed by
+--   microseconds and grouped into nothing. It is kept, bucketed to the second, as
+--   a weak corroboration only. Query 2b is what answers the question.
 --
 --   FAULT 2 (fixed e12d78e2) — a closure excused a month that already had a
 --   PARTIAL payment against it, forgiving the remainder AND letting the money
 --   paid drift onto other months. That one leaves a direct trace: an exception
 --   row of reason TemporaryClosure on a month whose payment record is Partial.
 --   Query 3 finds it exactly; no inference needed.
+--
+-- ============================================================================
+-- RESULT OF THE RUN — production, 2026-09-07, read-only session
+-- ============================================================================
+--
+--   excused_days_total ............... 6
+--   excused_days_rewritten_later ..... 0     ← Fault 1 did NOT occur
+--   excused_months_total ............. 0     ← Fault 2 CANNOT have occurred
+--   excused_months_with_money ........ 0
+--
+--   The six excused days are all Karmilita Log, stall 1, Sari Sari, 31 August to
+--   5 September 2026, written by "head" at 09:58 PH on 6 September. Every one has
+--   a created-to-updated gap of under a millisecond, so each row was CREATED as an
+--   excusal rather than rewritten from an existing record. That is the legitimate
+--   case the frozen span exists for: days with nothing recorded on them, on a
+--   stall whose section was closed.
+--
+--   There are no monthly exceptions in the database at all, so the part-paid
+--   month fault has no instances anywhere, in any municipality.
+--
+--   CONCLUSION: NO REPAIR IS NEEDED. Nothing was wrongly excused. Both fixes were
+--   made before either fault reached the office's data.
+-- ============================================================================
 --
 -- HOW TO READ THE RESULTS
 --
@@ -61,7 +89,7 @@ SELECT
     s."StallNo"                           AS stall_no,
     COALESCE(s."CustomSectionName", s."Section"::text, '—') AS area,
     dc."UpdatedBy"                        AS written_by,
-    dc."UpdatedAt"                        AS written_at,
+    date_trunc('second', dc."UpdatedAt") AS written_second,
     COUNT(*)                              AS days_excused_in_one_act,
     MIN(dc."CollectionDate")              AS earliest_day,
     MAX(dc."CollectionDate")              AS latest_day
@@ -72,9 +100,9 @@ JOIN "Municipalities"  m ON m."Id" = dc."MunicipalityId"
 WHERE dc."IsAbsent" = true
   AND dc."UpdatedAt" IS NOT NULL
 GROUP BY m."Name", f."Code", s."StallNo", s."CustomSectionName", s."Section",
-         dc."UpdatedBy", dc."UpdatedAt"
+         dc."UpdatedBy", date_trunc('second', dc."UpdatedAt")
 HAVING COUNT(*) > 1
-ORDER BY dc."UpdatedAt" DESC, m."Name", s."StallNo";
+ORDER BY date_trunc('second', dc."UpdatedAt") DESC, m."Name", s."StallNo";
 
 
 -- ----------------------------------------------------------------------------
@@ -153,7 +181,7 @@ SELECT
     e."BillingYear"           AS excused_year,
     e."BillingMonth"          AS excused_month,
     e."Reason"                AS excusal_reason,
-    e."Note"                  AS excusal_note,
+    e."Remarks"               AS excusal_note,
     e."CreatedBy"             AS excused_by,
     e."CreatedAt"             AS excused_at,
     pr."Status"               AS payment_status,
