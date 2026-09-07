@@ -1144,6 +1144,124 @@ measurement rather than the reasoning.
 
 Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
 
+- **The excusal faults were audited against production and NEITHER reached the data — 2026-09-07 (`9e7c20b8`).** Read-only, with the
+  session forced read-only at the server too. Six excused days exist in the whole database: Karmilita Log, stall 1, Sari Sari, 31 Aug to
+  5 Sep, written by `head` at 09:58 PH on 6 September — the closure the office reported. Every one has a created-to-updated gap under a
+  millisecond, so each row was CREATED as an excusal rather than rewritten from an existing record. That is the legitimate case: days
+  with nothing recorded, on a stall whose section was closed. **No debt was forgiven and no repair is needed.** There are no monthly
+  exceptions in the database at all, in any municipality, so the part-paid month fault has no instances either.
+  - The queries live at `.kiro/diagnostics/excusal-audit.sql` with the result recorded in their own header, so nobody re-runs them
+    against production to learn the answer.
+  - **Two faults in the diagnostic itself, found by running it.** It referenced a column `Note` that does not exist — it is `Remarks` —
+    so that query errored and returned nothing; the month fault was still ruled out, but by the scale query rather than the one written
+    for it. And grouping by an exact `UpdatedAt` found nothing on a batch that plainly existed, because the timestamp is set per row as
+    each is marked: six days of one reopen differed by microseconds. Bucketed to the second it finds it. A diagnostic that fails past
+    the reader is worth less than none, so both are corrected.
+
+- **Closing a section no longer forgives days the office recorded as owed — 2026-09-06 (`570a19ce`, `b4a4f38d`, `4e342c82`).** Three
+  distinct faults were reported as one. Two of the office's own descriptions were wrong, and the corrections matter more than the fixes.
+  - **CLOSING EXCUSES NOTHING.** `Stall.Close` writes no rows and the section handler only closes stalls. The excusal runs on REOPEN,
+    over the frozen span. The act that wrote those records reopened the section.
+  - What was actually lost is days INSIDE the span: `ToggleStallStatusCommandHandler` took a day recorded as *Not Collected* and rewrote
+    it as excused. The paid case was guarded from the start; the owed case was not, and owed is the one that costs money. **Only a day
+    nobody recorded is excused now.** Days with no record still are, which is what stops a closure becoming arrears — the test asserts
+    both halves, because a fix that merely stopped excusing would have created the fault the feature exists to prevent.
+  - **The pile of identical cards was a display fault, not duplicate data.** `CollectorRepository.Mobile.cs` filters the records feed on
+    `(UpdatedAt ?? CreatedAt)` — when a row was WRITTEN, not the day it settles — so one closure excusing six days produced six cards
+    stamped 09:58 on a day nobody touched the section. Excused days for one payor at one stall are one card now, reading "Sep 1–3 ·
+    excused". An absence still never merges with a PAYMENT: putting one inside a receipt total would have a collector remitting a day
+    nobody owes.
+  - **The report never consulted the closure table at all.** Here the obvious fix would have been worse than the fault: the section cards
+    must sum to the facility total, so filtering closed sections out would have dropped real revenue from the breakdown while the total
+    kept it. A closed section is omitted only when it has nothing to report for the period; one that took money earlier keeps its card.
+    Closing a section today therefore does not rewrite last month's report.
+
+- **A part-paid month is not excused by a closure either — 2026-09-07 (`e12d78e2`).** The paid case was guarded; the partial case was not,
+  and it is the worse of the two. An excused month contributes NOTHING to the obligation while the money handed over is still counted
+  across the period, so excusing a part-paid month forgave the remainder AND let the payment float onto other months. Not a lenient
+  write-off — money crossing periods. A month with money against it, paid or part paid, is never excused by a closure. A month with none
+  still is.
+
+- **Money paid for a month stays with that month, even when the office excuses it — 2026-09-07 (`64624dff`).** The office's ruling, from
+  its own example: September owes ₱900, ₱500 is paid, ₱400 remains, the office excuses September. The ₱500 belongs to September; only the
+  ₱400 is excused; October must not move.
+  - Expressed by billing an excused month EXACTLY WHAT IT WAS PAID, so obligation and payment cancel inside their own month and no
+    surplus exists to travel. A month with nothing paid is billed nothing and forgiven whole, which is the ordinary case — and the reason
+    the fix is not simply "stop skipping excused months".
+  - **A part payment is credited to RENT first**, capped at the month's rent. A rent exception excuses rent; crediting it to electricity
+    first would have settled both and written off a light bill the office never waived.
+  - Confined to `CalculateMonthlyRentObligationDue`, which has ONE caller. Checked before writing: `CalculateStallRentObligationDue` is
+    only reached where no payment record exists, so nothing can drift there, and the other four readers of the excused-month set skip
+    month by month rather than differencing totals. **This also closed the audit's finding that manual excusals had no payment check** —
+    the arithmetic is now right whichever handler created the exception.
+  - The tests assert a COMPARISON, the same account with and without the excusal, because the figure that matters is not September's
+    balance but whether October's moved. An absolute assertion passes while money drifts, which is how this survived.
+
+- **The platform operator has no backup scope — the office's ruling, 2026-09-07 (`8292664c`).** Each municipality holds its own
+  credentials and a catastrophe can be put right directly on the cloud, so an operator console for whole-database backup and restore was
+  scope nobody needed. 1,916 lines removed: six endpoints, the API client and interface, `TriggerBackup`, `TriggerRestore`, four run
+  queries, three DTOs, `IBackupService` with its GitHub Actions implementation and options, the DI gateway, and in the Blazor page the
+  operator section, its two dialogs, its state and formatters, plus the cross-page restore toast.
+  - **Checked before deleting:** `backup.yml` and `restore.yml` drive `pg_dump` and `psql` directly against the database and
+    `backup-freshness.yml` makes no API calls, so nothing outside the app used those endpoints. How backups actually run is untouched.
+  - **The office's own per-tenant backups are untouched** — separate commands, separate client, separate page section. `BackupArtifact`
+    was in the deletion list until the compiler showed the tenant export, tenant backup file and tenant restore snapshot all use it.
+  - **The compiler found the references, not grep.** Greps of the form `Project\**\*.cs` UNDER-REPORT deep paths — one reported
+    `RestoreNotifier` as dead when the toast and the page both used it. Every removal was verified by a build.
+  - The `GitHubBackup` token is still in production app settings. The code that read it is gone so it is inert; removing a deployed
+    secret is the office's to do.
+
+- **The Stall Holder List can be read as of an earlier year — 2026-09-06 (`c5740ec5`), corrected 2026-09-07 (`3aaa8daf`).** Asked for so
+  the office can answer a panel about 2019. A control alone would have answered nothing: the roster lists CURRENT holders and drops
+  closed and expired accounts, so no filter over the rows it returns could bring back somebody who has left.
+  - The year is an AS-OF point read against the contract history, not a filter. No year and the CURRENT year both mean today, so the
+    register the office opens every morning is unchanged — same rows, totals, request and cache entry, with a test asserting the two reads
+    are identical row for row.
+  - The year is part of the cache key, a historical read is never saved as the page's fast-reopen copy, and the sheet prints
+    "AS OF DECEMBER 31, <year>" with the year in the CSV filename. A printed page leaves the screen behind.
+  - **The first version answered a snapshot with a range.** It used a whole-year window and took the first match, and occupancy windows
+    are ordered OLDEST first — the summary on `OccupanciesOverlapping` said "newest first" and had been wrong longer than the feature
+    existed. A stall re-let in April 2019 was reported under the lessee who left in March, and one vacated by June still appeared on a 31
+    December roster. Both bounds are the stated day now, which can match at most one occupancy.
+
+- **An Excel export that opens readable — 2026-09-06 (`f07c7dc7`).** The CSV showed `########` in the Effectivity column. Not our data:
+  Excel prints a DATE or NUMBER as hashes when the column is narrower than the value, and its default column holds about eight
+  characters, so `8/9/2026` appeared and `8/11/2026` did not. **A CSV cannot carry a column width**, so nothing written into it could
+  have fixed this.
+  - The two text-forcing tricks are refused on purpose by `CsvCell`, which neutralises a leading `=` or tab so an occupant name recorded
+    as `=HYPERLINK(...)` cannot run when the office double-clicks an export. That safeguard was not worth trading for a column width.
+  - So there is an Excel button beside the CSV one, and **the CSV is kept** — anything consuming that file still works. Values go in as
+    what they ARE, so the sheet sorts and filters properly; text dates sort alphabetically and file 1 September before 2 August.
+  - `DocumentFormat.OpenXml 3.5.1`, pinned. Microsoft's own package, MIT, one dependency, targets net10.0 — chosen over a friendlier
+    wrapper because a short dependency chain with plain provenance is worth more here than convenience. The tests read the bytes back
+    through the same library: a workbook Excel refuses to open would be worse than the hashes.
+
+- **Collectors can settle a closed month in the field — the office's ruling, 2026-09-06 (`3566a3bd`).** The arrears screen said a payor
+  was a month behind and offered no way to take it.
+  - **The past month's days were NOT added to the day chips**, and that is the substance. A month let for a rent owes that rent whatever
+    its calendar gave it: a 31-day month at ₱30 owes ₱900, not ₱930, the last installments folded into a month-end difference. Offering
+    the days would have collected ₱930 and reported the month settled.
+  - So a closed month is settled AS A MONTH through `SettleNpmMonthCommand`, the same settlement the portal uses. The handler already
+    checked the collector's assigned facility and stamped the collector's id; only the route was closed. The collector app got its own
+    endpoint onto that command and the administrators' endpoint is untouched, with a test pinning both.
+
+- **The mobile Records feed is banded by area — 2026-09-06 (`7fd9cbda`).** A flat run of cards each repeating its own area. Banded the way
+  the Menu's collection screen already groups, so the card no longer states what the heading above it says. Canonical areas keep the
+  market's own order — grouping alone falls into alphabetical order and files Fish above Vegetable, reading as though the market had been
+  reorganised. A facility with no areas is banded by the facility, since a band with nothing to say is worse than none.
+
+- **The utility sheet opens with nothing collected — 2026-09-06 (`9d57e27a`).** It used to open with each owing utility already marked
+  Paid, deciding on the collector's behalf that money had changed hands. Three equal buttons became the utility row itself: tap to mark
+  collected, with a part payment behind its own quiet action. **The receipt is asked for once** — offices issuing one per utility can
+  still say so. The rule about which receipt goes against which utility moved to `Mobile.Core` so it could be tested; an injection proof
+  then showed every test covered only water being left out, so half the rule was unguarded until both directions were stated.
+
+- **The collector's Reports screen reads as a statement of account — 2026-09-06 (`219011bc`).** Ten identical rows, every figure the same
+  weight, so the sum a collector remits sat level with a count of excused records. Weight follows meaning now: the money he answers for,
+  then money that is not his to remit, then the payors as ONE block because those four counts partition the same people, then an event
+  count that opens nothing as a plain line. Two tests hold that no drill-down was lost — the real risk was a list the detail view can
+  still title while nothing opens it — and they read the card names out of the page rather than listing them.
+
 - **The Collection History Total row took the biggest month instead of adding the months up — FIXED 2026-09-06.** Reported from use on
   the New Public Market history: August showed ₱1,140.00 outstanding and September ₱840.00, and the Total row said ₱1,140.00 rather
   than the ₱1,980.00 the office is still owed. All six facility report pages totalled Outstanding with `Max` while totalling Collected
@@ -1179,11 +1297,14 @@ Items that were open and are now closed, kept because the reasoning is what stop
     wrong one way exposes an office's records and the other way locks the operator out of the platform it runs.
   - **STILL OPEN: `RefreshTokenCommandHandler` has no operator check**, so a refresh cookie issued before `821a0ac3` keeps minting
     access tokens until it expires. The middleware now blunts what such a token can reach, so this is a loose end rather than a hole.
-  - **A CONSEQUENCE worth knowing:** the operator-only whole-database backup and restore panel lives in the BLAZOR `Backups.razor`
-    behind `_isOperator`, and reaching it needs a Blazor session the operator can no longer obtain. That UI is unreachable. It is not
-    lost — `backup.yml` and `restore.yml` both carry `workflow_dispatch` and are how those actually run in production, from the
-    Actions tab — but it was a side effect of `821a0ac3` rather than a decision. If the operator wants a screen for it, it belongs in
-    the Angular console, which today has no backup endpoints at all.
+  - **THE ALLOW-LIST HAD A PREFIX HOLE, found by audit and fixed 2026-09-07 (`3aaa8daf`).** It was matched with a bare `StartsWith`, so
+    `/api/activation` also admitted `/api/activation-codes` — a MUNICIPAL endpoint that issues a payor's single-use activation code and
+    authorises `SuperAdmin`, which is exactly what the operator's token carries. The operator could bind a payor account to a stall in
+    another market, through the middleware written to stop it doing municipal work. Matched on a path boundary now: a request either IS
+    an allowed path or continues it after a slash. The API's route prefixes were enumerated to confirm `activation-codes` was the only
+    one over-admitted. Four tests hold the boundary from both sides.
+  - **The operator's backup scope was REMOVED on the office's ruling 2026-09-07 (`8292664c`)** — see its own entry below. The note that
+    used to sit here, about the Blazor panel being unreachable, no longer describes anything: the panel and its endpoints are gone.
 
 - **Six credential pages discarded input typed before the circuit connects — FIXED 2026-09-05.** AccountSetup, AdminActivate,
   ChangePassword, ForgotPassword and ResetPassword now carry the same `FormReady => RendererInfo.IsInteractive` gate as Login.razor,
@@ -1260,6 +1381,31 @@ Items that were open and are now closed, kept because the reasoning is what stop
   by this; the comments in `LoginCommand` and `LoginCommandHandler` explaining the old divergence were corrected.
 
 ## Deferred product work
+
+- **From the 2026-09-07 audit, not fixed and why.** Two independent reviews of the day's fourteen commits, with a third verifying their
+  claims. Three findings were confirmed at high severity and fixed the same day: the operator allow-list's prefix hole and the as-of
+  roster's range-for-a-snapshot (both `3aaa8daf`), and the manual-excusal float, which the office's own arithmetic ruling closed
+  (`64624dff`). These remain open. **None of them loses money**, which is why they were not rushed at the end of a long day.
+  - **`SettleNpmMonthCommandHandler` misses a short-month adjustment gate** that its sibling `NpmMonthSettlementService` has. It bites
+    only where a fee changes mid-month, so the two paths would price such a month differently. The smallest fix is to add the same flag to
+    the condition.
+  - **The Collection History Total can exceed the year's own figure.** Summing the monthly Outstanding is right — the months are disjoint —
+    but each month's balance clamps at zero per stall, so a stall that overpaid in one month and underpaid in another sums higher than the
+    year computed in one pass. The guarding test cannot fail on it because its seed never overpays. Either state the year's own figure in
+    the Total, or extend the seed and accept the divergence knowingly.
+  - **`?year=0` on the stallholder list returns a 500** rather than a refusal. The query validates the month but not the year bound.
+  - **The count of payors left out of a utility billing run lives only in a `title` attribute.** It is the one place that fact appears now
+    that the second line was removed on the office's instruction, and a tooltip is not a statement — a collector on a phone never sees it.
+  - **The excused-day span is gap-blind.** "Sep 1–3" is printed whether the excused days are 1, 2 and 3 or only 1 and 3, which contradicts
+    the day count beside it. Emitting consecutive runs would fix it.
+  - **`SetNpmSectionClosedCommandHandler` can commit the per-stall freezes and write no closure row** if a later stall's toggle is refused.
+    Downgraded to latent because the refusal path is effectively unreachable today, but if it ever fires the section is half-closed with
+    nothing recording it.
+
+- **Whether the office wants a repair path at all is now moot — but the shape of one is worth remembering.** The 2026-09-07 audit asked
+  whether the forward-only excusal fixes needed a data repair. They did not: the production audit found nothing wrongly excused. If a
+  future fault does write bad excusals, the safe direction is to return the affected days to UNPAID — restoring the debt rather than
+  inventing a payment — and the office should be told it may need to chase money it had stopped asking for.
 
 - **From the 2026-09-03 audit, not fixed and why.** An independent review of that day's commits found three bugs (all fixed: the
   multi-day settlement queueing one day, arrears naming the wrong payor on a re-let stall, and the activation mapper deriving
