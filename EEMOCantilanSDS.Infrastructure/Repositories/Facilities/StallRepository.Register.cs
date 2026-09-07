@@ -79,8 +79,13 @@ public partial class StallRepository
         //
         // Read AS OF the stated day, so an earlier year asks "was this let then?" rather than "is it let now?". For today
         // that is the identical question it always asked, which is why the daily view is unchanged.
+        //
+        // ON THE DAY, not anywhere in the year. A whole-year window admitted a stall let in January and vacant by December, and
+        // named its FIRST lessee rather than the one holding it at the year's close - occupancy windows are ordered oldest first,
+        // whatever OccupanciesOverlapping's summary used to claim. Found by audit 2026-09-07. A one-day window matches at most one
+        // occupancy, because the windows are built not to overlap, so the answer is unambiguous.
         stalls = isHistorical
-            ? stalls.Where(s => s.OccupanciesOverlapping(new DateOnly(asOf.Year, 1, 1), asOf, asOf).Count > 0).ToList()
+            ? stalls.Where(s => s.OccupanciesOverlapping(asOf, asOf, asOf).Count > 0).ToList()
             : stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired(asOf)).ToList();
 
         // ── The monetary columns must state what the stall is actually billed ──
@@ -123,7 +128,7 @@ public partial class StallRepository
         {
             if (!isHistorical) return s.Contracts.FirstOrDefault(c => c.IsActive);
 
-            var held = s.OccupanciesOverlapping(new DateOnly(asOf.Year, 1, 1), asOf, asOf);
+            var held = s.OccupanciesOverlapping(asOf, asOf, asOf);
             return held.Count > 0 ? held[0].Contract : s.Contracts.FirstOrDefault(c => c.IsActive);
         }
 

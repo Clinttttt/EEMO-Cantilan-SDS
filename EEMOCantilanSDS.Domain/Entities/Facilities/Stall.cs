@@ -281,7 +281,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             return windows;
         }
 
-        /// <summary>The occupancy that held this stall across (any part of) the given period, newest first.</summary>
+        /// <summary>
+        /// The occupancies that held this stall across any part of the given period, OLDEST first.
+        /// </summary>
+        /// <remarks>
+        /// Ordered as <see cref="Occupancies"/> orders them, which is oldest first. The summary here read "newest first" until
+        /// 2026-09-07, and a caller that trusted it took the FIRST element expecting the latest lessee - and printed the name of
+        /// somebody who had already left. A caller wanting the holder on one day should pass that day as both bounds, which can
+        /// match at most one occupancy because the windows are built not to overlap.
+        /// </remarks>
         public IReadOnlyList<StallOccupancy> OccupanciesOverlapping(DateOnly periodStart, DateOnly periodEnd, DateOnly asOf) =>
             Occupancies(asOf)
                 .Where(o => o.Start <= periodEnd && periodStart <= o.End)

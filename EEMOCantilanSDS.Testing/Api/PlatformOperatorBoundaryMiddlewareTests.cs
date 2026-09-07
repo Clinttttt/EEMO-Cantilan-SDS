@@ -127,4 +127,34 @@ public class PlatformOperatorBoundaryMiddlewareTests
         var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
         Assert.Contains(PlatformOperatorBoundaryMiddleware.Code, body);
     }
+
+    /// <summary>
+    /// A path that merely BEGINS with an allowed one is refused.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit on 2026-09-07: "/api/activation" admitted "/api/activation-codes" through a bare prefix match. That endpoint
+    /// issues a payor's single-use activation code and authorises SuperAdmin, which the operator's token carries — so the boundary
+    /// this class exists to draw had a hole in it from the commit that drew it. The allow-list is matched on a path boundary now:
+    /// a request either IS an allowed path or continues it after a slash.
+    /// </remarks>
+    [Theory]
+    [InlineData("/api/activation-codes/generate")]
+    [InlineData("/api/municipalities-archive")]
+    [InlineData("/api/onboarding-notes")]
+    [InlineData("/healthcheck-internal")]
+    public async Task APathThatOnlyBeginsLikeAnAllowedOneIsRefused(string path)
+    {
+        Assert.False(await ReachedAsync(path, authenticated: true, isOperator: true));
+    }
+
+    /// <summary>The allow-listed paths themselves, and their genuine sub-paths, still pass.</summary>
+    [Theory]
+    [InlineData("/api/activation")]
+    [InlineData("/api/activation/municipality")]
+    [InlineData("/health")]
+    [InlineData("/health/ready")]
+    public async Task AnAllowedPathAndItsSubPathsStillPass(string path)
+    {
+        Assert.True(await ReachedAsync(path, authenticated: true, isOperator: true));
+    }
 }

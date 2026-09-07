@@ -86,7 +86,13 @@ public class PlatformOperatorBoundaryMiddleware(RequestDelegate next)
 
         var path = context.Request.Path.HasValue ? context.Request.Path.Value! : string.Empty;
 
+        // MATCHED ON A PATH BOUNDARY, not as a bare prefix. A bare StartsWith let "/api/activation" admit
+        // "/api/activation-codes", which is a MUNICIPAL endpoint: it issues a payor's single-use activation code and authorises
+        // SuperAdmin, so the operator passed its role check too and could bind a payor account to a stall of somebody else's
+        // market. Found by audit on 2026-09-07, in the very commit that claimed to close this door. A segment either is the
+        // allowed path or continues it after a slash; nothing else counts.
         return !OperatorEndpoints.Any(allowed =>
-            path.StartsWith(allowed, StringComparison.OrdinalIgnoreCase));
+            string.Equals(path, allowed, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(allowed + "/", StringComparison.OrdinalIgnoreCase));
     }
 }

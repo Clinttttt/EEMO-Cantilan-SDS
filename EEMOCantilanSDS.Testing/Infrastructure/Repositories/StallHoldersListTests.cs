@@ -55,6 +55,42 @@ public class StallHoldersListTests : RepositoryTestBase
         Assert.Empty(current.Sections.SelectMany(s => s.Rows));
     }
 
+    /// <summary>
+    /// A stall that changed hands during the year names whoever held it at the year's CLOSE, and a stall vacant by then is absent.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit 2026-09-07, in the commit that added this feature. The as-of read used a whole-year window and took the first
+    /// match, and occupancy windows are ordered OLDEST first - so a stall re-let in April 2019 was reported under the lessee who
+    /// left in March, and a stall let only in January and vacant afterwards still appeared on a 31 December roster. Both are the
+    /// same mistake: a snapshot was being answered with a range.
+    /// </remarks>
+    [Fact]
+    public async Task HoldersList_AnEarlierYear_NamesTheHolderAtTheYearsClose()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        // Changed hands mid-2019: the first lessee's term is cut short by the second's effectivity.
+        var reLet = Stall.Create(facility.Id, "1", 2_400m, ApplicableFees.BaseRental);
+        var left = Contract.Create(reLet.Id, "Left In March", "Left In March", new DateOnly(2018, 1, 1), 5, 2_400m);
+        var sitting = Contract.Create(reLet.Id, "Held At Year End", "Held At Year End", new DateOnly(2019, 4, 1), 5, 2_400m);
+
+        // Let for one year only, so it was standing empty by 31 December 2019.
+        var vacated = Stall.Create(facility.Id, "2", 2_400m, ApplicableFees.BaseRental);
+        var briefly = Contract.Create(vacated.Id, "Gone By June", "Gone By June", new DateOnly(2018, 1, 1), 1, 2_400m);
+
+        context.AddRange(facility, reLet, left, sitting, vacated, briefly);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+        var y2019 = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, 2019, CancellationToken.None);
+        var occupants = y2019.Sections.SelectMany(s => s.Rows).Select(r => r.ActualOccupant).ToList();
+
+        Assert.Contains("Held At Year End", occupants);
+        Assert.DoesNotContain("Left In March", occupants);
+        Assert.DoesNotContain("Gone By June", occupants);
+    }
+
     /// <summary>The current year means today, so the everyday view cannot drift from the no-year one.</summary>
     [Fact]
     public async Task HoldersList_TheCurrentYear_ReadsTheSameAsNoYearAtAll()
