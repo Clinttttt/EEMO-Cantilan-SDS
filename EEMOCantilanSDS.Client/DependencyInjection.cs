@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Client.Extensions;
 using EEMOCantilanSDS.Client.Securities;
 using EEMOCantilanSDS.HttpClients.ApiClients;
@@ -72,7 +72,6 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<CircuitHandler, TokenCircuitHandler>();
             service.AddScoped<CircuitHandler, ServicesAccessorCircuitHandler>();
             service.AddScoped<AuthService>();
-            service.AddScoped<EEMOCantilanSDS.Client.Services.RestoreNotifier>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.FacilityState>();
             service.AddScoped<PayorAuthService>();
@@ -141,7 +140,6 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IOnlinePaymentsApiClient, OnlinePaymentsApiClient>(configuration);
             service.AddApiHttpClient<IAuditApiClient, AuditApiClient>(configuration);
             service.AddApiHttpClient<IReportsApiClient, ReportsApiClient>(configuration);
-            service.AddApiHttpClient<IBackupApiClient, BackupApiClient>(configuration);
             service.AddApiHttpClient<IDatabaseHealthApiClient, DatabaseHealthApiClient>(configuration);
             service.AddApiHttpClient<ITenantUsageApiClient, TenantUsageApiClient>(configuration);
             service.AddApiHttpClient<IMunicipalitiesApiClient, MunicipalitiesApiClient>(configuration);
