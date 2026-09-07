@@ -61,6 +61,50 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         Assert.Equal("true", claim!.Value);
     }
 
+    /// <summary>
+    /// A token minted through the REFRESH path carries the operator flag too.
+    /// </summary>
+    /// <remarks>
+    /// This is the premise the whole operator boundary rests on, and it is invisible from either end.
+    ///
+    /// <para><c>RefreshTokenCommandHandler</c> renews an access token through <see cref="ITokenService.CreateAccessToken"/> and asks
+    /// nothing about who the account is. That was raised as a gap on 2026-09-05 — a refresh cookie issued before the municipal
+    /// sign-in was closed keeps working — and on 2026-09-08 it was closed WITHOUT a guard, for two reasons that both need to stay
+    /// true:</para>
+    ///
+    /// <para>1. The operator's own console refreshes through that same route (<c>auth.interceptor.ts</c> posts to
+    /// <c>api/adminauth/refresh-token</c>), so refusing operators there would sign the operator out of the platform it runs — the
+    /// exact failure the boundary was built to avoid.</para>
+    ///
+    /// <para>2. A refreshed token still carries this claim, so <c>PlatformOperatorBoundaryMiddleware</c> refuses it on every
+    /// municipal endpoint. The cookie can mint tokens; the tokens cannot reach an office's records.</para>
+    ///
+    /// <para>The sibling test above proves the claim through <c>CreateToken</c>. This one goes through <c>CreateAccessToken</c>
+    /// deliberately, because that is the method the refresh path calls: if the two ever diverge and the claim is added only on the
+    /// login route, the boundary opens silently and nothing else in the suite would notice.</para>
+    /// </remarks>
+    [Fact]
+    public void ARefreshedAccessTokenStillCarriesTheOperatorFlag()
+    {
+        var context = NewContext();
+        var operatorAccount = AdminUser.Create(
+            "Console", "console", "console@stalltrack.site", TestPasswords.Hash("Secret123!"), AdminRole.SuperAdmin,
+            isPlatformOperator: true);
+        context.Add(operatorAccount);
+        context.SaveChanges();
+
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
+
+        // The refresh handler's own call: CreateAccessToken(user), with no say in the role or the claims.
+        var refreshed = service.CreateAccessToken(operatorAccount);
+
+        var claim = new JwtSecurityTokenHandler().ReadJwtToken(refreshed).Claims
+            .FirstOrDefault(c => c.Type == AppClaimTypes.PlatformOperator);
+
+        Assert.NotNull(claim);
+        Assert.Equal("true", claim!.Value);
+    }
+
     [Fact]
     public void AnOrdinaryAccountsTokenCarriesNoOperatorFlag()
     {

@@ -1295,8 +1295,19 @@ Items that were open and are now closed, kept because the reasoning is what stop
     console's OWN sources rather than assumed — activation, adminauth, assessment, municipalities, onboarding, platform-setup,
     health — and nothing else was found to call the API with an operator token. 24 tests, both directions, because getting the list
     wrong one way exposes an office's records and the other way locks the operator out of the platform it runs.
-  - **STILL OPEN: `RefreshTokenCommandHandler` has no operator check**, so a refresh cookie issued before `821a0ac3` keeps minting
-    access tokens until it expires. The middleware now blunts what such a token can reach, so this is a loose end rather than a hole.
+  - **`RefreshTokenCommandHandler` was examined and left WITHOUT a guard — 2026-09-08. This is a decision, not an omission.** It renews an
+    access token through `CreateAccessToken` and asks nothing about who the account is, which was raised on 2026-09-05 as a loose end: a
+    refresh cookie issued before `821a0ac3` keeps working. Adding the obvious guard would have been actively wrong, for two reasons.
+    - **The operator's own console refreshes through that same route.** `auth.interceptor.ts` posts to `api/adminauth/refresh-token`, and
+      its comment says so — that is what keeps the operator signed in. Refusing operators there would sign the operator out of the platform
+      it runs, every time its access token expired. That is the exact failure the boundary was built to avoid.
+    - **It would gain nothing.** `TokenService` adds the `PlatformOperator` claim to EVERY token it mints for an operator account, refreshed
+      ones included, so `PlatformOperatorBoundaryMiddleware` refuses them on every municipal endpoint. The cookie can mint tokens; the
+      tokens cannot reach an office's records. The boundary holds at the data layer, which is where it matters.
+    - `TokenServiceMunicipalityClaimTests.ARefreshedAccessTokenStillCarriesTheOperatorFlag` pins that premise deliberately through
+      `CreateAccessToken` — the method the refresh path calls — because the sibling test goes through `CreateToken`, and if the two ever
+      diverge so the claim is added only on the login route, the boundary would open silently.
+    - What an operator holding such a cookie CAN still do is reach the allow-listed platform endpoints, which is what its console needs.
   - **THE ALLOW-LIST HAD A PREFIX HOLE, found by audit and fixed 2026-09-07 (`3aaa8daf`).** It was matched with a bare `StartsWith`, so
     `/api/activation` also admitted `/api/activation-codes` — a MUNICIPAL endpoint that issues a payor's single-use activation code and
     authorises `SuperAdmin`, which is exactly what the operator's token carries. The operator could bind a payor account to a stall in
