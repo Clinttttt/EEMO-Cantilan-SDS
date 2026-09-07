@@ -278,4 +278,50 @@ public class ToggleStallStatusCommandHandlerTests
         Assert.NotEmpty(captured);
         Assert.All(captured, e => Assert.Equal(MonthlyExceptionReason.TemporaryClosure, e.Reason));
     }
+
+    /// <summary>
+    /// A PART-PAID month in a closed span is not excused either.
+    /// </summary>
+    /// <remarks>
+    /// Raised with the office 2026-09-06 and ruled on 2026-09-07. The paid case was guarded from the start; the partial case was
+    /// not, and it is the worse of the two.
+    ///
+    /// <para>An excused month contributes NOTHING to the obligation, while what the payor handed over is still counted across the
+    /// period. So excusing a part-paid month did not merely forgive its remainder - the payment floated onto other months, and
+    /// ₱500 taken for August quietly reduced what September appeared to owe. Money crossing periods in a government ledger is not
+    /// something an office can find afterwards.</para>
+    ///
+    /// <para>The other half is asserted too: a month with NO money against it is still excused. Refusing to excuse anything
+    /// during a closure would turn every closure into arrears, which is the fault this feature exists to prevent.</para>
+    /// </remarks>
+    [Fact]
+    public async Task Reopen_Monthly_DoesNotExcuse_AMonthThatWasPartPaid()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var today = PhilippineTime.Today;
+        var closedOn = today.AddMonths(-2);
+        stall.Close(closedOn, "tester");
+
+        var (handler, monthly, _, payments) = Build(stall);
+
+        // The first closed month had ₱500 taken against ₱2,400 before the closure.
+        var partMonth = new DateOnly(closedOn.Year, closedOn.Month, 1);
+        payments.Setup(r => r.GetPaymentRecordAsync(stall.Id, partMonth.Year, partMonth.Month, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(Guid.NewGuid(), PaymentStatus.Partial, "OR-2", 2400m, null, null, null, 500m, 1900m));
+
+        var captured = new List<StallMonthlyException>();
+        monthly.Setup(r => r.AddAsync(It.IsAny<StallMonthlyException>(), It.IsAny<CancellationToken>()))
+            .Callback<StallMonthlyException, CancellationToken>((e, _) => captured.Add(e))
+            .Returns(Task.CompletedTask);
+
+        var result = await handler.Handle(new ToggleStallStatusCommand(stall.Id, Close: false), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        Assert.DoesNotContain((partMonth.Year, partMonth.Month), captured.Select(e => (e.BillingYear, e.BillingMonth)));
+
+        // Months with nothing against them are still excused, so a closure does not become arrears.
+        Assert.NotEmpty(captured);
+        Assert.All(captured, e => Assert.Equal(MonthlyExceptionReason.TemporaryClosure, e.Reason));
+    }
 }

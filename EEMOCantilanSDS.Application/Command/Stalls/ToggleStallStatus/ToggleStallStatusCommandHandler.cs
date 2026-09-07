@@ -77,8 +77,8 @@ public class ToggleStallStatusCommandHandler(
     /// <summary>
     /// Persists the frozen span [start, reopenOn) as excused for every contract-effective day/month.
     /// NPM → absent daily collections; monthly facilities → excused billing months (full-month).
-    /// Idempotent, and it never overwrites a record that is already there — paid or owed. Only a day nobody recorded is
-    /// excused, because a record is a fact somebody entered and a section toggle must not overturn it.
+    /// Idempotent, and it never overwrites a record that is already there — paid or owed. Only a day nobody recorded, and only a
+    /// month with no money against it, is excused: a record is a fact somebody entered and a closure must not overturn it.
     /// </summary>
     private async Task ExcuseClosurePeriodAsync(
         Stall stall, DateOnly start, DateOnly reopenOn, string actor, CancellationToken ct)
@@ -126,10 +126,18 @@ public class ToggleStallStatusCommandHandler(
 
                 if (effective && await monthlyExceptionRepository.GetAsync(stall.Id, cursor.Year, cursor.Month, ct) is null)
                 {
-                    // Never excuse a month the vendor already PAID in full — keep it "Paid", not "Excused".
-                    // (Unpaid/partial months in the closed span are still excused so they aren't arrears.)
+                    // A MONTH WITH MONEY AGAINST IT IS NEVER EXCUSED — paid in full or part paid alike.
+                    //
+                    // The paid case was always guarded. The PARTIAL case was not, and it is the worse of the two: an excused month
+                    // contributes nothing to the obligation, while what the payor handed over is still counted across the period.
+                    // So excusing a part-paid month did not merely forgive its remainder - the payment floated onto OTHER months,
+                    // and ₱500 taken for August quietly reduced what September appeared to owe. Money moving between periods is
+                    // not something an office can find later.
+                    //
+                    // A month with no money against it is still excused, which is the whole point of the frozen span: a closure
+                    // must not come back as arrears. An unpaid or unrecorded month is exactly that case.
                     var existingRecord = await paymentRepository.GetPaymentRecordAsync(stall.Id, cursor.Year, cursor.Month, ct);
-                    if (existingRecord is not { Status: PaymentStatus.Paid })
+                    if (existingRecord is not { Status: PaymentStatus.Paid or PaymentStatus.Partial })
                     {
                         await monthlyExceptionRepository.AddAsync(
                             StallMonthlyException.Create(
