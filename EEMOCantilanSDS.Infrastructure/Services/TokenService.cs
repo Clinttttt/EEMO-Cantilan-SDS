@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -120,6 +120,12 @@ namespace EEMOCantilanSDS.Infrastructure.Services
 
         public async Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default)
         {
+            // No token, no user. An unauthenticated POST to the refresh route with neither a body nor a cookie used to reach
+            // HashRefreshToken with null and return 500 from an auth endpoint — found while verifying a deployment on 2026-09-08.
+            // RevokeRefreshTokenAsync below has always guarded this; this one simply never did. Returning no user makes the caller
+            // answer "invalid refresh token", which is both true and the same answer a wrong token gets.
+            if (string.IsNullOrWhiteSpace(RefreshToken)) return null!;
+
             var hashed = HashRefreshToken(RefreshToken);
             // The refresh request is unauthenticated (the access token has expired), so it carries no tenant
             // claim and resolves to the DEFAULT municipality. The refresh token is a globally-unique secret,

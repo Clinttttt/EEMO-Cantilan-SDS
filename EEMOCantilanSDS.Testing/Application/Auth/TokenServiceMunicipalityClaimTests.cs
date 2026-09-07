@@ -105,6 +105,32 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         Assert.Equal("true", claim!.Value);
     }
 
+    /// <summary>
+    /// A refresh request carrying no token at all is refused, not answered with a server error.
+    /// </summary>
+    /// <remarks>
+    /// Found on 2026-09-08 while verifying a deployment: posting to <c>api/adminauth/refresh-token</c> with neither a body nor a cookie
+    /// returned 500. The controller passes the missing value straight through, and <c>HashRefreshToken</c> was reached with null.
+    ///
+    /// <para>Not a data leak — nothing is returned either way — but a 500 from an auth endpoint is wrong twice over: it tells an
+    /// anonymous caller the server broke rather than that its request was invalid, and it would bury a real fault among noise in the
+    /// logs if one ever occurred there. <c>RevokeRefreshTokenAsync</c> beside it had always guarded the same case; this method simply
+    /// never did.</para>
+    /// </remarks>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ARefreshRequestWithNoTokenIsRefusedRatherThanThrowing(string? token)
+    {
+        var context = NewContext();
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
+
+        var user = await service.ValidateRefreshToken(token!, CancellationToken.None);
+
+        Assert.Null(user);
+    }
+
     [Fact]
     public void AnOrdinaryAccountsTokenCarriesNoOperatorFlag()
     {
