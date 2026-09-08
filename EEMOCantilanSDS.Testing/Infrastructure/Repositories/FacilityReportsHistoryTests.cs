@@ -58,7 +58,7 @@ public class FacilityReportsHistoryTests : RepositoryTestBase
     }
 
     /// <summary>
-    /// A year's outstanding is the sum of its months, which is what lets the report total that column.
+    /// A year's outstanding is the sum of its months, and never less — which is what lets the report total that column.
     /// </summary>
     /// <remarks>
     /// Reported from use on the New Public Market history: August showed ₱1,140.00 outstanding and September ₱840.00, and the Total
@@ -67,13 +67,21 @@ public class FacilityReportsHistoryTests : RepositoryTestBase
     /// is still owed.
     ///
     /// <para>Summing is correct because each monthly row is that month ALONE: <c>CurrentAccountStart</c> bounds the obligation below
-    /// by the period start, and the balance is period obligation minus period collections - so the months are disjoint and add up.
-    /// This test states that as a property rather than an arithmetic example, by checking the months against the YEAR the same code
-    /// computes over the whole range. If ever the monthly figures become cumulative instead, this fails and the total must change with
-    /// them.</para>
+    /// by the period start, and the balance is period obligation minus period collections - so the months are disjoint.</para>
+    ///
+    /// <para>THIS TEST USED TO ASSERT THE SUM EQUALS THE YEAR'S OWN FIGURE, and its commit message called that a property. It is not
+    /// one, and an audit was right to say so on 2026-09-07. Each month's balance clamps at zero per stall, so a payor who has PAID
+    /// AHEAD makes the two diverge: the obligation stops at today (<c>DomainRules.EarnedThrough</c>) while the money handed over is
+    /// counted, so that month reads nil rather than negative, and the year computed in one pass nets the prepayment against another
+    /// month's arrears while the sum does not.</para>
+    ///
+    /// <para>The office ruled 2026-09-08 that the SUM is what the Total states, and it is the truer figure: money paid for days not
+    /// yet earned is not payment for August, so it must not reduce what August owes. The year-in-one-pass figure is the lenient one.
+    /// So the property asserted here is the one that actually holds - the sum is never LESS than the year's own figure, and equals it
+    /// when nobody has paid ahead.</para>
     /// </remarks>
     [Fact]
-    public async Task History_MonthlyOutstanding_AddsUpToTheYearsOwnFigure()
+    public async Task History_MonthlyOutstanding_IsNeverLessThanTheYearsOwnFigure()
     {
         var context = NewContext();
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
@@ -95,10 +103,18 @@ public class FacilityReportsHistoryTests : RepositoryTestBase
             $"This test only means something when more than one month is owed; {monthsOwing} were. Fix the seed, not the assertion.");
 
         var year = history.Yearly.Single(y => y.Label == "2024");
-        Assert.Equal(year.Outstanding, history.Monthly.Sum(m => m.Outstanding));
+        var summed = history.Monthly.Sum(m => m.Outstanding);
+
+        // NEVER LESS than the year's own figure. This seed has no prepayment, so the two are equal here - but equality is not the
+        // property, and asserting it was the overclaim an audit caught. Where a payor pays ahead, the sum is the LARGER and the truer
+        // number, because money paid for days not yet earned must not reduce what an earlier month owes.
+        Assert.True(summed >= year.Outstanding,
+            $"The months summed to {summed} but the year alone reads {year.Outstanding}; the sum can exceed the year where a payor "
+            + "has paid ahead, but it must never fall below it - that would mean a month's arrears had gone missing.");
+        Assert.Equal(year.Outstanding, summed);
 
         // Named plainly, because Max was the bug: the largest single month is NOT the year's outstanding.
-        Assert.True(history.Monthly.Sum(m => m.Outstanding) > history.Monthly.Max(m => m.Outstanding),
+        Assert.True(summed > history.Monthly.Max(m => m.Outstanding),
             "With several months owed, the year's outstanding must exceed the worst single month.");
     }
 }

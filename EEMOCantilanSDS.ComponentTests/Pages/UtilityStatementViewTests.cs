@@ -234,6 +234,13 @@ public class UtilityStatementViewTests : TestContext
         Assert.Empty(page.FindAll(".statement-actions-note"));
         Assert.DoesNotContain("with no reading, not included", markup);
 
+        // The count is stated ON THE SHEET instead — the office files this copy, so it has to say who the run left out. Restored
+        // there on the office's instruction 2026-09-08, after the toolbar line was removed and the fact survived only in a
+        // button's tooltip that a collector on a phone never sees.
+        var note = Assert.Single(page.FindAll(".statement-excluded-note"));
+        Assert.Contains("Not included: 1 payor", note.TextContent);
+        Assert.Contains("no meter reading", note.TextContent);
+
         // Still excluded when the sheets are produced, not just in the summary.
         SwitchTo(page, "Per payor");
         Assert.DoesNotContain(UnbilledPayor, page.Markup);

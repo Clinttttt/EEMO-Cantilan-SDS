@@ -3054,6 +3054,18 @@
     margin-left: auto;
 }
 
+/* Who a statement does NOT cover, on the office's own summary copy. Set in the document's own ink and left-aligned like a
+   qualifying clause rather than dressed as a warning: nobody is at fault, the readings simply have not been entered. It prints,
+   because the office files this sheet and needs it to say who was left out of the run it answers for. */
+.statement-excluded-note {
+    margin: 0 0 12px;
+    padding: 8px 10px;
+    border-left: 2px solid var(--border);
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text-subtle);
+}
+
 .statement-sheet + .statement-sheet {
     margin-top: 24px;
 }

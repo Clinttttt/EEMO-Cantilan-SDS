@@ -604,6 +604,19 @@ else if (ShowUtilityStatements)
                     <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
                 </div>
 
+                @* Who this statement does NOT cover, stated on the office's own copy.
+                   The count used to sit in the screen toolbar and was removed on 2026-09-06 because it wrapped the row onto two
+                   lines; it survived only in a button's tooltip, which a collector on a phone never sees. It belongs here instead:
+                   it is a fact about the run, so it PRINTS with the record the office files, and no layout can be crowded by it.
+                   Deliberately NOT on the per-payor sheets - a payor's own statement has no business naming other payors. *@
+                @if (UnbilledOnScreen > 0)
+                {
+                    <div class="statement-excluded-note">
+                        Not included: @UnbilledOnScreen payor@(UnbilledOnScreen == 1 ? "" : "s") with no meter reading recorded for
+                        this period. A statement cannot be issued until the reading is entered.
+                    </div>
+                }
+
                 <table class="statement-table statement-summary-table">
                     <thead>
                         <tr>
