@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -252,8 +252,14 @@ public partial class FacilityReportsRepository
                 // records. Recorded months are billed at THEIR snapshot rate (history-faithful across
                 // rate changes); only unrecorded due months use the stall's current rate.
                 rentBill = CalculateMonthlyRentObligationDue(s, accountStart, complianceEnd, payments, excusedSet);
+
+                // Utilities of an EXCUSED month are not added here: excusing a month excuses its electricity and water with its rent
+                // (the office's ruling, 2026-09-08), and whatever was actually paid toward such a month is already accounted inside
+                // the obligation above — adding them again would bill them twice.
                 totalBill = rentBill
-                    + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
+                    + payments
+                        .Where(pr => excusedSet is null || !excusedSet.Contains((pr.BillingYear, pr.BillingMonth)))
+                        .Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
                     ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0)
                     : pr.Status == PaymentStatus.Partial ? pr.PartialAmount : 0m);

@@ -479,6 +479,26 @@ public partial class FacilityReportsRepository
                     _ => 0m,
                 }));
 
+        // EVERYTHING handed over in a month, and everything billed in it, utilities included. An excused month is billed exactly what
+        // it took — see the excused branch — and "what it took" has to mean the whole of it, or the part left out drifts onto another
+        // month exactly as the rent used to.
+        var paidByMonth = records
+            .GroupBy(r => (r.BillingYear, r.BillingMonth))
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(r => r.Status switch
+                {
+                    PaymentStatus.Paid => r.BaseRentalAmount + (r.ElecAmount ?? 0m) + (r.WaterAmount ?? 0m),
+                    PaymentStatus.Partial => r.PartialAmount,
+                    _ => 0m,
+                }));
+
+        var billedByMonth = records
+            .GroupBy(r => (r.BillingYear, r.BillingMonth))
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(r => r.BaseRentalAmount + (r.ElecAmount ?? 0m) + (r.WaterAmount ?? 0m)));
+
         var today = _clock.PhilippineToday;
         decimal total = 0m;
         var cursor = new DateOnly(start.Year, start.Month, 1);
@@ -489,24 +509,23 @@ public partial class FacilityReportsRepository
 
             if (excusedMonths is not null && excusedMonths.Contains(key))
             {
-                // AN EXCUSED MONTH THAT WAS PART PAID STILL OWES WHAT IT TOOK.
+                // AN EXCUSED MONTH OWES NOTHING, AND IS BILLED EXACTLY WHAT IT TOOK.
                 //
-                // Skipping the month outright was the fault. The caller differences one obligation against one payment total over
-                // the whole period, so removing an excused month's rent while its payment stayed in the total left a surplus - and
-                // the surplus came off OTHER months. ₱500 taken for September quietly reduced what October appeared to owe. Ruled
-                // on by the office 2026-09-07: the money paid belongs to the month it was paid for, and only what REMAINS is
-                // excused.
+                // The office ruled 2026-09-08 that excusing a month excuses its electricity and water with its rent — a payor
+                // excused for a month is not billed for that month, full stop. Three of the four readers of the excused set already
+                // behaved that way; this one billed the utilities, so the payment history said the light bill was forgiven and the
+                // report said it was owed.
                 //
-                // Expressed by billing the month exactly what it was paid, so obligation and payment cancel inside their own month
-                // and there is no surplus to travel. September owing ₱900 with ₱500 paid is billed ₱500: nil remaining, ₱400
-                // forgiven, October untouched. A month with nothing paid is billed nothing, as before.
-                if (paidTowardRentByMonth.TryGetValue(key, out var paidTowardRent) && paidTowardRent > 0m)
+                // Billed at what was PAID rather than at nothing, because the caller differences one obligation against one payment
+                // total over the whole period: drop a month's bill while its payment stays in the total and the surplus comes off
+                // OTHER months. That was the fault fixed for rent on 2026-09-07, and dropping the utilities alone would have
+                // reproduced it pointing the other way. Bill equals payment, so the month nets to nil and nothing travels.
+                //
+                // The caller leaves an excused month out of its utilities sum for the same reason: they are accounted here, once.
+                if (paidByMonth.TryGetValue(key, out var paidForMonth) && paidForMonth > 0m)
                 {
-                    var billed = recordedByMonth.GetValueOrDefault(key);
-
-                    // Never more than the month's own rent: a part payment large enough to cover utilities too must not inflate
-                    // the rent obligation to match it.
-                    total += billed > 0m ? Math.Min(paidTowardRent, billed) : paidTowardRent;
+                    var billedForMonth = billedByMonth.GetValueOrDefault(key);
+                    total += billedForMonth > 0m ? Math.Min(paidForMonth, billedForMonth) : paidForMonth;
                 }
 
                 cursor = cursor.AddMonths(1);

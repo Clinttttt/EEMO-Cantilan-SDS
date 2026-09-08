@@ -118,8 +118,25 @@ public class ExcusedMonthKeepsItsOwnMoneyTests : RepositoryTestBase
     /// A rent exception excuses rent. Crediting the payment to utilities first would have made both settle and quietly written off
     /// a bill the office never waived - which is the same class of mistake as the drift, in the opposite direction.
     /// </remarks>
+    /// <summary>
+    /// Excusing a month forgives its electricity and water along with its rent.
+    /// </summary>
+    /// <remarks>
+    /// The office's ruling, 2026-09-08: a payor excused for a month is not billed for that month — utilities included. Where they do
+    /// owe a light or water bill they can still pay it through the collector or the office; what an excusal removes is the OBLIGATION,
+    /// not the ability to settle.
+    ///
+    /// <para>THIS TEST PREVIOUSLY ASSERTED THE OPPOSITE, on my own reasoning that a rent exception should not forgive a light bill. An
+    /// audit then found that three of the four readers of the excused set already forgave the utilities and only the report did not, so
+    /// the office's screens disagreed with each other. Asked to rule, the office chose the majority behaviour. The figure changed from
+    /// ₱400 to ₱600 for that reason and no other.</para>
+    ///
+    /// <para>Still asserted as a COMPARISON, because the number that matters is not this month's balance but that no OTHER month moved:
+    /// dropping a month's bill while its payment stays in the period total is how money drifts, and it would drift here for the
+    /// utilities exactly as it once did for the rent.</para>
+    /// </remarks>
     [Fact]
-    public async Task ExcusingRentDoesNotForgiveTheUtilitiesOnThatMonth()
+    public async Task ExcusingAMonthForgivesItsUtilitiesToo()
     {
         // ── Without the excusal ──
         var plain = NewContext();
@@ -141,9 +158,9 @@ public class ExcusedMonthKeepsItsOwnMoneyTests : RepositoryTestBase
         var after = await new FacilityReportsRepository(excused).GetFacilityReportsAsync(
             FacilityCode.TCC, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
 
-        // ₱400 of RENT was forgiven and nothing else. Were the payment credited to electricity first, both would have settled and
-        // ₱600 would have gone — a light bill the office never waived.
-        Assert.Equal(400m, before.PendingPaymentAmount - after.PendingPaymentAmount);
+        // ₱400 of rent still owed on that month, plus its ₱200 of electricity. The ₱500 already paid stays with September and reduces
+        // nothing else — if it drifted, this difference would exceed ₱600.
+        Assert.Equal(600m, before.PendingPaymentAmount - after.PendingPaymentAmount);
     }
 
     /// <summary>₱500 taken against ₱900 rent, on a month that also carries ₱200 of electricity.</summary>
