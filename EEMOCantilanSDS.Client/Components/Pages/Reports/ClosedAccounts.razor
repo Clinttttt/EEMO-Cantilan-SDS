@@ -310,7 +310,7 @@
                                                        is nothing to renew and nothing to assign — the row is the
                                                        record of their earlier term, and its balance is still theirs. *@
                                                     <a class="ca-row-icon ca-row-view"
-                                                       href="/profile/@r.FacilityCode.ToString().ToLowerInvariant()/@r.StallNo"
+                                                       href="/profile/@r.FacilityCode.ToString().ToLowerInvariant()/@(r.StallId == Guid.Empty ? r.StallNo : r.StallId.ToString())"
                                                        aria-label="View account"
                                                        title="The same lessee holds this stall on a new term. Open their account to collect this balance.">
                                                         @IconView

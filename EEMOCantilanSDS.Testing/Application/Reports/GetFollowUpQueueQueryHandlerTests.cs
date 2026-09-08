@@ -141,7 +141,7 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal(1, delinquent.Section);
         Assert.Equal("Critical", delinquent.Priority);
         Assert.Equal("View vendor", delinquent.Action);
-        Assert.Equal("/profile/tcc/04", delinquent.Link);
+        Assert.Equal("/profile/tcc/04", delinquent.Link);   // no stall id on this row, so the number is the documented fallback
 
         // Arrears (1–2 mo) → this-period (section 2).
         var arrears = Assert.Single(items, i => i.ReasonKind == "arrears");
@@ -195,7 +195,11 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal("High", cash.Priority);
         Assert.Equal("Add OR", cash.Action);      // inline OR entry, carrying the stall to act on
         Assert.Equal(stallId, cash.StallId);
-        Assert.Equal("/profile/tcc/03", cash.Link);
+
+        // BY ID, not by stall number. A number identifies a stall only within a facility AND section, and New Public Market has a
+        // "1" in several areas — reviewing Karmilita Log's balance in Sari Sari opened Pucci Lor's stall in Kahoy Sale, reported
+        // 2026-09-08. This assertion used to require "/profile/tcc/03" and so pinned the ambiguity in place.
+        Assert.Equal($"/profile/tcc/{stallId}", cash.Link);
         Assert.Equal(2_400m, cash.Amount);
 
         // The online row keeps its own encode flow.

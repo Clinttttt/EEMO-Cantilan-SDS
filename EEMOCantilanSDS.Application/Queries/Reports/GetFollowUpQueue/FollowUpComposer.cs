@@ -136,7 +136,7 @@ public static class FollowUpComposer
                     ? $"Unpaid · daily fees across {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}"
                     : $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
                 Action: "View vendor",
-                Link: ProfileLink(d.FacilityCode, d.StallNo),
+                Link: ProfileLink(d.FacilityCode, d.StallId ?? Guid.Empty, d.StallNo),
                 StallId: d.StallId));
         }
 
@@ -157,7 +157,7 @@ public static class FollowUpComposer
                         s.StallNo.StartsWith("Stall", StringComparison.OrdinalIgnoreCase) ? s.StallNo : Where(s.StallNo),
                         0m, true, periodLabel,
                         s.Status is "Absent" or "Excused" ? "Excused · full period" : $"Excused · {s.AbsentDays} days",
-                        "Verify absence", ProfileLink(code, s.StallNo), s.StallId));
+                        "Verify absence", ProfileLink(code, s.StallId, s.StallNo), s.StallId));
                     continue;
                 }
 
@@ -181,7 +181,7 @@ public static class FollowUpComposer
                         Label(Where(s.StallNo), s.Section),
                         s.Balance, false, currentPeriodLabel ?? periodLabel,
                         isPartial ? "Partial" : "Unpaid",
-                        "View vendor", ProfileLink(code, s.StallNo), s.StallId));
+                        "View vendor", ProfileLink(code, s.StallId, s.StallNo), s.StallId));
                 }
             }
 
@@ -292,7 +292,7 @@ public static class FollowUpComposer
                     SecImmediate, "High", "Missing OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant), Where(u.StallNo),
                     u.Amount, false, uPeriod,
-                    "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallNo),
+                    "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallId, u.StallNo),
                     StallId: u.StallId));
             }
         }
@@ -353,7 +353,7 @@ public static class FollowUpComposer
                 contractBalance, false,
                 c.IsExpired ? expiredPeriod : expiredOn,
                 c.IsExpired ? expiredStatus : "Expiring soon",
-                "Review contract", ProfileLink(c.FacilityCode, c.StallNo),
+                "Review contract", ProfileLink(c.FacilityCode, c.StallId, c.StallNo),
                 StallId: c.StallId));
         }
 
@@ -406,7 +406,7 @@ public static class FollowUpComposer
                     // On the cumulative view the figure is the account's whole balance and the row says so; a
                     // period view's figure is that period's, so the qualifier would be untrue there.
                     cumulative ? "No longer the occupant · balance in full" : "No longer the occupant",
-                    "Review account", ProfileLink(account.FacilityCode, account.StallNo),
+                    "Review account", ProfileLink(account.FacilityCode, account.StallId, account.StallNo),
                     StallId: account.StallId,
                     // The term this balance belongs to. Without it, a payment recorded from this row would apply to
                     // whoever holds the stall now — settling the sitting lessee's days under a former lessee's name.
@@ -457,8 +457,22 @@ public static class FollowUpComposer
         return $"{fromText} → {to.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
     }
 
-    private static string ProfileLink(FacilityCode code, string stallNo) =>
-        $"/profile/{code.ToString().ToLowerInvariant()}/{stallNo}";
+    /// <summary>
+    /// Where a row's review action goes: BY STALL ID, not by stall number.
+    /// </summary>
+    /// <remarks>
+    /// A number identifies a stall only within a facility AND a section, and this market has a "1" in several areas - so
+    /// <c>/profile/npm/1</c> resolved to whichever area's stall 1 the register happened to list first.
+    ///
+    /// <para>Reported from use 2026-09-08: reviewing Karmilita Log's closed balance in Sari Sari opened Pucci Lor's stall in Kahoy
+    /// Sale. On a page that exists to settle money against an account, sending the office to the wrong payor is as serious as a
+    /// wrong figure - worse, because nothing on the destination says it is the wrong one.</para>
+    ///
+    /// <para>The profile page already accepted either form; every caller here passed the ambiguous one while carrying the id on the
+    /// next line. The number is kept only as a fallback for a row that genuinely has no id.</para>
+    /// </remarks>
+    private static string ProfileLink(FacilityCode code, Guid stallId, string stallNo) =>
+        $"/profile/{code.ToString().ToLowerInvariant()}/{(stallId == Guid.Empty ? stallNo : stallId.ToString())}";
 
     private static void AddUtilityBalance(
         List<FollowUpItemDto> items,

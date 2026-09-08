@@ -306,7 +306,11 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.Equal(3, excused.Section);
         Assert.True(excused.Excused);
         var contract = Assert.Single(items, i => i.ReasonKind == "contract");
-        Assert.Equal("/profile/ice/02", contract.Link);
+
+        // BY ID where the row carries one. A stall number identifies a stall only within a facility AND section, so a
+        // facility-and-number link opened whichever area's stall the register listed first — reported 2026-09-08 when a Sari Sari
+        // account opened a Kahoy Sale stall. This assertion used to require "/profile/ice/02" and pinned that in place.
+        Assert.Equal($"/profile/ice/{contract.StallId}", contract.Link);
         // A period-scoped snapshot states its own period, with the lapse date in the status line. This term ran out
         // in November, before the December window, so its span is stated as the term it was — clipping a term that
         // lies wholly outside the period would leave one meaningless day.
