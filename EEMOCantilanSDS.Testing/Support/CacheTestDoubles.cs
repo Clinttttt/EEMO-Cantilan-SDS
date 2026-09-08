@@ -26,6 +26,55 @@ internal static class CacheTestDoubles
 
     /// <summary>Market-day provider fixed to Friday (the Cantilan default) for existing tests.</summary>
     public static EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider TpmMarketDay { get; } = new StubTpmMarketDayProvider();
+
+    /// <summary>
+    /// A month settlement that imposes no ceiling, for tests about which DAYS settle rather than what a month costs.
+    /// </summary>
+    /// <remarks>
+    /// The real service caps a month at its rent, which is why <c>SettleNpmDaysCommandHandler</c> consults it: charging every day its
+    /// own fee took ₱930 for a 31-day month that owed ₱900. Tests written before that cap existed are about the day-selection rules -
+    /// future days, closures, days nobody owes - so they get a ceiling high enough never to bind, and the cap has a test of its own
+    /// that states a real figure. Use <see cref="MonthSettlementCappedAt"/> where the ceiling is the point.
+    /// </remarks>
+    public static EEMOCantilanSDS.Application.Common.Payments.INpmMonthSettlementService MonthSettlement { get; }
+        = new StubMonthSettlement(decimal.MaxValue);
+
+    /// <summary>A month settlement whose month owes exactly <paramref name="cap"/>, for tests about the ceiling.</summary>
+    public static EEMOCantilanSDS.Application.Common.Payments.INpmMonthSettlementService MonthSettlementCappedAt(decimal cap)
+        => new StubMonthSettlement(cap);
+}
+
+/// <summary>Answers every month with one stated payable figure, so a test can fix the ceiling it cares about.</summary>
+internal sealed class StubMonthSettlement(decimal cap) : EEMOCantilanSDS.Application.Common.Payments.INpmMonthSettlementService
+{
+    public Task<EEMOCantilanSDS.Application.Common.Payments.NpmMonthPayable> ComputePayableAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, int year, int month, CancellationToken ct)
+        => Task.FromResult(new EEMOCantilanSDS.Application.Common.Payments.NpmMonthPayable(0, cap, 0m));
+
+    public Task<EEMOCantilanSDS.Application.Common.Payments.NpmMonthPayable> ComputePayableForDaysAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, int year, int month, int dayCount, CancellationToken ct)
+        => Task.FromResult(new EEMOCantilanSDS.Application.Common.Payments.NpmMonthPayable(dayCount, cap, 0m));
+
+    public Task<IReadOnlyList<DateOnly>> GetPayableDaysAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, int year, int month, CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<DateOnly>>(Array.Empty<DateOnly>());
+
+    // Not exercised by the tests that use this double — they settle days through the command handler, not through the service. Left
+    // throwing rather than returning something plausible: a silent empty answer from a settlement path is how a test comes to pass
+    // while collecting nothing.
+    public Task<IReadOnlyList<EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection>> SettleUnpaidDaysAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, int year, int month, Guid? collectorId, string recordedBy,
+        CancellationToken ct, decimal? maxAmount = null)
+        => throw new NotSupportedException("This double answers only the payable questions.");
+
+    public Task<EEMOCantilanSDS.Application.Common.Payments.NpmFishDayQuote> QuoteFishDayAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, DateOnly day, decimal declaredKilos, CancellationToken ct)
+        => throw new NotSupportedException("This double answers only the payable questions.");
+
+    public Task<EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection?> SettleFishDayAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, DateOnly day, decimal declaredKilos, string recordedBy,
+        CancellationToken ct)
+        => throw new NotSupportedException("This double answers only the payable questions.");
 }
 
 internal sealed class StubTpmMarketDayProvider : EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider

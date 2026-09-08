@@ -96,7 +96,7 @@ public class NpmSettlementAccessTests
     private static SettleNpmDaysCommandHandler DaysHandler(Doubles d) => new(
         d.Daily.Object, d.Payments.Object, d.Stalls.Object, d.Collectors.Object, d.CurrentUser.Object,
         d.Closures.Object, d.Uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver,
-        CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+        CacheTestDoubles.MonthSettlement, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
     private static SettleNpmMonthCommandHandler MonthHandler(Doubles d) => new(
         d.Daily.Object, d.Payments.Object, d.Stalls.Object, d.Collectors.Object, d.CurrentUser.Object,

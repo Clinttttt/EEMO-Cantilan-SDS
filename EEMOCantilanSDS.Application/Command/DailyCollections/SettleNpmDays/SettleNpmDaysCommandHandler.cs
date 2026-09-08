@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -22,6 +23,7 @@ public class SettleNpmDaysCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
+    INpmMonthSettlementService monthSettlement,
     ITenantContext tenantContext, IClock clock) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmDaysCommand request, CancellationToken ct)
@@ -71,6 +73,21 @@ public class SettleNpmDaysCommandHandler(
                 closedDates.Add(c.ClosureDate);
         }
 
+        // WHAT EACH MONTH CAN ACTUALLY BE CHARGED, which is not the sum of its days' fees.
+        //
+        // Where the office lets a stall for a monthly rent, the month owes that rent whatever its calendar gave it: a 31-day month
+        // at ₱30 owes ₱900, not ₱930. This handler charged every selected day its own fee with no ceiling, so settling a whole
+        // 31-day month took ₱930 - thirty pesos more than the month owed - while the screen that offered it quoted ₱900, because the
+        // arrears row prices the same days as Math.Min(listed, month payable). Found by audit 2026-09-08.
+        //
+        // The ceiling is taken from the SAME settlement the quote uses, so the figure a collector is shown and the figure the ledger
+        // records are one number by construction rather than by two calculations agreeing.
+        var monthCap = new Dictionary<(int Year, int Month), decimal>();
+        foreach (var key in months)
+            monthCap[key] = (await monthSettlement.ComputePayableAsync(stall, key.Year, key.Month, ct)).Amount;
+
+        var chargedByMonth = new Dictionary<(int Year, int Month), decimal>();
+
         var settled = new List<DailyCollection>();
         foreach (var day in dates)
         {
@@ -85,6 +102,17 @@ public class SettleNpmDaysCommandHandler(
                 continue;                                               // already collected or excused
 
             var fee = NpmDailyFee.ForStall(stall, snapshot, day);
+
+            // Never past what the month itself owes. A day beyond the ceiling is left alone rather than settled at a reduced fee:
+            // the month's rent is met, so nothing is owed for it, and recording a part-fee against a day would misstate what the
+            // office received on that day.
+            var monthKey = (day.Year, day.Month);
+            var chargedSoFar = chargedByMonth.GetValueOrDefault(monthKey);
+            if (monthCap.TryGetValue(monthKey, out var cap) && chargedSoFar + fee > cap)
+                continue;
+
+            chargedByMonth[monthKey] = chargedSoFar + fee;
+
             if (dc is null)
             {
                 dc = DailyCollection.Create(request.StallId, day, recordedBy, fee);

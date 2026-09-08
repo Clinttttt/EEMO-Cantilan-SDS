@@ -24,6 +24,70 @@ public class SettleNpmDaysCommandHandlerTests
         return stall;
     }
 
+    /// <summary>
+    /// Settling days never charges more than the month itself owes.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit 2026-09-08. Where the office lets a stall for a monthly rent, the month owes that rent whatever its calendar
+    /// gave it: a 31-day month at ₱30 owes ₱900, not ₱930. This handler charged every selected day its own fee with no ceiling, so
+    /// settling a whole 31-day month took ₱930 — thirty pesos MORE THAN THE PAYOR OWED — while the arrears screen that offered those
+    /// days quoted ₱900, because it prices them as Math.Min(listed, month payable).
+    ///
+    /// <para>The office over-collected and its own screen disagreed with its ledger. The ceiling now comes from the SAME settlement
+    /// the quote uses, so the two are one number by construction rather than by two calculations happening to agree.</para>
+    ///
+    /// <para>A day beyond the ceiling is left alone rather than settled at a reduced fee: the month's rent is met, so nothing is owed
+    /// for that day, and recording a part-fee against it would misstate what the office received on the day.</para>
+    /// </remarks>
+    [Fact]
+    public async Task Settle_NeverChargesMoreThanTheMonthOwes()
+    {
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var stall = NpmStallWithContract(monthStart.AddMonths(-3), 3);
+
+        // Every day of the month offered at once — the case a collector clearing a whole month's arrears produces.
+        var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+        var everyDay = Enumerable.Range(0, daysInMonth).Select(monthStart.AddDays).ToArray();
+
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var closureRepo = new Mock<INpmMarketClosureRepository>();
+        var uow = new Mock<IUnitOfWork>();
+
+        stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        dailyRepo.Setup(r => r.GetByStallAndMonthAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        closureRepo.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+        paymentRepo.Setup(r => r.IsDailyCollectionOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        currentUser.SetupGet(c => c.Username).Returns("admin");
+
+        var captured = new List<DailyCollection>();
+        dailyRepo.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
+            .Callback<DailyCollection, CancellationToken>((dc, _) => captured.Add(dc))
+            .Returns(Task.CompletedTask);
+
+        // The month owes ₱900, which is what the arrears screen quotes for it.
+        var handler = new SettleNpmDaysCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver,
+            CacheTestDoubles.MonthSettlementCappedAt(900m), CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+
+        var result = await handler.Handle(
+            new SettleNpmDaysCommand(stall.Id, everyDay, "OR-CAP"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        // Never past the month's own figure. Uncapped this took 31 × ₱30 = ₱930 on a 31-day month.
+        var charged = captured.Sum(dc => dc.DailyFee);
+        Assert.True(charged <= 900m, $"charged {charged} against a month that owes 900");
+        Assert.Equal(900m, charged);
+    }
+
     [Fact]
     public async Task Settle_MarksSelectedDaysPaid_AndStampsOneOrOnAll()
     {
@@ -55,7 +119,7 @@ public class SettleNpmDaysCommandHandlerTests
 
         var handler = new SettleNpmDaysCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
-            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.MonthSettlement, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new SettleNpmDaysCommand(stall.Id, new[] { d1, d2 }, "OR-DAYS"), CancellationToken.None);
@@ -141,7 +205,7 @@ public class SettleNpmDaysCommandHandlerTests
 
         var handler = new SettleNpmDaysCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
-            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+            closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.MonthSettlement, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         return (handler, captured, uow);
     }
@@ -161,7 +225,7 @@ public class SettleNpmDaysCommandHandlerTests
         var handler = new SettleNpmDaysCommandHandler(
             new Mock<IDailyCollectionRepository>().Object, new Mock<IPaymentRepository>().Object, stallRepo.Object,
             new Mock<ICollectorRepository>().Object, currentUser.Object, new Mock<INpmMarketClosureRepository>().Object,
-            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
+            new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.MonthSettlement, CacheTestDoubles.Tenant, new FixedClock(DateTime.UtcNow));
 
         var result = await handler.Handle(
             new SettleNpmDaysCommand(stall.Id, new[] { new DateOnly(2026, 6, 1) }, null), CancellationToken.None);
