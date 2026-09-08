@@ -64,6 +64,39 @@ public class MustChangePasswordMiddlewareTests
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
 
+    /// <summary>
+    /// The allow-list is matched on a path boundary, so a route whose name merely BEGINS with an allowed one is still refused.
+    /// </summary>
+    /// <remarks>
+    /// The same shape of hole that was live in the platform-operator boundary, where "/api/activation" admitted "/api/activation-codes"
+    /// and with it an endpoint authorising SuperAdmin. None of these routes exists today; they are here so that one added later cannot
+    /// quietly inherit a way past a password the office required to be changed.
+    /// </remarks>
+    [Theory]
+    [InlineData("/api/adminauth/change-my-password-for-someone-else")]
+    [InlineData("/api/adminauth/logout-everywhere")]
+    [InlineData("/api/adminauth/current-users")]
+    [InlineData("/api/municipalities/current/branding-export")]
+    [InlineData("/healthcheck-debug")]
+    public async Task ARouteThatMerelyBeginsWithAnAllowedOneIsStillRefused(string path)
+    {
+        var context = await RunAsync(path, authenticated: true, mustChange: true);
+
+        Assert.False(Reached(context), $"{path} was handled: the allow-list matched it as a bare prefix");
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+    }
+
+    /// <summary>A probe UNDER an allowed path is still allowed — the boundary admits sub-paths, which is why it is not an equality.</summary>
+    [Theory]
+    [InlineData("/health")]
+    [InlineData("/health/ready")]
+    public async Task ProbesUnderAnAllowedPathStillAnswer(string path)
+    {
+        var context = await RunAsync(path, authenticated: true, mustChange: true);
+
+        Assert.True(Reached(context), $"{path} was refused; the health probes must keep answering");
+    }
+
     [Fact]
     public async Task TheRefusalCarriesACodeTheClientCanActOn()
     {

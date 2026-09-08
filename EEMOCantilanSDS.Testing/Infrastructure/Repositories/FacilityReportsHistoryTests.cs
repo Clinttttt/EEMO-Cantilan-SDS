@@ -105,13 +105,14 @@ public class FacilityReportsHistoryTests : RepositoryTestBase
         var year = history.Yearly.Single(y => y.Label == "2024");
         var summed = history.Monthly.Sum(m => m.Outstanding);
 
-        // NEVER LESS than the year's own figure. This seed has no prepayment, so the two are equal here - but equality is not the
-        // property, and asserting it was the overclaim an audit caught. Where a payor pays ahead, the sum is the LARGER and the truer
-        // number, because money paid for days not yet earned must not reduce what an earlier month owes.
+        // NEVER LESS than the year's own figure. This seed has no prepayment, so the two happen to be equal here — and that equality is
+        // deliberately NOT asserted. Asserting it was the overclaim an audit caught, and the assertion outlived the comment saying so
+        // until a second audit found the pair contradicting each other. Equality is a fact about this seed, not the property: where a
+        // payor pays ahead the sum is the LARGER and the truer number, because money paid for days not yet earned must not reduce what
+        // an earlier month owes. Pinning equality would fail a seed that added a prepayment, for no fault at all.
         Assert.True(summed >= year.Outstanding,
             $"The months summed to {summed} but the year alone reads {year.Outstanding}; the sum can exceed the year where a payor "
             + "has paid ahead, but it must never fall below it - that would mean a month's arrears had gone missing.");
-        Assert.Equal(year.Outstanding, summed);
 
         // Named plainly, because Max was the bug: the largest single month is NOT the year's outstanding.
         Assert.True(summed > history.Monthly.Max(m => m.Outstanding),

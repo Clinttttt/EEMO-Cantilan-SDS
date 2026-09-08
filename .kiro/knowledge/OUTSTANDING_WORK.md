@@ -697,6 +697,14 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
+**Excusing a month excuses its electricity and water.** Ruled 2026-09-08. A payor excused for a month is not billed for
+that month at all — the utilities go with the rent. Where they do owe a light or water bill they can still pay it through
+the collector or the office; what an excusal removes is the OBLIGATION, not the ability to settle. Asked because the
+screens disagreed: `PaymentRepository.Ledger.cs` (twice) and `StallRepository.ClosedAccounts.cs` already forgave the
+utilities while the compliance path billed them. Implemented in `57f9c0c3`/`33722e34` by billing an excused month exactly
+what it TOOK — rent and utilities together — because dropping the utilities while their payment stayed in the period total
+would have recreated the drift fixed in `64624dff`, pointing the other way.
+
 **Month-End does not count utilities the way the Financial report does.** Asked and answered 2026-08-29: it stays as it
 is. A meter charge is not a stall or a daily fee, and the sheet's own Miscellaneous table already states electricity and
 water on their own. Recorded because the two documents will keep looking inconsistent to anyone comparing their totals,
@@ -1094,6 +1102,25 @@ measurement rather than the reasoning.
   asserts both halves and fails if the field is ever offered for a canonical area; ₱900 dividing to exactly ₱30 is asserted
   too, since rounding cannot disturb a figure that already divides. **Closed.**
 
+### Audit findings examined 2026-09-08 and DISMISSED, with the evidence
+
+Recorded so a third audit does not raise them again, and because in both cases "fixing" them would have made the system worse.
+
+- **`FacilityPage.razor:455` linking a profile by STALL NUMBER is not ambiguous.** Raised as the same fault fixed in
+  `FollowUpComposer` and `ClosedAccounts` (`7d4b2bc2`), where NPM's per-area numbering gives one facility several stall "1"s.
+  It does not apply to this component's four consumers — BBQ, Iceplant, NCC and CustomFacility. The unique index is
+  `(FacilityId, COALESCE(CustomSectionName,''), StallNo) WHERE Section IS NULL`, and its own migration comment says non-NPM
+  facilities stay at per-facility uniqueness. `CustomSectionName` is only ever set when `isNpm`
+  (`BulkImportStallholdersCommandHandler.cs:36`; every other writer is NPM-specific), and `CreateStallCommandValidator`'s
+  exactly-one-section rule is `.When(FacilityCode == NPM)`. So a stall number IS unique inside those facilities. **Left alone.**
+
+- **`LastCollectedOf` not skipping market-closure days is correct.** A day only qualifies as a carrier if it is already PAID,
+  so a closure day can only be chosen when the office collected it and declared the closure afterwards — the money is real.
+  Skipping would be the dangerous behaviour: were the only paid day of a short month also a closure day, the carrier would
+  come back null and the month-end difference would be dropped silently, leaving the month short for ever. Nothing downstream
+  loses it either — the collection sums filter on `IsPaid` and the date range only, never on closure, and carry
+  `DailyFee + MonthEndAdjustment` together. **Left alone, and the reasoning is now in the method's own remarks.**
+
 ### Verified accurate and left alone during that audit
 
 - The rollout page's facility list against `FacilityCode` (NPM, TCC, NCC, BBQ, ICE, SLH, TRM, TPM, Custom1-5).
@@ -1273,6 +1300,10 @@ Items that were open and are now closed, kept because the reasoning is what stop
   - `FacilityReportsHistoryTests.History_MonthlyOutstanding_AddsUpToTheYearsOwnFigure` states it as a property, not an arithmetic
     example: the months must add up to what the same code computes over the whole YEAR. If the monthly figures ever become cumulative,
     that test fails and the total has to change with them.
+    - **The equality was still being asserted beside the property until 2026-09-08**, one line under a comment saying asserting it was
+      the overclaim an audit had caught: the earlier fix was left half-applied and a second audit found the pair contradicting each
+      other. Now only `summed >= year.Outstanding` is asserted. Equality holds for this seed because it has no prepayment, and that is
+      a fact about the seed, not the property — pinning it would fail a seed that added a prepayment, for no fault at all.
   - **For Follow-up is deliberately NOT totalled — it is dashed.** It counts people: the same payor unpaid in several months would be
     counted once per month, and the page holds only the monthly counts, so no true figure can be formed there. Consistent with Total
     Stalls beside it, which was already dashed for the same reason. `Max` was not defensible there either — a payor owing in August and

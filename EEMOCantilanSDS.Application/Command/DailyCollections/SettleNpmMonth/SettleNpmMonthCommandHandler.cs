@@ -206,6 +206,17 @@ public class SettleNpmMonthCommandHandler(
     /// The last installment actually collected for this occupancy in the month — where a month-end adjustment lands
     /// when no uncollected day is left to carry it.
     /// </summary>
+    /// <remarks>
+    /// MARKET-CLOSURE DAYS ARE DELIBERATELY NOT SKIPPED HERE, and an audit raised their absence as a defect. They are not skipped for
+    /// two reasons. A day only qualifies as a carrier if it is already PAID, so the only way a closure day can be chosen is if the
+    /// office collected that day and declared the closure afterwards — the money is real either way. And skipping would be the more
+    /// dangerous behaviour: were the only paid day of a short month also a closure day, the carrier would come back null and the
+    /// month-end difference would be dropped silently, leaving the month short for ever. That is the very fault the adjustment exists
+    /// to prevent.
+    ///
+    /// <para>Nothing downstream loses the adjustment for sitting on a closure day: the collection sums filter on IsPaid and the date
+    /// range only (FacilityReportsRepository.Compliance.cs), never on closure, and carry DailyFee + MonthEndAdjustment together.</para>
+    /// </remarks>
     private static DailyCollection? LastCollectedOf(
         IReadOnlyDictionary<DateOnly, DailyCollection> existing,
         DateOnly monthStart,

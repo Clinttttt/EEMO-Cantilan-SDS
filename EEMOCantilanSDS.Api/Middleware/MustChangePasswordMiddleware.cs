@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common;
+﻿using EEMOCantilanSDS.Application.Common;
 
 namespace EEMOCantilanSDS.Api.Middleware;
 
@@ -66,6 +66,23 @@ public class MustChangePasswordMiddleware(RequestDelegate next)
         if (!bool.TryParse(mustChange, out var required) || !required) return false;
 
         var path = context.Request.Path.Value ?? string.Empty;
-        return !Allowed.Any(a => path.StartsWith(a, StringComparison.OrdinalIgnoreCase));
+        return !Allowed.Any(a => IsAllowedPath(path, a));
     }
+
+    /// <summary>
+    /// Matched on a PATH BOUNDARY, not as a bare prefix.
+    /// </summary>
+    /// <remarks>
+    /// A plain StartsWith would admit any route whose name merely begins with an allowed one — "/health" would pass "/healthcheck-debug",
+    /// and "/api/adminauth/logout" would pass "/api/adminauth/logout-everywhere". No such route exists today, and I looked rather than
+    /// assumed; this is the same hole that WAS live in the platform-operator boundary, where "/api/activation" admitted
+    /// "/api/activation-codes" and with it a municipal endpoint. Closed here in the same shape so a route added later cannot quietly
+    /// open a way past a password the office required to be changed.
+    ///
+    /// <para>Sub-paths stay allowed, which is the point of the boundary rather than an equality: "/health/ready" is a probe under
+    /// "/health" and must keep answering.</para>
+    /// </remarks>
+    private static bool IsAllowedPath(string path, string allowed) =>
+        path.Equals(allowed, StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith(allowed + "/", StringComparison.OrdinalIgnoreCase);
 }
