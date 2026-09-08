@@ -1,4 +1,5 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
@@ -20,6 +21,7 @@ public class InitiateOnlinePaymentCommandHandler(
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
     INpmMonthSettlementService npmMonthSettlementService,
+    IFeeRateResolver feeRateResolver,
     IUtilityBillRepository utilityBillRepository,
     IUnitOfWork unitOfWork, IClock clock) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
@@ -141,6 +143,21 @@ public class InitiateOnlinePaymentCommandHandler(
     private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmAsync(
         Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
+        // THE SAME REFUSAL THE OFFICE'S OWN SETTLEMENT MAKES (SettleNpmMonthCommandHandler). A fee the office has never
+        // stated cannot be raised against a payor, and must not be quietly taken as zero either — and taken as zero is
+        // exactly what happens without this, because NpmDailyFee.ForStall ends in "?? 0m". Where the office has stated a
+        // monthly rent but no daily rate, the month's obligation still resolves (₱900) and the whole of it would ride on
+        // one day as a month-end difference: a payor charged a figure the office never expressed as a rate, through a
+        // gateway, with no daily detail for the office to reconcile against by hand.
+        //
+        // No live municipality is in that state — each of the three has stated its daily rate — so this closes a
+        // disagreement between the two settlement paths rather than a fault anyone has met. Asked of the STALL, so an
+        // office that prices its market's areas apart is answered for the area this stall stands in.
+        var snapshot = await feeRateResolver.GetSnapshotAsync(cancellationToken);
+        if (NpmDailyFee.ForStallOrNull(stall, snapshot, clock.PhilippineToday) is null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall), ResultStatus.Conflict);
+
         var payable = request.Days is { } askedDays && askedDays > 0
             ? await npmMonthSettlementService.ComputePayableForDaysAsync(stall, request.Year, request.Month, askedDays, cancellationToken)
             : await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);

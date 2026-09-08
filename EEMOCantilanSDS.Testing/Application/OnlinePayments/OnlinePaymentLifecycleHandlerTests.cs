@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.IssueOrNumber;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
@@ -34,7 +35,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Mock<IPaymentRepository>? paymentRepoOut = null,
         Result<CheckoutSessionResult>? gatewayResult = null,
         Mock<INpmMonthSettlementService>? npmServiceOut = null,
-        Mock<IUtilityBillRepository>? utilOut = null)
+        Mock<IUtilityBillRepository>? utilOut = null,
+        IFeeRateResolver? feeRates = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -76,7 +78,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
-            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, (utilOut ?? new Mock<IUtilityBillRepository>()).Object, uow.Object, new FixedClock(DateTime.UtcNow));
+            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, feeRates ?? CacheTestDoubles.FeeRateResolver, (utilOut ?? new Mock<IUtilityBillRepository>()).Object, uow.Object, new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]
@@ -201,6 +203,36 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ResultStatus.Conflict, result.Status);
+    }
+
+    /// <summary>
+    /// The online path refuses a month the office never priced by the day, exactly as the office's own settlement does.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit as a disagreement between the two settlement paths. SettleNpmMonthCommandHandler refuses when
+    /// NpmDailyFee.ForStallOrNull comes back null; the online path did not ask, and NpmDailyFee.ForStall ends in "?? 0m", so
+    /// an office that had stated a monthly rent and no daily rate would still resolve a ₱900 obligation and charge the whole
+    /// of it through the gateway as a single month-end difference — a figure never expressed as a rate, with no daily detail
+    /// to reconcile against.
+    ///
+    /// <para>The settlement service is stubbed to a REAL payable here on purpose: the refusal has to come from the unstated
+    /// rate, not from an empty month. Were the guard removed, this would reach the gateway and the assertion would fail.</para>
+    /// </remarks>
+    [Fact]
+    public async Task NpmMonthWithNoDailyRateStated_IsRefused()
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.ComputePayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NpmMonthPayable(30, 900m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, npmServiceOut: npm,
+            feeRates: CacheTestDoubles.MonthlyRentOnlyFeeRateResolver);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
     }
 
     [Fact]

@@ -24,6 +24,9 @@ internal static class CacheTestDoubles
     /// <summary>The same office, measuring a market month by the days it has.</summary>
     public static IFeeRateResolver PureDaysFeeRateResolver { get; } = new StubPureDaysFeeRateResolver();
 
+    /// <summary>An office that stated a monthly rent but never a daily rate. Both settlement paths must refuse it.</summary>
+    public static IFeeRateResolver MonthlyRentOnlyFeeRateResolver { get; } = new StubMonthlyRentOnlyFeeRateResolver();
+
     /// <summary>Market-day provider fixed to Friday (the Cantilan default) for existing tests.</summary>
     public static EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider TpmMarketDay { get; } = new StubTpmMarketDayProvider();
 
@@ -128,6 +131,15 @@ internal static class TestFeeRates
     public static FeeRateSnapshot StatedOrdinanceOnPureDays() =>
         new(Entries(), null, EEMOCantilanSDS.Domain.Enums.NpmMonthBasis.PureDays);
 
+    /// <summary>
+    /// A stated monthly rent with NO daily rate — see StubMonthlyRentOnlyFeeRateResolver. Everything else is dropped too, so
+    /// the only thing the office has said about this market is what a month is let for.
+    /// </summary>
+    public static FeeRateSnapshot MonthlyRentButNoDailyRate() => new(new[]
+    {
+        new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 900m, EffectiveFrom),
+    });
+
     /// <summary>The same amounts the suite has always expected, now stated by the office rather than assumed.</summary>
     public static IEnumerable<FeeRateEntry> Entries()
     {
@@ -138,6 +150,21 @@ internal static class TestFeeRates
         yield return new FeeRateEntry(FacilityCode.TPM, FeeRateKey.TpmVendorDay, FeeRates.TpmVendorFee, EffectiveFrom);
         yield return new FeeRateEntry(FacilityCode.TRM, FeeRateKey.TrmPerTrip, FeeRates.TrmTripFee, EffectiveFrom);
     }
+}
+
+/// <summary>
+/// An office that stated what a market month is LET for but never stated the daily rate it is collected in.
+/// </summary>
+/// <remarks>
+/// The configuration in which a month's obligation still resolves (₱900 from the monthly rent) while every individual day
+/// prices at nothing, because NpmDailyFee.ForStall ends in "?? 0m". Both settlement paths must refuse it rather than charge
+/// a figure the office never expressed as a rate. No live municipality is in this state; the double exists so the refusal
+/// is pinned rather than assumed.
+/// </remarks>
+internal sealed class StubMonthlyRentOnlyFeeRateResolver : IFeeRateResolver
+{
+    public Task<FeeRateSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(TestFeeRates.MonthlyRentButNoDailyRate());
 }
 
 internal sealed class TestTenantContext : ITenantContext
