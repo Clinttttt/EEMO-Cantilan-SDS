@@ -127,7 +127,14 @@ public class SettleNpmMonthCommandHandler(
             if (known is not null && (known.IsPaid || known.IsAbsent)) continue;
             installmentsOwed += NpmDailyFee.ForStall(stall, snapshot, day);
         }
-        var adjustment = monthClosed && collectable > installmentsOwed ? collectable - installmentsOwed : 0m;
+        // A month-end adjustment is only ever the office's OWN rule about a short month reaching its rent. The sibling path
+        // (NpmMonthSettlementService) has always gated it on that rule; this one did not, and an audit found the divergence on
+        // 2026-09-07. It bites where a fee CHANGED mid-month: the obligation is priced with one fee for the whole month while the
+        // installments are summed per day, so on an office that bills pure days the two differ and an adjustment appeared that its
+        // rule never sanctioned — over-collecting the difference. Two settlement paths must not disagree about what a month costs.
+        var adjustment = snapshot.MonthRule.AdjustsShortMonthToRent && monthClosed && collectable > installmentsOwed
+            ? collectable - installmentsOwed
+            : 0m;
         var installmentCap = collectable - adjustment;
 
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))

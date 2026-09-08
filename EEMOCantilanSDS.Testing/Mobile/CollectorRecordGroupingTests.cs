@@ -144,7 +144,62 @@ public class CollectorRecordGroupingTests
             Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 2), absent: true),
         ]));
 
-        Assert.Equal("Aug 30 – Sep 2", entry.FeeDayLabel);
+        Assert.Equal("Aug 30, Sep 2", entry.FeeDayLabel);
+    }
+
+    /// <summary>
+    /// A gap in the excused days is shown as a gap, not smoothed into a span that overstates them.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit 2026-09-07. The label printed the first day and the last, so the 1st and 3rd with the 2nd collected read
+    /// "Sep 1–3" while the chip beside it counted two days. A card that says three days and counts two invites the office to
+    /// distrust both figures, and the one that is wrong is the one it would act on.
+    /// </remarks>
+    [Fact]
+    public void AGapInTheExcusedDaysIsNotSmoothedIntoASpan()
+    {
+        var entry = Assert.Single(CollectorRecordGrouping.Build(
+        [
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 1), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 3), absent: true),
+        ]));
+
+        Assert.Equal(2, entry.FeeDays.Count);
+        Assert.Equal("Sep 1, Sep 3", entry.FeeDayLabel);
+    }
+
+    /// <summary>Consecutive days still collapse into one span — the common case must stay short.</summary>
+    [Fact]
+    public void ConsecutiveExcusedDaysStillReadAsOneSpan()
+    {
+        var entry = Assert.Single(CollectorRecordGrouping.Build(
+        [
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 1), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 2), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 3), absent: true),
+        ]));
+
+        Assert.Equal("Sep 1–3", entry.FeeDayLabel);
+    }
+
+    /// <summary>
+    /// Many scattered days are counted rather than listed, so the card cannot outgrow its line.
+    /// </summary>
+    /// <remarks>
+    /// Three runs or more and the label states the count with the outer bounds; the days themselves are in the detail. The count is
+    /// the honest part — it is what the office reconciles — and it is never overstated by the span beside it.
+    /// </remarks>
+    [Fact]
+    public void ManyScatteredDaysAreCountedRatherThanListed()
+    {
+        var entry = Assert.Single(CollectorRecordGrouping.Build(
+        [
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 1), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 3), absent: true),
+            Daily("Pedro", "—", 0m, Morning, new DateOnly(2026, 9, 5), absent: true),
+        ]));
+
+        Assert.Equal("3 days, Sep 1–5", entry.FeeDayLabel);
     }
 
     [Fact]

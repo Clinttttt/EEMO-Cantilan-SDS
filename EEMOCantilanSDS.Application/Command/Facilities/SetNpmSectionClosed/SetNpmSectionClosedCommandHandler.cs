@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
+﻿using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
@@ -86,20 +86,30 @@ public class SetNpmSectionClosedCommandHandler(
 
         var toClose = stalls.Where(s => s.IsActive()).Select(s => s.Id).ToList();
 
+        // WHAT ACTUALLY CLOSED, not what was asked for. Each ToggleStallStatusCommand commits on its own, so a refusal part-way
+        // through used to return early and leave the stalls before it frozen with NO closure row naming them — a section half shut
+        // and nothing recording which spaces it took, so a later reopen could not give them back. Found by audit 2026-09-07 and
+        // downgraded there as unreachable today; the cost if it ever fires is somebody's space closed with no way to undo it, which
+        // is not a risk worth carrying for the sake of three lines.
+        var closed = new List<Guid>();
+
         foreach (var id in toClose)
         {
             var result = await sender.Send(new ToggleStallStatusCommand(id, Close: true), ct);
-            if (!result.IsSuccess) return toClose.IndexOf(id);   // stop at the first refusal; the rest stay open
+            if (!result.IsSuccess) break;   // stop at the first refusal; the rest stay open
+            closed.Add(id);
         }
 
+        // The row is written either way, listing exactly the stalls this act closed, so reopening returns exactly those and no more.
         // A second closing keeps the stalls the first one closed AND adds any recorded since, so a reopen returns both.
         if (existing is not null)
-            existing.Reclose(clock.PhilippineToday, existing.ClosedStallIds.Concat(toClose), "SectionClosed");
+            existing.Reclose(clock.PhilippineToday, existing.ClosedStallIds.Concat(closed), "SectionClosed");
         else
             context.FacilitySectionClosures.Add(FacilitySectionClosure.Create(
-                FacilityCode.NPM, registered, clock.PhilippineToday, toClose, createdBy: "SectionClosed"));
+                FacilityCode.NPM, registered, clock.PhilippineToday, closed, createdBy: "SectionClosed"));
 
-        return toClose.Count;
+        // The count the office is told is what actually closed, whether or not one of them was refused.
+        return closed.Count;
     }
 
     /// <summary>Reopens the section, and exactly the stalls this closure closed.</summary>

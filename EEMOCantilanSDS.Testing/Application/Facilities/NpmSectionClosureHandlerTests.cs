@@ -84,6 +84,61 @@ public class NpmSectionClosureHandlerTests
         return (handler, context, sent);
     }
 
+    /// <summary>
+    /// A stall refused mid-way still leaves a closure row naming the stalls that DID close.
+    /// </summary>
+    /// <remarks>
+    /// Found by audit 2026-09-07 and downgraded there as unreachable today. It is worth closing anyway because of what it costs if it
+    /// ever fires: each per-stall toggle commits on its own, so returning early left the stalls before the refusal frozen with NO row
+    /// naming them. The section would be half shut with nothing recording which spaces it took, and reopening — which returns exactly
+    /// the stalls a closure closed — could never give them back. Somebody's space closed with no way to undo it.
+    ///
+    /// <para>The row is written either way now, listing what actually closed, and the count returned is that same figure rather than
+    /// the number asked for.</para>
+    /// </remarks>
+    [Fact]
+    public async Task AStallRefusedPartWayThroughStillLeavesARowNamingWhatClosed()
+    {
+        var options = Options();
+        var npm = Npm("Sari Sari");
+        var first = StallIn(npm.Id, "Sari Sari", "1");
+        var second = StallIn(npm.Id, "Sari Sari", "2");
+
+        var context = new AppDbContext(options);
+
+        var facilityRepo = new Mock<IFacilityRepository>();
+        facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.NPM, It.IsAny<CancellationToken>())).ReturnsAsync(npm);
+
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(
+                FacilityCode.NPM, null, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Stall> { first, second });
+
+        // The first stall closes; the second is refused, as a stall whose account had gone would be.
+        var calls = 0;
+        var sender = new Mock<ISender>();
+        sender.Setup(s => s.Send(It.IsAny<ToggleStallStatusCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => ++calls == 1
+                ? Result<bool>.Success(true)
+                : Result<bool>.Failure("That stall cannot be closed.", ResultStatus.Conflict));
+
+        var tenant = new Mock<ITenantContext>();
+        tenant.SetupGet(t => t.TenantCode).Returns("cantilan");
+
+        var handler = new SetNpmSectionClosedCommandHandler(
+            context, facilityRepo.Object, stallRepo.Object, sender.Object,
+            CacheTestDoubles.Invalidator, tenant.Object, new FixedClock(new DateTime(2026, 8, 30)));
+
+        var result = await handler.Handle(new SetNpmSectionClosedCommand("Sari Sari", Closed: true), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value);   // what actually closed, not what was asked for
+
+        // The row exists and names exactly the stall that closed, so a reopen can return it.
+        var row = Assert.Single(context.FacilitySectionClosures);
+        Assert.Equal([first.Id], row.ClosedStallIds);
+    }
+
     [Fact]
     public async Task ClosingASectionClosesEveryStallStillOpenInIt()
     {

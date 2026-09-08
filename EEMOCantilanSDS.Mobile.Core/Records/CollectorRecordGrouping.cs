@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Dtos.Mobile;
+﻿using EEMOCantilanSDS.Application.Dtos.Mobile;
 
 namespace EEMOCantilanSDS.Mobile.Records;
 
@@ -122,14 +122,47 @@ public sealed class CollectorRecordEntry
         {
             var days = FeeDays;
             if (days.Count == 0) return string.Empty;
-            if (days.Count == 1) return days[0].ToString("MMM d");
 
-            var first = days[0];
-            var last = days[^1];
+            // RUNS, NOT ENDPOINTS. This used to print the first day and the last, so 1 and 3 with the 2nd collected read "Sep 1–3"
+            // and contradicted the "2 days" beside it — a card that says three days and counts two invites the office to distrust
+            // both. Found by audit 2026-09-07. Consecutive days collapse into a span; a gap starts a new one.
+            var runs = new List<string>();
+            var runStart = days[0];
+            var runEnd = days[0];
 
-            return first.Month == last.Month
-                ? $"{first:MMM d}–{last.Day}"
-                : $"{first:MMM d} – {last:MMM d}";
+            for (var i = 1; i <= days.Count; i++)
+            {
+                var continues = i < days.Count && days[i] == runEnd.AddDays(1);
+                if (continues)
+                {
+                    runEnd = days[i];
+                    continue;
+                }
+
+                runs.Add(Span(runStart, runEnd));
+
+                if (i < days.Count)
+                {
+                    runStart = days[i];
+                    runEnd = days[i];
+                }
+            }
+
+            // Two runs are named; beyond that the card would grow past its line, so the office is given the count and the detail
+            // holds the days themselves.
+            return runs.Count <= 2
+                ? string.Join(", ", runs)
+                : $"{days.Count} days, {Span(days[0], days[^1])}";
         }
+    }
+
+    /// <summary>One run of days: a single day named outright, a run given as a span with the month stated once where it can be.</summary>
+    private static string Span(DateOnly from, DateOnly to)
+    {
+        if (from == to) return from.ToString("MMM d");
+
+        return from.Month == to.Month
+            ? $"{from:MMM d}–{to.Day}"
+            : $"{from:MMM d} – {to:MMM d}";
     }
 }
