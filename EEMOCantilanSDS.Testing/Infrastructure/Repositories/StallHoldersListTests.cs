@@ -91,6 +91,47 @@ public class StallHoldersListTests : RepositoryTestBase
         Assert.DoesNotContain("Gone By June", occupants);
     }
 
+    /// <summary>
+    /// A same-day handover names the incoming lessee, not the one who left that morning.
+    /// </summary>
+    /// <remarks>
+    /// Found by a second audit 2026-09-08, in the fix from the first. <c>Stall.Occupancies</c> clamps a window that would otherwise end
+    /// before it starts, so where one term ends the very day the next begins the outgoing window's end lands on the incoming window's
+    /// start and the two overlap on exactly that day. The as-of read took the FIRST of them, and windows come oldest first — so on that
+    /// one day the roster named the departing lessee.
+    ///
+    /// <para>My own comment on the earlier fix asserted these windows never overlap. They can, and this is the case.</para>
+    /// </remarks>
+    [Fact]
+    public async Task HoldersList_OnASameDayHandover_NamesTheIncomingLessee()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        // BOTH terms dated the same day, which is the case Stall.Occupancies calls "bad data, or a same-day handover". That is what
+        // makes the clamp fire: the outgoing window is trimmed to the day before the next term, which is before its own start, so it
+        // is pushed back onto its start — the same day the incoming window begins. Only then do two windows cover one day.
+        //
+        // My first two drafts dated the terms two years apart and proved nothing: the outgoing window simply ended the day before, so
+        // one window covered the as-of date and either end of the list gave the right answer.
+        var handover = new DateOnly(2020, 12, 31);
+        var stall = Stall.Create(facility.Id, "1", 2_400m, ApplicableFees.BaseRental);
+        var outgoing = Contract.Create(stall.Id, "Left That Morning", "Left That Morning", handover, 5, 2_400m);
+        var incoming = Contract.Create(stall.Id, "Took Over", "Took Over", handover, 5, 2_400m);
+
+        context.AddRange(facility, stall, outgoing, incoming);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+
+        // Read as of the close of 2020 — the handover day, where both windows cover the stall.
+        var y2020 = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, 2020, CancellationToken.None);
+        var occupants = y2020.Sections.SelectMany(s => s.Rows).Select(r => r.ActualOccupant).ToList();
+
+        Assert.Contains("Took Over", occupants);
+        Assert.DoesNotContain("Left That Morning", occupants);
+    }
+
     /// <summary>The current year means today, so the everyday view cannot drift from the no-year one.</summary>
     [Fact]
     public async Task HoldersList_TheCurrentYear_ReadsTheSameAsNoYearAtAll()

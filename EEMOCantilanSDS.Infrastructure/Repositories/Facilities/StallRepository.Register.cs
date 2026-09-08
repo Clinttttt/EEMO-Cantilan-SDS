@@ -82,8 +82,12 @@ public partial class StallRepository
         //
         // ON THE DAY, not anywhere in the year. A whole-year window admitted a stall let in January and vacant by December, and
         // named its FIRST lessee rather than the one holding it at the year's close - occupancy windows are ordered oldest first,
-        // whatever OccupanciesOverlapping's summary used to claim. Found by audit 2026-09-07. A one-day window matches at most one
-        // occupancy, because the windows are built not to overlap, so the answer is unambiguous.
+        // whatever OccupanciesOverlapping's summary used to claim. Found by audit 2026-09-07.
+        //
+        // A one-day window usually matches one occupancy, but NOT ALWAYS: on a same-day handover Stall.Occupancies clamps the
+        // outgoing window so it cannot end before it starts, which lands its end on the incoming window's start, and both then
+        // overlap that single day. An earlier version of this comment claimed the windows never overlap; a second audit on 2026-09-08
+        // showed otherwise. HolderOn takes the LAST of them, which is the lessee who holds the stall from that day.
         stalls = isHistorical
             ? stalls.Where(s => s.OccupanciesOverlapping(asOf, asOf, asOf).Count > 0).ToList()
             : stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired(asOf)).ToList();
@@ -129,7 +133,10 @@ public partial class StallRepository
             if (!isHistorical) return s.Contracts.FirstOrDefault(c => c.IsActive);
 
             var held = s.OccupanciesOverlapping(asOf, asOf, asOf);
-            return held.Count > 0 ? held[0].Contract : s.Contracts.FirstOrDefault(c => c.IsActive);
+
+            // The LAST window, not the first. Windows come oldest first, and on a same-day handover two of them cover the stated day
+            // — so taking the first named the lessee who had just left, on the one day of the year it mattered most to get right.
+            return held.Count > 0 ? held[^1].Contract : s.Contracts.FirstOrDefault(c => c.IsActive);
         }
 
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection
