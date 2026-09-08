@@ -125,6 +125,30 @@ public class MobileSettleDaysBoundaryTests
         Assert.Equal("SuperAdmin,Admin", settleMonth.Groups["roles"].Value);
     }
 
+    /// <summary>
+    /// The arrears screen can take the days owed in the month STILL RUNNING, not only closed months.
+    /// </summary>
+    /// <remarks>
+    /// Reported 2026-09-08: a payor owing ₱540 for August and ₱30 for two days of September could only be given the ₱540. The daily
+    /// round is the ordinary path for the month in hand — but a stall whose section has been CLOSED is not in the round at all, so
+    /// those days were owed with no way on any screen to collect them, and the balance could never reach nil.
+    ///
+    /// <para>Settled as DAYS through the existing route, because a running month owes exactly the days it has run — the month
+    /// settlement would price it as a whole month. The dates come from the row itself, so the collector settles what was shown.</para>
+    /// </remarks>
+    [Fact]
+    public void TheArrearsScreenCanSettleTheDaysOwedInTheMonthStillRunning()
+    {
+        var sheet = Source("EEMOCantilanSDS.Mobile", "Components", "Pages", "Menus", "Market.razor");
+
+        // The current-month row is an action, not a label.
+        Assert.Contains("OpenDaysSettle(payor)", sheet);
+
+        // And it settles through the DAYS route, carrying the dates the row named.
+        Assert.Contains("SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(", sheet);
+        Assert.Contains("MonthSettleDays", sheet);
+    }
+
     [Fact]
     public void TheAppSendsTheDaysTheCollectorChose()
     {

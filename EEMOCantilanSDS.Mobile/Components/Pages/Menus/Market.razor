@@ -297,14 +297,23 @@
                                 }
                                 @if (payor.DaysOwedThisMonth.Count > 0)
                                 {
-                                    <div class="arrears-month-line">
+                                    @* Tappable as well. Reported 2026-09-08: a payor owing ₱540 for August and ₱30 for two days of
+                                       September could only be given ₱540 — the ₱30 had nowhere to be taken. The daily round is the
+                                       ordinary path for the month in hand, but a stall whose section has been CLOSED is not in the
+                                       round at all, so its days were owed with no way on any screen to collect them.
+
+                                       Settled as DAYS, not as a month: the month is still running, so what is owed is exactly the
+                                       days gone by, and those dates are already on this row. *@
+                                    <button type="button" class="arrears-month-line arrears-month-act"
+                                            @onclick="() => OpenDaysSettle(payor)">
                                         <span class="arrears-month-name">@MonthLabel · @DaysLabel(payor.DaysOwedThisMonth.Count)</span>
                                         <span class="arrears-month-amount">@FormatCurrency(payor.AmountThisMonth)</span>
-                                    </div>
+                                        <svg class="arrears-month-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                                    </button>
                                 }
-                                @* Why a closed month is one act rather than a set of days. Said plainly, so a collector does not
-                                   go looking for its days among the chips on the daily sheet. *@
-                                <div class="arrears-month-note">Tap a closed month to settle it in full.</div>
+                                @* What a tap does, and why the two are settled differently. A closed month is one act at the office's
+                                   own figure; the month in hand is the days it has actually run. *@
+                                <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div>
                             </div>
                         }
                     }
@@ -314,28 +323,26 @@
     </div>
 }
 
-@if (MonthSettlePayor is not null && MonthSettleMonth is not null)
+@if (MonthSettlePayor is not null && (MonthSettleMonth is not null || MonthSettleDays is { Count: > 0 }))
 {
-    @* A month is money, so it is confirmed rather than taken on one tap. The figure is the office's own settlement of that
-       month, restated here so the collector reads the same number he is about to receipt. *@
+    @* A month is money, so it is confirmed rather than taken on one tap. The figure is restated here so the collector reads the same
+       number he is about to receipt. *@
     <div class="sheet-overlay" @onclick="CloseMonthSettle">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
-            <div class="sheet-title">@MonthName(MonthSettleMonth.Year, MonthSettleMonth.Month)</div>
+            <div class="sheet-title">@MonthSettleTitle</div>
             <div class="sheet-sub">@MonthSettlePayor.PayorName · No. @MonthSettlePayor.StallNo</div>
 
             <div class="misc-collect">
-                <span>Settling in full</span>
-                <strong>@FormatCurrency(MonthSettleMonth.Amount)</strong>
+                <span>@(MonthSettleMonth is not null ? "Settling in full" : "Collecting")</span>
+                <strong>@FormatCurrency(MonthSettleAmount)</strong>
             </div>
 
-            @* Stated because the figure is not simply the days times the fee where the market is let for a monthly rent: the
-               last installments of a month that cannot reach its rent are folded into a month-end difference. A collector who
-               counts the days and gets a different answer should not have to wonder which is right. *@
-            @if (MonthSettleMonth.Days > 0)
-            {
-                <div class="arrears-month-note">@DaysLabel(MonthSettleMonth.Days) plus the month-end difference, as the office settles it.</div>
-            }
+            @* What the figure is made of. A closed month may carry a month-end difference on top of its installments — and may not,
+               which is why this says so ONLY when there is one: "18 days owed plus the month-end difference" beside ₱540 when 18 days
+               at ₱30 IS ₱540 invites the collector to hunt for a difference that does not exist. The days of a running month are just
+               the days. *@
+            <div class="arrears-month-note">@MonthSettleBasis</div>
 
             <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50"
                    placeholder="OR no." @bind="MonthSettleOr" @bind:event="oninput" />
@@ -1289,6 +1296,10 @@
     // month closed. The server prices it through the same settlement the office's portal uses.
     private MobileNpmStallArrearsDto? MonthSettlePayor;
     private MobileNpmMonthArrearDto? MonthSettleMonth;
+
+    /// <summary>The days being settled when the row tapped is the month still running; null for a closed month.</summary>
+    private IReadOnlyList<DateOnly>? MonthSettleDays;
+
     private string MonthSettleOr = string.Empty;
     private bool MonthSettleSaving;
     private string? MonthSettleError;
@@ -1297,14 +1308,74 @@
     {
         MonthSettlePayor = payor;
         MonthSettleMonth = month;
+        MonthSettleDays = null;
         MonthSettleOr = string.Empty;
         MonthSettleError = null;
+    }
+
+    /// <summary>
+    /// Opens the same sheet for the DAYS owed in the month still running.
+    /// </summary>
+    /// <remarks>
+    /// One sheet, two things settled, because to the collector it is one act: money taken against what this row says is owed. What
+    /// differs is underneath — a closed month goes through the month settlement at the office's own figure, and the month in hand
+    /// goes through the days it has actually run, which is what it owes while it is still running.
+    /// </remarks>
+    private void OpenDaysSettle(MobileNpmStallArrearsDto payor)
+    {
+        MonthSettlePayor = payor;
+        MonthSettleMonth = null;
+        MonthSettleDays = payor.DaysOwedThisMonth.OrderBy(d => d).ToList();
+        MonthSettleOr = string.Empty;
+        MonthSettleError = null;
+    }
+
+    /// <summary>The sheet's heading: the closed month by name, or the month in hand with the days being taken.</summary>
+    private string MonthSettleTitle =>
+        MonthSettleMonth is { } m
+            ? MonthName(m.Year, m.Month)
+            : $"{MonthLabel} · {DaysLabel(MonthSettleDays?.Count ?? 0)}";
+
+    /// <summary>What is being collected: the office's settled figure for a closed month, or this month's days gone by.</summary>
+    private decimal MonthSettleAmount =>
+        MonthSettleMonth?.Amount ?? MonthSettlePayor?.AmountThisMonth ?? 0m;
+
+    /// <summary>
+    /// What the figure is made of, in words.
+    /// </summary>
+    /// <remarks>
+    /// The month-end difference is mentioned ONLY when there is one. Reported 2026-09-08: the sheet read "18 days owed plus the
+    /// month-end difference" beside ₱540, and 18 days at ₱30 IS ₱540 — so the collector was told to expect a difference that did not
+    /// exist and could reasonably think the figure short. Where a month DID come short of its rent the difference is real and worth
+    /// naming, because counting the days would otherwise give a smaller answer than the sheet.
+    /// </remarks>
+    private string MonthSettleBasis
+    {
+        get
+        {
+            if (MonthSettleMonth is not { } month)
+            {
+                var days = MonthSettleDays?.Count ?? 0;
+                return $"{DaysLabel(days)} of this month, up to yesterday. Today's fee is collected on the round.";
+            }
+
+            if (month.Days <= 0)
+                return "Settled at the office's own figure for the month.";
+
+            var installments = MonthSettlePayor is { } p && p.DailyRate > 0m ? month.Days * p.DailyRate : 0m;
+            var difference = installments > 0m ? month.Amount - installments : 0m;
+
+            return difference > 0m
+                ? $"{DaysLabel(month.Days)} plus a {FormatCurrency(difference)} month-end difference, as the office settles it."
+                : $"{DaysLabel(month.Days)}, as the office settles it.";
+        }
     }
 
     private void CloseMonthSettle()
     {
         MonthSettlePayor = null;
         MonthSettleMonth = null;
+        MonthSettleDays = null;
         MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
@@ -1318,7 +1389,8 @@
     /// </remarks>
     private async Task ConfirmMonthSettleAsync()
     {
-        if (MonthSettlePayor is null || MonthSettleMonth is null || MonthSettleSaving) return;
+        if (MonthSettlePayor is null || MonthSettleSaving) return;
+        if (MonthSettleMonth is null && (MonthSettleDays is null || MonthSettleDays.Count == 0)) return;
 
         // The office issues a receipt for money taken, so the number is required here as it is on every other collection.
         if (string.IsNullOrWhiteSpace(MonthSettleOr))
@@ -1332,16 +1404,19 @@
 
         try
         {
-            var result = await MobileApi.SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(
-                MonthSettlePayor.StallId,
-                MonthSettleMonth.Year,
-                MonthSettleMonth.Month,
-                MonthSettleOr.Trim()));
+            // A CLOSED month goes through the month settlement, at the office's own figure for it. The month STILL RUNNING goes
+            // through its days, because that is what it owes while it runs — and those are the days this row already named, so the
+            // collector settles exactly what was shown rather than whatever the server recomputes.
+            var result = MonthSettleMonth is { } month
+                ? await MobileApi.SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(
+                    MonthSettlePayor.StallId, month.Year, month.Month, MonthSettleOr.Trim()))
+                : await MobileApi.SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(
+                    MonthSettlePayor.StallId, MonthSettleDays!, MonthSettleOr.Trim()));
 
             if (!result.IsSuccess)
             {
                 MonthSettleError = string.IsNullOrWhiteSpace(result.Error)
-                    ? "That month could not be settled just now."
+                    ? "That could not be settled just now."
                     : result.Error;
                 return;
             }
@@ -1352,7 +1427,7 @@
         }
         catch (Exception)
         {
-            MonthSettleError = "That month could not be settled just now. Check the signal and try again.";
+            MonthSettleError = "That could not be settled just now. Check the signal and try again.";
         }
         finally
         {
