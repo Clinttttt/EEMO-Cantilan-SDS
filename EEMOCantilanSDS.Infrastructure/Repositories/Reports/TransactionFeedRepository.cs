@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -111,6 +111,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .Select(p => new
             {
                 p.Id,
+                p.StallId,
                 Code = p.Stall!.Facility!.Code,
                 FacilityName = p.Stall.Facility.Name,
                 p.Stall.StallNo,
@@ -146,7 +147,8 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 $"Stall {r.StallNo} · for {period}",
                 "Monthly Rent", amount, r.ORNumber,
                 r.Status == PaymentStatus.Paid ? "Paid" : "Partial",
-                Recorder(r.CollectorId, r.CreatedBy, collectors));
+                Recorder(r.CollectorId, r.CreatedBy, collectors),
+                r.StallId);
         }).ToList();
     }
 
@@ -224,7 +226,8 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 return new TransactionFeedDto(
                     first.Id, first.Code, first.FacilityName, recordedAt, true,
                     party, reference, "Daily Fee", amount, first.ORNumber, "Paid",
-                    Recorder(first.CollectorId, first.CreatedBy, collectors));
+                    Recorder(first.CollectorId, first.CreatedBy, collectors),
+                    first.StallId);
             })
             .OrderByDescending(t => t.OccurredAt)
             .ToList();

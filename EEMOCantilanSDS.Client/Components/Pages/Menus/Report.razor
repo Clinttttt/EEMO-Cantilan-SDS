@@ -1,4 +1,4 @@
-@page "/reports"
+﻿@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -601,7 +601,7 @@
                         {
                             <tr>
                                 <td class="tx-id">@tx.Reference</td>
-                                <td><a href="@ProfileUrl(tx.FacilityCode, tx.StallNo)" class="vendor-link">@tx.Payor</a></td>
+                                <td><a href="@ProfileUrl(tx)" class="vendor-link">@tx.Payor</a></td>
                                 <td><span class="fac-code-badge">@FacilityCatalog.ShortNameOf(tx.FacilityCode)</span></td>
                                 <td style="color:var(--text-muted);font-size:12.5px;">@tx.RecordedAt.ToString("MMM d, yyyy")</td>
                                 <td><span class="pay-method">@tx.Method</span></td>
@@ -909,6 +909,20 @@
         row.StallId is { } id && id != Guid.Empty
             ? $"/profile/{row.FacilityCode.ToString().ToLower()}/{id}"
             : ProfileUrl(row.FacilityCode, row.StallNo);
+
+    /// <summary>
+    /// Links a Recent Records row to the stall it is about — by id, for the same reason as the overload above.
+    /// </summary>
+    /// <remarks>
+    /// This row kept passing the NUMBER after the attention rows were fixed (7d4b2bc2), because FinancialRecordDto carried no
+    /// stall id to pass: the feed's Reference is a label shared with plates and animals, not an identity. The id is carried
+    /// through the feed now. Falls back to the number where there is no id — rows about slaughter, terminal trips and
+    /// market-day vendors have no stall, and for those the fallback is the existing behaviour, unchanged.
+    /// </remarks>
+    private static string ProfileUrl(FinancialRecordDto tx) =>
+        tx.StallId is { } id && id != Guid.Empty
+            ? $"/profile/{tx.FacilityCode.ToString().ToLower()}/{id}"
+            : ProfileUrl(tx.FacilityCode, tx.StallNo);
 
     public sealed record FinancialReportPageState(
         string ActiveTab,

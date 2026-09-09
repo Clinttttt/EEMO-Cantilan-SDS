@@ -20,5 +20,11 @@ public record TransactionFeedDto(
     decimal Amount,
     string? ORNumber,
     string Status,         // "Paid" / "Partial"
-    string RecordedBy      // collector's name, or the admin/head who recorded it (audit actor)
+    string RecordedBy,     // collector's name, or the admin/head who recorded it (audit actor)
+
+    // The stall this row is about, where it is about one at all — null for slaughter, terminal trips and market-day
+    // vendors, which have no stall. Carried because Reference above is a LABEL and deliberately generic across
+    // facilities (stall no, plate, animal), so it cannot identify anything: the market numbers its spaces per section,
+    // giving one facility several "Stall 1", and a link built from the number opens whichever the lookup finds first.
+    Guid? StallId = null
 );

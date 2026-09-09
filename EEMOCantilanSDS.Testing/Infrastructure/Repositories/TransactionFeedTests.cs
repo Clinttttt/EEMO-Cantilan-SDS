@@ -63,6 +63,48 @@ public class TransactionFeedTests : RepositoryTestBase
         Assert.Equal(times.OrderByDescending(x => x).ToList(), times);
     }
 
+    /// <summary>
+    /// A stall row in the feed carries the STALL'S ID, and a row about no stall carries none.
+    /// </summary>
+    /// <remarks>
+    /// The feed's Reference is a label shared across facilities — a stall number, a plate, an animal — so it cannot identify anything.
+    /// The market numbers spaces per section, so this seeds the case that bites: two stalls both numbered "1", in different sections of
+    /// one market, with the payment on the SECOND. Asserted against that stall's own id, so a feed that reported the first — which is
+    /// what a number-based lookup does — fails here. The financial report's Recent Records links the payor from this id.
+    /// </remarks>
+    [Fact]
+    public async Task GetRecent_CarriesTheStallsIdSoARepeatedNumberCannotMisidentifyIt()
+    {
+        var context = NewContext();
+
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var first = Stall.Create(npm.Id, "1", 900m, ApplicableFees.BaseRental, MarketSection.VegetableArea);
+        var second = Stall.Create(npm.Id, "1", 900m, ApplicableFees.BaseRental, MarketSection.MeatSection);
+
+        var contract = Contract.Create(second.Id, "Karmilita Log", null, new DateOnly(2024, 1, 1), 3, 900m);
+        var payment = PaymentRecord.Create(second.Id, 2024, 1, 900m);
+        payment.RecordPayment("OR-NPM-2", Guid.NewGuid(), PaymentStatus.Paid);
+
+        // A row about no stall at all, to prove the id is not invented for one.
+        context.TrmTrips.Add(TrmTrip.Create(Guid.NewGuid(), 1, "Driver X", "ABC123", "North", "OR-TRM-9"));
+
+        context.Facilities.Add(npm);
+        context.Stalls.AddRange(first, second);
+        context.Contracts.Add(contract);
+        context.PaymentRecords.Add(payment);
+        await context.SaveChangesAsync();
+
+        var feed = await new TransactionFeedRepository(context)
+            .GetRecentTransactionsAsync(null, null, 100, CancellationToken.None);
+
+        var stallRow = Assert.Single(feed, t => t.FacilityCode == FacilityCode.NPM);
+        Assert.Equal(second.Id, stallRow.StallId);
+        Assert.NotEqual(first.Id, stallRow.StallId);
+
+        var tripRow = Assert.Single(feed, t => t.FacilityCode == FacilityCode.TRM);
+        Assert.Null(tripRow.StallId);
+    }
+
     [Fact]
     public async Task GetRecent_AttributesRecorder_CollectorNameOrAdminActor()
     {

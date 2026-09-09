@@ -158,5 +158,11 @@ public record FinancialRecordDto(
     DateTime RecordedAt,
     string? Collector,
     string Method,
-    decimal Amount
+    decimal Amount,
+
+    // The stall the row is about, so the payor's name can link to the right profile. StallNo above cannot do it: the
+    // market numbers spaces per section, so one facility holds several "Stall 1" and a facility-and-number link opens
+    // whichever the lookup finds first — the fault fixed in the follow-up queue and closed accounts (7d4b2bc2), which
+    // this feed still had. Null for rows about no stall (slaughter, terminal trips, market-day vendors).
+    Guid? StallId = null
 );

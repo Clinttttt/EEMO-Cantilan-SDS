@@ -1102,9 +1102,22 @@ measurement rather than the reasoning.
   asserts both halves and fails if the field is ever offered for a canonical area; ₱900 dividing to exactly ₱30 is asserted
   too, since rounding cannot disturb a figure that already divides. **Closed.**
 
-### Audit findings examined 2026-09-08 and DISMISSED, with the evidence
+### Audit findings examined 2026-09-08/09 — one FIXED, two DISMISSED, with the evidence for each
 
-Recorded so a third audit does not raise them again, and because in both cases "fixing" them would have made the system worse.
+Recorded so a third audit does not raise them again, and because in both dismissed cases "fixing" them would have made the
+system worse.
+
+- **The financial report's Recent Records linked a payor by STALL NUMBER — FIXED 2026-09-09.** The last live instance of the fault
+  fixed in `7d4b2bc2`. It survived that commit because `FinancialRecordDto` carried no stall id to pass: the transaction feed's
+  `Reference` is a LABEL shared across facilities (stall no, plate, animal), so it can never identify anything. `TransactionFeedDto`
+  and `FinancialRecordDto` now carry `Guid? StallId`, populated for the two stall-based feed paths (monthly rent, daily collections)
+  and left null for slaughter, terminal trips and market-day vendors, which have no stall. `Report.razor` links by id where there is
+  one and falls back to the number where there is not — unchanged behaviour for the rows that never had a stall.
+  - Pinned at BOTH levels, because either alone passes while the bug lives: `TransactionFeedTests` seeds two stalls both numbered "1"
+    in different sections with the payment on the second, and `ReportPageTests` asserts the rendered href WHOLE (a `Contains` for the
+    id would still pass if the number were what the link used).
+  - **Every other profile link was checked at the same time and is already by id** — `TCC.razor`, `Vendor.razor`, `ClosedAccounts.razor`,
+    `PastFollowUpQueue.razor`, and `FacilityStallsTable.razor`, which prefers the GUID with a comment naming this very reason.
 
 - **`FacilityPage.razor:455` linking a profile by STALL NUMBER is not ambiguous.** Raised as the same fault fixed in
   `FollowUpComposer` and `ClosedAccounts` (`7d4b2bc2`), where NPM's per-area numbering gives one facility several stall "1"s.

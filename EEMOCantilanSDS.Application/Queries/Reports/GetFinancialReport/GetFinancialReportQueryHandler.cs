@@ -332,7 +332,8 @@ public class GetFinancialReportQueryHandler(
             RecordedAt: f.OccurredAt,
             Collector: null,
             Method: f.Kind,
-            Amount: f.Amount)).ToList();
+            Amount: f.Amount,
+            StallId: f.StallId)).ToList();
 
         var orderedRows = facilityRows.OrderBy(r => r.Code).ToList();
         var facilityCount = request.Facility is null

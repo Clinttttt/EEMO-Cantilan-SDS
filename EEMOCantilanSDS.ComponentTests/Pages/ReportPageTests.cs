@@ -178,6 +178,61 @@ public class ReportPageTests : TestContext
         }, RenderTimeout);
     }
 
+    /// <summary>
+    /// A Recent Records payor links to the stall by ID, not by its number.
+    /// </summary>
+    /// <remarks>
+    /// The market numbers spaces per section, so one facility holds several "Stall 1" and a facility-and-number link opens whichever
+    /// the lookup finds first — one payor's row opening another's profile. Fixed for the attention rows and the follow-up queue in
+    /// 7d4b2bc2; this row kept passing the number because FinancialRecordDto carried no id to pass.
+    ///
+    /// <para>The number here is deliberately "1", the one that repeats, and the href is asserted WHOLE rather than searched for the
+    /// id: a Contains would still pass if the number were the thing in the link.</para>
+    /// </remarks>
+    [Fact]
+    public void RecentRecords_LinksThePayorToTheStallById()
+    {
+        var stallId = Guid.NewGuid();
+        var dto = SampleReport() with
+        {
+            RecentRecords = new List<FinancialRecordDto>
+            {
+                new("OR-9", "Luz Cano", FacilityCode.NPM, "1", new DateTime(2026, 3, 25), null, "Daily Fee", 930m, stallId)
+            }
+        };
+
+        var cut = RenderReport(dto);
+
+        cut.WaitForAssertion(() =>
+        {
+            var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Luz Cano");
+
+            Assert.Equal($"/profile/npm/{stallId}", link.GetAttribute("href"));
+        }, RenderTimeout);
+    }
+
+    /// <summary>A row about no stall still links as it always did — slaughter, terminal trips and market-day vendors have none.</summary>
+    [Fact]
+    public void RecentRecords_WithNoStall_FallsBackToTheReference()
+    {
+        var dto = SampleReport() with
+        {
+            RecentRecords = new List<FinancialRecordDto>
+            {
+                new("OR-9", "Ramon Dy", FacilityCode.TRM, "ABC-123", new DateTime(2026, 3, 25), null, "Terminal Trip", 30m)
+            }
+        };
+
+        var cut = RenderReport(dto);
+
+        cut.WaitForAssertion(() =>
+        {
+            var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Ramon Dy");
+
+            Assert.Equal("/profile/trm/ABC-123", link.GetAttribute("href"));
+        }, RenderTimeout);
+    }
+
     [Fact]
     public void AttentionList_SearchFiltersEachColumnIndependently()
     {
