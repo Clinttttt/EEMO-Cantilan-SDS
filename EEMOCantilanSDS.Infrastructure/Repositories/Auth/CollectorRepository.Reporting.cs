@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Infrastructure.Time;
+﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -33,31 +33,50 @@ public partial class CollectorRepository
         var npmFish = (await _feeRateResolver.GetSnapshotAsync(cancellationToken))
             .Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
 
-        // Aggregate payment stats per collector in ONE query (was N queries in a loop).
+        var (monthStartUtc, monthEndUtc) = PhilippineTime.MonthUtcRange(year, month);
+
+        // WHAT EACH COLLECTOR TOOK IN THE MONTH, on the same basis as their Report of Collections.
+        //
+        // These two counted a rental by the month it was BILLED for and a daily fee by the day the fee was FOR, while the
+        // report counted both by the moment the money was recorded. The screens therefore disagreed the moment an owed day
+        // or a late rental was settled — ₱566 on the report against ₱536 here, the gap being a single August day collected
+        // on 1 September. The office ruled on 2026-09-10 that this figure is CASH, what the collector handled and must
+        // remit, and that a period flattered by arrears is disclosed ON the report instead, which now states how much of
+        // its total answered for earlier periods.
         var paymentStats = await _context.PaymentRecords
             .Where(p => p.CollectorId != null && collectorIds.Contains(p.CollectorId.Value)
-                        && p.BillingYear == year && p.BillingMonth == month)
+                        && p.Status != PaymentStatus.Unpaid
+                        && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= monthStartUtc
+                        && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < monthEndUtc)
             .GroupBy(p => p.CollectorId!.Value)
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(p => p.Status == PaymentStatus.Paid
-                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos ?? 0) * npmFish
-                    : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m),
+                // Fee money only, a part payment credited to the fee first and capped there. Electricity and water are
+                // banked separately and are no part of a collector's fee accountability — the rule stated once in
+                // CollectorFeeMoney, which the report applies; written out here because EF must translate it to SQL.
+                Total = g.Sum(p => p.Status == PaymentStatus.Partial
+                    ? (p.PartialAmount < p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish
+                        ? p.PartialAmount
+                        : p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish)
+                    : p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
 
-        // Aggregate daily-collection stats per collector in ONE query, keyed by the
-        // CollectorId FK (the previous CreatedBy == Username join could never match).
+        // Paid rows only: an absence carries the day's fee, so counting every row made a stall marked absent look like
+        // money in hand. The month-end difference is added because it IS money the collector took — where a settled month
+        // owes more than its days priced at the daily fee, the remainder rides on one installment.
         var dailyStats = await _context.DailyCollections
             .Where(d => d.CollectorId != null && collectorIds.Contains(d.CollectorId.Value)
-                        && d.CollectionDate.Year == year && d.CollectionDate.Month == month)
+                        && d.IsPaid
+                        && (d.UpdatedAt ?? d.CreatedAt) >= monthStartUtc
+                        && (d.UpdatedAt ?? d.CreatedAt) < monthEndUtc)
             .GroupBy(d => d.CollectorId!.Value)
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish),
+                Total = g.Sum(d => d.DailyFee + (d.MonthEndAdjustment ?? 0m) + (d.FishKilos ?? 0) * npmFish),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -71,10 +90,9 @@ public partial class CollectorRepository
             .Select(g => new { CollectorId = g.Key, Total = g.Sum(s => s.RatePerHead * s.NumberOfHeads), Count = g.Count() })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
 
-        var (trmStartUtc, trmEndUtc) = PhilippineTime.MonthUtcRange(year, month);
         var tripStats = await _context.TrmTrips
             .Where(t => t.CollectorId != null && collectorIds.Contains(t.CollectorId.Value)
-                        && t.RecordedAt >= trmStartUtc && t.RecordedAt < trmEndUtc)
+                        && t.RecordedAt >= monthStartUtc && t.RecordedAt < monthEndUtc)
             .GroupBy(t => t.CollectorId!.Value)
             .Select(g => new { CollectorId = g.Key, Total = g.Sum(t => t.Fee), Count = g.Count() })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -124,20 +142,39 @@ public partial class CollectorRepository
         var rateSnapshot = await _feeRateResolver.GetSnapshotAsync(cancellationToken);
         var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
 
-        var collectedThisMonth = await _context.PaymentRecords
-            .Where(p => p.CollectorId == collector.Id && 
-                        p.BillingYear == year && 
-                        p.BillingMonth == month)
-            .SumAsync(p => p.Status == PaymentStatus.Paid
-                          ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * fishRate)
-                          : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken) +
-            await _context.DailyCollections
-            .Where(d => d.CollectorId == collector.Id && 
-                        d.CollectionDate.Year == year && 
-                        d.CollectionDate.Month == month)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate), cancellationToken);
-
         var (mStartUtc, mEndUtc) = PhilippineTime.MonthUtcRange(year, month);
+
+        // WHAT THIS COLLECTOR TOOK IN THE MONTH, on the same basis as their Report of Collections.
+        //
+        // It used to count a daily fee by the day the fee was FOR and a rental by the month it was BILLED for, while the
+        // report counted both by the moment the money was recorded. So the two screens disagreed whenever an owed day or a
+        // late rental was settled: ₱566 on the report against ₱536 here, the gap being one August day collected on 1
+        // September. The office ruled on 2026-09-10 that this figure is CASH — what the collector handled and must remit —
+        // and that a period flattered by arrears is instead disclosed on the report, which now states how much of its total
+        // answered for earlier periods.
+        //
+        // Three other faults went with it. There was NO paid filter, so a row the collector had marked absent would have
+        // counted its ₱30 as money (absences do carry a fee); the month-end difference was omitted, so a settled short
+        // month understated what was taken; and utilities were included, which the office banks separately and the report
+        // excludes. All three now match the report exactly.
+        var collectedThisMonth = await _context.DailyCollections
+            .Where(d => d.CollectorId == collector.Id
+                        && d.IsPaid
+                        && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
+                        && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc)
+            .SumAsync(d => d.DailyFee + (d.MonthEndAdjustment ?? 0m) + ((d.FishKilos ?? 0) * fishRate), cancellationToken) +
+            await _context.PaymentRecords
+            .Where(p => p.CollectorId == collector.Id
+                        && p.Status != PaymentStatus.Unpaid
+                        && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= mStartUtc
+                        && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < mEndUtc)
+            // Fee money only, and a part payment credited to the fee first and capped there — the rule stated once in
+            // CollectorFeeMoney and applied in the report. Written out here because EF must translate it to SQL.
+            .SumAsync(p => p.Status == PaymentStatus.Partial
+                          ? (p.PartialAmount < p.BaseRentalAmount + ((p.FishKilos ?? 0) * fishRate)
+                              ? p.PartialAmount
+                              : p.BaseRentalAmount + ((p.FishKilos ?? 0) * fishRate))
+                          : p.BaseRentalAmount + ((p.FishKilos ?? 0) * fishRate), cancellationToken);
 
         collectedThisMonth +=
             await _context.SlaughterTransactions
@@ -150,14 +187,18 @@ public partial class CollectorRepository
                 .Where(a => a.CollectorId == collector.Id && a.IsPaid && a.MarketDate.Year == year && a.MarketDate.Month == month)
                 .SumAsync(a => a.Fee, cancellationToken);
 
+        // Counted over the SAME set the total sums, for the same reason: a count on one basis beside money on another
+        // invites the office to divide one by the other and get a figure that means nothing.
         var transactions = await _context.PaymentRecords
-            .CountAsync(p => p.CollectorId == collector.Id && 
-                            p.BillingYear == year && 
-                            p.BillingMonth == month, cancellationToken) +
+            .CountAsync(p => p.CollectorId == collector.Id
+                            && p.Status != PaymentStatus.Unpaid
+                            && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= mStartUtc
+                            && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < mEndUtc, cancellationToken) +
             await _context.DailyCollections
-            .CountAsync(d => d.CollectorId == collector.Id && 
-                            d.CollectionDate.Year == year && 
-                            d.CollectionDate.Month == month, cancellationToken) +
+            .CountAsync(d => d.CollectorId == collector.Id
+                            && d.IsPaid
+                            && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
+                            && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc, cancellationToken) +
             await _context.SlaughterTransactions
             .CountAsync(s => s.CollectorId == collector.Id && s.TransactionDate.Year == year && s.TransactionDate.Month == month, cancellationToken) +
             await _context.TrmTrips

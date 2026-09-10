@@ -697,6 +697,24 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
+**A collector's collected figure is CASH — money received in the period — and a period flattered by arrears is disclosed,
+not re-attributed.** Ruled 2026-09-10, after the office found the Report of Collections reading ₱566 where the collectors
+list read ₱536. The gap was one August day collected on 1 September: the report counted by the moment money was recorded,
+the list by the period the fee was FOR. The office's first instinct was to move the money to the month it belongs to, and
+the reason that was not done is worth keeping: with a fee-month basis, settling a 30 September day in October **rewrites
+September's report after it has been printed**, and nothing is snapshotted — the document is regenerated live every time.
+A cash basis can only ever add to the current period, so changes move forward. So the total stays whole and the report now
+states how much of it answered for earlier periods (`CollectedForEarlierPeriods`), letting the office read what the month
+earned without the document ever changing behind them.
+- Revenue attribution by the month a fee belongs to is unaffected and remains the rule everywhere it decides whether a
+  month was good: the facility reports, monthly obligations, arrears and the whole compliance path.
+- The collectors list was aligned to the report, and three faults went with it: no paid filter at all (an absence carries
+  the day's fee, so a stall marked absent would have counted as money), the month-end difference omitted, and utilities
+  included where the office banks them separately and the report excludes them.
+- **The tests that existed could not see this.** They seeded a fee whose own day and whose recorded moment fell in the same
+  month, so either basis gave the same answer — which is why the disagreement survived. The new test collects a December
+  day in January and asserts from BOTH months.
+
 **Excusing a month excuses its electricity and water.** Ruled 2026-09-08. A payor excused for a month is not billed for
 that month at all — the utilities go with the rent. Where they do owe a light or water bill they can still pay it through
 the collector or the office; what an excusal removes is the OBLIGATION, not the ability to settle. Asked because the

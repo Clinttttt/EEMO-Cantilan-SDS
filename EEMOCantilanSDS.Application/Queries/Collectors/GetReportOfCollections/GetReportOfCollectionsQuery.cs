@@ -38,7 +38,14 @@ public sealed record ReportOfCollectionsDto(
     IReadOnlyList<ReportReceiptLineDto> Receipts,
     IReadOnlyList<ReportAbsenceLineDto> Absences,
     decimal UtilityBilled,
-    decimal UtilityCollected);
+    decimal UtilityCollected,
+
+    // Of TotalCollected, the part that answered for a period BEFORE this one — an owed market day, or a rental paid after
+    // its month. The office ruled on 2026-09-10 that a month must not appear to have earned what it merely caught up on:
+    // ₱566 taken in September of which ₱30 settled an August day means September itself earned ₱536. Stated beside the
+    // total rather than moved out of it, because this document is a CASH accountability — the collector did hand over
+    // ₱566 — and moving it would make a past month's report change after it was printed.
+    decimal CollectedForEarlierPeriods = 0m);
 
 public sealed record ReportFacilityLineDto(
     FacilityCode Facility,

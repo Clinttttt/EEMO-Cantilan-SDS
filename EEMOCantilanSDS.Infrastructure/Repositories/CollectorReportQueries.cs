@@ -31,6 +31,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 d.ORNumber,
                 d.CollectionDate,
                 d.DailyFee,
+                d.MonthEndAdjustment,
                 d.FishKilos,
                 d.IsAbsent,
                 d.Stall!.StallNo,
@@ -55,7 +56,11 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
 
             lines.Add(new CollectorCollectionLine(
                 d.ORNumber, d.When, payor!, d.StallNo, d.Code, "Daily Fee",
-                d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate), d.CollectionDate, null));
+                // The month-end difference is money the collector took: where a settled month owes more than its days
+                // priced at the daily fee, the remainder rides on one installment. Omitting it understated the receipt
+                // and the collector's own accountability with it.
+                d.DailyFee + (d.MonthEndAdjustment ?? 0m) + ((d.FishKilos ?? 0m) * npmFishRate),
+                d.CollectionDate, null));
         }
 
         // ── Monthly rentals. Fee money only: the meters are banked apart and are totalled separately below. ──
@@ -90,7 +95,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
 
             lines.Add(new CollectorCollectionLine(
                 p.ORNumber, p.When, payor!, p.StallNo, p.Code, "Stall Rental",
-                CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount),
+                CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, npmFishRate),
                 null,
                 new DateOnly(p.BillingYear, p.BillingMonth, 1)));
         }

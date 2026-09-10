@@ -122,6 +122,34 @@ public class GetReportOfCollectionsQueryHandlerTests
         Assert.Equal(ResultStatus.Invalid, result.Status);
     }
 
+    /// <summary>
+    /// The summary says how much of the period's cash answered for periods BEFORE it.
+    /// </summary>
+    /// <remarks>
+    /// The office's ruling, 2026-09-10. A month must not read as having earned what it merely recovered: ₱566 taken in September of
+    /// which ₱30 settled an August day means September itself earned ₱536. The office chose to state this beside the total rather
+    /// than move the money out of the period, because this document is a CASH accountability — the collector did hand over the whole
+    /// ₱566 — and re-attributing it would make a past month's report change after it had been printed.
+    ///
+    /// <para>Asserted as the pair, total and arrears together, since the point is that the two are read against each other. A day
+    /// EARLIER in the same period is not arrears here: the period is what the document answers for.</para>
+    /// </remarks>
+    [Fact]
+    public async Task SaysHowMuchOfThePeriodsMoneyAnsweredForEarlierPeriods()
+    {
+        var report = await Run(new[]
+        {
+            Line("1616460", Aug24, 30m),                                  // August money for an August day
+            Line("1616461", Aug24, 30m, feeDay: new DateOnly(2026, 8, 3)), // an earlier AUGUST day — still this period
+            Line("1616462", Aug24, 30m, feeDay: new DateOnly(2026, 7, 29)),// a JULY day settled in August — arrears
+            Rental("1616463", Aug24, 900m, billedMonth: Aug1),             // August rent paid in August
+            Rental("1616464", Aug24, 900m, billedMonth: new DateOnly(2026, 7, 1)) // July rent paid in August — arrears
+        });
+
+        Assert.Equal(1_890m, report.TotalCollected);
+        Assert.Equal(930m, report.CollectedForEarlierPeriods);   // the July day and the July rent, nothing else
+    }
+
     // ── fixtures ──
 
     private static CollectorCollectionLine Line(string or, DateOnly takenOn, decimal amount, DateOnly? feeDay = null) =>

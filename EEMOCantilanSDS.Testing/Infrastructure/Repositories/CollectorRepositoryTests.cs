@@ -13,6 +13,10 @@ public class CollectorRepositoryTests : RepositoryTestBase
 {
     // Regression for P1 (daily collections keyed by CollectorId, not CreatedBy) and
     // P3 (a Partial payment is counted at PartialAmount, not the full bill).
+    //
+    // The recorded moment is set deliberately, because this figure is counted on WHEN THE MONEY WAS TAKEN — the same basis as the
+    // collector's Report of Collections. It used to be counted on the period the fee was FOR, which is why the two screens
+    // disagreed whenever arrears were settled; the office ruled on the cash basis on 2026-09-10.
     [Fact]
     public async Task GetAllCollectorsWithStats_CountsPartialAtPartialAmount_AndDailyByCollectorId()
     {
@@ -20,12 +24,16 @@ public class CollectorRepositoryTests : RepositoryTestBase
 
         var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
         var stallId = Guid.NewGuid();
+        var takenAt = new DateTime(2026, 1, 15, 3, 0, 0, DateTimeKind.Utc);   // 11:00 on 15 January, Philippine time
 
         var payment = PaymentRecord.Create(stallId, 2026, 1, baseRental: 900m);
         payment.UpdateStatus(PaymentStatus.Partial, partialAmount: 300m, remarks: null, updatedBy: "t", collectorId: collector.Id);
+        payment.BackdateReceipt(takenAt);
 
         var daily = DailyCollection.Create(stallId, new DateOnly(2026, 1, 15));
         daily.MarkPaid(orNumber: "", collectorId: collector.Id);
+        daily.CreatedAt = takenAt;
+        daily.UpdatedAt = takenAt;
 
         ctx.Add(collector);
         ctx.Add(payment);
@@ -38,6 +46,46 @@ public class CollectorRepositoryTests : RepositoryTestBase
         var dto = Assert.Single(stats);
         Assert.Equal(330m, dto.CollectedThisMonth); // 300 (partial) + 30 (daily fee) — NOT 900
         Assert.Equal(2, dto.Transactions);          // 1 payment + 1 daily collection
+    }
+
+    /// <summary>
+    /// An owed day settled later belongs to the month the MONEY came in, matching the Report of Collections.
+    /// </summary>
+    /// <remarks>
+    /// This is the case the two screens disagreed on, and the case the other tests here could not see: they seed a fee whose own day
+    /// and whose recorded moment fall in the same month, so either basis gives the same answer. A December day collected in January
+    /// separates them.
+    ///
+    /// <para>The office ruled on 2026-09-10 that this figure is CASH — what the collector handled and must remit — and that a period
+    /// flattered by arrears is disclosed on the report, which states how much of its total answered for earlier periods. Asserted from
+    /// BOTH months, because a basis that merely moved the money would satisfy one assertion and fail the other.</para>
+    /// </remarks>
+    [Fact]
+    public async Task GetAllCollectorsWithStats_CountsAnOwedDayInTheMonthItWasCollected()
+    {
+        await using var ctx = NewContext();
+
+        var collector = CollectorUser.Create("Juan", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
+
+        // A 29 December day, collected on 5 January.
+        var owed = DailyCollection.Create(Guid.NewGuid(), new DateOnly(2025, 12, 29));
+        owed.MarkPaid(orNumber: "1441911", collectorId: collector.Id);
+        owed.CreatedAt = new DateTime(2025, 12, 29, 3, 0, 0, DateTimeKind.Utc);
+        owed.UpdatedAt = new DateTime(2026, 1, 5, 3, 0, 0, DateTimeKind.Utc);
+
+        ctx.Add(collector);
+        ctx.Add(owed);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+
+        var january = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(2026, 1));
+        Assert.Equal(30m, january.CollectedThisMonth);
+        Assert.Equal(1, january.Transactions);
+
+        var december = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(2025, 12));
+        Assert.Equal(0m, december.CollectedThisMonth);
+        Assert.Equal(0, december.Transactions);
     }
 
     [Fact]

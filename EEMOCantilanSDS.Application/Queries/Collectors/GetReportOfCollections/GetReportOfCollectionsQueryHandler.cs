@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common;
+﻿using EEMOCantilanSDS.Application.Common;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
@@ -105,7 +105,8 @@ public class GetReportOfCollectionsQueryHandler(
                 .Select(a => new ReportAbsenceLineDto(a.Day, a.PayorName, a.StallNo, a.Facility))
                 .ToList(),
             data.UtilityBilled,
-            data.UtilityCollected));
+            data.UtilityCollected,
+            lines.Where(l => AnswersForAPeriodBefore(l, request.From)).Sum(l => l.Amount)));
     }
 
     /// <summary>A payor is a person at a space: one holder of two stalls owes two lines, as the office reads them.</summary>
@@ -128,6 +129,27 @@ public class GetReportOfCollectionsQueryHandler(
         => line.BilledMonth is { } month
             ? month.Year < takenOn.Year || (month.Year == takenOn.Year && month.Month < takenOn.Month)
             : line.FeeDay is { } day && day < takenOn;
+
+    /// <summary>
+    /// Whether this money answered for a period that began before the REPORT'S OWN period.
+    /// </summary>
+    /// <remarks>
+    /// The same distinction as <see cref="AnswersForAnEarlierPeriod"/>, measured against the document rather than the day, so
+    /// the summary can say how much of the period's cash was catching up. The office ruled on 2026-09-10 that a month must
+    /// not read as having earned what it only recovered: without this, September collecting an August day looks like a better
+    /// September.
+    ///
+    /// <para>Measured from the period's FIRST day, not the month containing it, so a weekly or daily view answers about
+    /// itself. A rental is judged by its billed month against that day's month, for the reason given above: rent paid inside
+    /// its own month is not arrears.</para>
+    ///
+    /// <para>Money answering for a day LATER than the period is not counted here. It is not catching up, and the office's
+    /// concern is a period flattered by arrears, not one that collected early.</para>
+    /// </remarks>
+    private static bool AnswersForAPeriodBefore(CollectorCollectionLine line, DateOnly periodStart)
+        => line.BilledMonth is { } month
+            ? month.Year < periodStart.Year || (month.Year == periodStart.Year && month.Month < periodStart.Month)
+            : line.FeeDay is { } day && day < periodStart;
 
     /// <summary>
     /// The day or month a receipt answers for. Where several owed days were settled together it names the span and says how

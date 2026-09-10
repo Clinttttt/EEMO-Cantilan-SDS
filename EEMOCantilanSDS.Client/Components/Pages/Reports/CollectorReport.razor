@@ -102,6 +102,17 @@
                 <div><span>Days With Collections</span><strong>@r.DaysWithCollections</strong></div>
             </div>
 
+            @if (r.CollectedForEarlierPeriods > 0m)
+            {
+                @* The office's ruling, 2026-09-10: a period must not read as having earned what it only recovered. The total stays
+                   whole because this document answers for CASH the collector handled and remitted; what it earned is stated beside
+                   it. Shown only when there is arrears money, so an ordinary period is not given a line saying nothing. *@
+                <p class="cr-basis-note">
+                    Of this total, &#8369;@r.CollectedForEarlierPeriods.ToString("N2") settled earlier periods.
+                    @PeriodLabel itself accounts for &#8369;@((r.TotalCollected - r.CollectedForEarlierPeriods).ToString("N2")).
+                </p>
+            }
+
             <!-- ══ This collector across their facilities, which no facility report answers ══ -->
             <div class="print-section-block">
                 <div class="print-section-heading">Collections by Facility</div>
