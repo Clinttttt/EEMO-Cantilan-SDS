@@ -60,8 +60,16 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddHttpClient<MobileApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
-                // Keep reads short so transient failures fall back to the offline cache promptly.
-                client.Timeout = TimeSpan.FromSeconds(10);
+                // THE WRITE BUDGET. This was ten seconds for reads and writes alike, and the reasoning behind that number
+                // only ever applied to reads: a read that gives up falls back to the offline cache, so failing fast costs
+                // nothing. A write has no fallback — a collector reported three saves cancelled on a weak signal, each one
+                // queued for later, none of them confirmed on the spot. Nothing was lost (a replay finds the day by stall
+                // and date and re-marks the same record), but the collector could not tell.
+                //
+                // So the client's timeout is the budget a WRITE deserves, and reads keep their own ten seconds at the one
+                // place they all pass through — CachingMobileApiClient.ReadBudget. Still bounded: a save that cannot land
+                // in thirty seconds is queued and replayed, exactly as before.
+                client.Timeout = TimeSpan.FromSeconds(30);
             })
             .AddHttpMessageHandler<MobileLoopbackFallbackHandler>()
             .AddHttpMessageHandler<MobileRefreshTokenDelegatingHandler>()

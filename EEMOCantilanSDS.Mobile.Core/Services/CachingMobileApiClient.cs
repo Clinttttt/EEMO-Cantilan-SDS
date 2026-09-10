@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
+﻿using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -24,7 +24,8 @@ namespace EEMOCantilanSDS.Mobile.Services;
 public sealed class CachingMobileApiClient(
     IMobileApiClient inner,
     IOfflineReadCache cache,
-    IConnectivityMonitor connectivity) : IMobileApiClient
+    IConnectivityMonitor connectivity,
+    TimeSpan? readBudget = null) : IMobileApiClient
 {
     // Caches invalidated after a write are the COLLECTION-ENTRY views (the data that changes the moment
     // a collection is recorded/synced). menu + profile are excluded so the offline app-open keeps working.
@@ -150,6 +151,21 @@ public sealed class CachingMobileApiClient(
         inner.GetAppVersionAsync();
 
     // ── Read-through core ───────────────────────────────────────────────────
+
+    /// <summary>How long a READ waits for the network before it answers from the last-known value instead.</summary>
+    /// <remarks>
+    /// Reads and writes shared ONE ten-second HTTP timeout, and it was chosen for reads: a read that gives up has a cached
+    /// value to fall back on, so failing fast costs nothing. A WRITE has no such fallback. Giving up on one costs the
+    /// collector a retry and leaves them unsure whether the office heard them — which is what a collector reported after
+    /// three cancelled saves on a weak signal. So the HTTP client's timeout is now the WRITE budget (see MauiProgram) and
+    /// reads keep their own short one here, unchanged at ten seconds.
+    ///
+    /// <para>Injectable only so a test need not wait it out; nothing in the app passes it.</para>
+    /// </remarks>
+    private static readonly TimeSpan DefaultReadBudget = TimeSpan.FromSeconds(10);
+
+    private readonly TimeSpan _readBudget = readBudget ?? DefaultReadBudget;
+
     private async Task<Result<T>> ReadThroughAsync<T>(string key, Func<Task<Result<T>>> fetch)
     {
         // Offline → serve cache immediately; no point waiting out the HTTP timeout.
@@ -158,7 +174,18 @@ public sealed class CachingMobileApiClient(
 
         try
         {
-            var result = await fetch();
+            var fetchTask = fetch();
+
+            // Past the read's budget, answer from the last-known value rather than hold the screen. The request is left to
+            // finish quietly and warm the cache instead of being abandoned: a GET has nothing to undo, and the client's
+            // timeout is now longer than this budget, so there is a real chance it arrives a moment later.
+            if (await Task.WhenAny(fetchTask, Task.Delay(_readBudget)) != fetchTask)
+            {
+                WarmCacheWhenItArrives(key, fetchTask);
+                return await ServeFromCacheAsync<T>(key);
+            }
+
+            var result = await fetchTask;
 
             // Cache genuine successes.
             if (result.IsSuccess && result.Value is not null)
@@ -194,6 +221,33 @@ public sealed class CachingMobileApiClient(
         return cached is not null
             ? Result<T>.Success(cached)
             : Result<T>.Failure("You're offline and no saved data is available yet.", 0);
+    }
+
+    /// <summary>
+    /// Lets a read that outran its budget finish in the background and store whatever it brings back.
+    /// </summary>
+    /// <remarks>
+    /// The caller has already been answered from the cache, so this exists only to make the NEXT read fresher. Failures are
+    /// swallowed on purpose: nothing is waiting on the result, a late failure is not news, and an unobserved fault on a
+    /// fire-and-forget task would surface as a crash.
+    /// </remarks>
+    private void WarmCacheWhenItArrives<T>(string key, Task<Result<T>> fetchTask)
+    {
+        _ = WarmAsync();
+
+        async Task WarmAsync()
+        {
+            try
+            {
+                var result = await fetchTask.ConfigureAwait(false);
+                if (result.IsSuccess && result.Value is not null)
+                    await cache.SetAsync(key, result.Value);
+            }
+            catch
+            {
+                // Deliberately ignored — see the remarks above.
+            }
+        }
     }
 
     // Run a mutation, then drop the collection caches it may have changed (online-only path → cheap re-fetch).

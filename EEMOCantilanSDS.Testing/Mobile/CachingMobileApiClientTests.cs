@@ -95,6 +95,81 @@ public class CachingMobileApiClientTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GetRecordsAsync(null, From, To));
     }
 
+    /// <summary>
+    /// A read that outruns its budget answers from the last-known value instead of holding the screen.
+    /// </summary>
+    /// <remarks>
+    /// Reads and writes used to share one ten-second HTTP timeout. That number was right for a read — which has a cache to fall
+    /// back on — and wrong for a WRITE, which has none: a collector reported three saves cancelled on a weak signal. The client's
+    /// timeout is now the write budget, so reads carry their own short one here, and this is what keeps a slow read as prompt as
+    /// it was before.
+    /// </remarks>
+    [Fact]
+    public async Task A_read_that_outruns_its_budget_is_answered_from_cache()
+    {
+        var cached = Records();
+        var cache = new FakeOfflineReadCache();
+        await cache.SetAsync(RecordsKey, cached);
+
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetRecordsAsync(null, From, To))
+            .Returns(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                return Result<IReadOnlyList<MobileCollectorRecordDto>>.Success(Records());
+            });
+
+        var sut = new CachingMobileApiClient(
+            inner.Object, cache, new FakeConnectivityMonitor(true), TimeSpan.FromMilliseconds(50));
+
+        var result = await sut.GetRecordsAsync(null, From, To);
+
+        // The cached value, not the one still in flight — and returned without waiting the five seconds out.
+        Assert.True(result.IsSuccess);
+        Assert.Same(cached, result.Value);
+    }
+
+    /// <summary>
+    /// The read that arrived late is not thrown away: it warms the cache so the NEXT read is fresher.
+    /// </summary>
+    /// <remarks>
+    /// Before, the HTTP client cancelled such a request outright. Now the client's timeout is longer than the read's budget, so a
+    /// response that misses the budget by a moment still has value — the collector has already been answered, but the next screen
+    /// need not be stale. Asserted on the cache rather than the return value, because the caller is deliberately not made to wait.
+    /// </remarks>
+    [Fact]
+    public async Task A_late_read_still_warms_the_cache()
+    {
+        var stale = Records();
+        var cache = new FakeOfflineReadCache();
+        await cache.SetAsync(RecordsKey, stale);
+
+        var late = Records();
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetRecordsAsync(null, From, To))
+            .Returns(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(150));
+                return Result<IReadOnlyList<MobileCollectorRecordDto>>.Success(late);
+            });
+
+        var sut = new CachingMobileApiClient(
+            inner.Object, cache, new FakeConnectivityMonitor(true), TimeSpan.FromMilliseconds(20));
+
+        var served = await sut.GetRecordsAsync(null, From, To);
+        Assert.Same(stale, served.Value);
+
+        // Give the abandoned request time to land. Polled rather than slept once, so the test does not depend on a machine's speed.
+        for (var i = 0; i < 100; i++)
+        {
+            if (ReferenceEquals(await cache.GetAsync<IReadOnlyList<MobileCollectorRecordDto>>(RecordsKey), late))
+                break;
+            await Task.Delay(20);
+        }
+
+        Assert.Same(late, await cache.GetAsync<IReadOnlyList<MobileCollectorRecordDto>>(RecordsKey));
+    }
+
     [Fact]
     public async Task Server_failure_is_returned_as_is_and_not_cached()
     {
