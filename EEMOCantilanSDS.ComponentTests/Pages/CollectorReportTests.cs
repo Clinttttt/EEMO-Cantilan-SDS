@@ -114,7 +114,10 @@ public class CollectorReportTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var summary = Figures(cut, ".print-report-summary")["Total Collected"];
+            // Renamed from "Total Collected" on 2026-09-11. The figure is unchanged; the label now says WHICH money it counts,
+            // because electricity and water are banked separately and stated in their own section — so the same payment reads
+            // ₱1,100 on the collector's activity list ("Total Payment") and ₱900 here, and neither is wrong.
+            var summary = Figures(cut, ".print-report-summary")["Facility Fees Collected"];
 
             var listing = cut.FindAll("table.print-status-table")
                 .First(t => (t.QuerySelector("thead")?.TextContent ?? string.Empty).Contains("OR No.", StringComparison.Ordinal));

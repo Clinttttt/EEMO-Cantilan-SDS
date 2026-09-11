@@ -96,7 +96,10 @@
             </div>
 
             <div class="print-report-summary">
-                <div><span>Total Collected</span><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></div>
+                @* Named for what it counts. Electricity and water are stated in their own section below, because the office banks
+                   the meters separately and they are no part of a collector's fee accountability — so this figure is legitimately
+                   smaller than the total a payor handed over, which the collector's activity list shows as "Total Payment". *@
+                <div><span>Facility Fees Collected</span><strong>&#8369;@r.TotalCollected.ToString("N2")</strong></div>
                 <div><span>Receipts Issued</span><strong>@r.ReceiptsIssued</strong></div>
                 <div><span>Payors Served</span><strong>@r.PayorsServed</strong></div>
                 <div><span>Days With Collections</span><strong>@r.DaysWithCollections</strong></div>

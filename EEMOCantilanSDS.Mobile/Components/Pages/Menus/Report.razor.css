@@ -55,6 +55,15 @@
     color: var(--text-subtle);
 }
 
+/* Which question the figure above answers. Quiet on purpose: it qualifies the total rather than competing with it, and a
+   collector who is never told the basis reads an honest difference from the office's report as an error. */
+.rpt-basis-note {
+    margin: -4px 0 12px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text-subtle);
+}
+
 /* Money that is not the collector's to remit: at the office, or not taken at all. Smaller, so the figure above cannot be read as
    a total of everything on the screen. */
 .rpt-pair {
