@@ -138,6 +138,18 @@
     grid-template-columns: 1fr;
 }
 
+/* ...and having taken the row, it reads ACROSS it. The cell stacks its value over its label, which is right in a narrow column
+   and wrong at full width: the figure sat in the left corner with two thirds of the card blank beside it. Laid out like the
+   block's own heading immediately above — value and label on one baseline, spread to the edges — so the card looks deliberate
+   rather than half-filled. Only the single-cell case is touched; a four-cell grid still stacks. */
+.rpt-grid-single .rpt-cell {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 11px 14px;
+}
+
 .rpt-cell {
     display: flex;
     flex-direction: column;
