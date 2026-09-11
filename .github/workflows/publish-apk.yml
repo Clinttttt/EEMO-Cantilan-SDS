@@ -41,11 +41,17 @@ on:
 # Writing is needed to attach the APK to a release. Nothing else in this workflow writes to the repository.
 permissions:
   contents: write
+  # For azure/login in the advertise job below. Requested at workflow level because GitHub only mints the OIDC token
+  # for jobs whose workflow asks for it.
+  id-token: write
 
 jobs:
   build-apk:
     name: Build & sign Android APK
     runs-on: ubuntu-latest
+    outputs:
+      version_name: ${{ steps.publish.outputs.version_name }}
+      version_code: ${{ steps.publish.outputs.version_code }}
     env:
       SWA_TOKEN: ${{ secrets.AZURE_SWA_DEPLOY_TOKEN }}
     steps:
@@ -87,6 +93,7 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/stalltrack-release.keystore"
 
       - name: Publish signed APK
+        id: publish
         env:
           STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -106,6 +113,10 @@ jobs:
           echo "Building version $EFF_VNAME (versionCode $EFF_VCODE)"
           echo "apk_version_name=$EFF_VNAME" >> "$GITHUB_ENV"
           echo "apk_version_code=$EFF_VCODE" >> "$GITHUB_ENV"
+          # Also as step outputs, so the job that advertises the build to collectors reads the SAME resolved values.
+          # Environment variables do not cross jobs; a second sed there could drift from what the APK actually carries.
+          echo "version_name=$EFF_VNAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$EFF_VCODE" >> "$GITHUB_OUTPUT"
           ARGS="-c Release -f net10.0-android \
             -p:AndroidKeyStore=true \
             -p:AndroidSigningKeyStore=$RUNNER_TEMP/stalltrack-release.keystore \
@@ -178,3 +189,84 @@ jobs:
           npm install -g @azure/static-web-apps-cli
           swa deploy ./mobile-app-site --deployment-token "$SWA_TOKEN" --env production
           echo "Published the page: https://app.stalltrack.site/"
+
+  # ── Tell installed apps the build exists ──────────────────────────────────────────────────────────
+  # A published APK announces nothing by itself: MobileVersionController serves Mobile:LatestVersionCode from the API's
+  # configuration, and MobileSessionService prompts only while that number EXCEEDS the code the phone reports. Setting it by
+  # hand was forgotten twice - 1.1.5 and 1.1.6 sat published for a day each while the API still advertised 6, so no collector
+  # was ever told. This closes that gap.
+  #
+  # A separate job so the APK is already on its release before any Azure call is attempted: if this job fails, collectors are
+  # simply not yet notified and the two settings can still be set by hand. Nothing is left half-published.
+  advertise:
+    name: Advertise the build to collectors
+    needs: build-apk
+    runs-on: ubuntu-latest
+    # The same environment deploy-production.yml uses, because the federated credential is scoped to it: with `environment`
+    # set, GitHub mints the OIDC subject repo:<owner>/<repo>:environment:production, which is what Azure trusts here.
+    environment:
+      name: production
+    # Skipped rather than failed where OIDC is not configured, so the workflow still publishes an APK on a fork or before
+    # the variables exist.
+    if: ${{ needs.build-apk.result == 'success' && vars.AZURE_CLIENT_ID != '' }}
+    steps:
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Advertise the version the APK actually carries
+        env:
+          API_APP: stalltrack-api-cly-2026
+          API_RG: stalltrack-prod-rg
+          NEW_NAME: ${{ needs.build-apk.outputs.version_name }}
+          NEW_CODE: ${{ needs.build-apk.outputs.version_code }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NEW_CODE}" ] || [ -z "${NEW_NAME}" ]; then
+            echo "::error::The build did not report a version; refusing to advertise nothing."
+            exit 1
+          fi
+
+          CURRENT=$(az webapp config appsettings list \
+            --name "$API_APP" --resource-group "$API_RG" \
+            --query "[?name=='Mobile__LatestVersionCode'].value | [0]" -o tsv 2>/dev/null || echo "")
+          CURRENT="${CURRENT:-0}"
+          echo "Currently advertised: ${CURRENT}. This build: ${NEW_CODE} (${NEW_NAME})."
+
+          # NEVER ADVERTISE BACKWARDS. Re-running this workflow on an older commit would otherwise point collectors at a
+          # smaller code while the release asset was also forced to "latest" - the exact pair of mistakes that once left
+          # collectors downloading an APK reporting versionCode 1.
+          if [ "${NEW_CODE}" -le "${CURRENT}" ]; then
+            echo "::warning::${NEW_CODE} does not exceed the advertised ${CURRENT}; leaving the settings alone."
+            exit 0
+          fi
+
+          az webapp config appsettings set \
+            --name "$API_APP" --resource-group "$API_RG" \
+            --settings "Mobile__LatestVersionCode=${NEW_CODE}" "Mobile__LatestVersion=${NEW_NAME}" \
+            --output none
+          echo "Advertised ${NEW_NAME} (code ${NEW_CODE})."
+
+      - name: Confirm the API is serving the new version
+        env:
+          NEW_CODE: ${{ needs.build-apk.outputs.version_code }}
+        run: |
+          set -uo pipefail
+          # Setting an app setting restarts the app, so the endpoint answers the old value for a moment. Polled rather than
+          # read once, and a failure here is reported without failing the run: the settings are already correct, and the
+          # only question is whether the container had finished restarting.
+          for i in $(seq 1 12); do
+            BODY=$(curl -fsS --max-time 20 https://api.stalltrack.site/api/mobile/version || true)
+            echo "attempt $i: ${BODY:-<no response>}"
+            case "$BODY" in
+              *"\"latestVersionCode\":${NEW_CODE}"*)
+                echo "Confirmed: collectors on an older build will now be prompted."
+                exit 0 ;;
+            esac
+            sleep 15
+          done
+          echo "::warning::The API has not reported code ${NEW_CODE} yet. The settings are set; check the endpoint shortly."
