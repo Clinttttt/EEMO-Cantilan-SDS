@@ -207,12 +207,6 @@
                     <span class="rpt-primary-scope">@ScopeLabel · @PeriodTitle</span>
                 </button>
 
-                @* Which question this figure answers, said once. It counts money against the DAYS OF THIS MONTH — the same basis as
-                   the office's facility reports, which is why the balances below reconcile with them. The office's Report of
-                   Collections answers the other question, the cash handled during the period, so a day settled late is stated in a
-                   different month there. Both are right; a collector who is not told will read the difference as an error. *@
-                <p class="rpt-basis-note">Counted against this month's days, not the day the money was taken.</p>
-
                 @* The two figures next to it are money too, but not the collector's to remit - one was taken at the office and the
                    other has not been taken at all. Stated together, smaller, so the figure above cannot be mistaken for a total. *@
                 <div class="rpt-pair">
@@ -244,7 +238,9 @@
                         <span class="rpt-block-title">Payors</span>
                         <span class="rpt-block-total">@PayeeCount served</span>
                     </div>
-                    <div class="rpt-grid">
+                    @* One cell fills the row rather than sitting in a two-column grid with an empty half. A paid-on-service round
+                       has only this one state to report, and a lone tile beside blank space reads as something failing to load. *@
+                    <div class="rpt-grid @(ScopeIsPaidOnService ? "rpt-grid-single" : null)">
                         <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("paid"))">
                             <span class="rpt-cell-value">@PaidPayorCount</span>
                             <span class="rpt-cell-label">Fully paid</span>
