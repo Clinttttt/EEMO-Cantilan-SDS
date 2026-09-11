@@ -36,6 +36,28 @@
 
         <div class="content-area">
 
+            @* ── The document's letterhead, on paper only ──
+               The screen leads with the navy hero card, which is right for a screen and wrong for a record: printed, it filled a
+               third of the page with a background, a progress bar and figures the Collection Summary states again. So the hero is
+               hidden on paper and this letterhead takes its place, in the same form every other document this console issues uses
+               — seal, republic, office, municipality, then the document's own title. Named here rather than shared because each
+               report page carries its own copy of these styles; following that is consistent, inventing a global is not. *@
+            <header class="print-doc-header">
+                <img class="print-doc-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+                <div class="print-doc-republic">Republic of the Philippines</div>
+                <h2>@Branding.OfficeName</h2>
+                <p>Municipality of @Branding.Municipality, @Branding.Province</p>
+                <div class="print-doc-title">Slaughterhouse Client Record</div>
+            </header>
+
+            @* The client the record answers for, and when it was taken off. On paper a record with no name on it is useless. *@
+            <div class="print-doc-meta">
+                <div><span>Client</span><strong>@OwnerName</strong></div>
+                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.SLH)</strong></div>
+                <div><span>Transactions</span><strong>@TotalTransactions</strong></div>
+                <div><span>Printed</span><strong>@PhilippineTime.Now.ToString("MMMM d, yyyy")</strong></div>
+            </div>
+
             <!-- Hero Banner -->
             <div class="slh-hero">
                 <div class="slh-hero-left">

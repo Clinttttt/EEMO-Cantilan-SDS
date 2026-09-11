@@ -582,6 +582,13 @@
 }
 
 /* ── Print styles ── */
+/* ── The printed record ───────────────────────────────────────────────────────────────────────
+   The letterhead and meta strip exist only on paper; the screen leads with the hero instead. */
+.print-doc-header,
+.print-doc-meta {
+    display: none;
+}
+
 @media print {
     .topbar,
     .btn-print,
@@ -595,9 +602,136 @@
         padding: 12mm;
     }
 
-    .slh-hero {
-        background: var(--navy) !important;
+    /* THE HERO IS FOR THE SCREEN. Printed, it took a third of the page: a forced navy background, a full-width progress bar and
+       three figures the Collection Summary states again below. The office asked for the record — the transactions and the
+       summary — so the decoration goes and the letterhead above takes its place. */
+    .slh-hero,
+    .animal-counts {
+        display: none !important;
+    }
+
+    .print-doc-header,
+    .print-doc-meta {
+        display: block;
+    }
+
+    .print-doc-header {
+        text-align: center;
+        padding-bottom: 18px;
+        border-bottom: 2px solid #111827;
+    }
+
+    .print-doc-logo {
+        display: block;
+        width: 58px;
+        height: 58px;
+        object-fit: contain;
+        margin: 0 auto 10px;
+    }
+
+    .print-doc-republic {
+        text-transform: uppercase;
+        letter-spacing: .12em;
+        font-size: 10px;
+        color: #374151;
+    }
+
+    .print-doc-header h2 {
+        margin: 7px 0 3px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 22px;
+        line-height: 1.15;
+        color: #111827;
+    }
+
+    .print-doc-header p {
+        margin: 0;
+        font-size: 12px;
+        color: #4b5563;
+    }
+
+    .print-doc-title {
+        margin-top: 18px;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-size: 13px;
+        font-weight: 800;
+        color: #111827;
+    }
+
+    .print-doc-meta {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        border: 1px solid #cfd6de;
+        margin: 16px 0;
+    }
+
+    .print-doc-meta div { padding: 10px 12px; border-right: 1px solid #cfd6de; }
+    .print-doc-meta div:last-child { border-right: none; }
+    .print-doc-meta span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
+    .print-doc-meta strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
+
+    /* The letterhead and the strip are never split across a page break. */
+    .print-doc-header,
+    .print-doc-meta {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* THE TABLE WAS THE WORST OF IT. On screen .table-wrap scrolls sideways; on paper a scroll region cannot be scrolled, so the
+       right-hand columns — the receipt number and the collector — were simply unreachable. Overflow is released and the table is
+       laid out to the paper width instead. */
+    .table-wrap {
+        overflow: visible !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .txn-table {
+        width: 100% !important;
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 11px;
+    }
+
+    .txn-table th,
+    .txn-table td {
+        border: 1px solid #cfd6de;
+        padding: 7px 8px;
+        overflow-wrap: anywhere;
+    }
+
+    .txn-table th {
+        background: #f3f6f9 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    /* The date read "Sep / 11, / 2026" down three lines in a column the fixed layout had starved. */
+    .txn-table th:nth-child(2),
+    .txn-table td:nth-child(2) {
+        white-space: nowrap;
+        width: 15%;
+    }
+
+    /* The header repeats on every page the table continues onto, and a row is never split down the middle — the same two rules
+       every other document here paginates by. */
+    .txn-table thead { display: table-header-group; }
+    .txn-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Flat on paper: a card's shadow prints as a grey smear and its radius as a broken rule. */
+    .summary-card,
+    .panel {
+        border: 1px solid #cfd6de !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* The summary is four figures and is kept whole. The transactions panel deliberately is NOT: a client with forty records must
+       be allowed to run onto a second page, which is what the repeating header row above is for. Telling it to avoid breaking
+       would push the whole table to a fresh page and then overflow it anyway. */
+    .summary-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 }
