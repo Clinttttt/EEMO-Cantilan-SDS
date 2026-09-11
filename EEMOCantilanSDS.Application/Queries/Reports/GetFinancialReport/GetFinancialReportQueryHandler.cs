@@ -40,8 +40,9 @@ public class GetFinancialReportQueryHandler(
           FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     // Paid-on-service facilities: collected at the point of service, so no recurring unpaid balance.
+    // The membership is stated once in DomainRules.IsPaidOnService, which the collector's app reads too.
     private static readonly FacilityCode[] ServiceFacilities =
-        { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+        Enum.GetValues<FacilityCode>().Where(DomainRules.IsPaidOnService).ToArray();
 
     private const int AttentionLimit = 50;
     private const int RecentLimit = 8;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Domain.Constants
 {
@@ -61,6 +62,24 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const int ExpiringSoonMonths = 3;
         public const int MaxFailedLoginAttempts = 5;
         public const int LockoutMinutes = 15;
+
+        /// <summary>
+        /// Facilities collected AT THE POINT OF SERVICE: the money is taken as the service is rendered, so there is no
+        /// part payment and no balance to carry.
+        /// </summary>
+        /// <remarks>
+        /// A slaughter is paid for when the animal is slaughtered, a trip when the trip is made, a Tabo-an vendor when the
+        /// vendor takes their space on the market day. Recording one IS collecting it — which is why the office observed that
+        /// a Tabo-an vendor is paid the moment they are added.
+        ///
+        /// <para>Stated here rather than in each report, because a screen that offers "part paid" or "not collected" for one
+        /// of these is offering a state the record cannot hold: the figure is always nought, and a permanently-nought figure
+        /// beside real ones reads as though the office had nothing outstanding when in truth the question does not apply.
+        /// The financial report already said this of itself (PaidOnService, with Unpaid left null); this makes the same rule
+        /// available to the collector's app instead of restating it.</para>
+        /// </remarks>
+        public static bool IsPaidOnService(FacilityCode facility) =>
+            facility is FacilityCode.SLH or FacilityCode.TRM or FacilityCode.TPM;
 
         // A daily-collected facility is let for a MONTHLY rent, stated on the office's own List of Stallholders:
         // ₱900 a month and ₱10,800 a year for a ₱30 stall. The daily fee is how that rent is collected — an

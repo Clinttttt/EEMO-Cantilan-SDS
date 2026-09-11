@@ -1,6 +1,7 @@
 ﻿@page "/reports"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using global::EEMOCantilanSDS.Domain.Constants
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
@@ -217,11 +218,15 @@
                             <span class="rpt-tile-note">Not collected by you</span>
                         </button>
                     }
-                    <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("outstanding"))">
-                        <span class="rpt-tile-value">&#8369;@Outstanding.ToString("N0")</span>
-                        <span class="rpt-tile-label">Still owed</span>
-                        <span class="rpt-tile-note">From current payors</span>
-                    </button>
+                    @* "Still owed" is money not yet taken, which a paid-on-service round has no notion of. *@
+                    @if (!ScopeIsPaidOnService)
+                    {
+                        <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("outstanding"))">
+                            <span class="rpt-tile-value">&#8369;@Outstanding.ToString("N0")</span>
+                            <span class="rpt-tile-label">Still owed</span>
+                            <span class="rpt-tile-note">From current payors</span>
+                        </button>
+                    }
                 </div>
 
                 @* ── The payors, by where they stand ──
@@ -238,18 +243,23 @@
                             <span class="rpt-cell-value">@PaidPayorCount</span>
                             <span class="rpt-cell-label">Fully paid</span>
                         </button>
-                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("partial"))">
-                            <span class="rpt-cell-value">@PartialCount</span>
-                            <span class="rpt-cell-label">Part paid</span>
-                        </button>
-                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("unpaid"))">
-                            <span class="rpt-cell-value">@UnpaidPayorCount</span>
-                            <span class="rpt-cell-label">Not collected</span>
-                        </button>
-                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("absent-excused"))">
-                            <span class="rpt-cell-value">@AbsentExcusedCount</span>
-                            <span class="rpt-cell-label">Excused</span>
-                        </button>
+                        @* Part paid, Not collected and Excused are states a paid-on-service record cannot hold — see
+                           ScopeIsPaidOnService. Left out rather than shown as nought, which read as "nothing outstanding". *@
+                        @if (!ScopeIsPaidOnService)
+                        {
+                            <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("partial"))">
+                                <span class="rpt-cell-value">@PartialCount</span>
+                                <span class="rpt-cell-label">Part paid</span>
+                            </button>
+                            <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("unpaid"))">
+                                <span class="rpt-cell-value">@UnpaidPayorCount</span>
+                                <span class="rpt-cell-label">Not collected</span>
+                            </button>
+                            <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("absent-excused"))">
+                                <span class="rpt-cell-value">@AbsentExcusedCount</span>
+                                <span class="rpt-cell-label">Excused</span>
+                            </button>
+                        }
                     </div>
                 </div>
 
@@ -303,8 +313,12 @@
                             </div>
                             <div class="facility-substats">
                                 <span class="substat paid">@f.PaidCount paid</span>
-                                <span class="substat partial">@f.PartialCount partial</span>
-                                <span class="substat unpaid">@f.UnpaidCount unpaid</span>
+                                @* A paid-on-service facility carries neither state, so it says only what it took. *@
+                                @if (!DomainRules.IsPaidOnService(f.FacilityCode))
+                                {
+                                    <span class="substat partial">@f.PartialCount partial</span>
+                                    <span class="substat unpaid">@f.UnpaidCount unpaid</span>
+                                }
                                 @if (f.AbsentExcusedCount > 0)
                                 {
                                     <span class="substat excused">@f.AbsentExcusedCount excused</span>
@@ -793,6 +807,19 @@
     int PaidPayorCount => ReportData?.Totals.PaidCount ?? 0;
     int UnpaidPayorCount => ReportData?.Totals.UnpaidCount ?? 0;
     int AbsentExcusedCount => ReportData?.Totals.AbsentExcusedCount ?? 0;
+
+    /// <summary>
+    /// True when everything in view is collected AT THE POINT OF SERVICE, so part payment and arrears cannot arise.
+    /// </summary>
+    /// <remarks>
+    /// A Tabo-an vendor pays when they take their space, a trip is paid when it is made, a slaughter when the animal is
+    /// slaughtered. Recording one IS collecting it, so "Part paid", "Not collected" and "Still owed" can only ever read
+    /// nought — and a permanently-nought figure beside real ones tells the collector the office is owed nothing when the
+    /// truth is that the question does not apply. Asked of DomainRules so the rule is not restated here, and asked of the
+    /// SCOPE IN VIEW: a collector who also holds the market must still see arrears when looking at everything.
+    /// </remarks>
+    bool ScopeIsPaidOnService =>
+        ReportFacilities.Count > 0 && ReportFacilities.All(f => DomainRules.IsPaidOnService(f.FacilityCode));
 
     int GetProgressPercent(decimal amount)
     {
