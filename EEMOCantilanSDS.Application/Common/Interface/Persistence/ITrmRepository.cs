@@ -24,6 +24,9 @@ public interface ITrmRepository
     Task<IReadOnlyList<TrmTripDto>> GetTripsByMonthAsync(int year, int month, CancellationToken ct = default);
     /// <summary>Whole-year variant of <see cref="GetTripsByMonthAsync"/> (Follow-up History year view).</summary>
     Task<IReadOnlyList<TrmTripDto>> GetTripsByYearAsync(int year, CancellationToken ct = default);
+
+    /// <summary>Every trip, whatever its date, that still carries no receipt number — see the slaughter equivalent.</summary>
+    Task<IReadOnlyList<TrmTripDto>> GetUnreceiptedTripsAllTimeAsync(CancellationToken ct = default);
     Task<TrmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default);
 

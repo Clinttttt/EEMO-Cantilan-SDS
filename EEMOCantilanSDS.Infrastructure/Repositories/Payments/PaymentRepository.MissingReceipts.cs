@@ -227,4 +227,93 @@ public partial class PaymentRepository
         // Each row is named after the lessee answerable for its own billing month, not the stall's current one.
         return await WithAnswerableOccupantsAsync(monthly.Concat(daily).ToList(), ct);
     }
+
+    /// <summary>
+    /// ALL-TIME variant: every fully-paid cash/field record that still lacks an OR, whatever period it belongs to.
+    /// </summary>
+    /// <remarks>
+    /// Powers the Follow-up History "Whole time" view, which passed no missing-receipt data at all and therefore always
+    /// reported none — the third instance of that fault in the same branch, after the delinquency chips and the month in
+    /// progress. A blank OR is not a period aggregate: the record has no receipt and will not acquire one by the calendar
+    /// turning, so a whole-time view is precisely where an old one should still be findable.
+    ///
+    /// <para>Each row carries its OWN year and month rather than the page's, so a March settlement is never presented as
+    /// though it belonged to the month being viewed. Online payments stay excluded here as everywhere else; they surface
+    /// through their own awaiting-OR queue.</para>
+    /// </remarks>
+    public async Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAllTimeAsync(CancellationToken ct)
+    {
+        var rateSnapshot = await _feeRateResolver.GetSnapshotAsync(ct);
+
+        var onlineRecordIds = _context.OnlinePaymentTransactions.Select(t => t.PaymentRecordId);
+
+        // ── Monthly: fully-Paid records with a blank OR, any billing period ──
+        var monthlyRaw = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.Status == PaymentStatus.Paid
+                && (p.ORNumber == null || p.ORNumber == "")
+                && !onlineRecordIds.Contains(p.Id))
+            .Select(p => new
+            {
+                Code = p.Stall!.Facility!.Code,
+                p.Stall.StallNo,
+                p.StallId,
+                Occupant = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                p.BillingYear,
+                p.BillingMonth,
+                p.BaseRentalAmount,
+                p.ElecAmount,
+                p.WaterAmount,
+                p.FishKilos
+            })
+            .ToListAsync(ct);
+
+        // The fish rate is resolved as of each record's OWN month, since a rate stated later must not reprice an
+        // earlier settlement.
+        var monthly = monthlyRaw.Select(p => new UnreceiptedPaymentDto(
+            p.Code,
+            p.StallNo,
+            string.IsNullOrWhiteSpace(p.Occupant) ? string.Empty : p.Occupant!,
+            p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0)
+                + (p.FishKilos.HasValue
+                    ? p.FishKilos.Value * rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(p.BillingYear, p.BillingMonth, 1))
+                    : 0m),
+            1,
+            IsDaily: false,
+            StallId: p.StallId,
+            Year: p.BillingYear,
+            Month: p.BillingMonth));
+
+        // ── NPM daily: paid blank-OR days, grouped per (stall, calendar month) across all time ──
+        var dailyRaw = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.IsPaid && (dc.ORNumber == null || dc.ORNumber == ""))
+            .Select(dc => new
+            {
+                Code = dc.Stall!.Facility!.Code,
+                dc.Stall.StallNo,
+                dc.StallId,
+                Occupant = dc.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Year = dc.CollectionDate.Year,
+                Month = dc.CollectionDate.Month,
+                dc.DailyFee,
+                dc.FishKilos
+            })
+            .ToListAsync(ct);
+
+        var daily = dailyRaw
+            .GroupBy(d => new { d.Code, d.StallNo, d.Occupant, d.Year, d.Month })
+            .Select(g => new UnreceiptedPaymentDto(
+                g.Key.Code,
+                g.Key.StallNo,
+                string.IsNullOrWhiteSpace(g.Key.Occupant) ? string.Empty : g.Key.Occupant!,
+                g.Sum(x => x.DailyFee),
+                g.Count(),
+                IsDaily: true,
+                StallId: g.First().StallId,
+                Year: g.Key.Year,
+                Month: g.Key.Month));
+
+        return await WithAnswerableOccupantsAsync(monthly.Concat(daily).ToList(), ct);
+    }
 }

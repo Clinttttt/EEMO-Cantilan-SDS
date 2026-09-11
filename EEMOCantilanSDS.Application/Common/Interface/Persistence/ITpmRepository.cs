@@ -24,6 +24,12 @@ public interface ITpmRepository
     Task<IReadOnlyList<TpmVendorAttendanceDto>> GetMonthAttendanceAsync(int year, int month, CancellationToken ct = default);
     /// <summary>Whole-year variant of <see cref="GetMonthAttendanceAsync"/> (Follow-up History year view).</summary>
     Task<IReadOnlyList<TpmVendorAttendanceDto>> GetYearAttendanceAsync(int year, CancellationToken ct = default);
+
+    /// <summary>Every PAID market-day attendance, whatever its date, that still carries no receipt number.</summary>
+    /// <remarks>
+    /// Paid only: an unpaid attendance owes no receipt. See the slaughter equivalent for why this is asked narrowly.
+    /// </remarks>
+    Task<IReadOnlyList<TpmVendorAttendanceDto>> GetUnreceiptedAttendanceAllTimeAsync(CancellationToken ct = default);
     Task<TpmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     
     // Validation

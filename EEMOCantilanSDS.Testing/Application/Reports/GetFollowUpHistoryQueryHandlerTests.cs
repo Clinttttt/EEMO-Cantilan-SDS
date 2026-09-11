@@ -113,6 +113,10 @@ public class GetFollowUpHistoryQueryHandlerTests
             {
                 new(Guid.NewGuid(), "REF-1", FacilityCode.NCC, "07", "Ana Lim", "2025-12", 3_240m, "GCash", DateTime.UtcNow),
             });
+        // The all-time queue the whole-time view reads. Empty by default so the other facts here keep their figures; the
+        // missing-OR behaviour has its own test with its own setup.
+        online.Setup(o => o.GetAwaitingOrAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<OnlinePaymentAwaitingOrDto>());
 
         // Follow-up history reads only the awaiting-OR queue, so it depends on that capability alone now.
         var payments = new Mock<IMissingReceiptQueries>();
@@ -120,11 +124,16 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
         payments.Setup(p => p.GetUnreceiptedCashPaymentsForYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
+        // The whole-time view reads the all-time sources; empty here, and asserted in the missing-OR test below.
+        payments.Setup(p => p.GetUnreceiptedCashPaymentsAllTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
 
         var slaughter = new Mock<ISlaughterRepository>();
         slaughter.Setup(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
         slaughter.Setup(s => s.GetTransactionsByYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
+        slaughter.Setup(s => s.GetUnreceiptedTransactionsAllTimeAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
 
         var trm = new Mock<ITrmRepository>();
@@ -132,11 +141,15 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(Array.Empty<TrmTripDto>());
         trm.Setup(t => t.GetTripsByYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TrmTripDto>());
+        trm.Setup(t => t.GetUnreceiptedTripsAllTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrmTripDto>());
 
         var tpm = new Mock<ITpmRepository>();
         tpm.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
         tpm.Setup(t => t.GetYearAttendanceAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
+        tpm.Setup(t => t.GetUnreceiptedAttendanceAllTimeAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
 
         var utilities = new Mock<IUtilityBillRepository>();
@@ -179,6 +192,45 @@ public class GetFollowUpHistoryQueryHandlerTests
         // …and the term's WHOLE span is the period beside that lifetime figure. This is the one view where it is
         // the right reading; a year or a month states its own period instead.
         Assert.Equal("Nov 2022 → Nov 30, 2025", row.Period);
+    }
+
+    /// <summary>
+    /// The whole-time view surfaces a receipt still owed from an EARLIER period.
+    /// </summary>
+    /// <remarks>
+    /// The office reported adding a blank-OR collection, seeing it on the live Follow-up Queue, and finding nothing under Missing
+    /// OR on the whole-time page. The branch passed empty arrays for all five missing-receipt sources, so the chip read nought
+    /// however many were outstanding — the third time that mistake was made here, after the delinquency chips and the month in
+    /// progress.
+    ///
+    /// <para>A blank OR is not a period figure, which is why it belongs on a cumulative view while a month's utility bills do
+    /// not: the record has no receipt and will not acquire one because the calendar turned. Seeded in MARCH while the page is
+    /// asked for December, so a source scoped to the viewed month cannot satisfy it — the whole point of the all-time read.</para>
+    /// </remarks>
+    [Fact]
+    public async Task TheWholeTimeView_ShowsAReceiptStillOwedFromAnEarlierPeriod()
+    {
+        var (handler, _, _, _, payments, _) = Build();
+
+        payments.Setup(p => p.GetUnreceiptedCashPaymentsAllTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new UnreceiptedPaymentDto(
+                    FacilityCode.NPM, "1", "Karmilita Log", 30m, 1,
+                    IsDaily: true, StallId: Guid.NewGuid(), Year: 2025, Month: 3)
+            });
+
+        var allTime = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
+
+        Assert.True(allTime.IsSuccess);
+
+        var row = Assert.Single(allTime.Value!.Items, i => i.ReasonKind == "missingor");
+        Assert.Equal("Karmilita Log", row.Person);
+        Assert.Equal(30m, row.Amount);
+
+        // The row carries MARCH, not the December the page was asked for: a receipt owed since March must not be
+        // presented as though it belonged to the month being viewed.
+        Assert.Contains("Mar", row.Period);
     }
 
     [Fact]

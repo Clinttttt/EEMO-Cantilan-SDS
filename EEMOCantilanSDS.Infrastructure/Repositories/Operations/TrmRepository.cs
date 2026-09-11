@@ -211,6 +211,29 @@ public class TrmRepository(AppDbContext context, IClock clock) : ITrmRepository
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TrmTripDto>> GetUnreceiptedTripsAllTimeAsync(CancellationToken ct = default)
+    {
+        return await context.TrmTrips
+            .AsNoTracking()
+            .Where(t => t.ORNumber == null || t.ORNumber == "")
+            .OrderBy(t => t.RecordedAt)
+            .Select(t => new TrmTripDto
+            {
+                Id = t.Id,
+                TransporterId = t.TransporterId,
+                TripNumber = t.TripNumber,
+                DriverName = t.DriverName,
+                Organization = t.Organization,
+                PlateNumber = t.PlateNumber,
+                Route = t.Route,
+                Fee = t.Fee,
+                ORNumber = t.ORNumber,
+                RecordedAt = t.RecordedAt
+            })
+            .ToListAsync(ct);
+    }
+
     /// <summary>
     /// Collection history for the transport terminal: every month of <paramref name="year"/> (up to
     /// the current month for the current year, all 12 for past years) plus a rolling 5-year summary.

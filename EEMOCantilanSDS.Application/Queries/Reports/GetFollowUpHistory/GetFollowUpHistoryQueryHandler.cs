@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Interface.Time;
+﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -114,15 +114,27 @@ public class GetFollowUpHistoryQueryHandler(
                 currentMonthReports[code] = await reportsRepository.GetFacilityReportsAsync(
                     code, ReportPeriod.Monthly, year, month, null, ct);
 
+            // ── Receipts still owed ──
+            // A blank OR is NOT a period figure, which is why it belongs here while a month's utility bills do not. The
+            // record has no receipt and will not acquire one because the calendar turned, so the cumulative view is exactly
+            // where an old one must still be findable. These five were passed as empty arrays, so the Missing OR chip read 0
+            // however many were outstanding — the third time this branch has made that mistake, after the delinquency chips
+            // and the month in progress. Each source is asked for the unreceipted records ONLY, so the reads stay small.
+            var allAwaitingOr = await onlinePaymentRepository.GetAwaitingOrAsync(ct);
+            var allUnreceipted = await missingReceipts.GetUnreceiptedCashPaymentsAllTimeAsync(ct);
+            var allSlaughter = await slaughterRepository.GetUnreceiptedTransactionsAllTimeAsync(ct);
+            var allTrips = await trmRepository.GetUnreceiptedTripsAllTimeAsync(ct);
+            var allAttendance = await tpmRepository.GetUnreceiptedAttendanceAllTimeAsync(ct);
+
             return FollowUpComposer.Compose(
                 year, month, clock.PhilippineToday,
                 wholeAccountDelinquency,
                 currentMonthReports,
-                Array.Empty<OnlinePaymentAwaitingOrDto>(),
-                Array.Empty<SlaughterTransactionDto>(),
-                Array.Empty<TrmTripDto>(),
-                Array.Empty<TpmVendorAttendanceDto>(),
-                Array.Empty<UnreceiptedPaymentDto>(),
+                allAwaitingOr,
+                allSlaughter,
+                allTrips,
+                allAttendance,
+                allUnreceipted,
                 lapsed,
                 Array.Empty<UtilityBill>(),
                 allBalances,

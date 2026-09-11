@@ -179,6 +179,29 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<TpmVendorAttendanceDto>> GetUnreceiptedAttendanceAllTimeAsync(CancellationToken ct = default)
+    {
+        return await context.TpmAttendances
+            .AsNoTracking()
+            // Paid only: an attendance nobody has paid for owes no receipt.
+            .Where(a => a.IsPaid && (a.ORNumber == null || a.ORNumber == ""))
+            .OrderBy(a => a.MarketDate)
+            .ThenBy(a => a.Vendor!.VendorName)
+            .Select(a => new TpmVendorAttendanceDto
+            {
+                Id = a.Id,
+                VendorId = a.VendorId,
+                VendorName = a.Vendor!.VendorName,
+                Goods = a.Vendor.Goods,
+                IsPaid = a.IsPaid,
+                ORNumber = a.ORNumber,
+                Fee = a.Fee,
+                MarketDate = a.MarketDate
+            })
+            .ToListAsync(ct);
+    }
+
     /// <summary>
     /// Collection history for Tabo-an Public Market: every month of <paramref name="year"/> (up to the
     /// current month for the current year, all 12 for past years) plus a rolling 5-year summary.

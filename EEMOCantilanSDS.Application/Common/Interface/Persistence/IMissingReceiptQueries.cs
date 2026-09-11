@@ -31,4 +31,14 @@ public interface IMissingReceiptQueries
     /// the year. Powers the Follow-up History "Whole year" Missing-OR aggregation.
     /// </summary>
     Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsForYearAsync(int year, CancellationToken ct);
+
+    /// <summary>
+    /// All-time variant: every blank-OR paid cash/field record, whatever period it belongs to, each row carrying its own
+    /// year and month. Powers the Follow-up History "Whole time" view.
+    /// </summary>
+    /// <remarks>
+    /// A blank OR is not a period figure — the record has no receipt and will not acquire one because the calendar turned —
+    /// so a cumulative view is exactly where an old one must still be findable.
+    /// </remarks>
+    Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAllTimeAsync(CancellationToken ct);
 }

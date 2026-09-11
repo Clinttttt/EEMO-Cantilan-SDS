@@ -61,6 +61,27 @@ public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateR
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SlaughterTransactionDto>> GetUnreceiptedTransactionsAllTimeAsync(CancellationToken ct = default)
+    {
+        return await context.SlaughterTransactions
+            .AsNoTracking()
+            .Where(x => x.ORNumber == null || x.ORNumber == "")
+            .OrderByDescending(x => x.TransactionDate)
+            .Select(x => new SlaughterTransactionDto(
+                x.Id,
+                x.OwnerName,
+                x.AnimalType,
+                x.CustomAnimalType,
+                x.NumberOfHeads,
+                x.RatePerHead,
+                x.RatePerHead * x.NumberOfHeads,
+                x.ORNumber,
+                x.TransactionDate
+            ))
+            .ToListAsync(ct);
+    }
+
     public async Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default)
     {
         var transactions = await context.SlaughterTransactions

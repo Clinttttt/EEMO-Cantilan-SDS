@@ -10,6 +10,15 @@ public interface ISlaughterRepository
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     /// <summary>Whole-year variant of <see cref="GetTransactionsByMonthAsync"/> (Follow-up History year view).</summary>
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default);
+
+    /// <summary>
+    /// Every slaughter, whatever its date, that still carries no receipt number.
+    /// </summary>
+    /// <remarks>
+    /// Narrow on purpose. The Follow-up History "Whole time" view needs these only to raise a missing-OR task, so it asks
+    /// for the unreceipted ones rather than the whole history — the answer is small however long the office has been open.
+    /// </remarks>
+    Task<IReadOnlyList<SlaughterTransactionDto>> GetUnreceiptedTransactionsAllTimeAsync(CancellationToken ct = default);
     Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default);
     Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default);
