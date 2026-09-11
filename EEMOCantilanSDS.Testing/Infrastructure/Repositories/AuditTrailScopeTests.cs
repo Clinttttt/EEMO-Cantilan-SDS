@@ -124,6 +124,55 @@ public class AuditTrailScopeTests
         Assert.Single(owned.Items);
     }
 
+    /// <summary>
+    /// A daily collection names the day it ANSWERS for, and names it as such.
+    /// </summary>
+    /// <remarks>
+    /// The office asked for this date to be removed, having read it as a duplicate of the entry's timestamp. It is not: the timestamp
+    /// is when the record was written, this is the day the fee answers for, and on an owed day settled later the two differ — which is
+    /// the only thing on the trail distinguishing a fee taken on its own morning from one back-settled a week afterwards. Kept, and
+    /// labelled, so it cannot be mistaken for the timestamp again.
+    ///
+    /// <para>Seeded with a collection FOR 5 September recorded ON 6 September, because a seed where the two coincide cannot tell a
+    /// labelled date from a removed one.</para>
+    /// </remarks>
+    [Fact]
+    public async Task ADailyCollection_NamesTheDayItAnswersFor_NotJustTheDayItWasRecorded()
+    {
+        var options = Options();
+        var lgu = Guid.NewGuid();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Karmilita Log", "Karmilita Log", new DateOnly(2026, 1, 1), 3, 900m);
+
+        using (var seed = new AppDbContext(options, new FixedMunicipality(lgu)))
+        {
+            seed.Facilities.Add(facility); Stamp(seed, facility, lgu);
+            seed.Stalls.Add(stall); Stamp(seed, stall, lgu);
+            seed.Contracts.Add(contract); Stamp(seed, contract, lgu);
+
+            var snapshot = $"{{\"StallId\":\"{stall.Id}\",\"CollectionDate\":\"2026-09-05\",\"DailyFee\":30.00}}";
+            var log = AuditLog.Create("id", "cly.sullano", "SuperAdmin", "Created", "DailyCollection",
+                Guid.NewGuid(), null, snapshot);
+            seed.AuditLogs.Add(log); Stamp(seed, log, lgu);
+
+            await seed.SaveChangesAsync();
+        }
+
+        using var ctx = new AppDbContext(options, new FixedMunicipality(lgu));
+        var trail = await new AuditRepository(ctx, new FixedMunicipality(lgu))
+            .GetAuditTrailAsync(null, null, null, null, null, null, 1, 25, false, CancellationToken.None);
+
+        var details = Assert.Single(trail.Items).Details;
+
+        Assert.Contains("Recorded a daily collection for", details);
+        Assert.Contains("Karmilita Log", details);
+
+        // Named, not bare: the word is what stops it reading as a second copy of the timestamp.
+        Assert.Contains("for Sep 5, 2026", details);
+        Assert.Contains("₱30.00", details);
+    }
+
     [Fact]
     public async Task APayment_IsDescribedByPayorStallFacilityAndSection()
     {

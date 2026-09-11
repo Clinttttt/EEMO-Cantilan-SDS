@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories.Audit;
@@ -229,6 +229,7 @@ public static class AuditDetailComposer
             case "DailyCollection":
             {
                 parts.AddIfPresent(StallPhrase(snapshot, lookup));
+                // The day the fee ANSWERS for, which is not the day it was recorded when an owed day is settled later.
                 parts.AddIfPresent(DatePhrase(snapshot, "CollectionDate"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "DailyFee", "₱{0}"));
                 parts.AddIfPresent(OrPhrase(snapshot));
@@ -239,7 +240,7 @@ public static class AuditDetailComposer
                 parts.AddIfPresent(FacilityPhrase("SLH", lookup));
                 parts.AddIfPresent(TextPhrase(snapshot, "OwnerName"));
                 parts.AddIfPresent(AnimalPhrase(snapshot));
-                parts.AddIfPresent(DatePhrase(snapshot, "TransactionDate"));
+                parts.AddIfPresent(DatePhrase(snapshot, "TransactionDate", "on"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "SlaughterFee", "₱{0}"));
                 parts.AddIfPresent(OrPhrase(snapshot));
                 break;
@@ -258,7 +259,7 @@ public static class AuditDetailComposer
             {
                 parts.AddIfPresent(FacilityPhrase("TPM", lookup));
                 parts.AddIfPresent(PersonPhrase(snapshot, "VendorId", lookup));
-                parts.AddIfPresent(DatePhrase(snapshot, "MarketDate"));
+                parts.AddIfPresent(DatePhrase(snapshot, "MarketDate", "for market day"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "Fee", "₱{0}"));
                 parts.AddIfPresent(OrPhrase(snapshot));
                 break;
@@ -279,7 +280,8 @@ public static class AuditDetailComposer
             {
                 parts.AddIfPresent(StallPhrase(snapshot, lookup));
                 parts.AddIfPresent(PeriodPhrase(snapshot));
-                parts.AddIfPresent(DatePhrase(snapshot, "ClosureDate"));
+                // NpmMarketClosure closes a SINGLE day, so the date is the day closed and not the start of a range.
+                parts.AddIfPresent(DatePhrase(snapshot, "ClosureDate", "for"));
                 parts.AddIfPresent(TextPhrase(snapshot, "Reason"));
                 break;
             }
@@ -357,13 +359,23 @@ public static class AuditDetailComposer
         return new DateTime(year.Value, month.Value, 1).ToString("MMMM yyyy", Ph);
     }
 
-    private static string? DatePhrase(JsonElement? snapshot, string field)
+    /// <summary>
+    /// A business date on the record, named by what it is.
+    /// </summary>
+    /// <remarks>
+    /// The label is not decoration. This date and the entry's timestamp are different things — the timestamp is when the record was
+    /// written, this is the day the record ANSWERS for — and a bare date beside a timestamp reads as a duplicate of it. The office
+    /// asked for it to be removed for exactly that reason; removing it would have deleted the only thing distinguishing a fee
+    /// collected on its own day from an owed day back-settled a week later, which on an audit trail is the point.
+    /// </remarks>
+    private static string? DatePhrase(JsonElement? snapshot, string field, string label = "for")
     {
         var raw = Text(snapshot, field);
         if (string.IsNullOrWhiteSpace(raw)) return null;
-        return DateTime.TryParse(raw, Ph, DateTimeStyles.None, out var parsed)
+        var day = DateTime.TryParse(raw, Ph, DateTimeStyles.None, out var parsed)
             ? parsed.ToString("MMM d, yyyy", Ph)
             : raw;
+        return $"{label} {day}";
     }
 
     private static string? MoneyPhrase(JsonElement? snapshot, string field, string format)
