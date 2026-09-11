@@ -259,11 +259,25 @@
     border-color: var(--navy);
     color: #fff;
 }
-
 .sh-print-btn-primary:hover {
     background: var(--navy-2, #112d47);
     border-color: var(--navy-2, #112d47);
 }
+
+/* ── The two downloads as ONE control ──
+   Asked for by the office: it is the same list either way, so two separate buttons overstated the choice. The group draws the
+   outer corners and the halves share a single hairline between them, so it reads as one button while each half stays its own
+   action. Nothing about the actions changed — only how they are presented. */
+.sh-split { display: inline-flex; flex: 0 0 auto; }
+.sh-split .sh-split-part { border-radius: 0; }
+.sh-split .sh-split-part:first-child { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
+.sh-split .sh-split-part:last-child { border-top-right-radius: 9px; border-bottom-right-radius: 9px; }
+
+/* One edge, not two: the second half is pulled over the first's border so a single line divides them. */
+.sh-split .sh-split-part + .sh-split-part { margin-left: -1px; }
+
+/* The hovered half draws its own border above its neighbour's, or the shared edge would look broken on hover. */
+.sh-split .sh-split-part:hover { position: relative; z-index: 1; }
 
 @media print {
     /* Orientation and paper margin come from js/print.js, which injects them immediately before printing.

@@ -66,16 +66,22 @@
                 Print
             </button>
             @* Excel and CSV both, deliberately. The spreadsheet is what the office reads - it carries its own column widths, so
-               nothing opens as ######## - and the CSV stays for anything that consumes the file as data. *@
-            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="DownloadExcel"
-                    title="Downloads an Excel workbook with the columns already sized.">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Excel
-            </button>
-            <a class="sh-print-btn" download="@CsvFileName" href="@CsvHref" title="Downloads the same list as a plain CSV data file.">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                CSV
-            </a>
+               nothing opens as ######## - and the CSV stays for anything that consumes the file as data.
+
+               Presented as ONE control with two halves, at the office's request: it is the same list either way, so two separate
+               buttons overstated the choice. Each half is still its own action - Excel is a button, CSV a download link - so
+               nothing about how they behave has changed. *@
+            <div class="sh-split" role="group" aria-label="Download the stall holder list">
+                <button class="sh-print-btn sh-split-part" type="button" disabled="@_loading" @onclick="DownloadExcel"
+                        title="Downloads an Excel workbook with the columns already sized.">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    Excel
+                </button>
+                <a class="sh-print-btn sh-split-part" download="@CsvFileName" href="@CsvHref"
+                   title="Downloads the same list as a plain CSV data file.">
+                    CSV
+                </a>
+            </div>
             <button class="sh-print-btn sh-print-btn-primary" type="button" disabled="@_loading" @onclick="Print"
                     title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>

@@ -31,6 +31,38 @@ public class StallHolderListPrintSheetTests
         return css[at..];
     }
 
+    /// <summary>
+    /// The two downloads are ONE control with two working halves.
+    /// </summary>
+    /// <remarks>
+    /// The office asked for Excel and CSV to stop reading as two separate choices: it is the same list either way. Merging them is
+    /// only safe if each half keeps its own action, so that is what is asserted — Excel remains a button that calls DownloadExcel,
+    /// CSV remains a download link to the generated file — alongside the group that makes them look like one button.
+    ///
+    /// <para>Asserted against the file rather than a render because the joining is done in CSS: a collapsed shared edge cannot be
+    /// observed from markup.</para>
+    /// </remarks>
+    [Fact]
+    public void TheExportsAreOneControlButTwoSeparateActions()
+    {
+        var razor = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
+        var css = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor.css");
+
+        // One group holding both halves.
+        Assert.Contains("class=\"sh-split\"", razor);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(razor, @"sh-split-part").Count);
+
+        // Still two actions: a button that exports the workbook, and a link that downloads the CSV.
+        Assert.Matches(@"<button[^>]*sh-split-part[^>]*@onclick=""DownloadExcel""", razor);
+        Assert.Matches(@"<a[^>]*sh-split-part[^>]*download=""@CsvFileName""[^>]*href=""@CsvHref""", razor);
+
+        // The group draws the outer corners and the halves share ONE edge, which is what makes it read as a single button.
+        Assert.Matches(@"\.sh-split \.sh-split-part \{ border-radius: 0", css);
+        Assert.Matches(@"\.sh-split \.sh-split-part:first-child \{[^}]*border-top-left-radius", css);
+        Assert.Matches(@"\.sh-split \.sh-split-part:last-child \{[^}]*border-top-right-radius", css);
+        Assert.Matches(@"\.sh-split \.sh-split-part \+ \.sh-split-part \{ margin-left: -1px", css);
+    }
+
     [Fact]
     public void TheFacilityIsNamedONCEAboveItsSections()
     {
