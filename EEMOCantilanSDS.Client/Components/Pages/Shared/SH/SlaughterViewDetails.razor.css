@@ -589,8 +589,10 @@
         display: none !important;
     }
 
+    /* The paper margin. The print helper sets the PAGE margin to nought so Chromium has nowhere to draw its own date, title and
+       URL, so the whitespace has to come from inside the document — otherwise the record prints hard against the paper edge. */
     .content-area {
-        padding: 0;
+        padding: 12mm;
     }
 
     .slh-hero {

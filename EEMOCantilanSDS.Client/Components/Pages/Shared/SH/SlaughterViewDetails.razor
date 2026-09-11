@@ -1,6 +1,7 @@
 @page "/facility/slh/transaction/{OwnerName}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject ISlaughterApiClient SlaughterApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
@@ -230,10 +231,22 @@
         Navigation.NavigateTo("/facility/slh");
     }
     
-    private void PrintPage()
-    {
-        // TODO: JS interop: window.print()
-    }
+    /// <summary>
+    /// Prints the client's record through the same helper every report document in the console uses.
+    /// </summary>
+    /// <remarks>
+    /// The button had been wired to an empty method carrying "TODO: JS interop: window.print()", so it looked like an action and
+    /// did nothing — the office pressed it and no dialog opened.
+    ///
+    /// <para>reportDocument rather than a bare window.print(), for the reason stated in print.js: it injects A4 portrait with a
+    /// ZERO page margin, and the zero is what stops Chromium printing its own furniture — the date, the document title and the
+    /// page URL — across a sheet that carries the municipal seal. The paper margin is supplied as padding inside the document
+    /// instead, in this page's own print block.</para>
+    ///
+    /// <para>The class .print-report-sheet is deliberately NOT added here. print.css assigns it a landscape named page for the
+    /// facility reports' wide grids, and this record is a portrait document with five columns.</para>
+    /// </remarks>
+    private async Task PrintPage() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 
     public sealed record SlaughterClientProfileState(string OwnerName, ClientProfileDto Profile);
 }
