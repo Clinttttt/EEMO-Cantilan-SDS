@@ -265,13 +265,10 @@
                     </div>
                 </div>
 
-                @* One plain fact, and it opens nothing - so it is stated as a line rather than dressed as a card that invites a tap.
-                   It counts EVENTS, not people, which is why it is not in the block above: a payor who paid twice is one payor and
-                   two transactions, and putting them side by side invited the office to read one as the other. *@
-                <div class="rpt-note-line">
-                    <span>Recorded transactions</span>
-                    <strong>@TotalTransactions</strong>
-                </div>
+                @* "Recorded transactions" was removed on 2026-09-11. The banner at the top of this page states the same
+                   @TotalTransactions, and the banner is outside the tab strip so it is on screen whatever tab is open — the line
+                   restated it a few centimetres lower. It counted EVENTS rather than people, which was worth separating from the
+                   payor counts, and the banner already separates them: "Transactions" and "Payees" sit side by side there. *@
 
                 @if (Utility is not null)
                 {
@@ -298,10 +295,17 @@
                     </div>
                 }
 
-                <div class="group-spacer"></div>
-                <div class="section-label">Assigned Scope</div>
+                @* ── Where the money came from, WHEN THERE IS MORE THAN ONE SOURCE ──
+                   Hidden for a collector holding a single facility, because then it restates the screen: the banner already gives
+                   the total, the transactions and the payees, and the figure above already names the facility and the period. A
+                   card repeating all four invites the office to check one against the other and wonder which is authoritative. *@
+                @if (ShowAssignedScope)
+                {
+                    <div class="group-spacer"></div>
+                    <div class="section-label">Assigned Scope</div>
+                }
 
-                @foreach (var f in ReportFacilities)
+                @foreach (var f in ScopeFacilities)
                 {
                     <div class="facility-row">
                         <div class="facility-icon">
@@ -822,6 +826,17 @@
     /// </remarks>
     bool ScopeIsPaidOnService =>
         ReportFacilities.Count > 0 && ReportFacilities.All(f => DomainRules.IsPaidOnService(f.FacilityCode));
+
+    /// <summary>Whether the per-facility breakdown tells the collector anything the totals above have not already said.</summary>
+    /// <remarks>
+    /// With one facility it does not: the banner states the total, the transactions and the payees, and the figure above names the
+    /// facility and the period. Repeating all four invites a reader to check one against the other and wonder which is
+    /// authoritative. With two or more, the split is the whole point.
+    /// </remarks>
+    bool ShowAssignedScope => ReportFacilities.Count > 1;
+
+    IEnumerable<MobileReportFacilitySummaryDto> ScopeFacilities =>
+        ShowAssignedScope ? ReportFacilities : Enumerable.Empty<MobileReportFacilitySummaryDto>();
 
     int GetProgressPercent(decimal amount)
     {
