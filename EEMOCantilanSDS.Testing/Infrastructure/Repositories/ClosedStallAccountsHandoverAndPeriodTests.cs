@@ -132,7 +132,8 @@ public class ClosedStallAccountsHandoverAndPeriodTests : RepositoryTestBase
 
         // The occupancy's own dates stay facts on every reading — only the FIGURES are scoped.
         Assert.Equal(new DateOnly(2023, 6, 1), year2026.EffectivityDate);
-        Assert.Equal(new DateOnly(2026, 6, 1), year2026.OccupancyEndedOn);
+        // The last day inside the term: a term ends the day before its anniversary, per the office's 2026-09-12 ruling.
+        Assert.Equal(new DateOnly(2026, 5, 31), year2026.OccupancyEndedOn);
     }
 
     [Fact]

@@ -474,9 +474,10 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     [Fact]
     public async Task AMonthWhoseTermRanOutPartWay_IsChargedItsDays_NotTheWholeRent()
     {
-        // A term that lapses on the 7th leaves seven days of that month owed — ₱210, not the month's ₱900. Measuring
-        // the calendar from the term's own last day made those seven days look like a month held in full, which is
-        // exactly the shape of Cantilan's own market terms (expiry on the 7th).
+        // A term effective the 7th now lapses on the 6th — the office's ruling of 2026-09-12, so N years is exactly N × 12
+        // months — leaving six days of that month owed, ₱180, not the month's ₱900. Measuring the calendar from the term's
+        // own last day made those days look like a month held in full, which is exactly the shape of Cantilan's own market
+        // terms (effectivity on the 7th).
         var context = NewContext();
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
@@ -492,10 +493,10 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
 
         var summary = await new PaymentRepository(context).GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
 
-        // Ten whole months of rent inside the twelve-month window, plus the seven days of the month it lapsed —
+        // Ten whole months of rent inside the twelve-month window, plus the six days of the month it lapsed —
         // the month after it owes nothing at all, the term having ended.
-        Assert.Equal((10 * MonthlyRent) + (7 * Fee), summary.TotalOutstanding);
-        Assert.Equal(9_210m, summary.TotalOutstanding);
+        Assert.Equal((10 * MonthlyRent) + (6 * Fee), summary.TotalOutstanding);
+        Assert.Equal(9_180m, summary.TotalOutstanding);
     }
 
     [Fact]

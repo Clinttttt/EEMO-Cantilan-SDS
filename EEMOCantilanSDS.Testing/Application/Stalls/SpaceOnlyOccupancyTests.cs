@@ -129,6 +129,8 @@ public class SpaceOnlyOccupancyTests
         Assert.True(contract.HasSignedContract);
         Assert.Equal("Myra Pude", contract.NameOnContract);
         Assert.Equal(3, contract.DurationYears);
-        Assert.Equal(new DateOnly(2026, 6, 7), contract.ExpiryDate);
+        // The last day inside the term, which is the day before the anniversary: three years from 7 Jun 2023 runs through
+        // 6 Jun 2026, exactly thirty-six months. Ruled by the office 2026-09-12 on its own List of Stallholders.
+        Assert.Equal(new DateOnly(2026, 6, 6), contract.ExpiryDate);
     }
 }

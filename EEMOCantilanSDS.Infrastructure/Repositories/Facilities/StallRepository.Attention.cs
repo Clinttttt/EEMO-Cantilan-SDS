@@ -60,7 +60,7 @@ public partial class StallRepository
         foreach (var s in rows)
         {
             if (s.Contract is null) continue;
-            var expiry = s.Contract.EffectivityDate.AddYears(s.Contract.DurationYears);
+            var expiry = DomainRules.TermLastDay(s.Contract.EffectivityDate, s.Contract.DurationYears);
             var expired = asOf > expiry;
             var expiringSoon = !expired && expiry <= horizon;
             if (!expired && !expiringSoon) continue;

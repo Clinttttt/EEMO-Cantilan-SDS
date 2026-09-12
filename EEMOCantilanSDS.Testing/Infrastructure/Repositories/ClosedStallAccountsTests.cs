@@ -153,7 +153,9 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         // collecting and the account stays in the arrears lists as well as on this register.
         Assert.Equal(InactiveAccountState.Lapsed, row.State);
         Assert.Null(row.ClosedOn);
-        Assert.Equal(new DateOnly(2025, 1, 1), row.ExpiryDate);
+        // The last day inside the term, which is the day before the anniversary — the office's ruling of 2026-09-12, on its
+        // own List of Stallholders stating ₱10,800 for a ₱900 space's year.
+        Assert.Equal(new DateOnly(2024, 12, 31), row.ExpiryDate);
         Assert.Equal(0m, row.LifetimeCollected);
         // A term of N years owes exactly N × 12 months' rent: one year from 1 Jan 2024 is January to December 2024,
         // twelve months at ₱1,000. The obligation used to bill every calendar month the term OVERLAPPED, so the

@@ -21,17 +21,25 @@ public class TermExpiryRuleTests
     }
 
     [Fact]
-    public void The_last_day_of_the_term_is_still_inside_it()
+    public void The_last_day_of_the_term_is_the_day_before_the_anniversary()
     {
-        // A three-year term effective the 7th runs THROUGH the 7th three years on — the reading the office's own
-        // paper takes. Expiring a day early would put a lessee in the inactive register while still under contract.
-        Assert.False(DomainRules.TermHasExpired(Start, 3, new DateOnly(2026, 6, 7)));
+        // Ruled by the office 2026-09-12, on its own List of Stallholders: a ₱900 space has a Whole Year Rental of
+        // ₱10,800.00 — twelve months, no thirteenth part-month. So a three-year term effective the 7th of June 2023 runs
+        // THROUGH the 6th of June 2026, which is exactly thirty-six months.
+        //
+        // This test asserted the opposite until that ruling, citing the office's paper for it. The paper says otherwise.
+        // The extra day only ever reached a daily-collected space, which is charged per market day through the expiry: a
+        // one-year ₱900 stall billed ₱10,830, and that ₱30 is how the office noticed.
+        Assert.False(DomainRules.TermHasExpired(Start, 3, new DateOnly(2026, 6, 6)));
+
+        // ...and the anniversary itself is outside the term.
+        Assert.True(DomainRules.TermHasExpired(Start, 3, new DateOnly(2026, 6, 7)));
     }
 
     [Fact]
     public void The_day_after_the_term_ends_has_expired()
     {
-        Assert.True(DomainRules.TermHasExpired(Start, 3, new DateOnly(2026, 6, 8)));
+        Assert.True(DomainRules.TermHasExpired(Start, 3, new DateOnly(2026, 6, 7)));
     }
 
     [Fact]
@@ -72,10 +80,11 @@ public class TermExpiryRuleTests
     public void The_datetime_overload_agrees_with_the_dateonly_rule_and_ignores_the_time_of_day()
     {
         // The facility pages hold DateTime and ask "as of now". A term ending today must not expire merely because
-        // the clock has moved past midnight.
+        // the clock has moved past midnight. The dates move with the office's 2026-09-12 ruling — the last day is the
+        // day BEFORE the anniversary — while the point of the test, that the time of day is ignored, does not.
         var start = new DateTime(2023, 6, 7, 0, 0, 0);
-        Assert.False(DomainRules.TermHasExpired(start, 3, new DateTime(2026, 6, 7, 23, 59, 0)));
-        Assert.True(DomainRules.TermHasExpired(start, 3, new DateTime(2026, 6, 8, 0, 1, 0)));
+        Assert.False(DomainRules.TermHasExpired(start, 3, new DateTime(2026, 6, 6, 23, 59, 0)));
+        Assert.True(DomainRules.TermHasExpired(start, 3, new DateTime(2026, 6, 7, 0, 1, 0)));
         Assert.False(DomainRules.TermHasExpired((DateTime?)null, 3, new DateTime(2026, 8, 8, 12, 0, 0)));
     }
 }

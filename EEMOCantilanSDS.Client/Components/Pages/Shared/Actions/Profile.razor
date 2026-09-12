@@ -1273,7 +1273,9 @@
                     ContractDate = stallDto.ContractDate,
                     ContractDuration = stallDto.ContractYears > 0 ? $"{stallDto.ContractYears} year{(stallDto.ContractYears > 1 ? "s" : "")}" : "—",
                     ContractYears = stallDto.ContractYears,
-                    ContractExpiry = stallDto.ContractYears > 0 ? stallDto.ContractDate?.AddYears(stallDto.ContractYears) : null,
+                    ContractExpiry = stallDto.ContractYears > 0 && stallDto.ContractDate is { } cd
+                        ? DomainRules.TermLastDay(cd, stallDto.ContractYears)
+                        : null,
                     MonthlyRate = stallDto.MonthlyRate,
                     DailyRate = stallDto.DailyRate,
             ResolvedDailyFee = stallDto.ResolvedDailyFee,

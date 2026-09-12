@@ -697,30 +697,39 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
-**A YEAR OF RENT IS TWELVE MONTHS EXACTLY — ₱10,800 for a ₱900 space. RULED 2026-09-12 WITH DOCUMENTARY EVIDENCE, AND NOT
-YET IMPLEMENTED.** The office produced its own *List of Stallholders* for the New Public Market, Vegetable Area: every row
+**A YEAR OF RENT IS TWELVE MONTHS EXACTLY — ₱10,800 for a ₱900 space. RULED 2026-09-12 WITH DOCUMENTARY EVIDENCE.
+IMPLEMENTED the same day.** The office produced its own *List of Stallholders* for the New Public Market, Vegetable Area: every row
 reads effectivity 6/7/2023, **3 yrs**, 4.8 sq.m., ₱900.00 monthly per contract, ₱900.00 actual monthly, and **Whole Year
 Rental ₱10,800.00**. Twelve months, no thirteenth part-month.
 
-- **What the code does instead.** `DomainRules`/`Contract.ComputeExpiry` is `effectivity.AddYears(n)`, so the expiry date is
-  INSIDE the term: a one-year term from 1 Jan 2023 covers 1 Jan 2023 *through* 1 Jan 2024 — twelve months **plus one day**.
-  Billed monthly at ₱900 that is ₱10,800 + ₱30 = **₱10,830**, which is how the office noticed. Found while testing the
-  extension renewal on stall 6 (Teofila Reyes).
-- **A comment in `Contract.cs` cites the office's paper for the opposite reading** — "a three-year term effective the 7th of
-  June runs to the 7th of June three years on, which is the reading the office's own paper takes". The paper says otherwise.
-  Correct the comment as part of the change; do not leave it citing evidence it contradicts.
-- **The fix is one line**, in `ComputeExpiry`: end the term the day BEFORE the anniversary. A 1-year term from 1 Jan 2023 then
-  runs to 31 Dec 2023 (₱10,800); a 3-year term from 7 Jun 2023 runs to 6 Jun 2026 (₱32,400).
-- **The blast radius is wide and must be treated as such.** `ComputeExpiry` and `TermHasExpired` are read in ELEVEN files: the
-  entity's `ExpiryDate`, `IsExpiredOn`, `IsCollectableOn`, `IsExpiringSoon`, the DTO-based `StallContractStatus`, and seven
-  facility pages. Every contract's expiry moves back one day, so: one day of obligation leaves every term (the day we should
-  not have charged), a term expiring TODAY becomes expired, and the expiring-soon, lapsed follow-up, Closed Accounts and stall
-  profile figures all shift. No payment is touched and nothing is destroyed, but figures the office has already read will move
-  — announce it rather than shipping it quietly.
-- **Tests to write, asserting the office's own arithmetic rather than an internal rule:** a 1-year term bills ₱10,800 and a
-  3-year term ₱32,400; a term is still collectable on its last day; a term is expired the day after it. Injection-proof it —
-  reverting `ComputeExpiry` must fail.
-- Deferred at the office's request on 2026-09-12 so it is done with a clear run rather than at the end of a long session.
+- **What the code did instead.** `Contract.ComputeExpiry` was `effectivity.AddYears(n)`, so the expiry date was
+  INSIDE the term: a one-year term from 1 Jan 2023 covered 1 Jan 2023 *through* 1 Jan 2024 — twelve months **plus one day**.
+  Found while testing the extension renewal on stall 6 (Teofila Reyes).
+- **The ₱30 only ever reached a DAILY-collected space, and this is the part the original note got wrong.**
+  Monthly-billed accounts were ALREADY correct: `Contract.BillsCalendarMonth` counts N × 12 calendar months of its own accord
+  and never consulted the expiry date — a past fix, whose comment records that it once billed thirty-seven months for a
+  three-year term. `WholeYearRental` is likewise `MonthlyRentalRate * 12`. So the ₱10,830 arose on NPM, where a stall is
+  charged per market day up to and including the expiry. Anyone re-deriving this should not expect to find monthly rent wrong.
+- **The rule lived in TWO places, not one, and they were only accidentally in agreement.** `Contract.ComputeExpiry` had the
+  formula and `DomainRules.TermHasExpired` had its own copy (`start.AddYears(n) < asOf`). Both now read a single new
+  `DomainRules.TermLastDay`, which is the only statement of the arithmetic in the codebase.
+- **The blast radius was far wider than the eleven files first recorded — SEVEN production sites had their OWN inline copy**,
+  none of which the original note found, and every one of which would have kept the old reading and disagreed with billing by a
+  day: `ToggleStallStatusCommandHandler` (×2), `FacilityRepository`, `GetUtilityRegisterQueryHandler`,
+  `StallRepository.Attention`, `VendorRepository`, `FacilityReportsRepository.Breakdowns` (the daily collectable-days
+  calculation — a money path). Plus **three in the console UI**, which display the expiry the office reads: `Vendor.razor` (×2)
+  and `Profile.razor`. All ten now call the shared rule. A `DateTime` overload of `TermLastDay` was added for the DTOs.
+  **The lesson: grep `.razor` as well as `.cs`; the first search missed the UI entirely.**
+- **Figures that moved**, all by one day and none of them money already received: every contract's expiry date; a term
+  expiring on an anniversary is now expired; expiring-soon, lapsed follow-up, Closed Accounts, the utility register, the
+  sidebar's unpaid counts, and stall profiles. No payment record was altered and no migration was needed.
+- **Tests:** `WholeYearRentalRulingTests` states the office's own arithmetic — ₱10,800 for one year, ₱32,400 for three, both
+  counted as billing months and walked a year beyond the term to prove they stop — plus 366 collectable days for the
+  leap-spanning year (it was 367), live on the last day, expired on the anniversary, and the entity and shared rule agreeing.
+  Injection-proof: restoring `AddYears(n)` compiled and failed 16 tests, 2 of them the new ones. Fourteen existing tests
+  asserted the old rule and were moved with their intent intact; each was checked individually for a genuine break.
+- **Not asserted in pesos for the daily case**, deliberately: a daily-collected month is capped at the monthly rent, so
+  days × the daily fee is not what an account is billed. That ceiling has its own tests.
 - The office's document is kept at `.kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg`, so the next
   person reads the evidence rather than taking this entry's word for it.
 

@@ -267,7 +267,7 @@
                                                 }
                                                 else
                                                 {
-                                                    var expiry = v.ContractDate.Value.AddYears(v.ContractYears);
+                                                    var expiry = DomainRules.TermLastDay(v.ContractDate.Value, v.ContractYears);
                                                     var expired = expiry < _now;
                                                     var soon = !expired && expiry <= _now.AddMonths(DomainRules.ExpiringSoonMonths);
                                                     <div class="contract-term">@v.ContractYears yr@(v.ContractYears > 1 ? "s" : "")</div>
@@ -496,7 +496,7 @@
                                         @($"{DetailVendor.ContractYears} year{(DetailVendor.ContractYears > 1 ? "s" : "")}")
                                         @if (DetailVendor.ContractDate.HasValue)
                                         {
-                                            var expiry = DetailVendor.ContractDate.Value.AddYears(DetailVendor.ContractYears);
+                                            var expiry = DomainRules.TermLastDay(DetailVendor.ContractDate.Value, DetailVendor.ContractYears);
                                             <span class="detail-expiry @(expiry < _now ? "expiry-expired" : "expiry-ok")">
                                                 (expires @expiry.ToString("MMM d, yyyy"))
                                             </span>

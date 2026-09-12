@@ -143,9 +143,10 @@ public class RenewStallContractCommandHandlerTests
 
         await Renew(lateStall, new DateOnly(2026, 9, 12));
 
-        // Where it actually ended, not the day before the new term.
+        // Where it actually ended, not the day before the new term. A one-year term from 1 Jan 2023 runs through
+        // 31 Dec 2023 — twelve months, per the office's ruling of 2026-09-12.
         Assert.Equal(lapsed.ExpiryDate, lapsed.EndedOn);
-        Assert.Equal(new DateOnly(2024, 1, 1), lapsed.EndedOn);
+        Assert.Equal(new DateOnly(2023, 12, 31), lapsed.EndedOn);
 
         // ── Renewed while the term was still running ──
         var earlyStall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.BaseRental);

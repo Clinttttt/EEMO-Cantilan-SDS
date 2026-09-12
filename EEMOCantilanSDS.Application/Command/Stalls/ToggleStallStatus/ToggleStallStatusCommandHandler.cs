@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -89,7 +90,7 @@ public class ToggleStallStatusCommandHandler(
 
         bool ContractEffectiveOn(DateOnly d) =>
             stall.Contracts.Any(c => c.IsActive
-                && c.EffectivityDate <= d && c.EffectivityDate.AddYears(c.DurationYears) >= d);
+                && c.EffectivityDate <= d && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears) >= d);
 
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
@@ -122,7 +123,7 @@ public class ToggleStallStatusCommandHandler(
                 var mStart = cursor;
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
                 var effective = stall.Contracts.Any(c => c.IsActive
-                    && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart);
+                    && c.EffectivityDate <= mEnd && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears) >= mStart);
 
                 if (effective && await monthlyExceptionRepository.GetAsync(stall.Id, cursor.Year, cursor.Month, ct) is null)
                 {

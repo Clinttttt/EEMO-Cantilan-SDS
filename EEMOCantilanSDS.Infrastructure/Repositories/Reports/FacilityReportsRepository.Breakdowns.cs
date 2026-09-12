@@ -261,7 +261,7 @@ public partial class FacilityReportsRepository
             marketClosedDates.Contains(d) || (absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d));
 
         bool CollectableOn(Stall s, DateOnly d) => s.Contracts.Any(c =>
-            c.IsActive && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));
+            c.IsActive && c.EffectivityDate <= d && d <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears));
 
         var collectableDaysByStall = stalls.ToDictionary(
             s => s.Id,

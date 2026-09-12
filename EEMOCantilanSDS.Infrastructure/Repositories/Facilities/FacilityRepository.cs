@@ -197,7 +197,8 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
         // Unpaid = active, occupied stalls with no Paid record for the month — where "occupied" means a
         // contract whose TERM covers the month (active AND EffectivityDate ≤ monthEnd ≤ ExpiryDate), i.e.
         // Contract.OverlapsPeriod. This EXCLUDES payors whose contract has already expired (IsActive alone
-        // would wrongly keep them). Expiry (EffectivityDate.AddYears(DurationYears)) is evaluated in memory
+        // would wrongly keep them). Expiry (the day BEFORE EffectivityDate.AddYears(DurationYears), so N years is exactly
+        // N × 12 months — the office's ruling of 2026-09-12) is evaluated in memory
         // to avoid unreliable SQL date-arithmetic translation; only minimal columns are projected first.
         // Soft-deleted rows are excluded by the global query filters.
         var facilities = await context.Facilities
@@ -231,7 +232,7 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
             f.Stalls.Count(s => !s.HasPaid
                 && s.Contracts.Any(c => c.IsActive
                     && c.EffectivityDate <= monthEnd
-                    && monthStart <= c.EffectivityDate.AddYears(c.DurationYears))),
+                    && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears))),
             f.VegetableSectionLabel,
             f.FishSectionLabel,
             f.MeatSectionLabel)).ToList();

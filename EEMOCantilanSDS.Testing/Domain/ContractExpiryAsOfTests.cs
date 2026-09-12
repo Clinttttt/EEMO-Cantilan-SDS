@@ -32,9 +32,8 @@ public class ContractExpiryAsOfTests
 
     [Theory]
     [InlineData(2024, 6, 7, false)]    // a year in: plainly live
-    [InlineData(2026, 6, 6, false)]    // the day before the anniversary
-    [InlineData(2026, 6, 7, false)]    // the anniversary itself is still INSIDE the term
-    [InlineData(2026, 6, 8, true)]     // the day after it ends
+    [InlineData(2026, 6, 6, false)]    // the LAST day of the term
+    [InlineData(2026, 6, 7, true)]     // the anniversary is OUTSIDE the term — ruled 2026-09-12
     [InlineData(2030, 1, 1, true)]     // long past
     public void ExpiryIsDecidedByTheDateItIsAskedOf(int year, int month, int day, bool expected)
         => Assert.Equal(expected, ThreeYearTerm().IsExpiredOn(new DateOnly(year, month, day)));
@@ -51,10 +50,10 @@ public class ContractExpiryAsOfTests
 
     [Theory]
     // Three months is the office's renewal window (DomainRules.ExpiringSoonMonths).
-    [InlineData(2026, 3, 6, false)]    // more than three months out: not yet the office's concern
-    [InlineData(2026, 3, 7, true)]     // exactly three months before expiry
-    [InlineData(2026, 6, 7, true)]     // the last day of the term
-    [InlineData(2026, 6, 8, false)]    // already EXPIRED, so no longer "expiring soon"
+    [InlineData(2026, 3, 5, false)]    // more than three months out: not yet the office's concern
+    [InlineData(2026, 3, 6, true)]     // exactly three months before expiry (6 Jun 2026)
+    [InlineData(2026, 6, 6, true)]     // the last day of the term
+    [InlineData(2026, 6, 7, false)]    // already EXPIRED, so no longer "expiring soon"
     public void ExpiringSoonIsTheRenewalWindowAndStopsAtExpiry(int year, int month, int day, bool expected)
         => Assert.Equal(expected, ThreeYearTerm().IsExpiringSoonOn(new DateOnly(year, month, day)));
 
@@ -200,8 +199,8 @@ public class ContractExpiryAsOfTests
         var stall = Stall.Create(Guid.NewGuid(), "1", 900m, ApplicableFees.BaseRental, section: MarketSection.VegetableArea);
         stall.Contracts.Add(ThreeYearTerm());
 
-        Assert.False(stall.IsContractExpired(new DateOnly(2026, 6, 7)));
-        Assert.True(stall.IsContractExpired(new DateOnly(2026, 6, 8)));
+        Assert.False(stall.IsContractExpired(new DateOnly(2026, 6, 6)));
+        Assert.True(stall.IsContractExpired(new DateOnly(2026, 6, 7)));
     }
 
     [Fact]

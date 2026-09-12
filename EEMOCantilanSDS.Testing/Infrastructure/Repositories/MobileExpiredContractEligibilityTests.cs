@@ -16,7 +16,9 @@ namespace EEMOCantilanSDS.Testing;
 /// </summary>
 public class MobileExpiredContractEligibilityTests : RepositoryTestBase
 {
-    // Expiry = EffectivityDate.AddYears(DurationYears).
+    // Expiry = the day BEFORE EffectivityDate.AddYears(DurationYears), so N years is exactly N × 12 months. Ruled by the
+    // office 2026-09-12 on its own List of Stallholders, which states ₱10,800 — twelve months — as a ₱900 space's year.
+    // The day that moved was billable on a DAILY-collected space, which is why these counts each drop by one.
     private static Contract ContractExpiring(Guid stallId, DateOnly effectivity, int years, decimal rate = 900m) =>
         Contract.Create(stallId, "Payor", "Payor", effectivity, years, rate);
 
@@ -70,7 +72,7 @@ public class MobileExpiredContractEligibilityTests : RepositoryTestBase
         var result = await repo.GetMobileNpmCollectionAsync(2026, 7, new DateOnly(2026, 7, 31), CancellationToken.None);
 
         var row = Assert.Single(result.Stalls);
-        Assert.Equal(10, row.CollectableDays); // Jul 1–10 only
+        Assert.Equal(9, row.CollectableDays); // Jul 1–9 only
     }
 
     // ── Monthly rental collection ──
@@ -271,7 +273,7 @@ public class MobileExpiredContractEligibilityTests : RepositoryTestBase
         var result = await repo.GetMobileNpmCollectionAsync(2026, 7, new DateOnly(2026, 7, 20), CancellationToken.None);
 
         var row = Assert.Single(result.Stalls);
-        Assert.Equal(10, row.CollectableDays);   // still owes Jul 1–10
+        Assert.Equal(9, row.CollectableDays);    // still owes Jul 1–9
         Assert.False(row.IsCollectableToday);    // but NOT a today target after expiry
         Assert.Equal(0, result.PendingTodayCount);
     }

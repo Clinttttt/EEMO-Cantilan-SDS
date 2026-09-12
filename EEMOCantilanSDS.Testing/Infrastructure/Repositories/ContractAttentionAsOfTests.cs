@@ -50,7 +50,7 @@ public class ContractAttentionAsOfTests : RepositoryTestBase
 
         var row = Assert.Single(as2026);
         Assert.True(row.IsExpired);
-        Assert.Equal(new DateOnly(2026, 6, 7), row.ExpiryDate);
+        Assert.Equal(new DateOnly(2026, 6, 6), row.ExpiryDate);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class ContractAttentionAsOfTests : RepositoryTestBase
 
         var row = Assert.Single(as2025);
         Assert.False(row.IsExpired);
-        Assert.Equal(new DateOnly(2026, 1, 1), row.ExpiryDate);
+        Assert.Equal(new DateOnly(2025, 12, 31), row.ExpiryDate);
     }
 
     [Fact]

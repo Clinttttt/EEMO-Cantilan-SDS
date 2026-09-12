@@ -26,11 +26,14 @@ public class ExpiringSoonWindowTests
 
     private static Contract TermExpiringOn(DateOnly expiry)
     {
-        // Worked backwards from the wanted expiry: Create sets ExpiryDate = EffectivityDate.AddYears(DurationYears).
+        // Worked backwards from the wanted expiry. A term's last day is the day BEFORE its anniversary — the office's ruling of
+        // 2026-09-12, so N years is exactly N × 12 months — hence the +1 day before subtracting the years. Without it every
+        // term this helper builds would expire a day earlier than asked, and the boundary cases below would be testing the
+        // wrong dates while still reading as if they were right.
         var years = 3;
         return Contract.Create(
             Guid.NewGuid(), "Merlita A. Abuso", "Merlita A. Abuso",
-            expiry.AddYears(-years), durationYears: years, monthlyRate: 900m);
+            expiry.AddDays(1).AddYears(-years), durationYears: years, monthlyRate: 900m);
     }
 
     [Fact]

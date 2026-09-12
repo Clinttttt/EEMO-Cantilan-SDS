@@ -43,7 +43,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
             if (s.Status != StallStatus.Active) return true;
             var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
             if (contract is null) return true;
-            return today <= contract.EffectivityDate.AddYears(contract.DurationYears);
+            return today <= DomainRules.TermLastDay(contract.EffectivityDate, contract.DurationYears);
         }).ToList();
 
         var activeStalls = visibleStalls.Where(s => s.Status == StallStatus.Active).ToList();

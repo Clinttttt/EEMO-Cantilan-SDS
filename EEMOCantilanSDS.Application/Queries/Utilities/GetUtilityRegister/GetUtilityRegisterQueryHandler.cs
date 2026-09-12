@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Utilities;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -26,7 +27,7 @@ public class GetUtilityRegisterQueryHandler(
         var now = clock.PhilippineNow.Date;
         var active = stalls.Where(s => s.Status == StallStatus.Active
                 && !IsPlaceholderOccupant(s.ActualOccupant)
-                && !(s.ContractDate is { } cd && s.ContractYears > 0 && cd.AddYears(s.ContractYears).Date < now)
+                && !DomainRules.TermHasExpired(s.ContractDate, s.ContractYears, now)
                 && (s.HasElectricity || s.HasWater || byStall.ContainsKey(s.Id)))
             .ToList();
 

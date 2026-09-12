@@ -39,12 +39,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public DateOnly ExpiryDate => ComputeExpiry(EffectivityDate, DurationYears);
 
         /// <summary>
-        /// The single source of the contract-expiry formula: a term runs <paramref name="durationYears"/>
-        /// years from <paramref name="effectivityDate"/>. Shared by the entity (<see cref="ExpiryDate"/>)
-        /// and the DTO-based facility view so the "expired" rule can never drift between them.
+        /// The single source of the contract-expiry formula: the last day INSIDE the term, which is the day before the
+        /// anniversary, so a term of <paramref name="durationYears"/> years is exactly that many × 12 months.
         /// </summary>
+        /// <remarks>
+        /// Delegates to <see cref="DomainRules.TermLastDay"/>, which is where the rule now lives — this held its own copy of the
+        /// arithmetic and <see cref="DomainRules.TermHasExpired"/> another, so the two could differ by a day. Kept as a method
+        /// here because the DTO-based facility view calls it by this name.
+        ///
+        /// <para>It ran THROUGH the anniversary until 2026-09-12, which charged a daily-collected space one extra day: a
+        /// one-year ₱900 stall billed ₱10,830 rather than the ₱10,800 the office's own List of Stallholders states.</para>
+        /// </remarks>
         public static DateOnly ComputeExpiry(DateOnly effectivityDate, int durationYears) =>
-            effectivityDate.AddYears(durationYears);
+            DomainRules.TermLastDay(effectivityDate, durationYears);
 
         /// <summary>
         /// Whether this term owes rent for the given calendar month, for a MONTHLY-billed space.

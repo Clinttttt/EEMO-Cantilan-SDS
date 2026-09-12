@@ -27,7 +27,10 @@ public class StallContractStatusTests
     [Fact]
     public void OnTheExpiryDate_IsStillShown()
     {
-        var dto = Stall(StallStatus.Active, new DateTime(2023, 7, 1), 3); // expires exactly today
+        // Seeded so the LAST DAY of the term is today. A term now ends the day before its anniversary — the office's ruling
+        // of 2026-09-12 — so three years from 2 Jul 2023 runs through 1 Jul 2026, which is Today here. The point of the test
+        // is unchanged: on its final day a stall is still one the office is letting.
+        var dto = Stall(StallStatus.Active, new DateTime(2023, 7, 2), 3); // expires exactly today
         Assert.True(StallContractStatus.IsCurrentVendor(dto, Today));
     }
 

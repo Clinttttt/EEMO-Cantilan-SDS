@@ -160,8 +160,22 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// the future to give the right answer today, but it would be the wrong answer eventually, and nothing in the
         /// expression would have said which reading was intended.</para>
         ///
-        /// <para>The last day of the term is still inside it: a three-year term effective the 7th of June runs THROUGH
-        /// the 7th of June three years on, which is the reading the office's own paper takes.</para>
+        /// <para>THE LAST DAY OF THE TERM IS THE DAY BEFORE THE ANNIVERSARY, so a term of N years covers exactly N × 12
+        /// months. A three-year term effective the 7th of June 2023 runs THROUGH the 6th of June 2026.</para>
+        ///
+        /// <para>
+        /// This used to run through the anniversary itself, and the comment here cited the office's own paper for it. The
+        /// paper says otherwise: the Municipality of Cantilan's List of Stallholders states, for every ₱900 space, a Whole
+        /// Year Rental of ₱10,800.00 — twelve months, with no thirteenth part-month. Ruled 2026-09-12, the document kept at
+        /// .kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg.
+        /// </para>
+        ///
+        /// <para>
+        /// The extra day only ever reached a DAILY-collected space, which is charged per market day through the expiry:
+        /// a one-year ₱900 NPM stall billed ₱10,800 plus a single ₱30 day, and the office queried the ₱10,830. Monthly-billed
+        /// accounts were already right, because <see cref="Facilities.Contract.BillsCalendarMonth"/> counts N × 12 calendar
+        /// months of its own accord and never read the expiry date.
+        /// </para>
         ///
         /// <para>Expiry is not closure. The lessee is typically still trading and still owes, so an expired term stays
         /// in arrears, in follow-up and in the register of inactive accounts; it is only excluded from the list of
@@ -175,7 +189,28 @@ namespace EEMOCantilanSDS.Domain.Constants
             => effectivity is { } start
                && durationYears > 0
                && durationYears != OpenEndedTermYears
-               && start.AddYears(durationYears) < asOf;
+               && TermLastDay(start, durationYears) < asOf;
+
+        /// <summary>
+        /// The last day INSIDE a term: the day before the anniversary, so N years is exactly N × 12 months.
+        /// </summary>
+        /// <remarks>
+        /// The single statement of the rule. <see cref="TermHasExpired"/> used to carry its own copy of the arithmetic and
+        /// <c>Contract.ComputeExpiry</c> another, which is how the two could disagree by a day. Both read this now.
+        ///
+        /// <para>Zero or fewer years means no term was stated, and such a row is open-ended rather than expired — it is given
+        /// the effectivity date back, which is what the previous formula returned for it, so that degenerate case is unchanged.
+        /// <see cref="TermHasExpired"/> refuses it outright before reaching here.</para>
+        /// </remarks>
+        public static DateOnly TermLastDay(DateOnly effectivity, int durationYears) =>
+            durationYears <= 0
+                ? effectivity
+                : effectivity.AddYears(durationYears).AddDays(-1);
+
+        /// <inheritdoc cref="TermLastDay(DateOnly, int)"/>
+        /// <remarks>For the console's DTOs, which carry DateTime. Returns the date at midnight; the time is not meaningful.</remarks>
+        public static DateTime TermLastDay(DateTime effectivity, int durationYears) =>
+            TermLastDay(DateOnly.FromDateTime(effectivity), durationYears).ToDateTime(TimeOnly.MinValue);
 
         /// <inheritdoc cref="TermHasExpired(DateOnly?, int, DateOnly)"/>
         public static bool TermHasExpired(DateTime? effectivity, int durationYears, DateTime asOf)
