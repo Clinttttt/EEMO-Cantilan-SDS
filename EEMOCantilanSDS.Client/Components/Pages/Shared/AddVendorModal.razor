@@ -103,6 +103,25 @@
                                 </button>
                             }
                         </div>
+
+                        @* An extension registered HERE is a new un-numbered space, because this form creates a space rather
+                           than attaching to one: CreateStall can only reuse a stall that is VACANT, and a stall whose lessee
+                           is still trading on a lapsed contract is not. The basis is kept because the office does record
+                           un-numbered spaces held on an extension — a commercial-centre space whose lapsed contract may exist
+                           only on paper — but choosing it for a stall that already has a number silently gives that lessee a
+                           SECOND space and splits their history and arrears across the two. Renewing states it instead, and
+                           carries the name forward so it cannot be mistyped. *@
+                        @if (Form.Arrangement == OccupancyArrangement.Extension)
+                        {
+                            <div class="avm-info-box">
+                                <div class="avm-info-box-title">This registers a new space with no stall number.</div>
+                                <span class="avm-hint">
+                                    Use it only where the space itself is un-numbered. If the stall already has a number and its
+                                    contract has lapsed, open that stall and renew it as an extension instead — the number, the
+                                    lessee's name and the account history are all kept, and the name is never retyped.
+                                </span>
+                            </div>
+                        }
                     </div>
 
                     <div class="avm-row-2">
