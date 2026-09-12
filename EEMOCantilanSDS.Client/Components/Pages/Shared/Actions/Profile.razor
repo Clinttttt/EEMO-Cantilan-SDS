@@ -1271,9 +1271,19 @@
                     ActualOccupant = stallDto.ActualOccupant ?? "N/A",
                     ContractName = stallDto.NameOnContract ?? "N/A",
                     ContractDate = stallDto.ContractDate,
-                    ContractDuration = stallDto.ContractYears > 0 ? $"{stallDto.ContractYears} year{(stallDto.ContractYears > 1 ? "s" : "")}" : "—",
+                    // An occupancy held WITHOUT a signed contract carries the open-ended sentinel, not a real term, so it has
+                    // no duration to state and no date to expire on. Printing the sentinel told the office this stall was let
+                    // for "99 years" and would expire in 2125, which is both nonsense on its face and implies a lease nobody
+                    // granted. The vendor registry has always read "No contract" for these rows; this now agrees with it.
+                    // The sentinel is the exact test — DomainRules.TermHasExpired already refuses to expire a term of exactly
+                    // this length, so the platform cannot represent a genuine 99-year term distinctly in any case.
+                    ContractDuration = stallDto.ContractYears == DomainRules.OpenEndedTermYears
+                        ? "Open-ended"
+                        : stallDto.ContractYears > 0 ? $"{stallDto.ContractYears} year{(stallDto.ContractYears > 1 ? "s" : "")}" : "—",
                     ContractYears = stallDto.ContractYears,
-                    ContractExpiry = stallDto.ContractYears > 0 && stallDto.ContractDate is { } cd
+                    ContractExpiry = stallDto.ContractYears > 0
+                                     && stallDto.ContractYears != DomainRules.OpenEndedTermYears
+                                     && stallDto.ContractDate is { } cd
                         ? DomainRules.TermLastDay(cd, stallDto.ContractYears)
                         : null,
                     MonthlyRate = stallDto.MonthlyRate,

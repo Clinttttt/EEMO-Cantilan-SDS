@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -47,6 +48,12 @@ public class ProfileEarlierTermsTests : TestContext
             lifetimeCollected, uncollected, null, "", new DateOnly(2026, 1, 1), false,
             contractId ?? FirstTermId);
 
+    /// <summary>
+    /// The term length the fixture's current stall carries. Set by the test that needs the open-ended sentinel; every other
+    /// test leaves it at a real term. A field rather than a parameter because RenderProfile's last argument is a params array.
+    /// </summary>
+    private int contractYearsForFixture = 3;
+
     private IRenderedComponent<Profile> RenderProfile(string currentOccupant, params ClosedStallAccountDto[] priorTerms)
     {
         this.AddTestAuthorization().SetAuthorized("cly.sullano");
@@ -56,7 +63,7 @@ public class ProfileEarlierTermsTests : TestContext
                 It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<DateTime?>(), It.IsAny<int>()))
             .ReturnsAsync(Result<CursorPagedResult<StallDto>>.Success(new CursorPagedResult<StallDto>
             {
-                Items = new List<StallDto> { Stall(currentOccupant) },
+                Items = new List<StallDto> { Stall(currentOccupant, contractYearsForFixture) },
                 NextCursor = null,
                 HasMore = false,
             }));
@@ -88,10 +95,51 @@ public class ProfileEarlierTermsTests : TestContext
             .Add(c => c.StallKey, StallId.ToString()));
     }
 
-    private static StallDto Stall(string occupant) => new(
+    private static StallDto Stall(string occupant, int contractYears = 3) => new(
         Id: StallId, StallNo: "4", Status: StallStatus.Active, ActualOccupant: occupant, NameOnContract: occupant,
         AreaSqm: null, ContractDate: new DateTime(2024, 1, 1), MonthlyRate: 900m, DailyRate: null, ORNumber: null,
-        Section: null, AreaLocation: null, AreaNote: null, Remarks: null, ContractYears: 3);
+        Section: null, AreaLocation: null, AreaNote: null, Remarks: null, ContractYears: contractYears);
+
+    [Fact]
+    public void AnOpenEndedOccupancy_StatesNoTermAndNoExpiry_RatherThanTheSentinel()
+    {
+        // An occupancy held WITHOUT a signed contract carries the open-ended sentinel (99) as its term, because the entity
+        // substitutes it so the row never falls due for renewal. The profile printed that straight out, so the office was
+        // shown "Contract Duration 99 years" and "Contract Expiry September 11, 2125" for a stall let on no contract at all
+        // — nonsense on its face, and it implies a 99-year lease nobody granted. Seen on NPM stall 6 (Teofila Reyes) after
+        // her lapsed term was renewed as an extension.
+        contractYearsForFixture = DomainRules.OpenEndedTermYears;
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var text = page.Markup;
+
+            Assert.Contains("Open-ended", text);
+            Assert.DoesNotContain("99 years", text);
+
+            // No date is invented for a term that has none. 2125 is the sentinel's arithmetic showing through.
+            Assert.DoesNotContain("2125", text);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void ARealTerm_StillStatesItsYearsAndItsExpiry()
+    {
+        // The guard above must not swallow a genuine term. Three years from 1 Jan 2024 ends the day before the anniversary
+        // — 31 Dec 2026 — per the office's ruling of 2026-09-12 that a year of rent is twelve months exactly.
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var text = page.Markup;
+
+            Assert.Contains("3 years", text);
+            Assert.Contains("December 31, 2026", text);
+            Assert.DoesNotContain("Open-ended", text);
+        }, RenderTimeout);
+    }
 
     [Fact]
     public void AnEarlierTermIsListedWithItsOwnOccupantAndItsOwnBalance()
