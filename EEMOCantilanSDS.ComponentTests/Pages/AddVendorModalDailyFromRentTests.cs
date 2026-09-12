@@ -110,8 +110,17 @@ public class AddVendorModalDailyFromRentTests : TestContext
         FeeTypes = new List<string> { "Electricity", "Water" },
     };
 
+    /// <summary>
+    /// Enters a monthly rent the way the form now reads one: on CHANGE, not on every keystroke.
+    /// </summary>
+    /// <remarks>
+    /// These drove the box with oninput because the form used to bind that way. It no longer does: the rent is shown twice — here
+    /// and on the Base Rental card — and two inputs writing one non-nullable decimal per keystroke meant a cleared box wrote nought
+    /// while the box stayed empty, so the rent appeared to vanish. The rule under test is the DERIVATION, not the DOM event, so the
+    /// event is updated and every assertion is left exactly as it was.
+    /// </remarks>
     private static void TypeMonthlyRent(IRenderedComponent<AddVendorModal> cut, string rent) =>
-        cut.FindAll("input.avm-input").First(i => i.GetAttribute("placeholder") == "e.g. 900").Input(rent);
+        cut.FindAll("input.avm-input").First(i => i.GetAttribute("placeholder") == "e.g. 900").Change(rent);
 
     private static decimal DailyShown(IRenderedComponent<AddVendorModal> cut) =>
         cut.Instance.Form.CustomDailyRate;
@@ -211,7 +220,7 @@ public class AddVendorModalDailyFromRentTests : TestContext
         var cut = RenderForm(CustomAreaStall(dailyOnOpen: 30m));
 
         // The clerk prices this stall at 45 by hand, then goes back and states the rent.
-        cut.FindAll("input.avm-input").First(i => i.GetAttribute("placeholder") == "e.g. 30").Input("45");
+        cut.FindAll("input.avm-input").First(i => i.GetAttribute("placeholder") == "e.g. 30").Change("45");
         TypeMonthlyRent(cut, "900");
 
         Assert.Equal(45m, DailyShown(cut));

@@ -330,8 +330,15 @@
                         <div class="avm-row-2">
                             <div class="avm-group">
                                 <label class="avm-label">Monthly Rental / Rate (₱) <span class="avm-req">*</span></label>
+                                @* BOUND ON CHANGE, NOT ON EVERY KEYSTROKE. This figure is shown twice — here and on the Base
+                                   Rental card below — and both used to write it per keystroke. A partly-typed or cleared box
+                                   cannot round-trip through a non-nullable decimal: clearing it sets the model to nought while
+                                   the box itself stays empty, and a later render that also produces nought has nothing to
+                                   diff, so the field stays blank and the rent appears to vanish while the other copy still
+                                   reads 900. Binding on change removes the mid-typing round-trip; the Whole Year figure below
+                                   settles when the box does. *@
                                 <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
-                                       @bind="Form.MonthlyRate" @bind:event="oninput" @bind:after="MonthlyRentEntered" />
+                                       @bind="Form.MonthlyRate" @bind:after="MonthlyRentEntered" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
@@ -350,8 +357,11 @@
                                    valid answer - it files the stall with no own rate so the section's applies - and marking it
                                    required said the opposite. *@
                                 <label class="avm-label">Daily fee rate (₱/day)@if (!SectionStatesItsOwnRate){<span class="avm-req"> *</span>}</label>
+                                @* On change, for the same reason as the rent above: this is a non-nullable decimal, so a cleared
+                                   box writes nought while the box stays empty and the figure appears to vanish. One input rather
+                                   than two, so it never disagreed with a second copy — but the same round-trip. *@
                                 <input class="avm-input" type="number" min="1" step="0.01" placeholder="e.g. 30"
-                                       @bind="Form.CustomDailyRate" @bind:event="oninput" @bind:after="DailyFeeEntered" />
+                                       @bind="Form.CustomDailyRate" @bind:after="DailyFeeEntered" />
                                 @if (_dailyFromMonthlyRent is { } fromRent && Form.CustomDailyRate == fromRent)
                                 {
                                     <div class="avm-hint-muted">From ₱@Form.MonthlyRate.ToString("N0") a month, to the nearest peso.</div>
@@ -469,8 +479,11 @@
                                 </button>
                                 <div class="avm-spin-inner">
                                     <span class="avm-spin-currency">₱</span>
+                                    @* On change, not per keystroke — the same figure is bound above, and two inputs writing one
+                                       non-nullable decimal on every keystroke is what made the rent disappear. The +/- buttons
+                                       still apply immediately, because they set the value rather than type it. *@
                                     <input type="number" min="0" class="avm-spin-input"
-                                           @bind="Form.MonthlyRate" @bind:event="oninput" @bind:after="MonthlyRentEntered" />
+                                           @bind="Form.MonthlyRate" @bind:after="MonthlyRentEntered" />
                                     <span class="avm-spin-freq">/mo</span>
                                 </div>
                                 <button type="button" class="avm-spin-btn avm-spin-right"
