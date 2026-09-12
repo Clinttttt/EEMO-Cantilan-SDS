@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Common.Caching;
+﻿using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -53,6 +53,11 @@ public class RenewStallContractCommandHandler(
             active.Terminate(actor, request.EffectivityDate.AddDays(-1));
 
         // Start the new term. The stall keeps its current rate unless the office corrected it above.
+        //
+        // The ARRANGEMENT is carried through because it decides what the new term is: renewed as an extension, the entity
+        // discards the name on contract and substitutes the open-ended term itself, so the occupancy keeps this stall and its
+        // number while never falling due for renewal again. Renewal wrote a signed contract unconditionally before, which left
+        // the office recording an extension as a NEW vendor on a fresh SP- identifier — two records for one space.
         var renewed = Contract.Create(
             stall.Id,
             request.ActualOccupant,
@@ -60,7 +65,8 @@ public class RenewStallContractCommandHandler(
             request.EffectivityDate,
             request.DurationYears,
             stall.MonthlyRate,
-            createdBy: actor);
+            createdBy: actor,
+            arrangement: request.Arrangement);
 
         await stallRepository.AddContractAsync(renewed, ct);
 

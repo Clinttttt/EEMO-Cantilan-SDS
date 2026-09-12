@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
@@ -56,6 +57,64 @@ public class RenewStallContractCommandHandlerTests
         // Occupant changed (Old → New) → outgoing payor links revoked.
         payorRepo.Verify(p => p.RemoveStallLinksAsync(stall.Id, It.IsAny<CancellationToken>()), Times.Once);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// A lapsed term renewed AS AN EXTENSION keeps the stall, drops the contract name, and never expires again.
+    /// </summary>
+    /// <remarks>
+    /// Renewal wrote a signed contract unconditionally, so an occupant whose term had lapsed and whom the office was letting stay
+    /// could only be recorded by adding a NEW vendor. That took a fresh SP- identifier from the un-numbered space series and left
+    /// the office with two records for one space — the real stall number on the dead record, the arrangement on the new one.
+    ///
+    /// <para>Asserted on the same stall id, because keeping the stall is the entire point. The open-ended term is what keeps the
+    /// occupancy out of renewal and expiry work, and the absent name on contract is what makes the official sheet print
+    /// "No contract (Extension …)" rather than a name against a contract the office does not hold.</para>
+    /// </remarks>
+    [Fact]
+    public async Task Renew_AsAnExtension_KeepsTheStall_DropsTheContractName_AndNeverExpires()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "12", 1500m, ApplicableFees.BaseRental);
+        var lapsed = Contract.Create(stall.Id, "Maria Santos", "Maria Santos", new DateOnly(2023, 1, 1), 1, 1500m);
+        stall.Contracts.Add(lapsed);
+
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdWithContractsAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        Contract? added = null;
+        stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()))
+            .Callback<Contract, CancellationToken>((c, _) => added = c)
+            .Returns(Task.CompletedTask);
+
+        var payorRepo = new Mock<IPayorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.Username).Returns("tester");
+        var uow = new Mock<IUnitOfWork>();
+
+        var handler = Build(stallRepo, payorRepo, currentUser, uow);
+
+        var start = new DateOnly(2026, 9, 12);
+        var result = await handler.Handle(
+            // A name is deliberately passed and a term of nought: the office's form sends what it has, and the record decides
+            // what an extension can carry. Nought is legal here ONLY because the arrangement is not a signed contract.
+            new RenewStallContractCommand(stall.Id, start, 0, "Maria Santos", "Maria Santos",
+                Arrangement: OccupancyArrangement.Extension),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(added);
+
+        // The SAME space, which is what adding a vendor could not do.
+        Assert.Equal(stall.Id, added!.StallId);
+        Assert.False(lapsed.IsActive);                                   // the lapsed term is kept as history
+        Assert.Equal(OccupancyArrangement.Extension, added.Arrangement);
+        Assert.False(added.HasSignedContract);
+
+        // No name on a contract that does not exist — the sheet must read "No contract (Extension …)".
+        Assert.Null(added.NameOnContract);
+        Assert.Equal("Maria Santos", added.ActualOccupant);              // the occupant is still named
+
+        // Open-ended, so it never falls due for renewal again.
+        Assert.Equal(DomainRules.OpenEndedTermYears, added.DurationYears);
     }
 
     [Fact]

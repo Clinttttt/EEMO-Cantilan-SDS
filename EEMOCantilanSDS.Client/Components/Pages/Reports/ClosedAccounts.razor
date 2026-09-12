@@ -539,14 +539,44 @@
                         <div><span>Term that lapsed</span><strong>@_renewTarget.EffectivityDate.ToString("MMM d, yyyy") — @_renewTarget.ExpiryDate.ToString("MMM d, yyyy")</strong></div>
                     </div>
 
+                    @* ── How the new term is held ──
+                       Renewal wrote a signed contract unconditionally, so an occupant whose term had lapsed and whom the office
+                       was letting stay could only be recorded by adding a NEW vendor — which took a fresh SP- identifier and left
+                       two records for one space, its real stall number detached from the arrangement describing it. Chosen here,
+                       on the row for the term that lapsed, which is where the office is already looking. *@
+                    <div class="ca-form-heading">Basis of occupancy</div>
+                    <div class="ca-basis">
+                        <button type="button" class="ca-basis-item @(_renewArrangement == OccupancyArrangement.SignedContract ? "is-selected" : "")"
+                                @onclick="() => SetRenewArrangement(OccupancyArrangement.SignedContract)">
+                            <span class="ca-basis-title">Signed lease contract</span>
+                            <span class="ca-basis-sub">A new term, with a name on the contract</span>
+                        </button>
+                        <button type="button" class="ca-basis-item @(_renewArrangement == OccupancyArrangement.Extension ? "is-selected" : "")"
+                                @onclick="() => SetRenewArrangement(OccupancyArrangement.Extension)">
+                            <span class="ca-basis-title">No contract (extension)</span>
+                            <span class="ca-basis-sub">Occupying past this lapsed contract</span>
+                        </button>
+                    </div>
+
                     <div class="ca-form-heading">Lessee</div>
                     <div class="ca-form">
                         <label>Actual occupant
                             <input type="text" @bind="_renewOccupant" />
                         </label>
-                        <label>Name on contract
-                            <input type="text" @bind="_renewName" />
-                        </label>
+                        @if (_renewArrangement == OccupancyArrangement.SignedContract)
+                        {
+                            <label>Name on contract
+                                <input type="text" @bind="_renewName" />
+                            </label>
+                        }
+                        else
+                        {
+                            @* There is no signed contract, so there is no name on one — the record discards it either way. Shown
+                               as the sheet will print it rather than as an empty box the clerk might try to fill. *@
+                            <label>Name on contract
+                                <div class="ca-readonly">No contract (extension)</div>
+                            </label>
+                        }
                     </div>
 
                     <div class="ca-form-heading">New term</div>
@@ -554,9 +584,20 @@
                         <label>Start date
                             <input type="date" @bind="_renewEffectivity" />
                         </label>
-                        <label>Duration (years)
-                            <input type="number" min="1" max="50" @bind="_renewDuration" />
-                        </label>
+                        @if (_renewArrangement == OccupancyArrangement.SignedContract)
+                        {
+                            <label>Duration (years)
+                                <input type="number" min="1" max="50" @bind="_renewDuration" />
+                            </label>
+                        }
+                        else
+                        {
+                            @* An extension has no term to state: the entity substitutes the open-ended length itself, which is
+                               what keeps the occupancy out of renewal and expiry work. Shown, not asked. *@
+                            <label>Duration
+                                <div class="ca-readonly">Open-ended</div>
+                            </label>
+                        }
                     </div>
 
                     <div class="ca-form-heading">Space and rent</div>
@@ -777,6 +818,9 @@
     private int _renewDuration;
     private string _renewOccupant = "";
     private string? _renewName;
+
+    /// <summary>How the renewed occupancy is held. Signed unless the office says otherwise, so Proceed is unchanged.</summary>
+    private OccupancyArrangement _renewArrangement = OccupancyArrangement.SignedContract;
     // The space and the money for the new term. Seeded from the record, and each kept alongside the figure it
     // was seeded with so an untouched box is never sent back as a change.
     private decimal _renewMonthlyRate, _renewSeedMonthlyRate;
@@ -970,6 +1014,9 @@
         _renewDuration = r.DurationYears > 0 ? r.DurationYears : 1;
         _renewOccupant = r.Occupant;
         _renewName = r.ContractName;
+        // Always a signed contract to begin with, whatever the last row was renewed as: an extension is a deliberate act per
+        // occupant, and a choice left over from the previous row would make it an accident.
+        _renewArrangement = OccupancyArrangement.SignedContract;
         // The record as it stands. Editing starts from these, and each is sent only if the clerk actually
         // changed it — the register states a DERIVED rent (a daily-collected space shows thirty of its daily
         // fee; a monthly one shows the rate the LAPSED term was let at), so sending an untouched box back
@@ -998,7 +1045,7 @@
             ? (_renewAreaNote ?? string.Empty)
             : null;
         var req = new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName,
-                                                rate, area, note);
+                                                rate, area, note, _renewArrangement);
         var result = await StallsApi.RenewStallContractAsync(_renewTarget.StallId, req);
         _busy = false;
         if (result.IsSuccess) { CloseModals(); await Load(); }
@@ -1006,6 +1053,22 @@
     }
 
     // ── Renew all (bulk) ──
+    /// <summary>
+    /// Chooses how the new term is held.
+    /// </summary>
+    /// <remarks>
+    /// Switching to an extension clears the name on contract, because the record discards it: leaving the previous value in the
+    /// field would show the clerk a name that will not be saved. Switching back restores nothing — the clerk retypes it, which is
+    /// safer than resurrecting a name the office may have changed its mind about.
+    /// </remarks>
+    private void SetRenewArrangement(OccupancyArrangement arrangement)
+    {
+        _renewArrangement = arrangement;
+
+        if (arrangement != OccupancyArrangement.SignedContract)
+            _renewName = null;
+    }
+
     private void OpenRenewAll(IReadOnlyList<ClosedStallAccountDto> expired)
     {
         _renewAllTargets = expired.ToList();

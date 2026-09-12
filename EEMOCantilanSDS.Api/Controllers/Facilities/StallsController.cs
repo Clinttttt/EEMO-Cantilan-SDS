@@ -179,7 +179,7 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     {
         var command = new RenewStallContractCommand(
             stallId, request.EffectivityDate, request.DurationYears, request.ActualOccupant, request.NameOnContract,
-            request.MonthlyRate, request.AreaSqm, request.AreaNote);
+            request.MonthlyRate, request.AreaSqm, request.AreaNote, request.Arrangement);
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }

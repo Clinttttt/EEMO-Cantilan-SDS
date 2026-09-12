@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Domain.Enums;
+
 namespace EEMOCantilanSDS.Application.Requests.Stalls;
 
 public record ToggleStallStatusRequest(bool Close);
@@ -15,4 +17,10 @@ public record RenewStallContractRequest(
     string? NameOnContract,
     decimal? MonthlyRate = null,
     double? AreaSqm = null,
-    string? AreaNote = null);
+    string? AreaNote = null,
+
+    /// <summary>
+    /// How the renewed occupancy is held. Defaulted to a signed contract, so every existing caller — including the bulk
+    /// "Renew all", which is deliberately signed-only — behaves exactly as before.
+    /// </summary>
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract);
