@@ -905,9 +905,15 @@
         // chargeable if it fell inside ANY term of this stall, not only the one in force. Judging it by the current
         // contract's start alone painted the whole of 2025 as "no obligation" for a stall that was let throughout
         // 2025 and collected nothing — the grid was hiding uncollected days, not merely looking empty.
+        //
+        // Clamped to the term's expiry, because CHARGEABLE is what this span is asked for and a lapsed term charges
+        // nothing: the register bills to min(end, ExpiryDate) and so must this. Unclamped, a lessee who held on past
+        // a lapsed term painted every one of those days "Uncollected" while the balance beside them counted none of
+        // it — NPM stall 6 read 364 uncollected days against a term whose whole charge was twelve months. The clamp
+        // only ever shortens a span, so an early handover or a closure still ends where it actually ended.
         _occupiedSpans = result.Value
             .Where(a => a.StallId == StallGuid)
-            .Select(a => (Start: a.EffectivityDate, End: a.OccupancyEndedOn ?? a.ExpiryDate))
+            .Select(ChargeableSpan)
             .ToList();
 
         StateHasChanged();
@@ -924,6 +930,26 @@
     private decimal PriorTermsOutstanding => _priorTerms
         .Where(p => p.State != InactiveAccountState.Lapsed)
         .Sum(p => p.Uncollected);
+
+    /// <summary>
+    /// The days of one earlier occupancy that could be CHARGED for, as the activity grid needs them.
+    /// </summary>
+    /// <remarks>
+    /// The occupancy ran to its recorded end, or to the term's expiry where none is recorded — but it is only chargeable up
+    /// to the expiry, because a lapsed term charges nothing. The register bills to <c>min(end, ExpiryDate)</c> and this says
+    /// the same, so the grid cannot contradict the balance printed beside it.
+    ///
+    /// <para>
+    /// Unclamped, a lessee who held on past a lapsed term painted every one of those days "Uncollected" while the balance
+    /// counted none of them: NPM stall 6 read 364 uncollected days against a term whose whole charge was twelve months.
+    /// The clamp only ever shortens a span, so an early handover or a stall closure still ends where it actually ended.
+    /// </para>
+    /// </remarks>
+    public static (DateOnly Start, DateOnly End) ChargeableSpan(ClosedStallAccountDto account)
+    {
+        var ended = account.OccupancyEndedOn ?? account.ExpiryDate;
+        return (account.EffectivityDate, ended < account.ExpiryDate ? ended : account.ExpiryDate);
+    }
 
     /// <summary>Whether the stall was under some term on this day — the current one, or any earlier one.</summary>
     private bool WasUnderContract(DateOnly day, DateOnly? currentStart)
