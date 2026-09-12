@@ -733,22 +733,34 @@ Rental ₱10,800.00**. Twelve months, no thirteenth part-month.
 - The office's document is kept at `.kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg`, so the next
   person reads the evidence rather than taking this entry's word for it.
 
-**ONE STALE ROW REMAINS IN PRODUCTION, AWAITING THE OFFICE'S DECISION.** NPM stall 6, Teofila Reyes: her 2023 one-year
-term is stored with `EndedOn = 2026-09-11`, the day before her renewal, because the row was written *before* commit
-`39657862` taught the renewal path to clamp that date to the term's expiry. Her real expiry is 2023-12-31. Verified
-read-only that **this is the only such row in the database** — the query is `EndedOn > (EffectivityDate + DurationYears
-years - 1 day)` over `Contracts`.
+**THE ONE STALE ROW HAS BEEN CORRECTED (2026-09-13).** NPM stall 6, Teofila Reyes, contract
+`9bdfe3d9-af7d-486b-8a55-b06966370f77`: her 2023 one-year term was stored with `EndedOn = 2026-09-11`, the day before her
+renewal, because the row was written *before* commit `39657862` taught the renewal path to clamp that date to the term's
+expiry. Now `2023-12-31`, which is what the current code would write. Verified read-only that it was **the only such row**,
+and that **none remains** — the query is `EndedOn > (EffectivityDate + DurationYears years - 1 day)` over `Contracts`.
 
-- **No money is wrong.** Billing has always used `min(end, ExpiryDate)`, which is why her balance reads ₱10,800 — twelve
-  months exactly, the office's own figure. Nothing was over-charged and nothing needs refunding.
-- **What the office SEES was wrong, in two places, and both are now fixed in code** so any future stale row is harmless:
-  the profile's activity grid clamps its spans to the expiry (`Profile.ChargeableSpan`), and the profile no longer prints
-  the open-ended sentinel as "99 years / expires 2125".
-- **What a data correction would still change:** the Register of Inactive Stall Accounts prints the *occupancy* period from
-  `OccupancyEndedOn`, so her row reads "Jan 2023 → Sep 11, 2026". Setting it to 2023-12-31 would make that read
-  "Jan 2023 → Dec 31, 2023" — truthful, and matching what the code now writes — but it would also **move her account from
-  2026 to 2023 in the register's year grouping**, which is a visible change to a document the office has already read.
-  That is why it was not done unilaterally. A single-row `UPDATE`, old value known, trivially reversible.
+- **The office approved it** after being told the one visible consequence: the account moves from the 2026 grouping to 2023
+  in the Register of Inactive Stall Accounts.
+- **No money moved, and this was verified rather than argued.** The billable window was already `min(2026-09-11,
+  2023-12-31)` and is now `min(2023-12-31, 2023-12-31)` — the same day — so her balance stays ₱10,800, twelve months, the
+  office's own figure. That stall carries **zero** rows in `PaymentRecords`, `DailyCollections`, `UtilityBills` and
+  `StallMonthlyExceptions`, so nothing could be orphaned by narrowing the occupancy window.
+- **Applied by hand, guarded and reversible:** a single `UPDATE ... WHERE "Id" = … AND "EndedOn" = DATE '2026-09-11'` inside
+  a transaction, the second condition being an optimistic guard so it could not apply if the row had changed since it was
+  read. `UPDATE 1`. To reverse, set it back to `2026-09-11`.
+- **The audit columns were deliberately left alone.** Setting `UpdatedAt`/`UpdatedBy` would assert that the office edited
+  the contract that day, which they did not; this was maintenance, and its honest record is this note and the commit, not a
+  mutated audit column.
+- **Both places the office could see it were fixed in code first**, so a future stale row is harmless either way: the
+  profile's activity grid clamps its spans to the expiry (`Profile.ChargeableSpan`, commit `04a012a2`) and the profile no
+  longer prints the open-ended sentinel as "99 years / expires 2125" (`e7e0c31f`).
+- **Rejected on the way: a separate archive table for finished contracts**, which the office proposed. `Contracts` is
+  already the history — each term is its own row, flagged active or not, and the register already separates them. A second
+  table would duplicate the separation rather than add it, which is the fault class this session spent the day removing.
+  Measured, not guessed: **109 files carry 384 references** to `Contracts`/`ContractId`/`Occupancies`, and `Stall.Occupancies`
+  builds the whole money timeline from that one collection. Also considered and rejected: displaying the TERM period instead
+  of the occupancy period in the register. It breaks a closure — Karmilita Log's contract runs to 2027-08-09 and is still
+  active; she is in the register because her stall was closed on 2026-09-06, so her row must read the closure, not the term.
 
 
 not re-attributed.** Ruled 2026-09-10, after the office found the Report of Collections reading ₱566 where the collectors
