@@ -340,6 +340,13 @@
                                 <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
                                        @bind="Form.MonthlyRate" @bind:after="MonthlyRentEntered" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
+                                @* Where the figure came from, when it is the office's own. Without this the prefilled rent reads
+                                   as a stale default the clerk should check, which is the opposite of the intent. Shown only while
+                                   it still matches: the moment the clerk changes it, it is theirs and the note goes. *@
+                                @if (NpmMonthlyRentInUse > 0m && Form.MonthlyRate == NpmMonthlyRentInUse)
+                                {
+                                    <div class="avm-hint-muted">As the office states it for this market.</div>
+                                }
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
@@ -695,6 +702,17 @@
     /// unchanged). Drives the NPM daily-collection labels and the daily-equivalent monthly hint, so a
     /// ₱40 LGU never shows ₱30. Display only — nothing here is stored.
     [Parameter] public decimal NpmDailyRate { get; set; } = 30m;
+
+    /// <summary>
+    /// The rent a market space is let for, as the office has stated it — or thirty of the daily fee where it has stated none.
+    /// </summary>
+    /// <remarks>
+    /// Offered so a clerk is not asked to type a figure the office has already stated. NOT derived here from the daily fee: an LGU
+    /// may state a month that is not thirty of its days — Madrid charges ₱40 a day and states ₱900 a month, where thirty days would
+    /// be ₱1,200 — so the resolved figure is carried from the server rather than multiplied on the screen. Zero means the caller
+    /// did not supply one, and the field is left to the clerk exactly as before.
+    /// </remarks>
+    [Parameter] public decimal NpmMonthlyRentInUse { get; set; }
 
     /// <summary>
     /// True when the office has already stated a daily rate for the market section being filed under.

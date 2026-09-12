@@ -24,7 +24,8 @@ using AddVendorModal = EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorM
 /// </summary>
 public class AddVendorModalDailyFromRentTests : TestContext
 {
-    private IRenderedComponent<AddVendorModal> RenderForm(AddVendorModal.VendorModalForm form, bool isEditing = false)
+    private IRenderedComponent<AddVendorModal> RenderForm(AddVendorModal.VendorModalForm form, bool isEditing = false,
+        decimal npmMonthlyRentInUse = 0m)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -40,6 +41,7 @@ public class AddVendorModalDailyFromRentTests : TestContext
             .Add(c => c.IsEditing, isEditing)
             .Add(c => c.Form, form)
             .Add(c => c.NpmDailyRate, 30m)
+            .Add(c => c.NpmMonthlyRentInUse, npmMonthlyRentInUse)
             .Add(c => c.NpmFishRate, 1m));
     }
 
@@ -100,6 +102,33 @@ public class AddVendorModalDailyFromRentTests : TestContext
     }
 
     /// <summary>A stall being recorded in an area of the office's own, which is the only place a daily fee is typed.</summary>
+    /// <summary>
+    /// The rent says where it came from while it is still the office's figure, and stops saying so once the clerk changes it.
+    /// </summary>
+    /// <remarks>
+    /// The office asked for the market's monthly rent to be offered rather than typed. A prefilled figure with nothing to explain it
+    /// reads as a stale default a clerk should check and retype, which defeats the point — so the provenance is stated. It is stated
+    /// CONDITIONALLY: the moment the figure is the clerk's own, the note would be a lie.
+    ///
+    /// <para>The prefill itself is seeded where the form is built, in the market page, on the same condition as the daily fee: a
+    /// section that carries a rate of its own is left to the clerk, because the market's month is not that stall's month.</para>
+    /// </remarks>
+    [Fact]
+    public void ThePrefilledRentSaysItIsTheOfficesFigure_UntilTheClerkChangesIt()
+    {
+        var form = CustomAreaStall(dailyOnOpen: 30m);
+        form.MonthlyRate = 900m;
+
+        var cut = RenderForm(form, npmMonthlyRentInUse: 900m);
+
+        Assert.Contains("As the office states it for this market.", cut.Markup);
+
+        // The clerk overrides it: the figure is theirs now, so the note must not claim otherwise.
+        TypeMonthlyRent(cut, "1000");
+
+        Assert.DoesNotContain("As the office states it for this market.", cut.Markup);
+    }
+
     private static AddVendorModal.VendorModalForm CustomAreaStall(decimal dailyOnOpen) => new()
     {
         FacilityCode = "NPM",

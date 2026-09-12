@@ -300,6 +300,7 @@
                 CustomSectionNames="OpenCustomSections().Select(c => c.Name).ToList()"
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
+                NpmMonthlyRentInUse="_npmMonthlyRentInUse"
                 SectionStatesItsOwnRate="@(SectionStatedRate(VendorForm.CustomSectionName) is > 0m)"
                 NpmFishRate="_npmFishRate"
                      MonthBasis="_npmMonthBasis"
@@ -950,6 +951,9 @@
     // The tenant's resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan unchanged).
     // Drives the Add Vendor modal's labels + daily-equivalent hint, and the stored DailyRate on create.
     private decimal _npmDailyRate = 30m;
+
+    /// <summary>The rent a market space is let for, as the billing paths resolve it. Offered to the vendor form so it is not typed.</summary>
+    private decimal _npmMonthlyRentInUse;
     private decimal _npmFishRate = 1m;
 
     // How this office measures a market month. The form drops its MONTHLY field where the office bills the days the
@@ -962,6 +966,10 @@
         if (result.IsSuccess && result.Value is not null)
         {
             _npmDailyRate = result.Value.DailyRate;
+            // The rent a market space is let for, as the billing paths resolve it: the figure the office stated, or thirty of the
+            // daily fee where it has stated none. Carried so the vendor form can offer it instead of asking a clerk to type ₱900
+            // that the office has already stated — and so an LGU whose ordinance says otherwise gets ITS figure, not Cantilan's.
+            _npmMonthlyRentInUse = result.Value.MonthlyRentInUse;
             _npmFishRate = result.Value.FishRate;
             _npmMonthBasis = result.Value.MonthBasis;
             SyncSectionRateDescriptions();
@@ -1035,7 +1043,10 @@
             // Blank where the section carries a stated fee, so a stall the clerk does not price follows it.
             CustomDailyRate = SectionStatedRate(section) is > 0m ? 0m : _npmDailyRate,
             AreaSqm = 0,
-            MonthlyRate = 0,
+            // The rent the office has already stated, rather than ₱900 typed by hand every time. Offered on the SAME condition as
+            // the daily fee above: where the section carries a rate of its own, the market's month is not this stall's month —
+            // a section priced at ₱35 a day owes ₱1,050, not the market's ₱900 — so that case is left to the clerk as before.
+            MonthlyRate = SectionStatedRate(section) is > 0m ? 0m : _npmMonthlyRentInUse,
             // Default the contract effectivity date to today (business day) — the admin can still change it.
             ContractDate = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue),
             ContractYears = 1,
