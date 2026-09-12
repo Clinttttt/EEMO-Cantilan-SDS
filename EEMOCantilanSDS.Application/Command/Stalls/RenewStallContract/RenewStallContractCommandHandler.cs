@@ -49,8 +49,24 @@ public class RenewStallContractCommandHandler(
         // End the current term(s); keep them as history (IsActive = false). The day before the new term starts is
         // the day the outgoing occupancy ended — recording it is what lets every historical view attribute money
         // and arrears to the lessee who actually held the stall then.
+        //
+        // NEVER PAST THE TERM'S OWN EXPIRY, THOUGH. A term renewed LATE — the office letting a lapsed occupancy run on
+        // and recording it weeks or years afterwards — was ended the day before the new term regardless, which stretched
+        // the record over a gap the tenant held no contract for: a one-year term from January 2023, renewed in September
+        // 2026, was stored as having ended 11 September 2026 and read that way on the register and the stall profile.
+        // Clamped to the expiry, so a lapsed term ends where it actually ended.
+        //
+        // No money moves either way — Stall.Occupancies already bills to min(end, ExpiryDate), which is why the figures
+        // were right while the dates were not — but a stored date that is untrue is an audit problem of its own.
+        //
+        // A term still running is untouched: its expiry is later than the day before the new term, so the clamp does
+        // nothing, and an early renewal still hands over on the date the office chose.
         foreach (var active in stall.Contracts.Where(c => c.IsActive).ToList())
-            active.Terminate(actor, request.EffectivityDate.AddDays(-1));
+        {
+            var endedOn = request.EffectivityDate.AddDays(-1);
+            if (endedOn > active.ExpiryDate) endedOn = active.ExpiryDate;
+            active.Terminate(actor, endedOn);
+        }
 
         // Start the new term. The stall keeps its current rate unless the office corrected it above.
         //

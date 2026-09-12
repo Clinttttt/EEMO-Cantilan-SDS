@@ -117,6 +117,67 @@ public class RenewStallContractCommandHandlerTests
         Assert.Equal(DomainRules.OpenEndedTermYears, added.DurationYears);
     }
 
+    /// <summary>
+    /// A LATE renewal ends the old term where it expired, not the day before the new one.
+    /// </summary>
+    /// <remarks>
+    /// The office renewed a one-year term from January 2023 in September 2026, and the record said the term had ended on 11
+    /// September 2026 — stretched over two and a half years the tenant held no contract for. The register and the stall profile
+    /// both read it that way: "Jan 2023 → Sep 11, 2026".
+    ///
+    /// <para>No money was ever wrong, which is why it went unnoticed: Stall.Occupancies bills to min(end, ExpiryDate), so the
+    /// obligation always stopped at the real expiry. A stored date that is untrue is still an audit problem, and this is the
+    /// register the office prints.</para>
+    ///
+    /// <para>BOTH CASES ARE ASSERTED TOGETHER, because either alone would pass a broken clamp: drop the clamp and the late
+    /// renewal is wrong, clamp unconditionally to the expiry and an EARLY renewal stops billing the outgoing lessee for days
+    /// they actually held.</para>
+    /// </remarks>
+    [Fact]
+    public async Task Renew_ALateRenewal_EndsTheOldTermAtItsExpiry_WhileAnEarlyOneEndsItAtTheHandover()
+    {
+        // ── Renewed LONG after the term lapsed ──
+        var lateStall = Stall.Create(Guid.NewGuid(), "6", 900m, ApplicableFees.BaseRental);
+        var lapsed = Contract.Create(lateStall.Id, "Teofila Reyes", "Teofila Reyes", new DateOnly(2023, 1, 1), 1, 900m);
+        lateStall.Contracts.Add(lapsed);
+
+        await Renew(lateStall, new DateOnly(2026, 9, 12));
+
+        // Where it actually ended, not the day before the new term.
+        Assert.Equal(lapsed.ExpiryDate, lapsed.EndedOn);
+        Assert.Equal(new DateOnly(2024, 1, 1), lapsed.EndedOn);
+
+        // ── Renewed while the term was still running ──
+        var earlyStall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.BaseRental);
+        var running = Contract.Create(earlyStall.Id, "Ana Lim", "Ana Lim", new DateOnly(2026, 1, 1), 3, 900m);
+        earlyStall.Contracts.Add(running);
+
+        var handover = new DateOnly(2026, 9, 12);
+        await Renew(earlyStall, handover);
+
+        // The day before the handover, exactly as before — the outgoing lessee is still answerable for the days they held.
+        Assert.Equal(handover.AddDays(-1), running.EndedOn);
+        Assert.True(running.EndedOn < running.ExpiryDate);
+    }
+
+    /// <summary>Runs a renewal against a stall, returning nothing — the assertions read the contracts directly.</summary>
+    private static async Task Renew(Stall stall, DateOnly effectivity)
+    {
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdWithContractsAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.Username).Returns("tester");
+
+        var handler = Build(stallRepo, new Mock<IPayorRepository>(), currentUser, new Mock<IUnitOfWork>());
+
+        var result = await handler.Handle(
+            new RenewStallContractCommand(stall.Id, effectivity, 3, "Whoever", "Whoever"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
     [Fact]
     public async Task Renew_SameOccupant_KeepsPayorLinks()
     {
