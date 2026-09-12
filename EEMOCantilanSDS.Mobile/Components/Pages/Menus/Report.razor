@@ -234,21 +234,36 @@
                    recognise as related. "Payees served" is their total, so it heads the block instead of being a seventh row that
                    restates it. Each cell still opens its own list, as each row did. *@
                 <div class="rpt-block">
-                    <div class="rpt-block-head">
-                        <span class="rpt-block-title">Payors</span>
-                        <span class="rpt-block-total">@PayeeCount served</span>
-                    </div>
-                    @* One cell fills the row rather than sitting in a two-column grid with an empty half. A paid-on-service round
-                       has only this one state to report, and a lone tile beside blank space reads as something failing to load. *@
-                    <div class="rpt-grid @(ScopeIsPaidOnService ? "rpt-grid-single" : null)">
-                        <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("paid"))">
-                            <span class="rpt-cell-value">@PaidPayorCount</span>
-                            <span class="rpt-cell-label">Fully paid</span>
+                    @* ── One state, stated once ──
+                       A paid-on-service round can only report "fully paid", so the block says it in its own heading and the
+                       heading IS the tap target. It previously carried the count twice — "4 served" above "4 Fully paid" — with
+                       the second in a full-width cell that was mostly blank. Both figures are still available: where they can
+                       differ the heading says so rather than hiding one.
+
+                       The other rounds keep the four cells, because there the four counts partition the same people and each
+                       needs its own figure. *@
+                    @if (ScopeIsPaidOnService)
+                    {
+                        <button type="button" class="rpt-block-head rpt-block-head-tap" @onclick="@(() => OpenDetail("paid"))">
+                            <span class="rpt-block-title">Payors</span>
+                            <span class="rpt-block-total">
+                                @(PaidPayorCount == PayeeCount
+                                    ? $"{PaidPayorCount} fully paid"
+                                    : $"{PaidPayorCount} of {PayeeCount} fully paid")
+                            </span>
                         </button>
-                        @* Part paid, Not collected and Excused are states a paid-on-service record cannot hold — see
-                           ScopeIsPaidOnService. Left out rather than shown as nought, which read as "nothing outstanding". *@
-                        @if (!ScopeIsPaidOnService)
-                        {
+                    }
+                    else
+                    {
+                        <div class="rpt-block-head">
+                            <span class="rpt-block-title">Payors</span>
+                            <span class="rpt-block-total">@PayeeCount served</span>
+                        </div>
+                        <div class="rpt-grid">
+                            <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("paid"))">
+                                <span class="rpt-cell-value">@PaidPayorCount</span>
+                                <span class="rpt-cell-label">Fully paid</span>
+                            </button>
                             <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("partial"))">
                                 <span class="rpt-cell-value">@PartialCount</span>
                                 <span class="rpt-cell-label">Part paid</span>
@@ -261,8 +276,8 @@
                                 <span class="rpt-cell-value">@AbsentExcusedCount</span>
                                 <span class="rpt-cell-label">Excused</span>
                             </button>
-                        }
-                    </div>
+                        </div>
+                    }
                 </div>
 
                 @* "Recorded transactions" was removed on 2026-09-11. The banner at the top of this page states the same
