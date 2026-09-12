@@ -733,7 +733,24 @@ Rental ₱10,800.00**. Twelve months, no thirteenth part-month.
 - The office's document is kept at `.kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg`, so the next
   person reads the evidence rather than taking this entry's word for it.
 
-**A collector's collected figure is CASH — money received in the period — and a period flattered by arrears is disclosed,
+**ONE STALE ROW REMAINS IN PRODUCTION, AWAITING THE OFFICE'S DECISION.** NPM stall 6, Teofila Reyes: her 2023 one-year
+term is stored with `EndedOn = 2026-09-11`, the day before her renewal, because the row was written *before* commit
+`39657862` taught the renewal path to clamp that date to the term's expiry. Her real expiry is 2023-12-31. Verified
+read-only that **this is the only such row in the database** — the query is `EndedOn > (EffectivityDate + DurationYears
+years - 1 day)` over `Contracts`.
+
+- **No money is wrong.** Billing has always used `min(end, ExpiryDate)`, which is why her balance reads ₱10,800 — twelve
+  months exactly, the office's own figure. Nothing was over-charged and nothing needs refunding.
+- **What the office SEES was wrong, in two places, and both are now fixed in code** so any future stale row is harmless:
+  the profile's activity grid clamps its spans to the expiry (`Profile.ChargeableSpan`), and the profile no longer prints
+  the open-ended sentinel as "99 years / expires 2125".
+- **What a data correction would still change:** the Register of Inactive Stall Accounts prints the *occupancy* period from
+  `OccupancyEndedOn`, so her row reads "Jan 2023 → Sep 11, 2026". Setting it to 2023-12-31 would make that read
+  "Jan 2023 → Dec 31, 2023" — truthful, and matching what the code now writes — but it would also **move her account from
+  2026 to 2023 in the register's year grouping**, which is a visible change to a document the office has already read.
+  That is why it was not done unilaterally. A single-row `UPDATE`, old value known, trivially reversible.
+
+
 not re-attributed.** Ruled 2026-09-10, after the office found the Report of Collections reading ₱566 where the collectors
 list read ₱536. The gap was one August day collected on 1 September: the report counted by the moment money was recorded,
 the list by the period the fee was FOR. The office's first instinct was to move the money to the month it belongs to, and
