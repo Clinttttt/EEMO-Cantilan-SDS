@@ -697,6 +697,33 @@ same hazard.
 Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
 should not have to re-derive them.
 
+**A YEAR OF RENT IS TWELVE MONTHS EXACTLY — ₱10,800 for a ₱900 space. RULED 2026-09-12 WITH DOCUMENTARY EVIDENCE, AND NOT
+YET IMPLEMENTED.** The office produced its own *List of Stallholders* for the New Public Market, Vegetable Area: every row
+reads effectivity 6/7/2023, **3 yrs**, 4.8 sq.m., ₱900.00 monthly per contract, ₱900.00 actual monthly, and **Whole Year
+Rental ₱10,800.00**. Twelve months, no thirteenth part-month.
+
+- **What the code does instead.** `DomainRules`/`Contract.ComputeExpiry` is `effectivity.AddYears(n)`, so the expiry date is
+  INSIDE the term: a one-year term from 1 Jan 2023 covers 1 Jan 2023 *through* 1 Jan 2024 — twelve months **plus one day**.
+  Billed monthly at ₱900 that is ₱10,800 + ₱30 = **₱10,830**, which is how the office noticed. Found while testing the
+  extension renewal on stall 6 (Teofila Reyes).
+- **A comment in `Contract.cs` cites the office's paper for the opposite reading** — "a three-year term effective the 7th of
+  June runs to the 7th of June three years on, which is the reading the office's own paper takes". The paper says otherwise.
+  Correct the comment as part of the change; do not leave it citing evidence it contradicts.
+- **The fix is one line**, in `ComputeExpiry`: end the term the day BEFORE the anniversary. A 1-year term from 1 Jan 2023 then
+  runs to 31 Dec 2023 (₱10,800); a 3-year term from 7 Jun 2023 runs to 6 Jun 2026 (₱32,400).
+- **The blast radius is wide and must be treated as such.** `ComputeExpiry` and `TermHasExpired` are read in ELEVEN files: the
+  entity's `ExpiryDate`, `IsExpiredOn`, `IsCollectableOn`, `IsExpiringSoon`, the DTO-based `StallContractStatus`, and seven
+  facility pages. Every contract's expiry moves back one day, so: one day of obligation leaves every term (the day we should
+  not have charged), a term expiring TODAY becomes expired, and the expiring-soon, lapsed follow-up, Closed Accounts and stall
+  profile figures all shift. No payment is touched and nothing is destroyed, but figures the office has already read will move
+  — announce it rather than shipping it quietly.
+- **Tests to write, asserting the office's own arithmetic rather than an internal rule:** a 1-year term bills ₱10,800 and a
+  3-year term ₱32,400; a term is still collectable on its last day; a term is expired the day after it. Injection-proof it —
+  reverting `ComputeExpiry` must fail.
+- Deferred at the office's request on 2026-09-12 so it is done with a clear run rather than at the end of a long session.
+- The office's document is kept at `.kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg`, so the next
+  person reads the evidence rather than taking this entry's word for it.
+
 **A collector's collected figure is CASH — money received in the period — and a period flattered by arrears is disclosed,
 not re-attributed.** Ruled 2026-09-10, after the office found the Report of Collections reading ₱566 where the collectors
 list read ₱536. The gap was one August day collected on 1 September: the report counted by the moment money was recorded,
