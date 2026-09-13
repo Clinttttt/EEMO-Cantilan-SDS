@@ -186,6 +186,9 @@ public partial class StallRepository
             var occupancyMonthlyRate = contract.MonthlyRentalRate > 0m ? contract.MonthlyRentalRate : stall.MonthlyRate;
 
             decimal uncollected = 0m;
+            // Months that still carry a balance, counted from the SAME walk that accumulates the money, so the count and
+            // the balance can never disagree about an account.
+            var monthsUnpaid = 0;
             if (isNpm)
             {
                 // Per calendar month, from the monthly obligation ledger: the month's contractual rent (₱900 for a
@@ -233,7 +236,9 @@ public partial class StallRepository
                         .Where(p => p.CollectionDate >= mStart && p.CollectionDate <= mEnd)
                         .Sum(p => p.DailyFee);
 
-                    uncollected += DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
+                    var monthOutstanding = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
+                    uncollected += monthOutstanding;
+                    if (monthOutstanding > 0m) monthsUnpaid++;
                     cursor = cursor.AddMonths(1);
                 }
             }
@@ -252,9 +257,11 @@ public partial class StallRepository
                         && contract.BillsCalendarMonth(cursor.Year, cursor.Month))
                     {
                         var rec = stallPayments.FirstOrDefault(p => p.BillingYear == cursor.Year && p.BillingMonth == cursor.Month);
-                        uncollected += rec is not null && rec.Status != PaymentStatus.Unpaid
+                        var monthOutstanding = rec is not null && rec.Status != PaymentStatus.Unpaid
                             ? rec.BalanceDue
                             : occupancyMonthlyRate;
+                        uncollected += monthOutstanding;
+                        if (monthOutstanding > 0m) monthsUnpaid++;
                     }
                     cursor = cursor.AddMonths(1);
                 }
@@ -337,7 +344,9 @@ public partial class StallRepository
                 stall.AreaNote,
                 // Its section is closed, so this row states its balance and refuses to resume on its own.
                 !string.IsNullOrWhiteSpace(stall.CustomSectionName)
-                    && closedSections.Any(s => string.Equals(s.Trim(), stall.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase))));
+                    && closedSections.Any(s => string.Equals(s.Trim(), stall.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase)),
+                // How far behind this account is, by the same rule a live one is judged by.
+                monthsUnpaid));
         }
 
         return result

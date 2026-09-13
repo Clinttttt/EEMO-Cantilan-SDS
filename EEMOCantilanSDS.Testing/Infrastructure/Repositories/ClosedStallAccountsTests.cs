@@ -105,6 +105,10 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         Assert.Equal("Head", row.ClosedBy);
         Assert.Equal(2000m, row.LifetimeCollected);   // Jan + Feb paid
         Assert.Equal(2000m, row.Uncollected);          // Mar + Apr full rent owed
+        // Counted from the same month-by-month walk that produced the balance, so the two state the same account: two
+        // months owing, which is arrears rather than delinquency by the office's three-month threshold.
+        Assert.Equal(2, row.MonthsUnpaid);
+        Assert.True(row.MonthsUnpaid < DomainRules.DelinquentThresholdMonths);
     }
 
     [Fact]
@@ -162,6 +166,10 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         // anniversary month was charged as a thirteenth — every monthly-billed account in the office read one month
         // of rent too high.
         Assert.Equal(12_000m, row.Uncollected);
+        // Twelve months owing, so this account is delinquent by the office's own threshold — the point of stating the count
+        // beside the money is that a former lessee this far behind can be judged by the same rule as a sitting one.
+        Assert.Equal(12, row.MonthsUnpaid);
+        Assert.True(row.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths);
     }
 
     [Fact]

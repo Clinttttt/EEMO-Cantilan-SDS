@@ -397,7 +397,16 @@ public static class FollowUpComposer
                     SecImmediate,
                     "High",
                     account.State == InactiveAccountState.Closed ? "Closed account balance" : "Past occupancy balance",
-                    "contract",
+                    // Filed by the office's own measure of how far behind an account is: three or more months owing is
+                    // delinquent, fewer is not. An ended occupancy is judged by the same rule as a live one, because the
+                    // debt is no smaller for the lessee having moved on. The queue read 0 delinquent accounts while a
+                    // former lessee of stall 6 owed twelve months, all of it filed under "contract".
+                    //
+                    // The row's WORDING is deliberately left alone. "Past occupancy balance" tells the office this is not
+                    // the sitting lessee, which "Delinquent" would hide; only what the row is COUNTED as changes. And it is
+                    // the month count, not the money, that decides: a closed account owing ₱570 for a single month is in
+                    // arrears, not delinquent, and calling it delinquent would make the office's own threshold untrue.
+                    account.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths ? "delinquent" : "contract",
                     account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), Where(account.StallNo),
                     account.Uncollected, false,
                     // The part of this occupancy that falls inside the view's window, beside the figure that window

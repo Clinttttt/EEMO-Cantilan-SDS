@@ -301,6 +301,44 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Contains("balance in full", row.Status);
     }
 
+    [Theory]
+    [InlineData(12, "delinquent")]   // a former lessee owing twelve months
+    [InlineData(3, "delinquent")]    // exactly the office's threshold
+    [InlineData(2, "contract")]      // two months owing is arrears, not delinquency
+    [InlineData(1, "contract")]      // a single month, as a closed account often is
+    public async Task AnEndedAccount_IsCountedAsDelinquentByTheSameThresholdAsALiveOne(int monthsUnpaid, string expectedKind)
+    {
+        // The follow-up queue read 0 delinquent accounts while a former lessee of NPM stall 6 owed twelve months: a past
+        // occupancy had no month count to be judged by, so every one of them was filed under "contract" whatever it owed.
+        // The office's rule is DelinquentThresholdMonths — three or more months owing is delinquent — and an ended
+        // occupancy is judged by it now, because the debt is no smaller for the lessee having moved on.
+        //
+        // The money is deliberately NOT the test: a closed account owing ₱570 for a single month is in arrears, and calling
+        // it delinquent because the figure looks large would make the office's own threshold untrue.
+        var today = FixtureToday;
+        var ended = new ClosedStallAccountDto(
+            Guid.NewGuid(), InactiveAccountState.Superseded, FacilityCode.NPM, "New Public Market", "6",
+            "Teofila Reyes", "Teofila Reyes",
+            EffectivityDate: new DateOnly(today.Year, today.Month, 1),
+            DurationYears: 1, MonthlyRate: 900m,
+            ClosedOn: null, ExpiryDate: today,
+            LifetimeCollected: 0m, Uncollected: 900m * monthsUnpaid, ClosedBy: null,
+            OccupancyEndedOn: today, ContractId: Guid.NewGuid(),
+            MonthsUnpaid: monthsUnpaid);
+
+        var handler = Build(closedAccounts: new[] { ended });
+
+        var dto = (await handler.Handle(new GetFollowUpQueueQuery(today.Year, today.Month), CancellationToken.None)).Value!;
+
+        var row = Assert.Single(dto.Items, i => i.Reason == "Past occupancy balance");
+        Assert.Equal(expectedKind, row.ReasonKind);
+
+        // Whatever it is counted as, the row still SAYS what it is. "Delinquent" alone would hide that this is not the
+        // lessee sitting in the stall today, which is the one thing the office must not mistake here.
+        Assert.Equal("Past occupancy balance", row.Reason);
+        Assert.Contains("No longer the occupant", row.Status);
+    }
+
     [Fact]
     public async Task AnAccountClosedInAnEarlierPeriod_StaysOffTheLiveQueue()
     {
