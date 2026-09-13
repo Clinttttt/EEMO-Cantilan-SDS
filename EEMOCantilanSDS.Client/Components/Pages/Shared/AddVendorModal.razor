@@ -91,37 +91,18 @@
                     <div class="avm-group">
                         <label class="avm-label">Basis of Occupancy <span class="avm-req">*</span></label>
                         <div class="avm-choice" role="radiogroup" aria-label="Basis of occupancy">
-                            @foreach (var option in ArrangementOptions)
+                            @foreach (var option in OfferedArrangements)
                             {
                                 <button type="button"
                                         class="avm-choice-item @(Form.Arrangement == option.Value ? "is-selected" : "")"
                                         role="radio"
-                                        aria-checked="@(Form.Arrangement == option.Value)"
+                                        aria-checked="@(Form.Arrangement == option.Value ? "true" : "false")"
                                         @onclick="() => SelectArrangement(option.Value)">
                                     <span class="avm-choice-title">@option.Title</span>
                                     <span class="avm-choice-note">@option.Note</span>
                                 </button>
                             }
                         </div>
-
-                        @* An extension registered HERE is a new un-numbered space, because this form creates a space rather
-                           than attaching to one: CreateStall can only reuse a stall that is VACANT, and a stall whose lessee
-                           is still trading on a lapsed contract is not. The basis is kept because the office does record
-                           un-numbered spaces held on an extension — a commercial-centre space whose lapsed contract may exist
-                           only on paper — but choosing it for a stall that already has a number silently gives that lessee a
-                           SECOND space and splits their history and arrears across the two. Renewing states it instead, and
-                           carries the name forward so it cannot be mistyped. *@
-                        @if (Form.Arrangement == OccupancyArrangement.Extension)
-                        {
-                            <div class="avm-info-box">
-                                <div class="avm-info-box-title">This registers a new space with no stall number.</div>
-                                <span class="avm-hint">
-                                    Use it only where the space itself is un-numbered. If the stall already has a number and its
-                                    contract has lapsed, open that stall and renew it as an extension instead — the number, the
-                                    lessee's name and the account history are all kept, and the name is never retyped.
-                                </span>
-                            </div>
-                        }
                     </div>
 
                     <div class="avm-row-2">
@@ -1086,6 +1067,35 @@
             (OccupancyArrangement.SpaceOnly, "No contract (space only)", "Rent charged, no contract on file"),
             (OccupancyArrangement.Extension, "No contract (extension)", "Occupying past a lapsed contract"),
         };
+
+    /// <summary>
+    /// The bases this form will OFFER. An extension is not among them when registering a vendor.
+    /// </summary>
+    /// <remarks>
+    /// An extension means occupying past a LAPSED contract, and this form creates a space rather than attaching to one —
+    /// <c>CreateStallCommandHandler</c> reuses an existing stall only where that stall is vacant, which a stall whose lessee
+    /// is still trading is not. So choosing it here never recorded the extension of an existing stall; it registered a second,
+    /// un-numbered space in the same lessee's name and split their history and arrears across the two. The office already has
+    /// the right route: Closed Accounts offers Renew on a lapsed account, which keeps the stall's number and carries the
+    /// lessee's name forward so it cannot be mistyped.
+    ///
+    /// <para>
+    /// It is still offered when EDITING a record that already carries it. The basis selector always renders, so filtering it
+    /// out unconditionally would show an existing extension — there is one live on NPM stall 6 — with no basis selected at
+    /// all, which reads as missing data on a government form and would let a clerk change the basis silently with no way back.
+    /// </para>
+    ///
+    /// <para>
+    /// Nothing else loses the ability to state an extension: the enum, the bulk import (which records historical un-numbered
+    /// spaces held on an extension) and the renewal path are all untouched. On the server nothing branches on Extension in any
+    /// case — only on whether a signed contract stands behind the occupancy — so what this changes is which of two labels the
+    /// official list can be made to print for a NEW space, and production holds no un-numbered space at all.
+    /// </para>
+    /// </remarks>
+    private IEnumerable<(OccupancyArrangement Value, string Title, string Note)> OfferedArrangements =>
+        ArrangementOptions.Where(o =>
+            o.Value != OccupancyArrangement.Extension
+            || Form.Arrangement == OccupancyArrangement.Extension);
 
     /// <summary>What the official list prints where a signed contract would be named.</summary>
     private string NoContractText => Form.Arrangement == OccupancyArrangement.Extension
