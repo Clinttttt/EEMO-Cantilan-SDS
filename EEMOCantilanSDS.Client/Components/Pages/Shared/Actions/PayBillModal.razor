@@ -71,6 +71,7 @@
                                     {
                                         <button type="button" class="pb-seg-btn @(_npmMode == "month" ? "on" : "")" @onclick='() => SetNpmMode("month")' disabled="@_submitting">Whole month</button>
                                         <button type="button" class="pb-seg-btn @(_npmMode == "days" ? "on" : "")" @onclick='() => SetNpmMode("days")' disabled="@_submitting">Specific days</button>
+                                        <button type="button" class="pb-seg-btn @(_npmMode == "all" ? "on" : "")" @onclick='() => SetNpmMode("all")' disabled="@_submitting">All outstanding</button>
                                     }
                                     else
                                     {
@@ -145,7 +146,7 @@
                         else
                         {
                             var pickMonthForDays = IsNpm && _npmMode == "days";   // step 1: drill into a month
-                            var allMode = !IsNpm && _scope == "all";
+                            var allMode = SettlesEverything;
                             <table class="pb-table">
                                 <thead>
                                     <tr>
@@ -283,7 +284,7 @@
     {
         if (IsNpm && _npmMode == "days")
             return _dayStep ? $"Step 2 · Choose day(s) — {MonthLabel(_selectedPeriod)}" : "Step 1 · Choose the month";
-        if (!IsNpm && _scope == "all")
+        if (SettlesEverything)
             return "Months to be settled";
         return "Select the billing period to record";
     }
@@ -295,28 +296,34 @@
         {
             if (IsNpm && _npmMode == "days")
                 return _days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee);
-            if (!IsNpm && _scope == "all")
+            if (SettlesEverything)
                 return _totalOutstanding;
             return _unpaid.FirstOrDefault(x => x.Period == _selectedPeriod)?.BalanceDue ?? 0m;
         }
     }
     private decimal RemainingAfter => System.Math.Max(0m, _totalOutstanding - AmountToRecord);
 
-    private string CoverageText() => (IsNpm, _npmMode == "days", _scope == "all") switch
-    {
-        (true, true, _) => $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}",
-        (true, false, _) => "whole billing month",
-        (false, _, true) => "all outstanding months · one OR",
-        _ => "selected billing period"
-    };
+    /// <summary>
+    /// Whether this transaction settles the WHOLE account balance rather than one period.
+    /// </summary>
+    /// <remarks>
+    /// One idea, two controls: monthly facilities carry it on <c>_scope</c>, the daily market on <c>_npmMode</c> alongside
+    /// its whole-month and specific-days choices. Stated once here so the caption, the amount, the receipt hint, the table
+    /// and the submit path cannot disagree about what is being paid.
+    /// </remarks>
+    private bool SettlesEverything => IsNpm ? _npmMode == "all" : _scope == "all";
 
-    private string OrHint() => (IsNpm, _npmMode == "days", _scope == "all") switch
-    {
-        (true, true, _) => "One OR will cover the selected collection days in a single transaction.",
-        (true, false, _) => "One OR may cover all settleable days in the selected month.",
-        (false, _, true) => "One OR covers all settled months of this stall in a single receipt.",
-        _ => "The OR will be assigned to the selected billing period."
-    };
+    private string CoverageText() =>
+        SettlesEverything ? "all outstanding months · one OR"
+        : IsNpm && _npmMode == "days" ? $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}"
+        : IsNpm ? "whole billing month"
+        : "selected billing period";
+
+    private string OrHint() =>
+        SettlesEverything ? "One OR covers all settled months of this stall in a single receipt."
+        : IsNpm && _npmMode == "days" ? "One OR will cover the selected collection days in a single transaction."
+        : IsNpm ? "One OR may cover all settleable days in the selected month."
+        : "The OR will be assigned to the selected billing period.";
 
     // Search filters the visible rows only; the footer subtotal stays the full account total.
     private IEnumerable<PaymentHistoryDto> MonthRows()
@@ -341,9 +348,11 @@
     private bool CanSubmit()
     {
         if (_submitting) return false;
+        // Settling everything needs a balance to settle, not a chosen period.
+        if (SettlesEverything) return _unpaid.Count > 0;
         if (IsNpm)
             return _npmMode == "days" ? (_dayStep && _daySelected.Count > 0) : !string.IsNullOrEmpty(_selectedPeriod);
-        return _scope == "all" || !string.IsNullOrEmpty(_selectedPeriod);
+        return !string.IsNullOrEmpty(_selectedPeriod);
     }
 
     private Guid? _loadedContract;
@@ -462,7 +471,47 @@
 
         if (IsNpm)
         {
-            if (_npmMode == "days")
+            if (_npmMode == "all")
+            {
+                // Settle every month that still carries a balance, oldest first, under ONE receipt. Each month is settled by
+                // the same handler the single-month button uses, so every rule it enforces still applies per month: the month
+                // ceiling (a month never collects more than its rent), excused days and market closures, and the refusal of a
+                // month the office never priced by the day. Nothing about a month's arithmetic changes by being paid together
+                // with its neighbours.
+                //
+                // Oldest first so that if the run stops part way the account is settled from the back, which is how the office
+                // reads arrears. A failure reports how many months went in, because those are already committed: each month is
+                // its own transaction, exactly as "all outstanding" has always worked on the monthly facilities.
+                var months = _unpaid
+                    .Select(h => TryParsePeriod(h.Period, out var y, out var m) ? (Ok: true, Year: y, Month: m) : (Ok: false, Year: 0, Month: 0))
+                    .Where(x => x.Ok)
+                    .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                    .ToList();
+
+                if (months.Count == 0)
+                { _error = "There is nothing outstanding to settle."; _submitting = false; return; }
+
+                var done = 0;
+                foreach (var m in months)
+                {
+                    var r = await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, m.Year, m.Month, or, ContractId));
+                    if (!r.IsSuccess)
+                    {
+                        var message = done == 0
+                            ? (r.Error ?? "Could not record the payment. Please try again.")
+                            : $"{done} month{(done == 1 ? "" : "s")} were recorded, then {MonthLabel($"{m.Year:D4}-{m.Month:D2}")} could not be: {r.Error ?? "please try again"}";
+                        _submitting = false;
+                        // Refresh what is still owed BEFORE stating the fault: LoadOutstanding clears the error, so setting
+                        // it first would wipe the one message that tells the office some months did go in.
+                        await LoadOutstanding();
+                        _error = message;
+                        await OnChanged.InvokeAsync();
+                        return;
+                    }
+                    done++;
+                }
+            }
+            else if (_npmMode == "days")
             {
                 var dates = _days.Where(x => _daySelected.Contains(x.Date)).Select(x => x.Date).ToList();
                 var r = await DailyApi.SettleNpmDaysAsync(new SettleNpmDaysCommand(StallId, dates, or));
