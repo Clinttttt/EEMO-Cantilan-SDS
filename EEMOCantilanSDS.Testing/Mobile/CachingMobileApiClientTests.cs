@@ -145,11 +145,17 @@ public class CachingMobileApiClientTests
         await cache.SetAsync(RecordsKey, stale);
 
         var late = Records();
+        // Held open until the test says so, rather than delayed by a wall-clock sleep. With a 20 ms budget against a 150 ms
+        // delay the first assertion was a race: a loaded CI runner could let the inner call finish before the budget was
+        // observed, the fresh value would be served, and Assert.Same(stale, …) failed. It cost a production deploy on
+        // 2026-09-13. Now the inner read CANNOT complete until released, so "the cache was served" is a fact rather than a
+        // matter of timing, and the budget only has to elapse — which it must, because nothing else can finish first.
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new Mock<IMobileApiClient>();
         inner.Setup(x => x.GetRecordsAsync(null, From, To))
             .Returns(async () =>
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(150));
+                await release.Task;
                 return Result<IReadOnlyList<MobileCollectorRecordDto>>.Success(late);
             });
 
@@ -158,6 +164,9 @@ public class CachingMobileApiClientTests
 
         var served = await sut.GetRecordsAsync(null, From, To);
         Assert.Same(stale, served.Value);
+
+        // Only now may the abandoned request land.
+        release.SetResult();
 
         // Give the abandoned request time to land. Polled rather than slept once, so the test does not depend on a machine's speed.
         for (var i = 0; i < 100; i++)
