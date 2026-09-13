@@ -106,7 +106,12 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
                 var credited = group.Sum(r => r.LifetimeCollected);
 
                 var everCollected =
-                    await context.PaymentRecords.Where(p => p.StallId == group.Key).SumAsync(p => p.AmountPaid)
+                    // AmountPaid is computed from the record's own parts and is Ignore()d in the EF configuration, so it
+                    // cannot be translated to SQL — this summed it in the database and threw. The rows are fetched and
+                    // summed in memory instead. The fault stood because these tests skip without a snapshot, so it had
+                    // never once been executed; it was found the first time a restored snapshot was pointed at it.
+                    (await context.PaymentRecords.Where(p => p.StallId == group.Key).ToListAsync())
+                        .Sum(p => p.AmountPaid)
                     + await context.DailyCollections.Where(d => d.StallId == group.Key && d.IsPaid).SumAsync(d => d.DailyFee);
 
                 Assert.True(credited <= everCollected + 0.01m,
