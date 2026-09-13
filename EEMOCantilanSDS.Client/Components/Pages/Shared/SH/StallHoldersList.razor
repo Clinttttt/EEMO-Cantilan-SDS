@@ -89,7 +89,7 @@
                             @foreach (var sec in SectionKeys)
                             {
                                 <button type="button" class="lsh-seg-item @(ActiveSection == sec ? "active" : "")"
-                                        aria-pressed="@(ActiveSection == sec)"
+                                        aria-pressed="@(ActiveSection == sec ? "true" : "false")"
                                         @onclick="() => ActiveSection = sec">
                                     @sec
                                 </button>

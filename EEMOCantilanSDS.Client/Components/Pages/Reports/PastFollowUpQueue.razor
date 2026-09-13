@@ -177,7 +177,7 @@
                             </div>
                             @foreach (var y in Years)
                             {
-                                <div class="fh-dd-item @(_selYear == y ? "active" : "")" role="option" aria-selected="@(_selYear == y)" @onclick="() => SelectYear(y)">
+                                <div class="fh-dd-item @(_selYear == y ? "active" : "")" role="option" aria-selected="@(_selYear == y ? "true" : "false")" @onclick="() => SelectYear(y)">
                                     <span class="fh-dd-name">@y</span>
                                     @if (_selYear == y)
                                     {
@@ -205,7 +205,7 @@
                         <div class="fh-dd-backdrop" @onclick="CloseAll"></div>
                         <div class="fh-dd-menu fh-dd-menu-right" role="listbox" aria-label="Month">
                             <div class="fh-dd-header">Month</div>
-                            <div class="fh-dd-item @(_selMonth == 0 ? "active" : "")" role="option" aria-selected="@(_selMonth == 0)" @onclick="() => SelectMonth(0)">
+                            <div class="fh-dd-item @(_selMonth == 0 ? "active" : "")" role="option" aria-selected="@(_selMonth == 0 ? "true" : "false")" @onclick="() => SelectMonth(0)">
                                 <span class="fh-dd-name">Whole year</span>
                                 @if (_selMonth == 0)
                                 {
@@ -214,7 +214,7 @@
                             </div>
                             @foreach (var m in MonthsFor(_selYear))
                             {
-                                <div class="fh-dd-item @(_selMonth == m ? "active" : "")" role="option" aria-selected="@(_selMonth == m)" @onclick="() => SelectMonth(m)">
+                                <div class="fh-dd-item @(_selMonth == m ? "active" : "")" role="option" aria-selected="@(_selMonth == m ? "true" : "false")" @onclick="() => SelectMonth(m)">
                                     <span class="fh-dd-name">@MonthName(m)</span>
                                     @if (_selMonth == m)
                                     {

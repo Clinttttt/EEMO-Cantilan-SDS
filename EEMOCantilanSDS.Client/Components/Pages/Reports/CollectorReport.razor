@@ -47,7 +47,7 @@
         {
             var period = p;
             <button type="button" class="rpt-period-tab @(ActivePeriod == period ? "active" : "")"
-                    aria-pressed="@(ActivePeriod == period)"
+                    aria-pressed="@(ActivePeriod == period ? "true" : "false")"
                     @onclick="() => SetPeriod(period)">@period</button>
         }
     </div>

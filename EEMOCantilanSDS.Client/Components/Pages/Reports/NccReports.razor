@@ -54,7 +54,7 @@
         @foreach (var p in new[] { "Monthly", "Yearly" })
         {
             <button type="button" class="rpt-period-tab @(!ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
-                    aria-pressed="@(!ShowPrintReport && !ShowHistory && ActivePeriod == p)"
+                    aria-pressed="@(!ShowPrintReport && !ShowHistory && ActivePeriod == p ? "true" : "false")"
                     @onclick="() => SetPeriod(p)">@p</button>
         }
         <button type="button" class="rpt-period-tab rpt-document-tab @(ShowPrintReport ? "active" : "")"

@@ -41,7 +41,10 @@
 .pb-control-or { flex: 0 1 280px; }
 .pb-label { display: block; font-size: 12px; font-weight: 650; color: var(--text); margin-bottom: 7px; }
 
-.pb-seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+/* The column count follows the number of choices actually offered: the market has three (whole month, specific days,
+   all outstanding) and the monthly facilities two. Hard-coded at two, the market's third choice wrapped onto a second
+   row and broke the control in half. minmax(0, 1fr) lets a long label wrap inside its own cell rather than widening it. */
+.pb-seg { display: grid; grid-template-columns: repeat(var(--pb-seg-count, 2), minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
 .pb-seg-btn {
     padding: 10px 12px; border: none; background: var(--bg-card); cursor: pointer;
     font: inherit; font-size: 13px; font-weight: 600; color: var(--text-subtle); transition: background .12s, color .12s;

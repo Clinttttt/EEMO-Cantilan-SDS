@@ -181,4 +181,16 @@ public class PayBillModalSettleEverythingTests : TestContext
         cut.WaitForAssertion(() => Assert.Empty(_settled));
         Assert.DoesNotContain("Record ₱", cut.Markup);
     }
+
+    [Fact]
+    public void TheSettleControlKeepsItsThreeChoicesOnOneRow()
+    {
+        // Adding "All outstanding" to a control hard-coded at two columns wrapped it onto a second row and broke the control
+        // in half. The count is stated by the markup so the grid follows the choices rather than the other way round.
+        var cut = RenderModal();
+        cut.WaitForElements(".pb-seg-btn");
+
+        Assert.Equal(3, cut.FindAll(".pb-seg-btn").Count);
+        Assert.Contains("--pb-seg-count: 3", cut.Find(".pb-seg").GetAttribute("style"));
+    }
 }

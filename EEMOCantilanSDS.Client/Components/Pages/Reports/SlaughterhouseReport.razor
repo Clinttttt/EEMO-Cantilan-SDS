@@ -156,7 +156,7 @@
                     @foreach (var filter in AnimalFilters)
                     {
                         <button type="button" class="slr-seg-item @(ActiveFilter == filter ? "active" : "")"
-                                aria-pressed="@(ActiveFilter == filter)"
+                                aria-pressed="@(ActiveFilter == filter ? "true" : "false")"
                                 @onclick="() => ActiveFilter = filter">
                             @filter
                         </button>
@@ -166,7 +166,7 @@
                     @foreach (var option in ViewOptions)
                     {
                         <button type="button" class="slr-seg-item @(View == option.Mode ? "active" : "")"
-                                aria-pressed="@(View == option.Mode)" title="@option.Hint"
+                                aria-pressed="@(View == option.Mode ? "true" : "false")" title="@option.Hint"
                                 @onclick="() => View = option.Mode">
                             @option.Label
                         </button>

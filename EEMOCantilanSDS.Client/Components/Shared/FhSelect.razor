@@ -27,7 +27,7 @@
             @foreach (var opt in Options)
             {
                 var val = opt.Value;
-                <div class="fh-dd-item @(val == Value ? "active" : "")" role="option" aria-selected="@(val == Value)" @onclick="() => Pick(val)">
+                <div class="fh-dd-item @(val == Value ? "active" : "")" role="option" aria-selected="@(val == Value ? "true" : "false")" @onclick="() => Pick(val)">
                     <span class="fh-dd-name">@opt.Label</span>
                     @if (val == Value)
                     {
