@@ -90,7 +90,8 @@
                        clerk to invent particulars the office does not hold. *@
                     <div class="avm-group">
                         <label class="avm-label">Basis of Occupancy <span class="avm-req">*</span></label>
-                        <div class="avm-choice" role="radiogroup" aria-label="Basis of occupancy">
+                        <div class="avm-choice" role="radiogroup" aria-label="Basis of occupancy"
+                             style="--avm-choice-count: @OfferedArrangements.Count()">
                             @foreach (var option in OfferedArrangements)
                             {
                                 <button type="button"

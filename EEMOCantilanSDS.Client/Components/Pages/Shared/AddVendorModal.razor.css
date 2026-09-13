@@ -862,7 +862,10 @@
    navy when selected, no colour beyond the document's own. */
 .avm-choice {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* The column count follows the number of bases actually offered, which is not fixed: an extension is offered only
+       while editing a record that already carries one. Hard-coded at three, dropping an option left an empty cell and a
+       band of whitespace beside the choices. */
+    grid-template-columns: repeat(var(--avm-choice-count, 3), minmax(0, 1fr));
     gap: 10px;
     /* Clear of the fields below: the choices are their own question, not a heading for the next one. */
     margin-bottom: 18px;

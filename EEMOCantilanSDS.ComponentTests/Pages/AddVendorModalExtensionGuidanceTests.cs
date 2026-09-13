@@ -110,4 +110,24 @@ public class AddVendorModalExtensionGuidanceTests : TestContext
 
         Assert.Equal(new[] { "No contract (extension)" }, checkedTitles);
     }
+
+    [Fact]
+    public void RegisteringAVendor_ShowsTwoColumnsForTheTwoBasesOffered()
+    {
+        // The grid was fixed at three columns, so dropping a basis left an empty cell and a band of whitespace beside the
+        // choices. The count is stated by the markup because it is not constant.
+        var cut = RenderForm(Form(OccupancyArrangement.SignedContract));
+
+        Assert.Equal(2, OfferedBases(cut).Count);
+        Assert.Contains("--avm-choice-count: 2", cut.Find(".avm-choice").GetAttribute("style"));
+    }
+
+    [Fact]
+    public void EditingAnExtension_ShowsThreeColumnsForTheThreeBasesOffered()
+    {
+        var cut = RenderForm(Form(OccupancyArrangement.Extension), editing: true);
+
+        Assert.Equal(3, OfferedBases(cut).Count);
+        Assert.Contains("--avm-choice-count: 3", cut.Find(".avm-choice").GetAttribute("style"));
+    }
 }
