@@ -193,6 +193,23 @@
 
         <!-- FINANCIAL POSITION — KPIs -->
         <div id="rpt-overview" class="kpi-row pdf-include@(SectionOff("overview"))">
+            @* Billed leads, because it is the figure the other three answer to: Billed = Collected + Current-period unpaid,
+               which is why these four reconcile as a statement of position rather than reading as four unrelated numbers.
+               It was previously stated only as sub-text under the collection rate.
+
+               Paid collection records left this row for the strip below it. The count is operational — how many entries
+               were encoded — where the other three are money, and a government report should lead with what was assessed
+               and what came in. Nothing was dropped: it is still stated, with its coverage and the facility count. *@
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap navy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-value">@Money(Model.Billed)</div>
+                    <div class="kpi-label">Assessed — @PeriodLabel</div>
+                    <div class="kpi-sub">Collected plus the balance still due</div>
+                </div>
+            </div>
             <div class="kpi-card">
                 <div class="kpi-icon-wrap green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
@@ -243,17 +260,19 @@
                     <div class="kpi-sub">@Money(Model.Collected) of @Money(Model.Billed) billed</div>
                 </div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-icon-wrap navy">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
-                </div>
-                <div class="kpi-body">
-                    <div class="kpi-value">@Model.PaidRecords</div>
-                    <div class="kpi-label">Paid collection records</div>
-                    <div class="kpi-sub">@Model.PaidRecords of @Model.ExpectedRecords expected · @Model.FacilityCount facilities</div>
-                   
-                </div>
-            </div>
+        </div>
+
+        @* The operational figures the fourth card used to hold. Stated quietly, because they describe the encoding of the
+           period rather than its money, and because a report that gives equal weight to a record count and to what was
+           assessed invites the two to be read as comparable. Part of the Overview section, so it hides with the tab and
+           prints with the KPIs above it. *@
+        <div class="rpt-activity pdf-include@(SectionOff("overview"))">
+            <span class="rpt-activity-label">Collection activity</span>
+            <span class="rpt-activity-item"><strong>@Model.PaidRecords</strong> paid records</span>
+            <span class="rpt-activity-sep"></span>
+            <span class="rpt-activity-item"><strong>@Model.ExpectedRecords</strong> expected</span>
+            <span class="rpt-activity-sep"></span>
+            <span class="rpt-activity-item"><strong>@Model.FacilityCount</strong> facilit@(Model.FacilityCount == 1 ? "y" : "ies")</span>
         </div>
 
         <!-- ATTENTION & FOLLOW-UP -->

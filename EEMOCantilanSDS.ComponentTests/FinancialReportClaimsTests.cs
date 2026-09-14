@@ -143,4 +143,34 @@ public class FinancialReportClaimsTests
         Assert.Contains("f.PaidOnService || f.ExpectedRecords <= 0", markup);
         Assert.Contains(@"<th scope=""col"">Paid / expected</th>", markup);
     }
+
+    [Fact]
+    public void TheHeadlineFiguresAreTheFourThatReconcile_AndThereAreStillFourOfThem()
+    {
+        // Billed leads because the other three answer to it: Billed = Collected + Current-period unpaid. It used to appear
+        // only as sub-text under the collection rate, while the fourth card held a record COUNT — operational information
+        // given the same weight as money.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        var overview = markup.Substring(markup.IndexOf(@"id=""rpt-overview"""));
+        overview = overview.Substring(0, overview.IndexOf("rpt-activity"));
+
+        var values = Regex.Matches(overview, @"kpi-value"">(?<v>[^<]+)<")
+            .Cast<Match>()
+            .Select(m => m.Groups["v"].Value.Trim())
+            .ToList();
+
+        // Four, in the order a statement of position reads. Four matters: the grid is four columns and print forces four,
+        // so a fifth card would silently reflow the exported document.
+        Assert.Equal(
+            new[] { "@Money(Model.Billed)", "@Money(Model.Collected)", "@Money(Model.CurrentPeriodUnpaid)", "@Model.CollectionRatePct%" },
+            values);
+        Assert.Contains("grid-template-columns: repeat(4, 1fr) !important", css);
+
+        // The record count was demoted, not dropped, and its strip prints with the KPIs and hides with the tab.
+        Assert.Contains(@"class=""rpt-activity pdf-include@(SectionOff(""overview""))""", markup);
+        Assert.Contains("Model.PaidRecords", markup);
+        Assert.Contains("Model.ExpectedRecords", markup);
+    }
 }

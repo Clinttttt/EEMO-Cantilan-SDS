@@ -1392,6 +1392,40 @@
         color: var(--navy);
     }
 
+/* Operational strip under the KPI row: how the period was encoded, stated quietly beside figures that are money. */
+.rpt-activity {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin: -6px 0 20px;
+    padding: 11px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.rpt-activity-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+    .rpt-activity-item strong {
+        color: var(--navy);
+        font-weight: 700;
+    }
+
+.rpt-activity-sep {
+    width: 1px;
+    height: 13px;
+    background: var(--border);
+}
+
 /* Divider inside a coverage figure ("284 / 310"): the denominator is context, not a second number of equal weight. */
 .fac-cov-sep {
     color: var(--text-subtle);

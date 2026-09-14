@@ -105,7 +105,12 @@ public class ReportPageTests : TestContext
             Assert.Contains("Current-period unpaid balance", cut.Markup);
             Assert.Contains("₱57,400", cut.Markup);                        // Unpaid KPI
             Assert.Contains("81%", cut.Markup);                            // Collection rate
-            Assert.Contains("168 of 210", cut.Markup);                     // record completion
+            // Billed leads the row now, and the record count moved to the activity strip below it: operational information
+            // beside three figures that are money. Both of its numbers are still stated, just not as a headline card.
+            Assert.Contains("Assessed", cut.Markup);                       // Billed KPI
+            Assert.Contains("₱299,570", cut.Markup);                       // 242,170 collected + 57,400 unpaid
+            Assert.Contains("paid records", cut.Markup);
+            Assert.Contains("210", cut.Markup);                            // expected, in the activity strip
         }, RenderTimeout);
     }
 
