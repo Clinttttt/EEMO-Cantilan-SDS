@@ -1,4 +1,4 @@
-﻿@page "/reports"
+@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -72,6 +72,22 @@
                     <FhSelect Caption="Month" Value="@SelectedMonth" Options="@MonthOptions" ValueChanged="OnMonthChanged" />
                 </div>
             }
+
+            @* Jump links for a report that runs well past one screen: four of its five sections start below the fold, so
+               reaching the facility table or the records meant scrolling past everything above them. Plain anchors — no
+               scroll tracking, because an active state that has to be kept in step with the scroll position is machinery
+               this page does not need to earn the navigation. They filter nothing; the period and facility controls do
+               that, and these only move within whatever those two have already selected. Hidden in print. *@
+            <div class="rfp-ctrl rfp-jump no-print">
+                <div class="rfp-label">Section</div>
+                <div class="rfp-jump-links">
+                    <a href="#rpt-overview">Overview</a>
+                    <a href="#rpt-followup">Follow-up</a>
+                    <a href="#rpt-trend">Trend</a>
+                    <a href="#rpt-facility">By facility</a>
+                    <a href="#rpt-records">Records</a>
+                </div>
+            </div>
 
             <div class="rfp-export">
                 <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
@@ -180,7 +196,7 @@
         </div>
 
         <!-- FINANCIAL POSITION — KPIs -->
-        <div class="kpi-row pdf-include">
+        <div id="rpt-overview" class="kpi-row pdf-include">
             <div class="kpi-card">
                 <div class="kpi-icon-wrap green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
@@ -245,7 +261,7 @@
         </div>
 
         <!-- ATTENTION & FOLLOW-UP -->
-        <div class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
+        <div id="rpt-followup" class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
@@ -278,7 +294,20 @@
                         @{ var delinquentRows = Filtered(Model.Delinquent, _delinquentSearch); }
                         @if (Model.DelinquentAccountsTotal == 0)
                         {
-                            <div class="rpt-empty">No delinquent accounts for @PeriodLabel.</div>
+                            @* "No delinquent accounts" read as "nothing is badly behind" while money sat in the block below
+                               it: the office saw 0 here beside ₱11,370 owed by former occupancies. These lists count only
+                               accounts still being billed, and that is the honest scope — a debt cannot be stated in both
+                               places or the page contradicts its own totals. So the empty state says where the money is
+                               instead of pretending there is none. *@
+                            <div class="rpt-empty">
+                                No delinquent accounts for @PeriodLabel.
+                                @if (Model.ClosedWithBalanceCount > 0)
+                                {
+                                    <span class="rpt-empty-more">
+                                        @Money(Model.ClosedWithBalanceOutstanding) is owed by former occupancies, stated below.
+                                    </span>
+                                }
+                            </div>
                         }
                         else if (delinquentRows.Count == 0)
                         {
@@ -395,7 +424,7 @@
         </div>
 
         <!-- REVENUE TREND -->
-        <div class="section-card pdf-include rpt-trend-card" style="margin-bottom:20px;">
+        <div id="rpt-trend" class="section-card pdf-include rpt-trend-card" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Revenue Trend</div>
@@ -461,7 +490,7 @@
         @* Print-only spacer: it owns the page break and the whitespace above the card, so the card's own
            border never sits against the top edge of the sheet. Invisible on screen. *@
         <div class="rpt-page-space" aria-hidden="true"></div>
-        <div class="section-card pdf-include" style="margin-bottom:20px;">
+        <div id="rpt-facility" class="section-card pdf-include" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Revenue by Facility — @PeriodLabel</div>
@@ -583,7 +612,7 @@
         </div>
 
         <!-- RECENT COLLECTION RECORDS -->
-        <div class="section-card" style="margin-bottom:20px;">
+        <div id="rpt-records" class="section-card" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Recent Collection Records</div>

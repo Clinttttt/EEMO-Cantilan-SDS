@@ -39,8 +39,10 @@ public class FinancialReportClaimsTests
 
         // … and neither the Attention section nor Recent Collection Records is marked, so neither is printed. If either
         // ever gains pdf-include, the button is exporting more than a summary and this should be revisited.
-        var attention = Regex.Match(markup, @"<div class=""section-card rpt-attention-wrap[^""]*""");
-        Assert.True(attention.Success, "expected the Attention section to still be a section-card");
+        // Matched on the whole opening tag rather than assuming class comes first: adding an id attribute ahead of it
+        // silently stopped an earlier version of this assertion from finding the section at all.
+        var attention = Regex.Match(markup, @"<div[^>]*rpt-attention-wrap[^>]*>");
+        Assert.True(attention.Success, "expected the Attention section to still carry rpt-attention-wrap");
         Assert.DoesNotContain("pdf-include", attention.Value);
 
         Assert.Contains("Export Summary PDF", markup);
@@ -59,5 +61,36 @@ public class FinancialReportClaimsTests
 
         Assert.DoesNotContain(">3 or more unpaid months<", markup);
         Assert.DoesNotContain(">1–2 unpaid months<", markup);
+    }
+
+    [Fact]
+    public void EverySectionJumpLinkPointsAtASectionThatExists()
+    {
+        // The links fill the gap in the control row on a report whose sections mostly start below the fold. An anchor that
+        // names an id nothing carries fails silently — the page simply does not move — so the two are checked together.
+        var markup = ReadReport(string.Empty);
+
+        var targets = Regex.Matches(markup, @"class=""rfp-jump-links"">(?<body>.*?)</div>", RegexOptions.Singleline)
+            .Cast<Match>()
+            .SelectMany(m => Regex.Matches(m.Groups["body"].Value, @"href=""#(?<id>[a-z-]+)""").Cast<Match>())
+            .Select(m => m.Groups["id"].Value)
+            .ToList();
+
+        Assert.Equal(5, targets.Count);
+
+        foreach (var id in targets)
+            Assert.Contains($@"id=""{id}""", markup);
+    }
+
+    [Fact]
+    public void TheDelinquentEmptyState_SaysWhereTheMoneyIs_RatherThanJustThatThereIsNone()
+    {
+        // "No delinquent accounts" read as "nothing is badly behind" while former occupancies owed ₱11,370 in the block
+        // below. The lists count only accounts still being billed, and a debt must not be stated twice on one page, so the
+        // empty state discloses the other figure instead of absorbing it.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("is owed by former occupancies, stated below.", markup);
+        Assert.Contains("Model.ClosedWithBalanceOutstanding", markup);
     }
 }
