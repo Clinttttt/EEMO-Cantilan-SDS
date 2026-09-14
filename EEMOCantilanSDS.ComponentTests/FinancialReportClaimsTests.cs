@@ -64,33 +64,55 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
-    public void EverySectionJumpLinkPointsAtASectionThatExists()
+    public void EverySectionTabMarksASectionThatExists()
     {
-        // The links fill the gap in the control row on a report whose sections mostly start below the fold. An anchor that
-        // names an id nothing carries fails silently — the page simply does not move — so the two are checked together.
+        // The tabs show one section at a time. A tab whose key no section carries would simply hide everything, so the two
+        // lists are checked against each other rather than separately.
         var markup = ReadReport(string.Empty);
 
-        var targets = Regex.Matches(markup, @"class=""rfp-jump-links"">(?<body>.*?)</div>", RegexOptions.Singleline)
+        var keys = Regex.Matches(markup, @"\(""(?<key>[a-z]+)"", ""[^""]+""\),")
             .Cast<Match>()
-            .SelectMany(m => Regex.Matches(m.Groups["body"].Value, @"href=""#(?<id>[a-z-]+)""").Cast<Match>())
-            .Select(m => m.Groups["id"].Value)
+            .Select(m => m.Groups["key"].Value)
             .ToList();
 
-        Assert.Equal(5, targets.Count);
+        Assert.Equal(5, keys.Count);
 
-        foreach (var id in targets)
-            Assert.Contains($@"id=""{id}""", markup);
+        foreach (var key in keys)
+            Assert.Contains($@"SectionOff(""{key}"")", markup);
     }
 
     [Fact]
-    public void TheDelinquentEmptyState_SaysWhereTheMoneyIs_RatherThanJustThatThereIsNone()
+    public void HidingASection_IsScreenOnly_SoTheExportCannotDependOnTheOpenTab()
+    {
+        // The whole reason the sections stay in the markup. Export Summary PDF is assembled by the print stylesheet from
+        // the entire page; if rpt-sec-off hid sections in print too, the exported report would contain only whatever the
+        // office happened to be looking at — an empty summary if that was Records.
+        var css = ReadReport(".css");
+
+        var offRule = Regex.Match(css, @"@media screen\s*\{[^}]*\.rpt-sec-off\s*\{[^}]*\}", RegexOptions.Singleline);
+        Assert.True(offRule.Success, "rpt-sec-off must be hidden inside @media screen, never unconditionally");
+
+        // And nothing outside that block may hide it, which would defeat the point.
+        var all = Regex.Matches(css, @"\.rpt-sec-off\s*\{").Count;
+        Assert.Equal(1, all);
+    }
+
+    [Fact]
+    public void TheDelinquentEmptyState_PointsAtTheMoney_AsAFigureRatherThanProse()
     {
         // "No delinquent accounts" read as "nothing is badly behind" while former occupancies owed ₱11,370 in the block
         // below. The lists count only accounts still being billed, and a debt must not be stated twice on one page, so the
-        // empty state discloses the other figure instead of absorbing it.
+        // empty state points at the other figure instead of absorbing it.
         var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
 
-        Assert.Contains("is owed by former occupancies, stated below.", markup);
-        Assert.Contains("Model.ClosedWithBalanceOutstanding", markup);
+        // Stated the way the rest of the page states money — the amount as its own element, and a link to the register that
+        // holds it — rather than a sentence with a peso figure inside it.
+        Assert.Contains("rpt-empty-note-val\">@Money(Model.ClosedWithBalanceOutstanding)", markup);
+        Assert.Contains(@"class=""rpt-empty-note"" href=""/reports/closed-accounts?status=ended""", markup);
+
+        // Borrowed from the card below rather than invented: same border, same tinted panel, same red figure.
+        Assert.Contains(".rpt-empty-note {", css);
+        Assert.Contains("color: var(--red);", css);
     }
 }
