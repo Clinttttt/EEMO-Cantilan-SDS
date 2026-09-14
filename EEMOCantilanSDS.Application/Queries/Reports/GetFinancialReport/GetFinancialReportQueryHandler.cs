@@ -311,8 +311,12 @@ public class GetFinancialReportQueryHandler(
 
         // Split by how many months are unpaid, then CAPPED for display. The cap keeps the payload bounded; the list is
         // ordered most-overdue first, so what survives it is the part the office would work through first.
-        var delinquentAll = delinquency.Where(d => d.MonthsUnpaid >= 3).ToList();
-        var arrearsAll = delinquency.Where(d => d.MonthsUnpaid is >= 1 and <= 2).ToList();
+        // Split by the office's own threshold rather than by a number written here. These read 3 and "1 to 2" literally,
+        // so changing DomainRules.DelinquentThresholdMonths would have left this report disagreeing with the follow-up
+        // queue and the dashboard about which accounts are delinquent — the same drift the contract-expiry rule suffered
+        // from being stated in two places. The two lists stay complementary by construction.
+        var delinquentAll = delinquency.Where(d => d.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths).ToList();
+        var arrearsAll = delinquency.Where(d => d.MonthsUnpaid is >= 1 and < DomainRules.DelinquentThresholdMonths).ToList();
 
         var delinquent = delinquentAll
             .Take(AttentionLimit)

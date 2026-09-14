@@ -495,14 +495,19 @@
     private static string HideKey(FollowUpItemDto i) =>
         $"{i.Facility}|{i.ReasonKind}|{i.StallId?.ToString() ?? i.Identifier}|{i.Period}";
 
-    // Count of still-visible "Contract expired" items in Needs immediate action (expired contracts
-    // are ReasonKind "contract" in section 1; expiring-soon ones live in section 2).
+    // Count of still-visible "Contract expired" items in Needs immediate action.
+    //
+    // Matched on the REASON, not the kind. "contract" is shared: a past-occupancy or closed-account balance carries it too
+    // when the account owes fewer than the office's three months, so a button named for expired contracts was dismissing
+    // former lessees' outstanding balances along with them. The reason is what the row actually is.
+    private const string ExpiredContractReason = "Contract expired";
+
     private int ImmediateExpiredContractCount =>
-        Filtered().Count(i => i.Section == SecImmediate && i.ReasonKind == "contract" && !_hidden.Contains(HideKey(i)));
+        Filtered().Count(i => i.Section == SecImmediate && i.Reason == ExpiredContractReason && !_hidden.Contains(HideKey(i)));
 
     private async Task HideAllExpiredContracts()
     {
-        foreach (var i in Filtered().Where(i => i.Section == SecImmediate && i.ReasonKind == "contract"))
+        foreach (var i in Filtered().Where(i => i.Section == SecImmediate && i.Reason == ExpiredContractReason))
             _hidden.Add(HideKey(i));
         await SaveHidden();
     }

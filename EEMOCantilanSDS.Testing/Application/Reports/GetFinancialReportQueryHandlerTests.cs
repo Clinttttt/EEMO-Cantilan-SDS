@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -175,6 +176,41 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(66_000m, r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
         Assert.NotEqual(r.Delinquent.Sum(d => d.Balance) + r.Arrears.Sum(a => a.Balance),
                         r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
+    }
+
+    [Fact]
+    public async Task TheDelinquentSplit_FollowsTheOfficesThreshold_NotANumberWrittenInTheReport()
+    {
+        // The report read "MonthsUnpaid >= 3" and "1 to 2" literally, so changing the office's threshold would have left it
+        // disagreeing with the follow-up queue and the dashboard about which accounts are delinquent — the drift the
+        // contract-expiry rule suffered from being stated in two places. Driven from the constant so the two cannot part.
+        var t = DomainRules.DelinquentThresholdMonths;
+        var (handler2, reports2) = Build();
+
+        var rows = new List<DelinquentStallDto>
+        {
+            new(FacilityCode.NPM, "AT",    "At the threshold",   t,     1_000m),
+            new(FacilityCode.NPM, "OVER",  "Over the threshold", t + 5, 1_000m),
+            new(FacilityCode.NPM, "UNDER", "Just under it",      t - 1, 100m),
+            new(FacilityCode.NPM, "ONE",   "One month owing",    1,     100m),
+        };
+
+        reports2.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rows);
+
+        var result2 = await handler2.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
+        var rep = result2.Value!;
+
+        // At the threshold counts as delinquent; a month below it does not.
+        Assert.Equal(2, rep.DelinquentAccountsTotal);
+        Assert.Contains(rep.Delinquent, a => a.Name == "At the threshold");
+
+        // Every account with a balance lands in exactly one of the two lists — complementary by construction, so none can
+        // be counted twice or fall between them.
+        Assert.Equal(2, rep.ArrearsAccountsTotal);
+        Assert.Equal(rows.Count, rep.DelinquentAccountsTotal + rep.ArrearsAccountsTotal);
+        Assert.DoesNotContain(rep.Arrears, a => a.Name == "At the threshold");
     }
 
     [Fact]
