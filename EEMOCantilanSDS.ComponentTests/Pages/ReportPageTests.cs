@@ -55,10 +55,10 @@ public class ReportPageTests : TestContext
         YtdCollected: 475_970m,
         Facilities: new List<FinancialFacilityRowDto>
         {
-            new(FacilityCode.NPM, "New Public Market", "Daily stall", false, 2_242m, 1_410m, 4, 55, "Behind",
+            new(FacilityCode.NPM, "New Public Market", "Daily stall", false, 2_242m, 1_410m, 4, 6, 55, "Behind",
                 new NpmFacilityDetailDto(1_710m, 532m, 532m, 1_410m, 3_600m, 1_890m,
                     ElecCollected: 320m, WaterCollected: 180m, UtilityOutstanding: 90m)),
-            new(FacilityCode.TRM, "Transport Terminal", "Per-trip", true, 300m, null, 10, 100, "Paid on service")
+            new(FacilityCode.TRM, "Transport Terminal", "Per-trip", true, 300m, null, 10, 0, 100, "Paid on service")
         },
         RecentRecords: new List<FinancialRecordDto>
         {

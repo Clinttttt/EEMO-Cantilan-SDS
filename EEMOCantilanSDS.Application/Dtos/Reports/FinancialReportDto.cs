@@ -116,6 +116,13 @@ public record FinancialFacilityRowDto(
     decimal Collected,
     decimal? Unpaid,
     int PaidRecords,
+    /// <summary>
+    /// How many records the period expected from this facility, so the paid count reads as coverage rather than as a bare
+    /// number. Computed per facility all along and then discarded before it reached the page: the office could see that 284
+    /// records were paid but not whether that was out of 290 or out of 400.
+    /// </summary>
+    /// <remarks>Zero for a paid-on-service facility, which has no roll to be measured against.</remarks>
+    int ExpectedRecords,
     int? RatePct,
     string Status,
     NpmFacilityDetailDto? Detail = null

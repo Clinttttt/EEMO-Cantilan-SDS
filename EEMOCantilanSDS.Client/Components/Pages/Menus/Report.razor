@@ -504,7 +504,7 @@
                             <th scope="col">Collection model</th>
                             <th scope="col">Collected</th>
                             <th scope="col">Unpaid (period)</th>
-                            <th scope="col">Paid records</th>
+                            <th scope="col">Paid / expected</th>
                             <th scope="col">Rate</th>
                             <th scope="col">Status</th>
                         </tr>
@@ -527,7 +527,20 @@
                                 <td><span class="fac-model">@f.Model</span></td>
                                 <td class="mono-num">@Money(f.Collected)</td>
                                 <td class="mono-num" style="@(f.Unpaid.HasValue && f.Unpaid > 0 ? "color:var(--red);" : "color:var(--text-muted);")">@(f.Unpaid.HasValue ? Money(f.Unpaid.Value) : "—")</td>
-                                <td class="mono-num">@f.PaidRecords</td>
+                                @* Coverage, not a bare count: 284 means nothing until the office knows whether the roll was
+                                   290 or 400. The expected figure was computed per facility all along and discarded before
+                                   it reached here. A paid-on-service facility has no roll — every transaction IS the
+                                   collection — so it keeps a plain count rather than a denominator invented for it. *@
+                                <td class="mono-num">
+                                    @if (f.PaidOnService || f.ExpectedRecords <= 0)
+                                    {
+                                        @f.PaidRecords
+                                    }
+                                    else
+                                    {
+                                        @f.PaidRecords<span class="fac-cov-sep"> / </span>@f.ExpectedRecords
+                                    }
+                                </td>
                                 <td style="font-weight:700;color:@(f.RatePct.HasValue ? "var(--navy)" : "var(--text-muted)");">@(f.RatePct.HasValue ? f.RatePct + "%" : "—")</td>
                                 <td><span class="status-pill @StatusClass(f.Status)">@f.Status</span></td>
                             </tr>
@@ -627,22 +640,38 @@
                             <th scope="col">Facility</th>
                             <th scope="col">Date</th>
                             <th scope="col">Type</th>
+                            <th scope="col">Recorded by</th>
                             <th scope="col">Amount</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (Model.RecentRecords.Count == 0)
                         {
-                            <tr><td colspan="6"><div class="rpt-empty">No records for @ScopeLabel.</div></td></tr>
+                            <tr><td colspan="7"><div class="rpt-empty">No records for @ScopeLabel.</div></td></tr>
                         }
                         @foreach (var tx in Model.RecentRecords)
                         {
                             <tr>
                                 <td class="tx-id">@tx.Reference</td>
-                                <td><a href="@ProfileUrl(tx)" class="vendor-link">@tx.Payor</a></td>
+                                @* The column has always said "Payor / Stall" and shown only the payor. The stall was carried
+                                   on the row all along — it is what the profile link is built from — so a register that
+                                   names a facility but not the space inside it was stating less than it held. Three of
+                                   Cantilan's market sections each hold a "Stall 1", so the payor's name alone does not
+                                   identify what was collected on. *@
+                                <td>
+                                    <a href="@ProfileUrl(tx)" class="vendor-link">@tx.Payor</a>
+                                    @if (!string.IsNullOrWhiteSpace(tx.StallNo))
+                                    {
+                                        <div class="tx-sub">@SpaceNumber.Describe(tx.StallNo)</div>
+                                    }
+                                </td>
                                 <td><span class="fac-code-badge">@FacilityCatalog.ShortNameOf(tx.FacilityCode)</span></td>
                                 <td style="color:var(--text-muted);font-size:12.5px;">@tx.RecordedAt.ToString("MMM d, yyyy")</td>
                                 <td><span class="pay-method">@tx.Method</span></td>
+                                @* Who took the money. The transaction feed has carried this since it was normalised, and this
+                                   report dropped it on the way through — for an LGU register that is exactly the attribution
+                                   worth keeping. Blank where the source has none rather than inventing an actor. *@
+                                <td class="tx-actor">@(string.IsNullOrWhiteSpace(tx.Collector) ? "—" : tx.Collector)</td>
                                 <td class="amount-green">@Money(tx.Amount)</td>
                             </tr>
                         }

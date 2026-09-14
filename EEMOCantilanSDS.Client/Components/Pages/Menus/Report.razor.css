@@ -1392,6 +1392,26 @@
         color: var(--navy);
     }
 
+/* Divider inside a coverage figure ("284 / 310"): the denominator is context, not a second number of equal weight. */
+.fac-cov-sep {
+    color: var(--text-subtle);
+    font-weight: 400;
+}
+
+/* Who recorded a collection. Present for the audit trail, so it must not compete with the amount beside it. */
+.tx-actor {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* The space a collection was taken on, under the payor's name. */
+.tx-sub {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+}
+
 
 /* ══════════════════════════════════════════════════════════════
    EXPANDABLE FACILITY DETAIL (NPM)

@@ -210,6 +210,7 @@ public class GetFinancialReportQueryHandler(
                 Collected: rowCollected,
                 Unpaid: rowUnpaid,
                 PaidRecords: paid,
+                ExpectedRecords: expected,
                 RatePct: rowRate,
                 Status: StallStatus(rowRate),
                 Detail: detail));
@@ -240,6 +241,8 @@ public class GetFinancialReportQueryHandler(
                 Collected: svcCollected,
                 Unpaid: null,
                 PaidRecords: svcRecords,
+                    // Paid on service: every transaction IS the collection, so there is no roll to measure against.
+                    ExpectedRecords: 0,
                 RatePct: svcRecords > 0 ? 100 : (int?)null,
                 Status: "Paid on service"));
         }
@@ -335,7 +338,10 @@ public class GetFinancialReportQueryHandler(
             FacilityCode: f.FacilityCode,
             StallNo: f.Reference,
             RecordedAt: f.OccurredAt,
-            Collector: null,
+            // Who took the money. The feed has carried RecordedBy since it was normalised — the field collector where one
+            // took it, otherwise the admin or Head who encoded it — and this report threw it away, so a register in a
+            // government office named the payor and the amount but not the officer answerable for the entry.
+            Collector: string.IsNullOrWhiteSpace(f.RecordedBy) ? null : f.RecordedBy,
             Method: f.Kind,
             Amount: f.Amount,
             StallId: f.StallId)).ToList();
@@ -452,6 +458,7 @@ public class GetFinancialReportQueryHandler(
                     Collected: fCollected,
                     Unpaid: first.PaidOnService ? null : fUnpaid,
                     PaidRecords: g.Sum(f => f.PaidRecords),
+                        ExpectedRecords: g.Sum(f => f.ExpectedRecords),
                     RatePct: fRate,
                     Status: first.PaidOnService ? "Paid on service" : StallStatus(fRate ?? 0),
                     Detail: null);

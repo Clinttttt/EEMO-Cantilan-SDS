@@ -115,4 +115,32 @@ public class FinancialReportClaimsTests
         Assert.Contains(".rpt-empty-note {", css);
         Assert.Contains("color: var(--red);", css);
     }
+
+    [Fact]
+    public void TheRegisterShowsTheStallAndWhoRecordedIt_BecauseBothWereAlreadyOnTheRow()
+    {
+        // Two things this report held and did not show. The column has always been headed "Payor / Stall" while the cell
+        // rendered the payor alone, and the transaction feed has carried RecordedBy since it was normalised while the
+        // report mapped it to null. For an LGU register the officer answerable for an entry is exactly what is worth
+        // keeping, and three of Cantilan's market sections each hold a "Stall 1", so the payor's name does not identify
+        // what was collected on.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("SpaceNumber.Describe(tx.StallNo)", markup);
+        Assert.Contains(@"<th scope=""col"">Recorded by</th>", markup);
+        Assert.Contains("tx.Collector", markup);
+    }
+
+    [Fact]
+    public void TheFacilityTableReadsAsCoverage_NotABareCount()
+    {
+        // The expected count was computed per facility and thrown away, so the office could see that 284 records were paid
+        // but not whether the roll was 290 or 400. A paid-on-service facility keeps a plain count: every transaction IS
+        // the collection, so a denominator would have to be invented for it.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("f.ExpectedRecords", markup);
+        Assert.Contains("f.PaidOnService || f.ExpectedRecords <= 0", markup);
+        Assert.Contains(@"<th scope=""col"">Paid / expected</th>", markup);
+    }
 }
