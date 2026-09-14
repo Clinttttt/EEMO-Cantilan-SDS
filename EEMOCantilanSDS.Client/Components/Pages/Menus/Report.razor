@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject IReportsApiClient ReportsApi
 @inject IJSRuntime JS
@@ -75,7 +76,10 @@
             <div class="rfp-export">
                 <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
-                    Export PDF
+                    @* "Export PDF" read as though it printed the screen. The scoped print stylesheet keeps only the
+                       letterhead, KPIs, Revenue Trend and Revenue by Facility — Attention & Follow-up and Recent
+                       Collection Records carry no pdf-include and are hidden — so the label now says which it is. *@
+                    Export Summary PDF
                 </button>
             </div>
         </div>
@@ -252,6 +256,10 @@
                        be the last twelve months only, so an account owing ₱33,300 was reported at ₱9,900. *@
                     <div class="section-sub rpt-attention-span">Counted from each account's own start to @(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel) — the month in progress is not yet unpaid. A lapsed term whose occupant remains is counted here, not as an ended account.</div>
                 </div>
+                @* This section states WHO owes and how much; it does not act. Encoding a missing OR, reviewing a contract,
+                   recording a payment or checking an excused entry all happen on the follow-up queue, which carries those
+                   categories as well as these two. The handoff is stated rather than left for the office to know. *@
+                <a class="rpt-attn-link no-print" href="/reports/follow-up">Open full Follow-up Queue →</a>
             </div>
             <div class="rpt-attention">
                 <div class="attn-col">
@@ -259,7 +267,9 @@
                         <span class="attn-col-title attn-delinquent">Delinquent accounts</span>
                         <span class="attn-count attn-count-red">@Model.DelinquentAccountsTotal</span>
                     </div>
-                    <div class="attn-col-note">3 or more unpaid months</div>
+                    @* Stated from the office's own threshold rather than typed as "3", so the note cannot come to contradict
+                       the figure beside it. The handler splits the two lists by the same constant. *@
+                    <div class="attn-col-note">@DomainRules.DelinquentThresholdMonths or more unpaid months</div>
                     <div class="attn-search">
                         <input type="search" value="@_delinquentSearch" @oninput="e => _delinquentSearch = e.Value?.ToString() ?? string.Empty"
                                placeholder="Search name or stall no.…" aria-label="Search delinquent accounts" />
@@ -312,7 +322,7 @@
                         <span class="attn-col-title attn-arrears">Accounts in arrears</span>
                         <span class="attn-count attn-count-amber">@Model.ArrearsAccountsTotal</span>
                     </div>
-                    <div class="attn-col-note">1–2 unpaid months</div>
+                    <div class="attn-col-note">1–@(DomainRules.DelinquentThresholdMonths - 1) unpaid months</div>
                     <div class="attn-search">
                         <input type="search" value="@_arrearsSearch" @oninput="e => _arrearsSearch = e.Value?.ToString() ?? string.Empty"
                                placeholder="Search name or stall no.…" aria-label="Search accounts in arrears" />

@@ -929,6 +929,23 @@
    LINKS & INTERACTIVE
    ══════════════════════════════════════════════════════════════ */
 
+/* Handoff from the Attention section to the queue that can act on it. Restrained: navy text on the card, no button
+   chrome, since it leads elsewhere rather than doing something here. Hidden in print — a paper report has no links. */
+.rpt-attn-link {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    margin-left: 18px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--navy);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+    .rpt-attn-link:hover {
+        text-decoration: underline;
+    }
+
 /* Delinquent item as clickable link */
 .delinq-item-link {
     text-decoration: none;
