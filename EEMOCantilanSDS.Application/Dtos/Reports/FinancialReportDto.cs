@@ -37,6 +37,29 @@ public record FinancialReportDto(
     IReadOnlyList<AttentionAccountDto> Delinquent,
     IReadOnlyList<AttentionAccountDto> Arrears,
 
+    /// <summary>
+    /// Every account with a balance, grouped by how long it has been owed. Counted over the WHOLE account set, never over
+    /// the capped lists above — which is the point of computing it server-side rather than bucketing what the page happens
+    /// to be showing.
+    /// </summary>
+    /// <remarks>
+    /// It answers a question the two lists cannot: whether the office is looking at a lot of recent arrears or at a few
+    /// debts that have been outstanding for years. The same ₱50,000 means very different things in those two cases.
+    /// </remarks>
+    IReadOnlyList<ReceivableAgingBandDto> Aging,
+
+    /// <summary>
+    /// Accounts whose contract term has run out while the occupant remains in the space, and what they owe.
+    /// </summary>
+    /// <remarks>
+    /// Not a separate debt: these accounts are already inside the delinquent and arrears figures, because the office keeps
+    /// collecting from a lapsed occupancy and the register is explicit that it is still being billed. This states how much
+    /// of that money sits behind a term that has expired — an exposure the office can act on by renewing — so it must be
+    /// read as a slice of the total and never added to it.
+    /// </remarks>
+    int LapsedWithBalanceCount,
+    decimal LapsedWithBalanceOutstanding,
+
     // ── Trend (chronological; selected period flagged) ──
     IReadOnlyList<ReportTrendPointDto> Trend,
     decimal YtdCollected,
@@ -77,6 +100,23 @@ public record FinancialReportDto(
 
     /// <summary>What all of those accounts owe in full.</summary>
     decimal ArrearsOutstandingTotal = 0m
+);
+
+/// <summary>
+/// One band of the receivable aging schedule: how many accounts have been owing for this long, and what they owe.
+/// </summary>
+/// <param name="Label">The band as the office reads it, e.g. "1–2 months" or "12+ months".</param>
+/// <param name="Accounts">Accounts whose unpaid-month count falls in this band, over the WHOLE set.</param>
+/// <param name="Outstanding">What those accounts owe in full.</param>
+/// <remarks>
+/// The bands partition every account with at least one unpaid month, so their counts sum to the delinquent and arrears
+/// totals combined and their amounts to those two amounts combined. Nothing is double-counted and nothing falls between
+/// bands, which is what makes the schedule safe to read beside the totals rather than instead of them.
+/// </remarks>
+public record ReceivableAgingBandDto(
+    string Label,
+    int Accounts,
+    decimal Outstanding
 );
 
 /// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing, and

@@ -47,6 +47,18 @@ public class ReportPageTests : TestContext
         {
             new("Jose Dalumpines", FacilityCode.NCC, "11-B", "NCC · Stall 11-B", 3_600m, 2)
         },
+        // The three accounts above, aged: Jose at 2 months, Rosa at 3, Merlita at 37. The bands reconcile with the
+        // delinquent and arrears totals rather than offering a second count of the same debt.
+        Aging: new List<ReceivableAgingBandDto>
+        {
+            new("1–2 months", 1, 3_600m),
+            new("3–5 months", 1, 4_800m),
+            new("6–11 months", 0, 0m),
+            new("12+ months", 1, 33_300m)
+        },
+        // Merlita's term has run out while she remains in the space; her ₱33,300 is already inside the delinquent figure.
+        LapsedWithBalanceCount: 1,
+        LapsedWithBalanceOutstanding: 33_300m,
         Trend: new List<ReportTrendPointDto>
         {
             new("Feb 2026", 2026, 2, 233_800m, 72_120m, false),

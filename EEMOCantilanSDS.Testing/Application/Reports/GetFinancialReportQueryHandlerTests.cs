@@ -214,6 +214,80 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task ReceivableAging_PartitionsEveryAccount_AndReconcilesWithTheTotals()
+    {
+        // The whole point of computing this server-side: the displayed lists are capped, so bucketing what the page shows
+        // would state a smaller debt than the office is owed. The bands are built from the FULL set and they partition it —
+        // every account with a balance lands in exactly one band — so the schedule reconciles with the two totals rather
+        // than offering a second, disagreeing count of the same money.
+        var t = DomainRules.DelinquentThresholdMonths;
+        var (handler3, reports3) = Build();
+
+        var agingRows = new List<DelinquentStallDto>
+        {
+            new(FacilityCode.NPM, "1", "One month",     1,     300m),
+            new(FacilityCode.NPM, "2", "Just under",    t - 1, 600m),
+            new(FacilityCode.TCC, "3", "At threshold",  t,   1_000m),
+            new(FacilityCode.TCC, "4", "Five months",   5,   1_500m),
+            new(FacilityCode.NCC, "5", "Half a year",   6,   2_000m),
+            new(FacilityCode.NCC, "6", "Eleven months", 11,  3_000m),
+            new(FacilityCode.ICE, "7", "A year",        12,  5_000m),
+            new(FacilityCode.ICE, "8", "Long overdue",  37, 33_300m),
+        };
+
+        reports3.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(agingRows);
+
+        var aged = (await handler3.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        // Nothing counted twice and nothing lost between bands.
+        Assert.Equal(agingRows.Count, aged.Aging.Sum(b => b.Accounts));
+        Assert.Equal(agingRows.Sum(x => x.OutstandingBalance), aged.Aging.Sum(b => b.Outstanding));
+
+        // …and the schedule agrees with the two totals it sits beside.
+        Assert.Equal(aged.DelinquentAccountsTotal + aged.ArrearsAccountsTotal, aged.Aging.Sum(b => b.Accounts));
+        Assert.Equal(aged.DelinquentOutstandingTotal + aged.ArrearsOutstandingTotal, aged.Aging.Sum(b => b.Outstanding));
+
+        // The youngest band is exactly what the report calls arrears, because both come from the same threshold.
+        Assert.Equal(aged.ArrearsAccountsTotal, aged.Aging.First().Accounts);
+        Assert.Equal(aged.ArrearsOutstandingTotal, aged.Aging.First().Outstanding);
+
+        // Boundaries are inclusive-from: an account AT the threshold is delinquent, not arrears.
+        Assert.Equal(2_500m, aged.Aging[1].Outstanding);    // 1,000 at the threshold + 1,500 at five months
+        Assert.Equal(5_000m, aged.Aging[2].Outstanding);    // 2,000 at six + 3,000 at eleven
+        Assert.Equal(38_300m, aged.Aging[3].Outstanding);   // 5,000 at twelve + 33,300 at thirty-seven
+    }
+
+    [Fact]
+    public async Task LapsedExposure_CountsOnlyLapsedAccountsThatOwe_AndStaysInsideTheTotal()
+    {
+        // A lapsed term is still billed, because the occupant is still trading — the register is explicit about it. So this
+        // figure is part of the delinquent and arrears totals, and must never read as an addition to them.
+        var (handler4, reports4) = Build();
+
+        var lapsedRows = new List<DelinquentStallDto>
+        {
+            new(FacilityCode.ICE, "7", "Lapsed, still there",  37, 33_300m, TermLapsed: true),
+            new(FacilityCode.TCC, "4", "Term still running",    4,  1_500m, TermLapsed: false),
+            new(FacilityCode.NPM, "9", "Lapsed, owes nothing",  0,      0m, TermLapsed: true),
+        };
+
+        reports4.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(lapsedRows);
+
+        var exposed = (await handler4.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.Equal(1, exposed.LapsedWithBalanceCount);
+        Assert.Equal(33_300m, exposed.LapsedWithBalanceOutstanding);
+
+        // Inside the total, not beside it.
+        Assert.True(exposed.LapsedWithBalanceOutstanding
+            <= exposed.DelinquentOutstandingTotal + exposed.ArrearsOutstandingTotal);
+    }
+
+    [Fact]
     public async Task WithFewerAccountsThanTheCap_TheTotalsAndTheListsAgree()
     {
         // The ordinary case, and the one that let the old bug hide: below the cap the two ways of counting give the same

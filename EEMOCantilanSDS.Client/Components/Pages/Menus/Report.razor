@@ -292,6 +292,40 @@
                    categories as well as these two. The handoff is stated rather than left for the office to know. *@
                 <a class="rpt-attn-link no-print" href="/reports/follow-up">Open full Follow-up Queue →</a>
             </div>
+            @* Receivable aging, above the two lists because it frames them: the lists say WHO owes, this says how long it
+               has been owed. The same total means very different things spread across recent arrears than concentrated in
+               a few debts years old, and the lists alone cannot show which.
+
+               Counted over every account, never over the lists below — those are capped for display. The bands partition
+               the accounts, so they reconcile with the delinquent and arrears totals rather than offering a second count
+               of the same money. *@
+            @if (Model.Aging.Any(b => b.Accounts > 0))
+            {
+                <div class="rpt-aging">
+                    <div class="rpt-aging-label">Receivable aging</div>
+                    <div class="rpt-aging-bands">
+                        @foreach (var band in Model.Aging)
+                        {
+                            <div class="rpt-aging-band @(band.Accounts == 0 ? "is-empty" : "")">
+                                <div class="rpt-aging-band-span">@band.Label</div>
+                                <div class="rpt-aging-band-val">@Money(band.Outstanding)</div>
+                                <div class="rpt-aging-band-count">@band.Accounts account@(band.Accounts == 1 ? "" : "s")</div>
+                            </div>
+                        }
+                    </div>
+                    @if (Model.LapsedWithBalanceCount > 0)
+                    {
+                        @* A slice of the figures above, not an addition to them: a lapsed term is still billed because the
+                           occupant is still trading. Stated because it is the part the office can settle by renewing
+                           rather than by chasing. *@
+                        <div class="rpt-aging-lapsed">
+                            <strong>@Money(Model.LapsedWithBalanceOutstanding)</strong>
+                            of this sits behind an expired term
+                            (@Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies") still in place)
+                        </div>
+                    }
+                </div>
+            }
             <div class="rpt-attention">
                 <div class="attn-col">
                     <div class="attn-col-head">

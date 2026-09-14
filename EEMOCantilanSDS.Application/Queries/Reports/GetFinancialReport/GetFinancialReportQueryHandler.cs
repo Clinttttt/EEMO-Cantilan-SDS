@@ -321,6 +321,21 @@ public class GetFinancialReportQueryHandler(
         var delinquentAll = delinquency.Where(d => d.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths).ToList();
         var arrearsAll = delinquency.Where(d => d.MonthsUnpaid is >= 1 and < DomainRules.DelinquentThresholdMonths).ToList();
 
+        // Receivable aging, over the WHOLE set and never over the capped lists below — the difference between "what is
+        // owed" and "what happens to be on screen". The bands partition every account with at least one unpaid month, so
+        // they reconcile with the delinquent and arrears totals instead of offering a second, disagreeing count.
+        //
+        // The first boundary is the office's own delinquency threshold, so the youngest band and "arrears" always describe
+        // the same accounts. The later boundaries — half a year, a full year — are aging conventions for reading the
+        // schedule, not rules about what counts as delinquent, which is why they live here and not in DomainRules.
+        var aging = BuildAging(delinquency);
+
+        // Lapsed contracts carrying a balance, again over the whole set. These accounts are ALREADY inside the figures
+        // above: a lapsed term is still billed because the occupant is still trading, which the register is explicit
+        // about. Stating it separately shows how much of the debt sits behind an expired term — money the office can act
+        // on by renewing rather than by chasing — so it is a slice of the total, never an addition to it.
+        var lapsedWithBalance = delinquency.Where(d => d.TermLapsed && d.OutstandingBalance > 0m).ToList();
+
         var delinquent = delinquentAll
             .Take(AttentionLimit)
             .Select(ToAttention)
@@ -379,8 +394,10 @@ public class GetFinancialReportQueryHandler(
             ExpectedRecords: expectedRecords,
             CollectedPreviousPeriod: collectedPreviousPeriod,
             PreviousPeriodLabel: PreviousPeriodLabel(request),
-            Delinquent: delinquent,
-            Arrears: arrears,
+            Delinquent: delinquent,            Arrears: arrears,
+            Aging: aging,
+            LapsedWithBalanceCount: lapsedWithBalance.Count,
+            LapsedWithBalanceOutstanding: lapsedWithBalance.Sum(d => d.OutstandingBalance),
             Trend: trend,
             YtdCollected: ytdCollected,
             Facilities: orderedRows,
@@ -483,6 +500,12 @@ public class GetFinancialReportQueryHandler(
             PreviousPeriodLabel: null,
             Delinquent: latest.Delinquent,
             Arrears: latest.Arrears,
+            // Carried across with the lists they describe: like the delinquency totals, the aging schedule and the lapsed
+            // exposure state the CURRENT position of each account rather than anything period-bound, so recomputing them
+            // per period would say the same thing while inviting the two to drift.
+            Aging: latest.Aging,
+            LapsedWithBalanceCount: latest.LapsedWithBalanceCount,
+            LapsedWithBalanceOutstanding: latest.LapsedWithBalanceOutstanding,
             Trend: trend,
             YtdCollected: collected,
             Facilities: facilities,
@@ -519,6 +542,48 @@ public class GetFinancialReportQueryHandler(
         var lastClosed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
         if (end > lastClosed) end = lastClosed;
         return end.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// The receivable aging schedule, computed over every account with a balance.
+    /// </summary>
+    /// <remarks>
+    /// Boundaries are stated as the lower bound of each band. The first is the office's delinquency threshold, so the
+    /// youngest band always covers exactly the accounts the report calls "arrears" — if that threshold ever changes, the
+    /// schedule follows it rather than quietly disagreeing. Six and twelve months are reading conventions for the
+    /// schedule itself and carry no rule about delinquency.
+    ///
+    /// <para>Bands are built from the boundaries rather than written out, so the labels can never describe a different
+    /// span from the one being counted. Every account with at least one unpaid month falls in exactly one band.</para>
+    /// </remarks>
+    private static List<ReceivableAgingBandDto> BuildAging(IReadOnlyList<DelinquentStallDto> accounts)
+    {
+        int[] lowerBounds = [1, DomainRules.DelinquentThresholdMonths, 6, 12];
+
+        var bands = new List<ReceivableAgingBandDto>(lowerBounds.Length);
+
+        for (var i = 0; i < lowerBounds.Length; i++)
+        {
+            var from = lowerBounds[i];
+            // Exclusive upper bound; the last band is open-ended.
+            var toExclusive = i + 1 < lowerBounds.Length ? lowerBounds[i + 1] : int.MaxValue;
+
+            // A boundary can collapse a band — if the threshold were 1, the first band would span nothing — and an empty
+            // label would be printed on a government report. Such a band is dropped rather than shown as a gap.
+            if (from >= toExclusive) continue;
+
+            var inBand = accounts.Where(a => a.MonthsUnpaid >= from && a.MonthsUnpaid < toExclusive).ToList();
+
+            var label = toExclusive == int.MaxValue
+                ? $"{from}+ months"
+                : toExclusive - from == 1
+                    ? $"{from} month"
+                    : $"{from}–{toExclusive - 1} months";
+
+            bands.Add(new ReceivableAgingBandDto(label, inBand.Count, inBand.Sum(a => a.OutstandingBalance)));
+        }
+
+        return bands;
     }
 
     private static AttentionAccountDto ToAttention(DelinquentStallDto d) => new(

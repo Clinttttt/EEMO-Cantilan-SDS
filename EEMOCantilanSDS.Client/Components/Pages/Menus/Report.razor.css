@@ -1392,6 +1392,75 @@
         color: var(--navy);
     }
 
+/* Receivable aging schedule. Sits above the two account lists and frames them: the lists say who owes, this says how long
+   it has been owed. Plain figures rather than a chart — an office reading a printed report needs the amounts. */
+.rpt-aging {
+    margin: 0 22px 18px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fafcfd;
+}
+
+.rpt-aging-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 10px;
+}
+
+.rpt-aging-bands {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.rpt-aging-band-span {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.rpt-aging-band-val {
+    margin-top: 3px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.rpt-aging-band-count {
+    font-size: 11.5px;
+    color: var(--text-subtle);
+}
+
+    /* A band nobody is in still holds its column, so the schedule keeps its shape and the office can see the gap. */
+    .rpt-aging-band.is-empty .rpt-aging-band-val,
+    .rpt-aging-band.is-empty .rpt-aging-band-count {
+        color: var(--text-subtle);
+        font-weight: 600;
+    }
+
+.rpt-aging-lapsed {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+    .rpt-aging-lapsed strong {
+        color: var(--navy);
+        font-weight: 700;
+    }
+
+@media (max-width: 680px) {
+    .rpt-aging-bands {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 /* Operational strip under the KPI row: how the period was encoded, stated quietly beside figures that are money. */
 .rpt-activity {
     display: flex;
