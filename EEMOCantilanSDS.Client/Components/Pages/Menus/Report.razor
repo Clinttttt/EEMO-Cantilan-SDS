@@ -31,29 +31,33 @@
 
 <div class="content-area">
 
-    <!-- REPORT IDENTITY & SCOPE -->
-    <div class="rpt-scope">
-        <div class="rpt-scope-main">
-            <span class="rpt-scope-item">Reporting period <strong>@PeriodLabel</strong></span>
-            <span class="rpt-scope-sep"></span>
-            <span class="rpt-scope-item">Scope <strong>@ScopeLabel</strong></span>
-            <span class="rpt-scope-sep"></span>
-            <span class="rpt-scope-item">Frequency <strong>@FrequencyLabel</strong></span>
-        </div>
-
-        @* The refresh state belongs with the scope it is refreshing: it used to appear as a loose strip above
-           the sheet, which pushed the whole report down every time a facility chip was pressed. *@
-        @if (Loading && Model is not null)
-        {
-            <div class="rpt-scope-state no-print" role="status" aria-live="polite">
-                <span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…
-            </div>
-        }
-    </div>
-
+    @* The "Reporting period / Scope / Frequency" strip was removed: every one of the three was already stated by the
+       controls immediately below it — the period pills and year/month pickers, the facility chips, and the Monthly/Annual
+       choice — and the summary badge at the end of the facility row repeats the resolved answer. What the strip did carry
+       that nothing else did is the refresh state, which is why that has moved onto the facility row rather than going with
+       it. Its placement there is deliberate: as a loose strip above the sheet it pushed the whole report down each time a
+       facility chip was pressed. *@
     <!-- FILTER PANEL -->
     <div class="rpt-filter-panel">
         <div class="rfp-top">
+            @* Section comes first: it decides WHAT the office is looking at, and the period and facility controls then
+               narrow it. All five sections stay in the DOM and the inactive ones are hidden by a SCREEN-ONLY rule, never
+               removed — Export Summary PDF prints the letterhead, KPIs, Trend and By facility from the @media print
+               block, so dropping them from the markup would have printed an empty report whenever the office happened to
+               be looking at Records. Styled as the dashboard's report tabs, with the active pill the same treatment as
+               the Monthly/Annual pills beside it. *@
+            <div class="rfp-ctrl rfp-jump no-print">
+                <div class="rfp-label">Section</div>
+                <div class="rpt-sec-tabs" role="tablist" aria-label="Report section">
+                    @foreach (var s in ReportSections)
+                    {
+                        <button type="button" class="rpt-sec-tab @(_section == s.Key ? "on" : "")"
+                                role="tab" aria-selected="@(_section == s.Key ? "true" : "false")"
+                                @onclick="() => _section = s.Key">@s.Label</button>
+                    }
+                </div>
+            </div>
+
             <div class="rfp-ctrl">
                 <div class="rfp-label">Period</div>
                 <div class="rfp-period-pills">
@@ -72,23 +76,6 @@
                     <FhSelect Caption="Month" Value="@SelectedMonth" Options="@MonthOptions" ValueChanged="OnMonthChanged" />
                 </div>
             }
-
-            @* Which section of the report is on screen. All five stay in the DOM and the inactive ones are hidden by a
-               SCREEN-ONLY rule, never removed: Export Summary PDF prints the letterhead, KPIs, Trend and By facility from
-               the @media print block, so dropping them from the markup would have printed an empty report whenever the
-               office happened to be looking at Records. Styled as the dashboard's report tabs, with the active pill the
-               same treatment as the Monthly/Annual pills beside it. *@
-            <div class="rfp-ctrl rfp-jump no-print">
-                <div class="rfp-label">Section</div>
-                <div class="rpt-sec-tabs" role="tablist" aria-label="Report section">
-                    @foreach (var s in ReportSections)
-                    {
-                        <button type="button" class="rpt-sec-tab @(_section == s.Key ? "on" : "")"
-                                role="tab" aria-selected="@(_section == s.Key ? "true" : "false")"
-                                @onclick="() => _section = s.Key">@s.Label</button>
-                    }
-                </div>
-            </div>
 
             <div class="rfp-export">
                 <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
@@ -120,6 +107,14 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <strong>@ScopeLabel</strong>&nbsp;·&nbsp;<strong>@PeriodLabel</strong>
             </div>
+            @* Rehomed from the scope strip that used to sit above the sheet. Beside the badge that already states the
+               resolved scope and period, which is what is being refreshed. *@
+            @if (Loading && Model is not null)
+            {
+                <div class="rpt-scope-state no-print" role="status" aria-live="polite">
+                    <span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…
+                </div>
+            }
         </div>
     </div>
 

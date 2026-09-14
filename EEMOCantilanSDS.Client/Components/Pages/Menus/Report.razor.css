@@ -283,46 +283,53 @@
 /* ── Facility chips — horizontally scrollable ── */
 .rfp-chips {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 11px;
     overflow-x: auto;
-    flex: 1;
+    flex: 0 1 auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
 }
 
     .rfp-chips::-webkit-scrollbar {
         display: none;
     }
 
+/* Facility chips wear the section tabs' clothes: one grey track holding pills, the selected one raised in white. The row
+   keeps its horizontal scroll, because there are nine of these and a narrow screen must still reach the last. */
 .rfp-chip {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    padding: 6px 14px;
+    min-height: 38px;
+    padding: 0 16px;
     border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
+    border: 1px solid transparent;
+    background: transparent;
     color: var(--text-muted);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: .3px;
+    font-size: 13px;
+    font-weight: 700;
     font-family: 'DM Sans', sans-serif;
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    transition: all .12s;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
 }
 
-    .rfp-chip:hover {
-        border-color: #aab6c4;
+    .rfp-chip:hover:not(.on) {
         color: var(--navy);
     }
 
     .rfp-chip.on {
-        background: var(--navy);
-        color: #fff;
-        border-color: var(--navy);
+        background: var(--bg-card);
+        color: var(--navy);
+        border-color: transparent;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
     }
 
 /* Code badge inside chip */
@@ -1111,64 +1118,6 @@
 /* ══════════════════════════════════════════════════════════════
    REPORT SCOPE BANNER
    ══════════════════════════════════════════════════════════════ */
-.rpt-scope {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--navy);
-    border-radius: 14px;
-    padding: 13px 18px;
-    margin-bottom: 18px;
-}
-
-.rpt-scope-main {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 14px;
-    font-size: 13px;
-    color: var(--text-muted);
-}
-
-.rpt-scope-item strong {
-    color: var(--navy);
-    font-weight: 700;
-    margin-left: 4px;
-}
-
-.rpt-scope-sep {
-    width: 1px;
-    height: 14px;
-    background: var(--border);
-}
-
-/* Right-side coverage note in the scope card ("N facilities · mixed collection cycles"). The check icon
-   had no size rule, so the 24×24 SVG rendered unconstrained (huge) and blew out the hero — constrain it. */
-.rpt-scope-coverage {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12.5px;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-
-    .rpt-scope-coverage svg {
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
-        stroke: var(--green);
-        fill: none;
-    }
-
-    .rpt-scope-coverage strong {
-        color: var(--navy);
-        font-weight: 700;
-    }
 
 
 
@@ -1643,7 +1592,6 @@
 
 @media print {
     .topbar,
-    .rpt-scope,
     .rpt-filter-panel,
     .rpt-state { display: none !important; }
 
