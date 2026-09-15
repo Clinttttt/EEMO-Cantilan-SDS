@@ -28,6 +28,10 @@ public class FinancialReportClaimsTests
             RepositoryRoot().FullName,
             "EEMOCantilanSDS.Client", "Components", "Pages", "Menus", $"Report.razor{extension}"));
 
+    private static string ReadPrintJs() =>
+        File.ReadAllText(Path.Combine(
+            RepositoryRoot().FullName, "EEMOCantilanSDS.Client", "wwwroot", "js", "print.js"));
+
     [Fact]
     public void TheExportButtonSaysItPrintsASummary_BecauseTwoSectionsAreLeftOut()
     {
@@ -207,7 +211,10 @@ public class FinancialReportClaimsTests
         Assert.Contains("Not to be added", markup);
         Assert.Contains("Lapsed term exposure", markup);
         Assert.Contains("within whole account", markup);
-        Assert.Contains(".rpt-pos-row.is-part", css);
+
+        // Every label starts on the same line: the relationship is carried by the wording, not by an indent that leaves
+        // one row out of alignment with the others.
+        Assert.DoesNotContain(".rpt-pos-row.is-part {", css);
     }
 
     [Fact]
@@ -297,8 +304,10 @@ public class FinancialReportClaimsTests
         // sheet, which is exactly what it did …
         Assert.Contains(".print-register .rpt-page-space { display: none !important; }", css);
 
-        // … and the margin comes from @page, which applies to every sheet, not from padding that pads only the first.
-        Assert.Contains(".print-register { padding: 0 !important; }", css);
+        // … and the margin is ZERO, so Chromium has no margin box to print its date, title and URL into. The whitespace
+        // comes from the container's padding and from the repeated header row instead.
+        Assert.Contains(".print-register { padding: 12mm !important; }", css);
+        Assert.Contains("margin: 0;", ReadPrintJs());
 
         // … and the register still carries no pdf-include, which is what leaves the Summary PDF exactly as it was.
         var records = Regex.Match(markup, @"<div id=""rpt-records""[^>]*>");

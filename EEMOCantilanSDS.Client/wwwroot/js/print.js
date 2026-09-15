@@ -79,8 +79,12 @@ window.stalltrackPrint = {
         const style = document.createElement('style');
         style.id = STYLE_ID;
         style.media = 'print';
-        // A paper size must be named alongside the margin, for the same reason the helpers above name one.
-        style.textContent = '@page { size: A4 portrait; margin: 12mm; }' + 'html, body { margin: 0 !important; }';
+        // Margin ZERO, deliberately. Chromium prints its own date, title and URL into the page's margin box, so a margin
+        // of any size invites them onto a government document — which is what a 12mm margin here did. With no margin box
+        // there is nowhere for them to go, and the sheet's whitespace is supplied by the stylesheet instead: horizontal
+        // padding applies to every page, and the table's repeated header row carries the space at the top of each
+        // continuation sheet. A paper size must be named alongside the margin, as the helpers above also do.
+        style.textContent = '@page { size: A4 portrait; margin: 0; }' + 'html, body { margin: 0 !important; }';
         document.head.appendChild(style);
 
         el.classList.add(className);

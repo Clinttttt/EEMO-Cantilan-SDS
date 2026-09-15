@@ -1185,6 +1185,14 @@
 .rpt-attention {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    align-items: start;
+}
+
+/* One side empty: give it only the width it needs rather than half the sheet, and let the populated list have the rest.
+   Both columns still state their figure — a nil is information on a financial report — but a nil does not need half a page.
+   align-items: start above stops the short column being stretched to the tall one's height. */
+.rpt-attention.is-lopsided {
+    grid-template-columns: minmax(0, 34%) 1fr;
 }
 
 .attn-col {
@@ -1616,10 +1624,13 @@
         border-bottom: none;
     }
 
-    /* A figure that is part of the line above it, indented so it cannot be mistaken for another addend. */
-    .rpt-pos-row.is-part {
-        padding-left: 10px;
-    }
+    /* Every label starts on the same line, including the one that is part of the figure above it. The relationship is
+       carried by the wording ("within whole account"), not by an indent that leaves one row out of alignment with the
+       rest — on a government form a column of labels should have one starting point. */
+
+.rpt-pos-of {
+    color: var(--text-subtle);
+}
 
 .rpt-pos-label {
     font-size: 12px;
@@ -1890,16 +1901,19 @@
        card hidden the break remained, so the register began with one or two empty sheets — the fault this hides. */
     .print-register .rpt-page-space { display: none !important; }
 
-    /* @page carries the margin for a register, because it applies to EVERY sheet. The container's padding pads only the
-       first, which is why a three-page register had rows against the top and bottom edges of pages two and three. */
-    .print-register { padding: 0 !important; }
+    /* The page margin is ZERO so Chromium has no margin box to print its date, title and URL into. The sheet's whitespace
+       is supplied here instead: horizontal padding applies to every page, the top of the first page is padded by the
+       container, and the table's repeated header row carries the space at the top of each continuation sheet. */
+    .print-register { padding: 12mm !important; }
 
     .print-register #rpt-records { display: block !important; }
 
     /* A register is read down its rows, so it may break across sheets — but never mid-row, and every sheet repeats the
-       column headings, or a page of figures arrives with nothing saying what they are. */
+       column headings, or a page of figures arrives with nothing saying what they are. The heading row's own top padding
+       is what keeps a continuation sheet clear of the paper's edge. */
     .print-register #rpt-records { break-inside: auto !important; }
     .print-register #rpt-records thead { display: table-header-group; }
+    .print-register #rpt-records thead th { padding-top: 8mm !important; }
     .print-register #rpt-records tr { break-inside: avoid; page-break-inside: avoid; }
 
     /* The office reads a register by its rows, so give them the width the summary's cards were using. */
