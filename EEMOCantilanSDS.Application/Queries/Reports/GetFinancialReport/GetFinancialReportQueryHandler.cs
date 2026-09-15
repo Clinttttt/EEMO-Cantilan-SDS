@@ -45,7 +45,20 @@ public class GetFinancialReportQueryHandler(
         Enum.GetValues<FacilityCode>().Where(DomainRules.IsPaidOnService).ToArray();
 
     private const int AttentionLimit = 50;
-    private const int RecentLimit = 8;
+
+    /// <summary>
+    /// How many transactions the collection register lists.
+    /// </summary>
+    /// <remarks>
+    /// Eight was a "recent activity" strip; a register that is meant to be the evidence behind the period's totals needs
+    /// enough rows to be worth reading. Still capped, and the page states the count so a period with more transactions
+    /// than this says so rather than appearing complete.
+    ///
+    /// <para>Deliberately a cap and not a page. The feed queries five sources independently and merges them, so the newest
+    /// N overall are exact while an OFFSET would be applied to five separately-capped sets — pages could drop or repeat
+    /// rows. The transactions page is the place built for browsing the whole ledger.</para>
+    /// </remarks>
+    private const int RegisterLimit = 50;
 
     public async Task<Result<FinancialReportDto>> Handle(GetFinancialReportQuery request, CancellationToken ct)
     {
@@ -346,7 +359,20 @@ public class GetFinancialReportQueryHandler(
             .Select(ToAttention)
             .ToList();
 
-        var feed = await transactionFeedRepository.GetRecentTransactionsAsync(request.Facility, null, RecentLimit, ct);
+        // The register states the transactions that MAKE UP the period being reported on. It used to ask the feed for the
+        // newest few overall, so a report for August, opened in September, listed September's collections underneath
+        // August's totals — activity for the scope rather than evidence for the figures above it.
+        //
+        // Monthly asks for its month; annual asks for its year, composed from the first and last month rather than by
+        // inventing a year-window helper. All-time passes no window and keeps the previous behaviour of newest-first.
+        (DateTime StartUtc, DateTime EndUtc)? registerWindow = request.Month is { } rm
+            ? PhilippineTime.MonthUtcRange(request.Year, rm)
+            : request.Period == ReportPeriod.Yearly
+                ? (PhilippineTime.MonthUtcRange(request.Year, 1).StartUtc, PhilippineTime.MonthUtcRange(request.Year, 12).EndUtc)
+                : null;
+
+        var feed = await transactionFeedRepository.GetRecentTransactionsAsync(
+            request.Facility, null, RegisterLimit, ct, registerWindow);
         var recent = feed.Select(f => new FinancialRecordDto(
             Reference: string.IsNullOrWhiteSpace(f.ORNumber) ? "—" : f.ORNumber!,
             Payor: f.Party,

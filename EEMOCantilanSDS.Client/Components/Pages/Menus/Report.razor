@@ -676,13 +676,28 @@
             </div>
         </div>
 
-        <!-- RECENT COLLECTION RECORDS -->
+        <!-- COLLECTION REGISTER -->
         <div id="rpt-records" class="section-card@(SectionOff("records"))" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
-                    <div class="section-title">Recent Collection Records</div>
-                    <div class="section-sub">Latest recorded payments · @ScopeLabel</div>
+                    <div class="section-title">Collection register — @PeriodLabel</div>
+                    @* Says what it is and what it is not. The register lists the transactions that make up the period's
+                       totals, capped so the payload stays bounded; when the cap is reached the office is told, rather than
+                       being shown a partial list that looks complete. No page control, deliberately: the feed merges five
+                       independently-capped sources, so the newest N are exact while an offset could drop or repeat rows
+                       between pages. The transactions page is the one built for browsing the whole ledger. *@
+                    <div class="section-sub">
+                        @if (Model.RecentRecords.Count >= RegisterListLimit)
+                        {
+                            <text>The @RegisterListLimit most recent of this period · @ScopeLabel</text>
+                        }
+                        else
+                        {
+                            <text>@Model.RecentRecords.Count transaction@(Model.RecentRecords.Count == 1 ? "" : "s") · @ScopeLabel</text>
+                        }
+                    </div>
                 </div>
+                <a class="rpt-attn-link no-print" href="/transactions">Open all transactions →</a>
             </div>
             <div class="rpt-table-scroll">
                 <table class="tx-table">
@@ -1070,6 +1085,17 @@
     ];
 
     private string _section = "overview";
+
+    /// <summary>
+    /// The register's row cap, as the server applies it.
+    /// </summary>
+    /// <remarks>
+    /// Stated here only so the page can say whether the list it received is the whole period or the newest N of it. It
+    /// must match GetFinancialReportQueryHandler.RegisterLimit; if the two ever part, the page would claim a complete
+    /// register while showing a truncated one, which on a financial report is worse than saying nothing. A component test
+    /// holds the two together.
+    /// </remarks>
+    private const int RegisterListLimit = 50;
 
     /// <summary>Marks a section as off-screen. Hidden for the eye only; print is governed by the print stylesheet.</summary>
     private string SectionOff(string key) => _section == key ? string.Empty : " rpt-sec-off";

@@ -173,4 +173,39 @@ public class FinancialReportClaimsTests
         Assert.Contains("Model.PaidRecords", markup);
         Assert.Contains("Model.ExpectedRecords", markup);
     }
+
+    [Fact]
+    public void TheRegistersRowCap_IsTheSameNumberOnThePageAsOnTheServer()
+    {
+        // The page says either "the 50 most recent of this period" or "N transactions", and it decides which by comparing
+        // what it received against its own copy of the cap. If the two ever part, the page would claim a complete register
+        // while showing a truncated one — on a financial report that is worse than saying nothing at all.
+        var markup = ReadReport(string.Empty);
+
+        var pageLimit = Regex.Match(markup, @"RegisterListLimit = (?<n>\d+);");
+        Assert.True(pageLimit.Success, "expected the page to state its register cap");
+
+        var handler = File.ReadAllText(Path.Combine(
+            RepositoryRoot().FullName,
+            "EEMOCantilanSDS.Application", "Queries", "Reports", "GetFinancialReport",
+            "GetFinancialReportQueryHandler.cs"));
+
+        var serverLimit = Regex.Match(handler, @"RegisterLimit = (?<n>\d+);");
+        Assert.True(serverLimit.Success, "expected the handler to state its register cap");
+
+        Assert.Equal(serverLimit.Groups["n"].Value, pageLimit.Groups["n"].Value);
+    }
+
+    [Fact]
+    public void TheRegisterIsTitledForThePeriod_AndPointsAtTheFullLedger()
+    {
+        // It used to read "Recent Collection Records · Latest recorded payments", which is activity for the scope. The
+        // section is the evidence behind the period's totals, so it says which period — and hands off to the transactions
+        // page rather than growing a page control the feed cannot support correctly.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("Collection register — @PeriodLabel", markup);
+        Assert.DoesNotContain("Recent Collection Records</div>", markup);
+        Assert.Contains(@"href=""/transactions""", markup);
+    }
 }

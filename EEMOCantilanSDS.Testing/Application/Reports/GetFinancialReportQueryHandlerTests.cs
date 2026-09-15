@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
@@ -54,7 +55,7 @@ public class GetFinancialReportQueryHandlerTests
     /// xUnit does not run tests of one class in parallel, so a single slot is safe here.</summary>
     private static Mock<IClosedStallAccountQueries>? _lastStalls;
 
-    private static (GetFinancialReportQueryHandler handler, Mock<IFacilityReportsRepository> reports) Build()
+    private static (GetFinancialReportQueryHandler handler, Mock<IFacilityReportsRepository> reports, Mock<ITransactionFeedRepository> feed) Build()
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
@@ -103,7 +104,7 @@ public class GetFinancialReportQueryHandlerTests
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
 
         var feed = new Mock<ITransactionFeedRepository>();
-        feed.Setup(f => f.GetRecentTransactionsAsync(It.IsAny<FacilityCode?>(), It.IsAny<DateOnly?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        feed.Setup(f => f.GetRecentTransactionsAsync(It.IsAny<FacilityCode?>(), It.IsAny<DateOnly?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<(DateTime StartUtc, DateTime EndUtc)?>()))
             .ReturnsAsync(new[]
             {
                 new TransactionFeedDto(Guid.NewGuid(), FacilityCode.NPM, "New Public Market", new DateTime(2026, 3, 25), true, "Luz Cano", "5", "Daily Fee", 930m, "OR-9", "Paid", "Admin")
@@ -133,8 +134,9 @@ public class GetFinancialReportQueryHandlerTests
             CacheTestDoubles.Tenant,
             new EemoCacheOptions(),
             new FixedClock(DateTime.UtcNow));
-        return (handler, reports);
+        return (handler, reports, feed);
     }
+
 
     [Fact]
     public async Task TheFollowUpTotalsCountEveryAccount_EvenWhenTheListsAreCapped()
@@ -143,7 +145,7 @@ public class GetFinancialReportQueryHandlerTests
         // "N accounts need follow-up · ₱X outstanding in full" — and it used to count and sum the CAPPED lists, so an
         // office with more accounts than the cap was told it had fewer and was owed less, on a printed report that
         // claimed to be complete. The totals must describe every account; only the lists are shortened.
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
 
         // 60 delinquent (3+ unpaid months) and 60 in arrears (1–2) — both past the cap of 50.
         var many = new List<DelinquentStallDto>();
@@ -185,7 +187,7 @@ public class GetFinancialReportQueryHandlerTests
         // disagreeing with the follow-up queue and the dashboard about which accounts are delinquent — the drift the
         // contract-expiry rule suffered from being stated in two places. Driven from the constant so the two cannot part.
         var t = DomainRules.DelinquentThresholdMonths;
-        var (handler2, reports2) = Build();
+        var (handler2, reports2, _) = Build();
 
         var rows = new List<DelinquentStallDto>
         {
@@ -221,7 +223,7 @@ public class GetFinancialReportQueryHandlerTests
         // every account with a balance lands in exactly one band — so the schedule reconciles with the two totals rather
         // than offering a second, disagreeing count of the same money.
         var t = DomainRules.DelinquentThresholdMonths;
-        var (handler3, reports3) = Build();
+        var (handler3, reports3, _) = Build();
 
         var agingRows = new List<DelinquentStallDto>
         {
@@ -264,7 +266,7 @@ public class GetFinancialReportQueryHandlerTests
     {
         // A lapsed term is still billed, because the occupant is still trading — the register is explicit about it. So this
         // figure is part of the delinquent and arrears totals, and must never read as an addition to them.
-        var (handler4, reports4) = Build();
+        var (handler4, reports4, _) = Build();
 
         var lapsedRows = new List<DelinquentStallDto>
         {
@@ -287,12 +289,42 @@ public class GetFinancialReportQueryHandlerTests
             <= exposed.DelinquentOutstandingTotal + exposed.ArrearsOutstandingTotal);
     }
 
+    [Theory]
+    [InlineData(3, "the month being reported on")]
+    [InlineData(null, "the whole year being reported on")]
+    public async Task TheRegisterAsksForThePeriodBeingReportedOn_NotForRecentActivity(int? month, string why)
+    {
+        // A report for August, opened in September, listed September's collections underneath August's totals: the feed was
+        // asked for the newest few overall. The register is meant to be the evidence behind the figures above it, so it now
+        // asks for the period's own window. Reason recorded in the case name: @why.
+        var (handler, _, feed) = Build();
+
+        (DateTime StartUtc, DateTime EndUtc)? asked = null;
+        feed.Setup(f => f.GetRecentTransactionsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<DateOnly?>(), It.IsAny<int>(), It.IsAny<CancellationToken>(),
+                It.IsAny<(DateTime StartUtc, DateTime EndUtc)?>()))
+            .Callback((FacilityCode? _, DateOnly? _, int _, CancellationToken _, (DateTime StartUtc, DateTime EndUtc)? w) => asked = w)
+            .ReturnsAsync(Array.Empty<TransactionFeedDto>());
+
+        var period = month is null ? ReportPeriod.Yearly : ReportPeriod.Monthly;
+        await handler.Handle(new GetFinancialReportQuery(period, 2026, month, null), CancellationToken.None);
+
+        Assert.NotNull(asked);
+
+        var expected = month is { } m
+            ? PhilippineTime.MonthUtcRange(2026, m)
+            : (PhilippineTime.MonthUtcRange(2026, 1).StartUtc, PhilippineTime.MonthUtcRange(2026, 12).EndUtc);
+
+        Assert.Equal(expected.StartUtc, asked!.Value.StartUtc);
+        Assert.Equal(expected.EndUtc, asked!.Value.EndUtc);
+    }
+
     [Fact]
     public async Task WithFewerAccountsThanTheCap_TheTotalsAndTheListsAgree()
     {
         // The ordinary case, and the one that let the old bug hide: below the cap the two ways of counting give the same
         // answer, so nothing looked wrong until an office grew past fifty accounts in one bucket.
-        var (handler, _) = Build();   // the default fixture has one delinquent and one in arrears
+        var (handler, _, _) = Build();   // the default fixture has one delinquent and one in arrears
 
         var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
 
@@ -309,7 +341,7 @@ public class GetFinancialReportQueryHandlerTests
     {
         // "All time" builds its DTO from the current year's. The totals have to travel with the lists they describe, or the
         // header reads nought accounts and no money owed above two populated columns.
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var result = await handler.Handle(
             new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null, AllTime: true), CancellationToken.None);
@@ -326,7 +358,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task AllFacilities_TotalsReconcile_RateIsAmountBased()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
 
@@ -348,7 +380,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task AllTime_AggregatesEveryYear_AndReconciles()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         // One yearly report vs the All-time view. The mocks return the same figures for every year
         // (It.IsAny year), so All time must equal the single year × the number of aggregated years.
@@ -372,7 +404,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task AllTime_StartsAtTheTenantsFirstYear_NotTheSystemEpoch()
     {
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
 
         // A tenant whose records begin in 2025. The view used to build a full report for every year back to 2020 —
         // each one walking every facility — for years the office has no data in. It now starts where they started.
@@ -392,7 +424,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task AYearlyReport_CoversThatWholeYear_NotUpToTodaysMonth()
     {
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
 
         (int Year, int Month)? asked = null;
         reports.Setup(r => r.GetDelinquentStallsAsync(
@@ -415,7 +447,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task AReportForTheCurrentYear_StaysYearToDate()
     {
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
 
         (int Year, int Month)? asked = null;
         reports.Setup(r => r.GetDelinquentStallsAsync(
@@ -438,7 +470,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task ClosedExpiredAccounts_WithBalance_AreSummarized_SeparateFromDelinquency()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(
             new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -455,7 +487,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task LapsedAccounts_AreNotCountedAsClosedBalances_BecauseTheyAreStillCollected()
     {
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
 
         // A lapsed account's term ran out but the space was never handed over, so the tenant is ordinarily still
         // trading and the arrears figures already carry the debt. Counting it under closed balances as well stated
@@ -479,7 +511,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task SplitsDelinquentFromArrears_ByMissedMonths()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
@@ -496,7 +528,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task PaidOnServiceFacilities_HaveNoUnpaid_AndFullRate()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
@@ -528,7 +560,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task TheMarketsCollected_CountsItsElectricityAndWater()
     {
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
         WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -550,7 +582,7 @@ public class GetFinancialReportQueryHandlerTests
     {
         // What the expandable row prints: stall fee + fish + electricity + water must reconcile to Collected, because
         // an officer checks the parts against the total by hand.
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
         WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -573,7 +605,7 @@ public class GetFinancialReportQueryHandlerTests
         // The repository states 80 percent from the stall fees alone. Once utilities are part of the row, the
         // percentage has to be the row's own Collected over its own Billed, or it contradicts the numbers printed
         // beside it.
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
         WithUtilities(reports, elec: 20_000m, water: 0m, due: 0m);
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -590,7 +622,7 @@ public class GetFinancialReportQueryHandlerTests
         // The guard on the whole change: an office with no utility bills, and every other facility in any case, must
         // be byte-for-byte unaffected. The rate in particular is left to the repository rather than recomputed, since
         // the two are not derived the same way.
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
@@ -606,7 +638,7 @@ public class GetFinancialReportQueryHandlerTests
     {
         // A utility bill is billed for a MONTH and carries no week of its own, so folding one into a week would
         // overstate that week. Weekly stays what it always was.
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
         WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Weekly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -623,7 +655,7 @@ public class GetFinancialReportQueryHandlerTests
     {
         // Otherwise the selected month stands higher than every month before it purely because it was the only one
         // counting electricity and water, which reads as a rise in collection that never happened.
-        var (handler, reports) = Build();
+        var (handler, reports, _) = Build();
         WithUtilities(reports, elec: 500m, water: 300m, due: 0m);
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
@@ -636,7 +668,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task SingleFacilityScope_OnlyReturnsThatFacility()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, FacilityCode.NPM), CancellationToken.None)).Value!;
 
@@ -649,7 +681,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task NpmRow_HasDetailBreakdown_FishAndFullMonthCoverage()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
@@ -672,7 +704,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task Trend_SelectedBarMatchesKpi_AndFoldsServiceIntoPriorMonths()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
@@ -694,7 +726,7 @@ public class GetFinancialReportQueryHandlerTests
     [Fact]
     public async Task MapsRecentRecords_FromFeed()
     {
-        var (handler, _) = Build();
+        var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 

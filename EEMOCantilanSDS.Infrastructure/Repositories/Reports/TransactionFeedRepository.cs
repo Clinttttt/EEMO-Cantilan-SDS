@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -38,11 +38,23 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
         _facilityNames.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n) ? n : fallback;
 
     public async Task<IReadOnlyList<TransactionFeedDto>> GetRecentTransactionsAsync(
-        FacilityCode? facility, DateOnly? onDate, int limit, CancellationToken ct = default)
+        FacilityCode? facility, DateOnly? onDate, int limit, CancellationToken ct = default,
+        (DateTime StartUtc, DateTime EndUtc)? window = null)
     {
         if (limit <= 0) limit = 100;
         var all = facility is null;
         var results = new List<TransactionFeedDto>();
+
+        // One window for every source, resolved once. A single day IS a window, so onDate is converted here rather than
+        // each of the five sources calling DayUtcRange for itself — which is what they used to do, five times over. A
+        // caller asking for a period passes its own window; onDate wins if both arrive, because it is the narrower claim.
+        //
+        // Both forms are carried because the sources are not alike: stall payments, daily collections and terminal trips
+        // are stamped with a UTC instant, while slaughterhouse transactions and market attendance carry a Philippine
+        // CALENDAR DATE. Converting one to the other at each call site is how an off-by-a-day creeps into a report.
+        FeedWindow? effective = onDate is { } day
+            ? FeedWindow.ForDay(day)
+            : window is { } w ? FeedWindow.ForUtcRange(w.StartUtc, w.EndUtc) : null;
 
         // Resolve the municipality's fish rate as of the requested date (falls back to the ordinance
         // constant, so Cantilan's feed amounts are unchanged).
@@ -64,24 +76,56 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 ct);
 
         if (all || facility is FacilityCode.NPM or FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE)
-            results.AddRange(await StallPaymentRowsAsync(facility, onDate, limit, collectors, ct));
+            results.AddRange(await StallPaymentRowsAsync(facility, effective, limit, collectors, ct));
 
         if (all || facility is FacilityCode.NPM)
-            results.AddRange(await DailyCollectionRowsAsync(onDate, limit, collectors, ct));
+            results.AddRange(await DailyCollectionRowsAsync(effective, limit, collectors, ct));
 
         if (all || facility is FacilityCode.SLH)
-            results.AddRange(await SlaughterRowsAsync(onDate, limit, collectors, ct));
+            results.AddRange(await SlaughterRowsAsync(effective, limit, collectors, ct));
 
         if (all || facility is FacilityCode.TRM)
-            results.AddRange(await TripRowsAsync(onDate, limit, collectors, ct));
+            results.AddRange(await TripRowsAsync(effective, limit, collectors, ct));
 
         if (all || facility is FacilityCode.TPM)
-            results.AddRange(await AttendanceRowsAsync(onDate, limit, collectors, ct));
+            results.AddRange(await AttendanceRowsAsync(effective, limit, collectors, ct));
 
         return results
             .OrderByDescending(r => r.OccurredAt)
             .Take(limit)
             .ToList();
+    }
+
+    /// <summary>
+    /// A period to report over, in both of the forms the sources need.
+    /// </summary>
+    /// <remarks>
+    /// The five sources are not stamped alike: stall payments, daily collections and terminal trips carry a UTC instant,
+    /// while slaughterhouse transactions and market attendance carry a Philippine calendar date. Resolving the period once,
+    /// into both forms, keeps every source filtering on exactly the boundary the caller asked for — converting between the
+    /// two at each call site is how a report comes to include or omit a day at its edge.
+    /// </remarks>
+    private readonly record struct FeedWindow(DateTime StartUtc, DateTime EndUtc, DateOnly FromDate, DateOnly ToDate)
+    {
+        /// <summary>One Philippine calendar day, which is what the feed has always meant by a date.</summary>
+        public static FeedWindow ForDay(DateOnly day)
+        {
+            var (startUtc, endUtc) = PhilippineTime.DayUtcRange(day);
+            return new FeedWindow(startUtc, endUtc, day, day);
+        }
+
+        /// <summary>
+        /// An explicit UTC window, as a caller reporting on a month or a year already holds it.
+        /// </summary>
+        /// <remarks>
+        /// The calendar bounds are read back from the window in Philippine time, and the end is taken one tick INSIDE it,
+        /// because the window's end is exclusive: a month ending at midnight on the 1st must not admit the 1st.
+        /// </remarks>
+        public static FeedWindow ForUtcRange(DateTime startUtc, DateTime endUtc) =>
+            new(startUtc,
+                endUtc,
+                DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(startUtc)),
+                DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(endUtc.AddTicks(-1))));
     }
 
     // Attribution: collector-recorded rows resolve to the collector's name; admin/head-recorded rows
@@ -93,16 +137,15 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
         return string.IsNullOrWhiteSpace(createdBy) ? "Admin" : createdBy!;
     }
 
-    private async Task<List<TransactionFeedDto>> StallPaymentRowsAsync(FacilityCode? facility, DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> StallPaymentRowsAsync(FacilityCode? facility, FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.PaymentRecords.AsNoTracking().Where(p => p.Status != PaymentStatus.Unpaid);
         if (facility is not null)
             q = q.Where(p => p.Stall!.Facility!.Code == facility);
-        if (onDate is { } d)
+        if (win is { } w)
         {
-            var (startUtc, endUtc) = PhilippineTime.DayUtcRange(d);
-            q = q.Where(p => (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc
-                          && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc);
+            q = q.Where(p => (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= w.StartUtc
+                          && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < w.EndUtc);
         }
 
         var rows = await q
@@ -152,17 +195,16 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
         }).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> DailyCollectionRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> DailyCollectionRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.DailyCollections.AsNoTracking().Where(d => d.IsPaid);
-        if (onDate is { } d)
+        if (win is { } w)
         {
             // "Recorded collections" for a date = collections RECORDED (paid) that day, regardless of which
             // day the fee is for. This surfaces a balance / whole-month settlement recorded today under today
             // (e.g. a closed account paying off old dues), matching the page's "Today's recorded collections".
-            var (startUtc, endUtc) = PhilippineTime.DayUtcRange(d);
-            q = q.Where(x => (x.UpdatedAt ?? x.CreatedAt) >= startUtc
-                          && (x.UpdatedAt ?? x.CreatedAt) < endUtc);
+            q = q.Where(x => (x.UpdatedAt ?? x.CreatedAt) >= w.StartUtc
+                          && (x.UpdatedAt ?? x.CreatedAt) < w.EndUtc);
         }
 
         var rows = await q
@@ -233,11 +275,11 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.SlaughterTransactions.AsNoTracking();
-        if (onDate is { } d)
-            q = q.Where(s => s.TransactionDate == d);
+        if (win is { } w)
+            q = q.Where(s => s.TransactionDate >= w.FromDate && s.TransactionDate <= w.ToDate);
 
         var rows = await q
             .OrderByDescending(s => s.TransactionDate)
@@ -282,14 +324,11 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             }).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> TripRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> TripRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.TrmTrips.AsNoTracking();
-        if (onDate is { } d)
-        {
-            var (startUtc, endUtc) = PhilippineTime.DayUtcRange(d);
-            q = q.Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc);
-        }
+        if (win is { } w)
+            q = q.Where(t => t.RecordedAt >= w.StartUtc && t.RecordedAt < w.EndUtc);
 
         var rows = await q
             .OrderByDescending(t => t.RecordedAt)
@@ -316,11 +355,11 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             Recorder(r.CollectorId, r.CreatedBy, collectors))).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> AttendanceRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> AttendanceRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.TpmAttendances.AsNoTracking().Where(a => a.IsPaid);
-        if (onDate is { } d)
-            q = q.Where(a => a.MarketDate == d);
+        if (win is { } w)
+            q = q.Where(a => a.MarketDate >= w.FromDate && a.MarketDate <= w.ToDate);
 
         var rows = await q
             .OrderByDescending(a => a.MarketDate)
