@@ -268,6 +268,13 @@ public class FinancialReportClaimsTests
 
         // Nothing is shown at all without a prior period to compare against, rather than a movement from zero.
         Assert.Contains("Model.PreviousPeriodLabel is not null && prevCollected > 0m", markup);
+
+        // It sits in the section header, where it is the headline rather than a footnote. That header is suppressed in
+        // print, so the heading's TEXT is dropped rather than the header itself — hiding the whole header, as the print
+        // rule once did, would silently remove the movement from the exported PDF.
+        var css = ReadReport(".css");
+        Assert.Contains(".rpt-trend-card .section-header > div:first-child { display: none !important; }", css);
+        Assert.DoesNotContain(".rpt-trend-card .section-header { display: none !important; }", css);
     }
 
     [Fact]

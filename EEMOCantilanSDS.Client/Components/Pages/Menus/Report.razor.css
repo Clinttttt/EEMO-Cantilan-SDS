@@ -1482,14 +1482,16 @@
     gap: 10px;
 }
 
-/* Movement between the selected period and the one before it, stated rather than left for the eye to judge off two bars. */
+/* Movement between the selected period and the one before it, in the section header where it is the headline rather than a
+   footnote. Sits to the right of the heading, so the row reads title-then-figures. */
 .rpt-move {
     display: flex;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 10px 32px;
-    margin: 4px 22px 0;
-    padding: 12px 16px;
+    gap: 10px 26px;
+    flex-shrink: 0;
+    margin-left: 18px;
+    padding: 10px 14px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: #fafcfd;
@@ -2132,9 +2134,12 @@
         height: 10mm;
     }
 
-    /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only
-       repeat them. The chart keeps its legend and axis, which do carry information. */
-    .rpt-trend-card .section-header { display: none !important; }
+    /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only repeat them —
+       but the movement now sits in that header and is a figure the printed report should carry. So the heading's TEXT is
+       dropped rather than the header itself. Hiding the whole header, as this once did, would have silently removed the
+       movement from the exported PDF. */
+    .rpt-trend-card .section-header > div:first-child { display: none !important; }
+    .rpt-trend-card .section-header { border-bottom: none !important; padding-bottom: 0 !important; }
 
     /* The exact figures behind the chart print with it: on paper a bar two millimetres tall says nothing, and the table is
        what can be read at a desk. Its horizontal scroll must be released or the last column is clipped off the sheet —

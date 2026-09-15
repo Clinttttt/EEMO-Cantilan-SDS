@@ -600,6 +600,43 @@
                     <div class="section-title">Revenue Trend</div>
                     <div class="section-sub">@ScopeLabel · amounts in ₱</div>
                 </div>
+                @* Movement belongs in the header: it is the section's headline, not a footnote under the chart. Stated
+                   rather than left for the eye to judge off two bars.
+
+                   The near-zero guard is the same one the Collected card uses — beyond ten times, the movement is given in
+                   pesos with the base named — because a percentage against a pre-rollout month makes any month look like a
+                   thousandfold rise, and two figures on one screen must not contradict each other. *@
+                @if (Model.CollectedPreviousPeriod is decimal prevCollected && Model.PreviousPeriodLabel is not null && prevCollected > 0m)
+                {
+                    var move = Model.Collected - prevCollected;
+                    var movePct = move / prevCollected * 100m;
+                    var rose = move >= 0m;
+
+                    <div class="rpt-move">
+                        <div class="rpt-move-part">
+                            <div class="rpt-move-key">@PeriodLabel</div>
+                            <div class="rpt-move-val">@Money(Model.Collected)</div>
+                        </div>
+                        <div class="rpt-move-part">
+                            <div class="rpt-move-key">@Model.PreviousPeriodLabel</div>
+                            <div class="rpt-move-val is-quiet">@Money(prevCollected)</div>
+                        </div>
+                        <div class="rpt-move-part">
+                            <div class="rpt-move-key">Movement</div>
+                            <div class="rpt-move-val @(rose ? "is-up" : "is-down")">
+                                @(rose ? "↑" : "↓") @Money(Math.Abs(move))
+                                @if (Math.Abs(movePct) < 1000m)
+                                {
+                                    <span class="rpt-move-pct">@Math.Abs(movePct).ToString("0.0")% of @Model.PreviousPeriodLabel</span>
+                                }
+                                else
+                                {
+                                    <span class="rpt-move-pct">from @Money(prevCollected)</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
             <div class="chart-wrap">
                 @if (TrendBars.Count == 0)
@@ -649,41 +686,6 @@
                             </div>
                         </div>
                     </div>
-                    @* Movement, stated rather than left for the eye to judge off two bars. The near-zero guard is the same
-                       one the Collected card uses: a percentage against a tiny prior period is misleading, so beyond ten
-                       times the movement is given in pesos with the base named. Same rule in both places on purpose. *@
-                    @if (Model.CollectedPreviousPeriod is decimal prevCollected && Model.PreviousPeriodLabel is not null && prevCollected > 0m)
-                    {
-                        var move = Model.Collected - prevCollected;
-                        var movePct = move / prevCollected * 100m;
-                        var rose = move >= 0m;
-
-                        <div class="rpt-move">
-                            <div class="rpt-move-part">
-                                <div class="rpt-move-key">@PeriodLabel</div>
-                                <div class="rpt-move-val">@Money(Model.Collected)</div>
-                            </div>
-                            <div class="rpt-move-part">
-                                <div class="rpt-move-key">@Model.PreviousPeriodLabel</div>
-                                <div class="rpt-move-val is-quiet">@Money(prevCollected)</div>
-                            </div>
-                            <div class="rpt-move-part">
-                                <div class="rpt-move-key">Movement</div>
-                                <div class="rpt-move-val @(rose ? "is-up" : "is-down")">
-                                    @(rose ? "↑" : "↓") @Money(Math.Abs(move))
-                                    @if (Math.Abs(movePct) < 1000m)
-                                    {
-                                        <span class="rpt-move-pct">@Math.Abs(movePct).ToString("0.0")%</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="rpt-move-pct">from @Money(prevCollected)</span>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    }
-
                     @* The chart answers which direction; this answers by how much. It is also the part that survives being
                        printed and discussed at a desk, where a bar two pixels tall says nothing. The rate per period is
                        collected over collected-plus-unpaid — the same identity the headline rate uses, so a period's rate
@@ -872,21 +874,14 @@
             <div class="section-header">
                 <div>
                     <div class="section-title">Collection register — @PeriodLabel</div>
-                    @* Says what it is and what it is not. The register lists the transactions that make up the period's
-                       totals, capped so the payload stays bounded; when the cap is reached the office is told, rather than
-                       being shown a partial list that looks complete. No page control, deliberately: the feed merges five
-                       independently-capped sources, so the newest N are exact while an offset could drop or repeat rows
-                       between pages. The transactions page is the one built for browsing the whole ledger. *@
-                    <div class="section-sub">
-                        @if (Model.RecentRecords.Count >= RegisterListLimit)
-                        {
-                            <text>The @RegisterListLimit most recent of this period · @ScopeLabel</text>
-                        }
-                        else
-                        {
-                            <text>@Model.RecentRecords.Count transaction@(Model.RecentRecords.Count == 1 ? "" : "s") · @ScopeLabel</text>
-                        }
-                    </div>
+                    @* The plain count and scope are gone: the title already names the period and the badge above states the
+                       scope, so it was a third statement of the same thing. What remains is the one thing nothing else
+                       says — that the list is capped — and it appears only when the cap is actually reached, so a complete
+                       register carries no line at all. *@
+                    @if (Model.RecentRecords.Count >= RegisterListLimit)
+                    {
+                        <div class="section-sub">The @RegisterListLimit most recent of this period</div>
+                    }
                 </div>
                 <div class="rpt-register-actions no-print">
                     @* Its own print action rather than a place in the Summary PDF: the summary is the report the office
