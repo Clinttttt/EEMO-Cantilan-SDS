@@ -1482,6 +1482,14 @@
     gap: 10px;
 }
 
+/* The lean form, when there is no spread worth a schedule but a lapsed term still wants renewing. */
+.rpt-aging-lean {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+}
+
 .rpt-aging-none {
     margin-top: 11px;
     padding-top: 9px;
@@ -1662,6 +1670,11 @@
 .fac-cov-sep {
     color: var(--text-subtle);
     font-weight: 400;
+}
+
+/* Exists only to hold whitespace at the foot of a printed continuation sheet; it must never take up a row on screen. */
+.tx-print-foot {
+    display: none;
 }
 
 /* Who recorded a collection. Present for the audit trail, so it must not compete with the amount beside it. */
@@ -1909,11 +1922,16 @@
     .print-register #rpt-records { display: block !important; }
 
     /* A register is read down its rows, so it may break across sheets — but never mid-row, and every sheet repeats the
-       column headings, or a page of figures arrives with nothing saying what they are. The heading row's own top padding
-       is what keeps a continuation sheet clear of the paper's edge. */
+       column headings, or a page of figures arrives with nothing saying what they are.
+
+       The vertical whitespace on a continuation sheet can only come from these two: the page margin is zero, so the
+       container's padding applies once at each end of the flow and not per page. A repeated header row carries the space at
+       the top, a repeated footer row carries it at the bottom, and both have no border so they read as margin. */
     .print-register #rpt-records { break-inside: auto !important; }
     .print-register #rpt-records thead { display: table-header-group; }
-    .print-register #rpt-records thead th { padding-top: 8mm !important; }
+    .print-register #rpt-records tfoot { display: table-footer-group; }
+    .print-register #rpt-records thead th { padding-top: 10mm !important; border-top: none !important; }
+    .print-register #rpt-records tfoot td { height: 10mm !important; border: none !important; padding: 0 !important; }
     .print-register #rpt-records tr { break-inside: avoid; page-break-inside: avoid; }
 
     /* The office reads a register by its rows, so give them the width the summary's cards were using. */

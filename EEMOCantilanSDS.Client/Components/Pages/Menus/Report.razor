@@ -363,24 +363,23 @@
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
                     <div class="section-sub">@FollowUpAccounts accounts need follow-up · @Money(FollowUpOutstanding) outstanding in full</div>
-                    @* Each row states its account's whole unsettled position — every month since the occupancy began
-                       that has closed, and what those months add up to. This is the same figure the Closed /
-                       Inactive register and the whole-time Follow-up History state for the same account. It used to
-                       be the last twelve months only, so an account owing ₱33,300 was reported at ₱9,900. *@
-                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel) — the month in progress is not yet unpaid. A lapsed term whose occupant remains is counted here, not as an ended account.</div>
+                    @* One line, not three. The figures are counted to the last CLOSED month — the month in progress is not
+                       yet unpaid — and a lapsed term whose occupant remains is counted here rather than as an ended
+                       account. Both were spelled out at length; the span is the part the office needs stated. *@
+                    <div class="section-sub rpt-attention-span">To @(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel) · the month in progress is not yet unpaid</div>
                 </div>
                 @* This section states WHO owes and how much; it does not act. Encoding a missing OR, reviewing a contract,
                    recording a payment or checking an excused entry all happen on the follow-up queue, which carries those
                    categories as well as these two. The handoff is stated rather than left for the office to know. *@
                 <a class="rpt-attn-link no-print" href="/reports/follow-up">Open full Follow-up Queue →</a>
             </div>
-            @* Receivable aging. Only bands that hold something are given a figure: four columns of ₱0 · 0 accounts is a
-               grid describing an absence, and the office reads past it. The empty bands are named in one line instead, so
-               the schedule still says what it looked at. *@
-            @if (Model.Aging.Any(b => b.Accounts > 0))
+            @* Receivable aging earns its place only when the debt actually spans more than one band. With every account in
+               the youngest band it repeats the arrears count beside it, and naming the empty bands states an absence the
+               office already knows — the ages are a scale for reading a schedule, not a prediction that anyone will reach
+               them. So the panel appears when there is a spread to show, and stays away when there is not. *@
+            @if (Model.Aging.Count(b => b.Accounts > 0) > 1)
             {
                 var filled = Model.Aging.Where(b => b.Accounts > 0).ToList();
-                var empty = Model.Aging.Where(b => b.Accounts == 0).Select(b => b.Label).ToList();
 
                 <div class="rpt-aging">
                     <div class="rpt-aging-head">
@@ -403,10 +402,17 @@
                             </div>
                         }
                     </div>
-                    @if (empty.Count > 0)
-                    {
-                        <div class="rpt-aging-none">Nothing owing at @string.Join(", ", empty)</div>
-                    }
+                </div>
+            }
+            else if (Model.LapsedWithBalanceCount > 0)
+            {
+                @* No spread worth a schedule, but a lapsed term still wants renewing, so that one figure is kept. *@
+                <div class="rpt-aging rpt-aging-lean">
+                    <span class="rpt-aging-label">Lapsed term exposure</span>
+                    <span class="rpt-aging-lapsed">
+                        <strong>@Money(Model.LapsedWithBalanceOutstanding)</strong>
+                        · @Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies") still in place
+                    </span>
                 </div>
             }
             @* When one side is empty the grid still reserved half the sheet for it and stretched it to the other side's
@@ -843,6 +849,13 @@
                             </tr>
                         }
                     </tbody>
+                    @* A print-only footer. With the page margin at zero — which is what keeps the browser's date, title and
+                       URL off a government document — nothing else can put whitespace at the FOOT of a continuation sheet:
+                       the container's padding applies once, at the end of the flow. A table footer repeats on every page,
+                       so this is the only element that can hold that space. Invisible on screen. *@
+                    <tfoot class="tx-print-foot" aria-hidden="true">
+                        <tr><td colspan="7"></td></tr>
+                    </tfoot>
                 </table>
             </div>
         </div>

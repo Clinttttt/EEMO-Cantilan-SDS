@@ -234,15 +234,19 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
-    public void ReceivableAging_ShowsOnlyBandsThatHoldSomething()
+    public void ReceivableAging_AppearsOnlyWhenTheDebtSpansMoreThanOneBand()
     {
-        // Four columns reading ₱0 · 0 accounts is a grid describing an absence, and it gets read past. Only bands with
-        // accounts get a figure; the rest are named in one line, so the schedule still says what it examined.
+        // With every account in the youngest band the schedule repeats the arrears count beside it, and naming the empty
+        // bands states an absence the office already knows — the ages are a scale for reading a schedule, not a prediction
+        // that anyone will reach them. So the panel appears when there is a spread, and stays away when there is not.
         var markup = ReadReport(string.Empty);
         var css = ReadReport(".css");
 
-        Assert.Contains("Model.Aging.Where(b => b.Accounts > 0).ToList()", markup);
-        Assert.Contains("Nothing owing at", markup);
+        Assert.Contains("Model.Aging.Count(b => b.Accounts > 0) > 1", markup);
+        Assert.DoesNotContain("Nothing owing at", markup);
+
+        // A lapsed term still wants renewing, so that one figure survives the panel being withheld.
+        Assert.Contains("rpt-aging-lean", markup);
 
         // The column count follows the surviving bands, so two filled bands do not leave two empty columns behind.
         Assert.Contains("--rpt-aging-count: @filled.Count", markup);
