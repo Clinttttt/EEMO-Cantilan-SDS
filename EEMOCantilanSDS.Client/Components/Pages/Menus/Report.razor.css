@@ -1482,6 +1482,113 @@
     gap: 10px;
 }
 
+/* Movement between the selected period and the one before it, stated rather than left for the eye to judge off two bars. */
+.rpt-move {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px 32px;
+    margin: 4px 22px 0;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fafcfd;
+}
+
+.rpt-move-key {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+
+.rpt-move-val {
+    margin-top: 3px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--navy);
+    white-space: nowrap;
+}
+
+    .rpt-move-val.is-quiet {
+        color: var(--text-muted);
+    }
+
+    .rpt-move-val.is-up {
+        color: var(--green, #1f7a4d);
+    }
+
+    .rpt-move-val.is-down {
+        color: var(--red);
+    }
+
+.rpt-move-pct {
+    margin-left: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-subtle);
+}
+
+/* The exact figures behind the chart. A register of periods, so it is ruled rather than boxed. */
+.rpt-trend-table-wrap {
+    margin: 14px 22px 0;
+    overflow-x: auto;
+}
+
+.rpt-trend-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+    .rpt-trend-table th {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .6px;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .rpt-trend-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .rpt-trend-table .r {
+        text-align: right;
+    }
+
+    .rpt-trend-table .is-owed {
+        color: var(--red);
+    }
+
+    .rpt-trend-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* The period the rest of the report is about, marked so the table and the chart agree at a glance. */
+    .rpt-trend-table tr.is-selected td {
+        background: #f6f9fc;
+        color: var(--navy);
+        font-weight: 700;
+    }
+
+.rpt-trend-here {
+    margin-left: 7px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--gold, #a67c00);
+}
+
 /* The Attention header's figures. Value above its label, so the eye lands on the number rather than on a sentence — the
    header is where the office reads what it is being asked to act on. */
 .rpt-attn-stats {
@@ -2028,6 +2135,14 @@
     /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only
        repeat them. The chart keeps its legend and axis, which do carry information. */
     .rpt-trend-card .section-header { display: none !important; }
+
+    /* The exact figures behind the chart print with it: on paper a bar two millimetres tall says nothing, and the table is
+       what can be read at a desk. Its horizontal scroll must be released or the last column is clipped off the sheet —
+       the same trap the register's table had. */
+    .rpt-trend-table-wrap { overflow: visible !important; margin-left: 0 !important; margin-right: 0 !important; }
+    .rpt-trend-table { font-size: 9.5pt !important; }
+    .rpt-trend-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .rpt-move { margin-left: 0 !important; margin-right: 0 !important; }
 
     /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print, and keep their
        fill: without this the printer drops the gradients and the chart comes out as empty outlines. */

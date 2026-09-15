@@ -234,6 +234,43 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
+    public void TheTrendTable_DerivesEachPeriodsRateFromTheSameIdentityAsTheHeadline()
+    {
+        // The chart says which direction; the table says by how much, and it is the part that survives being printed. A
+        // period's rate is collected over collected-plus-unpaid — the same identity the headline rate uses (Billed =
+        // Collected + CurrentPeriodUnpaid) — so a period's rate here and the card above can never disagree.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        Assert.Contains("var pBilled = p.Collected + p.Unpaid;", markup);
+        Assert.Contains("p.Collected / pBilled * 100m", markup);
+
+        // A period with nothing billed has no rate, and says so rather than showing zero.
+        Assert.Contains(@"pBilled > 0m ? Math.Round(p.Collected / pBilled * 100m).ToString(""0"") + ""%"" : ""—""", markup);
+
+        // The selected period is marked, so the table and the chart agree at a glance.
+        Assert.Contains("p.IsSelected ? \"is-selected\" : \"\"", markup);
+
+        // It prints with the chart, which means its horizontal scroll must be released or the last column is clipped.
+        Assert.Contains(".rpt-trend-table-wrap { overflow: visible !important;", css);
+    }
+
+    [Fact]
+    public void TheTrendMovement_UsesTheSameNearZeroGuardAsTheCollectedCard()
+    {
+        // A percentage against a tiny prior period is misleading — a pre-rollout month makes any month look like a
+        // thousandfold rise. The Collected card already switched to pesos beyond ten times; this states movement in the
+        // same place and must use the same rule, or one figure contradicts the other on the same screen.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("Model.CollectedPreviousPeriod is decimal prevCollected", markup);
+        Assert.Contains("Math.Abs(movePct) < 1000m", markup);
+
+        // Nothing is shown at all without a prior period to compare against, rather than a movement from zero.
+        Assert.Contains("Model.PreviousPeriodLabel is not null && prevCollected > 0m", markup);
+    }
+
+    [Fact]
     public void ReceivableAging_AppearsOnlyWhenTheDebtSpansMoreThanOneBand()
     {
         // With every account in the youngest band the schedule repeats the arrears count beside it, and naming the empty
