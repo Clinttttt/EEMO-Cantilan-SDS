@@ -2072,11 +2072,10 @@
         margin: 0 !important;
     }
 
-    .print-register #rpt-records .section-header {
-        border-bottom: 1px solid #cfd6de !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-    }
+    /* The register's own heading is dropped from the print: the letterhead above it already states the office and the
+       period, so "Collection register — September 2026" repeated the period under a rule that had just stated it. The cap
+       note goes with it, and the actions were already no-print. */
+    .print-register #rpt-records .section-header { display: none !important; }
 
     .print-register #rpt-records .rpt-table-scroll {
         border: none !important;
