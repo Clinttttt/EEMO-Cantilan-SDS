@@ -309,9 +309,14 @@ public class FinancialReportClaimsTests
         Assert.Contains(".print-register .rpt-page-space { display: none !important; }", css);
 
         // … and the margin is ZERO, so Chromium has no margin box to print its date, title and URL into. The whitespace
-        // comes from the container's padding and from the repeated header row instead.
-        Assert.Contains(".print-register { padding: 12mm !important; }", css);
+        // comes from the container's own print padding and from the repeated header and footer rows.
         Assert.Contains("margin: 0;", ReadPrintJs());
+        Assert.Contains(".content-area { page: report-doc; padding: 10mm 12mm !important;", css);
+
+        // The card chrome is stripped for print: a bordered panel broken across sheets draws its background to the paper's
+        // edge on every page between its true start and end, which read as the table falling off the sheet.
+        Assert.Contains(".print-register #rpt-records {", css);
+        Assert.Contains("background: transparent !important;", css);
 
         // … and the register still carries no pdf-include, which is what leaves the Summary PDF exactly as it was.
         var records = Regex.Match(markup, @"<div id=""rpt-records""[^>]*>");

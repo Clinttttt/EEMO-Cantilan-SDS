@@ -296,8 +296,14 @@ public class ReportPageTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("75 accounts need follow-up", cut.Markup);   // 63 + 12, not the 3 rows present
-            Assert.Contains("₱540,000 outstanding in full", cut.Markup);
+            // The header states figures rather than a sentence now, so they are read off the elements that hold them —
+            // a raw string match would break on the CSS-isolation attribute Blazor adds to the class. What the test is
+            // really holding is unchanged: both come from the report's TOTALS (63 + 12 accounts, ₱500,000 + ₱40,000) and
+            // not from the three rows the fixture actually renders.
+            var stats = cut.FindAll(".rpt-attn-stat-val").Select(e => e.TextContent.Trim()).ToList();
+            Assert.Contains("75", stats);
+            Assert.Contains("₱540,000", stats);
+            Assert.Contains("outstanding in full", cut.Markup);
         }, RenderTimeout);
     }
 

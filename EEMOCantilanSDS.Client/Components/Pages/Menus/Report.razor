@@ -362,11 +362,31 @@
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
-                    <div class="section-sub">@FollowUpAccounts accounts need follow-up · @Money(FollowUpOutstanding) outstanding in full</div>
-                    @* One line, not three. The figures are counted to the last CLOSED month — the month in progress is not
-                       yet unpaid — and a lapsed term whose occupant remains is counted here rather than as an ended
-                       account. Both were spelled out at length; the span is the part the office needs stated. *@
-                    <div class="section-sub rpt-attention-span">To @(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel) · the month in progress is not yet unpaid</div>
+                    @* Figures, not sentences. The header was two lines of description where the office wanted the numbers
+                       it is being asked to act on: how many accounts, what they owe, and how much of that is behind an
+                       expired term and so settled by renewing rather than by chasing. The span is kept because a follow-up
+                       figure means nothing without knowing which month it stops at, but it is stated as a value now. *@
+                    <div class="rpt-attn-stats">
+                        <span class="rpt-attn-stat">
+                            <span class="rpt-attn-stat-val">@FollowUpAccounts</span>
+                            <span class="rpt-attn-stat-key">accounts</span>
+                        </span>
+                        <span class="rpt-attn-stat">
+                            <span class="rpt-attn-stat-val is-owed">@Money(FollowUpOutstanding)</span>
+                            <span class="rpt-attn-stat-key">outstanding in full</span>
+                        </span>
+                        @if (Model.LapsedWithBalanceCount > 0)
+                        {
+                            <span class="rpt-attn-stat">
+                                <span class="rpt-attn-stat-val">@Money(Model.LapsedWithBalanceOutstanding)</span>
+                                <span class="rpt-attn-stat-key">behind an expired term</span>
+                            </span>
+                        }
+                        <span class="rpt-attn-stat">
+                            <span class="rpt-attn-stat-val">@(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel)</span>
+                            <span class="rpt-attn-stat-key">counted to</span>
+                        </span>
+                    </div>
                 </div>
                 @* This section states WHO owes and how much; it does not act. Encoding a missing OR, reviewing a contract,
                    recording a payment or checking an excused entry all happen on the follow-up queue, which carries those

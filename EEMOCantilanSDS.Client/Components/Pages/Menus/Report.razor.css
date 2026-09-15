@@ -1482,6 +1482,35 @@
     gap: 10px;
 }
 
+/* The Attention header's figures. Value above its label, so the eye lands on the number rather than on a sentence — the
+   header is where the office reads what it is being asked to act on. */
+.rpt-attn-stats {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 26px;
+    margin-top: 8px;
+}
+
+.rpt-attn-stat-val {
+    display: block;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+    .rpt-attn-stat-val.is-owed {
+        color: var(--red);
+    }
+
+.rpt-attn-stat-key {
+    display: block;
+    margin-top: 1px;
+    font-size: 11px;
+    color: var(--text-subtle);
+}
+
 /* The lean form, when there is no spread worth a schedule but a lapsed term still wants renewing. */
 .rpt-aging-lean {
     display: flex;
@@ -1915,11 +1944,36 @@
     .print-register .rpt-page-space { display: none !important; }
 
     /* The page margin is ZERO so Chromium has no margin box to print its date, title and URL into. The sheet's whitespace
-       is supplied here instead: horizontal padding applies to every page, the top of the first page is padded by the
-       container, and the table's repeated header row carries the space at the top of each continuation sheet. */
-    .print-register { padding: 12mm !important; }
+       comes from .content-area's own print padding below (10mm 12mm), which covers the sides of every page and the top and
+       bottom of the flow, and from the table's repeated header and footer rows, which cover the top and bottom of each
+       continuation sheet. A rule was added here to set that padding and it lost to .content-area's later one; there is no
+       need for two. */
 
     .print-register #rpt-records { display: block !important; }
+
+    /* Strip the card off the register for print. A bordered, filled panel broken across sheets draws its border only where
+       it truly starts and ends, so on every page between them the background ran to the paper's edge and looked like the
+       table was falling off it. A printed register is a ruled table on paper, not a panel on a screen — so the chrome goes
+       and the clearance comes from the page padding and the repeated header and footer rows. */
+    .print-register #rpt-records {
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+    }
+
+    .print-register #rpt-records .section-header {
+        border-bottom: 1px solid #cfd6de !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+    .print-register #rpt-records .rpt-table-scroll {
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
 
     /* A register is read down its rows, so it may break across sheets — but never mid-row, and every sheet repeats the
        column headings, or a page of figures arrives with nothing saying what they are.
