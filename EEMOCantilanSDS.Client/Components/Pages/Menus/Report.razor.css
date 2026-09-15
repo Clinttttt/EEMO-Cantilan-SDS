@@ -985,6 +985,39 @@
    LINKS & INTERACTIVE
    ══════════════════════════════════════════════════════════════ */
 
+/* Register actions: print this document, or leave for the full ledger. Sized to the section header they sit in. */
+.rpt-register-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+    margin-left: 18px;
+}
+
+.rpt-register-print {
+    padding: 7px 13px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--navy);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+
+    .rpt-register-print:hover:not(:disabled) {
+        background: #f4f8fb;
+        border-color: #c9d6e0;
+    }
+
+    .rpt-register-print:disabled {
+        color: var(--text-subtle);
+        cursor: default;
+    }
+
 /* Handoff from the Attention section to the queue that can act on it. Restrained: navy text on the card, no button
    chrome, since it leads elsewhere rather than doing something here. Hidden in print — a paper report has no links. */
 .rpt-attn-link {
@@ -1720,6 +1753,25 @@
 
     /* Only header + KPIs + trend + Revenue by Facility print (Attention & Recent Records are excluded). */
     .content-area > .section-card:not(.pdf-include) { display: none !important; }
+
+    /* ── Register print ──────────────────────────────────────────────────────────────────────────────────────
+       The second document this page produces: the letterhead and the collection register, the evidence behind the
+       summary's figures. The register is deliberately NOT added to the summary export — fifty rows a period would turn
+       the report the office signs into something else — so it prints on its own and the summary is left as it was.
+
+       The id in these selectors is doing real work: the rule above hides every section-card without pdf-include, and
+       #rpt-records is one of them, so an id is what outranks it. The section-tab class hides only on screen, which is
+       why the register prints whatever tab the office happens to have open. */
+    .print-register .kpi-row,
+    .print-register .rpt-activity,
+    .print-register #rpt-trend,
+    .print-register #rpt-facility { display: none !important; }
+
+    .print-register #rpt-records { display: block !important; }
+
+    /* The office reads a register by its rows, so give them the width the summary's cards were using. */
+    .print-register #rpt-records .rpt-table-scroll { overflow: visible !important; }
+    .print-register #rpt-records .tx-table { font-size: 9.5pt !important; }
 
     .content-area { page: report-doc; padding: 10mm 12mm !important; background: #fff !important; }
 

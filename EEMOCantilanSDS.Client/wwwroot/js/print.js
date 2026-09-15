@@ -52,6 +52,35 @@ window.stalltrackPrint = {
         }
     },
 
+    /**
+     * Print with an extra class in force on one element, so a print stylesheet can choose WHICH document the page
+     * produces. Used by the Financial Report, which prints either its summary or its collection register from the same
+     * markup.
+     *
+     * The class is applied here rather than by the component because Blazor Server would have to round-trip the render to
+     * the browser before window.print() ran, and a print that races a render is a print that sometimes carries the wrong
+     * document. Removed on afterprint, and on a timer as well, because afterprint does not fire on every dialog path —
+     * the same safeguard the helpers above use. Falls back to printing unchanged if the element is not there, so a
+     * missing selector costs the office a summary rather than nothing at all.
+     */
+    withClass: function (selector, className) {
+        const el = document.querySelector(selector);
+        if (!el) {
+            window.print();
+            return;
+        }
+
+        el.classList.add(className);
+
+        try {
+            window.print();
+        } finally {
+            const cleanup = () => el.classList.remove(className);
+            window.addEventListener('afterprint', cleanup, { once: true });
+            window.setTimeout(cleanup, 60000);
+        }
+    },
+
     // Print the current page in landscape. Safe to call repeatedly: the injected rule is removed each time,
     // so a later portrait print (another page) is unaffected.
     landscape: function () {

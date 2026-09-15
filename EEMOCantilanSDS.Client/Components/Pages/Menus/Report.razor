@@ -29,7 +29,14 @@
     </div>
 </header>
 
-<div class="content-area">
+@* Two documents leave this page, and which one is decided in CSS by a class the print helper adds for the duration of the
+   print. Summary prints the letterhead, KPIs, trend and facility breakdown — the report the office signs off. Register
+   prints the letterhead and the collection register, the evidence behind those figures.
+
+   The class is added by JS rather than held as page state, because Blazor Server would have to round-trip the render to the
+   browser before window.print() fired, and a print that races a render is a print that sometimes contains the wrong
+   document. *@
+<div id="rpt-sheet" class="content-area">
 
     @* The "Reporting period / Scope / Frequency" strip was removed: every one of the three was already stated by the
        controls immediately below it — the period pills and year/month pickers, the facility chips, and the Monthly/Annual
@@ -697,7 +704,14 @@
                         }
                     </div>
                 </div>
-                <a class="rpt-attn-link no-print" href="/transactions">Open all transactions →</a>
+                <div class="rpt-register-actions no-print">
+                    @* Its own print action rather than a place in the Summary PDF: the summary is the report the office
+                       signs off, and fifty rows of evidence a period would make it a different document. *@
+                    <button type="button" class="rpt-register-print" @onclick="PrintRegister" disabled="@(Model.RecentRecords.Count == 0)">
+                        Print register
+                    </button>
+                    <a class="rpt-attn-link" href="/transactions">Open all transactions →</a>
+                </div>
             </div>
             <div class="rpt-table-scroll">
                 <table class="tx-table">
@@ -1099,6 +1113,17 @@
 
     /// <summary>Marks a section as off-screen. Hidden for the eye only; print is governed by the print stylesheet.</summary>
     private string SectionOff(string key) => _section == key ? string.Empty : " rpt-sec-off";
+
+    /// <summary>
+    /// Prints one document with an extra class in force, so the print stylesheet can choose which document.
+    /// </summary>
+    /// <remarks>
+    /// The class is applied in the browser for the duration of the print rather than held here, because a Blazor Server
+    /// render has to reach the client before <c>window.print()</c> runs — a print racing a render is a print that
+    /// sometimes contains the wrong document.
+    /// </remarks>
+    private async Task PrintRegister() =>
+        await JS.InvokeVoidAsync("stalltrackPrint.withClass", "#rpt-sheet", "print-register");
 
     private async Task ExportPdf() => await JS.InvokeVoidAsync("print");
 }

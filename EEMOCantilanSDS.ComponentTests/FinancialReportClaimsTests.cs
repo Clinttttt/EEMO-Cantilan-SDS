@@ -208,4 +208,38 @@ public class FinancialReportClaimsTests
         Assert.DoesNotContain("Recent Collection Records</div>", markup);
         Assert.Contains(@"href=""/transactions""", markup);
     }
+
+    [Fact]
+    public void TheRegisterPrintsAsItsOwnDocument_WithoutChangingTheSummaryExport()
+    {
+        // Two documents from one page. The summary is what the office signs off, so the register was NOT added to it —
+        // fifty rows a period would make it a different document. The register prints under a class the print helper adds
+        // for the duration of the print.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        Assert.Contains(@"id=""rpt-sheet""", markup);
+        Assert.Contains(@"stalltrackPrint.withClass"", ""#rpt-sheet"", ""print-register""", markup);
+
+        // Register mode hides the summary's own sections and shows the register …
+        Assert.Contains(".print-register #rpt-records { display: block !important; }", css);
+        Assert.Contains(".print-register .kpi-row,", css);
+
+        // … and the register still carries no pdf-include, which is what leaves the Summary PDF exactly as it was.
+        var records = Regex.Match(markup, @"<div id=""rpt-records""[^>]*>");
+        Assert.True(records.Success, "expected the register section to still carry its id");
+        Assert.DoesNotContain("pdf-include", records.Value);
+    }
+
+    [Fact]
+    public void RegisterModeReliesOnAnId_BecauseTheSummaryRuleWouldOtherwiseOutrankIt()
+    {
+        // The summary print rule hides every section-card without pdf-include, and the register is one of them. A class
+        // alone could not bring it back — three classes beat two — so the id in these selectors is load-bearing rather
+        // than stylistic, and a future tidy-up that swaps it for a class would silently print an empty register.
+        var css = ReadReport(".css");
+
+        Assert.Contains(".content-area > .section-card:not(.pdf-include) { display: none !important; }", css);
+        Assert.Matches(@"\.print-register #rpt-records\s*\{[^}]*display:\s*block", css);
+    }
 }
