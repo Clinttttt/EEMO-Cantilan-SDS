@@ -154,7 +154,7 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         var overview = markup.Substring(markup.IndexOf(@"id=""rpt-overview"""));
-        overview = overview.Substring(0, overview.IndexOf("rpt-activity"));
+        overview = overview.Substring(0, overview.IndexOf("rpt-panels"));
 
         var values = Regex.Matches(overview, @"kpi-value"">(?<v>[^<]+)<")
             .Cast<Match>()
@@ -168,10 +168,45 @@ public class FinancialReportClaimsTests
             values);
         Assert.Contains("grid-template-columns: repeat(4, 1fr) !important", css);
 
-        // The record count was demoted, not dropped, and its strip prints with the KPIs and hides with the tab.
-        Assert.Contains(@"class=""rpt-activity pdf-include@(SectionOff(""overview""))""", markup);
+        // The record count was demoted from the KPI row, not dropped: it is context in the composition panel's footer, and
+        // the panels print with the KPIs and hide with the tab.
+        Assert.Contains(@"class=""rpt-panels pdf-include@(SectionOff(""overview""))""", markup);
         Assert.Contains("Model.PaidRecords", markup);
         Assert.Contains("Model.ExpectedRecords", markup);
+    }
+
+    [Fact]
+    public void CollectionByModel_IsDerivedFromTheHeadlineFigure_SoTheTwoPartsAlwaysAddBackToIt()
+    {
+        // Composition must reconcile with the card above it. Summing every facility row independently would let a rounding
+        // or grouping difference put a split on screen that disagrees with Collected, so the service half is summed and the
+        // recurring half is what remains of the headline figure.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains("Model.Facilities.Where(f => f.PaidOnService).Sum(f => f.Collected)", markup);
+        Assert.Contains("Model.Collected - serviceCollected", markup);
+
+        // The distinction is the system's own, not an invented category.
+        Assert.Contains("Paid on service", markup);
+        Assert.Contains("Recurring", markup);
+    }
+
+    [Fact]
+    public void TheOutstandingPanel_StatesScopesAndMarksThePartThatIsNotAnAddend()
+    {
+        // Four figures at three different scopes. The lapsed line is a SLICE of the whole-account line, so it is worded and
+        // indented as one — the confusion this panel exists to end is two figures being added that describe the same debt.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        Assert.Contains("Model.CurrentPeriodUnpaid", markup);
+        Assert.Contains("Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal", markup);
+        Assert.Contains("Model.LapsedWithBalanceOutstanding", markup);
+        Assert.Contains("Model.ClosedWithBalanceOutstanding", markup);
+
+        Assert.Contains("never added", markup);
+        Assert.Contains("of that, behind an expired term", markup);
+        Assert.Contains(".rpt-pos-row.is-part", css);
     }
 
     [Fact]

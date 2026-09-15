@@ -121,8 +121,14 @@ public class ReportPageTests : TestContext
             // beside three figures that are money. Both of its numbers are still stated, just not as a headline card.
             Assert.Contains("Assessed", cut.Markup);                       // Billed KPI
             Assert.Contains("₱299,570", cut.Markup);                       // 242,170 collected + 57,400 unpaid
-            Assert.Contains("paid records", cut.Markup);
-            Assert.Contains("210", cut.Markup);                            // expected, in the activity strip
+            // The record count is context in the composition panel's footer now, not a headline card. Both numbers are
+            // still stated, and the panel reads them as coverage: "168 of 210 expected records".
+            Assert.Contains("expected records recorded", cut.Markup);
+            Assert.Contains("210", cut.Markup);
+
+            // Collection by model splits the same Collected figure into recurring rent and paid-on-service fees.
+            Assert.Contains("Paid on service", cut.Markup);
+            Assert.Contains("Recurring", cut.Markup);
         }, RenderTimeout);
     }
 

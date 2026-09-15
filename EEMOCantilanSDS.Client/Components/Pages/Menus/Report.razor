@@ -269,17 +269,80 @@
             </div>
         </div>
 
-        @* The operational figures the fourth card used to hold. Stated quietly, because they describe the encoding of the
-           period rather than its money, and because a report that gives equal weight to a record count and to what was
-           assessed invites the two to be read as comparable. Part of the Overview section, so it hides with the tab and
-           prints with the KPIs above it. *@
-        <div class="rpt-activity pdf-include@(SectionOff("overview"))">
-            <span class="rpt-activity-label">Collection activity</span>
-            <span class="rpt-activity-item"><strong>@Model.PaidRecords</strong> paid records</span>
-            <span class="rpt-activity-sep"></span>
-            <span class="rpt-activity-item"><strong>@Model.ExpectedRecords</strong> expected</span>
-            <span class="rpt-activity-sep"></span>
-            <span class="rpt-activity-item"><strong>@Model.FacilityCount</strong> facilit@(Model.FacilityCount == 1 ? "y" : "ies")</span>
+        @* The Overview's body. Two panels answering questions the four cards above cannot: where the money came from, and
+           what is still owed. Both are derived from figures the report already carries — no new query — and both sit
+           inside the Overview section, so they hide with the tab and print with the KPIs.
+
+           The record count that used to be a lone strip across the page now lives in the first panel's footer. Three
+           loose numbers on a full-width bar read as leftovers; beside the composition they describe they read as
+           context, which is what they are. *@
+        <div class="rpt-panels pdf-include@(SectionOff("overview"))">
+            <div class="rpt-panel">
+                <div class="rpt-panel-title">Collection by model</div>
+                <div class="rpt-panel-note">
+                    Recurring rent is assessed in advance and can fall into arrears; a paid-on-service fee exists only once
+                    the service is rendered, so it can never be owed.
+                </div>
+                @{
+                    // Derived from the headline figure rather than by summing every row, so the two parts always add back
+                    // to Collected. Summing the facility rows independently would let a rounding or grouping difference
+                    // put a composition on screen that disagrees with the card above it.
+                    var serviceCollected = Model.Facilities.Where(f => f.PaidOnService).Sum(f => f.Collected);
+                    var recurringCollected = Model.Collected - serviceCollected;
+                    var sharePct = (decimal share) => Model.Collected > 0m ? share / Model.Collected * 100m : 0m;
+                }
+                <div class="rpt-split">
+                    <div class="rpt-split-part">
+                        <div class="rpt-split-val">@Money(recurringCollected)</div>
+                        <div class="rpt-split-label">Recurring · @sharePct(recurringCollected).ToString("0.0")%</div>
+                        <div class="rpt-split-sub">Daily stall and monthly rental</div>
+                    </div>
+                    <div class="rpt-split-part">
+                        <div class="rpt-split-val">@Money(serviceCollected)</div>
+                        <div class="rpt-split-label">Paid on service · @sharePct(serviceCollected).ToString("0.0")%</div>
+                        <div class="rpt-split-sub">Per-head, per-trip and market-day</div>
+                    </div>
+                </div>
+                <div class="rpt-panel-foot">
+                    <strong>@Model.PaidRecords</strong> of <strong>@Model.ExpectedRecords</strong> expected records recorded
+                    across <strong>@Model.FacilityCount</strong> facilit@(Model.FacilityCount == 1 ? "y" : "ies")
+                </div>
+            </div>
+
+            <div class="rpt-panel">
+                <div class="rpt-panel-title">Outstanding position</div>
+                <div class="rpt-panel-note">
+                    Four different scopes, deliberately never added: the first is this period alone, the second every closed
+                    month of every account still being billed, and the last two are parts of that second figure.
+                </div>
+                <div class="rpt-pos">
+                    <div class="rpt-pos-row">
+                        <span class="rpt-pos-label">This period</span>
+                        <span class="rpt-pos-val">@Money(Model.CurrentPeriodUnpaid)</span>
+                    </div>
+                    <div class="rpt-pos-row">
+                        <span class="rpt-pos-label">Whole account, every closed month</span>
+                        <span class="rpt-pos-val">
+                            @Money(Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal)
+                            <span class="rpt-pos-count">@(Model.DelinquentAccountsTotal + Model.ArrearsAccountsTotal) accounts</span>
+                        </span>
+                    </div>
+                    <div class="rpt-pos-row is-part">
+                        <span class="rpt-pos-label">— of that, behind an expired term</span>
+                        <span class="rpt-pos-val">
+                            @Money(Model.LapsedWithBalanceOutstanding)
+                            <span class="rpt-pos-count">@Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies")</span>
+                        </span>
+                    </div>
+                    <div class="rpt-pos-row">
+                        <span class="rpt-pos-label">Former occupants, stated by the register alone</span>
+                        <span class="rpt-pos-val">
+                            @Money(Model.ClosedWithBalanceOutstanding)
+                            <span class="rpt-pos-count">@Model.ClosedWithBalanceCount account@(Model.ClosedWithBalanceCount == 1 ? "" : "s")</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- ATTENTION & FOLLOW-UP -->

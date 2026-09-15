@@ -1494,22 +1494,22 @@
     }
 }
 
-/* Operational strip under the KPI row: how the period was encoded, stated quietly beside figures that are money. */
-.rpt-activity {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 14px;
+/* The Overview's body: two panels answering what the four cards cannot. Two columns on a desk, one on a narrow screen. */
+.rpt-panels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
     margin: -6px 0 20px;
-    padding: 11px 18px;
+}
+
+.rpt-panel {
+    padding: 16px 18px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    font-size: 12.5px;
-    color: var(--text-muted);
 }
 
-.rpt-activity-label {
+.rpt-panel-title {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: .8px;
@@ -1517,15 +1517,100 @@
     color: var(--text-subtle);
 }
 
-    .rpt-activity-item strong {
+.rpt-panel-note {
+    margin-top: 6px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-subtle);
+}
+
+.rpt-panel-foot {
+    margin-top: 14px;
+    padding-top: 11px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+    .rpt-panel-foot strong {
         color: var(--navy);
         font-weight: 700;
     }
 
-.rpt-activity-sep {
-    width: 1px;
-    height: 13px;
-    background: var(--border);
+/* Collection by model: two parts of one total, so they carry equal weight rather than one leading. */
+.rpt-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.rpt-split-val {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.rpt-split-label {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.rpt-split-sub {
+    margin-top: 1px;
+    font-size: 11px;
+    color: var(--text-subtle);
+}
+
+/* Outstanding position: a list of scopes, so each reads as its own statement rather than as a column of comparable sums. */
+.rpt-pos {
+    margin-top: 12px;
+}
+
+.rpt-pos-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+    .rpt-pos-row:last-child {
+        border-bottom: none;
+    }
+
+    /* A figure that is part of the line above it, indented so it cannot be mistaken for another addend. */
+    .rpt-pos-row.is-part {
+        padding-left: 10px;
+    }
+
+.rpt-pos-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.rpt-pos-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    white-space: nowrap;
+    text-align: right;
+}
+
+.rpt-pos-count {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-subtle);
+}
+
+@media (max-width: 1100px) {
+    .rpt-panels {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Divider inside a coverage figure ("284 / 310"): the denominator is context, not a second number of equal weight. */
@@ -1763,7 +1848,7 @@
        #rpt-records is one of them, so an id is what outranks it. The section-tab class hides only on screen, which is
        why the register prints whatever tab the office happens to have open. */
     .print-register .kpi-row,
-    .print-register .rpt-activity,
+    .print-register .rpt-panels,
     .print-register #rpt-trend,
     .print-register #rpt-facility { display: none !important; }
 
