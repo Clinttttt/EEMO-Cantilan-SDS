@@ -867,6 +867,54 @@
                     </tfoot>
                 </table>
             </div>
+
+            @* What the total row cannot say. The 19% it states is one figure over two unlike things: a paid-on-service fee
+               is in Collected but can never be in Unpaid, so every peso of it lifts the rate toward 100% while the whole
+               outstanding balance sits on the billed facilities. Split here, at the rows it describes, using the same
+               distinction the Overview's collection-by-model panel makes — the same idea twice, not two ideas.
+
+               Both halves are derived from the totals rather than by summing the rows independently, so they always add back
+               to the row above: the service side is summed and the billed side is what remains of Collected. *@
+            @{
+                var facServiceCollected = Model.Facilities.Where(f => f.PaidOnService).Sum(f => f.Collected);
+                var facBilledCollected = Model.Collected - facServiceCollected;
+                var facBilledBilled = facBilledCollected + Model.CurrentPeriodUnpaid;
+                var facBilledRate = facBilledBilled > 0m ? (int)Math.Round(facBilledCollected / facBilledBilled * 100m) : 0;
+
+                // The single largest share of what is owed. The table holds it, but only after the office has read eight
+                // rows and done the arithmetic; naming it turns the table into a finding.
+                var facWorst = Model.Facilities
+                    .Where(f => !f.PaidOnService && (f.Unpaid ?? 0m) > 0m)
+                    .OrderByDescending(f => f.Unpaid ?? 0m)
+                    .FirstOrDefault();
+            }
+            <div class="fac-close">
+                <div class="fac-close-split">
+                    <div class="fac-close-part">
+                        <div class="fac-close-key">Billed facilities</div>
+                        <div class="fac-close-val">
+                            @Money(facBilledCollected) collected
+                            <span class="fac-close-aside">· @Money(Model.CurrentPeriodUnpaid) outstanding · @facBilledRate%</span>
+                        </div>
+                    </div>
+                    <div class="fac-close-part">
+                        <div class="fac-close-key">Paid on service</div>
+                        <div class="fac-close-val">
+                            @Money(facServiceCollected) collected
+                            <span class="fac-close-aside">· nothing assessed, so nothing can be owed</span>
+                        </div>
+                    </div>
+                </div>
+                @if (facWorst is not null && Model.CurrentPeriodUnpaid > 0m)
+                {
+                    var worstShare = (facWorst.Unpaid ?? 0m) / Model.CurrentPeriodUnpaid * 100m;
+                    <div class="fac-close-note">
+                        Most of it is in one place: <strong>@Money(facWorst.Unpaid ?? 0m)</strong>
+                        at @FacilityCatalog.ShortNameOf(facWorst.Code) @facWorst.Name,
+                        @worstShare.ToString("0")% of everything outstanding this period.
+                    </div>
+                }
+            </div>
         </div>
 
         <!-- COLLECTION REGISTER -->

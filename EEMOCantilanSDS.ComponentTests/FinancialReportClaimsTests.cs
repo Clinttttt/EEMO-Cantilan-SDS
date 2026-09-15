@@ -278,6 +278,40 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
+    public void TheFacilityTablesClosingStatement_SplitsTheTotalByModel_AndDerivesItFromTheTotals()
+    {
+        // The total row states one rate over two unlike things: a paid-on-service fee is in Collected but can never be in
+        // Unpaid, so it lifts the rate toward 100% while the whole outstanding balance sits on the billed facilities. The
+        // split says so at the rows it describes, using the same distinction the Overview panel makes.
+        var markup = ReadReport(string.Empty);
+
+        // Derived from the totals, not by summing rows independently, so the two halves always add back to the row above.
+        Assert.Contains("Model.Facilities.Where(f => f.PaidOnService).Sum(f => f.Collected)", markup);
+        Assert.Contains("Model.Collected - facServiceCollected", markup);
+
+        // The billed rate is measured against billed billing only — collected plus the period's unpaid.
+        Assert.Contains("facBilledCollected + Model.CurrentPeriodUnpaid", markup);
+
+        // A service facility has nothing assessed, and the wording says that rather than showing a rate for it.
+        Assert.Contains("nothing assessed, so nothing can be owed", markup);
+    }
+
+    [Fact]
+    public void TheFacilityTablesClosingStatement_NamesWhereTheOutstandingIsConcentrated()
+    {
+        // The table holds this, but only after the office has read every row and done the arithmetic. It is stated as a
+        // share of the period's outstanding, and only when there is something outstanding to share.
+        var markup = ReadReport(string.Empty);
+
+        Assert.Contains(".Where(f => !f.PaidOnService && (f.Unpaid ?? 0m) > 0m)", markup);
+        Assert.Contains(".OrderByDescending(f => f.Unpaid ?? 0m)", markup);
+        Assert.Contains("facWorst is not null && Model.CurrentPeriodUnpaid > 0m", markup);
+
+        // Paid-on-service facilities are excluded from the search: their Unpaid is null because none can exist.
+        Assert.Contains("Most of it is in one place", markup);
+    }
+
+    [Fact]
     public void ReceivableAging_AppearsOnlyWhenTheDebtSpansMoreThanOneBand()
     {
         // With every account in the youngest band the schedule repeats the arrears count beside it, and naming the empty
