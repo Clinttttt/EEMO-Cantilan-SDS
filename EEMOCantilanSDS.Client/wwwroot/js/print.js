@@ -53,6 +53,51 @@ window.stalltrackPrint = {
     },
 
     /**
+     * Print one section of a page as its own document: an @page margin that applies to EVERY sheet, plus a class the
+     * stylesheet uses to choose what is included.
+     *
+     * The margin has to come from @page rather than from padding on the container. Padding pads the first sheet only, so a
+     * register that ran to three pages had content against the top and bottom edges of the second and third — which is
+     * what this exists to fix.
+     *
+     * The class is applied here rather than by the component because Blazor Server would have to round-trip the render to
+     * the browser before window.print() ran, and a print that races a render is a print that sometimes carries the wrong
+     * document. Both the style and the class are removed on afterprint and on a timer, because afterprint does not fire on
+     * every dialog path. Falls back to an unchanged print if the element is missing, so a bad selector costs the office
+     * the summary rather than nothing at all.
+     */
+    sectionDocument: function (selector, className) {
+        const STYLE_ID = 'stalltrack-section-document-print';
+        document.getElementById(STYLE_ID)?.remove();
+
+        const el = document.querySelector(selector);
+        if (!el) {
+            window.print();
+            return;
+        }
+
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.media = 'print';
+        // A paper size must be named alongside the margin, for the same reason the helpers above name one.
+        style.textContent = '@page { size: A4 portrait; margin: 12mm; }' + 'html, body { margin: 0 !important; }';
+        document.head.appendChild(style);
+
+        el.classList.add(className);
+
+        try {
+            window.print();
+        } finally {
+            const cleanup = () => {
+                document.getElementById(STYLE_ID)?.remove();
+                el.classList.remove(className);
+            };
+            window.addEventListener('afterprint', cleanup, { once: true });
+            window.setTimeout(cleanup, 60000);
+        }
+    },
+
+    /**
      * Print with an extra class in force on one element, so a print stylesheet can choose WHICH document the page
      * produces. Used by the Financial Report, which prints either its summary or its collection register from the same
      * markup.

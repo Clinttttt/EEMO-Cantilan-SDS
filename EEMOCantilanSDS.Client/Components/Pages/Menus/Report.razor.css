@@ -48,35 +48,38 @@
 }
 
 /* ── Period pills (only 3 — compact, stays as pills) ── */
+/* The period pills wear the same track as the section tabs and facility chips: 4px around a 34px pill, so all three come
+   to 42px and sit level with the year and month dropdowns. They were 36px against the others' 46px. */
 .rfp-period-pills {
-    display: flex;
-    gap: 2px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    padding: 3px;
-    height: 36px;
+    display: inline-flex;
     align-items: center;
+    gap: 3px;
+    padding: 4px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 11px;
 }
 
 .rpp {
-    padding: 5px 14px;
-    border-radius: 7px;
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text-muted);
-    font-size: 12.5px;
-    font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
     white-space: nowrap;
-    transition: all .12s;
-    line-height: 1.3;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
 }
 
-    .rpp:hover {
+    .rpp:hover:not(.on) {
         color: var(--navy);
-        background: rgba(255, 255, 255, .7);
     }
 
     .rpp.on {
@@ -156,7 +159,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 38px;
+    min-height: 34px;
     padding: 0 16px;
     border: 1px solid transparent;
     border-radius: 8px;
@@ -306,7 +309,7 @@
     align-items: center;
     justify-content: center;
     gap: 5px;
-    min-height: 38px;
+    min-height: 34px;
     padding: 0 16px;
     border-radius: 8px;
     border: 1px solid transparent;
@@ -985,7 +988,8 @@
    LINKS & INTERACTIVE
    ══════════════════════════════════════════════════════════════ */
 
-/* Register actions: print this document, or leave for the full ledger. Sized to the section header they sit in. */
+/* Register actions: print this document, or leave for the full ledger. Both are baseline-aligned and the same height, so
+   the button and the link read as one row of actions rather than two things that happen to sit near each other. */
 .rpt-register-actions {
     display: flex;
     align-items: center;
@@ -994,8 +998,20 @@
     margin-left: 18px;
 }
 
+    /* The link is given the button's box so their text sits on one line. */
+    .rpt-register-actions .rpt-attn-link {
+        display: inline-flex;
+        align-items: center;
+        align-self: auto;
+        min-height: 32px;
+        margin-left: 0;
+    }
+
 .rpt-register-print {
-    padding: 7px 13px;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 13px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg-card);
@@ -1435,19 +1451,35 @@
     background: #fafcfd;
 }
 
+.rpt-aging-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
 .rpt-aging-label {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
     color: var(--text-subtle);
-    margin-bottom: 10px;
 }
 
+/* Only the bands that hold something, so the columns are sized to what is there rather than to a fixed four. */
 .rpt-aging-bands {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--rpt-aging-count, 4), minmax(0, 1fr));
     gap: 10px;
+}
+
+.rpt-aging-none {
+    margin-top: 11px;
+    padding-top: 9px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-subtle);
 }
 
 .rpt-aging-band-span {
@@ -1468,7 +1500,7 @@
     color: var(--text-subtle);
 }
 
-    /* A band nobody is in still holds its column, so the schedule keeps its shape and the office can see the gap. */
+    /* Kept for the empty-band case; no band is rendered with a zero figure any more. */
     .rpt-aging-band.is-empty .rpt-aging-band-val,
     .rpt-aging-band.is-empty .rpt-aging-band-count {
         color: var(--text-subtle);
@@ -1476,11 +1508,9 @@
     }
 
 .rpt-aging-lapsed {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border);
-    font-size: 12.5px;
+    font-size: 11.5px;
     color: var(--text-muted);
+    white-space: nowrap;
 }
 
     .rpt-aging-lapsed strong {
@@ -1536,6 +1566,10 @@
         color: var(--navy);
         font-weight: 700;
     }
+
+.rpt-panel-aside {
+    color: var(--text-subtle);
+}
 
 /* Collection by model: two parts of one total, so they carry equal weight rather than one leading. */
 .rpt-split {
@@ -1852,7 +1886,21 @@
     .print-register #rpt-trend,
     .print-register #rpt-facility { display: none !important; }
 
+    /* The spacer belongs to the facility card, and forces a page break to keep it clear of the paper's edge. With that
+       card hidden the break remained, so the register began with one or two empty sheets — the fault this hides. */
+    .print-register .rpt-page-space { display: none !important; }
+
+    /* @page carries the margin for a register, because it applies to EVERY sheet. The container's padding pads only the
+       first, which is why a three-page register had rows against the top and bottom edges of pages two and three. */
+    .print-register { padding: 0 !important; }
+
     .print-register #rpt-records { display: block !important; }
+
+    /* A register is read down its rows, so it may break across sheets — but never mid-row, and every sheet repeats the
+       column headings, or a page of figures arrives with nothing saying what they are. */
+    .print-register #rpt-records { break-inside: auto !important; }
+    .print-register #rpt-records thead { display: table-header-group; }
+    .print-register #rpt-records tr { break-inside: avoid; page-break-inside: avoid; }
 
     /* The office reads a register by its rows, so give them the width the summary's cards were using. */
     .print-register #rpt-records .rpt-table-scroll { overflow: visible !important; }

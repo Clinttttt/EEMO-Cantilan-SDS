@@ -204,9 +204,42 @@ public class FinancialReportClaimsTests
         Assert.Contains("Model.LapsedWithBalanceOutstanding", markup);
         Assert.Contains("Model.ClosedWithBalanceOutstanding", markup);
 
-        Assert.Contains("never added", markup);
-        Assert.Contains("of that, behind an expired term", markup);
+        Assert.Contains("Not to be added", markup);
+        Assert.Contains("Lapsed term exposure", markup);
+        Assert.Contains("within whole account", markup);
         Assert.Contains(".rpt-pos-row.is-part", css);
+    }
+
+    [Fact]
+    public void TheRecurringRate_IsBuiltFromRecurringBillingAlone_AndOnlyShownWhenItDiffers()
+    {
+        // The headline rate is Collected / Billed, and a paid-on-service fee sits in both halves while never being capable
+        // of arrears — so it pulls the rate toward 100% and the figure stops describing rent collection. The qualified rate
+        // divides recurring collections by recurring billings only.
+        var markup = ReadReport(string.Empty);
+
+        // Recurring billed = recurring collected + the period's unpaid, because only recurring billing can be unpaid.
+        Assert.Contains("recurringCollected + Model.CurrentPeriodUnpaid", markup);
+        Assert.Contains("recurringCollected / recurringBilled * 100m", markup);
+
+        // Shown only when it says something the headline does not, so it never just repeats the card above it.
+        Assert.Contains("serviceCollected > 0m && recurringBilled > 0m && recurringRate != Model.CollectionRatePct", markup);
+    }
+
+    [Fact]
+    public void ReceivableAging_ShowsOnlyBandsThatHoldSomething()
+    {
+        // Four columns reading ₱0 · 0 accounts is a grid describing an absence, and it gets read past. Only bands with
+        // accounts get a figure; the rest are named in one line, so the schedule still says what it examined.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        Assert.Contains("Model.Aging.Where(b => b.Accounts > 0).ToList()", markup);
+        Assert.Contains("Nothing owing at", markup);
+
+        // The column count follows the surviving bands, so two filled bands do not leave two empty columns behind.
+        Assert.Contains("--rpt-aging-count: @filled.Count", markup);
+        Assert.Contains("repeat(var(--rpt-aging-count, 4), minmax(0, 1fr))", css);
     }
 
     [Fact]
@@ -254,11 +287,18 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         Assert.Contains(@"id=""rpt-sheet""", markup);
-        Assert.Contains(@"stalltrackPrint.withClass"", ""#rpt-sheet"", ""print-register""", markup);
+        Assert.Contains(@"stalltrackPrint.sectionDocument"", ""#rpt-sheet"", ""print-register""", markup);
 
         // Register mode hides the summary's own sections and shows the register …
         Assert.Contains(".print-register #rpt-records { display: block !important; }", css);
         Assert.Contains(".print-register .kpi-row,", css);
+
+        // … the spacer that forces a page break for the facility card goes with it, or the register begins on a blank
+        // sheet, which is exactly what it did …
+        Assert.Contains(".print-register .rpt-page-space { display: none !important; }", css);
+
+        // … and the margin comes from @page, which applies to every sheet, not from padding that pads only the first.
+        Assert.Contains(".print-register { padding: 0 !important; }", css);
 
         // … and the register still carries no pdf-include, which is what leaves the Summary PDF exactly as it was.
         var records = Regex.Match(markup, @"<div id=""rpt-records""[^>]*>");
