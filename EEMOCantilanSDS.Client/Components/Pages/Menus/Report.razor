@@ -357,8 +357,16 @@
             </div>
         </div>
 
-        <!-- ATTENTION & FOLLOW-UP -->
-        <div id="rpt-followup" class="section-card rpt-attention-wrap@(SectionOff("followup"))" style="margin-bottom:20px;">
+        @* ATTENTION & FOLLOW-UP — rendered only while its own tab is open.
+
+           The four pdf-include sections cannot be treated this way: Export Summary PDF is assembled by the print
+           stylesheet from the whole page, whatever tab happens to be showing, so they must exist at all times and are
+           hidden by a screen-only class instead. This section and the register carry no pdf-include, and the register's
+           print button sits inside the register itself, so neither can be asked to print while it is closed. Leaving
+           them out spares the office a hundred-odd table rows it is not looking at on every re-render. *@
+        if (SectionShown("followup"))
+        {
+        <div id="rpt-followup" class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
@@ -592,6 +600,7 @@
                 </a>
             }
         </div>
+        }
 
         <!-- REVENUE TREND -->
         <div id="rpt-trend" class="section-card pdf-include rpt-trend-card@(SectionOff("trend"))" style="margin-bottom:20px;">
@@ -900,8 +909,11 @@
             </div>
         </div>
 
-        <!-- COLLECTION REGISTER -->
-        <div id="rpt-records" class="section-card@(SectionOff("records"))" style="margin-bottom:20px;">
+        @* COLLECTION REGISTER — rendered only while its own tab is open, for the reason given above the Attention
+           section: it carries no pdf-include, and the button that prints it is inside it. *@
+        if (SectionShown("records"))
+        {
+        <div id="rpt-records" class="section-card" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Collection register — @PeriodLabel</div>
@@ -978,6 +990,7 @@
                 </table>
             </div>
         </div>
+        }
     }
 
 </div>
@@ -1302,10 +1315,13 @@
     // cleanly on paper. "Save as PDF" in the print dialog produces the PDF.
     // ── Report sections ──────────────────────────────────────────────────────────────────────────────────────
     //
-    // The report is five sections deep and only the first fits on a screen. They are shown one at a time rather than
-    // stacked, which is also why they must stay in the DOM: the print stylesheet — not this state — decides what
-    // Export Summary PDF contains, and it reads the markup as a whole. Removing a section here would silently shorten
-    // the exported document to whatever the office had open.
+    // The report is five sections deep and only the first fits on a screen, so they are shown one at a time rather than
+    // stacked. Which of them may leave the DOM is decided by the print stylesheet, not by this state:
+    //
+    //   • overview, trend, by facility — pdf-include. Export Summary PDF reads the markup as a whole, whatever tab is
+    //     open, so these must exist at all times and are hidden by a screen-only class (SectionOff).
+    //   • follow-up, records — never in that document, and the register's own print button sits inside the register.
+    //     These are rendered only while open (SectionShown), which took the page from 116 kb of markup to 30 kb.
     private static readonly (string Key, string Label)[] ReportSections =
     [
         ("overview", "Overview"),
@@ -1330,6 +1346,13 @@
 
     /// <summary>Marks a section as off-screen. Hidden for the eye only; print is governed by the print stylesheet.</summary>
     private string SectionOff(string key) => _section == key ? string.Empty : " rpt-sec-off";
+
+    /// <summary>
+    /// Whether a section that is never printed should be in the markup at all. The four pdf-include sections do not use
+    /// this — they must exist whatever tab is open, because Export Summary PDF is assembled from the whole page — but
+    /// Attention and the register are only ever read on screen, and the register's print button is inside it.
+    /// </summary>
+    private bool SectionShown(string key) => _section == key;
 
     /// <summary>
     /// Prints one document with an extra class in force, so the print stylesheet can choose which document.

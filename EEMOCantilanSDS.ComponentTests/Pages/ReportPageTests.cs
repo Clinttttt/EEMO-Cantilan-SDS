@@ -106,6 +106,18 @@ public class ReportPageTests : TestContext
         return RenderComponent<ReportPage>();
     }
 
+    /// <summary>
+    /// Opens a section the way the office does. Attention and the register are in the markup only while their own tab is
+    /// open — neither is ever printed, so neither has to exist otherwise — which means a test that reads them has to
+    /// click first. It also makes the negative assertions honest: "no capped note" now means the note is absent from a
+    /// section that is actually on screen, rather than from a section that was not rendered at all.
+    /// </summary>
+    private static void OpenSection(IRenderedComponent<ReportPage> cut, string label)
+    {
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".rpt-sec-tab")), RenderTimeout);
+        cut.FindAll(".rpt-sec-tab").Single(t => t.TextContent.Trim() == label).Click();
+    }
+
     [Fact]
     public void Renders_Kpis_From_Api()
     {
@@ -180,6 +192,8 @@ public class ReportPageTests : TestContext
     {
         var cut = RenderReport(SampleReport());
 
+        OpenSection(cut, "Follow-up");
+
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Delinquent accounts", cut.Markup);
@@ -213,6 +227,8 @@ public class ReportPageTests : TestContext
     public void AttentionList_MarksALapsedTerm_AndStatesTheWholeOutstanding()
     {
         var cut = RenderReport(SampleReport());
+
+        OpenSection(cut, "Follow-up");
 
         cut.WaitForAssertion(() =>
         {
@@ -254,6 +270,8 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(dto);
 
+        OpenSection(cut, "Records");
+
         cut.WaitForAssertion(() =>
         {
             var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Luz Cano");
@@ -276,6 +294,8 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(dto);
 
+        OpenSection(cut, "Records");
+
         cut.WaitForAssertion(() =>
         {
             var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Ramon Dy");
@@ -288,6 +308,8 @@ public class ReportPageTests : TestContext
     public void AttentionList_SearchFiltersEachColumnIndependently()
     {
         var cut = RenderReport(SampleReport());
+
+        OpenSection(cut, "Follow-up");
 
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".attn-search input").Count), RenderTimeout);
 
@@ -322,6 +344,8 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(report);
 
+        OpenSection(cut, "Follow-up");
+
         cut.WaitForAssertion(() =>
         {
             // The header states figures rather than a sentence now, so they are read off the elements that hold them —
@@ -347,6 +371,8 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(report);
 
+        OpenSection(cut, "Follow-up");
+
         cut.WaitForAssertion(() =>
         {
             var note = cut.Find(".attn-capped").TextContent;
@@ -362,6 +388,8 @@ public class ReportPageTests : TestContext
         // disregard it on the one report where it matters.
         var cut = RenderReport(SampleReport());
 
+        OpenSection(cut, "Follow-up");
+
         cut.WaitForAssertion(() => Assert.Contains("Rosa Magbanua", cut.Markup), RenderTimeout);
         Assert.Empty(cut.FindAll(".attn-capped"));
     }
@@ -372,6 +400,8 @@ public class ReportPageTests : TestContext
         var report = SampleReport() with { DelinquentAccountsTotal = 63, ArrearsAccountsTotal = 12 };
 
         var cut = RenderReport(report);
+
+        OpenSection(cut, "Follow-up");
 
         cut.WaitForAssertion(() =>
         {

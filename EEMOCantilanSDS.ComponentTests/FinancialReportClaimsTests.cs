@@ -81,8 +81,43 @@ public class FinancialReportClaimsTests
 
         Assert.Equal(5, keys.Count);
 
+        // A section is either hidden by the screen-only class (it must exist for the export) or rendered only when open.
         foreach (var key in keys)
+            Assert.True(
+                markup.Contains($@"SectionOff(""{key}"")") || markup.Contains($@"SectionShown(""{key}"")"),
+                $"the '{key}' tab marks no section");
+    }
+
+    [Fact]
+    public void OnlyASectionThatIsNeverPrinted_MayBeLeftOutOfTheMarkup()
+    {
+        // Export Summary PDF is assembled by the print stylesheet from the whole page, whatever tab is open, so every
+        // pdf-include section has to exist at all times — hidden by a class, never omitted. Attention and the register are
+        // read on screen only, and the register's print button is inside the register, so it cannot be asked to print
+        // while it is closed. Leaving those two out cut the page from 116 kb of markup to 30 kb.
+        //
+        // This is the assertion that stops the saving from being taken one section too far: omitting a pdf-include
+        // section would export a report with a hole in it, and nothing on screen would look wrong.
+        var markup = ReadReport(string.Empty);
+
+        foreach (var key in new[] { "followup", "records" })
+            Assert.Contains($@"SectionShown(""{key}"")", markup);
+
+        foreach (var key in new[] { "overview", "trend", "facility" })
+        {
             Assert.Contains($@"SectionOff(""{key}"")", markup);
+            Assert.DoesNotContain($@"SectionShown(""{key}"")", markup);
+        }
+
+        // Each conditional section states the id it guards, so the two lists above cannot silently swap places.
+        Assert.Matches(@"SectionShown\(""followup""\)\s*\)\s*\{\s*<div id=""rpt-followup""", markup);
+        Assert.Matches(@"SectionShown\(""records""\)\s*\)\s*\{\s*<div id=""rpt-records""", markup);
+
+        // The button that prints the register is inside the register, which is what makes omitting it safe.
+        var registerStart = markup.IndexOf(@"<div id=""rpt-records""", StringComparison.Ordinal);
+        var printButton = markup.IndexOf("PrintRegister", StringComparison.Ordinal);
+        Assert.True(registerStart > 0 && printButton > registerStart,
+            "PrintRegister must be triggered from inside the register section");
     }
 
     [Fact]
