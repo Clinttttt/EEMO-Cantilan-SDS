@@ -735,10 +735,35 @@
         <div id="rpt-facility" class="section-card pdf-include@(SectionOff("facility"))" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
-                    <div class="section-title">Revenue by Facility — @PeriodLabel</div>
+                    @* The rate in this table is not the rate the Dashboard and the market's own page state, and the two
+                       will be read side by side. Rather than explain it in a sub-line nobody asked for, the rule is
+                       behind a mark next to the period and stays out of the way until it is wanted. Screen only: it
+                       answers a question asked in front of the screen, and the printed table states figures. *@
+                    <div class="section-title">
+                        Revenue by Facility — @PeriodLabel<button type="button" class="rpt-rule-mark no-print"
+                                @onclick="() => _facilityRuleOpen = !_facilityRuleOpen"
+                                aria-expanded="@(_facilityRuleOpen ? "true" : "false")"
+                                aria-controls="rpt-facility-rule"
+                                aria-label="How the rate in this table is measured"
+                                title="How the rate in this table is measured">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                        </button>
+                    </div>
                     <div class="section-sub">Collection differs by facility model; unpaid/rate apply only to billed cycles</div>
                 </div>
             </div>
+            @if (_facilityRuleOpen)
+            {
+                <div id="rpt-facility-rule" class="rpt-rule-note no-print">
+                    <div class="rpt-rule-key">Rate basis</div>
+                    <div>This table: collected ÷ (collected + unpaid) for the period, per facility.</div>
+                    <div>
+                        Fish by the kilo, and the market's electricity and water, are collected without a monthly
+                        assessment, so they lift the market's rate here. The Dashboard and the market's own page measure
+                        daily fees against daily fees due, and read lower for that reason.
+                    </div>
+                </div>
+            }
             <div class="rpt-table-scroll">
                 <table class="fac-table">
                     <thead>
@@ -1334,6 +1359,12 @@
     ];
 
     private string _section = "overview";
+
+    /// <summary>
+    /// Whether the rate-basis note under the By facility heading is open. Closed by default: the office asked for the
+    /// rule to be available, not stated on every reading.
+    /// </summary>
+    private bool _facilityRuleOpen;
 
     /// <summary>
     /// The register's row cap, as the server applies it.

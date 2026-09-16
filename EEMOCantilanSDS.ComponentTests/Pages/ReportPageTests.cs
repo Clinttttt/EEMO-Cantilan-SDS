@@ -188,6 +188,33 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
+    public void TheRateBasisNote_IsClosedUntilTheMarkIsPressed()
+    {
+        // Closed by default, or the report would explain itself on every reading — which is what the office asked not to
+        // have. One press states the rule; a second puts it away.
+        var cut = RenderReport(SampleReport());
+
+        OpenSection(cut, "By facility");
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".rpt-rule-mark")), RenderTimeout);
+
+        var mark = cut.Find(".rpt-rule-mark");
+        Assert.Equal("false", mark.GetAttribute("aria-expanded"));
+        Assert.Empty(cut.FindAll("#rpt-facility-rule"));
+
+        mark.Click();
+
+        Assert.Equal("true", cut.Find(".rpt-rule-mark").GetAttribute("aria-expanded"));
+        var note = cut.Find("#rpt-facility-rule").TextContent;
+        Assert.Contains("collected + unpaid", note);
+        Assert.Contains("daily fees due", note);
+
+        cut.Find(".rpt-rule-mark").Click();
+
+        Assert.Empty(cut.FindAll("#rpt-facility-rule"));
+    }
+
+    [Fact]
     public void Renders_DelinquentAndArrears_Separately()
     {
         var cut = RenderReport(SampleReport());

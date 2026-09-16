@@ -327,6 +327,36 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
+    public void TheRateBasisMark_IsAvailableOnScreenAndPrintsNothing()
+    {
+        // The rate in this table is not the rate the Dashboard states for the same market — 30% against 26% on September
+        // 2026 — because fish by the kilo and the market's utilities are collected without a monthly assessment, so they
+        // sit in this table's numerator with nothing answering them in its denominator. Both figures are correct on their
+        // own basis, and the office reads them side by side, so the rule is stated where the period is named.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        // Beside the period, not in a sub-line: the rule is wanted when a figure is questioned, not on every reading.
+        Assert.Contains("Revenue by Facility — @PeriodLabel<button type=\"button\" class=\"rpt-rule-mark no-print\"", markup);
+        Assert.Contains("_facilityRuleOpen", markup);
+
+        // Reachable by keyboard and announced: a bare glyph would state the rule to no one who needs it read out.
+        Assert.Contains("aria-expanded=\"@(_facilityRuleOpen ? \"true\" : \"false\")\"", markup);
+        Assert.Contains("aria-controls=\"rpt-facility-rule\"", markup);
+        Assert.Contains("aria-label=\"How the rate in this table is measured\"", markup);
+        Assert.Contains("id=\"rpt-facility-rule\"", markup);
+        Assert.Contains(".rpt-rule-mark:focus-visible", css);
+
+        // What it says, in the terms the report uses elsewhere.
+        Assert.Contains("collected ÷ (collected + unpaid) for the period", markup);
+        Assert.Contains("daily fees against daily fees due", markup);
+
+        // Neither the mark nor the note reaches paper. The printed table states figures, and this is an answer to a
+        // question asked in front of a screen.
+        Assert.Contains("class=\"rpt-rule-note no-print\"", markup);
+    }
+
+    [Fact]
     public void TheFacilityTablesClosingStatement_SplitsTheTotalByModel_AndDerivesItFromTheTotals()
     {
         // The total row states one rate over two unlike things: a paid-on-service fee is in Collected but can never be in
