@@ -1339,6 +1339,25 @@
         font-family: 'DM Mono', monospace;
     }
 
+/* Movement sits on the same line as the total, so it is spaced rather than boxed. */
+.rpt-ytd-move {
+    margin-left: 4px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+}
+
+.rpt-ytd-move.is-up {
+    color: var(--green);
+}
+
+.rpt-ytd-move.is-down {
+    color: var(--red);
+}
+
+.rpt-ytd-base {
+    color: var(--text-muted);
+}
+
 /* ══════════════════════════════════════════════════════════════
    FACILITY TABLE — model badge, inactive rows, footer, legend
    ══════════════════════════════════════════════════════════════ */
@@ -1535,31 +1554,6 @@
         grid-template-columns: 1fr;
     }
 }
-
-/* The trend's close borrows the facility close outright, so the same job wears the same clothes. Three parts rather than
-   two, and the state colours the movement carries. */
-.rpt-move-split {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.fac-close-val.is-quiet {
-    color: var(--text-muted);
-}
-
-.fac-close-val.is-up {
-    color: var(--green);
-}
-
-.fac-close-val.is-down {
-    color: var(--red);
-}
-
-@media (max-width: 680px) {
-    .rpt-move-split {
-        grid-template-columns: 1fr;
-    }
-}
-
 
 /* The exact figures behind the chart. A register of periods, so it is ruled rather than boxed. */
 .rpt-trend-table-wrap {
@@ -2177,7 +2171,6 @@
     .rpt-trend-table-wrap { overflow: visible !important; margin-left: 0 !important; margin-right: 0 !important; }
     .rpt-trend-table { font-size: 9.5pt !important; }
     .rpt-trend-table tr { break-inside: avoid; page-break-inside: avoid; }
-    .rpt-move-close { margin-left: 0 !important; margin-right: 0 !important; }
 
     /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print, and keep their
        fill: without this the printer drops the gradients and the chart comes out as empty outlines. */

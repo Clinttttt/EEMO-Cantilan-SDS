@@ -148,6 +148,34 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
+    public void TheTotalsLine_StatesMovementBesideTheTotal_WithTheFiguresKeptApart()
+    {
+        // Movement used to be a panel of three figures under the table, two of which the table already listed as rows.
+        // It now rides on the totals line. Razor strips markup whitespace at the edge of a code block, which once ran
+        // "₱6,128" straight into "69.0% of August 2026" on screen, so the separation is asserted here as the page reads
+        // it rather than as CSS that a stylesheet change could quietly drop.
+        var cut = RenderReport(SampleReport() with
+        {
+            CollectedPreviousPeriod = 233_800m,          // February's collected, the bar before the selected one
+            PreviousPeriodLabel = "February 2026"
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            // Non-breaking spaces separate the parts, so compare on ordinary ones.
+            var note = cut.Find(".rpt-ytd-note").TextContent.Replace('\u00A0', ' ');
+
+            // 242,170 against 233,800 is a rise of 8,370, which is 3.6% of the month before. Every figure on the line is
+            // a separate word: this is the assertion that would have caught the run-together text.
+            Assert.Contains("₱475,970 ↑ ₱8,370 (3.6% of February 2026)", note);
+
+            // The period figures themselves are the table's job, not this line's.
+            Assert.DoesNotContain("MOVEMENT", cut.Markup);
+            Assert.Empty(cut.FindAll(".rpt-move-close"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
     public void Renders_DelinquentAndArrears_Separately()
     {
         var cut = RenderReport(SampleReport());

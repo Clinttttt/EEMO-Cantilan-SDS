@@ -269,10 +269,25 @@ public class FinancialReportClaimsTests
         // Nothing is shown at all without a prior period to compare against, rather than a movement from zero.
         Assert.Contains("Model.PreviousPeriodLabel is not null && prevCollected > 0m", markup);
 
-        // It closes the section below the table, in the same treatment the facility close uses — one style for one job.
-        // Because it is no longer in the header, the print rule hides that header outright again, as it did before.
+        // It states only the change. The two figures it used to carry beside that change — this period and the one before —
+        // are rows in the table above, so the panel was a second place to read the same numbers.
+        Assert.Contains("rpt-ytd-move", markup);
+        Assert.DoesNotContain("rpt-move-close", markup);
+
+        // Razor trims markup whitespace at the leading edge of a code block, which once ran the peso figure straight into
+        // the percentage after it. The separators are character references, which survive that trim.
+        Assert.Contains("<text>&#160;</text><span class=\"rpt-ytd-move", markup);
+        Assert.Contains("</span><text>&#160;</text><span class=\"rpt-ytd-base\"", markup);
+
         var css = ReadReport(".css");
-        Assert.Contains("rpt-move-close", markup);
+
+        // Nothing of the removed panel is left behind in the stylesheet.
+        Assert.Contains(".rpt-ytd-move {", css);
+        Assert.DoesNotContain("rpt-move-split", css);
+        Assert.DoesNotContain("rpt-move-close", css);
+        Assert.DoesNotContain(".fac-close-val.is-quiet", css);
+
+        // The header carries no figures, so the print rule hides it outright.
         Assert.Contains(".rpt-trend-card .section-header { display: none !important; }", css);
     }
 

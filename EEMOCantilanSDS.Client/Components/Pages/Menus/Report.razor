@@ -687,49 +687,32 @@
                         </div>
                     }
 
-                    <div class="rpt-ytd-note">
-                        Collected across shown periods: <strong>@Money(Model.YtdCollected)</strong>
-                    </div>
-
-                    @* Movement closes the section, in the same treatment the facility table's close uses — a panel of
-                       figures under the thing it describes, rather than a second style for the same job.
+                    @* Movement rides on the totals line. It used to close the section as a panel of three figures, but two
+                       of the three — the selected period and the one before it — are already rows in the table above, so the
+                       panel restated the table. What the table cannot state is the change between them, so that is all that
+                       is left here.
 
                        The near-zero guard is the one the Collected card uses: beyond ten times, the movement is stated in
                        pesos with the base named, because a percentage against a pre-rollout month makes any month look like
                        a thousandfold rise and two figures on one screen must not contradict each other. *@
-                    @if (Model.CollectedPreviousPeriod is decimal prevCollected && Model.PreviousPeriodLabel is not null && prevCollected > 0m)
-                    {
-                        var move = Model.Collected - prevCollected;
-                        var movePct = move / prevCollected * 100m;
-                        var rose = move >= 0m;
+                    <div class="rpt-ytd-note">
+                        Collected across shown periods: <strong>@Money(Model.YtdCollected)</strong>
+                        @if (Model.CollectedPreviousPeriod is decimal prevCollected && Model.PreviousPeriodLabel is not null && prevCollected > 0m)
+                        {
+                            var move = Model.Collected - prevCollected;
+                            var movePct = move / prevCollected * 100m;
+                            var rose = move >= 0m;
+                            var moveBase = Math.Abs(movePct) < 1000m
+                                ? $"({Math.Abs(movePct).ToString("0.0")}% of {Model.PreviousPeriodLabel})"
+                                : $"(from {Money(prevCollected)} in {Model.PreviousPeriodLabel})";
 
-                        <div class="fac-close rpt-move-close">
-                            <div class="fac-close-split rpt-move-split">
-                                <div class="fac-close-part">
-                                    <div class="fac-close-key">@PeriodLabel</div>
-                                    <div class="fac-close-val">@Money(Model.Collected)</div>
-                                </div>
-                                <div class="fac-close-part">
-                                    <div class="fac-close-key">@Model.PreviousPeriodLabel</div>
-                                    <div class="fac-close-val is-quiet">@Money(prevCollected)</div>
-                                </div>
-                                <div class="fac-close-part">
-                                    <div class="fac-close-key">Movement</div>
-                                    <div class="fac-close-val @(rose ? "is-up" : "is-down")">
-                                        @(rose ? "↑" : "↓") @Money(Math.Abs(move))
-                                        @if (Math.Abs(movePct) < 1000m)
-                                        {
-                                            <span class="fac-close-aside">@Math.Abs(movePct).ToString("0.0")% of @Model.PreviousPeriodLabel</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="fac-close-aside">from @Money(prevCollected)</span>
-                                        }
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
+                            @* The separators are character references, not spaces. Razor trims markup whitespace at the
+                               leading edge of a code block, which is what once ran "₱6,128" straight into the percentage
+                               beside it; a non-breaking space survives that trim and keeps the movement on the same visual
+                               line as the total it qualifies. *@
+                            <text>&#160;</text><span class="rpt-ytd-move @(rose ? "is-up" : "is-down")">@(rose ? "↑" : "↓") @Money(Math.Abs(move))</span><text>&#160;</text><span class="rpt-ytd-base">@moveBase</span>
+                        }
+                    </div>
                 }
             </div>
         </div>
