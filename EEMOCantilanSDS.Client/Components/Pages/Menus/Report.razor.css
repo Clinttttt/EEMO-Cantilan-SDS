@@ -2274,9 +2274,20 @@
     .print-register #rpt-records { break-inside: auto !important; }
     .print-register #rpt-records thead { display: table-header-group; }
     .print-register #rpt-records tfoot { display: table-footer-group; }
-    .print-register #rpt-records thead th { padding-top: 10mm !important; border-top: none !important; }
-    .print-register #rpt-records tfoot td { height: 10mm !important; border: none !important; padding: 0 !important; }
+    .print-register #rpt-records thead th { padding-top: 6mm !important; border-top: none !important; }
+    .print-register #rpt-records tfoot td { height: 8mm !important; border: none !important; padding: 0 !important; }
     .print-register #rpt-records tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Seven columns on a portrait sheet. The cells carry the screen's 22px side padding, which was enough to wrap
+       "OR / Ref #" and "Payor / Stall" onto two lines and leave the headings twice as tall as the rows they label.
+       Tighter cells, one line each, and the payor column takes the room the rest give back. */
+    .print-register #rpt-records .tx-table th,
+    .print-register #rpt-records .tx-table td {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+
+    .print-register #rpt-records .tx-table th { white-space: nowrap; }
 
     /* The office reads a register by its rows, so give them the width the summary's cards were using. */
     .print-register #rpt-records .rpt-table-scroll { overflow: visible !important; }

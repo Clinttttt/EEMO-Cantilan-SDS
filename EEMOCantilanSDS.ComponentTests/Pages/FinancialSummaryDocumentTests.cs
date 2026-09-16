@@ -142,6 +142,32 @@ public class FinancialSummaryDocumentTests : TestContext
     }
 
     [Fact]
+    public void TheSheetStatesFiguresAndNotExplanations()
+    {
+        // Asked for twice by the office: a filed financial document is read by people who know what a collection rate is.
+        // Anything that explained how a figure was arrived at, or narrated which facility owed the most, is off the sheet —
+        // the table already says so. What is left beside a table is a figure or a count.
+        var cut = RenderDocument(Report());
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".doc-sec")), RenderTimeout);
+
+        var sheet = cut.Markup;
+
+        Assert.DoesNotContain("Largest concentration", sheet);
+        Assert.DoesNotContain("collected ÷", sheet);
+        Assert.DoesNotContain("carry no monthly bill", sheet);
+        Assert.DoesNotContain("partition", sheet);
+
+        // And the lines that remain are short. Measured on collapsed whitespace, since the markup's indentation is not
+        // something a reader sees. The longest is the movement line, which is figures with their base named.
+        foreach (var line in cut.FindAll(".doc-line"))
+        {
+            var text = System.Text.RegularExpressions.Regex.Replace(line.TextContent, @"\s+", " ").Trim();
+            Assert.True(text.Length <= 110, $"a line on the sheet runs long ({text.Length}): {text}");
+        }
+    }
+
+    [Fact]
     public void TheFiguresAreTheReportsOwn_NotASecondSumOfThem()
     {
         // A filed document must not be a second opinion. Assessed, collected, unpaid and the rate are stated exactly as

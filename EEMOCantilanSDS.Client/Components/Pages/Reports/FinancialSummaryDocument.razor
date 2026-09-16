@@ -203,7 +203,7 @@ else
                                     </tr>
                                 </tfoot>
                             </table>
-                            <p class="doc-line">Bands partition every account with an unpaid month; they reconcile with section III.</p>
+                            <p class="doc-line">Each account appears in one band only.</p>
                         </section>
                     }
 
@@ -293,17 +293,6 @@ else
                                 </tr>
                             </tfoot>
                         </table>
-                        <p class="doc-line">
-                            Rate is collected ÷ (collected + unpaid). Fish and metered utilities carry no monthly bill, so they lift
-                            the rate of the facility that charges them.
-                        </p>
-                        @if (LargestOutstanding is { } worst && Model.CurrentPeriodUnpaid > 0m)
-                        {
-                            <p class="doc-line">
-                                Largest concentration: <strong>@Money(worst.Unpaid ?? 0m)</strong> at @worst.Code @worst.Name,
-                                @(Math.Round((worst.Unpaid ?? 0m) / Model.CurrentPeriodUnpaid * 100m))% of the period's outstanding.
-                            </p>
-                        }
                     </section>
 
                     @* 7 — the accounts the figures above are asking the office to act on. Both lists are capped, and the
@@ -508,9 +497,6 @@ else
     /// <summary>Only the bands that hold something: an empty band states what the total already says.</summary>
     private List<ReceivableAgingBandDto> AgingBands =>
         Model!.Aging.Where(b => b.Accounts > 0 || b.Outstanding > 0m).ToList();
-
-    private FinancialFacilityRowDto? LargestOutstanding =>
-        Model!.Facilities.Where(f => f.Unpaid is > 0m).OrderByDescending(f => f.Unpaid).FirstOrDefault();
 
     private string RecordsLine =>
         Model!.ExpectedRecords > 0

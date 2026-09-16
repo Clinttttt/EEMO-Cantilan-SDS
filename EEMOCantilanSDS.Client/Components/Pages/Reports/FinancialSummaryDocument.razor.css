@@ -254,7 +254,7 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: 10mm;
-    margin-top: 16mm;
+    margin-top: 10mm;
     break-inside: avoid;
     page-break-inside: avoid;
 }
@@ -269,12 +269,14 @@
         text-transform: uppercase;
         letter-spacing: .08em;
         color: #6b7280;
+        margin-bottom: 0;
     }
 
-    /* The space above the rule is where the signature goes; the rule is what it is signed on. */
+    /* Enough room to sign in and no more: the strip was carrying 16mm above it and 14mm inside it, which left a third of
+       the last page empty. */
     .doc-sign ::deep .sig-name {
-        margin-top: 14mm;
-        padding-top: 4px;
+        margin-top: 9mm;
+        padding-top: 3px;
         border-top: 1px solid #111827;
         font-size: 10pt;
         font-weight: 700;
