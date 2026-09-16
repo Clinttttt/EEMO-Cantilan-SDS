@@ -407,6 +407,8 @@ public class GetFinancialReportQueryHandler(
                 && (request.Facility is null || a.FacilityCode == request.Facility))
             .ToList();
 
+        var misc = await BuildMiscAsync(request, ct);
+
         var dto = new FinancialReportDto(
             PeriodLabel: PeriodLabel(request),
             ScopeLabel: request.Facility is null ? "All facilities" : ReportName(request.Facility.Value, facilityNames),
@@ -437,10 +439,72 @@ public class GetFinancialReportQueryHandler(
             DelinquentAccountsTotal: delinquentAll.Count,
             DelinquentOutstandingTotal: delinquentAll.Sum(d => d.OutstandingBalance),
             ArrearsAccountsTotal: arrearsAll.Count,
-            ArrearsOutstandingTotal: arrearsAll.Sum(d => d.OutstandingBalance));
+            ArrearsOutstandingTotal: arrearsAll.Sum(d => d.OutstandingBalance),
+            Misc: misc);
 
         return dto;
     }
+
+    /// <summary>
+    /// The period's metered utilities, per payor — what each was charged, what came in against it, and on which receipt.
+    /// </summary>
+    /// <remarks>
+    /// No new aggregation: the rows are the ones the month-end sheet prints, through the same repository method, so a
+    /// figure questioned on one document is found on the other. The money is already inside the report's Collected and
+    /// Unpaid, so nothing here is ever added to a total.
+    ///
+    /// <para>
+    /// A single month only. A utility is billed per month and the rows are fetched per month, so a yearly view would mean
+    /// twelve fetches per year to produce a table nobody files. Null rather than empty when there is nothing: a section
+    /// the office cannot act on is better absent than stating nought, which is how the facility table already reads.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>AmountsRecorded</c> is the shape of the office's own choice, and the one line here that a future setting owns:
+    /// with a reading and a rate there is money to report; marking a utility settled or not gives counts and nothing
+    /// else. Both are carried, so the table serves either without being rebuilt. Today every office records amounts.
+    /// </para>
+    /// </remarks>
+    private async Task<FinancialMiscDto?> BuildMiscAsync(GetFinancialReportQuery request, CancellationToken ct)
+    {
+        if (request.Period != ReportPeriod.Monthly || request.Month is not int month)
+            return null;
+
+        var rows = await reportsRepository.GetNpmUtilityRowsAsync(request.Year, month, ct);
+
+        // Scoped like every other part of the report: a facility filter narrows this too, and a tenant that meters
+        // nothing has no rows at all.
+        var scoped = rows
+            .Where(r => request.Facility is null || r.Facility == request.Facility)
+            .OrderBy(r => r.Facility)
+            .ThenBy(r => SpaceOrder(r.StallNo))
+            .ThenBy(r => r.StallNo, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (scoped.Count == 0)
+            return null;
+
+        // Per utility, not per bill: a space can settle its water and leave its power owing, and a count of bills would
+        // hide that. Only a utility that charged something is counted — a space with no water meter is not in arrears
+        // on water.
+        var settled = scoped.Count(r => r.ElecCharge > 0m && r.ElecStatus == PaymentStatus.Paid)
+                    + scoped.Count(r => r.WaterCharge > 0m && r.WaterStatus == PaymentStatus.Paid);
+        var outstanding = scoped.Count(r => r.ElecCharge > 0m && r.ElecStatus != PaymentStatus.Paid)
+                        + scoped.Count(r => r.WaterCharge > 0m && r.WaterStatus != PaymentStatus.Paid);
+
+        return new FinancialMiscDto(
+            Charged: scoped.Sum(r => r.Charged),
+            Collected: scoped.Sum(r => r.Collected),
+            Due: scoped.Sum(r => r.Balance),
+            Settled: settled,
+            Outstanding: outstanding,
+            AmountsRecorded: true,
+            Rows: scoped);
+    }
+
+    /// <summary>Numeric spaces in numeric order, so "10" follows "9" rather than "1".</summary>
+    private static int SpaceOrder(string stallNo) =>
+        int.TryParse(new string(stallNo.TakeWhile(char.IsDigit).ToArray()), out var n) ? n : int.MaxValue;
 
     // "All time": aggregate every year of data (system epoch → now) into one view. Reuses the proven
     // per-year build and merges the results — no new aggregation math. Scalar KPIs sum across years, the

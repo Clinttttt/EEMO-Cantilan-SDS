@@ -79,7 +79,7 @@ public class FinancialReportClaimsTests
             .Select(m => m.Groups["key"].Value)
             .ToList();
 
-        Assert.Equal(5, keys.Count);
+        Assert.Equal(6, keys.Count);
 
         // A section is either hidden by the screen-only class (it must exist for the export) or rendered only when open.
         foreach (var key in keys)
@@ -100,7 +100,7 @@ public class FinancialReportClaimsTests
         // section would export a report with a hole in it, and nothing on screen would look wrong.
         var markup = ReadReport(string.Empty);
 
-        foreach (var key in new[] { "followup", "records" })
+        foreach (var key in new[] { "followup", "records", "misc" })
             Assert.Contains($@"SectionShown(""{key}"")", markup);
 
         foreach (var key in new[] { "overview", "trend", "facility" })

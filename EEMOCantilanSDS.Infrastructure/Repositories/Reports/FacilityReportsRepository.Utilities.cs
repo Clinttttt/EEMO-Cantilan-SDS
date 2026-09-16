@@ -98,9 +98,10 @@ public partial class FacilityReportsRepository
         var spaces = await context.Stalls
             .AsNoTracking()
             .Where(s => stallIds.Contains(s.Id))
-            .Select(s => new { s.Id, s.StallNo })
+            .Select(s => new { s.Id, s.StallNo, s.Facility!.Code })
             .ToListAsync(ct);
         var spaceNoById = spaces.ToDictionary(s => s.Id, s => s.StallNo);
+        var facilityById = spaces.ToDictionary(s => s.Id, s => s.Code);
 
         var occupants = await context.Contracts
             .AsNoTracking()
@@ -129,7 +130,10 @@ public partial class FacilityReportsRepository
                 occupantByStall.GetValueOrDefault(b.StallId) ?? string.Empty,
                 elecCharge, elecPaid,
                 waterCharge, waterPaid,
-                or));
+                or,
+                facilityById.GetValueOrDefault(b.StallId, FacilityCode.NPM),
+                b.ElecStatus,
+                b.WaterStatus));
         }
 
         return rows;

@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Reports;
@@ -99,7 +100,53 @@ public record FinancialReportDto(
     int ArrearsAccountsTotal = 0,
 
     /// <summary>What all of those accounts owe in full.</summary>
-    decimal ArrearsOutstandingTotal = 0m
+    decimal ArrearsOutstandingTotal = 0m,
+
+    /// <summary>
+    /// The period's metered utilities, per payor. Null when the office raised no bill for the period, and null for any
+    /// period that is not a single month: a utility is billed per month, and a year of them is a different document.
+    /// </summary>
+    FinancialMiscDto? Misc = null
+);
+
+/// <summary>
+/// The period's miscellaneous charges — the metered electricity and water the office bills per reading.
+///
+/// <para>
+/// Its own section for the reason the month-end sheet gives it its own table: a utility is not a stall fee. It is
+/// metered, billed per reading, and settled on its own receipt. The money is already inside the report's Collected and
+/// Unpaid, so this section adds to no total. It states what was CHARGED, which no other figure on the report does, and
+/// from whom, which the office otherwise has to leave the report to find.
+/// </para>
+///
+/// <para>
+/// <see cref="AmountsRecorded"/> is the only thing here that is a setting rather than a fact. An office that records a
+/// reading and a rate has money to report. An office that only marks a utility settled or not has counts and nothing
+/// else — every peso below would be nought, and a table of noughts states something untrue. The money figures are for
+/// the first case, <see cref="Settled"/> and <see cref="Outstanding"/> for the second, and one table serves both.
+/// </para>
+/// </summary>
+public record FinancialMiscDto(
+    /// <summary>What the period's readings charged, at the rate on each bill.</summary>
+    decimal Charged,
+
+    /// <summary>What was collected against those charges. Already inside the report's Collected.</summary>
+    decimal Collected,
+
+    /// <summary>What is still owed on them, per utility, so an overpayment on one cannot mask a shortfall on the other.</summary>
+    decimal Due,
+
+    /// <summary>Utilities left settled — counted per utility, not per bill: a space can settle its water and not its power.</summary>
+    int Settled,
+
+    /// <summary>Utilities left unsettled or part-settled, on the same per-utility basis.</summary>
+    int Outstanding,
+
+    /// <summary>Whether the office records readings and rates, and so has money to report at all.</summary>
+    bool AmountsRecorded,
+
+    /// <summary>One row per space, in the same shape the month-end sheet prints, so the two reconcile row for row.</summary>
+    IReadOnlyList<MonthEndUtilityRowDto> Rows
 );
 
 /// <summary>

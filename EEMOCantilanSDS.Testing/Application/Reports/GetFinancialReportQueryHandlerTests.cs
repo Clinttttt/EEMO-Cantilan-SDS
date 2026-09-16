@@ -60,6 +60,11 @@ public class GetFinancialReportQueryHandlerTests
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
 
+        // No utility bills unless a test raises one. A mock with no setup answers null, and the Miscellaneous section
+        // reads these rows on every monthly build, so the default has to be a real empty list rather than nothing.
+        reports.Setup(r => r.GetNpmUtilityRowsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<MonthEndUtilityRowDto>());
+
         // NPM: collected 80,000 / outstanding 20,000 (rate 80). Three occupied stalls:
         //   one delinquent (3 missed months), one in arrears (1 missed month), one fully paid.
         //   Fee breakdown: ₱810 daily-fee + ₱346 fish (346 kg @ ₱1/kg), and the counted records behind them —
@@ -584,6 +589,96 @@ public class GetFinancialReportQueryHandlerTests
     private static void WithUtilities(Mock<IFacilityReportsRepository> reports, decimal elec, decimal water, decimal due) =>
         reports.Setup(r => r.GetNpmUtilityTotalsAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
                .ReturnsAsync((elec, water, due));
+
+    /// <summary>The per-payor utility rows behind the Miscellaneous section.</summary>
+    private static void WithUtilityRows(Mock<IFacilityReportsRepository> reports, params MonthEndUtilityRowDto[] rows) =>
+        reports.Setup(r => r.GetNpmUtilityRowsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+               .ReturnsAsync(rows);
+
+    private static MonthEndUtilityRowDto UtilityRow(
+        string stallNo, string payor, decimal elecCharge, decimal elecPaid, decimal waterCharge, decimal waterPaid,
+        string? or = null, FacilityCode facility = FacilityCode.NPM,
+        PaymentStatus elec = PaymentStatus.Unpaid, PaymentStatus water = PaymentStatus.Unpaid) =>
+        new(stallNo, payor, elecCharge, elecPaid, waterCharge, waterPaid, or, facility, elec, water);
+
+    [Fact]
+    public async Task Miscellaneous_StatesWhatWasChargedAndFromWhom_WithoutAddingToAnyTotal()
+    {
+        // The section exists to say two things the rest of the report cannot: what the readings CHARGED, and who owes it.
+        // Its money is already inside Collected and Unpaid, so it must never be an addition — this test holds the
+        // headline steady while the section states its own figures.
+        var (handler, reports, _) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
+        WithUtilityRows(reports,
+            UtilityRow("07", "Maria Velasco", 400m, 400m, 200m, 200m, "OR-1", elec: PaymentStatus.Paid, water: PaymentStatus.Paid),
+            UtilityRow("01", "Pedro Santos", 219m, 100m, 100m, 0m, "OR-2", elec: PaymentStatus.Partial));
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.NotNull(r.Misc);
+        var misc = r.Misc!;
+
+        Assert.Equal(919m, misc.Charged);        // 400 + 200 + 219 + 100
+        Assert.Equal(700m, misc.Collected);      // 400 + 200 + 100
+        Assert.Equal(219m, misc.Due);            // 119 on electricity + 100 on water
+
+        // Counted per utility, not per bill: Pedro settled neither in full, and his water is a separate obligation.
+        Assert.Equal(2, misc.Settled);
+        Assert.Equal(2, misc.Outstanding);
+
+        Assert.True(misc.AmountsRecorded);
+
+        // Ordered by space, numerically — "10" would otherwise follow "1".
+        Assert.Equal(new[] { "01", "07" }, misc.Rows.Select(x => x.StallNo).ToArray());
+
+        // The headline is untouched by the section. Asserted by taking the same report with no rows at all rather than by
+        // restating a figure: this is the property that matters — the section reports money, it never adds any.
+        WithUtilityRows(reports);
+        var withoutMisc = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.Null(withoutMisc.Misc);
+        Assert.Equal(withoutMisc.Collected, r.Collected);
+        Assert.Equal(withoutMisc.CurrentPeriodUnpaid, r.CurrentPeriodUnpaid);
+        Assert.Equal(withoutMisc.Billed, r.Billed);
+    }
+
+    [Fact]
+    public async Task Miscellaneous_IsAbsentWhenNothingWasBilled_AndForAnyPeriodThatIsNotAMonth()
+    {
+        // Absent rather than a table of noughts, which is how the facility table already reads a facility with nothing
+        // billed. And absent for a year: a utility is billed per month, and the rows are fetched per month.
+        var (handler, reports, _) = Build();
+        WithUtilities(reports, elec: 0m, water: 0m, due: 0m);
+
+        var monthly = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+        Assert.Null(monthly.Misc);
+
+        WithUtilityRows(reports, UtilityRow("07", "Maria Velasco", 400m, 400m, 0m, 0m, "OR-1", elec: PaymentStatus.Paid));
+
+        var yearly = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null), CancellationToken.None)).Value!;
+        Assert.Null(yearly.Misc);
+
+        var stillMonthly = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+        Assert.NotNull(stillMonthly.Misc);
+    }
+
+    [Fact]
+    public async Task Miscellaneous_IsScopedByFacility_LikeEverythingElseOnTheReport()
+    {
+        // A report narrowed to one facility must not state another's charges. Only the market is metered today, so the
+        // filter is what stops a second metered facility from being read as the market's.
+        var (handler, reports, _) = Build();
+        WithUtilities(reports, elec: 500m, water: 300m, due: 119m);
+        WithUtilityRows(reports,
+            UtilityRow("07", "Maria Velasco", 400m, 400m, 0m, 0m, "OR-1", elec: PaymentStatus.Paid),
+            UtilityRow("2", "Rosa Magbanua", 90m, 0m, 0m, 0m, facility: FacilityCode.TCC));
+
+        var market = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, FacilityCode.NPM), CancellationToken.None)).Value!;
+
+        var row = Assert.Single(market.Misc!.Rows);
+        Assert.Equal("07", row.StallNo);
+        Assert.Equal(400m, market.Misc!.Charged);
+    }
 
     [Fact]
     public async Task TheMarketsCollected_CountsItsElectricityAndWater()

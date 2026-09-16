@@ -1018,6 +1018,115 @@
             </div>
         </div>
         }
+
+        @* MISCELLANEOUS — the period's metered electricity and water, per payor. Rendered only while its own tab is
+           open, and outside the Summary PDF, for the same reasons as the register above.
+
+           The office's own word: the month-end sheet calls this table Miscellaneous, and this is that table, through the
+           same repository method, so a figure questioned on one document is found in the other. It states what was
+           CHARGED — the one thing no other figure on this report says — and from whom. The money is already inside the
+           report's Collected and Unpaid, so nothing here is added to any total; the closing line says so. *@
+        if (SectionShown("misc"))
+        {
+        <div id="rpt-misc" class="section-card" style="margin-bottom:20px;">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Miscellaneous — @PeriodLabel</div>
+                    <div class="section-sub">Electricity and water, billed per reading</div>
+                </div>
+            </div>
+
+            @if (Model.Misc is { } misc)
+            {
+                var spansFacilities = misc.Rows.Select(r => r.Facility).Distinct().Count() > 1;
+
+                <div class="rpt-table-scroll">
+                    <table class="tx-table">
+                        <thead>
+                            <tr>
+                                @if (spansFacilities)
+                                {
+                                    <th scope="col">Facility</th>
+                                }
+                                <th scope="col">Space</th>
+                                <th scope="col">Payor</th>
+                                <th scope="col" class="r">Electricity</th>
+                                <th scope="col" class="r">Water</th>
+                                @if (misc.AmountsRecorded)
+                                {
+                                    <th scope="col" class="r">Charged</th>
+                                    <th scope="col" class="r">Collected</th>
+                                    <th scope="col" class="r">Balance</th>
+                                }
+                                <th scope="col">OR No.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in misc.Rows)
+                            {
+                                <tr>
+                                    @if (spansFacilities)
+                                    {
+                                        <td>@FacilityCatalog.ShortNameOf(u.Facility)</td>
+                                    }
+                                    <td>@SpaceNumber.Display(u.StallNo)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(u.Payor) ? "—" : u.Payor)</td>
+                                    @* With a reading and a rate the cell is money. Where the office only marks a utility
+                                       settled or not, money would be a row of noughts, so the cell states the standing
+                                       instead — and a utility that charged nothing is not owed, and says so. *@
+                                    <td class="r">@MiscCell(misc.AmountsRecorded, u.ElecCharge, u.ElecStatus)</td>
+                                    <td class="r">@MiscCell(misc.AmountsRecorded, u.WaterCharge, u.WaterStatus)</td>
+                                    @if (misc.AmountsRecorded)
+                                    {
+                                        <td class="r">@Money(u.Charged)</td>
+                                        <td class="r">@(u.Collected > 0m ? Money(u.Collected) : "—")</td>
+                                        <td class="r @(u.Balance > 0m ? "is-owed" : "")">@(u.Balance > 0m ? Money(u.Balance) : "—")</td>
+                                    }
+                                    <td>@(string.IsNullOrWhiteSpace(u.ORNumber) ? "—" : u.ORNumber)</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (misc.AmountsRecorded)
+                        {
+                            <tfoot>
+                                <tr>
+                                    <td colspan="@(spansFacilities ? 3 : 2)"><strong>Total</strong></td>
+                                    <td class="r"><strong>@Money(misc.Rows.Sum(r => r.ElecCharge))</strong></td>
+                                    <td class="r"><strong>@Money(misc.Rows.Sum(r => r.WaterCharge))</strong></td>
+                                    <td class="r"><strong>@Money(misc.Charged)</strong></td>
+                                    <td class="r"><strong>@(misc.Collected > 0m ? Money(misc.Collected) : "—")</strong></td>
+                                    <td class="r @(misc.Due > 0m ? "is-owed" : "")"><strong>@(misc.Due > 0m ? Money(misc.Due) : "—")</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        }
+                    </table>
+                </div>
+
+                @* What the section is for, in one line: this money is not an addition to the report. Counts are stated in
+                   both shapes, because a utility settled is a utility nobody has to chase. *@
+                <div class="rpt-ytd-note">
+                    @if (misc.AmountsRecorded)
+                    {
+                        <text>Already inside the period's collected: </text><strong>@Money(misc.Collected)</strong><text>&#160;</text><span class="rpt-ytd-base">@misc.Settled settled, @misc.Outstanding still owing</span>
+                    }
+                    else
+                    {
+                        <text>Settled this period: </text><strong>@misc.Settled</strong><text>&#160;</text><span class="rpt-ytd-base">@misc.Outstanding still owing</span>
+                    }
+                </div>
+            }
+            else
+            {
+                @* Absent figures rather than a table of noughts: either the office raised no bill for this period, or the
+                   period is a year, which is billed and filed a month at a time. *@
+                <div class="rpt-rule-note">
+                    <div class="rpt-rule-key">Nothing billed</div>
+                    <div>No electricity or water was billed for @PeriodLabel. Utilities are billed per month, so this section states a single month.</div>
+                </div>
+            }
+        </div>
+        }
     }
 
 </div>
@@ -1347,8 +1456,8 @@
     //
     //   • overview, trend, by facility — pdf-include. Export Summary PDF reads the markup as a whole, whatever tab is
     //     open, so these must exist at all times and are hidden by a screen-only class (SectionOff).
-    //   • follow-up, records — never in that document, and the register's own print button sits inside the register.
-    //     These are rendered only while open (SectionShown), which took the page from 116 kb of markup to 30 kb.
+    //   • follow-up, records, misc — never in that document, and the register's own print button sits inside the
+    //     register. These are rendered only while open (SectionShown), which took the page from 116 kb of markup to 30 kb.
     private static readonly (string Key, string Label)[] ReportSections =
     [
         ("overview", "Overview"),
@@ -1356,6 +1465,7 @@
         ("trend", "Trend"),
         ("facility", "By facility"),
         ("records", "Records"),
+        ("misc", "Misc"),
     ];
 
     private string _section = "overview";
@@ -1386,6 +1496,24 @@
     /// Attention and the register are only ever read on screen, and the register's print button is inside it.
     /// </summary>
     private bool SectionShown(string key) => _section == key;
+
+    /// <summary>
+    /// What one utility's cell states. Where the office records a reading and a rate, that is money. Where it only marks
+    /// a utility settled or not, money would be a nought that reads as "nothing charged", so the cell states the standing
+    /// instead. A utility that charged nothing is neither: it is not billed here at all.
+    /// </summary>
+    private string MiscCell(bool amountsRecorded, decimal charge, PaymentStatus status)
+    {
+        if (amountsRecorded)
+            return charge > 0m ? Money(charge) : "—";
+
+        return status switch
+        {
+            PaymentStatus.Paid => "Settled",
+            PaymentStatus.Partial => "Part-settled",
+            _ => "Unpaid"
+        };
+    }
 
     /// <summary>
     /// Prints one document with an extra class in force, so the print stylesheet can choose which document.

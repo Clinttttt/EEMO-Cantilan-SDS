@@ -80,7 +80,16 @@ public record MonthEndUtilityRowDto(
     decimal ElecPaid,
     decimal WaterCharge,
     decimal WaterPaid,
-    string? ORNumber
+    string? ORNumber,
+    // Which facility the space belongs to. Only a metered facility has bills at all — the market, today — but an office
+    // that meters a second one must not have its rows read as the market's, and a table showing rows from more than one
+    // place has to name them.
+    FacilityCode Facility = FacilityCode.NPM,
+    // The status each utility was left in. Carried because a settled bill and a bill with nothing charged are not the
+    // same thing, and because an office that records only "paid" or "unpaid" — with no reading and no rate — has no
+    // money for a row to state. Then this is all a row can say.
+    PaymentStatus ElecStatus = PaymentStatus.Unpaid,
+    PaymentStatus WaterStatus = PaymentStatus.Unpaid
 )
 {
     public decimal Charged => ElecCharge + WaterCharge;

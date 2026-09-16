@@ -1,6 +1,7 @@
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -185,6 +186,93 @@ public class ReportPageTests : TestContext
             Assert.DoesNotContain("MOVEMENT", cut.Markup);
             Assert.Empty(cut.FindAll(".rpt-move-close"));
         }, RenderTimeout);
+    }
+
+    [Fact]
+    public void Miscellaneous_StatesTheChargesPerPayor_AndThatTheyAreNotAnAddition()
+    {
+        // The section's whole purpose: what the readings charged, from whom, and — in one line — that the money is
+        // already inside the period's collected. A reader who added it on would double the office's own revenue.
+        var cut = RenderReport(SampleReport() with
+        {
+            Misc = new FinancialMiscDto(
+                Charged: 919m, Collected: 700m, Due: 219m, Settled: 2, Outstanding: 2, AmountsRecorded: true,
+                Rows: new List<MonthEndUtilityRowDto>
+                {
+                    new("01", "Pedro Santos", 219m, 100m, 100m, 0m, "OR-2", FacilityCode.NPM, PaymentStatus.Partial, PaymentStatus.Unpaid),
+                    new("07", "Maria Velasco", 400m, 400m, 200m, 200m, "OR-1", FacilityCode.NPM, PaymentStatus.Paid, PaymentStatus.Paid)
+                })
+        });
+
+        OpenSection(cut, "Misc");
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
+
+        var section = cut.Find("#rpt-misc").TextContent.Replace('\u00A0', ' ');
+
+        Assert.Contains("Maria Velasco", section);
+        Assert.Contains("OR-2", section);
+        Assert.Contains("₱919", section);                                   // charged, the figure no other section states
+        Assert.Contains("Already inside the period's collected: ₱700", section);
+        Assert.Contains("2 settled, 2 still owing", section);
+
+        // One facility, so no facility column: the report names a place only when the rows come from more than one.
+        Assert.DoesNotContain("Facility", cut.Find("#rpt-misc thead").TextContent);
+    }
+
+    [Fact]
+    public void Miscellaneous_StatesStandingsInsteadOfMoney_WhenTheOfficeRecordsNoAmounts()
+    {
+        // The shape the coming settings change will select: an office that only marks a utility settled or not has no
+        // money to report, and a table of noughts would read as "nothing charged". The same table states standings, and
+        // the money columns are not offered at all.
+        var cut = RenderReport(SampleReport() with
+        {
+            Misc = new FinancialMiscDto(
+                Charged: 0m, Collected: 0m, Due: 0m, Settled: 1, Outstanding: 2, AmountsRecorded: false,
+                Rows: new List<MonthEndUtilityRowDto>
+                {
+                    new("01", "Pedro Santos", 0m, 0m, 0m, 0m, null, FacilityCode.NPM, PaymentStatus.Paid, PaymentStatus.Unpaid),
+                    new("07", "Maria Velasco", 0m, 0m, 0m, 0m, null, FacilityCode.NPM, PaymentStatus.Partial, PaymentStatus.Unpaid)
+                })
+        });
+
+        OpenSection(cut, "Misc");
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
+
+        var head = cut.Find("#rpt-misc thead").TextContent;
+        Assert.Contains("Electricity", head);
+        Assert.DoesNotContain("Charged", head);
+        Assert.DoesNotContain("Balance", head);
+
+        var body = cut.Find("#rpt-misc tbody").TextContent;
+        Assert.Contains("Settled", body);
+        Assert.Contains("Part-settled", body);
+        Assert.Contains("Unpaid", body);
+        Assert.DoesNotContain("₱", body);
+
+        var section = cut.Find("#rpt-misc").TextContent.Replace('\u00A0', ' ');
+        Assert.Contains("Settled this period: 1", section);
+        Assert.Contains("2 still owing", section);
+
+        // No total row either: there is nothing to total.
+        Assert.Empty(cut.FindAll("#rpt-misc tfoot"));
+    }
+
+    [Fact]
+    public void Miscellaneous_SaysNothingWasBilled_RatherThanShowingAnEmptyTable()
+    {
+        // A month with no bill, or a yearly view, which is billed and filed a month at a time. The same principle the
+        // facility table follows for a facility with nothing billed: state it, do not draw noughts.
+        var cut = RenderReport(SampleReport());   // the sample carries no Misc
+
+        OpenSection(cut, "Misc");
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
+
+        Assert.Empty(cut.FindAll("#rpt-misc table"));
+        Assert.Contains("Nothing billed", cut.Find("#rpt-misc").TextContent);
     }
 
     [Fact]

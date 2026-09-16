@@ -871,6 +871,30 @@
         border-bottom: none;
     }
 
+    /* The Miscellaneous table is a register of charges, so its figures are ruled right like every other money column on
+       the page. The trend table states the same two rules for itself; these are the register's. */
+    .tx-table th.r,
+    .tx-table td.r {
+        text-align: right;
+        font-family: 'DM Mono', monospace;
+    }
+
+    .tx-table th.r {
+        font-family: inherit;
+    }
+
+    .tx-table td.is-owed {
+        color: var(--red);
+    }
+
+    /* Scoped to Miscellaneous deliberately: the register's tfoot is its print spacer, and giving that a fill would paint
+       a band across the foot of every printed page — the problem that took five attempts to get off the sheet. */
+    #rpt-misc .tx-table tfoot td {
+        border-top: 1px solid var(--border);
+        border-bottom: none;
+        background: #fafcfd;
+    }
+
     .tx-table tr:hover td {
         background: #fafcfd;
     }
