@@ -217,6 +217,12 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
     /// report (daily-aware NPM revenue, compliance-based paid/partial/unpaid, due-obligation rate)
     /// so the dashboard cards reconcile exactly with the facility page and reports, without the
     /// cost of building trends, sections, streaks, etc.
+    ///
+    /// <para>
+    /// Collected and Pending include the market's metered electricity and water, which is how the Financial Report
+    /// states them. The dashboard is the only reader of this snapshot, and the two pages state the same period's money,
+    /// so they must not answer differently.
+    /// </para>
     /// </summary>
     public async Task<FacilitySnapshotDto> GetFacilitySnapshotAsync(
         FacilityCode facilityCode,
@@ -253,9 +259,24 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
             paidTransactions = perf.FullyPaidCount + perf.PartiallyPaidCount;
         }
 
+        // The market's electricity and water are the market's revenue too, and the Financial Report has stated them
+        // inside NPM's collected and unpaid since they were normalised. This snapshot is what the dashboard reads, and
+        // nothing else reads it, so stating them here is what stops the two pages from disagreeing about the same
+        // period: on September 2026 the dashboard said ₱12,180 unpaid and the report said ₱12,192, and the ₱12 was one
+        // unpaid electricity charge on stall 1 of the market.
+        //
+        // Through the same repository method the report calls, so there is one statement of what a utility charged and
+        // what was collected against it. Only NPM is metered, and the snapshot is always a single month.
+        //
+        // The rate is deliberately left as the canonical due-obligation figure: it is what the facility page shows, and
+        // the card states no balance beside it, so nothing on screen contradicts it.
+        var (utilElec, utilWater, utilOutstanding) = facilityCode == FacilityCode.NPM
+            ? await GetNpmUtilityTotalsAsync(year, month, ct)
+            : (0m, 0m, 0m);
+
         return new FacilitySnapshotDto(
-            collected,
-            pending,
+            collected + utilElec + utilWater,
+            pending + utilOutstanding,
             perf.FullyPaidCount,
             perf.PartiallyPaidCount,
             perf.UnpaidCount,
