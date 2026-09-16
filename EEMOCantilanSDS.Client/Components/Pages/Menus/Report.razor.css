@@ -430,24 +430,32 @@
 }
 
 /* The rate-basis mark beside the By facility period, and the note it opens. A mark rather than a sub-line: the rule is
-   only wanted when the figure is questioned, and the office does not want the report explaining itself unprompted. */
-.rpt-rule-mark {
+   only wanted when the figure is questioned, and the office does not want the report explaining itself unprompted.
+   Shown on hover and on keyboard focus, and pinned by a press so a touch screen can reach it. */
+.rpt-rule-wrap {
+    position: relative;
+    display: inline-block;
     margin-left: 7px;
+    vertical-align: 1px;
+}
+
+.rpt-rule-mark {
     padding: 0;
     border: 0;
     background: none;
     color: var(--text-subtle);
     cursor: pointer;
-    vertical-align: -2px;
     line-height: 0;
+    display: block;
 }
 
     .rpt-rule-mark svg {
-        width: 14px;
-        height: 14px;
+        width: 15px;
+        height: 15px;
+        display: block;
     }
 
-    .rpt-rule-mark:hover,
+    .rpt-rule-wrap:hover .rpt-rule-mark,
     .rpt-rule-mark[aria-expanded="true"] {
         color: var(--navy);
     }
@@ -458,6 +466,45 @@
         border-radius: 50%;
     }
 
+.rpt-rule-pop {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: -10px;
+    z-index: 30;
+    width: max-content;
+    max-width: 420px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 35, 65, .12);
+    font-size: 12.5px;
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--text-muted);
+    white-space: normal;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+    .rpt-rule-wrap:hover .rpt-rule-pop,
+    .rpt-rule-wrap:focus-within .rpt-rule-pop,
+    .rpt-rule-pop.is-open {
+        display: block;
+    }
+
+    .rpt-rule-pop strong {
+        color: var(--navy);
+        font-weight: 600;
+    }
+
+.rpt-rule-line {
+    display: block;
+    margin-top: 6px;
+}
+
+/* Also used by the Miscellaneous section to state that a period carries no bill. */
 .rpt-rule-note {
     margin: 0 22px;
     padding: 12px 14px;
@@ -474,6 +521,7 @@
     }
 
 .rpt-rule-key {
+    display: block;
     font-size: 10px;
     font-weight: 700;
     letter-spacing: .8px;
@@ -2198,6 +2246,61 @@
     /* The office reads a register by its rows, so give them the width the summary's cards were using. */
     .print-register #rpt-records .rpt-table-scroll { overflow: visible !important; }
     .print-register #rpt-records .tx-table { font-size: 9.5pt !important; }
+
+    /* ── PRINT MISC ─────────────────────────────────────────────────────────────────────────────────────
+       The third document: the letterhead and the month's electricity and water, per payor. Same mechanism as the
+       register above — one print helper, one shape of stylesheet — so there is no second way of printing a section.
+
+       The ids do the same work here: the rule further up hides every section-card without pdf-include, and #rpt-misc is
+       one of them, so an id is what outranks it. */
+    .print-misc .kpi-row,
+    .print-misc .rpt-panels,
+    .print-misc #rpt-trend,
+    .print-misc #rpt-facility { display: none !important; }
+
+    /* Belongs to the facility card and forces a break; with that card hidden it would open this document with a blank
+       sheet — the same fault the register had. */
+    .print-misc .rpt-page-space { display: none !important; }
+
+    .print-misc #rpt-misc { display: block !important; }
+
+    /* Card chrome off, for the reason the register's is: a bordered, filled panel broken across sheets draws its
+       background to the paper's edge on every page between its first and last. */
+    .print-misc #rpt-misc {
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+    }
+
+    /* The letterhead above already states the office and the period, so the section's own heading would repeat it. The
+       actions beside it are no-print already. */
+    .print-misc #rpt-misc .section-header { display: none !important; }
+
+    .print-misc #rpt-misc .rpt-table-scroll {
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        overflow: visible !important;
+    }
+
+    .print-misc #rpt-misc { break-inside: auto !important; }
+    .print-misc #rpt-misc thead { display: table-header-group; }
+    .print-misc #rpt-misc thead th { padding-top: 10mm !important; border-top: none !important; }
+    .print-misc #rpt-misc tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* Unlike the register's, this table's tfoot is a REAL row — the period's total. A tfoot is a footer group by default,
+       which would print "Total" at the foot of every sheet as though each page were complete. It prints once, at the end,
+       where a total belongs. The register carries its per-page bottom clearance in a spacer footer; this table cannot, and
+       does not need to: a market bills one utility row per space, so the sheet is one page. */
+    .print-misc #rpt-misc tfoot { display: table-row-group; }
+    .print-misc #rpt-misc tfoot td { background: transparent !important; }
+
+    .print-misc #rpt-misc .tx-table { font-size: 9.5pt !important; }
+
+    /* The closing line is a screen aid — the printed sheet is the filed table, and its figures are in the total row. */
+    .print-misc #rpt-misc .rpt-ytd-note { display: none !important; }
 
     .content-area { page: report-doc; padding: 10mm 12mm !important; background: #fff !important; }
 

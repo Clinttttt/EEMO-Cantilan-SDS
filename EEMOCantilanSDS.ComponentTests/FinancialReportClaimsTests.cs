@@ -337,7 +337,7 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         // Beside the period, not in a sub-line: the rule is wanted when a figure is questioned, not on every reading.
-        Assert.Contains("Revenue by Facility — @PeriodLabel<button type=\"button\" class=\"rpt-rule-mark no-print\"", markup);
+        Assert.Contains("Revenue by Facility — @PeriodLabel<span class=\"rpt-rule-wrap no-print\">", markup);
         Assert.Contains("_facilityRuleOpen", markup);
 
         // Reachable by keyboard and announced: a bare glyph would state the rule to no one who needs it read out.
@@ -347,13 +347,48 @@ public class FinancialReportClaimsTests
         Assert.Contains("id=\"rpt-facility-rule\"", markup);
         Assert.Contains(".rpt-rule-mark:focus-visible", css);
 
-        // What it says, in the terms the report uses elsewhere.
-        Assert.Contains("collected ÷ (collected + unpaid) for the period", markup);
-        Assert.Contains("daily fees against daily fees due", markup);
+        // Hover and keyboard focus reveal it without a click, which is why it is in the markup at all times.
+        Assert.Contains(".rpt-rule-wrap:hover .rpt-rule-pop", css);
+        Assert.Contains(".rpt-rule-wrap:focus-within .rpt-rule-pop", css);
 
-        // Neither the mark nor the note reaches paper. The printed table states figures, and this is an answer to a
-        // question asked in front of a screen.
-        Assert.Contains("class=\"rpt-rule-note no-print\"", markup);
+        // Plain terms, and the phrase that answers the question the office actually asks.
+        Assert.Contains("collected ÷ (collected + unpaid)", markup);
+        Assert.Contains("daily fees with daily fees due", markup);
+
+        // The mark and its note are one screen-only element: nothing about the rule reaches paper.
+        Assert.Contains("class=\"rpt-rule-wrap no-print\"", markup);
+    }
+
+    [Fact]
+    public void Miscellaneous_CarriesTheSameTwoActionsTheRegisterDoes_AndPrintsAsItsOwnDocument()
+    {
+        // The readings behind this table are entered on the market's utility billing screen, and the table itself is
+        // filed. So: the same two actions the register carries, through the same print helper — one mechanism for
+        // "print this section", not two — and a link that lands on the period the report is showing.
+        var markup = ReadReport(string.Empty);
+        var css = ReadReport(".css");
+
+        Assert.Contains("stalltrackPrint.sectionDocument\", \"#rpt-sheet\", \"print-misc\"", markup);
+        Assert.Contains("/npm/reports?view=utilities&year={year}&month={month}", markup);
+
+        // The actions never print, and the button says so rather than vanishing when there is nothing to print.
+        Assert.Contains("class=\"rpt-register-actions no-print\"", markup);
+        Assert.Contains("disabled=\"@(Model.Misc is null)\"", markup);
+
+        // An id, because the rule that hides every section-card without pdf-include would otherwise win.
+        Assert.Contains(".print-misc #rpt-misc { display: block !important; }", css);
+
+        // The two faults the register document had, fixed here before they could happen: a break spacer that opens the
+        // document with a blank sheet, and card chrome that draws its background to the edge of every middle page.
+        Assert.Contains(".print-misc .rpt-page-space { display: none !important; }", css);
+        Assert.Contains(".print-misc #rpt-misc .section-header { display: none !important; }", css);
+
+        // This table's tfoot is a real total row, not the register's spacer. A footer group would print "Total" at the
+        // foot of every sheet as though each page were complete.
+        Assert.Contains(".print-misc #rpt-misc tfoot { display: table-row-group; }", css);
+
+        // And the summary export is untouched: the section carries no pdf-include at all.
+        Assert.DoesNotContain("id=\"rpt-misc\" class=\"section-card pdf-include", markup);
     }
 
     [Fact]

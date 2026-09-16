@@ -735,35 +735,26 @@
         <div id="rpt-facility" class="section-card pdf-include@(SectionOff("facility"))" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
-                    @* The rate in this table is not the rate the Dashboard and the market's own page state, and the two
-                       will be read side by side. Rather than explain it in a sub-line nobody asked for, the rule is
-                       behind a mark next to the period and stays out of the way until it is wanted. Screen only: it
-                       answers a question asked in front of the screen, and the printed table states figures. *@
+                    @* The rate here is not the rate the Dashboard states for the same market, and the two get read side by
+                       side. A mark next to the period rather than another sub-line: the rule is wanted when a figure is
+                       questioned, not on every reading. Hover or focus shows it, a press pins it open for touch, and it
+                       stays in the markup either way so the hover can work at all. Screen only. *@
                     <div class="section-title">
-                        Revenue by Facility — @PeriodLabel<button type="button" class="rpt-rule-mark no-print"
+                        Revenue by Facility — @PeriodLabel<span class="rpt-rule-wrap no-print"><button type="button" class="rpt-rule-mark"
                                 @onclick="() => _facilityRuleOpen = !_facilityRuleOpen"
                                 aria-expanded="@(_facilityRuleOpen ? "true" : "false")"
                                 aria-controls="rpt-facility-rule"
-                                aria-label="How the rate in this table is measured"
-                                title="How the rate in this table is measured">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                        </button>
+                                aria-label="How the rate in this table is measured">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="8" /><line x1="10" y1="9" x2="10" y2="14" /><line x1="10" y1="6.2" x2="10" y2="6.3" stroke-width="2" /></svg>
+                        </button><span id="rpt-facility-rule" class="rpt-rule-pop @(_facilityRuleOpen ? "is-open" : "")" role="note">
+                            <span class="rpt-rule-key">Rate basis</span>
+                            <span class="rpt-rule-line">Rate is <strong>collected ÷ (collected + unpaid)</strong> for the period.</span>
+                            <span class="rpt-rule-line">Fish and utilities are collected with <strong>nothing assessed against them</strong>, so they push this rate up. The Dashboard compares <strong>daily fees with daily fees due</strong>, which is why it reads lower.</span>
+                        </span></span>
                     </div>
                     <div class="section-sub">Collection differs by facility model; unpaid/rate apply only to billed cycles</div>
                 </div>
             </div>
-            @if (_facilityRuleOpen)
-            {
-                <div id="rpt-facility-rule" class="rpt-rule-note no-print">
-                    <div class="rpt-rule-key">Rate basis</div>
-                    <div>This table: collected ÷ (collected + unpaid) for the period, per facility.</div>
-                    <div>
-                        Fish by the kilo, and the market's electricity and water, are collected without a monthly
-                        assessment, so they lift the market's rate here. The Dashboard and the market's own page measure
-                        daily fees against daily fees due, and read lower for that reason.
-                    </div>
-                </div>
-            }
             <div class="rpt-table-scroll">
                 <table class="fac-table">
                     <thead>
@@ -1033,6 +1024,15 @@
                 <div>
                     <div class="section-title">Miscellaneous — @PeriodLabel</div>
                     <div class="section-sub">Electricity and water, billed per reading</div>
+                </div>
+                @* The same two actions the register carries, for the same two reasons: this table is filed, and the
+                   readings behind it are entered somewhere else. Disabled rather than hidden when there is nothing to
+                   print, so the action does not appear and disappear. *@
+                <div class="rpt-register-actions no-print">
+                    <button type="button" class="rpt-register-print" @onclick="PrintMisc" disabled="@(Model.Misc is null)">
+                        Print misc
+                    </button>
+                    <a class="rpt-attn-link" href="@UtilityBillingUrl">Utility Billing →</a>
                 </div>
             </div>
 
@@ -1525,6 +1525,27 @@
     /// </remarks>
     private async Task PrintRegister() =>
         await JS.InvokeVoidAsync("stalltrackPrint.sectionDocument", "#rpt-sheet", "print-register");
+
+    /// <summary>
+    /// Prints the Miscellaneous table as its own document, the way the register prints as its own. The same helper and
+    /// the same shape of stylesheet, so there is one mechanism for "print this section" rather than two.
+    /// </summary>
+    private async Task PrintMisc() =>
+        await JS.InvokeVoidAsync("stalltrackPrint.sectionDocument", "#rpt-sheet", "print-misc");
+
+    /// <summary>
+    /// The market's utility billing screen, on the month this report is showing. The readings behind the Miscellaneous
+    /// table are entered there, so the office lands on the period it was just reading rather than on today's.
+    /// </summary>
+    private string UtilityBillingUrl
+    {
+        get
+        {
+            var year = SelectedYear == "all" ? PhilippineTime.Today.Year : int.Parse(SelectedYear);
+            var month = Months.IndexOf(SelectedMonth) + 1;
+            return $"/npm/reports?view=utilities&year={year}&month={month}";
+        }
+    }
 
     private async Task ExportPdf() => await JS.InvokeVoidAsync("print");
 }

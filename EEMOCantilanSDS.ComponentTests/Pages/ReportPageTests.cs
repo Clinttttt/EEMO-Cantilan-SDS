@@ -276,10 +276,11 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
-    public void TheRateBasisNote_IsClosedUntilTheMarkIsPressed()
+    public void TheRateBasisNote_IsHiddenUntilHoveredOrPressed()
     {
-        // Closed by default, or the report would explain itself on every reading — which is what the office asked not to
-        // have. One press states the rule; a second puts it away.
+        // Hover and keyboard focus reveal it in CSS, so the note has to be in the markup at all times — what changes on a
+        // press is only whether it is pinned open. Asserting on the class is therefore the honest test; asserting the
+        // element's absence would be asserting the opposite of how it works.
         var cut = RenderReport(SampleReport());
 
         OpenSection(cut, "By facility");
@@ -288,18 +289,20 @@ public class ReportPageTests : TestContext
 
         var mark = cut.Find(".rpt-rule-mark");
         Assert.Equal("false", mark.GetAttribute("aria-expanded"));
-        Assert.Empty(cut.FindAll("#rpt-facility-rule"));
+        Assert.DoesNotContain("is-open", cut.Find("#rpt-facility-rule").GetAttribute("class"));
 
         mark.Click();
 
         Assert.Equal("true", cut.Find(".rpt-rule-mark").GetAttribute("aria-expanded"));
+        Assert.Contains("is-open", cut.Find("#rpt-facility-rule").GetAttribute("class"));
+
         var note = cut.Find("#rpt-facility-rule").TextContent;
-        Assert.Contains("collected + unpaid", note);
-        Assert.Contains("daily fees due", note);
+        Assert.Contains("collected ÷ (collected + unpaid)", note);
+        Assert.Contains("daily fees with daily fees due", note);
 
         cut.Find(".rpt-rule-mark").Click();
 
-        Assert.Empty(cut.FindAll("#rpt-facility-rule"));
+        Assert.DoesNotContain("is-open", cut.Find("#rpt-facility-rule").GetAttribute("class"));
     }
 
     [Fact]

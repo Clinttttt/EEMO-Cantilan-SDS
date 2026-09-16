@@ -1595,11 +1595,34 @@ else
     {
         await FacilityCatalog.EnsureLoadedAsync();
         await LoadNpmRatesAsync();
+
+        // Arriving from another page that asked for a particular month's utilities — the Financial Report's
+        // Miscellaneous section does, so the office lands on the same period it was just reading rather than on this
+        // month's collections. The cached-state shortcut is skipped in that case: it would restore the last view.
+        if (string.Equals(View, "utilities", StringComparison.OrdinalIgnoreCase))
+        {
+            if (Year is int qy && Month is int qm && qm is >= 1 and <= 12)
+                CurrentDate = new DateTime(qy, qm, 1);
+
+            await ShowUtilityBillingView();
+            return;
+        }
+
         if (TryApplyCachedReport())
             return;
 
         await LoadAsync();
     }
+
+    /// <summary>Which view to open on. Only "utilities" is recognised; anything else lands on the usual collections view.</summary>
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
+
+    [SupplyParameterFromQuery(Name = "year")]
+    public int? Year { get; set; }
+
+    [SupplyParameterFromQuery(Name = "month")]
+    public int? Month { get; set; }
 
     // Tenant-resolved NPM daily + fish ordinance rates (₱30 / ₱1 fallback keeps Cantilan identical), used
     // for the fee-label captions so a custom-fee LGU sees its own rates.
