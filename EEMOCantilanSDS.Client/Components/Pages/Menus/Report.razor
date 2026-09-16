@@ -85,14 +85,14 @@
             }
 
             <div class="rfp-export">
-                <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
+                @* Opens the Financial Summary document, which is built for paper: every section of the report stated once
+                   in filing order, whatever tab this screen happens to be on. It used to print THIS page, so the sheet
+                   inherited the screen's cards and broke wherever they fell, and stated only the sections the office had
+                   not navigated away from. A new tab, because the office is leaving a screen it is working in. *@
+                <a class="rpt-btn-pdf" href="@SummaryDocumentUrl" target="_blank" rel="noopener">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
-                    @* "Export PDF" read as though it printed the screen. The scoped print stylesheet keeps only the
-                       letterhead, KPIs, Revenue Trend and Revenue by Facility — Attention & Follow-up and the
-                       collection register carry no pdf-include and are not in the document at all — so the label
-                       says which it is. *@
                     Export Summary PDF
-                </button>
+                </a>
             </div>
         </div>
 
@@ -1103,17 +1103,26 @@
                     </table>
                 </div>
 
-                @* What the section is for, in one line: this money is not an addition to the report. Counts are stated in
-                   both shapes, because a utility settled is a utility nobody has to chase. *@
-                <div class="rpt-ytd-note">
-                    @if (misc.AmountsRecorded)
-                    {
-                        <text>Already inside the period's collected: </text><strong>@Money(misc.Collected)</strong><text>&#160;</text><span class="rpt-ytd-base">@misc.Settled settled, @misc.Outstanding still owing</span>
-                    }
-                    else
-                    {
-                        <text>Settled this period: </text><strong>@misc.Settled</strong><text>&#160;</text><span class="rpt-ytd-base">@misc.Outstanding still owing</span>
-                    }
+                @* What the section is for, in one line: this money is not an addition to the report. Laid out as a label
+                   and its figures rather than a sentence, so it cannot run together or off the card. *@
+                <div class="rpt-misc-close">
+                    <span class="rpt-misc-close-key">
+                        @(misc.AmountsRecorded ? "Already inside the period's collected" : "Settled this period")
+                    </span>
+                    <span class="rpt-misc-close-val">
+                        @if (misc.AmountsRecorded)
+                        {
+                            <strong>@Money(misc.Collected)</strong>
+                        }
+                        else
+                        {
+                            <strong>@misc.Settled</strong>
+                        }
+                        <span class="rpt-misc-close-sep" aria-hidden="true">·</span>
+                        <span class="rpt-misc-close-aside">@misc.Settled settled</span>
+                        <span class="rpt-misc-close-sep" aria-hidden="true">·</span>
+                        <span class="rpt-misc-close-aside">@misc.Outstanding still owing</span>
+                    </span>
                 </div>
             }
             else
@@ -1534,6 +1543,27 @@
         await JS.InvokeVoidAsync("stalltrackPrint.sectionDocument", "#rpt-sheet", "print-misc");
 
     /// <summary>
+    /// The Financial Summary document, on the period and scope this screen is showing. Its own page, so the filed
+    /// document is laid out for paper rather than assembled out of a screen by a print stylesheet.
+    /// </summary>
+    private string SummaryDocumentUrl
+    {
+        get
+        {
+            var allTime = SelectedYear == "all";
+            var period = allTime || ActiveTab == "Annual" ? "yearly" : "monthly";
+            var year = allTime ? PhilippineTime.Today.Year : int.Parse(SelectedYear);
+            var month = Months.IndexOf(SelectedMonth) + 1;
+            var url = $"/reports/financial-summary?period={period}&year={year}&month={month}";
+
+            if (SelectedFacility != "All") url += $"&facility={SelectedFacility}";
+            if (allTime) url += "&allTime=true";
+
+            return url;
+        }
+    }
+
+    /// <summary>
     /// The market's utility billing screen, on the month this report is showing. The readings behind the Miscellaneous
     /// table are entered there, so the office lands on the period it was just reading rather than on today's.
     /// </summary>
@@ -1546,6 +1576,4 @@
             return $"/npm/reports?view=utilities&year={year}&month={month}";
         }
     }
-
-    private async Task ExportPdf() => await JS.InvokeVoidAsync("print");
 }

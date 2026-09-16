@@ -1,0 +1,573 @@
+@page "/reports/financial-summary"
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Enums
+@inject IReportsApiClient ReportsApi
+@inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+@* ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   FINANCIAL SUMMARY — the document the office files and signs.
+
+   Built as a document rather than as a print of the Financial Reports screen. Printing that screen meant the sheet
+   inherited a screen's cards, panels and chart, broke wherever the cards happened to fall, and stated only whatever
+   the office had NOT navigated away from. This page asks the API for the same report and lays every part of it out
+   once, in filing order, whatever tab the screen was on.
+
+   The sheet carries .print-report-sheet, so the print helper's own page rule applies: A4 portrait with the page margin
+   at NOUGHT, which is what keeps the browser's date, title and URL off a document carrying the municipal seal. The
+   whitespace comes from inside instead — the sheet's padding for the first page, and PADDING on every section for the
+   pages after it, because a margin is dropped at a page break and a padding is not. Sections are kept whole, so a
+   continued page always begins with one, clear of the paper's edge.
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>StallTrack — Financial Summary</PageTitle>
+
+<div class="doc-actions no-print">
+    <a class="doc-back" href="@BackUrl">← Back to Financial Reports</a>
+    <div class="doc-actions-right">
+        <span class="doc-actions-note">@ScopeLine</span>
+        <button type="button" class="doc-print" @onclick="Print" disabled="@(Model is null)">Print / Save as PDF</button>
+    </div>
+</div>
+
+@if (Loading)
+{
+    <div class="doc-state no-print">Preparing the summary…</div>
+}
+else if (Model is null)
+{
+    <div class="doc-state no-print">
+        The summary could not be prepared for @PeriodLabel.
+        <button type="button" class="doc-print" @onclick="Load">Try again</button>
+    </div>
+}
+else
+{
+    <div class="print-report-sheet doc-sheet">
+        <div class="doc-body">
+
+                    <header class="doc-head">
+                        <img class="doc-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+                        <div class="doc-republic">Republic of the Philippines</div>
+                        <div class="doc-office">@Branding.OfficeName</div>
+                        <div class="doc-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
+                        <div class="doc-title">Financial Summary</div>
+                        <div class="doc-meta">
+                            <span><span class="doc-meta-key">Period</span> @Model.PeriodLabel</span>
+                            <span><span class="doc-meta-key">Scope</span> @Model.ScopeLabel</span>
+                            <span><span class="doc-meta-key">Frequency</span> @Model.Frequency</span>
+                            <span><span class="doc-meta-key">Generated</span> @GeneratedOn.ToString("d MMMM yyyy, h:mm tt")</span>
+                        </div>
+                    </header>
+
+                    @* 1 — the four figures the whole document turns on. Assessed leads, because collected on its own says
+                         nothing about what was due. Billed = collected + unpaid is an identity, so the row footer states it. *@
+                    <section class="doc-sec">
+                        <h2 class="doc-sec-title">I. Collection position</h2>
+                        <table class="doc-table doc-table-figures">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Assessed for the period</th>
+                                    <td class="doc-num">@Money(Model.Billed)</td>
+                                    <td class="doc-note">Collected plus the balance still due</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Collected</th>
+                                    <td class="doc-num doc-good">@Money(Model.Collected)</td>
+                                    <td class="doc-note">@RecordsLine</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Unpaid for the period</th>
+                                    <td class="doc-num doc-owed">@Money(Model.CurrentPeriodUnpaid)</td>
+                                    <td class="doc-note">Billed and uncollected for @Model.PeriodLabel</td>
+                                </tr>
+                                <tr class="doc-row-strong">
+                                    <th scope="row">Collection rate</th>
+                                    <td class="doc-num">@Model.CollectionRatePct%</td>
+                                    <td class="doc-note">@Money(Model.Collected) of @Money(Model.Billed) assessed</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    @* 2 — recurring rent can fall into arrears; a service fee cannot. Derived from the headline, so the two
+                         halves always add back to it. *@
+                    <section class="doc-sec">
+                        <h2 class="doc-sec-title">II. Collection by model</h2>
+                        <table class="doc-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Model</th>
+                                    <th scope="col">What it covers</th>
+                                    <th scope="col" class="doc-num">Collected</th>
+                                    <th scope="col" class="doc-num">Share</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Recurring rent</th>
+                                    <td>Daily stall and monthly rental</td>
+                                    <td class="doc-num">@Money(RecurringCollected)</td>
+                                    <td class="doc-num">@Share(RecurringCollected)</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Paid on service</th>
+                                    <td>Per-head, per-trip and market-day</td>
+                                    <td class="doc-num">@Money(ServiceCollected)</td>
+                                    <td class="doc-num">@Share(ServiceCollected)</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colspan="2">Total collected</th>
+                                    <td class="doc-num">@Money(Model.Collected)</td>
+                                    <td class="doc-num">100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <p class="doc-line">
+                            Rate on recurring rent alone <strong>@RecurringRatePct%</strong>, against @Model.CollectionRatePct% overall.
+                            A service fee is collected at the point of service, so it can never be in arrears and lifts the overall rate.
+                        </p>
+                    </section>
+
+                    @* 3 — four scopes of the same word "outstanding", which are never added together. The document says so
+                         rather than leaving a reader to total a column that must not be totalled. *@
+                    <section class="doc-sec">
+                        <h2 class="doc-sec-title">III. Outstanding position</h2>
+                        <table class="doc-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Scope</th>
+                                    <th scope="col" class="doc-num">Amount</th>
+                                    <th scope="col" class="doc-num">Accounts</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">This period</th>
+                                    <td class="doc-num doc-owed">@Money(Model.CurrentPeriodUnpaid)</td>
+                                    <td class="doc-num">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Whole account, still occupied</th>
+                                    <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal)</td>
+                                    <td class="doc-num">@(Model.DelinquentAccountsTotal + Model.ArrearsAccountsTotal)</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Lapsed term, within the whole account</th>
+                                    <td class="doc-num">@Money(Model.LapsedWithBalanceOutstanding)</td>
+                                    <td class="doc-num">@Model.LapsedWithBalanceCount</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Former occupancies</th>
+                                    <td class="doc-num doc-owed">@Money(Model.ClosedWithBalanceOutstanding)</td>
+                                    <td class="doc-num">@Model.ClosedWithBalanceCount</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="doc-line">
+                            Separate scopes, not to be added. A lapsed term is a slice of the whole-account figure above it, not an
+                            addition to it, and a former occupancy is no longer billed.
+                        </p>
+                    </section>
+
+                    @* 4 — only when the debt spans more than one band. A single band states what the total above already says. *@
+                    @if (AgingBands.Count > 1)
+                    {
+                        <section class="doc-sec">
+                            <h2 class="doc-sec-title">IV. Receivable aging</h2>
+                            <table class="doc-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Age of the oldest unpaid month</th>
+                                        <th scope="col" class="doc-num">Accounts</th>
+                                        <th scope="col" class="doc-num">Outstanding</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var band in AgingBands)
+                                    {
+                                        <tr>
+                                            <th scope="row">@band.Label</th>
+                                            <td class="doc-num">@band.Accounts</td>
+                                            <td class="doc-num doc-owed">@Money(band.Outstanding)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th scope="row">Total</th>
+                                        <td class="doc-num">@AgingBands.Sum(b => b.Accounts)</td>
+                                        <td class="doc-num doc-owed">@Money(AgingBands.Sum(b => b.Outstanding))</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            <p class="doc-line">
+                                The bands partition every account carrying an unpaid month, so they reconcile with the whole-account
+                                figure in section III rather than offering a second count of the same debt.
+                            </p>
+                        </section>
+                    }
+
+                    @* 5 — the chart is a screen thing; a table is what files. Each period's rate is collected over collected
+                         plus unpaid, the same identity the headline uses. *@
+                    @if (Model.Trend.Count > 0)
+                    {
+                        <section class="doc-sec">
+                            <h2 class="doc-sec-title">V. Period comparison</h2>
+                            <table class="doc-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Period</th>
+                                        <th scope="col" class="doc-num">Collected</th>
+                                        <th scope="col" class="doc-num">Unpaid</th>
+                                        <th scope="col" class="doc-num">Rate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var p in Model.Trend)
+                                    {
+                                        var billed = p.Collected + p.Unpaid;
+                                        <tr class="@(p.IsSelected ? "doc-row-strong" : "")">
+                                            <th scope="row">@p.Label@(p.IsSelected ? " — this period" : "")</th>
+                                            <td class="doc-num">@Money(p.Collected)</td>
+                                            <td class="doc-num doc-owed">@Money(p.Unpaid)</td>
+                                            <td class="doc-num">@(billed > 0m ? Math.Round(p.Collected / billed * 100m).ToString("0") + "%" : "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th scope="row">Collected across the periods shown</th>
+                                        <td class="doc-num">@Money(Model.YtdCollected)</td>
+                                        <td class="doc-num"></td>
+                                        <td class="doc-num"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            @if (Model.CollectedPreviousPeriod is decimal prev && Model.PreviousPeriodLabel is not null && prev > 0m)
+                            {
+                                var move = Model.Collected - prev;
+                                var pct = Math.Abs(move / prev * 100m);
+                                <p class="doc-line">
+                                    Movement against @Model.PreviousPeriodLabel:
+                                    <strong>@(move >= 0m ? "up" : "down") @Money(Math.Abs(move))</strong>
+                                    @(pct < 1000m ? $"({pct.ToString("0.0")}% of {Model.PreviousPeriodLabel})" : $"(from {Money(prev)})").
+                                </p>
+                            }
+                        </section>
+                    }
+
+                    @* 6 — the operating detail: what each facility collected, what it owes, and on what basis it is billed. *@
+                    <section class="doc-sec">
+                        <h2 class="doc-sec-title">VI. Revenue by facility</h2>
+                        <table class="doc-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Facility</th>
+                                    <th scope="col">Collection model</th>
+                                    <th scope="col" class="doc-num">Collected</th>
+                                    <th scope="col" class="doc-num">Unpaid</th>
+                                    <th scope="col" class="doc-num">Paid / expected</th>
+                                    <th scope="col" class="doc-num">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var f in Model.Facilities)
+                                {
+                                    <tr>
+                                        <th scope="row">@f.Code — @f.Name</th>
+                                        <td>@f.Model</td>
+                                        <td class="doc-num">@Money(f.Collected)</td>
+                                        <td class="doc-num @(f.Unpaid is > 0m ? "doc-owed" : "")">@(f.PaidOnService ? "—" : Money(f.Unpaid ?? 0m))</td>
+                                        <td class="doc-num">@(f.ExpectedRecords > 0 ? $"{f.PaidRecords} / {f.ExpectedRecords}" : f.PaidRecords.ToString())</td>
+                                        <td class="doc-num">@(f.PaidOnService && f.Unpaid is null ? "—" : f.RatePct + "%")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colspan="2">Total — @Model.ScopeLabel</th>
+                                    <td class="doc-num">@Money(Model.Collected)</td>
+                                    <td class="doc-num doc-owed">@Money(Model.CurrentPeriodUnpaid)</td>
+                                    <td class="doc-num">@Model.PaidRecords</td>
+                                    <td class="doc-num">@Model.CollectionRatePct%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <p class="doc-line">
+                            The rate in this table is collected over collected plus unpaid. Fees collected without a monthly
+                            assessment — fish by the kilo, and metered electricity and water — are inside Collected but answer to no
+                            assessment, so they raise the rate of the facility that charges them.
+                        </p>
+                        @if (LargestOutstanding is { } worst && Model.CurrentPeriodUnpaid > 0m)
+                        {
+                            <p class="doc-line">
+                                Largest concentration: <strong>@Money(worst.Unpaid ?? 0m)</strong> at @worst.Code @worst.Name,
+                                @(Math.Round((worst.Unpaid ?? 0m) / Model.CurrentPeriodUnpaid * 100m)) % of everything outstanding this period.
+                            </p>
+                        }
+                    </section>
+
+                    @* 7 — the accounts the figures above are asking the office to act on. Both lists are capped, and the
+                         header states the whole set, so a capped list can never read as the whole debt. *@
+                    <section class="doc-sec doc-sec-break">
+                        <h2 class="doc-sec-title">VII. Accounts needing follow-up</h2>
+                        <table class="doc-table">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Delinquent — @DomainRules.DelinquentThresholdMonths or more unpaid months</th>
+                                    <td class="doc-num">@Model.DelinquentAccountsTotal accounts</td>
+                                    <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal)</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">In arrears — 1 to @(DomainRules.DelinquentThresholdMonths - 1) unpaid months</th>
+                                    <td class="doc-num">@Model.ArrearsAccountsTotal accounts</td>
+                                    <td class="doc-num doc-owed">@Money(Model.ArrearsOutstandingTotal)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        @if (Model.Delinquent.Count > 0)
+                        {
+                            <h3 class="doc-sub-title">Delinquent accounts@(Model.AttentionSpanLabel is { Length: > 0 } span ? $" — {span}" : "")</h3>
+                            @DebtTable(Model.Delinquent, Model.DelinquentAccountsTotal)
+                        }
+
+                        @if (Model.Arrears.Count > 0)
+                        {
+                            <h3 class="doc-sub-title">Accounts in arrears</h3>
+                            @DebtTable(Model.Arrears, Model.ArrearsAccountsTotal)
+                        }
+
+                        @if (Model.Delinquent.Count == 0 && Model.Arrears.Count == 0)
+                        {
+                            <p class="doc-line">
+                                No account still being billed carries an unpaid month for this period. Balances on former
+                                occupancies are stated in section III.
+                            </p>
+                        }
+                    </section>
+
+                    @* 8 — metered utilities, as their own section, because a utility is not a stall fee: it is billed per
+                         reading and settled on its own receipt. Its money is already inside Collected above. *@
+                    @if (Model.Misc is { Rows.Count: > 0 } misc)
+                    {
+                        <section class="doc-sec">
+                            <h2 class="doc-sec-title">VIII. Miscellaneous — electricity and water</h2>
+                            <table class="doc-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Space</th>
+                                        <th scope="col">Payor</th>
+                                        <th scope="col" class="doc-num">Electricity</th>
+                                        <th scope="col" class="doc-num">Water</th>
+                                        @if (misc.AmountsRecorded)
+                                        {
+                                            <th scope="col" class="doc-num">Charged</th>
+                                            <th scope="col" class="doc-num">Collected</th>
+                                            <th scope="col" class="doc-num">Balance</th>
+                                        }
+                                        <th scope="col">OR No.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var u in misc.Rows)
+                                    {
+                                        <tr>
+                                            <th scope="row">@SpaceNumber.Display(u.StallNo)</th>
+                                            <td>@(string.IsNullOrWhiteSpace(u.Payor) ? "—" : u.Payor)</td>
+                                            <td class="doc-num">@MiscCell(misc.AmountsRecorded, u.ElecCharge, u.ElecStatus)</td>
+                                            <td class="doc-num">@MiscCell(misc.AmountsRecorded, u.WaterCharge, u.WaterStatus)</td>
+                                            @if (misc.AmountsRecorded)
+                                            {
+                                                <td class="doc-num">@Money(u.Charged)</td>
+                                                <td class="doc-num">@(u.Collected > 0m ? Money(u.Collected) : "—")</td>
+                                                <td class="doc-num @(u.Balance > 0m ? "doc-owed" : "")">@(u.Balance > 0m ? Money(u.Balance) : "—")</td>
+                                            }
+                                            <td>@(string.IsNullOrWhiteSpace(u.ORNumber) ? "—" : u.ORNumber)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                @if (misc.AmountsRecorded)
+                                {
+                                    <tfoot>
+                                        <tr>
+                                            <th scope="row" colspan="2">Total</th>
+                                            <td class="doc-num">@Money(misc.Rows.Sum(r => r.ElecCharge))</td>
+                                            <td class="doc-num">@Money(misc.Rows.Sum(r => r.WaterCharge))</td>
+                                            <td class="doc-num">@Money(misc.Charged)</td>
+                                            <td class="doc-num">@(misc.Collected > 0m ? Money(misc.Collected) : "—")</td>
+                                            <td class="doc-num @(misc.Due > 0m ? "doc-owed" : "")">@(misc.Due > 0m ? Money(misc.Due) : "—")</td>
+                                            <td></td>
+                                        </tr>
+                                    </tfoot>
+                                }
+                            </table>
+                            <p class="doc-line">
+                                @if (misc.AmountsRecorded)
+                                {
+                                    <text>Already inside the period's collected — not an addition to it. </text>
+                                }
+                                @misc.Settled settled, @misc.Outstanding still owing.
+                            </p>
+                        </section>
+                    }
+
+                    <SignatureStrip ShowDatePrepared="true" />
+
+        </div>
+    </div>
+}
+
+@code {
+    private FinancialReportDto? Model;
+    private bool Loading = true;
+
+    /// <summary>Which report to state, taken from the screen the office pressed Export on.</summary>
+    [SupplyParameterFromQuery(Name = "period")] public string? PeriodParam { get; set; }
+    [SupplyParameterFromQuery(Name = "year")] public int? YearParam { get; set; }
+    [SupplyParameterFromQuery(Name = "month")] public int? MonthParam { get; set; }
+    [SupplyParameterFromQuery(Name = "facility")] public string? FacilityParam { get; set; }
+    [SupplyParameterFromQuery(Name = "allTime")] public bool AllTimeParam { get; set; }
+
+    private DateTime GeneratedOn => PhilippineTime.Now;
+
+    private ReportPeriod Period =>
+        string.Equals(PeriodParam, "yearly", StringComparison.OrdinalIgnoreCase) || AllTimeParam
+            ? ReportPeriod.Yearly
+            : ReportPeriod.Monthly;
+
+    private int Year => YearParam is int y and > 1900 ? y : PhilippineTime.Today.Year;
+
+    private int? Month => Period == ReportPeriod.Monthly
+        ? (MonthParam is int m && m is >= 1 and <= 12 ? m : PhilippineTime.Today.Month)
+        : null;
+
+    private FacilityCode? Facility =>
+        Enum.TryParse<FacilityCode>(FacilityParam, ignoreCase: true, out var code) ? code : null;
+
+    private string PeriodLabel => Model?.PeriodLabel
+        ?? (AllTimeParam ? "All time" : Period == ReportPeriod.Monthly && Month is int m
+            ? $"{System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}"
+            : Year.ToString());
+
+    private string ScopeLine => Model is null ? "" : $"{Model.PeriodLabel} · {Model.ScopeLabel}";
+
+    /// <summary>Back to the report on the same period and scope the document states.</summary>
+    private string BackUrl => "/reports";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        Loading = true;
+
+        // Cold-start resilience, as the report page does: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await ReportsApi.GetFinancialReportAsync(Period, Year, Month, Facility, AllTimeParam);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                Model = result.Value;
+                break;
+            }
+
+            await Task.Delay(250 * (attempt + 1));
+        }
+
+        Loading = false;
+    }
+
+    private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
+
+    // ── Figures the document derives, all from the report's own totals ──────────────────────────────────────────
+    //
+    // Derived from the headline rather than summed independently: the two halves of the model split then always add
+    // back to Collected, and a facility row that changes cannot make this section disagree with section I.
+
+    private decimal ServiceCollected => Model!.Facilities.Where(f => f.PaidOnService).Sum(f => f.Collected);
+    private decimal RecurringCollected => Model!.Collected - ServiceCollected;
+
+    private int RecurringRatePct
+    {
+        get
+        {
+            var billed = RecurringCollected + Model!.CurrentPeriodUnpaid;
+            return billed > 0m ? (int)Math.Round(RecurringCollected / billed * 100m) : 0;
+        }
+    }
+
+    private string Share(decimal part) =>
+        Model!.Collected > 0m ? (part / Model.Collected * 100m).ToString("0.0") + "%" : "—";
+
+    /// <summary>Only the bands that hold something: an empty band states what the total already says.</summary>
+    private List<ReceivableAgingBandDto> AgingBands =>
+        Model!.Aging.Where(b => b.Accounts > 0 || b.Outstanding > 0m).ToList();
+
+    private FinancialFacilityRowDto? LargestOutstanding =>
+        Model!.Facilities.Where(f => f.Unpaid is > 0m).OrderByDescending(f => f.Unpaid).FirstOrDefault();
+
+    private string RecordsLine =>
+        Model!.ExpectedRecords > 0
+            ? $"{Model.PaidRecords} of {Model.ExpectedRecords} expected records recorded"
+            : $"{Model.PaidRecords} records recorded";
+
+    private string MiscCell(bool amountsRecorded, decimal charge, PaymentStatus status)
+    {
+        if (amountsRecorded)
+            return charge > 0m ? Money(charge) : "—";
+
+        return status switch
+        {
+            PaymentStatus.Paid => "Settled",
+            PaymentStatus.Partial => "Part-settled",
+            _ => "Unpaid"
+        };
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N0");
+
+    /// <summary>
+    /// One shape for both debt lists: who, where, how long, how much. The cap is stated under the list it applies to, so
+    /// a reader can never take a capped list for the whole set.
+    /// </summary>
+    private RenderFragment DebtTable(IReadOnlyList<AttentionAccountDto> rows, int wholeSetCount) => @<text>
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th scope="col">Payor</th>
+                    <th scope="col">Space</th>
+                    <th scope="col" class="doc-num">Unpaid months</th>
+                    <th scope="col" class="doc-num">Outstanding</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in rows)
+                {
+                    <tr>
+                        <th scope="row">@a.Name@(a.TermLapsed ? " (term lapsed)" : "")</th>
+                        <td>@a.Location</td>
+                        <td class="doc-num">@a.UnpaidMonths</td>
+                        <td class="doc-num doc-owed">@Money(a.Balance)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (wholeSetCount > rows.Count)
+        {
+            <p class="doc-line doc-line-cap">
+                Listing @rows.Count of @wholeSetCount accounts. The figures in this section state all @wholeSetCount.
+            </p>
+        }
+    </text>;
+}

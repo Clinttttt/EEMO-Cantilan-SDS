@@ -213,8 +213,13 @@ public class ReportPageTests : TestContext
         Assert.Contains("Maria Velasco", section);
         Assert.Contains("OR-2", section);
         Assert.Contains("₱919", section);                                   // charged, the figure no other section states
-        Assert.Contains("Already inside the period's collected: ₱700", section);
-        Assert.Contains("2 settled, 2 still owing", section);
+
+        // A label and its figures, not a sentence — the sentence ran "₱0 0 settled" together and off the card.
+        var close = cut.Find(".rpt-misc-close");
+        Assert.Contains("Already inside the period's collected", close.TextContent);
+        Assert.Equal("₱700", close.QuerySelector("strong")!.TextContent.Trim());
+        Assert.Contains("2 settled", close.TextContent);
+        Assert.Contains("2 still owing", close.TextContent);
 
         // One facility, so no facility column: the report names a place only when the rows come from more than one.
         Assert.DoesNotContain("Facility", cut.Find("#rpt-misc thead").TextContent);
@@ -253,7 +258,7 @@ public class ReportPageTests : TestContext
         Assert.DoesNotContain("₱", body);
 
         var section = cut.Find("#rpt-misc").TextContent.Replace('\u00A0', ' ');
-        Assert.Contains("Settled this period: 1", section);
+        Assert.Contains("Settled this period", section);
         Assert.Contains("2 still owing", section);
 
         // No total row either: there is nothing to total.

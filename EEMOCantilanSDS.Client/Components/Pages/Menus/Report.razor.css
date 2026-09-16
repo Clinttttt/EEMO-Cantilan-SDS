@@ -529,6 +529,41 @@
     color: var(--text-subtle);
 }
 
+/* The Miscellaneous close: a label on the left, its figures on the right, so the line cannot run together or push past
+   the card. It wraps onto two lines on a narrow screen rather than overflowing. */
+.rpt-misc-close {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 18px;
+    margin-top: 14px;
+    padding: 12px 22px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.rpt-misc-close-val {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+    .rpt-misc-close-val strong {
+        color: var(--green);
+        font-family: 'DM Mono', monospace;
+    }
+
+.rpt-misc-close-sep {
+    color: var(--border);
+}
+
+.rpt-misc-close-aside {
+    color: var(--text-muted);
+}
+
 /* Where the whole-term figure lives, stated once beside the twelve-month one. */
 .rpt-attention-span a {
     color: inherit;
@@ -2300,7 +2335,7 @@
     .print-misc #rpt-misc .tx-table { font-size: 9.5pt !important; }
 
     /* The closing line is a screen aid — the printed sheet is the filed table, and its figures are in the total row. */
-    .print-misc #rpt-misc .rpt-ytd-note { display: none !important; }
+    .print-misc #rpt-misc .rpt-misc-close { display: none !important; }
 
     .content-area { page: report-doc; padding: 10mm 12mm !important; background: #fff !important; }
 

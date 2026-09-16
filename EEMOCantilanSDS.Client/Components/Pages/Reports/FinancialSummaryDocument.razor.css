@@ -1,0 +1,319 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   FINANCIAL SUMMARY — the document the office files.
+
+   Screen and paper are the same layout here, which is the point of the page: what is previewed is what prints. The
+   sheet is A4-proportioned on screen so a break seen on screen is the break on paper.
+
+   Every measurement that matters to the print is in the @media print block at the foot, and the reason each one exists
+   is stated there. Nothing in this file styles the Financial Reports screen; the two are deliberately independent, so a
+   change to the screen can no longer alter the filed document.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.doc-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 16px 24px;
+    background: var(--navy);
+    color: #fff;
+}
+
+.doc-back {
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+    .doc-back:hover {
+        text-decoration: underline;
+    }
+
+.doc-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.doc-actions-note {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, .75);
+}
+
+.doc-print {
+    padding: 9px 18px;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 6px;
+    background: transparent;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+    .doc-print:hover:not(:disabled) {
+        background: rgba(255, 255, 255, .12);
+    }
+
+    .doc-print:disabled {
+        opacity: .5;
+        cursor: default;
+    }
+
+.doc-state {
+    padding: 48px 24px;
+    text-align: center;
+    font-size: 13.5px;
+    color: var(--text-muted);
+}
+
+/* The sheet. 210mm wide on screen too, so what is previewed is what prints. */
+.doc-sheet {
+    width: 210mm;
+    max-width: 100%;
+    margin: 24px auto;
+    background: #fff;
+    box-shadow: 0 2px 16px rgba(15, 35, 65, .12);
+}
+
+.doc-body {
+    padding: 14mm 16mm;
+    color: #111827;
+    font-size: 10.5pt;
+    line-height: 1.5;
+}
+
+/* ── Letterhead ───────────────────────────────────────────────────────────────────────────────────────────── */
+.doc-head {
+    text-align: center;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #111827;
+}
+
+.doc-seal {
+    display: block;
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    margin: 0 auto 8px;
+}
+
+.doc-republic {
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: 9pt;
+    color: #374151;
+}
+
+.doc-office {
+    font-size: 13pt;
+    font-weight: 700;
+    margin-top: 3px;
+}
+
+.doc-muni {
+    font-size: 10pt;
+    color: #4b5563;
+}
+
+.doc-title {
+    margin-top: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: 12pt;
+    font-weight: 800;
+}
+
+.doc-meta {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    margin-top: 8px;
+    font-size: 9pt;
+    color: #4b5563;
+}
+
+.doc-meta-key {
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: 7.5pt;
+    color: #6b7280;
+    margin-right: 4px;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────────────────────────────────────────── */
+.doc-sec {
+    margin-top: 16px;
+}
+
+.doc-sec-title {
+    margin: 0 0 6px;
+    font-size: 10.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #111827;
+    border-bottom: 1px solid #d1d5db;
+    padding-bottom: 3px;
+}
+
+.doc-sub-title {
+    margin: 12px 0 4px;
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #374151;
+}
+
+.doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+}
+
+    .doc-table th,
+    .doc-table td {
+        padding: 5px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .doc-table thead th {
+        font-size: 7.5pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #4b5563;
+        background: #f3f4f6;
+        border-bottom: 1px solid #9ca3af;
+        white-space: nowrap;
+    }
+
+    .doc-table tbody th {
+        font-weight: 600;
+    }
+
+    .doc-table tfoot th,
+    .doc-table tfoot td {
+        font-weight: 700;
+        border-top: 1px solid #9ca3af;
+        border-bottom: none;
+        background: #f9fafb;
+    }
+
+.doc-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.doc-owed {
+    color: #b91c1c;
+}
+
+.doc-good {
+    color: #15803d;
+}
+
+.doc-row-strong th,
+.doc-row-strong td {
+    font-weight: 700;
+    background: #f9fafb;
+}
+
+/* A figures table has no column headings — the row states its own name — so its first column carries the weight. */
+.doc-table-figures tbody th {
+    width: 42%;
+}
+
+.doc-note {
+    color: #6b7280;
+    font-size: 8.5pt;
+}
+
+.doc-line {
+    margin: 6px 0 0;
+    font-size: 9pt;
+    color: #374151;
+}
+
+.doc-line-cap {
+    color: #6b7280;
+    font-style: italic;
+}
+
+@media print {
+    /* The page rule itself is injected by the print helper (an @page in a scoped stylesheet never reaches the print
+       engine). What is left to this file is everything inside the sheet. */
+
+    .no-print { display: none !important; }
+
+    html, body {
+        margin: 0 !important;
+        background: #fff !important;
+    }
+
+    .doc-sheet {
+        width: auto !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* The helper pads .print-report-sheet by 12mm for the FIRST page. This adds the horizontal measure a document reads
+       at, and leaves the vertical clearance of later pages to the sections themselves. */
+    .doc-body {
+        padding: 0 4mm !important;
+    }
+
+    /* Whitespace at the top of a CONTINUATION page can only come from padding: a margin is dropped at a page break. Each
+       section therefore opens with its own, and is kept whole so that a continued page always begins with a section
+       rather than with the middle of one. */
+    .doc-sec {
+        padding-top: 6mm;
+        margin-top: 6px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* The two debt lists are the one part that may legitimately outgrow a page. They break by row, and every page
+       repeats the column headings, or a sheet of figures arrives with nothing saying what they are. */
+    .doc-sec-break {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+        .doc-sec-break .doc-table thead {
+            display: table-header-group;
+        }
+
+        .doc-sec-break .doc-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+    /* The letterhead belongs to the first page only, and must not be separated from the section that follows it. */
+    .doc-head {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .doc-sec-title {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    /* Fills and rules are load-bearing on a ruled document: without this the printer drops them and the tables arrive as
+       floating figures. */
+    .doc-table thead th,
+    .doc-table tfoot th,
+    .doc-table tfoot td,
+    .doc-row-strong th,
+    .doc-row-strong td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
