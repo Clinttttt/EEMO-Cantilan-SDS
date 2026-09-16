@@ -88,8 +88,9 @@
                 <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
                     @* "Export PDF" read as though it printed the screen. The scoped print stylesheet keeps only the
-                       letterhead, KPIs, Revenue Trend and Revenue by Facility — Attention & Follow-up and Recent
-                       Collection Records carry no pdf-include and are hidden — so the label now says which it is. *@
+                       letterhead, KPIs, Revenue Trend and Revenue by Facility — Attention & Follow-up and the
+                       collection register carry no pdf-include and are not in the document at all — so the label
+                       says which it is. *@
                     Export Summary PDF
                 </button>
             </div>
@@ -359,11 +360,12 @@
 
         @* ATTENTION & FOLLOW-UP — rendered only while its own tab is open.
 
-           The four pdf-include sections cannot be treated this way: Export Summary PDF is assembled by the print
-           stylesheet from the whole page, whatever tab happens to be showing, so they must exist at all times and are
-           hidden by a screen-only class instead. This section and the register carry no pdf-include, and the register's
-           print button sits inside the register itself, so neither can be asked to print while it is closed. Leaving
-           them out spares the office a hundred-odd table rows it is not looking at on every re-render. *@
+           The sections that carry pdf-include cannot be treated this way — Overview, Trend and By facility — because
+           Export Summary PDF is assembled by the print stylesheet from the whole page, whatever tab happens to be
+           showing, so they must exist at all times and are hidden by a screen-only class instead. This section and the
+           register carry no pdf-include, and the register's print button sits inside the register itself, so neither can
+           be asked to print while it is closed. Leaving them out spares the office a hundred-odd table rows it is not
+           looking at on every re-render. *@
         if (SectionShown("followup"))
         {
         <div id="rpt-followup" class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
@@ -1348,7 +1350,7 @@
     private string SectionOff(string key) => _section == key ? string.Empty : " rpt-sec-off";
 
     /// <summary>
-    /// Whether a section that is never printed should be in the markup at all. The four pdf-include sections do not use
+    /// Whether a section that is never printed should be in the markup at all. Overview, Trend and By facility do not use
     /// this — they must exist whatever tab is open, because Export Summary PDF is assembled from the whole page — but
     /// Attention and the register are only ever read on screen, and the register's print button is inside it.
     /// </summary>
