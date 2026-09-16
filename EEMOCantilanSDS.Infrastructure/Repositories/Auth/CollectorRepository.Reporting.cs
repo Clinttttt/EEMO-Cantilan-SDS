@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Infrastructure.Time;
+using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -106,6 +106,8 @@ public partial class CollectorRepository
 
         var result = new List<CollectorListDto>();
 
+        var lastRecorded = await LatestRecordedAsync(collectorIds, cancellationToken);
+
         foreach (var collector in collectors)
         {
             paymentStats.TryGetValue(collector.Id, out var payment);
@@ -113,6 +115,10 @@ public partial class CollectorRepository
             slaughterStats.TryGetValue(collector.Id, out var slaughter);
             tripStats.TryGetValue(collector.Id, out var trip);
             tpmStats.TryGetValue(collector.Id, out var tpm);
+
+            var lastActive = collector.LastActiveAt;
+            if (lastRecorded.TryGetValue(collector.Id, out var recorded) && (lastActive is null || recorded > lastActive))
+                lastActive = recorded;
 
             result.Add(new CollectorListDto(
                 collector.Id,
@@ -122,11 +128,85 @@ public partial class CollectorRepository
                 collector.FacilityAssignments.Select(fa => fa.FacilityCode).ToList(),
                 (payment?.Total ?? 0m) + (daily?.Total ?? 0m) + (slaughter?.Total ?? 0m) + (trip?.Total ?? 0m) + (tpm?.Total ?? 0m),
                 (payment?.Count ?? 0) + (daily?.Count ?? 0) + (slaughter?.Count ?? 0) + (trip?.Count ?? 0) + (tpm?.Count ?? 0),
-                collector.LastActiveAt,
+                lastActive,
                 collector.IsActive));
         }
 
         return result.OrderByDescending(c => c.LastActiveAt).ToList();
+    }
+
+    /// <summary>
+    /// When each collector last recorded something, across every source that carries a collector.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="CollectorUser.LastActiveAt"/> is written by one method only — RecordLogin — so on its own it is a last
+    /// SIGN-IN stamp under a heading that says activity. The mobile app holds its token, and an entry can be recorded
+    /// against a collector without one signing in at all, so a collector who took money today read as days idle: Juan Dels
+    /// recorded a daily collection at 23:34 on 16 September while the screen said "Sep 12", his last sign-in.
+    ///
+    /// <para>
+    /// Deliberately not scoped to the month a screen is showing: a collector who last worked in August was last active in
+    /// August, not never. And computed on read rather than stamped on every recording path — nothing about collecting money
+    /// should depend on remembering to update a column, and this way the figure is right for entries already made.
+    /// </para>
+    /// </remarks>
+    private async Task<Dictionary<Guid, DateTime>> LatestRecordedAsync(
+        IReadOnlyCollection<Guid> collectorIds, CancellationToken cancellationToken)
+    {
+        var latest = new Dictionary<Guid, DateTime>();
+
+        void Note(Guid collectorId, DateTime? at)
+        {
+            if (at is not { } when) return;
+            if (!latest.TryGetValue(collectorId, out var held) || when > held) latest[collectorId] = when;
+        }
+
+        // Each source is asked when it was last written for these collectors. The timestamp is the one that source's own
+        // month figures are counted by, so "last active" and "collected this month" can never disagree about an entry.
+        foreach (var row in await _context.PaymentRecords
+                     .Where(p => p.CollectorId != null && collectorIds.Contains(p.CollectorId.Value) && p.Status != PaymentStatus.Unpaid)
+                     .GroupBy(p => p.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(p => p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        foreach (var row in await _context.DailyCollections
+                     .Where(d => d.CollectorId != null && collectorIds.Contains(d.CollectorId.Value))
+                     .GroupBy(d => d.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(d => d.UpdatedAt ?? d.CreatedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        foreach (var row in await _context.SlaughterTransactions
+                     .Where(s => s.CollectorId != null && collectorIds.Contains(s.CollectorId.Value))
+                     .GroupBy(s => s.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(s => s.UpdatedAt ?? s.CreatedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        foreach (var row in await _context.TrmTrips
+                     .Where(t => t.CollectorId != null && collectorIds.Contains(t.CollectorId.Value))
+                     .GroupBy(t => t.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(t => t.RecordedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        foreach (var row in await _context.TpmAttendances
+                     .Where(a => a.CollectorId != null && collectorIds.Contains(a.CollectorId.Value))
+                     .GroupBy(a => a.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(a => a.UpdatedAt ?? a.CreatedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        // The market's utility bills carry a collector too, and a collector who only read meters is still working.
+        foreach (var row in await _context.UtilityBills
+                     .Where(b => b.CollectorId != null && collectorIds.Contains(b.CollectorId.Value))
+                     .GroupBy(b => b.CollectorId!.Value)
+                     .Select(g => new { CollectorId = g.Key, Latest = g.Max(b => b.UpdatedAt ?? b.CreatedAt) })
+                     .ToListAsync(cancellationToken))
+            Note(row.CollectorId, row.Latest);
+
+        return latest;
     }
 
     public async Task<CollectorActivityDto?> GetCollectorActivityAsync(Guid collectorId, int year, int month, CancellationToken cancellationToken = default)
@@ -291,6 +371,11 @@ public partial class CollectorRepository
             .Take(10)
             .ToList();
 
+        var lastRecorded = await LatestRecordedAsync(new[] { collector.Id }, cancellationToken);
+        var lastActive = collector.LastActiveAt;
+        if (lastRecorded.TryGetValue(collector.Id, out var recorded) && (lastActive is null || recorded > lastActive))
+            lastActive = recorded;
+
         return new CollectorActivityDto(
             collector.Id,
             collector.FullName!,
@@ -301,7 +386,7 @@ public partial class CollectorRepository
             collectedThisMonth,
             transactions,
             collector.FacilityAssignments.Count,
-            collector.LastActiveAt,
+            lastActive,
             recentTransactions,
             collector.Username ?? string.Empty);
     }

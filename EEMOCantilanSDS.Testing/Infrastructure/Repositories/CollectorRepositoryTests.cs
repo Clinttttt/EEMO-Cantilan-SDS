@@ -11,6 +11,78 @@ namespace EEMOCantilanSDS.Testing;
 
 public class CollectorRepositoryTests : RepositoryTestBase
 {
+    /// <summary>
+    /// "Last active" means the last time the collector actually did something.
+    /// </summary>
+    /// <remarks>
+    /// It used to be <c>LastActiveAt</c> alone, which one method writes — RecordLogin. The mobile app holds its token and an
+    /// entry can be recorded against a collector without a sign-in at all, so the office watched a collector record a daily
+    /// collection on 16 September while the column read "Sep 12", his last sign-in.
+    /// </remarks>
+    [Fact]
+    public async Task LastActive_IsTheLastThingRecorded_NotTheLastSignIn()
+    {
+        await using var ctx = NewContext();
+
+        var collector = CollectorUser.Create("Juan Dels", "EEMO-2026-001", "juan", "juan@x.com", "0917", TestPasswords.Hash("pw"));
+        collector.RecordLogin();                                          // signs in now
+        var signedIn = collector.LastActiveAt!.Value;
+
+        // ...then records a collection four days later, without signing in again.
+        var recordedAt = signedIn.AddDays(4);
+        var daily = DailyCollection.Create(Guid.NewGuid(), DateOnly.FromDateTime(recordedAt));
+        daily.MarkPaid(orNumber: "", collectorId: collector.Id);
+        daily.CreatedAt = recordedAt;
+        daily.UpdatedAt = recordedAt;
+
+        ctx.Add(collector);
+        ctx.Add(daily);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+
+        var listed = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(recordedAt.Year, recordedAt.Month));
+        Assert.Equal(recordedAt, listed.LastActiveAt);
+
+        // The detail view answers the same, through the same rule.
+        var detail = await repo.GetCollectorActivityAsync(collector.Id, recordedAt.Year, recordedAt.Month);
+        Assert.Equal(recordedAt, detail!.LastActiveAt);
+    }
+
+    /// <summary>
+    /// And it is not scoped to the month a screen is showing: a collector who last worked in August was last active in
+    /// August, not never.
+    /// </summary>
+    [Fact]
+    public async Task LastActive_ReachesBackBeforeTheMonthOnScreen()
+    {
+        await using var ctx = NewContext();
+
+        var collector = CollectorUser.Create("Personal Dose", "EEMO-2026-002", "pd", "pd@x.com", "0918", TestPasswords.Hash("pw"));
+        var august = new DateTime(2026, 8, 20, 6, 0, 0, DateTimeKind.Utc);
+
+        var slaughter = SlaughterTransaction.CreateHog(
+            facilityId: Guid.NewGuid(),
+            collectorId: collector.Id,
+            ownerName: "Dela Cruz, Ramon",
+            heads: 1,
+            orNumber: "OR-1",
+            transactionDate: new DateOnly(2026, 8, 20),
+            ratePerHead: 250m);
+        slaughter.CreatedAt = august;
+
+        ctx.Add(collector);
+        ctx.Add(slaughter);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+
+        // Reading September: the month's takings are nought, and the last activity is still August's.
+        var listed = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(2026, 9));
+        Assert.Equal(0m, listed.CollectedThisMonth);
+        Assert.Equal(august, listed.LastActiveAt);
+    }
+
     // Regression for P1 (daily collections keyed by CollectorId, not CreatedBy) and
     // P3 (a Partial payment is counted at PartialAmount, not the full bill).
     //
