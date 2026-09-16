@@ -200,6 +200,21 @@ public class FinancialSummaryDocumentTests : TestContext
     }
 
     [Fact]
+    public void TheSignatoriesAreLaidOutAcrossTheSheet_WithRoomToSign()
+    {
+        // The strip imposes no layout of its own — it hands its lines to whatever footer hosts it — and this document gave
+        // it none, so the three lines stacked down the middle of the page. A signed sheet needs them across it, with space
+        // above each name to sign and a rule to sign on.
+        var cut = RenderDocument(Report());
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".doc-sign")), RenderTimeout);
+
+        var slots = cut.FindAll(".doc-sign .sig-slot");
+        Assert.Equal(3, slots.Count);                       // prepared by, reviewed by, and the date prepared
+        Assert.Contains("Date Prepared", cut.Find(".doc-sign").TextContent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TheSheetCarriesThePrintClass_SoThePageRuleReachesIt()
     {
         // The page margin is nought — which is what keeps the browser's date, title and URL off a document carrying the

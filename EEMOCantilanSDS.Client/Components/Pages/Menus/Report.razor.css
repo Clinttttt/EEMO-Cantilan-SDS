@@ -529,16 +529,16 @@
     color: var(--text-subtle);
 }
 
-/* The Miscellaneous close: a label on the left, its figures on the right, so the line cannot run together or push past
-   the card. It wraps onto two lines on a narrow screen rather than overflowing. */
+/* The Miscellaneous close: a label on the left, its figures on the right, on one baseline with equal space above and
+   below. The line had padding at the top only, which is what left it sitting unbalanced against the rule. */
 .rpt-misc-close {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    gap: 4px 18px;
-    margin-top: 14px;
-    padding: 12px 22px 0;
+    gap: 6px 18px;
+    min-height: 44px;
+    padding: 0 22px;
     border-top: 1px solid var(--border);
     font-size: 12.5px;
     color: var(--text-muted);
@@ -546,7 +546,7 @@
 
 .rpt-misc-close-val {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
     white-space: nowrap;
 }
@@ -2322,8 +2322,15 @@
 
     .print-misc #rpt-misc { break-inside: auto !important; }
     .print-misc #rpt-misc thead { display: table-header-group; }
-    .print-misc #rpt-misc thead th { padding-top: 10mm !important; border-top: none !important; }
     .print-misc #rpt-misc tr { break-inside: avoid; page-break-inside: avoid; }
+
+    /* No 10mm above the column headings here. The register needs it — its table can run for pages and each one must open
+       clear of the edge — but this table is one row per metered space, so the padding only ever appeared as a gap between
+       the letterhead and the first heading. The sheet's own padding is the clearance. */
+    .print-misc #rpt-misc thead th {
+        padding-top: 4px !important;
+        border-top: none !important;
+    }
 
     /* Unlike the register's, this table's tfoot is a REAL row — the period's total. A tfoot is a footer group by default,
        which would print "Total" at the foot of every sheet as though each page were complete. It prints once, at the end,
@@ -2333,6 +2340,15 @@
     .print-misc #rpt-misc tfoot td { background: transparent !important; }
 
     .print-misc #rpt-misc .tx-table { font-size: 9.5pt !important; }
+
+    /* Eight columns on a portrait sheet: the cells carry the screen's 22px side padding, which pushed "OR No." onto two
+       lines and squeezed the payor. Tighter cells, and the figures stay on one line each. */
+    .print-misc #rpt-misc .tx-table th,
+    .print-misc #rpt-misc .tx-table td {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+        white-space: nowrap;
+    }
 
     /* The closing line is a screen aid — the printed sheet is the filed table, and its figures are in the total row. */
     .print-misc #rpt-misc .rpt-misc-close { display: none !important; }
@@ -2426,6 +2442,39 @@
     grid-template-columns: 1fr 380px;
     gap: 20px;
     margin-top: 20px;
+}
+
+/* Two panels of equal weight — the Overview's pair, and the two follow-up columns. */
+.rpt-loading-grid-even {
+    grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 1100px) {
+    .rpt-loading-grid,
+    .rpt-loading-grid-even {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* A ruled line of the shape a table row has: the first cell wide, the rest of the figures to its right. Used for the
+   panels' label-and-figure lines and for the table sections, which is what By facility, the register and
+   Miscellaneous all are. */
+.rpt-loading-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 0;
+    border-top: 1px solid var(--border);
+}
+
+    .rpt-loading-line:first-of-type {
+        border-top: none;
+    }
+
+.rpt-loading-line-head {
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
 }
 
 .rpt-loading-panel {

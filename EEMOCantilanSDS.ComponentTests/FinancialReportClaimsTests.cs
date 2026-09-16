@@ -351,9 +351,10 @@ public class FinancialReportClaimsTests
         Assert.Contains(".rpt-rule-wrap:hover .rpt-rule-pop", css);
         Assert.Contains(".rpt-rule-wrap:focus-within .rpt-rule-pop", css);
 
-        // Plain terms, and the phrase that answers the question the office actually asks.
-        Assert.Contains("collected ÷ (collected + unpaid)", markup);
-        Assert.Contains("daily fees with daily fees due", markup);
+        // Plain terms, the scope it applies to, and the phrase that answers the question the office actually asks.
+        Assert.Contains("Collected ÷ (collected + unpaid)", markup);
+        Assert.Contains("@Model.FacilityCount facilities", markup);
+        Assert.Contains("daily fees against daily fees due", markup);
 
         // The mark and its note are one screen-only element: nothing about the rule reaches paper.
         Assert.Contains("class=\"rpt-rule-wrap no-print\"", markup);

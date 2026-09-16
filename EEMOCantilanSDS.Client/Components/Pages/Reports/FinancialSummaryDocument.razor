@@ -131,7 +131,6 @@ else
                         </table>
                         <p class="doc-line">
                             Rate on recurring rent alone <strong>@RecurringRatePct%</strong>, against @Model.CollectionRatePct% overall.
-                            A service fee is collected at the point of service, so it can never be in arrears and lifts the overall rate.
                         </p>
                     </section>
 
@@ -170,10 +169,7 @@ else
                                 </tr>
                             </tbody>
                         </table>
-                        <p class="doc-line">
-                            Separate scopes, not to be added. A lapsed term is a slice of the whole-account figure above it, not an
-                            addition to it, and a former occupancy is no longer billed.
-                        </p>
+                        <p class="doc-line">Separate scopes. Not to be added.</p>
                     </section>
 
                     @* 4 — only when the debt spans more than one band. A single band states what the total above already says. *@
@@ -207,10 +203,7 @@ else
                                     </tr>
                                 </tfoot>
                             </table>
-                            <p class="doc-line">
-                                The bands partition every account carrying an unpaid month, so they reconcile with the whole-account
-                                figure in section III rather than offering a second count of the same debt.
-                            </p>
+                            <p class="doc-line">Bands partition every account with an unpaid month; they reconcile with section III.</p>
                         </section>
                     }
 
@@ -301,15 +294,14 @@ else
                             </tfoot>
                         </table>
                         <p class="doc-line">
-                            The rate in this table is collected over collected plus unpaid. Fees collected without a monthly
-                            assessment — fish by the kilo, and metered electricity and water — are inside Collected but answer to no
-                            assessment, so they raise the rate of the facility that charges them.
+                            Rate is collected ÷ (collected + unpaid). Fish and metered utilities carry no monthly bill, so they lift
+                            the rate of the facility that charges them.
                         </p>
                         @if (LargestOutstanding is { } worst && Model.CurrentPeriodUnpaid > 0m)
                         {
                             <p class="doc-line">
                                 Largest concentration: <strong>@Money(worst.Unpaid ?? 0m)</strong> at @worst.Code @worst.Name,
-                                @(Math.Round((worst.Unpaid ?? 0m) / Model.CurrentPeriodUnpaid * 100m)) % of everything outstanding this period.
+                                @(Math.Round((worst.Unpaid ?? 0m) / Model.CurrentPeriodUnpaid * 100m))% of the period's outstanding.
                             </p>
                         }
                     </section>
@@ -348,8 +340,7 @@ else
                         @if (Model.Delinquent.Count == 0 && Model.Arrears.Count == 0)
                         {
                             <p class="doc-line">
-                                No account still being billed carries an unpaid month for this period. Balances on former
-                                occupancies are stated in section III.
+                                No account still being billed carries an unpaid month. Former occupancies are in section III.
                             </p>
                         }
                     </section>
@@ -412,14 +403,18 @@ else
                             <p class="doc-line">
                                 @if (misc.AmountsRecorded)
                                 {
-                                    <text>Already inside the period's collected — not an addition to it. </text>
+                                    <text>Already inside the period's collected. </text>
                                 }
                                 @misc.Settled settled, @misc.Outstanding still owing.
                             </p>
                         </section>
                     }
 
-                    <SignatureStrip ShowDatePrepared="true" />
+                    @* The strip lays out nothing of its own — it hands its lines to whatever footer hosts it — so this
+                       document gives it three columns with room to sign above each name, as a form is signed. *@
+                    <footer class="doc-sign">
+                        <SignatureStrip ShowDatePrepared="true" />
+                    </footer>
 
         </div>
     </div>

@@ -302,8 +302,9 @@ public class ReportPageTests : TestContext
         Assert.Contains("is-open", cut.Find("#rpt-facility-rule").GetAttribute("class"));
 
         var note = cut.Find("#rpt-facility-rule").TextContent;
-        Assert.Contains("collected ÷ (collected + unpaid)", note);
-        Assert.Contains("daily fees with daily fees due", note);
+        Assert.Contains("Collected ÷ (collected + unpaid)", note);
+        Assert.Contains("across 8 facilities", note);          // the sample report's own count, not a literal in the page
+        Assert.Contains("daily fees against daily fees due", note);
 
         cut.Find(".rpt-rule-mark").Click();
 

@@ -128,52 +128,114 @@
 
     @if (Loading && Model is null)
     {
+        @* The skeleton stands in for the section the office is actually opening. It used to draw the page's old shape —
+           a chart beside a list — whatever tab was chosen, so a table arrived where a chart had been promised. *@
         <div class="rpt-loading no-print" aria-busy="true" aria-label="Loading financial report">
-            <div class="kpi-row">
-                @for (var i = 0; i < 4; i++)
-                {
-                    <div class="kpi-card">
-                        <div class="kpi-body rpt-loading-kpi">
-                            <Skeleton Width="64%" Height="24px" Radius="7px" />
-                            <Skeleton Width="44%" Height="11px" Radius="5px" />
-                            <Skeleton Width="72%" Height="10px" Radius="5px" />
+            @if (_section == "overview")
+            {
+                <div class="kpi-row">
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        <div class="kpi-card">
+                            <div class="kpi-body rpt-loading-kpi">
+                                <Skeleton Width="64%" Height="24px" Radius="7px" />
+                                <Skeleton Width="44%" Height="11px" Radius="5px" />
+                                <Skeleton Width="72%" Height="10px" Radius="5px" />
+                            </div>
                         </div>
-                    </div>
-                }
-            </div>
+                    }
+                </div>
 
-            <div class="rpt-loading-grid">
-                <div class="rpt-loading-panel rpt-loading-panel-wide">
+                <div class="rpt-loading-grid rpt-loading-grid-even">
+                    @for (var panel = 0; panel < 2; panel++)
+                    {
+                        <div class="rpt-loading-panel">
+                            <div class="rpt-loading-panel-head">
+                                <Skeleton Width="170px" Height="14px" Radius="5px" />
+                            </div>
+                            @for (var i = 0; i < 4; i++)
+                            {
+                                <div class="rpt-loading-line">
+                                    <Skeleton Width="@($"{54 - i * 6}%")" Height="12px" Radius="5px" />
+                                    <Skeleton Width="72px" Height="12px" Radius="5px" />
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else if (_section == "trend")
+            {
+                <div class="rpt-loading-panel">
                     <div class="rpt-loading-panel-head">
-                        <Skeleton Width="220px" Height="18px" Radius="6px" />
-                        <Skeleton Width="110px" Height="34px" Radius="9px" />
+                        <Skeleton Width="220px" Height="16px" Radius="6px" />
                     </div>
                     <div class="rpt-loading-bars">
                         @for (var i = 0; i < 6; i++)
                         {
-                            var height = $"{44 + (i % 3) * 18}px";
-                            <Skeleton Height="@height" Radius="8px" />
+                            <Skeleton Height="@($"{44 + (i % 3) * 18}px")" Radius="8px" />
                         }
                     </div>
-                </div>
-
-                <div class="rpt-loading-panel">
-                    <div class="rpt-loading-panel-head">
-                        <Skeleton Width="150px" Height="18px" Radius="6px" />
-                    </div>
-                    @for (var i = 0; i < 5; i++)
+                    @for (var i = 0; i < 4; i++)
                     {
-                        <div class="rpt-loading-row">
-                            <Skeleton Width="38px" Height="38px" Radius="999px" />
-                            <div class="rpt-loading-row-text">
-                                <Skeleton Width="72%" Height="13px" Radius="6px" />
-                                <Skeleton Width="46%" Height="10px" Radius="5px" />
-                            </div>
-                            <Skeleton Width="64px" Height="13px" Radius="6px" />
+                        <div class="rpt-loading-line">
+                            <Skeleton Width="120px" Height="12px" Radius="5px" />
+                            <Skeleton Width="180px" Height="12px" Radius="5px" />
                         </div>
                     }
                 </div>
-            </div>
+            }
+            else if (_section == "followup")
+            {
+                <div class="rpt-loading-grid rpt-loading-grid-even">
+                    @for (var panel = 0; panel < 2; panel++)
+                    {
+                        <div class="rpt-loading-panel">
+                            <div class="rpt-loading-panel-head">
+                                <Skeleton Width="150px" Height="14px" Radius="5px" />
+                                <Skeleton Width="90px" Height="22px" Radius="6px" />
+                            </div>
+                            @for (var i = 0; i < 5; i++)
+                            {
+                                <div class="rpt-loading-row">
+                                    <Skeleton Width="34px" Height="34px" Radius="999px" />
+                                    <div class="rpt-loading-row-text">
+                                        <Skeleton Width="70%" Height="12px" Radius="5px" />
+                                        <Skeleton Width="42%" Height="10px" Radius="5px" />
+                                    </div>
+                                    <Skeleton Width="64px" Height="12px" Radius="5px" />
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                @* By facility, the register and Miscellaneous are all tables: a heading, a rule of column headings, and
+                   rows. Six rows, which is about what a screenful of any of them shows. *@
+                <div class="rpt-loading-panel">
+                    <div class="rpt-loading-panel-head">
+                        <Skeleton Width="240px" Height="16px" Radius="6px" />
+                        <Skeleton Width="120px" Height="30px" Radius="8px" />
+                    </div>
+                    <div class="rpt-loading-line rpt-loading-line-head">
+                        @for (var c = 0; c < 5; c++)
+                        {
+                            <Skeleton Width="@(c == 0 ? "22%" : "13%")" Height="10px" Radius="4px" />
+                        }
+                    </div>
+                    @for (var i = 0; i < 6; i++)
+                    {
+                        <div class="rpt-loading-line">
+                            @for (var c = 0; c < 5; c++)
+                            {
+                                <Skeleton Width="@(c == 0 ? "22%" : "13%")" Height="13px" Radius="5px" />
+                            }
+                        </div>
+                    }
+                </div>
+            }
         </div>
     }
     else if (Model is null)
@@ -748,8 +810,8 @@
                             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="8" /><line x1="10" y1="9" x2="10" y2="14" /><line x1="10" y1="6.2" x2="10" y2="6.3" stroke-width="2" /></svg>
                         </button><span id="rpt-facility-rule" class="rpt-rule-pop @(_facilityRuleOpen ? "is-open" : "")" role="note">
                             <span class="rpt-rule-key">Rate basis</span>
-                            <span class="rpt-rule-line">Rate is <strong>collected ÷ (collected + unpaid)</strong> for the period.</span>
-                            <span class="rpt-rule-line">Fish and utilities are collected with <strong>nothing assessed against them</strong>, so they push this rate up. The Dashboard compares <strong>daily fees with daily fees due</strong>, which is why it reads lower.</span>
+                            <span class="rpt-rule-line"><strong>Collected ÷ (collected + unpaid)</strong>, across @Model.FacilityCount facilities — @Model.ScopeLabel.ToLowerInvariant().</span>
+                            <span class="rpt-rule-line">Fish and utilities carry no monthly bill, so they lift it. The Dashboard measures <strong>daily fees against daily fees due</strong>.</span>
                         </span></span>
                     </div>
                     <div class="section-sub">Collection differs by facility model; unpaid/rate apply only to billed cycles</div>

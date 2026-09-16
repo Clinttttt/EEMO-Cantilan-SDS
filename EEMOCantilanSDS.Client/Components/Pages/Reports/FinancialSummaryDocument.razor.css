@@ -246,6 +246,41 @@
     font-style: italic;
 }
 
+/* ── Signatories ──────────────────────────────────────────────────────────────────────────────────────────────
+   The strip imposes no layout of its own; a host must give it one. Three columns across the sheet, with room to sign
+   above each printed name and a rule to sign on, which is how a form is signed. */
+.doc-sign {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10mm;
+    margin-top: 16mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+    .doc-sign ::deep .sig-slot {
+        flex: 1 1 0;
+        text-align: center;
+    }
+
+    .doc-sign ::deep .sig-caption {
+        font-size: 7.5pt;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        color: #6b7280;
+    }
+
+    /* The space above the rule is where the signature goes; the rule is what it is signed on. */
+    .doc-sign ::deep .sig-name {
+        margin-top: 14mm;
+        padding-top: 4px;
+        border-top: 1px solid #111827;
+        font-size: 10pt;
+        font-weight: 700;
+        color: #111827;
+    }
+
 @media print {
     /* The page rule itself is injected by the print helper (an @page in a scoped stylesheet never reaches the print
        engine). What is left to this file is everything inside the sheet. */
