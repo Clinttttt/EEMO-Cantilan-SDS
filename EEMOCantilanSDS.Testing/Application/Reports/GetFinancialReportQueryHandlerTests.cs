@@ -215,6 +215,34 @@ public class GetFinancialReportQueryHandlerTests
         Assert.DoesNotContain(rep.Arrears, a => a.Name == "At the threshold");
     }
 
+    [Theory]
+    [InlineData(0, 0, "Nothing billed")]     // no roll at all — Cantilan's barbecue stand and ice plant
+    [InlineData(0, 5, "Behind")]             // a roll, and none of it collected
+    [InlineData(75, 5, "On track")]
+    [InlineData(90, 5, "Good")]
+    public async Task AFacilityWithNothingBilled_IsNotCalledBehind(int ratePct, int expected, string status)
+    {
+        // "Behind" told the office to chase collections that do not exist, in the same word it uses for a facility genuinely
+        // owing ₱7,200. Two of Cantilan's facilities carry no stalls at all, so nothing was ever billed to them, and both
+        // read "Behind" on a printed government report. A rate over an empty roll has no meaning to report either way, so
+        // the rate is not consulted when nothing was expected.
+        var (handler, reports, _) = Build();
+
+        var compliance = Enumerable.Range(0, expected)
+            .Select(i => Payor($"{i:00}", $"Payor {i:00}", ratePct > 0 ? 900m : 0m, ratePct > 0 ? 0m : 900m, ratePct > 0 ? 0 : 1))
+            .ToArray();
+
+        reports.Setup(r => r.GetFacilityReportsAsync(
+                FacilityCode.TCC, It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Report(ratePct > 0 ? 900m : 0m, ratePct > 0 ? 0m : 900m, ratePct, paid: expected, partial: 0, unpaid: 0, compliance));
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, FacilityCode.TCC), CancellationToken.None)).Value!;
+
+        var row = Assert.Single(r.Facilities, f => f.Code == FacilityCode.TCC);
+        Assert.Equal(expected, row.ExpectedRecords);
+        Assert.Equal(status, row.Status);
+    }
+
     [Fact]
     public async Task ReceivableAging_PartitionsEveryAccount_AndReconcilesWithTheTotals()
     {

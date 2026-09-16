@@ -269,12 +269,11 @@ public class FinancialReportClaimsTests
         // Nothing is shown at all without a prior period to compare against, rather than a movement from zero.
         Assert.Contains("Model.PreviousPeriodLabel is not null && prevCollected > 0m", markup);
 
-        // It sits in the section header, where it is the headline rather than a footnote. That header is suppressed in
-        // print, so the heading's TEXT is dropped rather than the header itself — hiding the whole header, as the print
-        // rule once did, would silently remove the movement from the exported PDF.
+        // It closes the section below the table, in the same treatment the facility close uses — one style for one job.
+        // Because it is no longer in the header, the print rule hides that header outright again, as it did before.
         var css = ReadReport(".css");
-        Assert.Contains(".rpt-trend-card .section-header > div:first-child { display: none !important; }", css);
-        Assert.DoesNotContain(".rpt-trend-card .section-header { display: none !important; }", css);
+        Assert.Contains("rpt-move-close", markup);
+        Assert.Contains(".rpt-trend-card .section-header { display: none !important; }", css);
     }
 
     [Fact]
@@ -292,8 +291,10 @@ public class FinancialReportClaimsTests
         // The billed rate is measured against billed billing only — collected plus the period's unpaid.
         Assert.Contains("facBilledCollected + Model.CurrentPeriodUnpaid", markup);
 
-        // A service facility has nothing assessed, and the wording says that rather than showing a rate for it.
-        Assert.Contains("nothing assessed, so nothing can be owed", markup);
+        // Both sides are named, and the service side simply states what it collected: a rate for it would be a rate over
+        // nothing, and explaining that in the row was prose where a figure belongs.
+        Assert.Contains("Paid on service", markup);
+        Assert.DoesNotContain("nothing assessed, so nothing can be owed", markup);
     }
 
     [Fact]

@@ -1536,55 +1536,30 @@
     }
 }
 
-/* Movement between the selected period and the one before it, in the section header where it is the headline rather than a
-   footnote. Sits to the right of the heading, so the row reads title-then-figures. */
-.rpt-move {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 10px 26px;
-    flex-shrink: 0;
-    margin-left: 18px;
-    padding: 10px 14px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: #fafcfd;
+/* The trend's close borrows the facility close outright, so the same job wears the same clothes. Three parts rather than
+   two, and the state colours the movement carries. */
+.rpt-move-split {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.rpt-move-key {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .8px;
-    text-transform: uppercase;
-    color: var(--text-subtle);
+.fac-close-val.is-quiet {
+    color: var(--text-muted);
 }
 
-.rpt-move-val {
-    margin-top: 3px;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--navy);
-    white-space: nowrap;
+.fac-close-val.is-up {
+    color: var(--green);
 }
 
-    .rpt-move-val.is-quiet {
-        color: var(--text-muted);
+.fac-close-val.is-down {
+    color: var(--red);
+}
+
+@media (max-width: 680px) {
+    .rpt-move-split {
+        grid-template-columns: 1fr;
     }
-
-    .rpt-move-val.is-up {
-        color: var(--green, #1f7a4d);
-    }
-
-    .rpt-move-val.is-down {
-        color: var(--red);
-    }
-
-.rpt-move-pct {
-    margin-left: 6px;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--text-subtle);
 }
+
 
 /* The exact figures behind the chart. A register of periods, so it is ruled rather than boxed. */
 .rpt-trend-table-wrap {
@@ -2187,12 +2162,10 @@
         height: 10mm;
     }
 
-    /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only repeat them —
-       but the movement now sits in that header and is a figure the printed report should carry. So the heading's TEXT is
-       dropped rather than the header itself. Hiding the whole header, as this once did, would have silently removed the
-       movement from the exported PDF. */
-    .rpt-trend-card .section-header > div:first-child { display: none !important; }
-    .rpt-trend-card .section-header { border-bottom: none !important; padding-bottom: 0 !important; }
+    /* The sheet's own letterhead states the office, the scope and the period, so the chart's heading would only repeat
+       them. Movement no longer lives here — it closes the section below the table, in the facility close's treatment — so
+       the whole header goes again, as it did before that move. */
+    .rpt-trend-card .section-header { display: none !important; }
 
     /* The closing statement prints with the facility table it explains: on paper the total row's 19% is exactly the figure
        a reader would otherwise take at face value. Side margins drop, as the card's own padding carries them in print. */
@@ -2204,7 +2177,7 @@
     .rpt-trend-table-wrap { overflow: visible !important; margin-left: 0 !important; margin-right: 0 !important; }
     .rpt-trend-table { font-size: 9.5pt !important; }
     .rpt-trend-table tr { break-inside: avoid; page-break-inside: avoid; }
-    .rpt-move { margin-left: 0 !important; margin-right: 0 !important; }
+    .rpt-move-close { margin-left: 0 !important; margin-right: 0 !important; }
 
     /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print, and keep their
        fill: without this the printer drops the gradients and the chart comes out as empty outlines. */

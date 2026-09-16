@@ -225,7 +225,7 @@ public class GetFinancialReportQueryHandler(
                 PaidRecords: paid,
                 ExpectedRecords: expected,
                 RatePct: rowRate,
-                Status: StallStatus(rowRate),
+                Status: StallStatus(rowRate, expected),
                 Detail: detail));
 
             // RevenueTrend is computed server-side with the report; sum across stall facilities by period.
@@ -503,7 +503,7 @@ public class GetFinancialReportQueryHandler(
                     PaidRecords: g.Sum(f => f.PaidRecords),
                         ExpectedRecords: g.Sum(f => f.ExpectedRecords),
                     RatePct: fRate,
-                    Status: first.PaidOnService ? "Paid on service" : StallStatus(fRate ?? 0),
+                    Status: first.PaidOnService ? "Paid on service" : StallStatus(fRate ?? 0, g.Sum(f => f.ExpectedRecords)),
                     Detail: null);
             })
             .OrderBy(r => r.Code)
@@ -740,12 +740,27 @@ public class GetFinancialReportQueryHandler(
     private static string MonthName(int month) =>
         new DateTime(2000, month, 1).ToString("MMMM", CultureInfo.InvariantCulture);
 
-    private static string StallStatus(int ratePct) => ratePct switch
-    {
-        >= 85 => "Good",
-        >= 70 => "On track",
-        _ => "Behind"
-    };
+    /// <summary>
+    /// How a billed facility's period reads: good, on track, behind — or nothing to bill at all.
+    /// </summary>
+    /// <remarks>
+    /// The last case is the point. A facility with no assessed records collected 0% of nothing, and calling that "Behind"
+    /// told the office to chase collections that do not exist — in the same word it uses for a facility genuinely owing
+    /// ₱7,200. Cantilan has two such facilities: the barbecue stand and the ice plant carry no stalls at all, so nothing
+    /// was ever billed to them, and both read "Behind" on a government report.
+    ///
+    /// <para>The rate is not consulted when nothing was expected, because a rate over an empty roll has no meaning to
+    /// report either way.</para>
+    /// </remarks>
+    private static string StallStatus(int ratePct, int expectedRecords) =>
+        expectedRecords <= 0
+            ? "Nothing billed"
+            : ratePct switch
+            {
+                >= 85 => "Good",
+                >= 70 => "On track",
+                _ => "Behind"
+            };
 
     private static string FacilityModel(FacilityCode code) => code switch
     {
