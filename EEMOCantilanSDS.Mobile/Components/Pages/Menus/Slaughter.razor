@@ -493,6 +493,7 @@
     // to record a transaction at an unstated rate, so nothing is receipted at zero.
     private decimal HogRate => Collection?.HogRatePerHead ?? 0m;
     private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 0m;
+    private SlaughterAnimalLabelsDto AnimalLabels => Collection?.Labels ?? new("Hog", "Carabao", "Cow");
 
     private IReadOnlyList<string> KnownOwners => Collection?.KnownOwners ?? Array.Empty<string>();
 
@@ -569,13 +570,13 @@
 
     private FixedAnimal[] FixedAnimals => new[]
     {
-        new FixedAnimal("Hog", AnimalType.Hog, HogRate, () => HogHeads,
+        new FixedAnimal(AnimalLabels.Hog, AnimalType.Hog, HogRate, () => HogHeads,
             () => { HogHeads = HogHeads > 0 ? 0 : 1; SheetError = null; },
             v => HogHeads = ParseHeads(v)),
-        new FixedAnimal("Carabao", AnimalType.Carabao, LargeRate, () => CarabaoHeads,
+        new FixedAnimal(AnimalLabels.Carabao, AnimalType.Carabao, LargeRate, () => CarabaoHeads,
             () => { CarabaoHeads = CarabaoHeads > 0 ? 0 : 1; SheetError = null; },
             v => CarabaoHeads = ParseHeads(v)),
-        new FixedAnimal("Cow", AnimalType.Cow, LargeRate, () => CowHeads,
+        new FixedAnimal(AnimalLabels.Cow, AnimalType.Cow, LargeRate, () => CowHeads,
             () => { CowHeads = CowHeads > 0 ? 0 : 1; SheetError = null; },
             v => CowHeads = ParseHeads(v)),
     };
@@ -670,13 +671,13 @@
 
     private FixedAnimal[] EditFixedAnimals => new[]
     {
-        new FixedAnimal("Hog", AnimalType.Hog, EditHogRate, () => EditHogHeads,
+        new FixedAnimal(AnimalLabels.Hog, AnimalType.Hog, EditHogRate, () => EditHogHeads,
             () => { EditHogHeads = EditHogHeads > 0 ? 0 : 1; EditError = null; },
             v => EditHogHeads = ParseHeads(v)),
-        new FixedAnimal("Carabao", AnimalType.Carabao, EditLargeRate, () => EditCarabaoHeads,
+        new FixedAnimal(AnimalLabels.Carabao, AnimalType.Carabao, EditLargeRate, () => EditCarabaoHeads,
             () => { EditCarabaoHeads = EditCarabaoHeads > 0 ? 0 : 1; EditError = null; },
             v => EditCarabaoHeads = ParseHeads(v)),
-        new FixedAnimal("Cow", AnimalType.Cow, EditLargeRate, () => EditCowHeads,
+        new FixedAnimal(AnimalLabels.Cow, AnimalType.Cow, EditLargeRate, () => EditCowHeads,
             () => { EditCowHeads = EditCowHeads > 0 ? 0 : 1; EditError = null; },
             v => EditCowHeads = ParseHeads(v)),
     };
@@ -782,10 +783,10 @@
         finally { IsSaving = false; }
     }
 
-    private static string LineLabel(SlaughterTransactionDto tx) =>
+    private string LineLabel(SlaughterTransactionDto tx) =>
         tx.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(tx.CustomAnimalType)
             ? tx.CustomAnimalType!
-            : tx.AnimalType.ToString();
+            : AnimalLabels.For(tx.AnimalType);
 
     private int TotalHeads =>
         HogHeads + CarabaoHeads + CowHeads + (UseCustomAnimal ? Math.Max(0, CustomHeads) : 0);
@@ -889,7 +890,7 @@
             };
             var animalLabel = line.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(line.CustomAnimalType)
                 ? line.CustomAnimalType!
-                : line.AnimalType.ToString();
+                : AnimalLabels.For(line.AnimalType);
 
             await Sync.EnqueueAsync(new PendingOperation
             {
@@ -1022,7 +1023,7 @@
                 g.Select(o => new QueuedLine(
                     o.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(o.CustomAnimalType)
                         ? o.CustomAnimalType!
-                        : (o.AnimalType?.ToString() ?? "Animal"),
+                        : (o.AnimalType is { } type ? AnimalLabels.For(type) : "Animal"),
                     o.NumberOfHeads ?? 0,
                     o.Amount)).ToList()))
             .ToList();

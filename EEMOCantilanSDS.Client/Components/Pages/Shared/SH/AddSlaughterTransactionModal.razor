@@ -47,7 +47,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-animal-info">
-                    <div class="slh-animal-name">Hog</div>
+                    <div class="slh-animal-name">@Labels.Hog</div>
                     <div class="slh-animal-rate">₱@(HogRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
@@ -76,7 +76,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-animal-info">
-                    <div class="slh-animal-name">Carabao</div>
+                    <div class="slh-animal-name">@Labels.Carabao</div>
                     <div class="slh-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
@@ -102,7 +102,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-animal-info">
-                    <div class="slh-animal-name">Cow</div>
+                    <div class="slh-animal-name">@Labels.Cow</div>
                     <div class="slh-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-animal-check">
@@ -166,21 +166,21 @@
                 @if (TransactionForm.HogHeads > 0)
                 {
                     <div class="slh-summary-row">
-                        <span>Hog (@TransactionForm.HogHeads head@(TransactionForm.HogHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Hog (@TransactionForm.HogHeads head@(TransactionForm.HogHeads > 1 ? "s" : ""))</span>
                         <span>₱@((TransactionForm.HogHeads * (HogRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (TransactionForm.CarabaoHeads > 0)
                 {
                     <div class="slh-summary-row">
-                        <span>Carabao (@TransactionForm.CarabaoHeads head@(TransactionForm.CarabaoHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Carabao (@TransactionForm.CarabaoHeads head@(TransactionForm.CarabaoHeads > 1 ? "s" : ""))</span>
                         <span>₱@((TransactionForm.CarabaoHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (TransactionForm.CowHeads > 0)
                 {
                     <div class="slh-summary-row">
-                        <span>Cow (@TransactionForm.CowHeads head@(TransactionForm.CowHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Cow (@TransactionForm.CowHeads head@(TransactionForm.CowHeads > 1 ? "s" : ""))</span>
                         <span>₱@((TransactionForm.CowHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
@@ -224,6 +224,7 @@
     // as a default. An animal with no stated rate is not offered.
     [Parameter]
     public decimal? HogRate { get; set; }
+    [Parameter] public SlaughterAnimalLabelsDto Labels { get; set; } = new("Hog", "Carabao", "Cow");
 
     [Parameter]
     public decimal? LargeRate { get; set; }
@@ -324,3 +325,4 @@
         public string ORNo { get; set; } = string.Empty;
     }
 }
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse

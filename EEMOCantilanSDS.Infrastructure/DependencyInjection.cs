@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Infrastructure.Caching;
 using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Payments;
@@ -100,6 +101,7 @@ namespace EEMOCantilanSDS.Infrastructure
             // Per-LGU fixed-rate resolution: reads the current municipality's FacilityRate rows, falling back to the
             // FeeRates constants.
             service.AddScoped<IFeeRateResolver, FeeRateResolver>();
+            service.AddScoped<ISlaughterAnimalLabelProvider, SlaughterAnimalLabelProvider>();
             // Per-LGU Tabo-an market weekday (defaults to Friday) — reads the tenant's Municipality record.
             service.AddScoped<ITpmMarketDayProvider, TpmMarketDayProvider>();
             return service;

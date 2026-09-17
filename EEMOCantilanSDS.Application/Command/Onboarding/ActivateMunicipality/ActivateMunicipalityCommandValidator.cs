@@ -138,10 +138,10 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             // The same rule for the LGU's own animal registry, which is keyed by name.
             RuleFor(x => x.CustomAnimals)
                 .Must(animals => animals is null || animals
-                    .GroupBy(a => (a.AnimalName ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                    .GroupBy(a => SlaughterAnimalNames.Normalize(a.AnimalName), StringComparer.Ordinal)
                     .All(g => g.Select(a => a.RatePerHead).Distinct().Count() == 1))
                 .WithMessage(x => "One animal was given two different rates: " + string.Join("; ",
-                    x.CustomAnimals!.GroupBy(a => (a.AnimalName ?? string.Empty).Trim(), StringComparer.OrdinalIgnoreCase)
+                    x.CustomAnimals!.GroupBy(a => SlaughterAnimalNames.Normalize(a.AnimalName), StringComparer.Ordinal)
                         .Where(g => g.Select(a => a.RatePerHead).Distinct().Count() > 1)
                         .Select(g => $"{g.Key} ({string.Join(" and ", g.Select(a => a.RatePerHead.ToString("0.##")).Distinct())})"))
                     + ". An animal carries one rate per head.");
@@ -154,6 +154,32 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 a.RuleFor(x => x.RatePerHead).GreaterThanOrEqualTo(0m)
                     .WithMessage("Custom animal rate cannot be negative.");
             }).When(x => x.CustomAnimals is not null);
+
+            RuleFor(x => x.CustomAnimals)
+                .Must(animals => animals is null || !SlaughterAnimalNames.HasDuplicates(animals.Select(a => a.AnimalName)))
+                .WithMessage("A custom animal name may be declared only once.");
+
+            RuleFor(x => x)
+                .Must(command => command.CustomAnimals is null || command.CustomAnimals.All(a =>
+                {
+                    var name = (a.AnimalName ?? string.Empty).Trim();
+                    if (SlaughterAnimalNames.IsCanonicalNameOrAlias(name)) return false;
+                    var labels = command.SlaughterLabels;
+                    return labels is null || !SlaughterAnimalNames.CollidesWithAny(
+                        name, [labels.Hog, labels.Carabao, labels.Cow]);
+                }))
+                .WithMessage("A custom animal name cannot duplicate a built-in animal name, alias, or office label.");
+
+            When(x => x.SlaughterLabels is not null, () =>
+            {
+                RuleFor(x => x.SlaughterLabels!.Hog).NotEmpty().MaximumLength(100);
+                RuleFor(x => x.SlaughterLabels!.Carabao).NotEmpty().MaximumLength(100);
+                RuleFor(x => x.SlaughterLabels!.Cow).NotEmpty().MaximumLength(100);
+                RuleFor(x => x.SlaughterLabels)
+                    .Must(labels => SlaughterAnimalNames.BuiltInLabelsAreUnambiguous(
+                        labels!.Hog, labels.Carabao, labels.Cow))
+                    .WithMessage("Hog, Carabao, and Cow office labels must be distinct and cannot use another built-in animal's name.");
+            });
 
             // OR-series is optional; when present the format must be sane.
             When(x => x.OrSeries is not null, () =>

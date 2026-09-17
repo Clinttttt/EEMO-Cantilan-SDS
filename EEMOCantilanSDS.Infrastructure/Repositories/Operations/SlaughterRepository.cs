@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
@@ -14,10 +15,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : ISlaughterRepository
+public class SlaughterRepository(
+    AppDbContext context,
+    IFeeRateResolver feeRateResolver,
+    IClock clock,
+    ISlaughterAnimalLabelProvider animalLabelProvider) : ISlaughterRepository
 {
     /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock and this office's rates.</summary>
-    public SlaughterRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
+    public SlaughterRepository(AppDbContext context) : this(
+        context, new FeeRateResolver(context), new SystemClock(), new SlaughterAnimalLabelProvider(context)) { }
     public async Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await context.SlaughterTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
 
@@ -123,6 +129,7 @@ public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateR
         // the recording handler refuses it, which is the honest answer; hiding an unpriced animal on the device is
         // recorded as the remaining mobile work.
         var rates = await feeRateResolver.GetSnapshotAsync(ct);
+        var labels = await animalLabelProvider.GetAsync(ct);
         return new MobileSlaughterCollectionDto(
             date,
             transactions.Count,
@@ -131,7 +138,8 @@ public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateR
             rates.Resolve(FeeRateKey.SlhHogPerHead, date),
             rates.Resolve(FeeRateKey.SlhLargePerHead, date),
             transactions,
-            knownOwners);
+            knownOwners,
+            new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow));
     }
 
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
@@ -321,8 +329,12 @@ public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateR
         // Break "Other" down by the specific custom animal name (e.g. Goat, Sheep, Chicken).
         var otherAnimals = set
             .Where(r => r.AnimalType == AnimalType.Other)
-            .GroupBy(r => string.IsNullOrWhiteSpace(r.CustomAnimalType) ? "Other" : r.CustomAnimalType!.Trim())
-            .Select(g => new CustomAnimalTallyDto(g.Key, g.Sum(r => r.NumberOfHeads), g.Sum(r => r.Amount)))
+            .GroupBy(r => SlaughterAnimalNames.Normalize(
+                string.IsNullOrWhiteSpace(r.CustomAnimalType) ? "Other" : r.CustomAnimalType))
+            .Select(g => new CustomAnimalTallyDto(
+                string.IsNullOrWhiteSpace(g.First().CustomAnimalType) ? "Other" : g.First().CustomAnimalType!.Trim(),
+                g.Sum(r => r.NumberOfHeads),
+                g.Sum(r => r.Amount)))
             .OrderByDescending(a => a.Revenue)
             .ToList();
 
@@ -390,9 +402,10 @@ public class SlaughterRepository(AppDbContext context, IFeeRateResolver feeRateR
         if (!transactions.Any())
             return null;
 
+        var labels = await animalLabelProvider.GetAsync(ct);
         var transactionDtos = transactions.Select(x => new ClientTransactionDto(
             x.TransactionDate,
-            x.AnimalType == AnimalType.Other ? x.CustomAnimalType ?? "Other" : x.AnimalType.ToString(),
+            x.AnimalType == AnimalType.Other ? x.CustomAnimalType ?? "Other" : labels.For(x.AnimalType),
             x.NumberOfHeads,
             x.RatePerHead,
             x.RatePerHead * x.NumberOfHeads,

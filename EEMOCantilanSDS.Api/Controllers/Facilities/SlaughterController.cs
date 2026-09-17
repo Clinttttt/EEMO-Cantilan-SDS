@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Api.Controllers;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.SetSlaughterAnimalLabels;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetClientProfile;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetGroupedSlaughterTransactions;
@@ -10,6 +11,7 @@ using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterHistory;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterOverview;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterTransactions;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterAnimalRates;
+using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterAnimalLabels;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -94,6 +96,21 @@ public class SlaughterController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetSlaughterAnimalRatesQuery(activeOnly);
         var result = await sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("animal-labels")]
+    public async Task<ActionResult<SlaughterAnimalLabelsDto>> GetAnimalLabels()
+    {
+        var result = await sender.Send(new GetSlaughterAnimalLabelsQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPut("animal-labels")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SetAnimalLabels([FromBody] SetSlaughterAnimalLabelsCommand command)
+    {
+        var result = await sender.Send(command);
         return HandleResponse(result);
     }
 }

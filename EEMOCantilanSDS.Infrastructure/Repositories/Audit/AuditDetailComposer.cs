@@ -34,7 +34,8 @@ public static class AuditDetailComposer
         IReadOnlyDictionary<Guid, StallRef> Stalls,
         IReadOnlyDictionary<Guid, string> People,
         IReadOnlyDictionary<string, string> Facilities,
-        IReadOnlyDictionary<int, string>? SectionLabels = null);
+        IReadOnlyDictionary<int, string>? SectionLabels = null,
+        IReadOnlyDictionary<int, string>? AnimalLabels = null);
 
     /// <summary>A stall as an auditor refers to it: its number, its facility, and its section when it has one.</summary>
     public sealed record StallRef(string StallNo, string FacilityName, string? Section, string? Occupant);
@@ -239,7 +240,7 @@ public static class AuditDetailComposer
             {
                 parts.AddIfPresent(FacilityPhrase("SLH", lookup));
                 parts.AddIfPresent(TextPhrase(snapshot, "OwnerName"));
-                parts.AddIfPresent(AnimalPhrase(snapshot));
+                parts.AddIfPresent(AnimalPhrase(snapshot, lookup));
                 parts.AddIfPresent(DatePhrase(snapshot, "TransactionDate", "on"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "SlaughterFee", "₱{0}"));
                 parts.AddIfPresent(OrPhrase(snapshot));
@@ -391,10 +392,10 @@ public static class AuditDetailComposer
         return string.IsNullOrWhiteSpace(or) ? null : $"OR {or}";
     }
 
-    private static string? AnimalPhrase(JsonElement? snapshot)
+    private static string? AnimalPhrase(JsonElement? snapshot, Lookup lookup)
     {
         var animal = Text(snapshot, "CustomAnimalType");
-        if (string.IsNullOrWhiteSpace(animal)) animal = Text(snapshot, "AnimalType");
+        if (string.IsNullOrWhiteSpace(animal)) animal = Text(snapshot, "AnimalType", lookup);
         var heads = Int(snapshot, "NumberOfHeads");
 
         if (string.IsNullOrWhiteSpace(animal)) return heads is > 0 ? $"{heads} head" : null;
@@ -481,6 +482,15 @@ public static class AuditDetailComposer
             && sections.TryGetValue(section, out var sectionLabel))
         {
             return sectionLabel;
+        }
+
+        if (field == "AnimalType"
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var animalType)
+            && lookup?.AnimalLabels is { } animals
+            && animals.TryGetValue(animalType, out var animalLabel))
+        {
+            return animalLabel;
         }
 
         // An enum column reads as its name, not its number.

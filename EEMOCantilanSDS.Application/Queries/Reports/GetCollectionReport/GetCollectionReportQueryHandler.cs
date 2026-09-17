@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
@@ -25,7 +26,8 @@ public class GetCollectionReportQueryHandler(
     ITpmRepository tpmRepository,
     IFacilityRepository facilityRepository,
     IFeeRateResolver feeRateResolver,
-    IClock clock) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
+    IClock clock,
+    ISlaughterAnimalLabelProvider? animalLabelProvider = null) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
@@ -86,11 +88,14 @@ public class GetCollectionReportQueryHandler(
 
         // ── Slaughterhouse (per-head) ──
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
+        var animalLabels = animalLabelProvider is null
+            ? SlaughterAnimalLabels.Canonical
+            : await animalLabelProvider.GetAsync(ct);
         var slhRows = slaughter
             .OrderBy(t => t.OwnerName).ThenBy(t => t.TransactionDate)
             .Select(t => new CollectionTxnRowDto(
                 NameOrUnknown(t.OwnerName), t.TransactionDate.ToString("MMM d", CultureInfo.InvariantCulture),
-                string.Empty, AnimalLabel(t), t.NumberOfHeads, t.RatePerHead, t.ORNumber, t.TotalAmount))
+                string.Empty, AnimalLabel(t, animalLabels), t.NumberOfHeads, t.RatePerHead, t.ORNumber, t.TotalAmount))
             .ToList();
         facilities.Add(new CollectionFacilityDto(
             FacilityCode.SLH, ReportName(FacilityCode.SLH, facilityNames), Model(FacilityCode.SLH), IsRental: false,
@@ -127,8 +132,8 @@ public class GetCollectionReportQueryHandler(
 
     private static string NameOrUnknown(string? name) => string.IsNullOrWhiteSpace(name) ? "Unspecified" : name;
 
-    private static string AnimalLabel(SlaughterTransactionDto t) =>
-        !string.IsNullOrWhiteSpace(t.CustomAnimalType) ? t.CustomAnimalType! : t.AnimalType.ToString();
+    private static string AnimalLabel(SlaughterTransactionDto t, SlaughterAnimalLabels labels) =>
+        !string.IsNullOrWhiteSpace(t.CustomAnimalType) ? t.CustomAnimalType! : labels.For(t.AnimalType);
 
     private static string Model(FacilityCode code) => code switch
     {

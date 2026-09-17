@@ -61,7 +61,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-edit-animal-info">
-                    <div class="slh-edit-animal-name">Hog</div>
+                    <div class="slh-edit-animal-name">@Labels.Hog</div>
                     <div class="slh-edit-animal-rate">₱@((HogRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
@@ -90,7 +90,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-edit-animal-info">
-                    <div class="slh-edit-animal-name">Carabao</div>
+                    <div class="slh-edit-animal-name">@Labels.Carabao</div>
                     <div class="slh-edit-animal-rate">₱@((LargeRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
@@ -116,7 +116,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-edit-animal-info">
-                    <div class="slh-edit-animal-name">Cow</div>
+                    <div class="slh-edit-animal-name">@Labels.Cow</div>
                     <div class="slh-edit-animal-rate">₱@((LargeRate ?? 0m).ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
@@ -196,6 +196,7 @@
     // already recorded it: an office that has since stopped pricing an animal must still be able to fix a past entry.
     [Parameter]
     public decimal? HogRate { get; set; }
+    [Parameter] public SlaughterAnimalLabelsDto Labels { get; set; } = new("Hog", "Carabao", "Cow");
 
     [Parameter]
     public decimal? LargeRate { get; set; }

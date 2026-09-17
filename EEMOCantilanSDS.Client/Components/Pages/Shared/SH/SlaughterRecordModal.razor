@@ -62,7 +62,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-record-animal-info">
-                    <div class="slh-record-animal-name">Hog</div>
+                    <div class="slh-record-animal-name">@Labels.Hog</div>
                     <div class="slh-record-animal-rate">₱@(HogRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
@@ -91,7 +91,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-record-animal-info">
-                    <div class="slh-record-animal-name">Carabao</div>
+                    <div class="slh-record-animal-name">@Labels.Carabao</div>
                     <div class="slh-record-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
@@ -117,7 +117,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
                 <div class="slh-record-animal-info">
-                    <div class="slh-record-animal-name">Cow</div>
+                    <div class="slh-record-animal-name">@Labels.Cow</div>
                     <div class="slh-record-animal-rate">₱@(LargeRate.Value.ToString("0")) per head</div>
                 </div>
                 <div class="slh-record-animal-check">
@@ -177,21 +177,21 @@
                 @if (RecordForm.HogHeads > 0)
                 {
                     <div class="slh-record-summary-row">
-                        <span>Hog (@RecordForm.HogHeads head@(RecordForm.HogHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Hog (@RecordForm.HogHeads head@(RecordForm.HogHeads > 1 ? "s" : ""))</span>
                         <span>₱@((RecordForm.HogHeads * (HogRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (RecordForm.CarabaoHeads > 0)
                 {
                     <div class="slh-record-summary-row">
-                        <span>Carabao (@RecordForm.CarabaoHeads head@(RecordForm.CarabaoHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Carabao (@RecordForm.CarabaoHeads head@(RecordForm.CarabaoHeads > 1 ? "s" : ""))</span>
                         <span>₱@((RecordForm.CarabaoHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
                 @if (RecordForm.CowHeads > 0)
                 {
                     <div class="slh-record-summary-row">
-                        <span>Cow (@RecordForm.CowHeads head@(RecordForm.CowHeads > 1 ? "s" : ""))</span>
+                        <span>@Labels.Cow (@RecordForm.CowHeads head@(RecordForm.CowHeads > 1 ? "s" : ""))</span>
                         <span>₱@((RecordForm.CowHeads * (LargeRate ?? 0m)).ToString("N0"))</span>
                     </div>
                 }
@@ -236,6 +236,7 @@
     // animal with no stated rate is not offered at all — its card is not rendered.
     [Parameter]
     public decimal? HogRate { get; set; }
+    [Parameter] public SlaughterAnimalLabelsDto Labels { get; set; } = new("Hog", "Carabao", "Cow");
 
     [Parameter]
     public decimal? LargeRate { get; set; }
@@ -327,3 +328,4 @@
         public string ORNo { get; set; } = string.Empty;
     }
 }
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse

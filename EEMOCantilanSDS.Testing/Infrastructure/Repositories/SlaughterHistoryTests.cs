@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 
@@ -20,9 +21,10 @@ public class SlaughterHistoryTests : RepositoryTestBase
         // Past year so all 12 months are in scope deterministically (independent of "today").
         var hog      = SlaughterTransaction.CreateHog(fac, null, "Owner A", 2, "OR-1", new DateOnly(2024, 1, 10));
         var goat     = SlaughterTransaction.CreateCustomAnimal(fac, null, "Owner B", "Goat", 1, 100m, "OR-2", new DateOnly(2024, 1, 15));
+        var legacyGoatCase = SlaughterTransaction.CreateCustomAnimal(fac, null, "Owner C", "goat", 2, 75m, "OR-4", new DateOnly(2024, 1, 20));
         var carabao  = SlaughterTransaction.CreateLargeAnimal(fac, null, "Owner A", AnimalType.Carabao, 1, "OR-3", new DateOnly(2024, 3, 5));
 
-        context.SlaughterTransactions.AddRange(hog, goat, carabao);
+        context.SlaughterTransactions.AddRange(hog, goat, legacyGoatCase, carabao);
         await context.SaveChangesAsync();
 
         var repo = new SlaughterRepository(context);
@@ -34,15 +36,15 @@ public class SlaughterHistoryTests : RepositoryTestBase
 
         // January: hog (2 heads, Owner A) + goat (1 head, Owner B)
         var jan = history.Monthly.Single(m => m.Month == 1);
-        Assert.Equal(2, jan.Transactions);
-        Assert.Equal(2, jan.Receipts);              // OR-1 + OR-2
-        Assert.Equal(2, jan.OwnersServed);          // Owner A + Owner B
-        Assert.Equal(3, jan.TotalHeads);
+        Assert.Equal(3, jan.Transactions);
+        Assert.Equal(3, jan.Receipts);              // OR-1 + OR-2 + OR-4
+        Assert.Equal(3, jan.OwnersServed);          // Owner A + Owner B + Owner C
+        Assert.Equal(5, jan.TotalHeads);
         Assert.Equal(2, jan.HogHeads);
-        Assert.Equal(1, jan.OtherHeads);
+        Assert.Equal(3, jan.OtherHeads);
         Assert.Equal(0, jan.CarabaoHeads);
-        Assert.Equal(hog.TotalAmount + 100m, jan.TotalCollected);
-        Assert.Equal(100m, jan.OtherRevenue);
+        Assert.Equal(hog.TotalAmount + 250m, jan.TotalCollected);
+        Assert.Equal(250m, jan.OtherRevenue);
 
         // February: empty
         var feb = history.Monthly.Single(m => m.Month == 2);
@@ -57,19 +59,19 @@ public class SlaughterHistoryTests : RepositoryTestBase
 
         // Yearly 2024 row aggregates the whole year; Owner A appears in Jan + Mar but counts once.
         var y2024 = history.Yearly.Single(y => y.Year == 2024);
-        Assert.Equal(3, y2024.Transactions);
-        Assert.Equal(3, y2024.Receipts);            // OR-1, OR-2, OR-3
-        Assert.Equal(2, y2024.OwnersServed);
-        Assert.Equal(4, y2024.TotalHeads);
+        Assert.Equal(4, y2024.Transactions);
+        Assert.Equal(4, y2024.Receipts);            // OR-1, OR-2, OR-3, OR-4
+        Assert.Equal(3, y2024.OwnersServed);
+        Assert.Equal(6, y2024.TotalHeads);
         Assert.Equal(2, y2024.HogHeads);
         Assert.Equal(1, y2024.CarabaoHeads);
-        Assert.Equal(1, y2024.OtherHeads);
-        Assert.Equal(hog.TotalAmount + carabao.TotalAmount + 100m, y2024.TotalCollected);
-        // "Other" breaks down into the specific custom animal (Goat).
+        Assert.Equal(3, y2024.OtherHeads);
+        Assert.Equal(hog.TotalAmount + carabao.TotalAmount + 250m, y2024.TotalCollected);
+        // Historical spelling variants remain untouched but report as one animal without changing the total.
         var goatTally = Assert.Single(y2024.OtherAnimals);
-        Assert.Equal("Goat", goatTally.Name);
-        Assert.Equal(1, goatTally.Heads);
-        Assert.Equal(100m, goatTally.Revenue);
+        Assert.True(SlaughterAnimalNames.Same("Goat", goatTally.Name));
+        Assert.Equal(3, goatTally.Heads);
+        Assert.Equal(250m, goatTally.Revenue);
     }
 
     [Fact]

@@ -700,6 +700,26 @@
                     }
                 }
 
+                @if (string.Equals(_cfgFacility.Code, "SLH", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="cfg-section-label">Built-in animal labels</div>
+                    <div class="cfg-field-note">These names change what your office sees. Hog, Carabao, and Cow keep their billing identities and rates.</div>
+                    <div class="cfg-field-row">
+                        <label class="fac-field">
+                            <span class="fac-field-label">Hog label</span>
+                            <input class="fac-input" maxlength="100" @bind="_cfgHogLabel" />
+                        </label>
+                        <label class="fac-field">
+                            <span class="fac-field-label">Carabao label</span>
+                            <input class="fac-input" maxlength="100" @bind="_cfgCarabaoLabel" />
+                        </label>
+                        <label class="fac-field">
+                            <span class="fac-field-label">Cow label</span>
+                            <input class="fac-input" maxlength="100" @bind="_cfgCowLabel" />
+                        </label>
+                    </div>
+                }
+
                 <div class="cfg-section-label">Status &amp; history</div>                <button class="cfg-history-btn" @onclick="() => OpenHistory(_cfgFacility)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
                     View collection history
@@ -882,7 +902,7 @@
                                 <tr>
                                     <td>@(slhIdx++)</td>
                                     <td>@tx.OwnerName</td>
-                                    <td>@(!string.IsNullOrWhiteSpace(tx.CustomAnimalType) ? tx.CustomAnimalType : tx.AnimalType.ToString())</td>
+                                    <td>@(!string.IsNullOrWhiteSpace(tx.CustomAnimalType) ? tx.CustomAnimalType : _savedAnimalLabels.For(tx.AnimalType))</td>
                                     <td class="hist-r">@tx.NumberOfHeads</td>
                                     <td>@tx.TransactionDate.ToString("MMM d, yyyy")</td>
                                     <td class="hist-r hist-or">@(string.IsNullOrWhiteSpace(tx.ORNumber) ? "—" : tx.ORNumber)</td>
@@ -1452,6 +1472,10 @@
     private string _cfgVeg = string.Empty;
     private string _cfgFish = string.Empty;
     private string _cfgMeat = string.Empty;
+    private string _cfgHogLabel = "Hog";
+    private string _cfgCarabaoLabel = "Carabao";
+    private string _cfgCowLabel = "Cow";
+    private SlaughterAnimalLabelsDto _savedAnimalLabels = new("Hog", "Carabao", "Cow");
     private readonly Dictionary<string, decimal> _rateEdits = new();
     private string? _cfgError;
     private string? _cfgSuccess;
@@ -1574,6 +1598,19 @@
         {
             _ = LoadNpmCustomSectionsAsync();
         }
+        if (string.Equals(f.Code, "SLH", StringComparison.OrdinalIgnoreCase))
+            _ = LoadSlaughterAnimalLabelsAsync();
+    }
+
+    private async Task LoadSlaughterAnimalLabelsAsync()
+    {
+        var result = await SlaughterApi.GetAnimalLabelsAsync();
+        if (!result.IsSuccess || result.Value is null) return;
+        _savedAnimalLabels = result.Value;
+        _cfgHogLabel = result.Value.Hog;
+        _cfgCarabaoLabel = result.Value.Carabao;
+        _cfgCowLabel = result.Value.Cow;
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>The LGU's own market sections, with the stall count that decides whether one may be removed.</summary>
@@ -1855,6 +1892,22 @@
                 return;
             }
             changes.Add("details");
+        }
+
+        if (code == FacilityCode.SLH &&
+            (!string.Equals(_cfgHogLabel.Trim(), _savedAnimalLabels.Hog, StringComparison.Ordinal) ||
+             !string.Equals(_cfgCarabaoLabel.Trim(), _savedAnimalLabels.Carabao, StringComparison.Ordinal) ||
+             !string.Equals(_cfgCowLabel.Trim(), _savedAnimalLabels.Cow, StringComparison.Ordinal)))
+        {
+            var labels = await SlaughterApi.SetAnimalLabelsAsync(new(
+                _cfgHogLabel.Trim(), _cfgCarabaoLabel.Trim(), _cfgCowLabel.Trim()));
+            if (!labels.IsSuccess)
+            {
+                _cfgError = string.IsNullOrWhiteSpace(labels.Error) ? "Couldn't save the animal labels." : labels.Error;
+                _busy = false;
+                return;
+            }
+            changes.Add("animal labels");
         }
 
         // 2) Changed fixed rates (effective today, never retroactive).

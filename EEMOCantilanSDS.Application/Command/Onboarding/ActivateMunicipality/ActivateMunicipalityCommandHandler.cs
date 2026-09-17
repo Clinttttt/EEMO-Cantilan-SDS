@@ -36,34 +36,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             // Through the shared guard, not an inlined copy. The copy accepted only the default tenant's SuperAdmin, so
             // a DEDICATED operator account — the mechanism meant to replace that fallback — could approve an LGU's
             // onboarding and then be refused the activation that completes it.
-            if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
-                return Result<ActivationResultDto>.Forbidden();
+            var preflight = await MunicipalityActivationPreflight.CheckAsync(context, currentUser, request, ct);
+            if (!preflight.IsSuccess)
+                return MunicipalityActivationPreflight.CopyFailure<ActivationResultDto>(preflight);
 
-            var code = request.MunicipalityCode.Trim().ToUpperInvariant();
-
-            // Municipality is a global reference table (not tenant-owned); load it directly.
-            var municipality = await context.Municipalities
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(m => m.Code == code, ct);
-
-            if (municipality is null)
-                return Result<ActivationResultDto>.NotFound();
-
-            // Guard rails: never re-provision the live default LGU, never double-activate.
-            if (municipality.IsDefault)
-                return Result<ActivationResultDto>.Failure("The default municipality cannot be activated through onboarding.");
-            if (municipality.Status == MunicipalityStatus.Active)
-                return Result<ActivationResultDto>.Failure("This municipality is already active.");
+            var municipality = preflight.Value!;
 
             var username = request.Administrator.Username.Trim();
 
             // Usernames are unique per municipality (Phase 3 scoped constraint) — guard within the target LGU.
-            var usernameTaken = await context.Users
-                .IgnoreQueryFilters()
-                .AnyAsync(u => u.MunicipalityId == municipality.Id && u.Username == username, ct);
-            if (usernameTaken)
-                return Result<ActivationResultDto>.Failure($"Username '{username}' is already taken in this municipality.");
-
             // 1) Stamp branding + go live.
             municipality.ApplyOnboardingProfile(
                 request.Branding.OfficeName, request.Branding.Address, request.Branding.SealPath, request.Branding.OfficeAcronym, "Activation", request.TpmMarketDay);
@@ -148,7 +129,19 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 }
             }
 
-            // 3c) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
+            // 3c) Optional tenant wording for stable built-in animal identities. Missing rows deliberately keep the
+            // canonical labels, preserving every municipality activated before this capability existed.
+            if (request.SlaughterLabels is { } labels)
+            {
+                context.SlaughterAnimalLabels.Add(SlaughterAnimalLabel.Create(
+                    AnimalType.Hog, labels.Hog, municipality.Id, "Activation"));
+                context.SlaughterAnimalLabels.Add(SlaughterAnimalLabel.Create(
+                    AnimalType.Carabao, labels.Carabao, municipality.Id, "Activation"));
+                context.SlaughterAnimalLabels.Add(SlaughterAnimalLabel.Create(
+                    AnimalType.Cow, labels.Cow, municipality.Id, "Activation"));
+            }
+
+            // 3d) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
             //     only seeds the suggested format the portal pre-fills.
             var orSeriesConfigured = false;
             if (request.OrSeries is { } os)
@@ -309,5 +302,40 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             var core = Convert.ToBase64String(bytes).Replace('+', 'K').Replace('/', 'z').TrimEnd('=');
             return $"Aa1!{core}";
         }
+    }
+
+    /// <summary>
+    /// The shared, read-only prerequisite check used by both activation and the operator's preflight endpoint.
+    /// Keeping it beside activation prevents the irreversible path and its dry-run from drifting apart.
+    /// </summary>
+    public static class MunicipalityActivationPreflight
+    {
+        public static async Task<Result<Municipality>> CheckAsync(IAppDbContext context, ICurrentUserService currentUser,
+            ActivateMunicipalityCommand request, CancellationToken ct)
+        {
+            if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
+                return Result<Municipality>.Forbidden();
+
+            var code = request.MunicipalityCode.Trim().ToUpperInvariant();
+            var municipality = await context.Municipalities.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(m => m.Code == code, ct);
+            if (municipality is null) return Result<Municipality>.NotFound();
+            if (municipality.IsDefault)
+                return Result<Municipality>.Failure("The default municipality cannot be activated through onboarding.");
+            if (municipality.Status == MunicipalityStatus.Active)
+                return Result<Municipality>.Failure("This municipality is already active.");
+
+            var username = request.Administrator.Username.Trim();
+            if (await context.Users.IgnoreQueryFilters()
+                    .AnyAsync(u => u.MunicipalityId == municipality.Id && u.Username == username, ct))
+                return Result<Municipality>.Failure($"Username '{username}' is already taken in this municipality.");
+
+            return Result<Municipality>.Success(municipality);
+        }
+
+        public static Result<T> CopyFailure<T>(Result<Municipality> source) =>
+            source.ValidationErrors is { } errors
+                ? Result<T>.ValidationFailure(errors)
+                : Result<T>.Failure(source.Error ?? "Activation preflight failed.", source.Status);
     }
 }

@@ -35,6 +35,7 @@ public static class TenantBackupTableNames
         ["OnlinePaymentTransactions"] = "Online payments",
         ["SlaughterTransactions"] = "Slaughterhouse transactions",
         ["SlaughterAnimalRates"] = "Slaughterhouse rates",
+        ["SlaughterAnimalLabels"] = "Slaughterhouse animal labels",
         ["TpmVendors"] = "Taboan vendors",
         ["TpmAttendances"] = "Taboan attendance",
         ["TrmTransporters"] = "Terminal transporters",

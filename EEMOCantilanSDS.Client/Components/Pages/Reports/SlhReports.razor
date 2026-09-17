@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject ISlaughterApiClient SlaughterApi
 @inject IJSRuntime JS
@@ -421,9 +422,9 @@ else
                         </svg>
                     </div>
                     <div class="rpt-donut-legend">
-                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#2d7a5f 0%,#1f5341 100%)"></span><span class="donut-leg-label">Hog</span></div><strong class="donut-leg-value">@HogHeads</strong></div>
-                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#2e7bb5 0%,#1f537b 100%)"></span><span class="donut-leg-label">Carabao</span></div><strong class="donut-leg-value">@CarabaoHeads</strong></div>
-                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#b87333 0%,#7d4e22 100%)"></span><span class="donut-leg-label">Cow</span></div><strong class="donut-leg-value">@CowHeads</strong></div>
+                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#2d7a5f 0%,#1f5341 100%)"></span><span class="donut-leg-label">@AnimalLabels.Hog</span></div><strong class="donut-leg-value">@HogHeads</strong></div>
+                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#2e7bb5 0%,#1f537b 100%)"></span><span class="donut-leg-label">@AnimalLabels.Carabao</span></div><strong class="donut-leg-value">@CarabaoHeads</strong></div>
+                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#b87333 0%,#7d4e22 100%)"></span><span class="donut-leg-label">@AnimalLabels.Cow</span></div><strong class="donut-leg-value">@CowHeads</strong></div>
                         <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg,#8b5a3c 0%,#5e3d28 100%)"></span><span class="donut-leg-label">Other</span></div><strong class="donut-leg-value">@OtherHeads</strong></div>
                     </div>
                 </div>
@@ -782,6 +783,7 @@ else
     int     CowHeads        => IsYearly ? (YearRow?.CowHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Cow).Sum(t => t.NumberOfHeads) : (Overview?.CowCount ?? 0);
     int     OtherHeads      => IsYearly ? (YearRow?.OtherHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Other).Sum(t => t.NumberOfHeads) : (Overview?.OthersCount ?? 0);
     decimal AvgPerHead      => TotalHeads > 0 ? TotalCollected / TotalHeads : 0m;
+    SlaughterAnimalLabelsDto AnimalLabels => Overview?.Labels ?? new("Hog", "Carabao", "Cow");
 
     string RevenueGrowthText
     {
@@ -806,16 +808,16 @@ else
                 var y = YearRow;
                 return new[]
                 {
-                    new AnimalRow("Hog", y?.HogRevenue ?? 0m, y?.HogHeads ?? 0, AnimalColor(AnimalType.Hog)),
-                    new AnimalRow("Carabao", y?.CarabaoRevenue ?? 0m, y?.CarabaoHeads ?? 0, AnimalColor(AnimalType.Carabao)),
-                    new AnimalRow("Cow", y?.CowRevenue ?? 0m, y?.CowHeads ?? 0, AnimalColor(AnimalType.Cow)),
+                    new AnimalRow(AnimalLabels.Hog, y?.HogRevenue ?? 0m, y?.HogHeads ?? 0, AnimalColor(AnimalType.Hog)),
+                    new AnimalRow(AnimalLabels.Carabao, y?.CarabaoRevenue ?? 0m, y?.CarabaoHeads ?? 0, AnimalColor(AnimalType.Carabao)),
+                    new AnimalRow(AnimalLabels.Cow, y?.CowRevenue ?? 0m, y?.CowHeads ?? 0, AnimalColor(AnimalType.Cow)),
                     new AnimalRow("Other", y?.OtherRevenue ?? 0m, y?.OtherHeads ?? 0, AnimalColor(AnimalType.Other)),
                 }.Where(a => a.Revenue > 0 || a.Heads > 0).OrderByDescending(a => a.Revenue).ToList();
             }
 
             return MonthTxns
-                .GroupBy(t => AnimalName(t.AnimalType))
-                .Select(g => new AnimalRow(g.Key, g.Sum(t => t.TotalAmount), g.Sum(t => t.NumberOfHeads), AnimalColor(AnimalEnumFromName(g.Key))))
+                .GroupBy(t => t.AnimalType)
+                .Select(g => new AnimalRow(AnimalName(g.Key), g.Sum(t => t.TotalAmount), g.Sum(t => t.NumberOfHeads), AnimalColor(g.Key)))
                 .OrderByDescending(a => a.Revenue)
                 .ToList();
         }
@@ -829,8 +831,12 @@ else
             if (IsYearly) return YearRow?.OtherAnimals ?? new List<CustomAnimalTallyDto>();
             return MonthTxns
                 .Where(t => t.AnimalType == AnimalType.Other)
-                .GroupBy(t => string.IsNullOrWhiteSpace(t.CustomAnimalType) ? "Other" : t.CustomAnimalType!.Trim())
-                .Select(g => new CustomAnimalTallyDto(g.Key, g.Sum(t => t.NumberOfHeads), g.Sum(t => t.TotalAmount)))
+                .GroupBy(t => SlaughterAnimalNames.Normalize(
+                    string.IsNullOrWhiteSpace(t.CustomAnimalType) ? "Other" : t.CustomAnimalType))
+                .Select(g => new CustomAnimalTallyDto(
+                    string.IsNullOrWhiteSpace(g.First().CustomAnimalType) ? "Other" : g.First().CustomAnimalType!.Trim(),
+                    g.Sum(t => t.NumberOfHeads),
+                    g.Sum(t => t.TotalAmount)))
                 .OrderByDescending(a => a.Revenue)
                 .ToList();
         }
@@ -965,10 +971,9 @@ else
         .ToList();
 
     // ── Animal helpers ────────────────────────────────────────────
-    static string AnimalName(AnimalType t) => t switch { AnimalType.Hog => "Hog", AnimalType.Carabao => "Carabao", AnimalType.Cow => "Cow", _ => "Other" };
-    static AnimalType AnimalEnumFromName(string n) => n switch { "Hog" => AnimalType.Hog, "Carabao" => AnimalType.Carabao, "Cow" => AnimalType.Cow, _ => AnimalType.Other };
+    string AnimalName(AnimalType t) => t switch { AnimalType.Hog => AnimalLabels.Hog, AnimalType.Carabao => AnimalLabels.Carabao, AnimalType.Cow => AnimalLabels.Cow, _ => "Other" };
     static string AnimalColor(AnimalType t) => t switch { AnimalType.Hog => "#2d7a5f", AnimalType.Carabao => "#2e7bb5", AnimalType.Cow => "#b87333", _ => "#8b5a3c" };
-    static string AnimalLabel(SlaughterTransactionDto t) => t.AnimalType == AnimalType.Other && !string.IsNullOrEmpty(t.CustomAnimalType) ? t.CustomAnimalType : AnimalName(t.AnimalType);
+    string AnimalLabel(SlaughterTransactionDto t) => t.AnimalType == AnimalType.Other && !string.IsNullOrEmpty(t.CustomAnimalType) ? t.CustomAnimalType : AnimalName(t.AnimalType);
 
     public sealed record SlhReportsPageState(
         string ActivePeriod,

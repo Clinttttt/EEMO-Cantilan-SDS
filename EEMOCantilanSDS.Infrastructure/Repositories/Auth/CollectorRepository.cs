@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
@@ -24,11 +25,12 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // One class in four files, not four classes: those projections reuse the same private money arithmetic the office's
 // reports use, and duplicating money arithmetic is how two screens start disagreeing. What IS separate is the contracts —
 // a handler serving the app cannot reach an authentication lookup.
-public partial class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
+public partial class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock,
+    ISlaughterAnimalLabelProvider? slaughterLabelProvider = null)
     : ICollectorRepository, ICollectorMobileQueries, ICollectorReportingQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
+    public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock(), new SlaughterAnimalLabelProvider(context)) { }
 
     /// <summary>
     /// Captured into fields because this class is PARTIAL: a primary-constructor parameter is only in scope in the file that
@@ -39,6 +41,7 @@ public partial class CollectorRepository(AppDbContext context, IFeeRateResolver 
 
     private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
     private readonly IClock _clock = clock;
+    private readonly ISlaughterAnimalLabelProvider? _slaughterLabelProvider = slaughterLabelProvider;
 
     // Current municipality's resolved NPM rates for the in-flight query; default to the ordinance
     // constants so Cantilan is byte-for-byte, refreshed per public method via LoadNpmRatesAsync.

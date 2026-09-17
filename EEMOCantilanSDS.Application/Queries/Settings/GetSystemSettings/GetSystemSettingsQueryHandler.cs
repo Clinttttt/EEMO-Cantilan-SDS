@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
@@ -18,7 +19,8 @@ public class GetSystemSettingsQueryHandler(
     IFacilityRepository facilityRepository,
     ITenantContext tenantContext,
     IFeeRateResolver feeRateResolver, IClock clock,
-    ITpmMarketDayProvider marketDayProvider)
+    ITpmMarketDayProvider marketDayProvider,
+    ISlaughterAnimalLabelProvider? slaughterLabelProvider = null)
     : IRequestHandler<GetSystemSettingsQuery, Result<SystemSettingsDto>>
 {
     private const string TimeZoneLabel = "Philippine Standard Time (UTC+8)";
@@ -93,7 +95,8 @@ public class GetSystemSettingsQueryHandler(
         // week updates that column only when it starts, so reading the column here would have gone on stating the
         // old day after the new one had taken effect — this screen contradicting the collections being taken.
         var marketDay = await marketDayProvider.GetMarketDayAsync(asOf, ct);
-        var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay, npmFacility, npmSections);
+        var slhLabels = slaughterLabelProvider is null ? SlaughterAnimalLabels.Canonical : await slaughterLabelProvider.GetAsync(ct);
+        var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay, npmFacility, npmSections, slhLabels);
 
         var dto = new SystemSettingsDto(office, security, collection, system, facilities);
         return Result<SystemSettingsDto>.Success(dto);
@@ -104,7 +107,8 @@ public class GetSystemSettingsQueryHandler(
     // in canonical order. Cantilan's names/rates equal the constants, so it is byte-for-byte unchanged.
     private static IReadOnlyList<FacilityRuleDto> BuildFacilities(
         FeeRateSnapshot rates, DateOnly asOf, IReadOnlyDictionary<FacilityCode, string> names, DayOfWeek marketDay,
-        Facility? npm = null, IReadOnlyList<NpmCustomSectionDto>? npmSections = null)
+        Facility? npm = null, IReadOnlyList<NpmCustomSectionDto>? npmSections = null,
+        SlaughterAnimalLabels? slaughterLabels = null)
     {
         var npmDaily = rates.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmFish = rates.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
@@ -118,6 +122,7 @@ public class GetSystemSettingsQueryHandler(
 
         var slhHog = rates.Resolve(FeeRateKey.SlhHogPerHead, asOf);
         var slhLarge = rates.Resolve(FeeRateKey.SlhLargePerHead, asOf);
+        var slhLabels = slaughterLabels ?? SlaughterAnimalLabels.Canonical;
         var trmTrip = rates.Resolve(FeeRateKey.TrmPerTrip, asOf);
         var tpmVendor = rates.Resolve(FeeRateKey.TpmVendorDay, asOf);
 
@@ -164,7 +169,7 @@ public class GetSystemSettingsQueryHandler(
             (FacilityCode.BBQ, new("BBQ", Name(FacilityCode.BBQ, "Barbecue Stand"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.ICE, new("ICE", Name(FacilityCode.ICE, "Iceplant"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.SLH, new("SLH", Name(FacilityCode.SLH, "Slaughterhouse"), "Per-head · paid on service",
-                $"Hog ₱{slhHog:0} · Large ₱{slhLarge:0}", "Per transaction")),
+                $"{slhLabels.Hog} ₱{slhHog:0} · {slhLabels.Carabao}/{slhLabels.Cow} ₱{slhLarge:0}", "Per transaction")),
             (FacilityCode.TRM, new("TRM", Name(FacilityCode.TRM, "Transport Terminal"), "Per-trip · paid on service",
                 $"₱{trmTrip:0}/trip", "Per trip")),
             (FacilityCode.TPM, new("TPM", Name(FacilityCode.TPM, "Tabo-an Public Market"), "Weekly market",

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
+using EEMOCantilanSDS.Application.Command.Onboarding.PreflightMunicipalityActivation;
 using EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken;
 using EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext;
 using MediatR;
@@ -28,6 +29,15 @@ public class ActivationController : ApiBaseController
     public async Task<ActionResult<ActivationResultDto>> ActivateMunicipalityAsync([FromBody] ActivateMunicipalityCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>Validates this exact activation payload and its live prerequisites without writing data.</summary>
+    [HttpPost("municipality/preflight")]
+    public async Task<ActionResult<ActivationPreflightResultDto>> PreflightMunicipalityAsync(
+        [FromBody] ActivateMunicipalityCommand command)
+    {
+        var result = await Sender.Send(new PreflightMunicipalityActivationCommand(command));
         return HandleResponse(result);
     }
 

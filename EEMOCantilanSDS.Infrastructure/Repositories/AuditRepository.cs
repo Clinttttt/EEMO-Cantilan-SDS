@@ -260,6 +260,11 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
             [(int)MarketSection.FishSection] = npm?.FishSectionLabel ?? GetSectionName(MarketSection.FishSection)!,
             [(int)MarketSection.MeatSection] = npm?.MeatSectionLabel ?? GetSectionName(MarketSection.MeatSection)!,
         };
+        var animalLabels = await context.SlaughterAnimalLabels.AsNoTracking()
+            .ToDictionaryAsync(x => (int)x.AnimalType, x => x.DisplayLabel, ct);
+        animalLabels.TryAdd((int)AnimalType.Hog, "Hog");
+        animalLabels.TryAdd((int)AnimalType.Carabao, "Carabao");
+        animalLabels.TryAdd((int)AnimalType.Cow, "Cow");
 
         if (stallIds.Count > 0)
         {
@@ -316,7 +321,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                     people[v.Id] = v.VendorName!;
         }
 
-        return new AuditDetailComposer.Lookup(stalls, people, facilities, sectionLabels);
+        return new AuditDetailComposer.Lookup(stalls, people, facilities, sectionLabels, animalLabels);
     }
 
     private static string? GetSectionName(MarketSection? section) => section switch    {

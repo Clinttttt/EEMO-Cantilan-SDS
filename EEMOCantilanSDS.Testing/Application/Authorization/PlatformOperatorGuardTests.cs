@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Infrastructure.Security;
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
+using EEMOCantilanSDS.Application.Command.Onboarding.PreflightMunicipalityActivation;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
@@ -43,6 +44,39 @@ public class PlatformOperatorGuardTests
         new(new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"operator-guard-{Guid.NewGuid()}")
             .Options);
+
+    [Fact]
+    public async Task ActivationPreflightChecksLivePrerequisitesWithoutWritingAnything()
+    {
+        var context = NewContext();
+        var target = Municipality.Create(
+            "CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Upcoming, "carmen", isDefault: false);
+        var console = AdminUser.Create(
+            "Console", "console-preflight", "preflight@stalltrack.site", TestPasswords.Hash("Secret123!"),
+            AdminRole.SuperAdmin, isPlatformOperator: true);
+        context.Add(target);
+        context.Add(console);
+        await context.SaveChangesAsync();
+
+        var before = context.ChangeTracker.Entries().Count();
+        var handler = new PreflightMunicipalityActivationCommandHandler(
+            context, new Caller(console.Id, "SuperAdmin", null));
+        var activation = new ActivateMunicipalityCommand(
+            "CARMEN",
+            new("Carmen EEMO", null, null),
+            new("Head", "carmen.head", "head@carmen.gov.ph"),
+            Array.Empty<ActivationFacility>(),
+            Array.Empty<ActivationRate>());
+
+        var result = await handler.Handle(new(activation), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(before, context.ChangeTracker.Entries().Count());
+        Assert.Equal(MunicipalityStatus.Upcoming, target.Status);
+        Assert.Empty(context.Facilities);
+        Assert.Empty(context.FacilityRates);
+        Assert.Empty(context.SlaughterAnimalLabels);
+    }
 
     [Fact]
     public async Task ADedicatedOperatorIsAccepted_EvenBelongingToNoDefaultTenant()

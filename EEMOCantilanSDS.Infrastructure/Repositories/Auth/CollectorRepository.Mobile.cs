@@ -158,6 +158,9 @@ public partial class CollectorRepository
         // ── Slaughterhouse — business date = TransactionDate ──
         if (all || facility is FacilityCode.SLH)
         {
+            var animalLabels = _slaughterLabelProvider is null
+                ? EEMOCantilanSDS.Application.Common.Slaughterhouse.SlaughterAnimalLabels.Canonical
+                : await _slaughterLabelProvider.GetAsync(cancellationToken);
             var slhAssigned = assignedSet.Contains(FacilityCode.SLH);
             var rows = await _context.SlaughterTransactions.AsNoTracking()
                 .Where(s => (s.CollectorId == collectorId || (slhAssigned && s.CollectorId == null))
@@ -188,9 +191,9 @@ public partial class CollectorRepository
             {
                 var total = g.Sum(x => x.RatePerHead * x.NumberOfHeads);
                 var lines = g
-                    .OrderBy(x => string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType)
+                    .OrderBy(x => string.IsNullOrWhiteSpace(x.CustomAnimalType) ? animalLabels.For(x.AnimalType) : x.CustomAnimalType)
                     .Select(x => new MobileSlaughterLineDto(
-                        string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType!,
+                        string.IsNullOrWhiteSpace(x.CustomAnimalType) ? animalLabels.For(x.AnimalType) : x.CustomAnimalType!,
                         x.NumberOfHeads,
                         x.RatePerHead,
                         x.RatePerHead * x.NumberOfHeads))

@@ -1,4 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
 
@@ -6,7 +8,9 @@ namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 
 public class RecordSlaughterCommandValidator : AbstractValidator<RecordSlaughterCommand>
 {
-    public RecordSlaughterCommandValidator(ISlaughterRepository slaughterRepository)
+    public RecordSlaughterCommandValidator(
+        ISlaughterRepository slaughterRepository,
+        ISlaughterAnimalLabelProvider? animalLabelProvider = null)
     {
         RuleFor(x => x.OwnerName)
             .NotEmpty().WithMessage("Owner name is required.")
@@ -34,6 +38,20 @@ public class RecordSlaughterCommandValidator : AbstractValidator<RecordSlaughter
             .NotEmpty().WithMessage("Custom animal type is required.")
             .MaximumLength(100)
             .When(x => x.AnimalType == AnimalType.Other);
+
+        RuleFor(x => x.CustomAnimalType)
+            .MustAsync(async (name, ct) =>
+            {
+                if (SlaughterAnimalNames.IsCanonicalNameOrAlias(name)) return false;
+                if (animalLabelProvider is null) return true;
+                var labels = await animalLabelProvider.GetAsync(ct);
+                if (SlaughterAnimalNames.CollidesWithAny(name, [labels.Hog, labels.Carabao, labels.Cow]))
+                    return false;
+                var customNames = await animalLabelProvider.GetCustomNamesAsync(ct);
+                return SlaughterAnimalNames.UsesEstablishedSpelling(name, customNames);
+            })
+            .WithMessage("Custom animal type cannot duplicate a built-in name or use different casing from an existing custom animal.")
+            .When(x => x.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(x.CustomAnimalType));
 
         RuleFor(x => x.CustomRate)
             .NotNull().WithMessage("Custom rate is required.")

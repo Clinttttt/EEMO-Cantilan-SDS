@@ -20,7 +20,8 @@ public class ActivateMunicipalityDuplicateRateTests
     private static ActivateMunicipalityCommand Command(
         IReadOnlyList<ActivationRate> rates,
         IReadOnlyList<ActivationFacility>? facilities = null,
-        IReadOnlyList<ActivationCustomAnimal>? animals = null) =>
+        IReadOnlyList<ActivationCustomAnimal>? animals = null,
+        ActivationSlaughterLabels? labels = null) =>
         new(
             MunicipalityCode: "CARRASCAL",
             Branding: new ActivationBranding("Economic Enterprise & Management Office", null, null),
@@ -31,7 +32,8 @@ public class ActivateMunicipalityDuplicateRateTests
                 new(FacilityCode.SLH, "Carrascal Slaughterhouse", "CSLH", BillingArchetype.PerHead),
             },
             Rates: rates,
-            CustomAnimals: animals);
+            CustomAnimals: animals,
+            SlaughterLabels: labels);
 
     private static bool Validate(ActivateMunicipalityCommand command, out string? error)
     {
@@ -107,17 +109,49 @@ public class ActivateMunicipalityDuplicateRateTests
         Assert.Contains("150", error);
     }
 
-    [Fact]
-    public void TheSameAnimalStatedTwiceAtTheSameRate_IsAccepted()
+    [Theory]
+    [InlineData("Goat", "goat")]
+    [InlineData("Goat", "GOAT")]
+    public void TheSameAnimalStatedTwiceAtTheSameRate_IsRefusedRegardlessOfCase(string first, string second)
     {
         var ok = Validate(Command(
             rates: new List<ActivationRate> { new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m) },
             animals: new List<ActivationCustomAnimal>
             {
-                new("Goat", 120m),
-                new("Goat", 120m),
+                new(first, 120m),
+                new(second, 120m),
             }), out var error);
 
+        Assert.False(ok);
+        Assert.Contains("only once", error);
+    }
+
+    [Fact]
+    public void CarmenLabelsAndGoat_AreValidWithOneStableRatePerFinancialKey()
+    {
+        var ok = Validate(Command(
+            rates: new List<ActivationRate>
+            {
+                new(FacilityCode.SLH, FeeRateKey.SlhHogPerHead, 352m),
+                new(FacilityCode.SLH, FeeRateKey.SlhLargePerHead, 351m),
+            },
+            animals: new List<ActivationCustomAnimal> { new("Carmen Goat", 252m) },
+            labels: new("Carmen Hog", "Carmen Carabao", "Carmen Cow")), out var error);
+
         Assert.True(ok, error);
+    }
+
+    [Theory]
+    [InlineData("Hog")]
+    [InlineData("Carmen Hog")]
+    public void CustomAnimalCannotCompeteWithCanonicalIdentityOrOfficeLabel(string name)
+    {
+        var ok = Validate(Command(
+            rates: Array.Empty<ActivationRate>(),
+            animals: new List<ActivationCustomAnimal> { new(name, 252m) },
+            labels: new("Carmen Hog", "Carmen Carabao", "Carmen Cow")), out var error);
+
+        Assert.False(ok);
+        Assert.Contains("built-in animal", error);
     }
 }

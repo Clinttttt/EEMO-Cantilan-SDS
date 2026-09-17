@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -11,7 +12,8 @@ namespace EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterOvervie
 public class GetSlaughterOverviewQueryHandler(
     ISlaughterRepository slaughterRepository,
     IFeeRateResolver feeRateResolver,
-    IClock clock) : IRequestHandler<GetSlaughterOverviewQuery, Result<SlaughterOverviewDto>>
+    IClock clock,
+    ISlaughterAnimalLabelProvider? animalLabelProvider = null) : IRequestHandler<GetSlaughterOverviewQuery, Result<SlaughterOverviewDto>>
 {
     public async Task<Result<SlaughterOverviewDto>> Handle(GetSlaughterOverviewQuery request, CancellationToken ct)
     {
@@ -30,11 +32,13 @@ public class GetSlaughterOverviewQueryHandler(
         // an office that charges nothing, so the screen offered animals nobody had priced. The recording handler
         // already refuses a transaction whose per-head rate is unstated; this is the same rule, one screen earlier.
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var labels = animalLabelProvider is null ? SlaughterAnimalLabels.Canonical : await animalLabelProvider.GetAsync(ct);
         var asOf = RatePeriod.AsOf(request.Year, request.Month, clock.PhilippineToday);
         return Result<SlaughterOverviewDto>.Success(overview with
         {
             HogRatePerHead = snapshot.ResolveOrNull(FeeRateKey.SlhHogPerHead, asOf),
-            LargeRatePerHead = snapshot.ResolveOrNull(FeeRateKey.SlhLargePerHead, asOf)
+            LargeRatePerHead = snapshot.ResolveOrNull(FeeRateKey.SlhLargePerHead, asOf),
+            Labels = new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow)
         });
     }
 }

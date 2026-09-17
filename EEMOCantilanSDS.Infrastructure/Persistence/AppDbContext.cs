@@ -76,6 +76,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }
         public DbSet<SlaughterAnimalRate> SlaughterAnimalRates { get; set; }
+        public DbSet<SlaughterAnimalLabel> SlaughterAnimalLabels { get; set; }
 
         public DbSet<TpmVendor> TpmVendors { get; set; }
         public DbSet<TpmAttendance> TpmAttendances { get; set; }

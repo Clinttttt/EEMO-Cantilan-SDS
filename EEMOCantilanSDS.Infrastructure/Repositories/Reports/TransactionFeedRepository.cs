@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
@@ -20,14 +21,16 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 /// when rows were entered. Computed entity properties (TotalBill, AmountPaid, TotalAmount) are
 /// re-derived in memory from stored columns since they are not translatable to SQL.
 /// </summary>
-public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : ITransactionFeedRepository
+public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock,
+    ISlaughterAnimalLabelProvider? slaughterLabelProvider = null) : ITransactionFeedRepository
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
-    public TransactionFeedRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
+    public TransactionFeedRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock(), new SlaughterAnimalLabelProvider(context)) { }
 
     // Resolved NPM fish rate for the in-flight feed build; defaults to the ordinance constant so
     // Cantilan is byte-for-byte, refreshed per call in GetRecentTransactionsAsync.
     private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+    private readonly ISlaughterAnimalLabelProvider? _slaughterLabelProvider = slaughterLabelProvider;
 
     // Tenant facility names, resolved once per feed build. Stall/daily rows read Facility.Name via their
     // navigation; the transaction facilities TRM/TPM don't join Facility, so their display name is looked
@@ -277,6 +280,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
 
     private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
+        var labels = _slaughterLabelProvider is null ? SlaughterAnimalLabels.Canonical : await _slaughterLabelProvider.GetAsync(ct);
         var q = context.SlaughterTransactions.AsNoTracking();
         if (win is { } w)
             q = q.Where(s => s.TransactionDate >= w.FromDate && s.TransactionDate <= w.ToDate);
@@ -310,7 +314,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 // One receipt (OR) may cover multiple animal types — summarize them and sum the fees.
                 var animals = string.Join(", ", g.Select(x =>
                 {
-                    var name = string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType!;
+                    var name = string.IsNullOrWhiteSpace(x.CustomAnimalType) ? labels.For(x.AnimalType) : x.CustomAnimalType!;
                     return $"{name} \u00d7{x.NumberOfHeads}";
                 }));
                 var first = g.First();

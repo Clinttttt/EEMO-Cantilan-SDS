@@ -10,6 +10,18 @@ public record SlaughterAnimalRateDto(
     bool IsActive
 );
 
+/// <summary>Tenant wording for the three stable built-in animal identities.</summary>
+public record SlaughterAnimalLabelsDto(string Hog, string Carabao, string Cow)
+{
+    public string For(AnimalType type) => type switch
+    {
+        AnimalType.Hog => Hog,
+        AnimalType.Carabao => Carabao,
+        AnimalType.Cow => Cow,
+        _ => "Other",
+    };
+}
+
 public record SlaughterTransactionDto(
     Guid Id,
     string OwnerName,
@@ -35,7 +47,8 @@ public record SlaughterOverviewDto(
     // zero - so an office that does not slaughter carabao was offered a carabao at ₱0 per head, and one that had not
     // been configured at all was quoted Cantilan's ordinance. An animal an office does not price is not offered.
     decimal? HogRatePerHead = null,
-    decimal? LargeRatePerHead = null
+    decimal? LargeRatePerHead = null,
+    SlaughterAnimalLabelsDto? Labels = null
 );
 
 public record OwnerTransactionGroupDto(

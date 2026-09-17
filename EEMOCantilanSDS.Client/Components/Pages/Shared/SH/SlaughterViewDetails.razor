@@ -113,15 +113,15 @@
                             }
                             <div class="animal-count-item">
                                 <div class="animal-count-val">@HogCount</div>
-                                <div class="animal-count-label">Hog</div>
+                                <div class="animal-count-label">@Labels.Hog</div>
                             </div>
                             <div class="animal-count-item">
                                 <div class="animal-count-val">@CarabaoCount</div>
-                                <div class="animal-count-label">Carabao</div>
+                                <div class="animal-count-label">@Labels.Carabao</div>
                             </div>
                             <div class="animal-count-item">
                                 <div class="animal-count-val">@CowCount</div>
-                                <div class="animal-count-label">Cow</div>
+                                <div class="animal-count-label">@Labels.Cow</div>
                             </div>
                         </div>
                         <button class="btn-print" @onclick="PrintPage">
@@ -209,6 +209,7 @@
     [Parameter] public string OwnerName { get; set; } = string.Empty;
 
     private ClientProfileDto? Profile;
+    private SlaughterAnimalLabelsDto Labels { get; set; } = new("Hog", "Carabao", "Cow");
     private bool isLoading = true;
 
     [PersistentState(AllowUpdates = true)]
@@ -218,13 +219,15 @@
     private int TotalTransactions => Profile?.TotalTransactions ?? 0;
     private int TotalHeads => Profile?.TotalHeads ?? 0;
     private decimal TotalCollected => Profile?.TotalCollected ?? 0;
-    private int HogCount => Transactions.Count(t => t.AnimalTypeDisplay == "Hog");
-    private int CarabaoCount => Transactions.Count(t => t.AnimalTypeDisplay == "Carabao");
-    private int CowCount => Transactions.Count(t => t.AnimalTypeDisplay == "Cow");
-    private int OthersCount => Transactions.Count(t => t.AnimalTypeDisplay != "Hog" && t.AnimalTypeDisplay != "Carabao" && t.AnimalTypeDisplay != "Cow");
+    private int HogCount => Transactions.Count(t => t.AnimalTypeDisplay == Labels.Hog);
+    private int CarabaoCount => Transactions.Count(t => t.AnimalTypeDisplay == Labels.Carabao);
+    private int CowCount => Transactions.Count(t => t.AnimalTypeDisplay == Labels.Cow);
+    private int OthersCount => Transactions.Count(t => t.AnimalTypeDisplay != Labels.Hog && t.AnimalTypeDisplay != Labels.Carabao && t.AnimalTypeDisplay != Labels.Cow);
 
     protected override async Task OnInitializedAsync()
     {
+        var labels = await SlaughterApi.GetAnimalLabelsAsync();
+        if (labels.IsSuccess && labels.Value is not null) Labels = labels.Value;
         if (CachedProfile is not null &&
             string.Equals(CachedProfile.OwnerName, OwnerName, StringComparison.OrdinalIgnoreCase))
         {

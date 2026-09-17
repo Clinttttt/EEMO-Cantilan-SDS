@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.SetSlaughterAnimalLabels;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
@@ -35,4 +36,10 @@ public class SlaughterApiClient(HttpClient http) : HandleResponse(http), ISlaugh
 
     public async Task<Result<ClientProfileDto>> GetClientProfileAsync(string ownerName) =>
         await GetAsync<ClientProfileDto>($"api/slaughter/client/{Uri.EscapeDataString(ownerName)}");
+
+    public async Task<Result<SlaughterAnimalLabelsDto>> GetAnimalLabelsAsync() =>
+        await GetAsync<SlaughterAnimalLabelsDto>("api/slaughter/animal-labels");
+
+    public async Task<Result<bool>> SetAnimalLabelsAsync(SetSlaughterAnimalLabelsCommand command) =>
+        await PutAsync<SetSlaughterAnimalLabelsCommand, bool>("api/slaughter/animal-labels", command);
 }

@@ -20,6 +20,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         IReadOnlyList<ActivationFacility> Facilities,
         IReadOnlyList<ActivationRate> Rates,
         IReadOnlyList<ActivationCustomAnimal>? CustomAnimals = null,
+        ActivationSlaughterLabels? SlaughterLabels = null,
         ActivationOrSeries? OrSeries = null,
         DayOfWeek? TpmMarketDay = null) : IRequest<Result<ActivationResultDto>>;
 
@@ -92,6 +93,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     /// animal, the portal offers the name + this rate as a default the admin may still override.
     /// </summary>
     public record ActivationCustomAnimal(string AnimalName, decimal RatePerHead);
+
+    /// <summary>LGU wording for the three stable built-in animal identities. It never carries financial rates.</summary>
+    public record ActivationSlaughterLabels(string Hog, string Carabao, string Cow);
 
     /// <summary>
     /// Optional Official Receipt (OR) series configuration seeded at activation. OR numbers stay manually

@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -31,7 +32,8 @@ public class GetMonthEndReportQueryHandler(
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
-    EemoCacheOptions cacheOptions
+    EemoCacheOptions cacheOptions,
+    ISlaughterAnimalLabelProvider? animalLabelProvider = null
 ) : IRequestHandler<GetMonthEndReportQuery, Result<MonthEndReportDto>>
 {
     private static readonly FacilityCode[] RentalFacilities =
@@ -124,7 +126,10 @@ public class GetMonthEndReportQueryHandler(
         // Service-facility display names are resolved from the tenant catalog (ReportName) at the call site,
         // since the builder helpers are name-agnostic. Cantilan resolves to the seeded defaults (unchanged).
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(request.Year, request.Month, ct);
-        facilities.Add(BuildSlaughterFacility(slaughter) with { Name = ReportName(FacilityCode.SLH, facilityNames) });
+        var animalLabels = animalLabelProvider is null
+            ? SlaughterAnimalLabels.Canonical
+            : await animalLabelProvider.GetAsync(ct);
+        facilities.Add(BuildSlaughterFacility(slaughter, animalLabels) with { Name = ReportName(FacilityCode.SLH, facilityNames) });
 
         var trips = await trmRepository.GetTripsByMonthAsync(request.Year, request.Month, ct);
         facilities.Add(BuildTransactionFacility(FacilityCode.TRM, trips
@@ -174,7 +179,9 @@ public class GetMonthEndReportQueryHandler(
     /// (e.g. "2 Carabao · 2 Cow · 1 Hog"), and the expandable detail lists every transaction ordered by
     /// animal type so identical animals sit together while each receipt's OR stays visible for audit.
     /// </summary>
-    private static MonthEndFacilityDto BuildSlaughterFacility(IReadOnlyList<SlaughterTransactionDto> transactions)
+    private static MonthEndFacilityDto BuildSlaughterFacility(
+        IReadOnlyList<SlaughterTransactionDto> transactions,
+        SlaughterAnimalLabels labels)
     {
         var groups = transactions
             // One client is one row on the report. Keyed by person rather than exact spelling: the same client entered as
@@ -184,18 +191,18 @@ public class GetMonthEndReportQueryHandler(
             .Select(g =>
             {
                 var records = g
-                    .OrderBy(t => AnimalLabel(t), StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(t => AnimalLabel(t, labels), StringComparer.OrdinalIgnoreCase)
                     .ThenBy(t => t.TransactionDate)
                     .Select(t => new MonthEndTxnRecordDto(
                         t.TransactionDate.ToString("MMM d", CultureInfo.InvariantCulture),
-                        $"{t.NumberOfHeads} {AnimalLabel(t)} · ₱{t.RatePerHead:N0}/head",
+                        $"{t.NumberOfHeads} {AnimalLabel(t, labels)} · ₱{t.RatePerHead:N0}/head",
                         t.TotalAmount,
                         t.ORNumber))
                     .ToList();
 
                 var summary = string.Join(" · ", g
-                    .GroupBy(t => AnimalLabel(t))
-                    .Select(a => new { Animal = a.Key, Heads = a.Sum(x => x.NumberOfHeads) })
+                    .GroupBy(t => SlaughterAnimalNames.Normalize(AnimalLabel(t, labels)))
+                    .Select(a => new { Animal = AnimalLabel(a.First(), labels), Heads = a.Sum(x => x.NumberOfHeads) })
                     .OrderByDescending(a => a.Heads)
                     .ThenBy(a => a.Animal)
                     .Select(a => $"{a.Heads} {a.Animal}"));
@@ -278,8 +285,8 @@ public class GetMonthEndReportQueryHandler(
         return distinct.Count == 0 ? null : string.Join(" · ", distinct);
     }
 
-    private static string AnimalLabel(SlaughterTransactionDto t) =>
-        !string.IsNullOrWhiteSpace(t.CustomAnimalType) ? t.CustomAnimalType! : t.AnimalType.ToString();
+    private static string AnimalLabel(SlaughterTransactionDto t, SlaughterAnimalLabels labels) =>
+        !string.IsNullOrWhiteSpace(t.CustomAnimalType) ? t.CustomAnimalType! : labels.For(t.AnimalType);
 
     private static string FacilityName(FacilityCode code) => code switch
     {

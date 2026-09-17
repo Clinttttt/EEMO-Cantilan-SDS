@@ -99,6 +99,7 @@
         <SlaughterRecordModal ShowModal="ShowRecordModal"
                               HogRate="@Overview?.HogRatePerHead"
                               LargeRate="@Overview?.LargeRatePerHead"
+                              Labels="@AnimalLabels"
                               OnClose="CloseRecordModal"
                               OnSubmit="SubmitSlaughterRecord"
                               ErrorMessage="@ErrorMessage" />
@@ -107,6 +108,7 @@
         <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
                                       HogRate="@Overview?.HogRatePerHead"
                                       LargeRate="@Overview?.LargeRatePerHead"
+                                      Labels="@AnimalLabels"
                                       OwnerName="@SelectedOwnerName"
                                       TransactionDate="@SelectedTransactionDate"
                                       ORNumber="@SelectedORNumber"
@@ -118,6 +120,7 @@
         <EditSlaughterTransactionModal ShowModal="ShowEditModal"
                                        HogRate="@Overview?.HogRatePerHead"
                                        LargeRate="@Overview?.LargeRatePerHead"
+                                       Labels="@AnimalLabels"
                                        OnClose="CloseEditModal"
                                        OnSave="SubmitEditTransaction"
                                        ErrorMessage="@ErrorMessage"
@@ -152,7 +155,7 @@
                             @if (Overview?.HogRatePerHead is { } hogRate)
                             {
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">Hog — ₱@(hogRate.ToString("0"))</div>
+                                    <div class="slh-tooltip-animal">@AnimalLabels.Hog — ₱@(hogRate.ToString("0"))</div>
                                 </div>
                             }
 
@@ -163,7 +166,7 @@
                                     <div class="slh-tooltip-divider"></div>
                                 }
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">Carabao / Cow — ₱@(largeRate.ToString("0"))</div>
+                                    <div class="slh-tooltip-animal">@AnimalLabels.Carabao / @AnimalLabels.Cow — ₱@(largeRate.ToString("0"))</div>
                                 </div>
                             }
 
@@ -188,15 +191,15 @@
                 }
                 <div class="slh-mini-stat hog-stat">
                     <div class="slh-mini-val">@HogCount</div>
-                    <div class="slh-mini-key">Hogs</div>
+                    <div class="slh-mini-key">@AnimalLabels.Hog</div>
                 </div>
                 <div class="slh-mini-stat carabao-stat">
                     <div class="slh-mini-val">@CarabaoCount</div>
-                    <div class="slh-mini-key">Carabao</div>
+                    <div class="slh-mini-key">@AnimalLabels.Carabao</div>
                 </div>
                 <div class="slh-mini-stat cow-stat">
                     <div class="slh-mini-val">@CowCount</div>
-                    <div class="slh-mini-key">Cows</div>
+                    <div class="slh-mini-key">@AnimalLabels.Cow</div>
                 </div>
                 <div class="slh-mini-stat">
                     <div class="slh-mini-val">@FilteredOwnerGroups.Sum(g => g.LatestTransactions.Sum(t => t.NumberOfHeads))</div>
@@ -491,7 +494,8 @@
     private HashSet<string> ExpandedAnimalRows { get; set; } = new();
     private HashSet<string> ExpandedHistoryRows { get; set; } = new();
 
-    private readonly List<string> AnimalFilters = new() { "All", "Hog", "Carabao", "Cow", "Others" };
+    private SlaughterAnimalLabelsDto AnimalLabels => Overview?.Labels ?? new("Hog", "Carabao", "Cow");
+    private List<string> AnimalFilters => new() { "All", AnimalLabels.Hog, AnimalLabels.Carabao, AnimalLabels.Cow, "Others" };
 
     [PersistentState(AllowUpdates = true)]
     public SlaughterFacilityPageState? CachedSlaughterFacility { get; set; }
@@ -596,9 +600,9 @@
     {
         return animalType switch
         {
-            AnimalType.Hog => "Hog",
-            AnimalType.Carabao => "Carabao",
-            AnimalType.Cow => "Cow",
+            AnimalType.Hog => AnimalLabels.Hog,
+            AnimalType.Carabao => AnimalLabels.Carabao,
+            AnimalType.Cow => AnimalLabels.Cow,
             AnimalType.Other => customAnimalType ?? "Other",
             _ => "Unknown"
         };
@@ -642,11 +646,11 @@
     }
 
     // -- ROW CLASS ------------------------------------------------
-    private static string GetRowClass(string animalType) => animalType switch
+    private string GetRowClass(string animalType) => animalType switch
     {
-        "Hog" => "row-hog",
-        "Carabao" => "row-carabao",
-        "Cow" => "row-cow",
+        var x when x == AnimalLabels.Hog => "row-hog",
+        var x when x == AnimalLabels.Carabao => "row-carabao",
+        var x when x == AnimalLabels.Cow => "row-cow",
         _ => ""
     };
 
@@ -702,7 +706,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to record Hog transaction";
+                errorMsg = result.Error ?? $"Failed to record {AnimalLabels.Hog} transaction";
             }
         }
 
@@ -721,7 +725,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to record Carabao transaction";
+                errorMsg = result.Error ?? $"Failed to record {AnimalLabels.Carabao} transaction";
             }
         }
 
@@ -740,7 +744,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to record Cow transaction";
+                errorMsg = result.Error ?? $"Failed to record {AnimalLabels.Cow} transaction";
             }
         }
 
@@ -794,7 +798,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to add Hog transaction";
+                errorMsg = result.Error ?? $"Failed to add {AnimalLabels.Hog} transaction";
             }
         }
 
@@ -813,7 +817,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to add Carabao transaction";
+                errorMsg = result.Error ?? $"Failed to add {AnimalLabels.Carabao} transaction";
             }
         }
 
@@ -832,7 +836,7 @@
             if (!result.IsSuccess)
             {
                 hasError = true;
-                errorMsg = result.Error ?? "Failed to add Cow transaction";
+                errorMsg = result.Error ?? $"Failed to add {AnimalLabels.Cow} transaction";
             }
         }
 
