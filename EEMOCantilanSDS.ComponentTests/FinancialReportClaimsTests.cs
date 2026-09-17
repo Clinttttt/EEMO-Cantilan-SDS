@@ -68,6 +68,19 @@ public class FinancialReportClaimsTests
     }
 
     [Fact]
+    public void TheFollowUpDividerSpansTheFullHeightOfTheTwoColumns()
+    {
+        var css = ReadReport(".css");
+        var grids = Regex.Matches(css, @"\.rpt-attention\s*\{(?<rules>[^}]*)\}")
+            .Cast<Match>()
+            .Select(match => match.Groups["rules"].Value)
+            .ToList();
+
+        Assert.Contains(grids, rules => rules.Contains("align-items: stretch", StringComparison.Ordinal));
+        Assert.DoesNotContain(grids, rules => rules.Contains("align-items: start", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void EverySectionTabMarksASectionThatExists()
     {
         // The tabs show one section at a time. A tab whose key no section carries would simply hide everything, so the two

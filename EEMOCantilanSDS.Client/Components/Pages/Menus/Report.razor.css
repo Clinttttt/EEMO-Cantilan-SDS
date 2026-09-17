@@ -1344,12 +1344,12 @@
 .rpt-attention {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    align-items: start;
+    align-items: stretch;
 }
 
 /* One side empty: give it only the width it needs rather than half the sheet, and let the populated list have the rest.
    Both columns still state their figure — a nil is information on a financial report — but a nil does not need half a page.
-   align-items: start above stops the short column being stretched to the tall one's height. */
+   Equal-height grid cells keep the divider continuous without moving either column's content. */
 .rpt-attention.is-lopsided {
     grid-template-columns: minmax(0, 34%) 1fr;
 }
