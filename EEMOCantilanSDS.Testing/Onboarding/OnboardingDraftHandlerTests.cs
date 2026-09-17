@@ -51,13 +51,17 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             DbContextOptions<AppDbContext> options, string? config = null, DateTime? expiresAt = null)
         {
             using var seed = new AppDbContext(options);
-            var requestId = Guid.NewGuid();
             var token = "tok_" + Guid.NewGuid().ToString("N");
-            var draft = OnboardingDraft.Create(requestId, "Madrid", "Surigao del Sur", token, expiresAt ?? DateTime.UtcNow.AddDays(30));
+            var request = AssessmentRequest.Create(
+                "Madrid", "Surigao del Sur", "Municipality of Madrid", "Focal", "Officer",
+                "office@madrid.gov.ph", "0912", string.Empty, null, null, true, null);
+            request.Approve($"https://www.stalltrack.site/onboarding/{token}", null, "operator");
+            var draft = OnboardingDraft.Create(request.Id, "Madrid", "Surigao del Sur", token, expiresAt ?? DateTime.UtcNow.AddDays(30));
             if (config is not null) draft.UpdateConfig(config, "LGU");
+            seed.AssessmentRequests.Add(request);
             seed.OnboardingDrafts.Add(draft);
             await seed.SaveChangesAsync();
-            return (requestId, token);
+            return (request.Id, token);
         }
 
         [Fact]
@@ -113,8 +117,9 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.False(empty.IsSuccess);
             }
 
-            var (_, token) = await SeedDraftAsync(options, config: "{\"ok\":true}");
-            using (var ctx = new AppDbContext(options))
+            var configuredOptions = Options();
+            var (_, token) = await SeedDraftAsync(configuredOptions, config: "{\"ok\":true}");
+            using (var ctx = new AppDbContext(configuredOptions))
             {
                 var ok = await new SubmitOnboardingCommandHandler(ctx).Handle(new SubmitOnboardingCommand(token), default);
                 Assert.True(ok.IsSuccess);

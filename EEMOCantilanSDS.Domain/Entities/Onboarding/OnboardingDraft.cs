@@ -43,7 +43,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Onboarding
 
         public bool IsExpired => DateTime.UtcNow > ExpiresAt;
 
-        /// <summary>Save the LGU's edited config. Editing after a submission re-opens the draft.</summary>
+        /// <summary>Save the LGU's edited config while its linked pipeline remains in Onboarding.</summary>
         public void UpdateConfig(string? configJson, string updatedBy)
         {
             ConfigJson = configJson;

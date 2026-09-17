@@ -9,6 +9,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Onboarding
         PendingReview = 1,
         Approved = 2,
         Declined = 3,
+        Completed = 4,
+        Superseded = 5,
     }
 
     /// <summary>
@@ -117,6 +119,22 @@ namespace EEMOCantilanSDS.Domain.Entities.Onboarding
         public void ReturnToOnboarding(string updatedBy)
         {
             Stage = "Onboarding";
+            Touch(updatedBy);
+        }
+
+        /// <summary>The municipality was activated successfully; retain the request as completed history.</summary>
+        public void CompleteActivation(string updatedBy)
+        {
+            Status = AssessmentRequestStatus.Completed;
+            Stage = "Completed";
+            Touch(updatedBy);
+        }
+
+        /// <summary>An older duplicate pipeline was retired without deleting its assessment history.</summary>
+        public void Supersede(string updatedBy)
+        {
+            Status = AssessmentRequestStatus.Superseded;
+            Stage = "Superseded";
             Touch(updatedBy);
         }
 

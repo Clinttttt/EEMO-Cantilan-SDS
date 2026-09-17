@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Command.Onboarding.PreflightMunicipalityActivation;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
@@ -56,6 +57,12 @@ public class PlatformOperatorGuardTests
             AdminRole.SuperAdmin, isPlatformOperator: true);
         context.Add(target);
         context.Add(console);
+        var pipeline = AssessmentRequest.Create(
+            "Carmen", "Surigao del Sur", "Municipality of Carmen", "Focal", "Officer",
+            "office@carmen.gov.ph", "0912", string.Empty, null, null, true, null);
+        pipeline.Approve("https://www.stalltrack.site/onboarding/test", null, "operator");
+        pipeline.SubmitForValidation("LGU");
+        context.Add(pipeline);
         await context.SaveChangesAsync();
 
         var before = context.ChangeTracker.Entries().Count();
@@ -66,7 +73,8 @@ public class PlatformOperatorGuardTests
             new("Carmen EEMO", null, null),
             new("Head", "carmen.head", "head@carmen.gov.ph"),
             Array.Empty<ActivationFacility>(),
-            Array.Empty<ActivationRate>());
+            Array.Empty<ActivationRate>(),
+            AssessmentRequestId: pipeline.Id);
 
         var result = await handler.Handle(new(activation), CancellationToken.None);
 

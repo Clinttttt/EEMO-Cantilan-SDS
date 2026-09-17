@@ -12,6 +12,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -41,6 +42,14 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 return MunicipalityActivationPreflight.CopyFailure<ActivationResultDto>(preflight);
 
             var municipality = preflight.Value!;
+
+            var pipeline = await MunicipalityActivationPreflight.FindPipelineAsync(context, request, municipality, ct);
+            if (pipeline is null)
+                return Result<ActivationResultDto>.Failure(
+                    "No active onboarding request matches this municipality.", ResultStatus.Conflict);
+            if (pipeline.Stage != "Activation")
+                return Result<ActivationResultDto>.Failure(
+                    $"{pipeline.Municipality}'s onboarding request is in {pipeline.Stage}, not Activation.", ResultStatus.Conflict);
 
             var username = request.Administrator.Username.Trim();
 
@@ -164,6 +173,10 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 isActive: false);
             head.SetActivationToken(activationTokenHash, DateTime.UtcNow.AddDays(7));
             context.AdminUsers.Add(head);
+
+            // Activation and pipeline completion share the same transaction. A successful tenant can never leave an
+            // AssessmentRequest appearing active, and a failed activation leaves the request in Activation to retry.
+            pipeline.CompleteActivation(currentUser.Username ?? "Operator");
 
             // One SaveChanges => one transaction => all-or-nothing.
             await context.SaveChangesAsync(ct);
@@ -325,12 +338,38 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             if (municipality.Status == MunicipalityStatus.Active)
                 return Result<Municipality>.Failure("This municipality is already active.");
 
+            var pipeline = await FindPipelineAsync(context, request, municipality, ct);
+            if (pipeline is null)
+                return Result<Municipality>.Failure(
+                    "No active onboarding request matches this municipality.", ResultStatus.Conflict);
+
             var username = request.Administrator.Username.Trim();
             if (await context.Users.IgnoreQueryFilters()
                     .AnyAsync(u => u.MunicipalityId == municipality.Id && u.Username == username, ct))
                 return Result<Municipality>.Failure($"Username '{username}' is already taken in this municipality.");
 
             return Result<Municipality>.Success(municipality);
+        }
+
+        public static async Task<AssessmentRequest?> FindPipelineAsync(
+            IAppDbContext context,
+            ActivateMunicipalityCommand request,
+            Municipality municipality,
+            CancellationToken ct)
+        {
+            var active = OnboardingPipelineGuard.Active(context.AssessmentRequests);
+            if (request.AssessmentRequestId is Guid requestId)
+            {
+                return await active.FirstOrDefaultAsync(r =>
+                    r.Id == requestId
+                    && r.Municipality.Trim().ToUpper() == municipality.Name.Trim().ToUpper()
+                    && r.Province.Trim().ToUpper() == municipality.Province.Trim().ToUpper(), ct);
+            }
+
+            // Compatibility for a cached/older operator console. The database invariant guarantees at most one.
+            return await active.FirstOrDefaultAsync(r =>
+                r.Municipality.Trim().ToUpper() == municipality.Name.Trim().ToUpper()
+                && r.Province.Trim().ToUpper() == municipality.Province.Trim().ToUpper(), ct);
         }
 
         public static Result<T> CopyFailure<T>(Result<Municipality> source) =>

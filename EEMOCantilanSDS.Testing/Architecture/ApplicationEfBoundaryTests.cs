@@ -45,6 +45,12 @@ public class ApplicationEfBoundaryTests
         "PaginationExtensions.cs",
 
         // Onboarding and assessment: the operator pipeline from request to activation.
+        // The shared guard owns the one normalized active-pipeline query used at every transition, instead of letting
+        // subtly different municipality comparisons spread through those handlers.
+        "OnboardingPipelineGuard.cs",
+        // Public submission checks active municipalities and existing pipelines, then catches the named PostgreSQL
+        // partial-index race. Keeping both checks beside the insert produces the stage-specific business conflict.
+        "SubmitAssessmentRequestCommandHandler.cs",
         "SubmitOnboardingCommandHandler.cs",
         "UpdateOnboardingConfigCommandHandler.cs",
         "GetOnboardingDraftQueryHandler.cs",

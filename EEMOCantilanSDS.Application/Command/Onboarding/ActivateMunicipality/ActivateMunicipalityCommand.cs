@@ -22,7 +22,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         IReadOnlyList<ActivationCustomAnimal>? CustomAnimals = null,
         ActivationSlaughterLabels? SlaughterLabels = null,
         ActivationOrSeries? OrSeries = null,
-        DayOfWeek? TpmMarketDay = null) : IRequest<Result<ActivationResultDto>>;
+        DayOfWeek? TpmMarketDay = null,
+        Guid? AssessmentRequestId = null) : IRequest<Result<ActivationResultDto>>;
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
     public record ActivationBranding(string OfficeName, string? Address, string? SealPath, string? OfficeAcronym = null);

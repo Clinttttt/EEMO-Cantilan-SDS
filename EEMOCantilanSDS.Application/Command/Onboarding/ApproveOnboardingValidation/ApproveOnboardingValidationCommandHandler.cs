@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Application.Dtos.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
@@ -24,6 +25,12 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveOnboardingValida
 
             if (entity.Stage != "Validation")
                 return Result<AssessmentRequestDto>.Failure("Only a request in validation can be approved for activation.");
+
+            var existing = await OnboardingPipelineGuard.FindOtherActiveAsync(
+                context, entity.Municipality, entity.Province, entity.Id, ct);
+            if (existing is not null)
+                return Result<AssessmentRequestDto>.Failure(
+                    OnboardingPipelineGuard.DuplicateMessage(existing), ResultStatus.Conflict);
 
             entity.ApproveValidation(currentUser.Username ?? "Operator");
             await context.SaveChangesAsync(ct);

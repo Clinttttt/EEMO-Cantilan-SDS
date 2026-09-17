@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
@@ -72,6 +73,14 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var carmen = Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "carmen");
             seed.Municipalities.Add(cantilan);
             seed.Municipalities.Add(carmen);
+
+            var pipeline = AssessmentRequest.Create(
+                "Carmen", "Surigao del Sur", "Municipality of Carmen", "Focal Person", "Officer",
+                "office@carmen.gov.ph", "09123456789", string.Empty, null, null, true, null);
+            pipeline.Approve("https://www.stalltrack.site/onboarding/test", null, "test");
+            pipeline.SubmitForValidation("test");
+            pipeline.ApproveValidation("test");
+            seed.AssessmentRequests.Add(pipeline);
             await seed.SaveChangesAsync();
 // The dedicated console operator. The guard reads the IsPlatformOperator flag off the caller's own
             // account row: no municipality's Head is the operator any more, including the default municipality's,
@@ -376,6 +385,9 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.False(string.IsNullOrWhiteSpace(result.Value.ActivationToken));
                 Assert.Equal(2, result.Value.FacilitiesCreated);
                 Assert.Equal(2, result.Value.RatesCreated);
+                var completedPipeline = await ctx.AssessmentRequests.SingleAsync();
+                Assert.Equal(AssessmentRequestStatus.Completed, completedPipeline.Status);
+                Assert.Equal("Completed", completedPipeline.Stage);
             }
 
             // The registry record flipped to Active with its branding.

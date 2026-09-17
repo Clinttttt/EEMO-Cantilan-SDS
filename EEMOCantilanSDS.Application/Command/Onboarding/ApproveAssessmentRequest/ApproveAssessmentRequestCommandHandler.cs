@@ -29,6 +29,12 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentReques
             if (entity.Status != AssessmentRequestStatus.PendingReview)
                 return Result<AssessmentRequestDto>.Failure("Only a pending request can be approved.");
 
+            var existing = await OnboardingPipelineGuard.FindOtherActiveAsync(
+                context, entity.Municipality, entity.Province, entity.Id, ct);
+            if (existing is not null)
+                return Result<AssessmentRequestDto>.Failure(
+                    OnboardingPipelineGuard.DuplicateMessage(existing), ResultStatus.Conflict);
+
             // Issue a secure onboarding link + create the LGU's staged draft.
             var token = SecureToken.NewUrlToken();
             var link = OnboardingLinks.Build(token);

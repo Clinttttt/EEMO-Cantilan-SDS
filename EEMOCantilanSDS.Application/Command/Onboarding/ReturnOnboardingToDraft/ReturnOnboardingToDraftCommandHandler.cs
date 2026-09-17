@@ -3,8 +3,10 @@ using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Application.Dtos.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,6 +23,17 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ReturnOnboardingToDraft
             var entity = await context.AssessmentRequests.FirstOrDefaultAsync(x => x.Id == request.AssessmentRequestId, ct);
             if (entity is null)
                 return Result<AssessmentRequestDto>.NotFound();
+
+            if (entity.Status != AssessmentRequestStatus.Approved
+                || entity.Stage != "Validation")
+                return Result<AssessmentRequestDto>.Failure(
+                    "Only a request in validation can be returned to onboarding.");
+
+            var existing = await OnboardingPipelineGuard.FindOtherActiveAsync(
+                context, entity.Municipality, entity.Province, entity.Id, ct);
+            if (existing is not null)
+                return Result<AssessmentRequestDto>.Failure(
+                    OnboardingPipelineGuard.DuplicateMessage(existing), ResultStatus.Conflict);
 
             var by = currentUser.Username ?? "Operator";
             entity.ReturnToOnboarding(by);

@@ -101,6 +101,119 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Submit_WhenCarmenIsInValidation_IsRejectedWithTheCurrentStage()
+        {
+            var options = Options();
+            using (var seed = new AppDbContext(options))
+            {
+                var active = AssessmentRequest.Create("Carmen", "Surigao del Sur", "Municipality of Carmen",
+                    "Focal", "Officer", "office@carmen.gov.ph", "0912", string.Empty, null, null, true, null);
+                active.Approve("https://www.stalltrack.site/onboarding/carmen", null, "operator");
+                active.SubmitForValidation("LGU");
+                seed.AssessmentRequests.Add(active);
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options);
+            var result = await new SubmitAssessmentRequestCommandHandler(ctx).Handle(
+                SampleSubmit() with { Municipality = " carmen ", Province = "surigao del sur" }, default);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(ResultStatus.Conflict, result.Status);
+            Assert.Equal("Carmen already has an active onboarding request in Validation.", result.Error);
+            Assert.Single(await ctx.AssessmentRequests.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Approve_WhenCarmenAlreadyHasAnOnboardingPipeline_IsRejected()
+        {
+            var options = Options();
+            var (cantilanId, operatorId) = await SeedDefaultAsync(options);
+            Guid secondId;
+            using (var seed = new AppDbContext(options))
+            {
+                var active = AssessmentRequest.Create("Carmen", "Surigao del Sur", "Municipality of Carmen",
+                    "First", "Officer", "first@carmen.gov.ph", "0912", string.Empty, null, null, true, null);
+                active.Approve("https://www.stalltrack.site/onboarding/first", null, "operator");
+                var second = AssessmentRequest.Create("CARMEN", "SURIGAO DEL SUR", "Municipality of Carmen",
+                    "Second", "Officer", "second@carmen.gov.ph", "0913", string.Empty, null, null, true, null);
+                seed.AssessmentRequests.AddRange(active, second);
+                await seed.SaveChangesAsync();
+                secondId = second.Id;
+            }
+
+            using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
+            var result = await new ApproveAssessmentRequestCommandHandler(
+                    ctx, Operator(operatorId, cantilanId), new NoOpEmailSender())
+                .Handle(new ApproveAssessmentRequestCommand(secondId, null), default);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(ResultStatus.Conflict, result.Status);
+            Assert.Contains("Onboarding", result.Error);
+            Assert.Empty(await ctx.OnboardingDrafts.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Submit_AfterDeclinedHistory_IsAllowed()
+        {
+            var options = Options();
+            using (var seed = new AppDbContext(options))
+            {
+                var declined = AssessmentRequest.Create("Carmen", "Surigao del Sur", "Municipality of Carmen",
+                    "Former", "Officer", "former@carmen.gov.ph", "0912", string.Empty, null, null, true, null);
+                declined.Decline("Not ready", "operator");
+                seed.AssessmentRequests.Add(declined);
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options);
+            var result = await new SubmitAssessmentRequestCommandHandler(ctx).Handle(
+                SampleSubmit() with { Municipality = "Carmen" }, default);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(2, await ctx.AssessmentRequests.CountAsync());
+        }
+
+        [Fact]
+        public async Task Submit_DifferentMunicipalities_AreIndependent()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options);
+            var carmen = await new SubmitAssessmentRequestCommandHandler(ctx).Handle(
+                SampleSubmit() with { Municipality = "Carmen", OfficialEmail = "office@carmen.gov.ph" }, default);
+            var madrid = await new SubmitAssessmentRequestCommandHandler(ctx).Handle(SampleSubmit(), default);
+
+            Assert.True(carmen.IsSuccess);
+            Assert.True(madrid.IsSuccess);
+            Assert.Equal(2, await ctx.AssessmentRequests.CountAsync());
+        }
+
+        [Fact]
+        public async Task Submit_AfterMunicipalityIsActivated_FollowsTheExistingActiveMunicipalityRule()
+        {
+            var options = Options();
+            using (var seed = new AppDbContext(options))
+            {
+                seed.Municipalities.Add(Municipality.Create(
+                    "CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active, "carmen"));
+                var completed = AssessmentRequest.Create("Carmen", "Surigao del Sur", "Municipality of Carmen",
+                    "Former", "Officer", "former@carmen.gov.ph", "0912", string.Empty, null, null, true, null);
+                completed.Approve("https://www.stalltrack.site/onboarding/former", null, "operator");
+                completed.CompleteActivation("operator");
+                seed.AssessmentRequests.Add(completed);
+                await seed.SaveChangesAsync();
+            }
+
+            using var ctx = new AppDbContext(options);
+            var result = await new SubmitAssessmentRequestCommandHandler(ctx).Handle(
+                SampleSubmit() with { Municipality = "Carmen" }, default);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(ResultStatus.Conflict, result.Status);
+            Assert.Contains("already active", result.Error, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task Approve_ByOperator_MovesToOnboarding()
         {
             var options = Options();
