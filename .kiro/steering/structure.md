@@ -14,8 +14,9 @@ EEMOCantilanSDS/
 ├── EEMOCantilanSDS.Client/          Blazor Server portal + payor portal
 ├── EEMOCantilanSDS.Mobile/          .NET MAUI collector app (Android)
 ├── EEMOCantilanSDS.Mobile.Core/     platform-agnostic mobile services and models
-├── EEMOCantilanSDS.Testing/         xUnit unit + integration tests (EEMOCantilanSDS.UnitTest.csproj)
-└── EEMOCantilanSDS.ComponentTests/  bUnit render tests
+├── EEMOCantilanSDS.Testing/         xUnit unit/repository tests + opt-in PostgreSQL restore verification
+├── EEMOCantilanSDS.ComponentTests/  bUnit render tests
+└── EEMOCantilanSDS.IntegrationTests/ PostgreSQL/Testcontainers integration tests
 ```
 
 Repository root also holds: `.github/workflows/` (CI, deploy, APK publish, backup, restore),

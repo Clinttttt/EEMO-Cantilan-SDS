@@ -20,8 +20,9 @@ with its own facilities, fee rates, users, branding and data, isolated inside on
 | `EEMOCantilanSDS.Client` | net10.0 | Blazor Server portal, plus the public payor portal |
 | `EEMOCantilanSDS.Mobile` | net10.0-android | .NET MAUI collector app (offline-tolerant field collection) |
 | `EEMOCantilanSDS.Mobile.Core` | net9.0 | Platform-agnostic mobile services and models |
-| `EEMOCantilanSDS.Testing` | net9.0 | xUnit unit + integration tests |
+| `EEMOCantilanSDS.Testing` | net9.0 | xUnit unit/repository tests, plus one opt-in PostgreSQL tenant-restore verification |
 | `EEMOCantilanSDS.ComponentTests` | net10.0 | bUnit render tests |
+| `EEMOCantilanSDS.IntegrationTests` | net9.0 | PostgreSQL/Testcontainers integration tests |
 
 Also in the root: `.github/workflows/` (CI, production deploy, signed-APK publish, backup, restore),
 `mobile-app-site/` (the static site behind the collector-app download and bind links — **written to by
@@ -55,12 +56,17 @@ PayMongo and Firebase credentials all come from environment configuration.
 
 ### Tests
 
-Run the two suites **separately** — together they cause a bUnit timing flake.
+Run the three normal suites **separately** — combining them causes a bUnit timing flake. The integration suite
+requires Docker/Testcontainers.
 
 ```bash
 dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
 dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
+dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj
 ```
+
+`TenantRestoreRoundTripTests` is a separate opt-in local PostgreSQL verification inside the unit-test project,
+enabled with `KIRO_PG_RESTORE_TEST`; it is not part of the normal CI integration suite.
 
 ### Migrations
 
@@ -77,7 +83,7 @@ dotnet ef migrations script --project EEMOCantilanSDS.Infrastructure --startup-p
 
 A push to `master` builds both container images (tagged with the commit SHA), pushes them to Azure Container
 Registry, and updates the two Azure Web App sitecontainers — portal and API. Roughly 10–13 minutes.
-Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) do not trigger it.
+Documentation-only paths (`.kiro/**`, `.agents/**`, `README.md`, `AGENTS.md`) do not trigger it.
 
 Verify rather than trust: the deployed image tag equals `HEAD`, API `/health` returns 200, portal `/login`
 returns 200, and the scoped CSS bundle is brace-balanced. Collector-app changes additionally need a RELEASE APK
@@ -87,15 +93,17 @@ rebuild before collectors see them.
 
 ## Conventions and rules
 
-Read these before changing code — they are the source of truth, in this order:
+Read these before changing code, in this reading order:
 
-1. `.kiro/knowledge/arch-rules.md` — what is allowed and what is forbidden
+1. `.kiro/knowledge/arch-rules.md` — implementation boundaries: what is allowed and what is forbidden
 2. `.kiro/knowledge/patterns.md` — the code shapes to copy
 3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
-4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — the business truth
+4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — accepted business semantics
 
 Short versions of the same material live in `.kiro/steering/`. `AGENTS.md` is the root entry point for agents
-that look there (Codex).
+that look there (Codex) and defines authority and conflict handling. This reading order is navigation, not automatic
+precedence: explicit current rulings, intended documentation, implementation/tests/workflows and verified production
+behaviour may disagree, and the contradiction must be investigated to determine which source is stale.
 
 Three rules worth stating on the front page:
 
