@@ -58,7 +58,8 @@ effective date in `FacilityRates`.
 - A **partial payment counts as unpaid** for the paid-vs-unpaid invariant, and is reported separately as partial.
 - NPM is never billed monthly: `RecordPayment` refuses it; daily collections and month settlement are the routes.
 - Rosters list current holders only; monetary totals count active stalls only.
-- Business-day logic uses `PhilippineTime` (UTC+8); stored timestamps stay UTC. Mobile uses device-local time.
+- Business-day logic uses `PhilippineTime` (UTC+8); stored timestamps stay UTC. Collector screens prefer the
+  server-issued session business date and use the device-local date only as fallback.
 - Two-factor is opt-in for all and **mandatory for Heads**, enforced after sign-in so nobody can be locked out.
 - Account lockout: 5 failed attempts = 15 minutes. Access token 15 min, refresh 7 days, hashed and revoked on logout.
 - Every financial mutation is audited with actor, timestamp and before/after values.

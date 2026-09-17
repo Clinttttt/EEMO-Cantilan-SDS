@@ -1,6 +1,8 @@
 # Architecture Rules
 
-Repository-wide rules. **This file wins** when it disagrees with the other knowledge files.
+Repository-wide implementation boundaries. Business semantics are recorded in `EEMO_Complete_Documentation.md` and
+explicit current rulings. When sources disagree, follow the conflict rule in the root `AGENTS.md`; do not silently make
+an implementation rule override a business ruling.
 
 ---
 
@@ -17,8 +19,9 @@ EEMOCantilanSDS.Api             controllers, middleware, hubs, auth             
 EEMOCantilanSDS.Client          Blazor Server portal + payor portal                    (→ Application, HttpClients)
 EEMOCantilanSDS.Mobile          .NET MAUI collector app                                (→ Application, HttpClients, Mobile.Core)
 EEMOCantilanSDS.Mobile.Core     platform-agnostic mobile services and models
-EEMOCantilanSDS.Testing         xUnit unit/integration tests (EEMOCantilanSDS.UnitTest.csproj)
+EEMOCantilanSDS.Testing         xUnit unit tests (EEMOCantilanSDS.UnitTest.csproj)
 EEMOCantilanSDS.ComponentTests  bUnit render tests for Blazor components
+EEMOCantilanSDS.IntegrationTests PostgreSQL/Testcontainers integration tests
 ```
 
 **Never:** Domain referencing anything; Application referencing Infrastructure; a presentation project
@@ -154,9 +157,10 @@ tenant. Consequences you must respect:
 
 ## 9. Testing
 
-- Unit and integration tests in `EEMOCantilanSDS.Testing`; bUnit render tests in
-  `EEMOCantilanSDS.ComponentTests`.
-- **Run the two suites in separate commands.** Running them together causes a bUnit timing flake.
+- Unit tests live in `EEMOCantilanSDS.Testing`, bUnit render tests in `EEMOCantilanSDS.ComponentTests`, and
+  PostgreSQL/Testcontainers integration tests in `EEMOCantilanSDS.IntegrationTests`.
+- **Run all three suites in separate commands.** Combining them causes a bUnit timing flake; integration tests
+  additionally require Docker.
 - bUnit's default `WaitForAssertion` timeout is 1 second and pages render after an async load — pass an
   explicit generous timeout.
 - Money, reports, delinquency and tenancy changes need a test that FAILS before the fix. Reintroduce the
@@ -175,4 +179,4 @@ tenant. Consequences you must respect:
 - `master` is production: a push deploys (~10–13 minutes). Always verify afterwards — image tag equals HEAD,
   API `/health` 200, portal `/login` 200, and the scoped CSS bundle brace-balanced.
 - Mobile changes need a RELEASE APK rebuild before collectors see them.
-- Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) are excluded from the deploy trigger.
+- Documentation-only paths (`.kiro/**`, `.agents/**`, `README.md`, `AGENTS.md`) are excluded from the deploy trigger.

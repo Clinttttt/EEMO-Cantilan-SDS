@@ -4,9 +4,10 @@
 **First and reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur
 **Status:** In production. Web portal, API and collector app are all live; further LGUs onboard through the platform console.
 
-> This file is the source of truth for BUSINESS behaviour. For layering and coding rules see `arch-rules.md`,
-> for the reasons behind the design see `ARCHITECTURE_DOCUMENTATION.md`, and for code shapes to copy see
-> `patterns.md`. Where they disagree, `arch-rules.md` wins.
+> This file records accepted BUSINESS behaviour. For layering and coding rules see `arch-rules.md`, for the reasons
+> behind the design see `ARCHITECTURE_DOCUMENTATION.md`, and for code shapes to copy see `patterns.md`. When those
+> sources or the current implementation disagree, follow the conflict rule in the root `AGENTS.md`; determine which
+> source is stale rather than silently choosing one.
 
 ---
 
@@ -132,8 +133,8 @@ Consequences the whole system holds to:
 - **Collector attribution:** `CollectorId` is taken from the authenticated user, never from the request body.
   An admin-recorded entry leaves it null and is attributed through the audit fields instead.
 - **Business-day logic** (today, current month, expiry, streaks, trip day, market day) uses
-  `PhilippineTime` (UTC+8). Stored timestamps stay UTC. The mobile app is the exception: it uses device-local
-  time for the collector's own day.
+  `PhilippineTime` (UTC+8). Stored timestamps stay UTC. Collector screens use the server-issued session business
+  date when available, falling back to the device-local date only when the session carries no date.
 - **Excused / absent days** exist for NPM (a vendor who did not trade) and are excluded from arrears.
 - **Audit trail:** every financial mutation is written to `AuditLog` with actor, timestamp and before/after
   values, independently of the editable created/updated fields.

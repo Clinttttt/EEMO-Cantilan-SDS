@@ -34,19 +34,21 @@ Mixed on purpose — the presentation apps run ahead of the shared libraries:
 
 ## Testing
 
-- xUnit. Unit and integration tests: `EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj`.
+- xUnit unit tests: `EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj`.
 - bUnit 1.40 render tests: `EEMOCantilanSDS.ComponentTests`. Moq for test doubles.
-- **Run the two suites in separate commands** — together they cause a bUnit timing flake.
+- PostgreSQL/Testcontainers integration tests: `EEMOCantilanSDS.IntegrationTests` (requires Docker).
+- **Run all three suites in separate commands** — combining them causes a bUnit timing flake.
 
 ## Common commands
 
 ```bash
 # Build everything
-dotnet build EEMOCantilanSDS.slnx
+dotnet build EEMOCantilanSDS.slnx --configuration Release
 
 # Tests — separately, always
-dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
-dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
+dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj --configuration Release
+dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj --configuration Release
+dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj --configuration Release
 
 # Run locally
 cd EEMOCantilanSDS.Api && dotnet run          # API
@@ -73,11 +75,11 @@ be additive** — new nullable columns or new tables, never destructive DDL.
 
 - GitHub Actions on a push to `master`: build → container images tagged with the commit SHA → Azure Container
   Registry → two Azure Web App sitecontainers (portal + API). Roughly 10–13 minutes.
-- Workflows: `ci.yml`, `deploy-production.yml`, `publish-apk.yml` (builds the signed APK and publishes it to the
-  download site), `backup.yml`, `restore.yml`.
-- Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) do not trigger a deployment.
-- `mobile-app-site/` is the static site behind the collector-app download and bind links; `publish-apk.yml`
-  writes the APK into it. **Do not delete it.**
+- Workflows: `ci.yml`, `deploy-production.yml`, `publish-apk.yml` (builds the signed APK, attaches it to the latest
+  GitHub Release and advertises that version), `backup.yml`, `restore.yml`.
+- Documentation-only paths (`.kiro/**`, `.agents/**`, `README.md`, `AGENTS.md`) do not trigger a deployment.
+- `mobile-app-site/` is the static download and bind-link page. The APK itself is served from the latest GitHub Release,
+  not the static site. **Do not delete it.**
 - Verify a deployment rather than trusting it: image tag equals `HEAD`, API `/health` 200, portal `/login` 200,
   and the scoped CSS bundle brace-balanced.
 

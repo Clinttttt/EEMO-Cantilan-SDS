@@ -8,6 +8,7 @@ on:
       # Documentation-only commits must not spend a production deployment. The agent-facing knowledge base,
       # the steering rules and the Codex entry point are all documentation.
       - '.kiro/**'
+      - '.agents/**'
       - 'README.md'
       - 'AGENTS.md'
   workflow_dispatch:
