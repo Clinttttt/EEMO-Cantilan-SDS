@@ -6,11 +6,13 @@ using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalities;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -397,6 +399,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.Equal(MunicipalityStatus.Active, carmen.Status);
                 Assert.True(carmen.IsActive);
                 Assert.Equal("Carmen Economic Enterprise Office", carmen.OfficeName);
+
+                // The anonymous landing reads this projection, not the activation response or a platform-side cache.
+                var registry = await new GetMunicipalitiesQueryHandler(new MunicipalityRepository(verify))
+                    .Handle(new GetMunicipalitiesQuery(), default);
+                var publicCarmen = Assert.Single(registry.Value!, m => m.Code == "CARMEN");
+                Assert.Equal("Active", publicCarmen.Status);
+                Assert.True(publicCarmen.IsActive);
             }
 
             // Facilities / rates / Head are all scoped to Carmen (never the operator's Cantilan id).
