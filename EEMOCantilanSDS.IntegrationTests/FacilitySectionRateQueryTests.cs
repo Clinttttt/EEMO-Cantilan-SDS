@@ -24,7 +24,11 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public class FacilitySectionRateQueryTests(PostgresFixture db)
 {
     /// <summary>Seeds one LGU with a market and a stall in a section of the office's own naming.</summary>
-    private async Task<(Guid MunicipalityId, Guid StallId)> SeedAsync(string code, string name, string section)
+    private async Task<(Guid MunicipalityId, Guid StallId)> SeedAsync(
+        string code,
+        string name,
+        string section,
+        NpmMonthBasis monthBasis = NpmMonthBasis.RentGoal)
     {
         var municipality = Municipality.Create(code, name, "Surigao del Sur", MunicipalityStatus.Active,
             tenantCode: code.ToLowerInvariant());
@@ -36,6 +40,7 @@ public class FacilitySectionRateQueryTests(PostgresFixture db)
         }
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM", municipalityId: municipality.Id);
+        facility.SetMonthBasis(monthBasis);
         facility.AddCustomSection(section);
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental,
             municipalityId: municipality.Id, customSectionName: section);
@@ -142,6 +147,42 @@ public class FacilitySectionRateQueryTests(PostgresFixture db)
         // The database refuses it, so an edit landing on today's row must adjust that row rather than add a second â€” which
         // is what the handler does, and this is the guard behind it.
         await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
+    }
+
+    [SkippableFact]
+    public async Task EqualDailyRatesDoNotLeakDifferentMonthBasesAcrossTenants()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        var (rentGoalTenant, _) = await SeedAsync(
+            "SDS-MB1", "Monthly Goal Municipality", "Vegetable Area", NpmMonthBasis.RentGoal);
+        var (pureDaysTenant, _) = await SeedAsync(
+            "SDS-MB2", "Calendar Day Municipality", "Vegetable Area", NpmMonthBasis.PureDays);
+
+        foreach (var municipalityId in new[] { rentGoalTenant, pureDaysTenant })
+        {
+            await using var write = db.CreateContext(municipalityId);
+            write.FacilityRates.Add(FacilityRate.Create(
+                FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2026, 1, 1), municipalityId));
+            await write.SaveChangesAsync();
+        }
+
+        await using (var rentGoalRead = db.CreateContext(rentGoalTenant))
+        {
+            var snapshot = await new FeeRateResolver(rentGoalRead).GetSnapshotAsync();
+            Assert.Equal(30m, snapshot.Resolve(FeeRateKey.NpmDailyStall, new DateOnly(2026, 8, 29)));
+            Assert.Equal(NpmMonthBasis.RentGoal, snapshot.MonthRule.Basis);
+            Assert.True(snapshot.MonthRule.HasMonthlyGoal);
+        }
+
+        await using (var pureDaysRead = db.CreateContext(pureDaysTenant))
+        {
+            var snapshot = await new FeeRateResolver(pureDaysRead).GetSnapshotAsync();
+            Assert.Equal(30m, snapshot.Resolve(FeeRateKey.NpmDailyStall, new DateOnly(2026, 8, 29)));
+            Assert.Equal(NpmMonthBasis.PureDays, snapshot.MonthRule.Basis);
+            Assert.False(snapshot.MonthRule.HasMonthlyGoal);
+        }
     }
 
 }

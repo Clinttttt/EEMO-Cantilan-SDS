@@ -84,8 +84,6 @@ public class MonthBasisIsAskedOfTheRuleTests
         ["NpmReports.razor"] =
             "The register's monthly column, gated on the rule after the audit found it stating a month nobody owes.",
 
-        ["StallHoldersList.razor"] = "A comment pointing at where the roster's figures come from.",
-
         ["MarketRentReminder.razor"] = "States the convention to an office being asked to confirm its own month.",
 
         ["FacilityConfiguration.razor"] =
