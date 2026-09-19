@@ -139,6 +139,31 @@ public class ClosedStallAccountsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task PureDaysClosedAccountCarriesNoSyntheticMonthlyRentAndKeepsItsDailyBalance()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "Calendar-day Market", "NPM");
+        facility.SetMonthBasis(NpmMonthBasis.PureDays);
+        var stall = Stall.Create(
+            facility.Id, "V-2", 5_000m, ApplicableFees.DailyRental,
+            section: MarketSection.VegetableArea);
+        var contract = Contract.Create(
+            stall.Id, "Calendar Vendor", "Calendar Vendor", new DateOnly(2026, 6, 1), 5, 5_000m);
+        var rate = FacilityRate.Create(
+            FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m, new DateOnly(2020, 1, 1), Guid.Empty);
+        stall.Close(new DateOnly(2026, 6, 10), "Head");
+
+        context.AddRange(facility, stall, contract, rate);
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        Assert.Equal(NpmMonthBasis.PureDays, row.MonthBasis);
+        Assert.Equal(0m, row.MonthlyRate);
+        Assert.Equal(10 * 40m, row.Uncollected);
+    }
+
+    [Fact]
     public async Task ExpiredStall_AppearsAsExpired_WithArrearsUpToContractExpiry()
     {
         var context = NewContext();

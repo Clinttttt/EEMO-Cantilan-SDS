@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Domain.Enums;
+
 namespace EEMOCantilanSDS.Application.Dtos.Stalls;
 
 /// <summary>
@@ -16,6 +18,10 @@ namespace EEMOCantilanSDS.Application.Dtos.Stalls;
 /// <param name="IsDailyBilled">
 /// True when the facility collects a daily fee for this stall, so the form can label the rate field honestly.
 /// </param>
+/// <param name="MonthBasis">
+/// The market month rule in force. The client must use this explicit semantic value rather than infer a monthly goal
+/// from whether a legacy monthly-rate field happens to contain a value.
+/// </param>
 /// <param name="SuggestedStallNo">
 /// The next number after the highest in that facility and section — a SUGGESTION only. The create path re-checks
 /// uniqueness, so if two clerks work at once one is told the number is taken rather than both registering it.
@@ -31,5 +37,6 @@ public sealed record StallReassignmentPreviewDto(
     decimal MonthlyRate,
     bool IsDailyBilled,
     string SuggestedStallNo,
-    int SuggestedDurationYears
+    int SuggestedDurationYears,
+    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal
 );

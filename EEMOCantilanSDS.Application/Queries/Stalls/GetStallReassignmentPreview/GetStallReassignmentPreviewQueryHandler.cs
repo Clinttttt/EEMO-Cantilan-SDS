@@ -53,12 +53,15 @@ public class GetStallReassignmentPreviewQueryHandler(
             sectionLabel,
             lastContract.ActualOccupant,
             lastContract.NameOnContract,
-            lastContract.MonthlyRentalRate > 0 ? lastContract.MonthlyRentalRate : stall.MonthlyRate,
+            facilityCode.Value == FacilityCode.NPM && facility.MonthBasis == NpmMonthBasis.PureDays
+                ? 0m
+                : lastContract.MonthlyRentalRate > 0 ? lastContract.MonthlyRentalRate : stall.MonthlyRate,
             facility.Archetype == BillingArchetype.DailyStall,
             await SuggestStallNoAsync(facilityCode.Value, stall, ct),
             // Kept inside what a contract may run for, so a legacy record with a longer term does not pre-fill the
             // form with a figure the create path would refuse.
-            Math.Clamp(lastContract.DurationYears, 1, 10)));
+            Math.Clamp(lastContract.DurationYears, 1, 10),
+            facilityCode.Value == FacilityCode.NPM ? facility.MonthBasis : NpmMonthBasis.RentGoal));
     }
 
     /// <summary>

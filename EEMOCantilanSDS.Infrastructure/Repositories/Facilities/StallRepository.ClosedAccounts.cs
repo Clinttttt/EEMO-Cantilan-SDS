@@ -309,10 +309,15 @@ public partial class StallRepository
                 contract.EffectivityDate,
                 contract.DurationYears,
                 // A daily-collected stall has no monthly contract rate: state the rent the space is let for — the
-                // LGU's own stated market month, or thirty of its daily fee, and a custom section's own rate for its
-                // own month — never the hand-entered figure stored on the stall. A monthly facility states the rent
-                // THIS occupancy was let at, which is also the figure the collection dialog offers.
-                isNpm ? stall.ResolveMonthlyRent(NpmDailyFee.ForStall(stall, rateSnapshot, today), npmMonthlyRent) : occupancyMonthlyRate,
+                // Under RentGoal this is the LGU's own stated market month (or its configured compatibility fallback),
+                // and a custom section's own rate for its own month — never a hand-entered stall figure. PureDays has
+                // no fixed monthly rent, so the presentation value is zero while its balance remains rule-calculated.
+                // A monthly facility states the rent THIS occupancy was let at, which is also what collection offers.
+                isNpm
+                    ? (rateSnapshot.MonthRule.HasMonthlyGoal
+                        ? stall.ResolveMonthlyRent(NpmDailyFee.ForStall(stall, rateSnapshot, today), npmMonthlyRent)
+                        : 0m)
+                    : occupancyMonthlyRate,
                 isClosed ? stall.ClosedAt : null,
                 contractExpiry,
                 lifetimeCollected,
@@ -346,7 +351,8 @@ public partial class StallRepository
                 !string.IsNullOrWhiteSpace(stall.CustomSectionName)
                     && closedSections.Any(s => string.Equals(s.Trim(), stall.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase)),
                 // How far behind this account is, by the same rule a live one is judged by.
-                monthsUnpaid));
+                monthsUnpaid,
+                isNpm ? rateSnapshot.MonthRule.Basis : NpmMonthBasis.RentGoal));
         }
 
         return result

@@ -211,9 +211,12 @@ public class AssignPastOccupantStallTests
     // ── The preview the form is filled from ───────────────────────────────────────────────────────────
 
     private static GetStallReassignmentPreviewQueryHandler BuildPreview(
-        Stall past, IReadOnlyList<Stall> siblings, BillingArchetype archetype = BillingArchetype.DailyStall)
+        Stall past, IReadOnlyList<Stall> siblings, BillingArchetype archetype = BillingArchetype.DailyStall,
+        NpmMonthBasis monthBasis = NpmMonthBasis.RentGoal)
     {
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM", archetype: archetype);
+        if (monthBasis != NpmMonthBasis.RentGoal)
+            facility.SetMonthBasis(monthBasis);
 
         var stalls = new Mock<IStallRepository>();
         var facilities = new Mock<IFacilityRepository>();
@@ -269,6 +272,71 @@ public class AssignPastOccupantStallTests
 
         Assert.True(daily.Value!.IsDailyBilled);
         Assert.False(monthly.Value!.IsDailyBilled);
+    }
+
+    [Fact]
+    public async Task ThePreviewCarriesTheExplicitMarketMonthBasis()
+    {
+        var past = PastStall();
+
+        var result = await BuildPreview(
+                past, new[] { Numbered("3") }, BillingArchetype.DailyStall, NpmMonthBasis.PureDays)
+            .Handle(new GetStallReassignmentPreviewQuery(past.Id), CancellationToken.None);
+
+        Assert.Equal(NpmMonthBasis.PureDays, result.Value!.MonthBasis);
+    }
+
+    [Fact]
+    public void ReassignmentStructuralValidationAllowsZeroForTheNestedCreateRuleToDecide()
+    {
+        var command = Command(Guid.NewGuid()) with { MonthlyRate = 0m };
+
+        var result = new AssignPastOccupantStallCommandValidator().Validate(command);
+
+        Assert.DoesNotContain(result.Errors, e => e.PropertyName == nameof(command.MonthlyRate));
+    }
+
+    [Fact]
+    public async Task TheNestedCreateRuleAcceptsZeroOnlyForPureDays()
+    {
+        var command = new CreateStallCommand(
+            FacilityCode.NPM, "24", 0m, ApplicableFees.BaseRental, MarketSection.MeatSection,
+            null, null, null, 30m, "Ramil C. Orjeles", null, new DateTime(2026, 7, 31), 3);
+        var stalls = new Mock<IStallRepository>();
+        stalls.Setup(r => r.IsStallNoUniqueAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>(), It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var clock = new FixedClock(new DateTime(2026, 7, 31));
+
+        var pureDays = await new CreateStallCommandValidator(
+                stalls.Object, clock, CacheTestDoubles.PureDaysFeeRateResolver)
+            .ValidateAsync(command);
+        var rentGoal = await new CreateStallCommandValidator(
+                stalls.Object, clock, CacheTestDoubles.FeeRateResolver)
+            .ValidateAsync(command);
+
+        Assert.DoesNotContain(pureDays.Errors, e => e.PropertyName == nameof(command.MonthlyRate));
+        Assert.Contains(rentGoal.Errors, e => e.PropertyName == nameof(command.MonthlyRate));
+    }
+
+    [Fact]
+    public async Task PureDaysReassignmentCarriesZeroToTheAuthoritativeCreatePath()
+    {
+        var past = PastStall();
+        var (handler, sender, _) = BuildCommand(past);
+        CreateStallCommand? sent = null;
+        sender.Setup(s => s.Send(It.IsAny<CreateStallCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<StallDto>>, CancellationToken>((c, _) => sent = (CreateStallCommand)c)
+            .ReturnsAsync(Result<StallDto>.Success(new StallDto(
+                Guid.NewGuid(), "24", StallStatus.Active, "Ramil C. Orjeles", null,
+                null, null, 0m, 30m, null, MarketSection.MeatSection, null, null, null)));
+
+        var result = await handler.Handle(Command(past.Id) with { MonthlyRate = 0m }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(sent);
+        Assert.Equal(0m, sent!.MonthlyRate);
     }
 
     [Fact]

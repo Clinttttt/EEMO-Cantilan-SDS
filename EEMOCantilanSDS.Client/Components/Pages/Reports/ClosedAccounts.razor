@@ -482,9 +482,16 @@
                         <label>Duration (years)
                             <input type="number" min="1" max="10" @bind="_assignDuration" />
                         </label>
-                        <label>@(_assignPreview.IsDailyBilled ? "Monthly equivalent (₱)" : "Monthly rental (₱)")
-                            <input type="number" min="0" step="0.01" @bind="_assignMonthlyRate" />
-                        </label>
+                        @if (_assignPreview.MonthBasis != NpmMonthBasis.PureDays)
+                        {
+                            <label>Monthly rental (₱)
+                                <input type="number" min="0" step="0.01" @bind="_assignMonthlyRate" />
+                            </label>
+                        }
+                        else
+                        {
+                            <p class="ca-renew-note">Calendar-day billing · no fixed monthly rent.</p>
+                        }
                         <label>Name on contract
                             <input type="text" @bind="_assignContractName" />
                         </label>
@@ -608,11 +615,16 @@
                         <label>Area note
                             <input type="text" @bind="_renewAreaNote" placeholder="e.g. Corner, Extension" />
                         </label>
-                        <label>Monthly rental (₱)
-                            <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
-                        </label>
+                        @if (_renewTarget.MonthBasis != NpmMonthBasis.PureDays)
+                        {
+                            <label>Monthly rental (₱)
+                                <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
+                            </label>
+                        }
                     </div>
-                    <p class="ca-renew-note">Whole year: @Money(_renewMonthlyRate * 12). The lapsed period is not back-billed.</p>
+                    <p class="ca-renew-note">@(_renewTarget.MonthBasis == NpmMonthBasis.PureDays
+                        ? "Calendar-day billing · the lapsed period is not back-billed."
+                        : $"Whole year: {Money(_renewMonthlyRate * 12)}. The lapsed period is not back-billed.")</p>
                 }
                 @if (_actionError is not null)
                 {

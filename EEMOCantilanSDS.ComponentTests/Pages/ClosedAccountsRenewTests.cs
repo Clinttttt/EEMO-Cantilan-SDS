@@ -26,7 +26,7 @@ public class ClosedAccountsRenewTests : TestContext
     private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>An expired account: term lapsed, stall still open, nobody else in it.</summary>
-    private static ClosedStallAccountDto ExpiredAccount() => new(
+    private static ClosedStallAccountDto ExpiredAccount(NpmMonthBasis monthBasis = NpmMonthBasis.RentGoal) => new(
         StallId: Guid.NewGuid(),
         State: InactiveAccountState.Expired,
         FacilityCode: FacilityCode.NPM,
@@ -47,7 +47,8 @@ public class ClosedAccountsRenewTests : TestContext
         StallReLet: false,
         ContractId: Guid.NewGuid(),
         AreaSqm: 4.0,
-        AreaNote: "Extension");
+        AreaNote: "Extension",
+        MonthBasis: monthBasis);
 
     private (IRenderedComponent<ClosedAccounts> Cut, List<RenewStallContractRequest> Sent) Render(ClosedStallAccountDto row)
     {
@@ -171,6 +172,33 @@ public class ClosedAccountsRenewTests : TestContext
         Assert.Contains("Vegetable Area", cut.Markup);
         Assert.Contains("Jun 1, 2023", cut.Markup);
         Assert.Contains("Whole year: ₱10,800", cut.Markup);
+    }
+
+    [Fact]
+    public void PureDaysRenewalShowsNoFixedMonthlyOrWholeYearRent()
+    {
+        var (cut, _) = Render(ExpiredAccount(NpmMonthBasis.PureDays));
+
+        cut.Find(".ca-row-renew").Click();
+        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
+
+        Assert.Empty(cut.FindAll(".ca-renew-rate"));
+        Assert.DoesNotContain("Whole year:", cut.Markup);
+        Assert.Contains("Calendar-day billing", cut.Markup);
+    }
+
+    [Fact]
+    public void PureDaysRenewalDoesNotSendTheDormantLegacyMonthlyRate()
+    {
+        var legacyRow = ExpiredAccount(NpmMonthBasis.PureDays) with { MonthlyRate = 5_000m };
+        var (cut, sent) = Render(legacyRow);
+
+        cut.Find(".ca-row-renew").Click();
+        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
+        cut.Find(".eemo-modal-footer .btn-primary").Click();
+
+        var request = Assert.Single(sent);
+        Assert.Null(request.MonthlyRate);
     }
 
     [Fact]

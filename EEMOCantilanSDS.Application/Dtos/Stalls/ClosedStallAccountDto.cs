@@ -69,5 +69,10 @@ public sealed record ClosedStallAccountDto(
     /// <para>Counted from the same month-by-month walk that produces <see cref="Uncollected"/>, so the two can never disagree:
     /// a month contributes to this count exactly when it contributes money to that balance.</para>
     /// </remarks>
-    int MonthsUnpaid = 0
+    int MonthsUnpaid = 0,
+    /// <summary>
+    /// The explicit market-month rule. Non-NPM facilities retain the RentGoal default because the value is only
+    /// interpreted for NPM; it lets the client omit fixed-rent controls without guessing from <see cref="MonthlyRate"/>.
+    /// </summary>
+    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal
 );
