@@ -788,11 +788,25 @@
                         <input class="form-input" type="text" readonly title="Contract duration is not editable here"
                                value="@Stall.ContractDuration" />
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Monthly Rental Rate</label>
-                        <input class="form-input" type="text" readonly title="Monthly rental rate is not editable here"
-                               value="₱@Stall.MonthlyRate.ToString("N0")" />
-                    </div>
+                    @if (IsNpm && _npmMonthBasis == NpmMonthBasis.PureDays)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Billing Basis</label>
+                            <input class="form-input" type="text" readonly value="Calendar-day billing" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Daily Rate</label>
+                            <input class="form-input" type="text" readonly value="@(StallDailyFee() is { } fee ? $"₱{fee:N2}/day" : "—")" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Monthly Rental Rate</label>
+                            <input class="form-input" type="text" readonly title="Monthly rental rate is not editable here"
+                                   value="₱@Stall.MonthlyRate.ToString("N0")" />
+                        </div>
+                    }
                     <div class="form-group">
                         <label class="form-label">Area Location / Note</label>
                         <input class="form-input" type="text" @bind="Stall.AreaNote" placeholder="e.g. Corner slot, near entrance" />
@@ -997,6 +1011,7 @@
     // another municipality's ordinance: a ₱30 seed here showed Cantilan's fee on a profile whose tenant charges
     // something else, or whose rates call failed. The rate line states nothing rather than a wrong figure.
     private decimal _npmDailyRate;
+    private NpmMonthBasis _npmMonthBasis = NpmMonthBasis.RentGoal;
 
     /// <summary>
     /// The fee THIS stall is billed for a day, as the server resolved it: its own rate, then its section's, then its
@@ -1178,6 +1193,7 @@
             {
                 _npmDailyRate = ratesResult.Value.DailyRate;
                 _npmFishRate = ratesResult.Value.FishRate;
+                _npmMonthBasis = ratesResult.Value.MonthBasis;
             }
         }
 

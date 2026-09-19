@@ -936,7 +936,9 @@
                             <tr>
                                 <td class="hist-stall">@SpaceNumber.Display(s.StallNo)</td>
                                 <td>@(string.IsNullOrWhiteSpace(s.Occupant) ? "—" : s.Occupant)</td>
-                                <td class="hist-r">@(s.MonthlyRate > 0 ? $"₱{s.MonthlyRate:N2}" : s.DailyRate > 0 ? $"₱{s.DailyRate:N2}/day" : "—")</td>
+                                <td class="hist-r">@(_historyCode == FacilityCode.NPM && _marketBasis == NpmMonthBasis.PureDays
+                                    ? s.DailyRate > 0 ? $"₱{s.DailyRate:N2}/day" : "—"
+                                    : s.MonthlyRate > 0 ? $"₱{s.MonthlyRate:N2}" : s.DailyRate > 0 ? $"₱{s.DailyRate:N2}/day" : "—")</td>
                                 <td><span class="hist-status hist-@s.Status.ToLowerInvariant()">@s.Status</span></td>
                                 <td class="hist-r">₱@s.AmountPaid.ToString("N2")</td>
                                 <td class="hist-r">@(s.Balance > 0 ? $"₱{s.Balance:N2}" : "—")</td>
