@@ -246,11 +246,15 @@
                 <div class="imp-cols-preview">
                     <div class="imp-cols-label">Columns for @_facility.ShortCode</div>
                     <div class="imp-cols-chips">
-                        @foreach (var c in _facility.Columns)
+                        @foreach (var c in VisibleColumns)
                         {
                             <span class="imp-chip">@c.Label</span>
                         }
                     </div>
+                    @if (IsPureDays)
+                    {
+                        <div class="imp-cols-note"><strong>Calendar-day billing:</strong> no fixed monthly or whole-year rental is required.</div>
+                    }
                     @* The office's own lists record spaces let without a contract in the leasee column itself, so the
                        import reads the basis from there. Saying so here means a barbecue or ice-plant list can be
                        uploaded exactly as it is written, with no column to add and no term to invent. *@
@@ -400,7 +404,7 @@
                     <thead>
                         <tr>
                             <th class="imp-th-num">#</th>
-                            @foreach (var c in _facility.Columns)
+                            @foreach (var c in VisibleColumns)
                             {
                                 <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
                             }
@@ -414,7 +418,7 @@
                             var rowIndex = i;
                             <tr>
                                 <td class="imp-td-num">@(rowIndex + 1)</td>
-                                @foreach (var c in _facility.Columns)
+                                @foreach (var c in VisibleColumns)
                                 {
                                     var col = c;
                                     <td>
@@ -468,7 +472,7 @@
                         @if (_rows.Count == 0)
                         {
                             <tr>
-                                <td colspan="@(_facility.Columns.Count + 2)" class="imp-empty">
+                                <td colspan="@(VisibleColumns.Count + 2)" class="imp-empty">
                                     No rows. Use “Add row” to start, or discard and upload again.
                                 </td>
                             </tr>
@@ -612,6 +616,7 @@
     private decimal _npmFishSectionRate;
     private decimal _npmMeatRate;
     private decimal _npmFishRate = 1m;
+    private NpmMonthBasis _npmMonthBasis = NpmMonthBasis.RentGoal;
     private bool _ratesLoaded;
 
     private async Task LoadNpmRatesAsync()
@@ -625,6 +630,7 @@
             _npmVegetableRate = result.Value.VegetableAreaDailyRate;
             _npmFishSectionRate = result.Value.FishSectionDailyRate;
             _npmMeatRate = result.Value.MeatSectionDailyRate;
+            _npmMonthBasis = result.Value.MonthBasis;
         }
         _ratesLoaded = true;
     }
@@ -705,7 +711,7 @@
         // Twelve months of the rent, kept in step as the rent is typed - on rows this screen derives it for. The office
         // does this multiplication by hand on every list; there is no reason to ask them to do it again for a row they
         // are inventing here, and no reason for them to be queried about their own arithmetic on it.
-        if (key is "monthly" or "actualMonthly") DeriveWholeYear(row);
+        if (!IsPureDays && key is ("monthly" or "actualMonthly")) DeriveWholeYear(row);
     }
 
     /// <summary>
@@ -730,6 +736,12 @@
 
     // NPM imports one section at a time (each section is a separate physical list).
     private bool RequiresSection => _facility?.ShortCode == "NPM";
+    private bool IsPureDays => RequiresSection && _npmMonthBasis == NpmMonthBasis.PureDays;
+    private IReadOnlyList<ColumnDef> VisibleColumns => _facility is null
+        ? Array.Empty<ColumnDef>()
+        : IsPureDays
+            ? _facility.Columns.Where(c => c.Key is not ("monthly" or "actualMonthly" or "wholeYear")).ToList()
+            : _facility.Columns;
     private bool NeedsSection => RequiresSection && string.IsNullOrEmpty(_section);
     // A chosen section that isn't one of the canonical three is a per-LGU custom section.
     private bool IsCustomSectionChosen => RequiresSection && !string.IsNullOrEmpty(_section) && MapSection(_section) is null;
@@ -939,6 +951,10 @@
     {
         _sheetQueries.Clear();
 
+        // Legacy files may still contain these columns, but PureDays has no fixed rent to reconcile them against.
+        // Omitting the advisory check is safer than reimplementing the server's daily obligation rule in this page.
+        if (IsPureDays) return;
+
         for (var i = 0; i < _rows.Count; i++)
         {
             var row = _rows[i];
@@ -1105,6 +1121,18 @@
         _fileName = string.Empty;
         _uploadError = null;
         _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
+
+        // Keep the shared parser compatible with old official sheets, but do not let the built-in sample teach a
+        // PureDays office to enter fixed monthly and annual figures it does not bill.
+        if (IsPureDays)
+        {
+            foreach (var row in _rows)
+            {
+                row["monthly"] = string.Empty;
+                row["actualMonthly"] = string.Empty;
+                row["wholeYear"] = string.Empty;
+            }
+        }
 
         // The sample states its own whole-year figures, because it teaches the FORMAT of the office's list - including
         // that column. Nothing here is derived, so the sample reads exactly like a sheet.
@@ -1621,7 +1649,7 @@
         get
         {
             if (_facility is null) return "#";
-            var header = string.Join(",", _facility.Columns.Select(c => c.Label));
+            var header = string.Join(",", VisibleColumns.Select(c => c.Label));
 
             // HEADER ONLY. This file used to carry a guidance line with the "no contract" wording in the contract-name column,
             // meant to be read and typed over. It could not be imported - a row naming no occupant is skipped - but it opened in

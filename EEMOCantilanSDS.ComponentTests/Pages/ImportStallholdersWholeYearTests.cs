@@ -2,6 +2,8 @@ using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,16 +30,25 @@ namespace EEMOCantilanSDS.Testing;
 /// </summary>
 public class ImportStallholdersWholeYearTests : TestContext
 {
-    private IRenderedComponent<ImportStallholders> Render(string facility)
+    private IRenderedComponent<ImportStallholders> Render(
+        string facility, NpmMonthBasis monthBasis = NpmMonthBasis.RentGoal)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var stalls = new Mock<IStallsApiClient>();
         stalls.Setup(s => s.GetStallHoldersListAsync(It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>()))
               .ReturnsAsync(Result<StallHoldersListDto>.Success(new StallHoldersListDto()));
+        stalls.Setup(s => s.GetNpmRatesAsync())
+            .ReturnsAsync(Result<NpmRatesDto>.Success(new NpmRatesDto(
+                47m, 2m, MonthBasis: monthBasis,
+                VegetableAreaDailyRate: 51m, FishSectionDailyRate: 53m, MeatSectionDailyRate: 55m)));
+
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(f => f.GetNpmCustomSectionsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(Array.Empty<NpmCustomSectionDto>()));
 
         Services.AddSingleton(stalls.Object);
-        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton(facilities.Object);
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
@@ -204,5 +215,33 @@ public class ImportStallholdersWholeYearTests : TestContext
         cut.FindAll("input.imp-col-monthly")[0].Input("2400");
 
         Assert.DoesNotContain("whole year states", cut.Markup);
+    }
+
+    [Fact]
+    public void PureDaysManualEntryDoesNotOfferOrDeriveFixedRentColumns()
+    {
+        var cut = Render("npm", NpmMonthBasis.PureDays);
+        cut.Find(".imp-pick-card").Click();
+        Assert.Contains("Calendar-day billing", cut.Markup);
+        cut.Find("button.imp-enter-manually").Click();
+
+        Assert.Empty(cut.FindAll("input.imp-col-monthly"));
+        Assert.Empty(cut.FindAll("input.imp-col-actualmonthly"));
+        Assert.Empty(cut.FindAll("input.imp-col-wholeyear"));
+    }
+
+    [Fact]
+    public void PureDaysSampleAndTemplateDoNotTeachFixedMonthlyFigures()
+    {
+        var cut = Render("npm", NpmMonthBasis.PureDays);
+        cut.Find(".imp-pick-card").Click();
+        var template = cut.Find("a[download$='-stallholders-template.csv']").GetAttribute("href") ?? string.Empty;
+
+        Assert.DoesNotContain("Monthly%20Rental", template, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Whole%20Year", template, StringComparison.OrdinalIgnoreCase);
+
+        cut.Find("button.imp-use-sample").Click();
+        Assert.Empty(cut.FindAll("input.imp-col-monthly"));
+        Assert.DoesNotContain("whole year states", cut.Markup, StringComparison.OrdinalIgnoreCase);
     }
 }
