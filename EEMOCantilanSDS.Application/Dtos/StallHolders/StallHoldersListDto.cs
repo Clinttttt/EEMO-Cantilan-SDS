@@ -4,6 +4,8 @@ using EEMOCantilanSDS.Domain.Enums;
 
 public class StallHoldersListDto
 {
+    /// <summary>The NPM month rule in force; non-NPM rosters retain the RentGoal default.</summary>
+    public NpmMonthBasis MonthBasis { get; set; } = NpmMonthBasis.RentGoal;
     public int TotalStalls { get; set; }
     public int VegetableCount { get; set; }
     public int FishCount { get; set; }
@@ -46,6 +48,8 @@ public class StallHolderRowDto
     public decimal MonthlyRentalRate { get; set; }
     public decimal ActualMonthlyRental { get; set; }
     public decimal WholeYearRental { get; set; }
+    /// <summary>The tenant- and section-resolved daily fee for an NPM stall; zero for monthly facilities.</summary>
+    public decimal DailyRate { get; set; }
     public decimal? FishFeeTotal { get; set; }
     public bool IsClosed { get; set; }
     public string? AreaLocation { get; set; }   // NCC: "Corner" / "Extension" / "Standard"

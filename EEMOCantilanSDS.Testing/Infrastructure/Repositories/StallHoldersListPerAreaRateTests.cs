@@ -72,7 +72,11 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
 
         var row = dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1");
 
+        Assert.Equal(NpmMonthBasis.PureDays, dto.MonthBasis);
+        Assert.Equal(30m, row.DailyRate);
         Assert.Equal(0m, row.MonthlyRentalRate);
+        Assert.Equal(0m, row.ActualMonthlyRental);
+        Assert.Equal(0m, row.WholeYearRental);
         Assert.Equal(0m, dto.GrandTotalMonthlyRate);
         Assert.Equal(0m, dto.GrandTotalWholeYearRental);
     }
@@ -94,6 +98,8 @@ public class StallHoldersListPerAreaRateTests : RepositoryTestBase
         var dto = await new StallRepository(context)
             .GetStallHoldersListAsync(FacilityCode.NPM, null, null, null, CancellationToken.None);
 
+        Assert.Equal(NpmMonthBasis.RentGoal, dto.MonthBasis);
+        Assert.Equal(30m, Assert.Single(Assert.Single(dto.Sections).Rows).DailyRate);
         Assert.Equal(900m, dto.Sections.SelectMany(s => s.Rows).Single(r => r.StallNo == "1").MonthlyRentalRate);
     }
 

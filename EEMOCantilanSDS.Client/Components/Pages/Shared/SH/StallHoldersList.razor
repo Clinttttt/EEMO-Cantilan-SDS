@@ -165,9 +165,18 @@
                                         <th class="col-date">Effectivity of<br />Lessee Contract</th>
                                         <th class="col-years">No. of<br />Years</th>
                                         <th class="col-area">Area</th>
-                                        <th class="col-rate">Monthly Rentals<br />per Contract</th>
-                                        <th class="col-actual">Actual Mo.<br />Rentals</th>
-                                        <th class="col-whole">Whole Year<br />Rental</th>
+                                        @if (IsPureDays)
+                                        {
+                                            <th class="col-rate">Billing<br />Basis</th>
+                                            <th class="col-actual">Daily<br />Rate</th>
+                                            <th class="col-whole">Fixed Annual<br />Rental</th>
+                                        }
+                                        else
+                                        {
+                                            <th class="col-rate">Monthly Rentals<br />per Contract</th>
+                                            <th class="col-actual">Actual Mo.<br />Rentals</th>
+                                            <th class="col-whole">Whole Year<br />Rental</th>
+                                        }
 
                                     </tr>
                                 </thead>
@@ -200,9 +209,18 @@
                                                 <td class="c">@TermLabel(s)</td>
                                                 <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
                                             }
-                                            <td class="r">@(s.IsActive && !noContract ? $"₱{s.MonthlyRate:N2}" : "—")</td>
-                                            <td class="r">@(s.IsActive ? $"₱{s.ActualMonthlyRental:N2}" : "—")</td>
-                                            <td class="r">@(s.IsActive ? $"₱{s.WholeYearRental:N2}" : "—")</td>
+                                            @if (IsPureDays)
+                                            {
+                                                <td class="c">@(s.IsActive ? "Calendar-day" : "—")</td>
+                                                <td class="r">@(s.IsActive ? $"₱{s.DailyRate:N2}/day" : "—")</td>
+                                                <td class="r">—</td>
+                                            }
+                                            else
+                                            {
+                                                <td class="r">@(s.IsActive && !noContract ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                                <td class="r">@(s.IsActive ? $"₱{s.ActualMonthlyRental:N2}" : "—")</td>
+                                                <td class="r">@(s.IsActive ? $"₱{s.WholeYearRental:N2}" : "—")</td>
+                                            }
 
                                         </tr>
                                         rowNum++;
@@ -214,9 +232,16 @@
                                             @* The band above already names the section and counts its stalls. *@
                                             Total
                                         </td>
-                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
-                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.ActualMonthlyRental).ToString("N2")</td>
-                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.WholeYearRental).ToString("N2")</td>
+                                        @if (IsPureDays)
+                                        {
+                                            <td class="c tfoot-val">Calendar-day</td><td class="c tfoot-val">Per stall</td><td class="r tfoot-val">—</td>
+                                        }
+                                        else
+                                        {
+                                            <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
+                                            <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.ActualMonthlyRental).ToString("N2")</td>
+                                            <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.WholeYearRental).ToString("N2")</td>
+                                        }
                                     </tr>
                                 </tfoot>
                             </table></div>
@@ -303,14 +328,21 @@
                                 <div class="lsh-grand-val">@AllActiveStalls.Count()</div>
                                 <div class="lsh-grand-key">Active Stalls</div>
                             </div>
-                            <div class="lsh-grand-stat">
-                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.MonthlyRate).ToString("N2")</div>
-                                <div class="lsh-grand-key">Total Monthly Rate</div>
-                            </div>
-                            <div class="lsh-grand-stat">
-                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.WholeYearRental).ToString("N2")</div>
-                                <div class="lsh-grand-key">Total Whole Year Rental</div>
-                            </div>
+                            @if (IsPureDays)
+                            {
+                                <div class="lsh-grand-stat"><div class="lsh-grand-val">Calendar-day</div><div class="lsh-grand-key">Billing Basis</div></div>
+                            }
+                            else
+                            {
+                                <div class="lsh-grand-stat">
+                                    <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.MonthlyRate).ToString("N2")</div>
+                                    <div class="lsh-grand-key">Total Monthly Rate</div>
+                                </div>
+                                <div class="lsh-grand-stat">
+                                    <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.WholeYearRental).ToString("N2")</div>
+                                    <div class="lsh-grand-key">Total Whole Year Rental</div>
+                                </div>
+                            }
                         </div>
                     </div>
                 }
@@ -373,7 +405,9 @@
         get
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+            sb.AppendLine(IsPureDays
+                ? "Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Billing Basis,Daily Rate,Fixed Annual Rental"
+                : "Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
 
             void AppendRows(string sectionName, IEnumerable<NpmStall> rows)
             {
@@ -390,9 +424,9 @@
                         Csv(s.HasSignedContract ? s.ContractDate?.ToString("M/d/yyyy") ?? "" : ""),
                         Csv(s.HasSignedContract && s.DurationYears > 0 ? s.DurationYears.ToString() : ""),
                         Csv(s.HasSignedContract && s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : ""),
-                        Csv(s.IsActive && s.HasSignedContract ? s.MonthlyRate.ToString("0.00") : ""),
-                        Csv(s.IsActive ? s.ActualMonthlyRental.ToString("0.00") : ""),
-                        Csv(s.IsActive ? s.WholeYearRental.ToString("0.00") : "")
+                        Csv(IsPureDays && s.IsActive ? "Calendar-day" : s.IsActive && s.HasSignedContract ? s.MonthlyRate.ToString("0.00") : ""),
+                        Csv(IsPureDays && s.IsActive ? s.DailyRate.ToString("0.00") : s.IsActive ? s.ActualMonthlyRental.ToString("0.00") : ""),
+                        Csv(IsPureDays ? "" : s.IsActive ? s.WholeYearRental.ToString("0.00") : "")
                     }));
                 }
             }
@@ -479,11 +513,11 @@
         // Always assigned from the API row below. No hardcoded default: a fallback figure here would be
         // one municipality's rate shown to every other one.
         public decimal MonthlyRate { get; set; }
-        // The rent actually charged, and the year's total, as the API derives them. A daily-billed facility has no
-        // monthly contract rate, so both are computed from the resolved daily fee (× DomainRules.DailyBilledMonthDays,
-        // × 12) — multiplying a stored monthly figure here stated a rate no ordinance carries for any LGU but one.
+        // Fixed-rent values as the API derives them. RentGoal NPM uses the configured monthly obligation; PureDays
+        // returns zero because no month-independent rent or annual monthly-times-twelve amount exists.
         public decimal ActualMonthlyRental { get; set; }
         public decimal WholeYearRental { get; set; }
+        public decimal DailyRate { get; set; }
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
         public decimal PartialAmount { get; set; }
@@ -494,6 +528,8 @@
     }
 
     List<NpmStall> Stalls = new();
+    private NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal;
+    private bool IsPureDays => IsFacility("npm") && MonthBasis == NpmMonthBasis.PureDays;
 
     [PersistentState(AllowUpdates = true)]
     public StallHoldersListPageState? CachedStalls { get; set; }
@@ -505,6 +541,7 @@
         if (CachedStalls is { } state && state.Facility == facility)
         {
             Stalls = state.Stalls.ToList();
+            MonthBasis = state.MonthBasis;
             IsLoading = false;
             return;
         }
@@ -520,6 +557,7 @@
         
         if (result.IsSuccess && result.Value != null)
         {
+            MonthBasis = result.Value.MonthBasis;
             Stalls.Clear();
             int id = 1;
             
@@ -547,6 +585,7 @@
                         MonthlyRate = row.MonthlyRentalRate,
                         ActualMonthlyRental = row.ActualMonthlyRental,
                         WholeYearRental = row.WholeYearRental,
+                        DailyRate = row.DailyRate,
                         IsActive = !row.IsClosed,
                         FishKilos = row.FishFeeTotal ?? 0,
                         AreaLocation = row.AreaLocation
@@ -555,11 +594,12 @@
             }
         }
 
-        CachedStalls = new StallHoldersListPageState(Facility?.ToLower() ?? "npm", Stalls.ToList());
+        CachedStalls = new StallHoldersListPageState(Facility?.ToLower() ?? "npm", Stalls.ToList(), MonthBasis);
         IsLoading = false;
     }
 
     public sealed record StallHoldersListPageState(
         string Facility,
-        List<NpmStall> Stalls);
+        List<NpmStall> Stalls,
+        NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal);
 }

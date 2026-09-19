@@ -1532,9 +1532,18 @@ else
                     <th>Effectivity</th>
                     <th>Years</th>
                     <th>Area (sqm)</th>
-                    <th>Monthly / Contract</th>
-                    <th>Actual Monthly</th>
-                    <th>Whole Year</th>
+                    @if (_npmMonthBasis == NpmMonthBasis.PureDays)
+                    {
+                        <th>Billing Basis</th>
+                        <th>Daily Rate</th>
+                        <th>Fixed Annual Rental</th>
+                    }
+                    else
+                    {
+                        <th>Monthly / Contract</th>
+                        <th>Actual Monthly</th>
+                        <th>Whole Year</th>
+                    }
                 </tr>
             </thead>
             <tbody>
@@ -1553,9 +1562,18 @@ else
                             <td>@r.Effectivity</td>
                             <td>@r.Years yrs</td>
                             <td>@r.AreaSqm.ToString("0.##")</td>
-                            <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
-                            <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
-                            <td class="register-year">@(r.WholeYear > 0m ? $"₱{r.WholeYear:N2}" : "—")</td>
+                            @if (_npmMonthBasis == NpmMonthBasis.PureDays)
+                            {
+                                <td>Calendar-day</td>
+                                <td>₱@r.DailyRate.ToString("N2")/day</td>
+                                <td class="register-year">—</td>
+                            }
+                            else
+                            {
+                                <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
+                                <td>@(r.Monthly > 0m ? $"₱{r.Monthly:N2}" : "—")</td>
+                                <td class="register-year">@(r.WholeYear > 0m ? $"₱{r.WholeYear:N2}" : "—")</td>
+                            }
                         </tr>
                     }
                 }
@@ -2346,9 +2364,9 @@ else
             s.Status, s.AmountPaid, s.Balance, s.ORNumber ?? ""));
 
     // ── Stallholder register (mirrors the LGU paper roster) ───────
-    // Rentals follow the official ledger: ₱30/day → ₱900/month (flat 30 days) → ₱10,800/year.
+    // RentGoal follows the official fixed-month ledger. PureDays presents the resolved daily rate instead.
     record RegisterRow(string StallNo, string Occupant, string ContractName, string Effectivity,
-                       int Years, double AreaSqm, decimal Monthly, decimal WholeYear)
+                       int Years, double AreaSqm, decimal DailyRate, decimal Monthly, decimal WholeYear)
     {
         public bool IsMismatch => !string.IsNullOrWhiteSpace(ContractName)
             && !string.Equals(Occupant?.Trim(), ContractName?.Trim(), StringComparison.OrdinalIgnoreCase);
@@ -2366,7 +2384,8 @@ else
                 s.EffectivityDate?.ToString("M/d/yyyy") ?? "—",
                 s.DurationYears,
                 s.AreaSqm,
+                s.DailyRate,
                 monthly,
-                monthly * 12m);                      // ₱10,800 whole year
+                monthly * 12m);
         });
 }

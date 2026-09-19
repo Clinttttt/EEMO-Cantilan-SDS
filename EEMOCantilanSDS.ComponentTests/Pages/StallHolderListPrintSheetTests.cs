@@ -177,4 +177,27 @@ public class StallHolderListPrintSheetTests
         Assert.Matches(@"\.sh-table tfoot \{ display: table-row-group", print);
         Assert.Matches(@"\.sh-table thead \{ display: table-header-group", print);
     }
+
+    [Fact]
+    public void PureDaysRosterAndExportsDoNotClaimAFixedMonthlyOrAnnualRent()
+    {
+        var allFacilities = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
+        var facilityRoster = ClientFile("Components", "Pages", "Shared", "SH", "StallHoldersList.razor");
+
+        Assert.Contains("Billing Basis", allFacilities);
+        Assert.Contains("Daily Rate", allFacilities);
+        Assert.Contains("IsPureDays(code) ? null : r.WholeYearRental", allFacilities);
+        Assert.Contains("IsPureDays ? \"\" : s.IsActive ? s.WholeYearRental", facilityRoster);
+        Assert.Contains("Calendar-day", facilityRoster);
+        Assert.Contains("Fixed Annual Rental", facilityRoster);
+    }
+
+    [Fact]
+    public void RentGoalOnlyExportsKeepTheirExistingColumnSchema()
+    {
+        var allFacilities = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
+
+        Assert.Contains("IncludesPureDays\n                ?", allFacilities.Replace("\r\n", "\n"));
+        Assert.Contains("Monthly Rental,Actual Monthly Rental,Whole Year Rental", allFacilities);
+    }
 }

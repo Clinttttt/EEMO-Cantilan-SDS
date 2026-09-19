@@ -123,6 +123,10 @@ public partial class StallRepository
                 : 0m)
             : s.MonthlyRate;
 
+        decimal DailyOf(Stall s) => isDailyBilled
+            ? NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf)
+            : 0m;
+
         // The occupancy whose name belongs on the row.
         //
         // Today that is the active contract, exactly as it always was. Reading an earlier year it is the contract that held
@@ -172,6 +176,7 @@ public partial class StallRepository
                         MonthlyRentalRate = MonthlyOf(s),
                         ActualMonthlyRental = MonthlyOf(s),
                         WholeYearRental = MonthlyOf(s) * 12,
+                        DailyRate = DailyOf(s),
                         FishFeeTotal = null,   // List of Stallholders is base rental only — no fish/elec/water
                         IsClosed = s.Status == StallStatus.Closed,
                         // Space-only and extension rows print "No contract" with the contract columns left blank.
@@ -215,6 +220,7 @@ public partial class StallRepository
                         MonthlyRentalRate = MonthlyOf(s),
                         ActualMonthlyRental = MonthlyOf(s),
                         WholeYearRental = MonthlyOf(s) * 12,
+                        DailyRate = DailyOf(s),
                         FishFeeTotal = null,
                         IsClosed = s.Status == StallStatus.Closed,
                         Arrangement = contract?.Arrangement ?? OccupancyArrangement.SignedContract
@@ -254,6 +260,7 @@ public partial class StallRepository
                         MonthlyRentalRate = MonthlyOf(s),
                         ActualMonthlyRental = MonthlyOf(s),
                         WholeYearRental = MonthlyOf(s) * 12,
+                        DailyRate = DailyOf(s),
                         FishFeeTotal = null,
                         IsClosed = s.Status == StallStatus.Closed,
                         AreaLocation = s.AreaLocation?.ToString(),
@@ -269,6 +276,7 @@ public partial class StallRepository
 
         return new StallHoldersListDto
         {
+            MonthBasis = isDailyBilled ? rateSnapshot!.MonthRule.Basis : NpmMonthBasis.RentGoal,
             TotalStalls = stalls.Count,
             VegetableCount = stalls.Count(s => s.Section == MarketSection.VegetableArea),
             FishCount = stalls.Count(s => s.Section == MarketSection.FishSection),

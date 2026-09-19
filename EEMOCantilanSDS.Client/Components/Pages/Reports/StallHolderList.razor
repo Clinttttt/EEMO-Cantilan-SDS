@@ -182,14 +182,21 @@
                 <div class="sh-sum-val">@activeRows.Count</div>
                 <div class="sh-sum-lbl">Active Stalls</div>
             </div>
-            <div class="sh-sum-card">
-                <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
-                <div class="sh-sum-lbl">Total Monthly Rate</div>
-            </div>
-            <div class="sh-sum-card">
-                <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
-                <div class="sh-sum-lbl">Total Whole-Year Rental</div>
-            </div>
+            @if (OnlyPureDaysNpm)
+            {
+                <div class="sh-sum-card"><div class="sh-sum-val">Calendar-day</div><div class="sh-sum-lbl">Billing Basis</div></div>
+            }
+            else
+            {
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
+                    <div class="sh-sum-lbl">Total Monthly Rate</div>
+                </div>
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
+                    <div class="sh-sum-lbl">Total Whole-Year Rental</div>
+                </div>
+            }
             <div class="sh-sum-card">
                 <div class="sh-sum-val">@visible.Count(f => RowsFor(f).Any())</div>
                 <div class="sh-sum-lbl">Facilities</div>
@@ -450,20 +457,36 @@
     private string ExcelFileName => Path.ChangeExtension(CsvFileName, ".xlsx");
 
     /// <summary>The columns of the export, in the order the printed form states them.</summary>
-    private static readonly SheetColumn[] ExportColumns =
-    [
-        new("Facility", SheetValueKind.Text),
-        new("Section", SheetValueKind.Text),
-        new("Name of Lessee (Actual Occupant)", SheetValueKind.Text),
-        new("Name on Signed Contract", SheetValueKind.Text),
-        new("Stall/Space No.", SheetValueKind.Text),
-        new("Effectivity", SheetValueKind.Date),
-        new("No. of Years", SheetValueKind.Number),
-        new("Area (sq.m)", SheetValueKind.Number),
-        new("Monthly Rental", SheetValueKind.Money),
-        new("Actual Monthly Rental", SheetValueKind.Money),
-        new("Whole Year Rental", SheetValueKind.Money),
-    ];
+    private bool IncludesPureDays => VisibleFacilities().Any(IsPureDays);
+
+    private IReadOnlyList<SheetColumn> ExportColumns
+    {
+        get
+        {
+            var columns = new List<SheetColumn>
+            {
+                new("Facility", SheetValueKind.Text),
+                new("Section", SheetValueKind.Text),
+                new("Name of Lessee (Actual Occupant)", SheetValueKind.Text),
+                new("Name on Signed Contract", SheetValueKind.Text),
+                new("Stall/Space No.", SheetValueKind.Text),
+                new("Effectivity", SheetValueKind.Date),
+                new("No. of Years", SheetValueKind.Number),
+                new("Area (sq.m)", SheetValueKind.Number),
+            };
+
+            if (IncludesPureDays)
+            {
+                columns.Add(new("Billing Basis", SheetValueKind.Text));
+                columns.Add(new("Daily Rate", SheetValueKind.Money));
+            }
+
+            columns.Add(new("Monthly Rental", SheetValueKind.Money));
+            columns.Add(new("Actual Monthly Rental", SheetValueKind.Money));
+            columns.Add(new("Whole Year Rental", SheetValueKind.Money));
+            return columns;
+        }
+    }
 
     /// <summary>
     /// Builds the spreadsheet and hands it to the browser.
@@ -485,7 +508,7 @@
             {
                 foreach (var r in section.Rows.Where(MatchSearch))
                 {
-                    rows.Add(new object?[]
+                    var values = new List<object?>
                     {
                         FacilityCatalog.NameOf(code),
                         SectionDisplay(section.SectionName),
@@ -497,10 +520,18 @@
                         r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate : null,
                         r.HasSignedContract ? r.DurationYears : null,
                         r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value : null,
-                        r.HasSignedContract ? r.MonthlyRentalRate : null,
-                        r.ActualMonthlyRental,
-                        r.WholeYearRental
-                    });
+                    };
+
+                    if (IncludesPureDays)
+                    {
+                        values.Add(IsPureDays(code) ? "Calendar-day" : "Fixed monthly rent");
+                        values.Add(IsPureDays(code) ? r.DailyRate : null);
+                    }
+
+                    values.Add(IsPureDays(code) || !r.HasSignedContract ? null : r.MonthlyRentalRate);
+                    values.Add(IsPureDays(code) ? null : r.ActualMonthlyRental);
+                    values.Add(IsPureDays(code) ? null : r.WholeYearRental);
+                    rows.Add(values);
                 }
             }
         }
@@ -530,7 +561,9 @@
         get
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+            sb.AppendLine(IncludesPureDays
+                ? "Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Billing Basis,Daily Rate,Monthly Rental,Actual Monthly Rental,Whole Year Rental"
+                : "Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
 
             foreach (var code in VisibleFacilities())
             {
@@ -538,7 +571,7 @@
                 {
                     foreach (var r in section.Rows.Where(MatchSearch))
                     {
-                        sb.AppendLine(string.Join(',', new[]
+                        var values = new List<string>
                         {
                             Csv(FacilityCatalog.NameOf(code)),
                             Csv(SectionDisplay(section.SectionName)),
@@ -550,10 +583,16 @@
                             Csv(r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate.ToString("M/d/yyyy") : ""),
                             Csv(r.HasSignedContract ? r.DurationYears.ToString() : string.Empty),
                             Csv(r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value.ToString("0.##") : ""),
-                            Csv(r.HasSignedContract ? r.MonthlyRentalRate.ToString("0.00") : string.Empty),
-                            Csv(r.ActualMonthlyRental.ToString("0.00")),
-                            Csv(r.WholeYearRental.ToString("0.00"))
-                        }));
+                        };
+                        if (IncludesPureDays)
+                        {
+                            values.Add(Csv(IsPureDays(code) ? "Calendar-day" : "Fixed monthly rent"));
+                            values.Add(Csv(IsPureDays(code) ? r.DailyRate.ToString("0.00") : string.Empty));
+                        }
+                        values.Add(Csv(IsPureDays(code) || !r.HasSignedContract ? string.Empty : r.MonthlyRentalRate.ToString("0.00")));
+                        values.Add(Csv(IsPureDays(code) ? string.Empty : r.ActualMonthlyRental.ToString("0.00")));
+                        values.Add(Csv(IsPureDays(code) ? string.Empty : r.WholeYearRental.ToString("0.00")));
+                        sb.AppendLine(string.Join(',', values));
                     }
                 }
             }
@@ -606,11 +645,18 @@
         StallHoldersListDto Data);
 
     private static string Model(FacilityCode code) => code == FacilityCode.NPM ? "Daily stall" : "Monthly rental";
+    private bool IsPureDays(FacilityCode code) => code == FacilityCode.NPM
+        && _data.TryGetValue(code, out var data)
+        && data.MonthBasis == NpmMonthBasis.PureDays;
+    private bool OnlyPureDaysNpm => VisibleFacilities() is var visible
+        && visible.Count == 1
+        && IsPureDays(visible[0]);
 
     // Shared per-facility table. NCC adds an Area Location column; NPM rows are passed per section.
     private RenderFragment HolderTable(FacilityCode code, IReadOnlyList<StallHolderRowDto> rows) => __builder =>
     {
         var isNcc = code == FacilityCode.NCC;
+        var isPureDays = IsPureDays(code);
         var activeRows = rows.Where(r => !r.IsClosed).ToList();
         <div class="sh-table-wrap">
         <table class="sh-table">
@@ -629,9 +675,18 @@
                     <th class="sh-c">Effectivity of<br />Lessee Contract</th>
                     <th class="sh-c">No. of<br />Years</th>
                     <th class="sh-c">Area</th>
-                    <th class="sh-r">Monthly Rentals<br />per Contract</th>
-                    <th class="sh-r">Actual Mo.<br />Rentals</th>
-                    <th class="sh-r">Whole Year<br />Rental</th>
+                    @if (isPureDays)
+                    {
+                        <th class="sh-c">Billing<br />Basis</th>
+                        <th class="sh-r">Daily<br />Rate</th>
+                        <th class="sh-r">Fixed Annual<br />Rental</th>
+                    }
+                    else
+                    {
+                        <th class="sh-r">Monthly Rentals<br />per Contract</th>
+                        <th class="sh-r">Actual Mo.<br />Rentals</th>
+                        <th class="sh-r">Whole Year<br />Rental</th>
+                    }
                     @if (isNcc)
                     {
                         <th class="sh-c">Area Loc.</th>
@@ -661,9 +716,18 @@
                             <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
                             <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
                         }
-                        <td class="sh-r">@(r.IsClosed || noContract || r.MonthlyRentalRate <= 0m ? "—" : Money(r.MonthlyRentalRate))</td>
-                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.ActualMonthlyRental))</td>
-                        <td class="sh-r">@(r.IsClosed || r.WholeYearRental <= 0m ? "—" : Money(r.WholeYearRental))</td>
+                        @if (isPureDays)
+                        {
+                            <td class="sh-c">@(r.IsClosed ? "—" : "Calendar-day")</td>
+                            <td class="sh-r">@(r.IsClosed ? "—" : $"{Money(r.DailyRate)}/day")</td>
+                            <td class="sh-r">—</td>
+                        }
+                        else
+                        {
+                            <td class="sh-r">@(r.IsClosed || noContract || r.MonthlyRentalRate <= 0m ? "—" : Money(r.MonthlyRentalRate))</td>
+                            <td class="sh-r">@(r.IsClosed ? "—" : Money(r.ActualMonthlyRental))</td>
+                            <td class="sh-r">@(r.IsClosed || r.WholeYearRental <= 0m ? "—" : Money(r.WholeYearRental))</td>
+                        }
                         @if (isNcc)
                         {
                             <td class="sh-c">@(string.IsNullOrWhiteSpace(r.AreaLocation) ? "—" : r.AreaLocation)</td>
@@ -677,9 +741,16 @@
                    its figures — a government form repeats nothing. *@
                 <tr class="sh-tfoot-row">
                     <td colspan="7" class="sh-tfoot-label">Total</td>
-                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</td>
-                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.ActualMonthlyRental))</td>
-                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.WholeYearRental))</td>
+                    @if (isPureDays)
+                    {
+                        <td class="sh-c sh-tfoot-val">Calendar-day</td><td class="sh-c sh-tfoot-val">Per stall</td><td class="sh-r sh-tfoot-val">—</td>
+                    }
+                    else
+                    {
+                        <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</td>
+                        <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.ActualMonthlyRental))</td>
+                        <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.WholeYearRental))</td>
+                    }
                     @if (isNcc)
                     {
                         <td></td>
