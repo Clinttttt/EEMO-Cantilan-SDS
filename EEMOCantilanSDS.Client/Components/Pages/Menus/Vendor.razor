@@ -163,7 +163,7 @@
                                         <th>Stall No.</th>
                                         <th>Actual Occupant</th>
                                         <th>Section / Area</th>
-                                        <th>Monthly Rate</th>
+                                        <th>@(IsActiveNpmPureDays ? "Daily Rate" : "Monthly Rate")</th>
                                         <th>Contract</th>
                                         <th>Payment</th>
                                         <th>Status</th>
@@ -255,7 +255,14 @@
 
                                             <td><span>@v.Section</span></td>
                                             <td>
-                                                <span>@v.MonthlyRate.ToString("N0")</span>
+                                                @if (IsActiveNpmPureDays)
+                                                {
+                                                    <span>₱@((v.ResolvedDailyFee ?? ResolvedRateForSection(v.Section)).ToString("N0")) / day</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>@v.MonthlyRate.ToString("N0")</span>
+                                                }
                                             </td>
                                             <td class="contract-cell">
                                                 @* A space held without a signed contract has no term to print: the record
@@ -668,7 +675,11 @@
                         StallId="@DetailVendor.StallGuid"
                         ContractDate="@DetailVendor.ContractDate"
                         IsFishSection="@isFishSection"
-                        DailyRate="@_npmDailyRate"
+                        DailyRate="@(DetailVendor.ResolvedDailyFee is { } resolvedFee && resolvedFee > 0m
+                            ? resolvedFee
+                            : AreaDailyRate(isVegetableSection
+                                ? MarketSection.VegetableArea
+                                : isMeatSection ? MarketSection.MeatSection : MarketSection.FishSection))"
                         FishRate="@_npmFishRate"
                         SectionClass="@sectionClass"
                         ReadOnly="true" />
@@ -718,6 +729,11 @@
                 FacilityOptions="FacilityTabsAsOptions()"
                 FacilityLocked="false"
                 ExistingStallNos="VendorStallNos"
+                NpmDailyRate="@SelectedNpmDailyRate"
+                NpmMonthlyRentInUse="@_npmMonthlyRentInUse"
+                NpmFishRate="@_npmFishRate"
+                SectionStatesItsOwnRate="@(SelectedSectionStatedRate > 0m)"
+                MonthBasis="@_npmMonthBasis"
                 ReuseOfferMessage="@_vendorReuseOffer"
                 OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SaveVendor"
@@ -778,7 +794,7 @@
 
     // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), used
     // for the NPM daily-fee labels in the vendor detail + fee breakdown.
-    private decimal _npmDailyRate = 30m;
+    private decimal _npmDailyRate;
     private decimal _npmVegetableRate;
     private decimal _npmFishSectionRate;
     private decimal _npmMeatRate;
@@ -797,6 +813,7 @@
     // What a market space is let for per month, as the server resolves it: the LGU's own stated rent, or thirty
     // of its daily fee until it states one. Seeds the form so no municipality is offered another's figure.
     private decimal _npmMonthlyRentInUse;
+    private NpmMonthBasis _npmMonthBasis = NpmMonthBasis.RentGoal;
 
     private async Task LoadNpmRatesAsync()
     {
@@ -812,8 +829,30 @@
             _npmMonthlyRentInUse = result.Value.MonthlyRentInUse > 0m
                 ? result.Value.MonthlyRentInUse
                 : result.Value.MonthlyRent;
+            _npmMonthBasis = result.Value.MonthBasis;
         }
     }
+
+    private bool IsActiveNpmPureDays => ActiveFacility == "NPM" && _npmMonthBasis == NpmMonthBasis.PureDays;
+
+    private decimal SelectedSectionStatedRate => Form.SelectedSection switch
+    {
+        "Vegetable" => _npmVegetableRate,
+        "Fish" => _npmFishSectionRate,
+        "Meat" => _npmMeatRate,
+        _ => 0m,
+    };
+    private decimal SelectedNpmDailyRate => SelectedSectionStatedRate > 0m
+        ? SelectedSectionStatedRate
+        : _npmDailyRate;
+
+    private decimal ResolvedRateForSection(string section) => section switch
+    {
+        var s when s.Contains("Vegetable", StringComparison.OrdinalIgnoreCase) => _npmVegetableRate > 0m ? _npmVegetableRate : _npmDailyRate,
+        var s when s.Contains("Fish", StringComparison.OrdinalIgnoreCase) => _npmFishSectionRate > 0m ? _npmFishSectionRate : _npmDailyRate,
+        var s when s.Contains("Meat", StringComparison.OrdinalIgnoreCase) => _npmMeatRate > 0m ? _npmMeatRate : _npmDailyRate,
+        _ => _npmDailyRate,
+    };
 
     /// <summary>The per-kilo section fee as this office charges it, and figure-free until its rate is known.</summary>
     private string FishFeeLabel => _npmFishRate > 0m ? $"Fish ₱{_npmFishRate:0}/kg" : "Fish (per kilo)";
@@ -1174,9 +1213,10 @@
 
             // The rent a market space is let for, as THIS office states it (or thirty of its own daily fee until
             // it does). Never a written-in ₱900: that is one municipality's ordinance.
-            if (Form.MonthlyRate <= 0) Form.MonthlyRate = _npmMonthlyRentInUse > 0m
-                ? _npmMonthlyRentInUse
-                : SuggestedMonthlyRate("NPM");
+            if (_npmMonthBasis == NpmMonthBasis.RentGoal && Form.MonthlyRate <= 0)
+                Form.MonthlyRate = _npmMonthlyRentInUse > 0m
+                    ? _npmMonthlyRentInUse
+                    : SuggestedMonthlyRate("NPM");
         }
         else
         {
@@ -1261,7 +1301,8 @@
         if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.ActualOccupant)) { FormError = "Actual occupant name is required."; return; }
         if (Form.FacilityCode == "NPM" && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
-        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than 0."; return; }
+        var monthlyRateRequired = Form.FacilityCode != "NPM" || _npmMonthBasis == NpmMonthBasis.RentGoal;
+        if (monthlyRateRequired && Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than 0."; return; }
 
         if (IsEditing)
         {
@@ -1339,7 +1380,9 @@
                 AreaNote: string.IsNullOrWhiteSpace(Form.AreaLocation) ? null : Form.AreaLocation.Trim(),
                 // The tenant's own resolved daily rate (loaded into _npmDailyRate from the facility rates),
                 // never a hardcoded ordinance figure — a ₱40 municipality must not be stamped with ₱30.
-                DailyRate: Form.FacilityCode == "NPM" ? _npmDailyRate : null,
+                DailyRate: Form.FacilityCode == "NPM"
+                    ? SelectedSectionStatedRate > 0m ? null : _npmDailyRate
+                    : null,
                 ActualOccupant: Form.ActualOccupant.Trim(),
                 NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName)
                     // "No contract" is the sheet's wording for a space held without one, not a person's name.

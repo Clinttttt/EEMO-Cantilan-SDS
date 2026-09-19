@@ -46,7 +46,9 @@ public class AddVendorModalDailyFromRentTests : TestContext
     }
 
     /// <summary>The same form for an office that bills the days a month has.</summary>
-    private IRenderedComponent<AddVendorModal> RenderFormOnPureDays(AddVendorModal.VendorModalForm form)
+    private IRenderedComponent<AddVendorModal> RenderFormOnPureDays(
+        AddVendorModal.VendorModalForm form,
+        decimal npmDailyRate = 30m)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -61,7 +63,7 @@ public class AddVendorModalDailyFromRentTests : TestContext
             .Add(c => c.Show, true)
             .Add(c => c.IsEditing, false)
             .Add(c => c.Form, form)
-            .Add(c => c.NpmDailyRate, 30m)
+            .Add(c => c.NpmDailyRate, npmDailyRate)
             .Add(c => c.NpmFishRate, 1m)
             .Add(c => c.MonthBasis, NpmMonthBasis.PureDays));
     }
@@ -80,6 +82,15 @@ public class AddVendorModalDailyFromRentTests : TestContext
 
         // The daily fee is still asked for, since that is the whole basis.
         Assert.NotEmpty(cut.FindAll("input.avm-input[placeholder='e.g. 30']"));
+    }
+
+    [Fact]
+    public void PureDaysShowsTheTenantResolvedDailyRateRatherThanTheReferenceDefault()
+    {
+        var cut = RenderFormOnPureDays(CanonicalAreaStall(), npmDailyRate: 47m);
+
+        Assert.Contains("₱47.00/day", cut.Markup);
+        Assert.DoesNotContain("₱30.00/day", cut.Markup);
     }
 
     [Fact]

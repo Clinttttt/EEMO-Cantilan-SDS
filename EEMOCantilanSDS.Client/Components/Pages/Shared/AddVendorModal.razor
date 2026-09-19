@@ -429,9 +429,9 @@
                 </div>
 
                 <!-- §6 Applicable Charges — hidden for SLH -->
-                @* Dropped entirely where the office bills the days a month has: a monthly rent card would state a figure no
-                   month owes on that basis. Every other facility and the monthly-goal basis are untouched. *@
-                @if (!string.IsNullOrEmpty(Form.FacilityCode) && Form.FacilityCode != "SLH" && ShowsMonthlyRental)
+                @* PureDays drops only fixed-rent controls. The tenant-resolved daily rate and utilities still belong to
+                   the stall being registered. Every other facility and the monthly-goal basis are untouched. *@
+                @if (!string.IsNullOrEmpty(Form.FacilityCode) && Form.FacilityCode != "SLH")
                 {
                     <div class="avm-section">
 
@@ -441,6 +441,8 @@
                             <div class="avm-divider-line"></div>
                         </div>
 
+                        @if (ShowsMonthlyRental)
+                        {
                         <!-- Base Rental card -->
                         <div class="avm-sublabel">Base Rental</div>
                         <div class="avm-rental-card">
@@ -506,6 +508,26 @@
                             <span class="avm-yearly-label">Whole-year equivalent</span>
                             <strong class="avm-yearly-value">₱@Form.WholeYearRental.ToString("N2")</strong>
                         </div>
+                        }
+                        else
+                        {
+                            <div class="avm-sublabel">Calendar-day billing</div>
+                            <div class="avm-rental-card">
+                                <div class="avm-rental-info">
+                                    <div class="avm-rental-icon">
+                                        @if (RentalFacilityMark is { } markCode && FacilityMarkArt.Has(markCode))
+                                        {
+                                            <FacilityMark Code="@markCode" Size="17" />
+                                        }
+                                    </div>
+                                    <div>
+                                        <div class="avm-rental-title">Daily Rate</div>
+                                        <div class="avm-rental-sub">New Public Market · no fixed monthly rent</div>
+                                    </div>
+                                </div>
+                                <strong class="avm-yearly-value">₱@NpmDailyRate.ToString("0.00")/day</strong>
+                            </div>
+                        }
 
                         <!-- Utility charges — NPM only -->
                         @if (Form.FacilityCode == "NPM")
@@ -818,7 +840,7 @@
     /// </remarks>
     private void MonthlyRentEntered()
     {
-        if (IsEditing) return;
+        if (IsEditing || MonthBasis == NpmMonthBasis.PureDays) return;
 
         var derived = DailyFeeFromMonthlyRent.DerivedOrNull(
             Form.MonthlyRate, Form.CustomDailyRate, dailyOnOpen: NpmDailyRate, lastDerived: _dailyFromMonthlyRent);
@@ -844,7 +866,7 @@
     /// </remarks>
     private void DailyFeeEntered()
     {
-        if (IsEditing) return;
+        if (IsEditing || MonthBasis == NpmMonthBasis.PureDays) return;
 
         var derived = DailyFeeFromMonthlyRent.MonthlyFromDailyOrNull(
             Form.CustomDailyRate, Form.MonthlyRate, lastDerived: _monthlyFromDailyFee);
