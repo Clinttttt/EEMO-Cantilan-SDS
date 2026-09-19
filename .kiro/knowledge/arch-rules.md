@@ -83,16 +83,16 @@ tenant. Consequences you must respect:
 
 - Resolve rates through `IFeeRateResolver` **as of a date**; `FeeRates` constants are the fallback only.
 - A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
-- A daily-billed facility's monthly obligation is the rent the space is let for —
-  `Stall.ResolveMonthlyRent(dailyRate, FeeRateKey.NpmMonthlyStall)`: the LGU's own stated month, or thirty
-  installments when it states none. The daily fee is the **installment**, not the measure. Never the stored
-  `Stall.MonthlyRate`.
+- An NPM obligation follows the tenant's explicit `NpmMonthBasis` through `FeeRateSnapshot.MonthRule`.
+  `RentGoal` uses the configured fixed monthly obligation (with its compatibility fallback) and the daily fee is an
+  installment toward it. `PureDays` uses resolved daily fee × chargeable days and has no fixed monthly rent or top-up.
+  Never infer the basis from `Stall.MonthlyRate`, and never duplicate month arithmetic in a presentation layer.
 - **Read every daily-billed figure from the monthly obligation ledger** (`DomainRules.DailyBilledMonthObligation`,
   `…MonthCredit`, `…MonthOutstanding`), per calendar month: Expected − Collected − Credits = Outstanding, floored at
-  nil. Twelve complete months are exactly 12 × the rent; February owes the same as August. A month whose
-  installments cannot reach the rent carries a month-end adjustment on its last installment
-  (`DailyCollection.AddMonthEndAdjustment`), collectible only once the month has closed — nothing may be read as
-  arrears before its due date. Collecting beyond the obligation is revenue, never a negative balance.
+  nil. Under `RentGoal`, twelve complete months are 12 × the rent and February owes the same as August; a short
+  calendar month can carry a month-end adjustment (`DailyCollection.AddMonthEndAdjustment`). Under `PureDays`, months
+  naturally differ with their chargeable days and no such adjustment exists. Nothing may be read as arrears before
+  its due date. Collecting beyond the obligation is revenue, never a negative balance.
 - **A stall outlives its lessees.** Attribute money to the occupancy that answers for the period it was raised
   FOR (`Stall.Occupancies`), never to the stall's current contract. A month is answered for by exactly one
   occupancy — `StallOccupancy.AnsweringForMonth` is the rule — so nothing may charge or credit a handover

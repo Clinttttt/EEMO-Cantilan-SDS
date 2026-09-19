@@ -29,7 +29,7 @@ Eight canonical facility codes, plus per-LGU custom facilities.
 
 | Code | Facility (Cantilan name) | Billing model |
 |------|--------------------------|---------------|
-| NPM | New Public Market | **Daily** per stall, marked on a calendar; Fish section also charges per kilo; electricity and water billed separately |
+| NPM | New Public Market | **Daily** per stall, marked on a calendar; the tenant chooses fixed-month `RentGoal` or calendar-day `PureDays`; Fish section also charges per kilo; electricity and water billed separately |
 | TCC | Tampak Commercial Center | Monthly rental per contract |
 | NCC | New Commercial Center | Monthly rental per contract (Extension / Corner classifications) |
 | BBQ | Barbecue Stand | Monthly space rental |
@@ -54,40 +54,43 @@ from a date, in the `FacilityRates` table.
 - For a stall's daily fee use `Stall.ResolveDailyFee(ordinanceRate)`: a **custom-section** stall uses its own
   stored `DailyRate`; every canonical stall uses the tenant's resolved rate. This one rule keeps billing,
   settlement and the rosters in agreement.
-- For a market space's **monthly rent** use `Stall.ResolveMonthlyRent(dailyRate, monthlyRate)`, where the second
-  argument is `FeeRateKey.NpmMonthlyStall`. An LGU states the month its own ordinance passed; when it states
-  none (0, the default) the month is `dailyRate × DomainRules.DailyBilledMonthDays`, which is Cantilan's
-  ₱30 × 30 = ₱900. A custom section is priced by its own daily rate, so its month is thirty of that and the
-  market-wide monthly rent does not apply to it.
-- While an LGU has stated no monthly rent, the portal shows its **Head a setup reminder** on the dashboard naming
+- For a `RentGoal` market space's **monthly rent**, the shared month rule uses the tenant's
+  `FeeRateKey.NpmMonthlyStall`; its compatibility fallback is `dailyRate × DomainRules.DailyBilledMonthDays`.
+  `PureDays` has no fixed monthly rent: the same rule object calculates the selected calendar month's obligation from
+  its chargeable days. Custom sections still use their own resolved daily rate under either basis.
+- While a `RentGoal` LGU has stated no monthly rent, the portal shows its **Head a setup reminder** on the dashboard naming
   the figure in force ("charging ₱900 a month — ₱30 a day × 30"), with one action to open Settings → Facilities &
   Rates and one to confirm the figure in use as the ordinance amount. Either ends the reminder for good; confirming
   writes that same figure through the ordinary rate path, so no money moves. Head-only (an Admin cannot edit rates),
   only for a tenant that runs a market, and it fails quiet — a reminder never stands between the office and its work.
 
-### The monthly obligation ledger (daily-billed facilities)
+### The calendar-month obligation ledger (daily-billed facilities)
 
-A daily-collected facility is let for a **monthly rent**, and the daily fee is the **installment** that rent is
-collected in — never the measure of what is owed. The office's own List of Stallholders states it: ₱900 a month,
-₱10,800 a year for a ₱30 stall. Every figure comes from one monthly ledger
+A daily-collected NPM facility has an explicit `NpmMonthBasis`. Under `RentGoal`, the daily fee is an installment toward
+the fixed monthly rent. Under `PureDays`, there is no fixed monthly rent and the obligation is the resolved daily fee ×
+chargeable days. Every figure comes from one calendar-month ledger and its `FeeRateSnapshot.MonthRule`
 (`DomainRules.DailyBilledMonthObligation`, `…MonthCredit`, `…MonthOutstanding`):
+
+`Facility.MonthBasis` currently records the municipality's current NPM billing basis; it is not effective-dated or
+historically versioned. How unpaid periods predating a later `RentGoal` ↔ `PureDays` change should be treated remains an
+unresolved business ruling. The current implementation intentionally neither defines nor changes that transition behavior.
 
 | Term | Meaning |
 |------|---------|
-| **Expected** (obligation) | The month's rent when the space was held for the whole month — ₱900 whether the calendar gave 28 days or 31. The rent is the LGU's own stated month (`FeeRateKey.NpmMonthlyStall`) or, when it states none, thirty of its daily fee. A month held only in part (a mid-month start, a lapsed term, a handover) owes the days held, one installment each, and never more than the rent. |
-| **Collected** | The installments actually received, plus any month-end adjustment collected with one of them. |
+| **Expected** (obligation) | `RentGoal`: the fixed rent for a full held month, with part-month obligation capped by that rent. `PureDays`: resolved daily fee × chargeable held days, so February and 30/31-day months naturally differ. |
+| **Collected** | The installments actually received, plus a `RentGoal` month-end adjustment where required. `PureDays` has no top-up. |
 | **Credits** | Days nothing is owed for — excused/absent days and facility-wide closures — at one installment each. A month the payor never traded is credited in full and owes nothing. |
 | **Outstanding** | `Expected − Collected − Credits`, floored at nil. |
 
 Consequences the whole system holds to:
 
-- Twelve complete months owe exactly ₱10,800; February owes the same ₱900 as August. `Stall.MonthlyRate` is still
-  never used for a daily-billed facility — the obligation is the resolved daily fee ×
-  `DomainRules.DailyBilledMonthDays`.
-- **The month-end balance adjustment.** February's 28 installments reach only ₱840, so the ₱60 difference is
+- Under `RentGoal`, twelve complete ₱900 months owe ₱10,800 and February owes the same as August. Under `PureDays`,
+  there is no month-independent rental or automatic monthly × 12 figure; obligation follows actual chargeable days.
+  `Stall.MonthlyRate` is not the authoritative NPM billing basis under either rule.
+- **The RentGoal month-end balance adjustment.** February's 28 installments reach only ₱840, so the ₱60 difference is
   collected with the month's last installment (`DailyCollection.AddMonthEndAdjustment`, kept in its own column so a
   receipt or an audit can say what the extra was for). The month's ledger then reaches its rent exactly, and no
-  shortfall is left that no day could ever clear.
+  shortfall is left that no day could ever clear. `PureDays` never creates this adjustment.
 - **Nothing falls due before its due date.** The adjustment only becomes collectible once the month has closed: it
   is not quoted, not settled and never read as arrears while the month is still running, and the delinquency window
   continues to start at the month before this one.

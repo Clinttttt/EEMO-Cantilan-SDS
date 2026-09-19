@@ -30,11 +30,11 @@ Short versions of the same material live in `.kiro/steering/` (`product.md`, `te
 - **Rates are data and dates matter.** Resolve through `IFeeRateResolver`; `FeeRates` constants are a fallback only.
   Transactions use their business date. A screen quoting a monthly fee uses `RatePeriod.AsOf` rather than inventing a date.
   A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedRate)`, never the stored `MonthlyRate`.
-- **A market month is a monthly rent, not a sum of days.** A daily-billed space owes
-  `Stall.ResolveMonthlyRent(dailyRate, FeeRateKey.NpmMonthlyStall)` for a month held in full — the LGU's own stated
-  month, or thirty installments when it states none — through the ledger in `DomainRules`
-  (`DailyBilledMonthObligation` / `MonthCredit` / `MonthOutstanding`), per calendar month, so that
-  Expected − Collected − Credits = Outstanding. The ₱30 fee is the installment it is collected in.
+- **An NPM market month follows its explicit `NpmMonthBasis`.** `RentGoal` settles daily collections against the
+  tenant's fixed monthly obligation and may require a month-end top-up. `PureDays` has no fixed monthly rent: its
+  obligation is the resolved daily fee × chargeable days, with no top-up. Both use the shared month rule/ledger
+  (`DailyBilledMonthObligation` / `MonthCredit` / `MonthOutstanding`) so Expected − Collected − Credits = Outstanding;
+  never infer the basis from a stored monthly amount or reproduce the arithmetic in a client.
 - **Money belongs to the period and occupancy that incurred it.** Use `DomainRules.TermLastDay` for exact terms,
   `StallOccupancy.AnsweringForMonth` for the one monthly owner, and the past occupancy's contract rate. Do not infer
   historical liability from the stall's current holder or current rate.

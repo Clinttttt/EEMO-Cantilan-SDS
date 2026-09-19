@@ -866,7 +866,12 @@ only the market days elapsed as of the report date.
 
 ## Open questions for the office
 
-### EXAMINED 2026-08-31 (second pass): a per-municipality market billing basis, done as a rule object
+### HISTORICAL / SUPERSEDED — EXAMINED 2026-08-31 (second pass): a per-municipality market billing basis
+
+This section preserves the pre-implementation design record. The rule object, persistence, activation wiring and core
+settlement behavior described below now exist. Later adoption work removed the remaining fixed-rent assumptions from
+Vendor Registry, returning-payor flows, import, rosters/exports and basis-sensitive profile/configuration presentation.
+Treat statements such as “missing” and “not started” below as historical, not current status.
 
 The office refined its own idea and it is a better design than the first pass. Two bases for the market:
 
