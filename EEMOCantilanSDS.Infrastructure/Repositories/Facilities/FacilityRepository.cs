@@ -11,10 +11,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityRepository
+public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepository paymentRepository) : IFacilityRepository
 {
     /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock.</summary>
-    public FacilityRepository(AppDbContext context) : this(context, new SystemClock()) { }
+    public FacilityRepository(AppDbContext context) : this(context, new SystemClock(), new PaymentRepository(context)) { }
     public async Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct)
     {
         return await context.Facilities.FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
@@ -225,14 +225,22 @@ public class FacilityRepository(AppDbContext context, IClock clock) : IFacilityR
             })
             .ToListAsync(ct);
 
+        // NPM is daily-collected: its sidebar badge must answer "pending today", not "no monthly PaymentRecord".
+        // Keep the monthly PaymentRecord projection below for TCC/NCC/BBQ/ICE and any other fixed-rent facility.
+        var npmPendingToday = facilities.Any(f => f.Code == FacilityCode.NPM)
+            ? await paymentRepository.GetNpmPendingTodayCountAsync(ct)
+            : 0;
+
         return facilities.Select(f => new FacilitySidebarSummaryDto(
             f.Code,
             f.Name,
             f.ShortName,
-            f.Stalls.Count(s => !s.HasPaid
-                && s.Contracts.Any(c => c.IsActive
-                    && c.EffectivityDate <= monthEnd
-                    && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears))),
+            f.Code == FacilityCode.NPM
+                ? npmPendingToday
+                : f.Stalls.Count(s => !s.HasPaid
+                    && s.Contracts.Any(c => c.IsActive
+                        && c.EffectivityDate <= monthEnd
+                        && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears))),
             f.VegetableSectionLabel,
             f.FishSectionLabel,
             f.MeatSectionLabel)).ToList();

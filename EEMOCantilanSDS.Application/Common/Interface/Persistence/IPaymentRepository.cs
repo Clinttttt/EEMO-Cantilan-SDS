@@ -12,6 +12,11 @@ public interface IPaymentRepository
     Task<IReadOnlyList<FacilityPaymentRecordDto>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<IReadOnlyList<NpmStallDailyStatusDto>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     /// <summary>
+    /// Counts current NPM occupancies that are still pending for the business date: neither paid nor excused today.
+    /// This is the operational badge source; it is deliberately separate from monthly payment-record summaries.
+    /// </summary>
+    Task<int> GetNpmPendingTodayCountAsync(CancellationToken ct);
+    /// <summary>
     /// <summary>
     /// The stall's UNPAID months with an outstanding balance across the WHOLE contract period (not just
     /// the rolling 12 months, and INCLUDING months with no collection at all) — the source for the

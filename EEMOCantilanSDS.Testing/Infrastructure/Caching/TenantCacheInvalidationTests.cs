@@ -94,4 +94,18 @@ public class TenantCacheInvalidationTests
         Assert.False(defaulted.HasChanged);
         Assert.False(named.HasChanged);
     }
+
+    [Fact]
+    public async Task NpmDailyCollectionInvalidationDropsTheFacilitySummaryPeriodOnlyForThatTenant()
+    {
+        var invalidator = new MemoryEemoCacheInvalidator();
+        var cantilan = invalidator.GetChangeToken(EemoCacheRegions.Period("cantilan-sds", 2026, 9));
+        var madrid = invalidator.GetChangeToken(EemoCacheRegions.Period("madrid", 2026, 9));
+
+        await invalidator.InvalidatePaymentAffectedViewsAsync(
+            "cantilan-sds", FacilityCode.NPM, 2026, 9);
+
+        Assert.True(cantilan.HasChanged);
+        Assert.False(madrid.HasChanged);
+    }
 }

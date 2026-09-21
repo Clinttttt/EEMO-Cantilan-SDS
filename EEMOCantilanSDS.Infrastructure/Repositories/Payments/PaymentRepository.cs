@@ -146,6 +146,48 @@ public partial class PaymentRepository(AppDbContext context, IFeeRateResolver fe
             .ToList();
     }
 
+    /// <summary>
+    /// The NPM sidebar badge is an operational, today-scoped count. It cannot use the monthly PaymentRecord table:
+    /// NPM vendors may have paid earlier in the month and still be pending today, while an absent vendor is not pending.
+    /// The current-stall/contract eligibility is evaluated with the domain's <see cref="Contract.IsCollectableOn"/>
+    /// rule so this read cannot drift into counting closed or expired occupancies.
+    /// </summary>
+    public async Task<int> GetNpmPendingTodayCountAsync(CancellationToken ct)
+    {
+        var today = _clock.PhilippineToday;
+
+        // A market-wide closure excuses every NPM payor without requiring per-stall DailyCollection rows.
+        if (await _context.NpmMarketClosures
+                .AsNoTracking()
+                .AnyAsync(c => c.ClosureDate == today, ct))
+            return 0;
+
+        var currentStalls = await _context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == FacilityCode.NPM && s.Status == StallStatus.Active)
+            .ToListAsync(ct);
+
+        var currentStallIds = currentStalls
+            .Where(s => s.Contracts.Any(c => c.IsCollectableOn(today)))
+            .Select(s => s.Id)
+            .ToArray();
+
+        if (currentStallIds.Length == 0)
+            return 0;
+
+        var resolvedToday = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => currentStallIds.Contains(dc.StallId)
+                && dc.CollectionDate == today
+                && (dc.IsPaid || dc.IsAbsent))
+            .Select(dc => dc.StallId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return currentStallIds.Length - resolvedToday.Count;
+    }
+
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
     {
