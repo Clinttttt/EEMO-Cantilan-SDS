@@ -92,6 +92,14 @@ public class ApplicationEfBoundaryTests
         // Rates and the OR series.
         "GetFacilityRatesQueryHandler.cs",
         "SetFacilityRateCommandHandler.cs",
+        // Revenue Classification management is dormant tenant configuration. These small handlers follow the same
+        // IAppDbContext pattern as effective-dated facility rates; explicit caller-tenant predicates complement
+        // the global filter, and no current money writer/report consumes these rows.
+        "GetRevenueClassificationsQueryHandler.cs",
+        "GetRevenueClassificationPolicyHistoryQueryHandler.cs",
+        "CreateRevenueClassificationCommandHandler.cs",
+        "AppendRevenueClassificationPolicyCommandHandler.cs",
+        "RetireRevenueClassificationCommandHandler.cs",
         // The same write as SetFacilityRate, for a section the office named itself: one effective-dated row, found by
         // its key or added. It is here for the same reason that one is — a rate row has no reads to speak of and no
         // repository of its own would carry any rule this handler does not already state.
