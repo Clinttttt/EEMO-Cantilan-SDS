@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -49,14 +50,12 @@ public class RecordSlaughterCommandHandler(
         // components; only the per-head total is data-driven.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
-        var perHeadKey = request.AnimalType switch
-        {
-            AnimalType.Hog => FeeRateKey.SlhHogPerHead,
-            AnimalType.Carabao or AnimalType.Cow => FeeRateKey.SlhLargePerHead,
-            _ => (FeeRateKey?)null,      // a custom animal carries its own rate from the LGU's registry
-        };
+        var perHeadKey = SlaughterRateKeys.For(request.AnimalType);
+        var perHeadRate = perHeadKey is { } key
+            ? rateSnapshot.ResolveOrNull(key, request.TransactionDate)
+            : null; // a custom animal carries its own rate from the LGU's registry
 
-        if (perHeadKey is { } required && rateSnapshot.ResolveOrNull(required, request.TransactionDate) is null)
+        if (perHeadKey is { } required && perHeadRate is null)
             return Result<bool>.Failure(FeeRateMessages.NotStated(required));
 
         SlaughterTransaction transaction = request.AnimalType switch
@@ -69,7 +68,7 @@ public class RecordSlaughterCommandHandler(
                 request.ORNumber,
                 request.TransactionDate,
                 recordedBy,
-                ratePerHead: rateSnapshot.Resolve(FeeRateKey.SlhHogPerHead, request.TransactionDate)),
+                ratePerHead: perHeadRate),
 
             AnimalType.Carabao or AnimalType.Cow => SlaughterTransaction.CreateLargeAnimal(
                 facility.Id,
@@ -80,7 +79,7 @@ public class RecordSlaughterCommandHandler(
                 request.ORNumber,
                 request.TransactionDate,
                 recordedBy,
-                ratePerHead: rateSnapshot.Resolve(FeeRateKey.SlhLargePerHead, request.TransactionDate)),
+                ratePerHead: perHeadRate),
 
             AnimalType.Other => SlaughterTransaction.CreateCustomAnimal(
                 facility.Id,

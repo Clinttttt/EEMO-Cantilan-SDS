@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -16,6 +18,7 @@ public class UpdateSlaughterCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<UpdateSlaughterCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateSlaughterCommand request, CancellationToken ct)
@@ -36,6 +39,24 @@ public class UpdateSlaughterCommandHandler(
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
 
+        // The edit form retains the original activity date. Resolve canonical per-head rates as of that date,
+        // just as the create path does, before replacing any rows. Custom animals retain their submitted
+        // registry rate and do not use fixed FeeRateKeys.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var entries = new List<(AnimalEntry Animal, decimal? RatePerHead)>();
+        foreach (var animal in request.Animals.Where(a => a.NumberOfHeads > 0))
+        {
+            var key = SlaughterRateKeys.For(animal.AnimalType);
+            var rate = key is { } rateKey
+                ? rateSnapshot.ResolveOrNull(rateKey, request.TransactionDate)
+                : animal.CustomRate;
+
+            if (key is { } required && rate is null)
+                return Result<bool>.Failure(FeeRateMessages.NotStated(required));
+
+            entries.Add((animal, rate));
+        }
+
         var existingTransactions = await slaughterRepository.GetTransactionsByOwnerDateORAsync(
             request.OwnerName,
             request.TransactionDate,
@@ -47,10 +68,8 @@ public class UpdateSlaughterCommandHandler(
             await slaughterRepository.RemoveAsync(transaction, ct);
         }
 
-        foreach (var animal in request.Animals)
+        foreach (var (animal, ratePerHead) in entries)
         {
-            if (animal.NumberOfHeads <= 0) continue;
-
             SlaughterTransaction transaction = animal.AnimalType switch
             {
                 AnimalType.Hog => SlaughterTransaction.CreateHog(
@@ -60,7 +79,8 @@ public class UpdateSlaughterCommandHandler(
                     animal.NumberOfHeads,
                     request.ORNumber,
                     request.TransactionDate,
-                    recordedBy),
+                    recordedBy,
+                    ratePerHead: ratePerHead),
 
                 AnimalType.Carabao or AnimalType.Cow => SlaughterTransaction.CreateLargeAnimal(
                     facility.Id,
@@ -70,7 +90,8 @@ public class UpdateSlaughterCommandHandler(
                     animal.NumberOfHeads,
                     request.ORNumber,
                     request.TransactionDate,
-                    recordedBy),
+                    recordedBy,
+                    ratePerHead: ratePerHead),
 
                 AnimalType.Other => SlaughterTransaction.CreateCustomAnimal(
                     facility.Id,

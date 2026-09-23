@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -74,6 +75,7 @@ public class RecordSlaughterCommandHandlerTests
         Assert.NotNull(captured);
         Assert.Equal(AnimalType.Hog, captured!.AnimalType);
         Assert.Equal(2, captured.NumberOfHeads);
+        Assert.Equal(FeeRates.SlhHogTotalPerHead, captured.RatePerHead);
         Assert.Equal(collector.Id, captured.CollectorId);
     }
 }
