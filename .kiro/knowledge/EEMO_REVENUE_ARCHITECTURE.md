@@ -1,6 +1,6 @@
 # EEMO Revenue Architecture
 
-**Status:** Planning approved; Phase 0 is complete; Phase 1A — Revenue Classification Foundation is complete and PostgreSQL-verified; next is Phase 1B — Revenue Classification management/configuration surface.
+**Status:** Planning approved; Phase 0 and Phase 1 — Revenue Classification are complete; next is Phase 2 — Collection Ledger.
 **Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
 **Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
 
@@ -254,8 +254,8 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 | Phase | Purpose and dependency |
 |---|---|
 | Phase 0 — correctness baseline | COMPLETE. Independent verified correctness findings were fixed or explicitly dispositioned; see §15. It did not start a Collection/Receipt/CT migration. |
-| Phase 1 — Revenue Classification | Phase 1A (foundation) is complete: it established stable internal semantic identities, tenant-owned effective-dated instrument/presentation policy, and confirmed Cantilan seed data. Phase 1B exposes the management/configuration surface. Seed only rulings that are confirmed; do not guess the final catalog. |
-| Phase 2 — Collection ledger | Add immutable money-received events, attribution, idempotency and reversal history. Keep module writes compatible until controlled cutover is proven. |
+| Phase 1 — Revenue Classification | **COMPLETE** (1A foundation, 1B.1 management backend and 1B.2 Revenue Setup UI). It established stable internal semantic identities, tenant-owned effective-dated instrument/presentation policy, confirmed Cantilan seed data, and the Head-facing management surface. Seed only confirmed rulings; do not guess the final catalog. This configuration is ready for later ledger consumption but is not authoritative for money. |
+| Phase 2 — Collection Ledger | Introduce the common posted money-received layer and classified lines while preserving existing specialized obligation authorities. |
 | Phase 3 — AccountableDocument / OR pilot | Establish OR ownership, document history/replacement and compatible itemized lines for a bounded OR workflow. Reconcile existing OR registry and legacy fields before switching writers. |
 | Phase 4 — shadow classified reporting | Compare classified collection projections with current reports without replacing their official source. Investigate every difference. |
 | Phase 5 — monthly installments | Adapt monthly obligations and PaymentRecord state to multiple immutable collections and explicit allocations. Preserve historical PaymentRecords; never synthesize missing old installments. |
@@ -282,18 +282,24 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 **Phase 0:** COMPLETE — correctness baseline findings have been dispositioned.
 
-**Phase 1A — Revenue Classification Foundation:** COMPLETE and verified against PostgreSQL through the normal GitHub CI/Testcontainers path. The dormant foundation consists of `RevenueClassification`, `RevenueClassificationPolicy`, stable internal semantic identities, effective-dated tenant instrument/presentation policy, confirmed Cantilan seeding, tenant isolation, and tenant backup/restore. CI verified tenant isolation, tenant-scoped semantic-code uniqueness, effective-date policy uniqueness, the same-tenant composite foreign key, and the tenant backup/restore round-trip.
+**Phase 1A — Revenue Classification Foundation:** COMPLETE and verified against PostgreSQL through the normal GitHub CI/Testcontainers path. It established `RevenueClassification` and `RevenueClassificationPolicy`, stable internal semantic identities, effective-dated tenant instrument/presentation policy, confirmed Cantilan seeding, tenant isolation, and tenant backup/restore. CI verified tenant isolation, tenant-scoped semantic-code uniqueness, effective-date policy uniqueness, the same-tenant composite foreign key, and the tenant backup/restore round-trip.
 
-**Next implementation phase:** Phase 1B — Revenue Classification management/configuration surface.
+**Phase 1B.1 — Revenue Classification Management Backend:** COMPLETE. It provides the tenant-scoped Head-only management API, as-of policy resolution, append-only policy changes, and retirement without deletion.
 
-Phase 1A has not started `Collection`, `CollectionLine`, `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket issuance/inventory, production classified reporting, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, TPM, TRM, OR, and reporting flows remain authoritative/current behavior. No production money flow consumes the new classification foundation yet.
+**Phase 1B.2 — Revenue Setup UI:** COMPLETE. It provides the Head-facing Administration / Revenue Setup register, policy history, and scheduled policy changes. The management surface does not provide retroactive policy editing.
+
+**Phase 1 — Revenue Classification:** COMPLETE. Classification configuration is ready for later ledger consumption; completion does not make it authoritative for money.
+
+**Next implementation phase:** Phase 2 — Collection Ledger. Its roadmap purpose is to introduce the common posted money-received layer and classified lines while preserving existing specialized obligation authorities.
+
+Phase 1 has not introduced `Collection`, `CollectionLine`, `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket inventory/issuance, classified RCD, classified Monthly Income, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, `TpmAttendance`, `TrmTrip`, `OnlinePaymentTransaction`, and existing OR/reporting flows remain authoritative/current behavior. No production money flow consumes Revenue Classification yet.
 
 ## 14. Business decision gates
 
 | Decision gate | Blocks or constrains |
 |---|---|
 | Exact old/lapsed Arrears qualification boundary | Phase 5B status transition, arrears recovery classification and historical reports. |
-| Final complete official revenue-classification catalog/codes | Completing production catalog coverage in Phase 1 and official classification coverage in Phase 8. Confirmed sources may be modeled without inventing the remainder. |
+| Final complete official revenue-classification catalog/codes | Adding unresolved catalog entries and completing official classified-report coverage in later phases. Phase 1 includes only confirmed sources; do not invent the remainder. |
 | Automatic allocation policy for partial or multi-obligation collections | Any automatic allocation behavior in Phase 5. The model may support explicit allocations; do not guess ordering or split rules. |
 | Lot Rental OR/CT instrument | Issuing Lot Rental documents and production collection flow for that source in Phase 7/later operations. |
 | Detailed Cash Ticket series and custody operating policy | Production batch issuance, collector assignment and reconciliation in Phase 6. |
