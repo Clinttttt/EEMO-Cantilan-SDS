@@ -102,23 +102,22 @@ public partial class FacilityReportsRepository
                     g => g.Select(x => (x.CollectionDate, x.DailyFee)).ToList())
             : new Dictionary<Guid, List<(DateOnly CollectionDate, decimal DailyFee)>>();
 
-        // What each NPM stall actually collected in each month of the counted span. NPM is collected daily, so the
-        // evidence a month was settled is money — the daily fees plus any month-end adjustment — measured against
-        // that month's obligation. Counting "any paid day" as settled let a stall that paid ₱30 of a ₱900 month
-        // read as fully covered while ₱870 was still owed.
+        // What each NPM stall actually collected in each month of the counted span. DailyFee already includes any
+        // month-end adjustment; MonthEndAdjustment is retained separately only for traceability. Counting "any paid day"
+        // as settled let a stall that paid ₱30 of a ₱900 month read as fully covered while ₱870 was still owed.
         var yearStart = countStart;
         var dailyCollectedByStallMonth = includeFish
             ? (await _context.DailyCollections
                     .AsNoTracking()
                     .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
                         && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
-                    .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee, dc.MonthEndAdjustment })
+                    .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee })
                     .ToListAsync(ct))
                 .GroupBy(x => x.StallId)
                 .ToDictionary(
                     g => g.Key,
                     g => g.GroupBy(x => (x.CollectionDate.Year, x.CollectionDate.Month))
-                          .ToDictionary(m => m.Key, m => m.Sum(x => x.DailyFee + (x.MonthEndAdjustment ?? 0m))))
+                          .ToDictionary(m => m.Key, m => m.Sum(x => x.DailyFee)))
             : new Dictionary<Guid, Dictionary<(int Year, int Month), decimal>>();
 
         // Fish kilos weighed per stall over the period. Its own read rather than a column on dailyRowsByStall above,

@@ -126,6 +126,71 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task Npm_UnfoldedAdjustmentMetadata_CannotFalselyMarkAnUnderpaidMonthCovered()
+    {
+        var february = new DateOnly(PhilippineTime.Today.Year - 1, 2, 1);
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Short Month", "Short Month", february, 3, 900m);
+        var rows = Enumerable.Range(1, DateTime.DaysInMonth(february.Year, february.Month))
+            .Select(day =>
+            {
+                var collection = DailyCollection.Create(stall.Id, new DateOnly(february.Year, february.Month, day), dailyFee: 30m);
+                collection.MarkPaid("OR-FEB", Guid.NewGuid());
+                return collection;
+            })
+            .ToArray();
+
+        // Model inconsistent stored data: 28 × ₱30 was actually recorded (₱840), but the separate traceability
+        // field says ₱60. The domain method normally folds that value into DailyFee; this fixture deliberately
+        // represents a row where it was not folded, to prove the report cannot count the metadata as money again.
+        typeof(DailyCollection).GetProperty(nameof(DailyCollection.MonthEndAdjustment))!
+            .SetValue(rows[^1], 60m);
+
+        context.AddRange(facility, stall, contract);
+        context.AddRange(rows);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+
+        Assert.Equal(1, await MissedMonthsFor(repo, FacilityCode.NPM, february.Year, february.Month, "1"));
+    }
+
+    [Fact]
+    public async Task Npm_AdjustedDailyFee_IsCoveredExactlyOnce()
+    {
+        var february = new DateOnly(PhilippineTime.Today.Year - 1, 2, 1);
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Settled Short Month", "Settled Short Month", february, 3, 900m);
+        var rows = Enumerable.Range(1, DateTime.DaysInMonth(february.Year, february.Month))
+            .Select(day =>
+            {
+                var collection = DailyCollection.Create(stall.Id, new DateOnly(february.Year, february.Month, day), dailyFee: 30m);
+                collection.MarkPaid("OR-FEB", Guid.NewGuid());
+                if (day == DateTime.DaysInMonth(february.Year, february.Month))
+                    collection.AddMonthEndAdjustment(60m);
+                return collection;
+            })
+            .ToArray();
+
+        Assert.Equal(900m, rows.Sum(row => row.DailyFee));
+        Assert.Equal(60m, rows[^1].MonthEndAdjustment);
+
+        context.AddRange(facility, stall, contract);
+        context.AddRange(rows);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+
+        Assert.Equal(0, await MissedMonthsFor(repo, FacilityCode.NPM, february.Year, february.Month, "1"));
+    }
+
+    [Fact]
     public async Task Npm_PartlyCollectedMonths_RemainOutstanding()
     {
         var today = PhilippineTime.Today;

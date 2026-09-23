@@ -215,7 +215,8 @@ public class SettleNpmMonthCommandHandler(
     /// to prevent.
     ///
     /// <para>Nothing downstream loses the adjustment for sitting on a closure day: the collection sums filter on IsPaid and the date
-    /// range only (FacilityReportsRepository.Compliance.cs), never on closure, and carry DailyFee + MonthEndAdjustment together.</para>
+    /// range only (FacilityReportsRepository.Compliance.cs), never on closure. The adjustment is already included in DailyFee;
+    /// MonthEndAdjustment remains alongside it only for traceability.</para>
     /// </remarks>
     private static DailyCollection? LastCollectedOf(
         IReadOnlyDictionary<DateOnly, DailyCollection> existing,

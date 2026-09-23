@@ -65,8 +65,8 @@ public partial class CollectorRepository
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
 
         // Paid rows only: an absence carries the day's fee, so counting every row made a stall marked absent look like
-        // money in hand. The month-end difference is added because it IS money the collector took — where a settled month
-        // owes more than its days priced at the daily fee, the remainder rides on one installment.
+        // money in hand. DailyFee already includes any month-end difference carried on an installment; fish remains a
+        // separate amount resolved at the tenant's rate.
         var dailyStats = await _context.DailyCollections
             .Where(d => d.CollectorId != null && collectorIds.Contains(d.CollectorId.Value)
                         && d.IsPaid
@@ -76,7 +76,7 @@ public partial class CollectorRepository
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.MonthEndAdjustment ?? 0m) + (d.FishKilos ?? 0) * npmFish),
+                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -242,7 +242,7 @@ public partial class CollectorRepository
                         && d.IsPaid
                         && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
                         && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc)
-            .SumAsync(d => d.DailyFee + (d.MonthEndAdjustment ?? 0m) + ((d.FishKilos ?? 0) * fishRate), cancellationToken) +
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate), cancellationToken) +
             await _context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id
                         && p.Status != PaymentStatus.Unpaid

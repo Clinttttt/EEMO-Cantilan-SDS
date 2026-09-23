@@ -304,7 +304,7 @@ Configuration can safely hold tenant-varying names, rates and allowed instrument
 The following defects were found independently of the target architecture and must be handled as separate correctness work, not hidden inside the migration:
 
 - UtilityBill is financially significant but was absent from automatic financial audit coverage.
-- TransactionFeed may omit MonthEndAdjustment from an NPM collected row.
+- TransactionFeed was audited and is already correct: DailyFee includes MonthEndAdjustment, and TransactionFeed does not add the traceability field again. The actual Phase 0D defect was double-counting the adjustment in compliance and collector-report projections.
 - UpdateSlaughterCommandHandler may reconstruct charges without IFeeRateResolver.
 
 Classify and test each before its owning migration touches that path. Do not combine them into a broad architecture rewrite.

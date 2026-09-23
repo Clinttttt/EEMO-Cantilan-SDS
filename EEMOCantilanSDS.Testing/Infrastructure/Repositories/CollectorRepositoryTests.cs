@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
@@ -158,6 +159,42 @@ public class CollectorRepositoryTests : RepositoryTestBase
         var december = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(2025, 12));
         Assert.Equal(0m, december.CollectedThisMonth);
         Assert.Equal(0, december.Transactions);
+    }
+
+    [Fact]
+    public async Task CollectorListAndActivity_CountAdjustedDailyFeeOnce_AndKeepFishSeparate()
+    {
+        await using var ctx = NewContext();
+        var today = PhilippineTime.Today;
+
+        var collector = CollectorUser.Create("NPM Collector", "EEMO-2026-010", "npm-collector", "npm@x.com", "0917", TestPasswords.Hash("pw"));
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var normalStall = Stall.Create(facility.Id, "N-1", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee, section: MarketSection.FishSection);
+        var adjustedStall = Stall.Create(facility.Id, "N-2", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee, section: MarketSection.FishSection);
+        var normalContract = Contract.Create(normalStall.Id, "Normal", "Normal", new DateOnly(2020, 1, 1), 20, 900m);
+        var adjustedContract = Contract.Create(adjustedStall.Id, "Adjusted", "Adjusted", new DateOnly(2020, 1, 1), 20, 900m);
+
+        var normal = DailyCollection.Create(normalStall.Id, today);
+        normal.MarkPaid("OR-NORMAL", collector.Id, fishKilos: 2m);
+        var adjusted = DailyCollection.Create(adjustedStall.Id, today, dailyFee: 40m);
+        adjusted.MarkPaid("OR-ADJUSTED", collector.Id, fishKilos: 3m);
+        adjusted.AddMonthEndAdjustment(60m);
+
+        ctx.AddRange(collector, facility, normalStall, adjustedStall, normalContract, adjustedContract, normal, adjusted);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+
+        // TestFeeRates states ₱1/kg: (₱30 + ₱2 fish) + (₱40 + ₱60 adjustment + ₱3 fish) = ₱135.
+        var listed = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(today.Year, today.Month));
+        Assert.Equal(135m, listed.CollectedThisMonth);
+        Assert.Equal(2, listed.Transactions);
+
+        var activity = await repo.GetCollectorActivityAsync(collector.Id, today.Year, today.Month);
+        Assert.NotNull(activity);
+        Assert.Equal(135m, activity.CollectedThisMonth);
+        Assert.Contains(activity.RecentTransactions, row => row.ORNumber == "OR-NORMAL" && row.Amount == 32m);
+        Assert.Contains(activity.RecentTransactions, row => row.ORNumber == "OR-ADJUSTED" && row.Amount == 103m);
     }
 
     [Fact]
