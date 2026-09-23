@@ -63,6 +63,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<FacilityRate> FacilityRates { get; set; }
         public DbSet<RevenueClassification> RevenueClassifications { get; set; }
         public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; set; }
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; set; }
         public DbSet<FacilitySectionRate> FacilitySectionRates { get; set; }
         public DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; set; }
         public DbSet<FacilitySectionClosure> FacilitySectionClosures { get; set; }

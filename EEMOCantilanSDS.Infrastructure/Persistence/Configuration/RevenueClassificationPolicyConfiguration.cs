@@ -11,6 +11,9 @@ public sealed class RevenueClassificationPolicyConfiguration : IEntityTypeConfig
         builder.ToTable("RevenueClassificationPolicies");
 
         builder.HasKey(x => x.Id);
+        // CollectionLine needs to prove that the selected policy belongs to the same municipality
+        // and classification, not merely that its globally unique Id exists.
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.RevenueClassificationId, x.Id });
         builder.Property(x => x.MunicipalityId).IsRequired();
         builder.Property(x => x.RevenueClassificationId).IsRequired();
         builder.Property(x => x.EffectiveDate).IsRequired();
