@@ -21,7 +21,7 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
 
         var seedDate = new DateOnly(2026, 9, 23);
         await RevenueClassificationSeeder.SeedAsync(context, seedDate);
-        await RevenueClassificationSeeder.SeedAsync(context, seedDate);
+        await RevenueClassificationSeeder.SeedAsync(context, new DateOnly(2026, 9, 24));
 
         var classifications = await context.RevenueClassifications
             .Where(x => x.MunicipalityId == cantilan.Id).ToListAsync();
