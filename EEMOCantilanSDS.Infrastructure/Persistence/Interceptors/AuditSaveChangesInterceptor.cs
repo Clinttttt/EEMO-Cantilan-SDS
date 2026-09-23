@@ -24,7 +24,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     private static readonly HashSet<Type> AuditedTypes =
     [
         // Financial transactions
-        typeof(PaymentRecord), typeof(DailyCollection),
+        typeof(PaymentRecord), typeof(DailyCollection), typeof(UtilityBill),
         typeof(StallMonthlyException), typeof(NpmMarketClosure),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),

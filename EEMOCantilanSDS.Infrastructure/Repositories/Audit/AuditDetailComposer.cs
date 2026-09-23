@@ -123,6 +123,18 @@ public static class AuditDetailComposer
         ("MonthlyRate", "Monthly rate"),
         ("DailyRate", "Daily rate"),
         ("DailyFee", "Daily fee"),
+        ("ElecStatus", "Electricity status"),
+        ("ElecPartialAmount", "Electricity partial amount"),
+        ("ElecORNumber", "Electricity OR no."),
+        ("ElecPreviousReading", "Electricity previous reading"),
+        ("ElecCurrentReading", "Electricity current reading"),
+        ("ElecRatePerKwh", "Electricity rate per kWh"),
+        ("WaterStatus", "Water status"),
+        ("WaterPartialAmount", "Water partial amount"),
+        ("WaterORNumber", "Water OR no."),
+        ("WaterPreviousReading", "Water previous reading"),
+        ("WaterCurrentReading", "Water current reading"),
+        ("WaterRatePerCubicMeter", "Water rate per cubic meter"),
         ("IsPaid", "Paid"),
         ("IsAbsent", "Absent"),
         ("StallNo", "Stall no."),
@@ -159,6 +171,10 @@ public static class AuditDetailComposer
         ("Created", "DailyCollection") => "Recorded a daily collection for",
         ("Updated", "DailyCollection") => "Updated the daily collection of",
         ("Deleted", "DailyCollection") => "Removed the daily collection of",
+
+        ("Created", "UtilityBill") => "Recorded a utility bill for",
+        ("Updated", "UtilityBill") => "Updated the utility bill for",
+        ("Deleted", "UtilityBill") => "Removed the utility bill for",
 
         ("Created", "SlaughterTransaction") => "Recorded a collection for",
         ("Updated", "SlaughterTransaction") => "Updated the collection of",
@@ -234,6 +250,12 @@ public static class AuditDetailComposer
                 parts.AddIfPresent(DatePhrase(snapshot, "CollectionDate"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "DailyFee", "₱{0}"));
                 parts.AddIfPresent(OrPhrase(snapshot));
+                break;
+            }
+            case "UtilityBill":
+            {
+                parts.AddIfPresent(StallPhrase(snapshot, lookup));
+                parts.AddIfPresent(PeriodPhrase(snapshot));
                 break;
             }
             case "SlaughterTransaction":
@@ -465,6 +487,8 @@ public static class AuditDetailComposer
     private static readonly Dictionary<string, Dictionary<int, string>> EnumLabels = new(StringComparer.Ordinal)
     {
         ["Status"] = new() { [1] = "Unpaid", [2] = "Partial", [3] = "Paid" },              // PaymentStatus
+        ["ElecStatus"] = new() { [1] = "Unpaid", [2] = "Partial", [3] = "Paid" },          // PaymentStatus
+        ["WaterStatus"] = new() { [1] = "Unpaid", [2] = "Partial", [3] = "Paid" },         // PaymentStatus
         ["Role"] = new() { [1] = "Head", [2] = "Administrator" },                          // AdminRole
         ["AnimalType"] = new() { [1] = "Hog", [2] = "Carabao", [3] = "Cow", [99] = "Other" },
         ["StallStatus"] = new() { [1] = "Active", [2] = "Closed" },

@@ -1,9 +1,12 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
+using EEMOCantilanSDS.Infrastructure.Repositories.Audit;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
@@ -11,6 +14,12 @@ namespace EEMOCantilanSDS.Testing;
 
 public class AuditInterceptorTests
 {
+    private sealed class FixedMunicipality(Guid municipalityId) : ICurrentMunicipalityAccessor
+    {
+        public Guid MunicipalityId => municipalityId;
+        public void Set(Guid id) { }
+    }
+
     [Fact]
     public async Task FinancialMutation_WritesAttributedAuditLog()
     {
@@ -37,6 +46,95 @@ public class AuditInterceptorTests
         Assert.Equal(actorId.ToString(), log.ActorId);
         Assert.Equal("head", log.ActorName);
         Assert.NotNull(log.NewValues);
+    }
+
+    [Fact]
+    public async Task UtilityBillFinancialMutation_IsAuditedWithUsefulDetailsAndOwningTenant()
+    {
+        var municipalityId = Guid.NewGuid();
+        var stallId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.UserId).Returns(actorId);
+        currentUser.SetupGet(c => c.Username).Returns("head");
+        currentUser.SetupGet(c => c.Role).Returns("SuperAdmin");
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(
+                new AuditSaveChangesInterceptor(currentUser.Object),
+                new MunicipalityStampInterceptor())
+            .Options;
+
+        using (var context = new AppDbContext(options, new FixedMunicipality(municipalityId)))
+        {
+            var bill = UtilityBill.Create(
+                stallId, 2026, 9,
+                100m, 110m, 8m,
+                20m, 22m, 30m,
+                createdBy: "head");
+            context.UtilityBills.Add(bill);
+            await context.SaveChangesAsync();
+
+            bill.RecordPayment(
+                "UT-OR-17", null, collectorId: null,
+                PaymentStatus.Partial, 25m,
+                PaymentStatus.Unpaid, 0m,
+                remarks: "not shown in audit detail", updatedBy: "head");
+            await context.SaveChangesAsync();
+
+            Assert.Equal(municipalityId, bill.MunicipalityId);
+
+            var logs = await context.AuditLogs
+                .Where(a => a.EntityType == nameof(UtilityBill))
+                .OrderBy(a => a.Action)
+                .ToListAsync();
+            Assert.Equal(2, logs.Count);
+
+            var updated = Assert.Single(logs, a => a.Action == "Updated");
+            Assert.Equal(actorId.ToString(), updated.ActorId);
+            Assert.Equal(municipalityId, updated.MunicipalityId);
+            Assert.NotNull(updated.OldValues);
+            Assert.Contains("ElecStatus", updated.NewValues!);
+            Assert.Contains("ElecPartialAmount", updated.NewValues!);
+            Assert.Contains("ElecORNumber", updated.NewValues!);
+
+            var lookup = new AuditDetailComposer.Lookup(
+                new Dictionary<Guid, AuditDetailComposer.StallRef>
+                {
+                    [stallId] = new("12", "New Public Market", "Vegetable Area", "Ana Reyes")
+                },
+                new Dictionary<Guid, string>(),
+                new Dictionary<string, string>());
+            var details = AuditDetailComposer.Describe(
+                updated.Action, updated.EntityType, updated.EntityId,
+                updated.NewValues, updated.OldValues, lookup);
+            var changes = AuditDetailComposer.Changes(updated.OldValues, updated.NewValues, lookup);
+
+            Assert.Contains("Updated the utility bill for", details);
+            Assert.Contains("Stall 12", details);
+            Assert.Contains("September 2026", details);
+            Assert.Contains(changes, c => c == "Electricity status Unpaid → Partial");
+            Assert.Contains(changes, c => c.StartsWith("Electricity partial amount "));
+            Assert.Contains(changes, c => c == "Electricity OR no. — → UT-OR-17");
+            Assert.DoesNotContain("not shown in audit detail", details);
+            Assert.DoesNotContain(changes, c => c.Contains("Remarks", StringComparison.OrdinalIgnoreCase));
+        }
+
+        using var otherTenant = new AppDbContext(options, new FixedMunicipality(Guid.NewGuid()));
+        Assert.Empty(await otherTenant.AuditLogs.ToListAsync());
+        Assert.Empty(await otherTenant.UtilityBills.ToListAsync());
+    }
+
+    [Fact]
+    public async Task NonFinancialFacilityMutation_RemainsOutsideFinancialAuditAllowlist()
+    {
+        using var context = NewAuditedContext();
+        context.Facilities.Add(Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+
+        await context.SaveChangesAsync();
+
+        Assert.Empty(await context.AuditLogs.ToListAsync());
     }
 
     private static AppDbContext NewAuditedContext()
