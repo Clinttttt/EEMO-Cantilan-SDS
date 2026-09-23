@@ -1,0 +1,698 @@
+@page "/settings/revenue"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Command.Revenue.CreateRevenueClassification
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IRevenueClassificationsApiClient RevenueApi
+
+<PageTitle>@Branding.OfficeAcronym — Revenue Setup</PageTitle>
+
+<div class="rev-page">
+    <header class="rev-header">
+        <nav class="rev-breadcrumb" aria-label="Breadcrumb">
+            <a href="/settings">Settings</a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">Revenue Setup</span>
+        </nav>
+        <div class="rev-heading-row">
+            <div>
+                <h1>Revenue Setup</h1>
+                <p>Configure how this municipality identifies and documents revenue.</p>
+            </div>
+            <button class="rev-button rev-button-primary" type="button" @onclick="OpenCreate">
+                Add revenue source
+            </button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_feedback))
+    {
+        <div class="rev-feedback @(_feedbackIsError ? "is-error" : "is-success")" role="status" aria-live="polite">
+            <span>@_feedback</span>
+            <button type="button" aria-label="Dismiss message" @onclick="DismissFeedback">×</button>
+        </div>
+    }
+
+    <section class="rev-register" aria-labelledby="rev-register-title">
+        <div class="rev-register-heading">
+            <div>
+                <h2 id="rev-register-title">Revenue sources</h2>
+                <p>Stable internal identities with the policy effective for the selected date.</p>
+            </div>
+        </div>
+
+        <div class="rev-toolbar">
+            <label class="rev-search">
+                <span>Search revenue sources</span>
+                <input type="search" @bind="_search" placeholder="Name or internal reference" />
+            </label>
+            <label class="rev-filter">
+                <span>Status</span>
+                <select @bind="_statusFilter" aria-label="Filter by status">
+                    <option value="All">All</option>
+                    <option value="Active">Active</option>
+                    <option value="Retired">Retired</option>
+                </select>
+            </label>
+            <label class="rev-asof">
+                <span>View as of</span>
+                <input type="date" value="@DateText(_asOf)" @onchange="OnAsOfChanged" aria-label="View revenue policies as of date" />
+            </label>
+            <button class="rev-button rev-button-secondary" type="button" @onclick="ResetAsOf" disabled="@(_asOf == PhilippineTime.Today)">Today</button>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="rev-table-wrap" aria-label="Loading revenue sources" aria-busy="true">
+                <table class="rev-table">
+                    <caption class="sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
+                    <thead><tr><th>Revenue source</th><th>Instrument</th><th>Effective from</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+                    <tbody>
+                        @for (var row = 0; row < 5; row++)
+                        {
+                            <tr class="rev-skeleton-row"><td><span></span><i></i></td><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (_loadError is not null)
+        {
+            <div class="rev-state" role="alert">
+                <h3>Couldn’t load revenue setup</h3>
+                <p>@_loadError</p>
+                <button class="rev-button rev-button-primary" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        else if (_classifications.Count == 0)
+        {
+            <div class="rev-state">
+                <h3>No revenue sources configured yet.</h3>
+                <p>Add a source when its stable internal identity and initial policy are approved.</p>
+                <button class="rev-button rev-button-primary" type="button" @onclick="OpenCreate">Add revenue source</button>
+            </div>
+        }
+        else if (!VisibleClassifications.Any())
+        {
+            <div class="rev-state rev-state-compact">
+                <h3>No revenue sources match these filters.</h3>
+                <p>Try another search or status.</p>
+            </div>
+        }
+        else
+        {
+            <div class="rev-table-wrap">
+                <table class="rev-table">
+                    <caption class="sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Revenue source</th>
+                            <th scope="col">Instrument</th>
+                            <th scope="col">Effective from</th>
+                            <th scope="col">Status</th>
+                            <th scope="col"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in VisibleClassifications)
+                        {
+                            <tr class="@(item.Id == _selected?.Id ? "is-selected" : null)">
+                                <td>
+                                    <div class="rev-source-name">@(item.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(item))</div>
+                                    <div class="rev-source-code"><span>Internal reference</span> <code>@item.SemanticCode</code></div>
+                                </td>
+                                <td>@(item.EffectivePolicy is null ? NoCurrentPolicyLabel(item) : InstrumentLabel(item.EffectivePolicy.PermittedInstrumentType))</td>
+                                <td>@(item.EffectivePolicy is null ? "—" : DateText(item.EffectivePolicy.EffectiveDate))</td>
+                                <td>
+                                    @if (!item.IsActive)
+                                    {
+                                        <span class="rev-status is-retired">Retired</span>
+                                    }
+                                    else if (item.EffectivePolicy is not null)
+                                    {
+                                        <span class="rev-status is-active">Active</span>
+                                    }
+                                    else if (item.HasPolicyVersions)
+                                    {
+                                        <span class="rev-status is-pending">Active · No policy effective yet</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="rev-status is-pending">Active · No policy configured</span>
+                                    }
+                                </td>
+                                <td class="rev-actions-cell">
+                                    <button class="rev-text-button" type="button" @onclick="() => ManageAsync(item)">Manage</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @if (_selected is not null)
+    {
+        <section class="rev-detail" aria-labelledby="rev-detail-title">
+            <div class="rev-detail-heading">
+                <div>
+                    <div class="rev-overline">Revenue source details</div>
+                    <h2 id="rev-detail-title">@(_selected.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(_selected))</h2>
+                    <p class="rev-detail-reference">Internal reference <code>@_selected.SemanticCode</code></p>
+                </div>
+                <div class="rev-detail-actions">
+                    @if (_selected.IsActive)
+                    {
+                        <button class="rev-button rev-button-secondary" type="button" @onclick="OpenPolicy">Schedule policy change</button>
+                        <button class="rev-button rev-button-quiet-danger" type="button" @onclick="OpenRetire">Retire source</button>
+                    }
+                    <button class="rev-button rev-button-secondary" type="button" @onclick="CloseDetails">Close details</button>
+                </div>
+            </div>
+
+            <div class="rev-detail-grid">
+                <div class="rev-detail-item"><span>Status</span><strong>@(_selected.IsActive ? "Active" : "Retired")</strong></div>
+                <div class="rev-detail-item"><span>Instrument as of @DateText(_asOf)</span><strong>@(_selected.EffectivePolicy is null ? NoCurrentPolicyLabel(_selected) : InstrumentLabel(_selected.EffectivePolicy.PermittedInstrumentType))</strong></div>
+                <div class="rev-detail-item"><span>Policy effective from</span><strong>@(_selected.EffectivePolicy is null ? "No policy effective yet" : DateText(_selected.EffectivePolicy.EffectiveDate))</strong></div>
+                <div class="rev-detail-item rev-detail-description"><span>Description</span><strong>@(string.IsNullOrWhiteSpace(_selected.EffectivePolicy?.Description) ? "No description" : _selected.EffectivePolicy!.Description)</strong></div>
+            </div>
+
+            <div class="rev-history-heading">
+                <div><h3>Policy history</h3><p>Versions are retained and cannot be edited.</p></div>
+            </div>
+            @if (_historyLoading)
+            {
+                <div class="rev-history-loading" aria-busy="true">Loading policy history…</div>
+            }
+            else if (_historyError is not null)
+            {
+                <div class="rev-inline-error" role="alert">
+                    <span>@_historyError</span>
+                    <button class="rev-text-button" type="button" @onclick="() => LoadHistoryAsync(_selected.Id)">Try again</button>
+                </div>
+            }
+            else if (_history.Count == 0)
+            {
+                <p class="rev-history-empty">No policy versions have been configured.</p>
+            }
+            else
+            {
+                <div class="rev-table-wrap rev-history-table-wrap">
+                    <table class="rev-table rev-history-table">
+                        <caption class="sr-only">Immutable policy history, newest version first</caption>
+                        <thead>
+                            <tr><th scope="col">Effective date</th><th scope="col">Display name</th><th scope="col">Instrument</th><th scope="col">Description</th><th scope="col">Version state</th><th scope="col">Added by</th><th scope="col">Added at</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var policy in _history)
+                            {
+                                <tr>
+                                    <td>@DateText(policy.EffectiveDate)</td>
+                                    <td class="rev-history-name">@policy.DisplayName</td>
+                                    <td>@InstrumentLabel(policy.PermittedInstrumentType)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(policy.Description) ? "—" : policy.Description)</td>
+                                    <td><span class="rev-status @HistoryStatusClass(policy)">@HistoryStatus(policy)</span></td>
+                                    <td>@(string.IsNullOrWhiteSpace(policy.CreatedBy) ? "Not recorded" : policy.CreatedBy)</td>
+                                    <td>@CreatedAtText(policy.CreatedAt)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@if (_modal != RevenueModal.None)
+{
+    <div class="rev-modal-backdrop" @onclick="CloseModal">
+        <section class="rev-modal" role="dialog" aria-modal="true" aria-labelledby="rev-modal-title" @onclick:stopPropagation="true">
+            <button class="rev-modal-close" type="button" aria-label="Close dialog" @onclick="CloseModal" disabled="@_mutating">×</button>
+            @if (_modal == RevenueModal.Create)
+            {
+                <div class="rev-modal-heading">
+                    <div class="rev-overline">Revenue configuration</div>
+                    <h2 id="rev-modal-title">Add revenue source</h2>
+                    <p>Create a stable internal identity and its initial effective-dated policy.</p>
+                </div>
+                <form class="rev-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                    <label class="rev-field">
+                        <span>Revenue source name <b aria-hidden="true">*</b></span>
+                        <input @bind="_createName" maxlength="160" required autocomplete="off" />
+                    </label>
+                    <label class="rev-field">
+                        <span>Effective date <b aria-hidden="true">*</b></span>
+                        <input type="date" value="@_createDate" @onchange="OnCreateDateChanged" min="@DateText(PhilippineTime.Today)" required />
+                    </label>
+                    <label class="rev-field">
+                        <span>Accountable instrument</span>
+                        <select @bind="_createInstrument">
+                            <option value="">Not configured</option>
+                            <option value="OfficialReceipt">Official Receipt</option>
+                            <option value="CashTicket">Cash Ticket</option>
+                        </select>
+                    </label>
+                    <label class="rev-field">
+                        <span>Description <small>(optional)</small></span>
+                        <textarea @bind="_createDescription" maxlength="500" rows="3"></textarea>
+                    </label>
+                    <label class="rev-field">
+                        <span>Internal reference <b aria-hidden="true">*</b></span>
+                        <input @bind="_createCode" maxlength="80" minlength="2" pattern="[A-Z][A-Z0-9_]{1,79}" required autocomplete="off" />
+                        <small>Stable StallTrack reference. This is not an official accounting code and cannot be changed after creation. Use 2–80 uppercase letters, digits, or underscores, starting with a letter.</small>
+                    </label>
+                    @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
+                    <div class="rev-modal-actions">
+                        <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
+                        <button class="rev-button rev-button-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Create revenue source")</button>
+                    </div>
+                </form>
+            }
+            else if (_modal == RevenueModal.Policy)
+            {
+                <div class="rev-modal-heading">
+                    <div class="rev-overline">Immutable policy history</div>
+                    <h2 id="rev-modal-title">Schedule policy change</h2>
+                    <p>This creates a new version. Existing policy history will remain unchanged.</p>
+                </div>
+                <form class="rev-form" @onsubmit="AppendPolicyAsync" @onsubmit:preventDefault>
+                    <label class="rev-field">
+                        <span>Revenue source</span>
+                        <input value="@(_selected?.EffectivePolicy?.DisplayName ?? _selected?.SemanticCode)" readonly />
+                    </label>
+                    <label class="rev-field">
+                        <span>New display name <b aria-hidden="true">*</b></span>
+                        <input @bind="_policyName" maxlength="160" required autocomplete="off" />
+                    </label>
+                    <label class="rev-field">
+                        <span>Effective date <b aria-hidden="true">*</b></span>
+                        <input type="date" value="@_policyDate" @onchange="OnPolicyDateChanged" min="@DateText(PhilippineTime.Today)" required />
+                    </label>
+                    <label class="rev-field">
+                        <span>Accountable instrument</span>
+                        <select @bind="_policyInstrument">
+                            <option value="">Not configured</option>
+                            <option value="OfficialReceipt">Official Receipt</option>
+                            <option value="CashTicket">Cash Ticket</option>
+                        </select>
+                    </label>
+                    <label class="rev-field">
+                        <span>Description <small>(optional)</small></span>
+                        <textarea @bind="_policyDescription" maxlength="500" rows="3"></textarea>
+                    </label>
+                    @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
+                    <div class="rev-modal-actions">
+                        <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
+                        <button class="rev-button rev-button-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Add policy version")</button>
+                    </div>
+                </form>
+            }
+            else if (_modal == RevenueModal.Retire)
+            {
+                <div class="rev-modal-heading">
+                    <div class="rev-overline">Confirm retirement</div>
+                    <h2 id="rev-modal-title">Retire revenue source?</h2>
+                    <p><strong>@(_selected?.EffectivePolicy?.DisplayName ?? (_selected is null ? string.Empty : NoCurrentPolicyLabel(_selected)))</strong> will no longer be active configuration. Its identity and policy history will be retained.</p>
+                </div>
+                @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
+                <div class="rev-modal-actions">
+                    <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
+                    <button class="rev-button rev-button-danger" type="button" @onclick="RetireAsync" disabled="@_mutating">@(_mutating ? "Retiring…" : "Retire source")</button>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<RevenueClassificationDto> _classifications = [];
+    private IReadOnlyList<RevenueClassificationPolicyDto> _history = [];
+    private RevenueClassificationDto? _selected;
+    private DateOnly _asOf = PhilippineTime.Today;
+    private string _search = string.Empty;
+    private string _statusFilter = "All";
+    private bool _loading = true;
+    private bool _historyLoading;
+    private bool _mutating;
+    private long _loadGeneration;
+    private string? _loadError;
+    private string? _historyError;
+    private string? _feedback;
+    private bool _feedbackIsError;
+    private string? _modalError;
+    private RevenueModal _modal;
+    private string _createName = string.Empty;
+    private string _createCode = string.Empty;
+    private string _createDate = DateText(PhilippineTime.Today);
+    private string? _createDescription;
+    private RevenueInstrumentType? _createInstrument;
+    private string _policyName = string.Empty;
+    private string _policyDate = DateText(PhilippineTime.Today);
+    private string? _policyDescription;
+    private RevenueInstrumentType? _policyInstrument;
+
+    private IEnumerable<RevenueClassificationDto> VisibleClassifications =>
+        _classifications
+            .Where(item => _statusFilter == "All" || (_statusFilter == "Active") == item.IsActive)
+            .Where(item => string.IsNullOrWhiteSpace(_search)
+                || (item.EffectivePolicy?.DisplayName?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)
+                || item.SemanticCode.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.EffectivePolicy?.DisplayName ?? item.SemanticCode, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.SemanticCode, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var generation = ++_loadGeneration;
+        var requestedAsOf = _asOf;
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            var result = await RevenueApi.GetClassificationsAsync(requestedAsOf);
+            if (generation != _loadGeneration) return;
+
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _loadError = ErrorMessage(result, "The revenue source register could not be retrieved.");
+                return;
+            }
+
+            _classifications = result.Value;
+            if (_selected is not null)
+            {
+                _selected = _classifications.FirstOrDefault(item => item.Id == _selected.Id);
+                if (_selected is null)
+                {
+                    _history = [];
+                    _historyError = null;
+                }
+            }
+        }
+        catch
+        {
+            if (generation != _loadGeneration) return;
+
+            _loadError = "The revenue source register could not be retrieved. Check the connection and try again.";
+        }
+        finally
+        {
+            if (generation == _loadGeneration)
+                _loading = false;
+        }
+    }
+
+    private async Task OnAsOfChanged(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            _asOf = date;
+            await LoadAsync();
+        }
+    }
+
+    private void OnCreateDateChanged(ChangeEventArgs args) => _createDate = args.Value?.ToString() ?? string.Empty;
+
+    private void OnPolicyDateChanged(ChangeEventArgs args) => _policyDate = args.Value?.ToString() ?? string.Empty;
+
+    private async Task ResetAsOf()
+    {
+        _asOf = PhilippineTime.Today;
+        await LoadAsync();
+    }
+
+    private async Task ManageAsync(RevenueClassificationDto item)
+    {
+        _selected = item;
+        await LoadHistoryAsync(item.Id);
+    }
+
+    private async Task LoadHistoryAsync(Guid classificationId)
+    {
+        _historyLoading = true;
+        _historyError = null;
+        try
+        {
+            var result = await RevenueApi.GetPolicyHistoryAsync(classificationId);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _history = [];
+                _historyError = ErrorMessage(result, "Policy history could not be retrieved.");
+                return;
+            }
+
+            // The API contract returns newest first. Preserve that order as the official history sequence.
+            _history = result.Value;
+        }
+        catch
+        {
+            _history = [];
+            _historyError = "Policy history could not be retrieved. Check the connection and try again.";
+        }
+        finally
+        {
+            _historyLoading = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _createName = string.Empty;
+        _createCode = string.Empty;
+        _createDate = DateText(PhilippineTime.Today);
+        _createDescription = null;
+        _createInstrument = null;
+        OpenModal(RevenueModal.Create);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_mutating) return;
+        _modalError = ValidateCreate();
+        if (_modalError is not null) return;
+
+        _mutating = true;
+        try
+        {
+            var command = new CreateRevenueClassificationCommand(
+                _createCode.Trim(), _createName.Trim(), ParseDate(_createDate),
+                string.IsNullOrWhiteSpace(_createDescription) ? null : _createDescription.Trim(), _createInstrument);
+            var result = await RevenueApi.CreateClassificationAsync(command);
+            if (!result.IsSuccess)
+            {
+                _modalError = ErrorMessage(result, "The revenue source could not be created.");
+                return;
+            }
+
+            var createdId = result.Value?.Id;
+            _modal = RevenueModal.None;
+            SetFeedback("Revenue source created.");
+            await LoadAsync();
+            if (createdId is { } id)
+            {
+                _selected = _classifications.FirstOrDefault(item => item.Id == id);
+                if (_selected is not null) await LoadHistoryAsync(id);
+            }
+        }
+        catch
+        {
+            _modalError = "The revenue source could not be created. Check the connection and try again.";
+        }
+        finally
+        {
+            _mutating = false;
+        }
+    }
+
+    private string? ValidateCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_createName)) return "Enter a revenue source name.";
+        if (_createName.Trim().Length > 160) return "The revenue source name must be 160 characters or fewer.";
+        if (string.IsNullOrWhiteSpace(_createCode) || !IsValidSemanticCode(_createCode.Trim()))
+            return "Use 2–80 uppercase letters, digits, or underscores, starting with a letter.";
+        if (!DateOnly.TryParseExact(_createDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return "Choose a valid effective date.";
+        if (date < PhilippineTime.Today) return "A revenue policy cannot take effect in the past.";
+        if (_createDescription?.Length > 500) return "Description must be 500 characters or fewer.";
+        return null;
+    }
+
+    private void OpenPolicy()
+    {
+        if (_selected is null || !_selected.IsActive) return;
+        var seed = _history.FirstOrDefault() ?? _selected.EffectivePolicy;
+        _policyName = seed?.DisplayName ?? string.Empty;
+        _policyDescription = seed?.Description;
+        _policyInstrument = seed?.PermittedInstrumentType;
+        _policyDate = DateText(PhilippineTime.Today);
+        OpenModal(RevenueModal.Policy);
+    }
+
+    private async Task AppendPolicyAsync()
+    {
+        if (_mutating || _selected is null || !_selected.IsActive) return;
+        _modalError = ValidatePolicy();
+        if (_modalError is not null) return;
+
+        _mutating = true;
+        var classificationId = _selected.Id;
+        try
+        {
+            var request = new AppendRevenueClassificationPolicyRequest(
+                ParseDate(_policyDate), _policyName.Trim(),
+                string.IsNullOrWhiteSpace(_policyDescription) ? null : _policyDescription.Trim(), _policyInstrument);
+            var result = await RevenueApi.AppendPolicyAsync(classificationId, request);
+            if (!result.IsSuccess)
+            {
+                _modalError = ErrorMessage(result, "The policy version could not be added.");
+                return;
+            }
+
+            _modal = RevenueModal.None;
+            SetFeedback("Policy version added. Existing policy history was retained.");
+            await LoadAsync();
+            if (_selected is not null) await LoadHistoryAsync(classificationId);
+        }
+        catch
+        {
+            _modalError = "The policy version could not be added. Check the connection and try again.";
+        }
+        finally
+        {
+            _mutating = false;
+        }
+    }
+
+    private string? ValidatePolicy()
+    {
+        if (string.IsNullOrWhiteSpace(_policyName)) return "Enter a display name.";
+        if (_policyName.Trim().Length > 160) return "The display name must be 160 characters or fewer.";
+        if (!DateOnly.TryParseExact(_policyDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            return "Choose a valid effective date.";
+        if (date < PhilippineTime.Today) return "A policy cannot take effect in the past.";
+        if (_policyDescription?.Length > 500) return "Description must be 500 characters or fewer.";
+        return null;
+    }
+
+    private void OpenRetire()
+    {
+        if (_selected is null || !_selected.IsActive) return;
+        OpenModal(RevenueModal.Retire);
+    }
+
+    private async Task RetireAsync()
+    {
+        if (_mutating || _selected is null || !_selected.IsActive) return;
+        _mutating = true;
+        var classificationId = _selected.Id;
+        try
+        {
+            var result = await RevenueApi.RetireAsync(classificationId);
+            if (!result.IsSuccess)
+            {
+                _modalError = ErrorMessage(result, "The revenue source could not be retired.");
+                return;
+            }
+
+            _modal = RevenueModal.None;
+            SetFeedback("Revenue source retired. Its identity and policy history remain available.");
+            await LoadAsync();
+            if (_selected is not null) await LoadHistoryAsync(classificationId);
+        }
+        catch
+        {
+            _modalError = "The revenue source could not be retired. Check the connection and try again.";
+        }
+        finally
+        {
+            _mutating = false;
+        }
+    }
+
+    private void OpenModal(RevenueModal modal)
+    {
+        _modalError = null;
+        _modal = modal;
+    }
+
+    private void CloseModal()
+    {
+        if (_mutating) return;
+        _modalError = null;
+        _modal = RevenueModal.None;
+    }
+
+    private void CloseDetails() => _selected = null;
+
+    private void SetFeedback(string message)
+    {
+        _feedback = message;
+        _feedbackIsError = false;
+    }
+
+    private void DismissFeedback() => _feedback = null;
+
+    private string HistoryStatus(RevenueClassificationPolicyDto policy)
+    {
+        var today = PhilippineTime.Today;
+        if (policy.EffectiveDate > today) return "Scheduled";
+        var current = _history.FirstOrDefault(item => item.EffectiveDate <= today);
+        return current?.PolicyId == policy.PolicyId ? "In effect" : "Previous";
+    }
+
+    private string HistoryStatusClass(RevenueClassificationPolicyDto policy) => HistoryStatus(policy) switch
+    {
+        "In effect" => "is-active",
+        "Scheduled" => "is-pending",
+        _ => "is-neutral"
+    };
+
+    private static string InstrumentLabel(RevenueInstrumentType? instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+        RevenueInstrumentType.CashTicket => "Cash Ticket",
+        _ => "Not configured"
+    };
+
+    private static string NoCurrentPolicyLabel(RevenueClassificationDto item) =>
+        item.HasPolicyVersions ? "No policy effective yet" : "No policy configured";
+
+    private static string ErrorMessage<T>(Result<T> result, string fallback)
+    {
+        if (result.ValidationErrors is { Count: > 0 } validation)
+            return string.Join(" ", validation.Values.SelectMany(messages => messages));
+        if (!string.IsNullOrWhiteSpace(result.Error)) return result.Error;
+        return result.Status switch
+        {
+            ResultStatus.Forbidden => "You do not have permission to make this change.",
+            ResultStatus.NotFound => "This revenue source is no longer available. Refresh and try again.",
+            ResultStatus.Conflict => "This change conflicts with an existing policy version. Review the date and try again.",
+            ResultStatus.Unauthorized => "Your session has expired. Sign in again and retry.",
+            _ => fallback
+        };
+    }
+
+    private static bool IsValidSemanticCode(string code) =>
+        code.Length is >= 2 and <= 80
+        && code[0] is >= 'A' and <= 'Z'
+        && code.All(character => character is >= 'A' and <= 'Z' or >= '0' and <= '9' or '_');
+
+    private static DateOnly ParseDate(string value) =>
+        DateOnly.ParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static string DateText(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static string DateText(DateTime date) => date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+    private static string CreatedAtText(DateTime createdAt) =>
+        PhilippineTime.ToPhilippineTime(createdAt).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
+
+    private enum RevenueModal { None, Create, Policy, Retire }
+}
