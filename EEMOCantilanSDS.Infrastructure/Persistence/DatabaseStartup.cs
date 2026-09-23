@@ -62,6 +62,7 @@ public static class DatabaseStartup
             await MunicipalitySeeder.SeedAsync(context);
             await FacilitySeeder.SeedAsync(context);
             await FacilityRateSeeder.SeedAsync(context);
+            await RevenueClassificationSeeder.SeedAsync(context);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.LockNotAvailable)
         {

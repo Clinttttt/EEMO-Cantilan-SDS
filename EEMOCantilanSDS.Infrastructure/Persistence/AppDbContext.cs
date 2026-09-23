@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.Suggestions;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -60,6 +61,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<TenantBackup> TenantBackups { get; set; }
         public DbSet<OrSeriesConfig> OrSeriesConfigs { get; set; }
         public DbSet<FacilityRate> FacilityRates { get; set; }
+        public DbSet<RevenueClassification> RevenueClassifications { get; set; }
+        public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }
         public DbSet<FacilitySectionRate> FacilitySectionRates { get; set; }
         public DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; set; }
         public DbSet<FacilitySectionClosure> FacilitySectionClosures { get; set; }
