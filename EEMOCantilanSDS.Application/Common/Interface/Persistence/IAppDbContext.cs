@@ -25,6 +25,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<FacilityRate> FacilityRates { get; }
         DbSet<RevenueClassification> RevenueClassifications { get; }
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }
 
     /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
     DbSet<FacilitySectionRate> FacilitySectionRates { get; }

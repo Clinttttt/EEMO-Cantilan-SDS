@@ -28,6 +28,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["FacilityRates"] = "Facility rates",
         ["RevenueClassifications"] = "Revenue classifications",
         ["RevenueClassificationPolicies"] = "Revenue classification policies",
+        ["Collections"] = "Collection ledger entries",
+        ["CollectionLines"] = "Classified collection lines",
         ["OrSeriesConfigs"] = "OR series config",
         ["Stalls"] = "Stalls",
         ["Contracts"] = "Contracts",

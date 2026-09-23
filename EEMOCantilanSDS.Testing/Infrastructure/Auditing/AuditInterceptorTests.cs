@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -124,6 +125,68 @@ public class AuditInterceptorTests
         using var otherTenant = new AppDbContext(options, new FixedMunicipality(Guid.NewGuid()));
         Assert.Empty(await otherTenant.AuditLogs.ToListAsync());
         Assert.Empty(await otherTenant.UtilityBills.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DormantCollectionAggregate_CreatesTenantAndActorAttributedFinancialAuditEntries()
+    {
+        var municipalityId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.UserId).Returns(actorId);
+        currentUser.SetupGet(c => c.Username).Returns("ledger-head");
+        currentUser.SetupGet(c => c.Role).Returns("SuperAdmin");
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(
+                new AuditSaveChangesInterceptor(currentUser.Object),
+                new MunicipalityStampInterceptor())
+            .Options;
+
+        using var context = new AppDbContext(options, new FixedMunicipality(municipalityId));
+        var classification = RevenueClassification.Create("MARKET_FEES", municipalityId);
+        var policy = RevenueClassificationPolicy.Create(
+            classification.Id, new DateOnly(2026, 9, 23), "Market Fees", RevenueInstrumentType.CashTicket,
+            municipalityId);
+        context.AddRange(classification, policy);
+        await context.SaveChangesAsync();
+
+        var collection = Collection.Post(
+            new DateOnly(2026, 9, 23),
+            DateTime.SpecifyKind(new DateTime(2026, 9, 23, 8, 30, 0), DateTimeKind.Utc),
+            actorId.ToString(), "ledger-head", "SuperAdmin",
+            [new CollectionLineDraft(classification, policy, 125m,
+                CollectionSourceKind.TrmTrip, Guid.NewGuid())],
+            clientOperationId: Guid.NewGuid());
+        context.Collections.Add(collection);
+        await context.SaveChangesAsync();
+
+        var logs = await context.AuditLogs
+            .Where(x => x.EntityType == nameof(Collection) || x.EntityType == nameof(CollectionLine))
+            .OrderBy(x => x.EntityType)
+            .ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.All(logs, log =>
+        {
+            Assert.Equal("Created", log.Action);
+            Assert.Equal(municipalityId, log.MunicipalityId);
+            Assert.Equal(actorId.ToString(), log.ActorId);
+            Assert.Equal("ledger-head", log.ActorName);
+            Assert.Equal("SuperAdmin", log.ActorRole);
+            Assert.NotNull(log.NewValues);
+        });
+
+        var collectionLog = Assert.Single(logs, x => x.EntityType == nameof(Collection));
+        Assert.Equal(collection.Id, collectionLog.EntityId);
+        Assert.Contains("TotalAmount", collectionLog.NewValues!);
+        Assert.Contains("125", collectionLog.NewValues!);
+
+        var line = Assert.Single(logs, x => x.EntityType == nameof(CollectionLine));
+        Assert.Equal(collection.Lines.Single().Id, line.EntityId);
+        Assert.Contains("RevenueClassificationPolicyId", line.NewValues!);
+        Assert.Contains("\"SourceKind\":6", line.NewValues!);
+        Assert.Contains("125", line.NewValues!);
     }
 
     [Fact]

@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -28,6 +29,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         typeof(StallMonthlyException), typeof(NpmMarketClosure),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),
+        typeof(Collection), typeof(CollectionLine),
         // Account / payor / stall management
         typeof(AdminUser), typeof(CollectorUser), typeof(PayorUser),
         typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink),
