@@ -1,6 +1,6 @@
 # EEMO Revenue Architecture
 
-**Status:** Planning approved; implementation has not started.
+**Status:** Planning approved; Phase 0 correctness work is complete; Phase 1 implementation has not started.
 **Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
 **Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
 
@@ -278,11 +278,13 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 ## 13. Current phase
 
-**Current architecture status:** Planning approved.
+**Planning:** Approved.
 
-**Next implementation phase:** Phase 0 — correctness baseline and decision preparation.
+**Phase 0:** COMPLETE — correctness baseline findings have been dispositioned.
 
-No Collection/Receipt/CT production migration has started. Existing module records and report calculations remain the current runtime behavior until a later approved implementation changes them.
+**Next implementation phase:** Phase 1 — Revenue Classification.
+
+No Collection, CollectionLine, AccountableDocument or Cash Ticket production migration has started. Existing module records and report calculations remain the current runtime behavior until a later approved implementation changes them.
 
 ## 14. Business decision gates
 
@@ -299,12 +301,12 @@ No Collection/Receipt/CT production migration has started. Existing module recor
 
 Configuration can safely hold tenant-varying names, rates and allowed instruments. It cannot substitute for a ruling where the choice changes instrument custody, allocation, classification or historical liability.
 
-## 15. Phase 0 correctness preparation
+## 15. Phase 0 correctness dispositions
 
-The following defects were found independently of the target architecture and must be handled as separate correctness work, not hidden inside the migration:
+Phase 0 existed to disposition the following independent correctness findings before the target-architecture migration. They were handled as separate correctness work, not hidden inside that migration:
 
-- UtilityBill is financially significant but was absent from automatic financial audit coverage.
-- TransactionFeed was audited and is already correct: DailyFee includes MonthEndAdjustment, and TransactionFeed does not add the traceability field again. The actual Phase 0D defect was double-counting the adjustment in compliance and collector-report projections.
-- UpdateSlaughterCommandHandler may reconstruct charges without IFeeRateResolver.
+- **UtilityBill audit coverage — FIXED.** UtilityBill is included in the existing automatic financial audit mechanism.
+- **TransactionFeed MonthEndAdjustment concern — DISPROVED / NO-OP.** DailyFee already contains MonthEndAdjustment, so TransactionFeed was already correct. A follow-up audit found double counting in compliance and collector-report projections; those paths were corrected in Phase 0D.
+- **Slaughter update rates — FIXED.** Update resolves canonical tenant effective-dated rates using the transaction/activity date, consistent with create. Existing custom-animal behavior remains on its separate rate path.
 
-Classify and test each before its owning migration touches that path. Do not combine them into a broad architecture rewrite.
+These dispositions do not implement RevenueClassification, Collection, CollectionLine, CollectionAllocation, ReceivableObligation, AccountableDocument, Cash Ticket/accountable forms, RevenueTarget or the Phase 5B delinquency/Arrears migration. Those remain future target architecture.
