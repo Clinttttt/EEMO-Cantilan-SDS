@@ -1,6 +1,6 @@
 # EEMO Revenue Architecture
 
-**Status:** Planning approved; Phase 0 correctness work is complete; Phase 1 implementation has not started.
+**Status:** Planning approved; Phase 0 is complete; Phase 1A — Revenue Classification Foundation is complete and PostgreSQL-verified; next is Phase 1B — Revenue Classification management/configuration surface.
 **Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
 **Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
 
@@ -253,8 +253,8 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 | Phase | Purpose and dependency |
 |---|---|
-| Phase 0 — correctness baseline | Fix or explicitly disposition independent verified correctness defects, prepare test baselines and decision records. This is the next implementation phase; it does not start a Collection/Receipt/CT migration. |
-| Phase 1 — Revenue Classification | Establish stable semantic codes, tenant catalog/presentation and effective-dated instrument policy. Seed only rulings that are confirmed; do not block architectural groundwork by guessing the final catalog. |
+| Phase 0 — correctness baseline | COMPLETE. Independent verified correctness findings were fixed or explicitly dispositioned; see §15. It did not start a Collection/Receipt/CT migration. |
+| Phase 1 — Revenue Classification | Phase 1A (foundation) is complete: it established stable internal semantic identities, tenant-owned effective-dated instrument/presentation policy, and confirmed Cantilan seed data. Phase 1B exposes the management/configuration surface. Seed only rulings that are confirmed; do not guess the final catalog. |
 | Phase 2 — Collection ledger | Add immutable money-received events, attribution, idempotency and reversal history. Keep module writes compatible until controlled cutover is proven. |
 | Phase 3 — AccountableDocument / OR pilot | Establish OR ownership, document history/replacement and compatible itemized lines for a bounded OR workflow. Reconcile existing OR registry and legacy fields before switching writers. |
 | Phase 4 — shadow classified reporting | Compare classified collection projections with current reports without replacing their official source. Investigate every difference. |
@@ -282,9 +282,11 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 **Phase 0:** COMPLETE — correctness baseline findings have been dispositioned.
 
-**Next implementation phase:** Phase 1 — Revenue Classification.
+**Phase 1A — Revenue Classification Foundation:** COMPLETE and verified against PostgreSQL through the normal GitHub CI/Testcontainers path. The dormant foundation consists of `RevenueClassification`, `RevenueClassificationPolicy`, stable internal semantic identities, effective-dated tenant instrument/presentation policy, confirmed Cantilan seeding, tenant isolation, and tenant backup/restore. CI verified tenant isolation, tenant-scoped semantic-code uniqueness, effective-date policy uniqueness, the same-tenant composite foreign key, and the tenant backup/restore round-trip.
 
-No Collection, CollectionLine, AccountableDocument or Cash Ticket production migration has started. Existing module records and report calculations remain the current runtime behavior until a later approved implementation changes them.
+**Next implementation phase:** Phase 1B — Revenue Classification management/configuration surface.
+
+Phase 1A has not started `Collection`, `CollectionLine`, `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket issuance/inventory, production classified reporting, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, TPM, TRM, OR, and reporting flows remain authoritative/current behavior. No production money flow consumes the new classification foundation yet.
 
 ## 14. Business decision gates
 
