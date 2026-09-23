@@ -1,6 +1,6 @@
 # EEMO Revenue Architecture
 
-**Status:** Planning approved; Phase 0 and Phase 1 — Revenue Classification are complete; next is Phase 2 — Collection Ledger.
+**Status:** Planning approved; Phase 0, Phase 1 — Revenue Classification, and Phase 2A — Dormant Collection Ledger Foundation are complete; next is the first bounded Phase 2 ledger-adoption slice.
 **Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
 **Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
 
@@ -255,7 +255,7 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 |---|---|
 | Phase 0 — correctness baseline | COMPLETE. Independent verified correctness findings were fixed or explicitly dispositioned; see §15. It did not start a Collection/Receipt/CT migration. |
 | Phase 1 — Revenue Classification | **COMPLETE** (1A foundation, 1B.1 management backend and 1B.2 Revenue Setup UI). It established stable internal semantic identities, tenant-owned effective-dated instrument/presentation policy, confirmed Cantilan seed data, and the Head-facing management surface. Seed only confirmed rulings; do not guess the final catalog. This configuration is ready for later ledger consumption but is not authoritative for money. |
-| Phase 2 — Collection Ledger | Introduce the common posted money-received layer and classified lines while preserving existing specialized obligation authorities. |
+| Phase 2 — Collection Ledger | **IN PROGRESS. Phase 2A foundation is COMPLETE.** `Collection` and `CollectionLine` now exist as a dormant, tenant-scoped, auditable, backup/restorable ledger foundation with additive PostgreSQL constraints. Existing specialized money sources remain authoritative; no current writer or report consumes the ledger yet. Next work is a bounded shadow source-adapter/reconciliation slice before any production cutover. |
 | Phase 3 — AccountableDocument / OR pilot | Establish OR ownership, document history/replacement and compatible itemized lines for a bounded OR workflow. Reconcile existing OR registry and legacy fields before switching writers. |
 | Phase 4 — shadow classified reporting | Compare classified collection projections with current reports without replacing their official source. Investigate every difference. |
 | Phase 5 — monthly installments | Adapt monthly obligations and PaymentRecord state to multiple immutable collections and explicit allocations. Preserve historical PaymentRecords; never synthesize missing old installments. |
@@ -290,9 +290,11 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 **Phase 1 — Revenue Classification:** COMPLETE. Classification configuration is ready for later ledger consumption; completion does not make it authoritative for money.
 
-**Next implementation phase:** Phase 2 — Collection Ledger. Its roadmap purpose is to introduce the common posted money-received layer and classified lines while preserving existing specialized obligation authorities.
+**Phase 2A — Dormant Collection Ledger Foundation:** COMPLETE and verified through the normal PostgreSQL/Testcontainers CI path and production deployment. It introduced immutable `Collection` and `CollectionLine` persistence, exact Revenue Classification/policy references, tenant-aware relational constraints, typed source/origin identity, financial audit coverage, client-operation idempotency storage, and tenant backup/export/restore coverage. The migration is additive and contains no legacy backfill or writer/report cutover.
 
-Phase 1 has not introduced `Collection`, `CollectionLine`, `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket inventory/issuance, classified RCD, classified Monthly Income, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, `TpmAttendance`, `TrmTrip`, `OnlinePaymentTransaction`, and existing OR/reporting flows remain authoritative/current behavior. No production money flow consumes Revenue Classification yet.
+**Next implementation work:** continue Phase 2 with a bounded shadow source-adapter/reconciliation slice. The next slice must prove deterministic mapping from an existing authoritative money source into `Collection`/`CollectionLine` without double counting or changing current operational behavior before any writer or report is switched.
+
+Phase 2A has not introduced `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket inventory/issuance, classified RCD, classified Monthly Income, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, `TpmAttendance`, `TrmTrip`, `OnlinePaymentTransaction`, and existing OR/reporting flows remain authoritative/current behavior. No current production money writer or production report consumes `Collection`/`CollectionLine` yet.
 
 ## 14. Business decision gates
 
