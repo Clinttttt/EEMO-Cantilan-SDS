@@ -6,6 +6,11 @@ worse than none.
 
 Last reviewed: 2026-08-29.
 
+> **Historical record:** This file preserves dated implementation findings and decisions; its status and older business
+> assumptions may be stale. The approved target revenue architecture, current EEMO rulings, decision gates and implementation
+> phase are in `EEMO_REVENUE_ARCHITECTURE.md`. Preserve this implementation history, but do not treat an old planning note
+> as the current target or silently prefer it over a newer ruling.
+
 ---
 
 ## Architecture review backlog

@@ -17,6 +17,7 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 2. `.kiro/knowledge/patterns.md` — the code shapes to copy.
 3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is.
 4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — accepted business semantics.
+5. `.kiro/knowledge/EEMO_REVENUE_ARCHITECTURE.md` — approved target revenue architecture, migration roadmap and UI rules; distinguish intended target behavior from current implementation evidence.
 
 Short versions of the same material live in `.kiro/steering/` (`product.md`, `tech.md`, `structure.md`,
 `CONTEXT.md`). They are navigation aids, not a substitute for the complete documents.

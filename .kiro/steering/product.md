@@ -54,7 +54,7 @@ effective date in `FacilityRates`.
 - Web portal is admin-only; collectors authenticate in the mobile app.
 - `CollectorId` comes from the authenticated user, never the request body; admin entries leave it null.
 - OR numbers are entered by hand, never generated; adding one never rewrites the original collector or timestamp.
-- Delinquent = 3+ unpaid months in a rolling 12-month window; 1–2 = arrears. Contract expiry warns within 3 months.
+- **Approved target business rule — not yet migrated in production:** Delinquent begins when an account is at least one month behind. Arrears means qualifying old/lapsed debt; its exact qualification boundary is unresolved. The runtime transition belongs to the approved Phase 5B delinquency/Arrears migration. See `EEMO_REVENUE_ARCHITECTURE.md`. Contract expiry warns within 3 months.
 - A **partial payment counts as unpaid** for the paid-vs-unpaid invariant, and is reported separately as partial.
 - NPM is never billed monthly: `RecordPayment` refuses it; daily collections and month settlement are the routes.
 - Rosters list current holders only; monetary totals count active stalls only.

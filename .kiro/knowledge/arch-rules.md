@@ -1,8 +1,9 @@
 # Architecture Rules
 
-Repository-wide implementation boundaries. Business semantics are recorded in `EEMO_Complete_Documentation.md` and
-explicit current rulings. When sources disagree, follow the conflict rule in the root `AGENTS.md`; do not silently make
-an implementation rule override a business ruling.
+Repository-wide implementation boundaries. Current accepted semantics are recorded in `EEMO_Complete_Documentation.md`
+and explicit current rulings. The approved target for the broader EEMO revenue expansion is
+`EEMO_REVENUE_ARCHITECTURE.md`; it does not claim that target behavior is already implemented. When sources disagree,
+follow the conflict rule in the root `AGENTS.md`; do not silently make an implementation rule override a business ruling.
 
 ---
 

@@ -1,6 +1,6 @@
 # Read this first
 
-The rules for this repository live in four files under `.kiro/knowledge/`. Read them before
+The rules and approved target architecture for this repository live in five documents under `.kiro/knowledge/`. Read them before
 generating, modifying, reviewing or refactoring code.
 
 | Order | File | Purpose |
@@ -9,8 +9,9 @@ generating, modifying, reviewing or refactoring code.
 | 2 | `.kiro/knowledge/patterns.md` | **Shapes to copy** — command, query with caching, repository, controller, typed API client, Blazor page, shared component, guard, tests, naming. |
 | 3 | `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` | **Why** the architecture is the way it is, including the trade-offs behind multi-tenancy, `Result<T>`, rate resolution and the two-factor design. |
 | 4 | `.kiro/knowledge/EEMO_Complete_Documentation.md` | **Business truth** — facilities, billing models, delinquency, roles, onboarding, reporting invariants, vocabulary. |
+| 5 | `.kiro/knowledge/EEMO_REVENUE_ARCHITECTURE.md` | **Approved target** — broader revenue semantics, domain boundaries, compatibility, migration phases, decision gates and UI rules. It describes intended evolution, not current runtime behavior. |
 
-Use `arch-rules.md` for implementation boundaries and the complete documentation for accepted business semantics.
+Use `arch-rules.md` for implementation boundaries, accepted business documents and current rulings for intended semantics, and the new architecture document for the approved target expansion.
 Current code, migrations, tests, workflows and verified production behaviour are evidence of current behaviour, not an
 automatic override of intended semantics. When sources disagree, surface the contradiction and determine which is stale.
 The `.kiro/steering/` files (`product.md`, `tech.md`, `structure.md`) are short navigation aids. `AGENTS.md` in the
@@ -46,4 +47,4 @@ to `master` verify the deployment (image tag
 equals HEAD, API `/health` 200, portal `/login` 200, scoped CSS bundle brace-balanced). Mobile changes need a
 RELEASE APK rebuild before collectors see them.
 
-If uncertain, consult the four files above rather than assuming.
+If uncertain, consult the four core rule documents and the target architecture rather than assuming.

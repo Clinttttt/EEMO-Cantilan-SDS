@@ -99,6 +99,7 @@ Read these before changing code, in this reading order:
 2. `.kiro/knowledge/patterns.md` — the code shapes to copy
 3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
 4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — accepted business semantics
+5. `.kiro/knowledge/EEMO_REVENUE_ARCHITECTURE.md` — approved target EEMO revenue architecture, business decision gates, migration phases and UI rules
 
 Short versions of the same material live in `.kiro/steering/`. `AGENTS.md` is the root entry point for agents
 that look there (Codex) and defines authority and conflict handling. This reading order is navigation, not automatic

@@ -3,6 +3,9 @@
 Companion to `arch-rules.md` (what is allowed) and `patterns.md` (what to copy). This file explains the
 reasoning, so a change can be judged rather than pattern-matched.
 
+The approved target architecture and phased evolution for broader EEMO revenue management are recorded in
+`EEMO_REVENUE_ARCHITECTURE.md`. This document continues to explain the shape and trade-offs of the current system.
+
 ---
 
 ## 1. Deployment shape
