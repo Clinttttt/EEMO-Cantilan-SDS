@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
@@ -69,6 +70,7 @@ public class TenantRestoreRoundTripTests
 
         // Seed municipality A: facility → stall → contract + a paid daily collection.
         Guid aStallId = Guid.Empty;
+        Guid aRevenueClassificationId = Guid.Empty;
         await SeedAsync(a, ctx =>
         {
             var f = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
@@ -77,7 +79,11 @@ public class TenantRestoreRoundTripTests
             var c = Contract.Create(s.Id, "Vendor A", "Vendor A", new DateOnly(2026, 1, 1), 3, 900m);
             var dc = DailyCollection.Create(s.Id, new DateOnly(2026, 1, 5));
             dc.MarkPaid("OR-A-1", collectorId: null);
-            ctx.AddRange(f, s, c, dc);
+            var revenueClassification = RevenueClassification.Create("MARKET_FEES", a);
+            aRevenueClassificationId = revenueClassification.Id;
+            var policy = RevenueClassificationPolicy.Create(revenueClassification.Id,
+                new DateOnly(2026, 1, 1), "A market fees", RevenueInstrumentType.CashTicket, a);
+            ctx.AddRange(f, s, c, dc, revenueClassification, policy);
         });
 
         // Seed municipality B: facility → stall (the "must stay untouched" tenant).
@@ -85,7 +91,10 @@ public class TenantRestoreRoundTripTests
         {
             var f = Facility.Create(FacilityCode.NPM, "B Public Market", "NPM");
             var s = Stall.Create(f.Id, "9", 500m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
-            ctx.AddRange(f, s);
+            var revenueClassification = RevenueClassification.Create("MARKET_FEES", b);
+            var policy = RevenueClassificationPolicy.Create(revenueClassification.Id,
+                new DateOnly(2026, 1, 1), "B market fees", RevenueInstrumentType.OfficialReceipt, b);
+            ctx.AddRange(f, s, revenueClassification, policy);
         });
 
         // Snapshot A.
@@ -98,6 +107,8 @@ public class TenantRestoreRoundTripTests
             var stall = await mut.Stalls.FirstAsync(x => x.Id == aStallId);
             mut.Entry(stall).Property("MonthlyRate").CurrentValue = 9999m;
             mut.DailyCollections.RemoveRange(mut.DailyCollections);
+            mut.RevenueClassificationPolicies.RemoveRange(mut.RevenueClassificationPolicies);
+            mut.RevenueClassifications.RemoveRange(mut.RevenueClassifications);
             var stray = Stall.Create((await mut.Facilities.FirstAsync()).Id, "999", 111m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
             mut.Add(stray);
             mut.Entry(stray).Property("MunicipalityId").CurrentValue = a;
@@ -121,6 +132,12 @@ public class TenantRestoreRoundTripTests
             Assert.True(dc.IsPaid);
             Assert.Equal(1, await check.Contracts.CountAsync());
             Assert.Equal(1, await check.Facilities.CountAsync());
+            var revenueClassification = await check.RevenueClassifications.SingleAsync();
+            Assert.Equal(aRevenueClassificationId, revenueClassification.Id);
+            Assert.Equal("MARKET_FEES", revenueClassification.SemanticCode);
+            var policy = await check.RevenueClassificationPolicies.SingleAsync();
+            Assert.Equal("A market fees", policy.DisplayName);
+            Assert.Equal(RevenueInstrumentType.CashTicket, policy.PermittedInstrumentType);
         }
 
         // Assert B is COMPLETELY untouched.
@@ -131,6 +148,7 @@ public class TenantRestoreRoundTripTests
             var s = await checkB.Stalls.FirstAsync();
             Assert.Equal("9", s.StallNo);
             Assert.Equal(500m, s.MonthlyRate);
+            Assert.Equal("B market fees", (await checkB.RevenueClassificationPolicies.SingleAsync()).DisplayName);
         }
     }
 }

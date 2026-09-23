@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Suggestions;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -22,6 +23,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
         DbSet<FacilityRate> FacilityRates { get; }
+        DbSet<RevenueClassification> RevenueClassifications { get; }
+        DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
 
     /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
     DbSet<FacilitySectionRate> FacilitySectionRates { get; }

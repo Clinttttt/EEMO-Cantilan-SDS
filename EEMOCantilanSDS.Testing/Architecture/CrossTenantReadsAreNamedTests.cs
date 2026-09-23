@@ -100,6 +100,9 @@ public class CrossTenantReadsAreNamedTests
         // 4. Seeding and startup — no tenant exists yet.
         "FacilitySeeder.cs",
         "FacilityRateSeeder.cs",
+        // Revenue classification defaults are startup configuration for the explicitly selected CANTILAN tenant only;
+        // every read after resolving that code is constrained to its MunicipalityId, and no other tenant is seeded.
+        "RevenueClassificationSeeder.cs",
         "DatabaseStartup.cs",
         "AppDbContext.cs",
 

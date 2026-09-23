@@ -26,6 +26,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
     {
         ["Facilities"] = "Facilities",
         ["FacilityRates"] = "Facility rates",
+        ["RevenueClassifications"] = "Revenue classifications",
+        ["RevenueClassificationPolicies"] = "Revenue classification policies",
         ["OrSeriesConfigs"] = "OR series config",
         ["Stalls"] = "Stalls",
         ["Contracts"] = "Contracts",
