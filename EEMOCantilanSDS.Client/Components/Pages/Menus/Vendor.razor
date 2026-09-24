@@ -11,15 +11,15 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyCollectionApi
-<PageTitle>StallTrack — Vendors &amp; Stalls</PageTitle>
+<PageTitle>StallTrack — Spaces &amp; Occupants</PageTitle>
 
 <header class="topbar">
             <div class="topbar-left">
-                <div class="topbar-title">Vendors &amp; Stalls</div>
+                <div class="topbar-title">Spaces &amp; Occupants</div>
                 <div class="topbar-breadcrumb">
                     <span>@Branding.OfficeAcronym Admin</span>
                     <span class="breadcrumb-sep">/</span>
-                    <span class="breadcrumb-active">Vendors &amp; Stalls</span>
+                    <span class="breadcrumb-active">Spaces &amp; Occupants</span>
                 </div>
             </div>
             <div class="topbar-right">
@@ -45,22 +45,22 @@
                             </svg>
                         </div>
                         <div>
-                            <div class="vs-hero-eyebrow">Vendors &amp; Stalls</div>
-                            <div class="vs-hero-title">Vendor Registry</div>
+                            <div class="vs-hero-eyebrow">Spaces &amp; Occupants</div>
+                            <div class="vs-hero-title">Occupancy Registry</div>
                             <div class="vs-hero-sub">Municipality of @Branding.Municipality, @Branding.Province</div>
                         </div>
                     </div>
                     <div class="vs-hero-stats">
                         <div class="vs-hero-stat">
                             <div class="vs-hero-val">@(RegistryData?.TotalVendors ?? 0)</div>
-                            <div class="vs-hero-key">Total Vendors</div>
+                            <div class="vs-hero-key">Total Spaces</div>
                             <div class="vs-hero-sub2">@(RegistryData?.ActiveVendors ?? 0) active · @(RegistryData?.ClosedVendors ?? 0) closed</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">
                             <div class="vs-hero-val">@(RegistryData?.PaidThisMonth ?? 0)</div>
                             <div class="vs-hero-key">Paid This Month</div>
-                            <div class="vs-hero-sub2">out of @(RegistryData?.MonthlyBillableVendors ?? 0) billable vendors</div>
+                            <div class="vs-hero-sub2">out of @(RegistryData?.MonthlyBillableVendors ?? 0) billable spaces</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">
@@ -147,7 +147,7 @@
                         <span class="vs-count-label">@FilteredVendors.Count() stalls</span>
                         <button class="btn-primary" @onclick="OpenCreate">
                             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            Add Vendor
+                            Add Occupant &amp; Space
                         </button>
                     </div>
                 </div>
@@ -156,7 +156,7 @@
                 <div class="panel">
                     @if (isLoading)
                     {
-                        <div class="table-wrap vendor-loading-table" aria-busy="true" aria-label="Loading vendor registry">
+                        <div class="table-wrap vendor-loading-table" aria-busy="true" aria-label="Loading occupancy registry">
                             <table class="data-table">
                                 <thead>
                                     <tr>
@@ -209,7 +209,7 @@
                     {
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
-                            <div class="empty-title">No Vendors Found</div>
+                            <div class="empty-title">No matching spaces or occupants</div>
                             <div class="empty-sub">Try adjusting the filters or search.</div>
                         </div>
                     }
@@ -463,7 +463,7 @@
                     <div class="detail-section">
                         <div class="detail-section-title">
                             <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            Vendor Information
+                            Occupant &amp; Contract Information
                         </div>
                         <div class="detail-info-grid">
                             <div class="detail-info-row">
@@ -563,7 +563,7 @@
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Vegetable vendor · Collected daily</div>
+                                        <div class="fee-item-sub">Vegetable space · Collected daily</div>
                                     </div>
                                 </div>
                                 <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.VegetableArea).ToString("0"))<span class="fee-freq">/day</span></div>
@@ -579,7 +579,7 @@
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Fish vendor · Collected daily</div>
+                                        <div class="fee-item-sub">Fish space · Collected daily</div>
                                     </div>
                                 </div>
                                 <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.FishSection).ToString("0"))<span class="fee-freq">/day</span></div>
@@ -595,7 +595,7 @@
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Meat vendor · Collected daily</div>
+                                        <div class="fee-item-sub">Meat space · Collected daily</div>
                                     </div>
                                 </div>
                                 <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.MeatSection).ToString("0"))<span class="fee-freq">/day</span></div>
@@ -711,7 +711,7 @@
                 </button>
                 <button class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
                     <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                    Edit Vendor
+                    Edit Occupant &amp; Space
                 </button>
             </div>
         </div>
@@ -724,6 +724,7 @@
 ---------------------------------------------- -->
 <AddVendorModal Show="ShowModal"
                 IsEditing="IsEditing"
+                UseOccupantTerminology="true"
                 Form="Form"
                 @bind-FormError="FormError"
                 FacilityOptions="FacilityTabsAsOptions()"
