@@ -150,17 +150,17 @@ The existing canonical files are not edited by this documentation task. A later 
 - **IMPACT:** Account detail and reporting must identify term/occupancy scope for balances and history.
 - **REVISIT CONDITION:** Terminology may be localized, but the distinctions cannot be removed without a business/domain ruling.
 
-### IA-010 — Vendor terminology
+### IA-010 — Person terminology by operation
 
 - **ID:** IA-010
-- **SUBJECT:** Cross-facility use of Vendor
-- **STATUS:** NEEDS EEMO INPUT
+- **SUBJECT:** Cross-facility person terminology
+- **STATUS:** CONFIRMED
 - **TYPE:** UX DECISION
-- **DECISION / QUESTION:** Confirm where `Vendor` is official office language. The proposal is to retain it for TPM/temporary market participants where appropriate and use Payor, Occupant, Stallholder, Transporter, Owner, or Account according to the actual relationship elsewhere.
-- **RATIONALE:** Vendor currently describes materially different people and relationships across facilities.
-- **EVIDENCE / SOURCE:** Current Vendor Registry, TPM, facility, and report labels.
-- **IMPACT:** Affects navigation labels, filters, account pages, reports, and Mobile search prompts.
-- **REVISIT CONDITION:** Close after EEMO supplies preferred terms by operation.
+- **DECISION / QUESTION:** Use domain-specific person terms rather than `Vendor` universally: temporary/TPM sellers use **Vendor**; permanent rental-space holders use **Occupant**; the financially responsible or paying party is **Payor**; TRM uses **Transporter**; Slaughterhouse uses **Client**. **Stallholder** may remain where it is established office/report terminology.
+- **RATIONALE:** The same person label should not erase materially different operational relationships across facilities.
+- **EVIDENCE / SOURCE:** Current Vendor Registry, TPM/TRM/SLH workflows and latest EEMO terminology clarification.
+- **IMPACT:** Guides navigation labels, search/filter wording, account pages, facility headers, reports, and Mobile prompts without changing backend entity names.
+- **REVISIT CONDITION:** Revisit only if EEMO later supplies a different official term for a specific operation.
 
 ### IA-011 — Collection Activity replaces generic workspace-level Transactions
 
@@ -282,17 +282,17 @@ The existing canonical files are not edited by this documentation task. A later 
 - **IMPACT:** Blocks Arrears status/classification UI and related report cutover. Use Outstanding Balance, Delinquent, and Ended-Occupancy Balance meanwhile.
 - **REVISIT CONDITION:** Close only with an explicit EEMO qualification rule and separate decision on Monthly Income presentation of recovered qualifying Arrears.
 
-### IA-021 — Correction authority
+### IA-021 — Current correction authority
 
 - **ID:** IA-021
-- **SUBJECT:** Authority for older-record and lifecycle corrections
-- **STATUS:** NEEDS EEMO INPUT
-- **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Confirm which roles may correct older collection states, encode/replace OR evidence, reopen or renew an occupancy, remove an inactive record, and modify facility-wide closures.
-- **RATIONALE:** Current pages expose several actions under broad page roles, but the target IA should not infer a new authority model from their placement.
-- **EVIDENCE / SOURCE:** Current Collection Manager, Follow-up, Closed Accounts, and facility workflows.
-- **IMPACT:** Constrains action visibility and future page decomposition; current authorization remains until separately changed.
-- **REVISIT CONDITION:** Close after EEMO approves an action-by-role matrix.
+- **SUBJECT:** Authority for current operational corrections
+- **STATUS:** CONFIRMED
+- **TYPE:** RUNTIME FACT
+- **DECISION / QUESTION:** Head and Admin may perform the existing operational corrections that the current application already permits, including allowed collection/status corrections, current OR-evidence encoding or replacement, occupancy lifecycle actions, inactive-record actions, and facility-wide closure management. A separate free-text correction reason is not currently required; audit history remains required.
+- **RATIONALE:** These are existing office responsibilities and current operational capabilities. Navigation redesign must not narrow or expand them accidentally.
+- **EVIDENCE / SOURCE:** Current Collection Manager, Follow-up, Closed Accounts and facility workflows; latest EEMO office clarification.
+- **IMPACT:** Preserve current authorization and audit behavior while pages are reorganized. This ruling does **not** approve future AccountableDocument or Cash Ticket void/replacement semantics.
+- **REVISIT CONDITION:** Revisit when a future accountable-form/document lifecycle defines stricter void, replacement, evidence, or approval rules.
 
 ### IA-022 — Online-payment operational ownership
 
@@ -324,11 +324,11 @@ The existing canonical files are not edited by this documentation task. A later 
 - **SUBJECT:** Any future remittance workflow
 - **STATUS:** NEEDS EEMO INPUT
 - **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Before any new remittance work, determine whether a useful digital workflow is wanted, who submits/receives it, required evidence, covered money, reconciliation states, correction/void behavior, and whether any treasury participation is in scope.
-- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. The target revenue architecture explicitly rejects resurrecting it as a substitute for full accountability.
-- **EVIDENCE / SOURCE:** [OUTSTANDING_WORK.md](OUTSTANDING_WORK.md), retired work record; [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), section 4.
-- **IMPACT:** Blocks any visible Remittance workspace and any collector-balance claim.
-- **REVISIT CONDITION:** Reopen only through a new EEMO business case; previous removed endpoints/UI do not constitute approval.
+- **DECISION / QUESTION:** Keep remittance out of the current product until EEMO approves a useful end-to-end workflow. A simple `Remitted = Yes/No` flag is explicitly insufficient. Any future design must define covered amount, date, accountable officer, recipient/acknowledgement, deposit or cashier context, reconciliation states, correction/void behavior, and whether treasury participation is in scope.
+- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Office accountable-form evidence also shows that remittance is an amount-and-accountability process, not merely a boolean collection status.
+- **EVIDENCE / SOURCE:** [OUTSTANDING_WORK.md](OUTSTANDING_WORK.md), retired work record; [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), section 4; latest office accountable-form reference showing remittance/deposit and collection-versus-remittance fields.
+- **IMPACT:** Blocks any visible Remittance workspace, collector-balance claim, or simplistic remitted checkbox. Collection reporting remains collection reporting.
+- **REVISIT CONDITION:** Reopen only through a new EEMO business case that defines the complete process; previous removed endpoints/UI do not constitute approval.
 
 ### IA-025 — Official report and document set
 
@@ -336,11 +336,11 @@ The existing canonical files are not edited by this documentation task. A later 
 - **SUBJECT:** Which current outputs are official office documents
 - **STATUS:** NEEDS EEMO INPUT
 - **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Confirm the official status, required signatories, and authoritative scope of Financial Summary, Monthly Collection Report, List of Stallholders, Slaughterhouse List, Collector Report of Collections, and any other statutory/office form.
-- **RATIONALE:** Operational analytics, registers, and official documents require different stability and print requirements.
-- **EVIDENCE / SOURCE:** Current report inventory and [EEMO_Complete_Documentation.md](EEMO_Complete_Documentation.md), reporting section.
-- **IMPACT:** Constrains report consolidation, naming, print layouts, and retirement of duplicate entries.
-- **REVISIT CONDITION:** Close with an EEMO-approved report register.
+- **DECISION / QUESTION:** Preserve office-evidenced report structures, but confirm which outputs are formally official, their authoritative scope, and required signatories. Current candidates include Financial Summary, Monthly Collection Report, List of Stallholders, Slaughterhouse List, Collector Report of Collections, monthly stall-rental/occupant monitoring, Monthly Income/Market Operations, and accountable-form reports.
+- **RATIONALE:** Operational analytics, working registers, and official documents require different stability, signatory, print, and retention expectations. StallTrack may modernize layout without discarding required business fields.
+- **EVIDENCE / SOURCE:** Current report inventory and [EEMO_Complete_Documentation.md](EEMO_Complete_Documentation.md), reporting section; latest office reference sheets for Monthly Rental of Stall Occupants, lessee/stall monitoring, Monthly Income/Market Operations, and accountable-form reporting.
+- **IMPACT:** Constrains report consolidation, naming, print layouts, and retirement of duplicate entries. Report templates should support report date and configurable Prepared by / Verified by / signatory information where applicable.
+- **REVISIT CONDITION:** Close with an EEMO-approved report register identifying official status, required signatories, and scope for each output.
 
 ### IA-026 — Facility names and codes
 
@@ -360,11 +360,11 @@ The existing canonical files are not edited by this documentation task. A later 
 - **SUBJECT:** Annual target setup and attainment
 - **STATUS:** FUTURE
 - **TYPE:** FUTURE CAPABILITY
-- **DECISION / QUESTION:** Reserve target setup under Administration > Business Configuration and read-only attainment under Reports > Management. Target period, approval/governance, revision policy, and source coverage remain unresolved.
-- **RATIONALE:** Setup and analysis are separate; attainment is not Collection Efficiency.
-- **EVIDENCE / SOURCE:** [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), report model, phase 9, and decision gates.
-- **IMPACT:** No target navigation or metrics may appear now.
-- **REVISIT CONDITION:** Begin only after EEMO approves period, governance, revision, and classification/source rules.
+- **DECISION / QUESTION:** Reserve target setup under Administration > Business Configuration and read-only attainment under Reports > Management. Office Monthly Income evidence already uses **Annual Target**, monthly actuals, total/YTD, and percentage, so target reporting has real office precedent. The target's authoritative source, approval/governance, revision policy, period, and classification/facility scope remain unresolved.
+- **RATIONALE:** Setup and analysis are separate; attainment is not Collection Efficiency. Existing report columns do not by themselves authorize unrestricted editing in StallTrack.
+- **EVIDENCE / SOURCE:** [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), report model, phase 9, and decision gates; latest EEMO Monthly Income/Market Operations reference showing Annual Target, monthly actual columns, Total, and Percentage.
+- **IMPACT:** Future target design should preserve revision history and support explicit classification with optional facility scope where approved. No target navigation, edit authority, or calculated attainment becomes current merely from the reference sheet.
+- **REVISIT CONDITION:** Begin only after EEMO confirms where approved targets originate, who may set/revise them, the applicable period, and classification/facility scope.
 
 ### IA-028 — Final revenue-classification catalog
 
@@ -396,11 +396,11 @@ The existing canonical files are not edited by this documentation task. A later 
 - **SUBJECT:** Future transport/parking configuration
 - **STATUS:** NEEDS EEMO INPUT
 - **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Approve the vehicle-class catalog, effective-dated rates, and required operational context before production transportation classification and rate setup.
-- **RATIONALE:** Historical TRM trips do not reliably encode vehicle class, and one universal rate is not the target.
-- **EVIDENCE / SOURCE:** [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), sections 4, 5, 7, and 14; TRM shadow reconciliation status.
-- **IMPACT:** Future setup belongs under Administration and TRM work remains under Facilities; no historical class may be inferred.
-- **REVISIT CONDITION:** Close when EEMO approves the catalog/rates and migration treatment.
+- **DECISION / QUESTION:** Use Ordinance No. 12-2021 as documented office evidence for the terminal-fee model, but confirm that it remains the current, unamended schedule before production configuration. The visible schedule records Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context on the ordinance. Future rates remain effective-dated and prospective.
+- **RATIONALE:** The ordinance provides a concrete class/rate basis and explicitly describes Cash Ticket issuance, but historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
+- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; [EEMO_REVENUE_ARCHITECTURE.md](EEMO_REVENUE_ARCHITECTURE.md), sections 4, 5, 7, and 14; TRM shadow reconciliation status.
+- **IMPACT:** Future setup belongs under Administration and TRM work remains under Facilities. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable trips. Cash Ticket remains the target instrument for Transportation/Parking under the confirmed Cantilan policy.
+- **REVISIT CONDITION:** Close when EEMO confirms Ordinance No. 12-2021 is still current or supplies the superseding schedule and any required route/class changes.
 
 ### IA-031 — AccountableDocument production authority
 
@@ -480,16 +480,14 @@ The following items require EEMO input, a UX decision, or a stated technical pre
 
 | ID | Gate | Blocks or constrains |
 |---|---|---|
-| IA-010 | Vendor terminology by operation | Cross-surface labels and search/filter wording |
 | IA-020 | Exact Arrears qualification boundary | Arrears status/classification and report cutover |
-| IA-021 | Correction authority | Action visibility and future workflow decomposition |
 | IA-022 | Online-payment operational ownership | Queue ownership, escalation, and messaging |
 | IA-024 | Whether and how remittance should exist | Any visible remittance capability |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
 | IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
-| IA-030 | Vehicle classes and rates | Production transportation setup and classified flow |
+| IA-030 | Ordinance currentness / superseding transportation schedule | Production transportation setup and classified flow |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 
 ## 5. Superseded interpretations

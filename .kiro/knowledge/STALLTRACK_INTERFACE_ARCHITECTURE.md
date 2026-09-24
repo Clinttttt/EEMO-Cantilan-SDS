@@ -268,9 +268,15 @@ The shell standardizes context and placement. It does not own billing or collect
 | TCC/NCC/BBQ/ICE/custom monthly rental | Overview, Spaces & Occupancies, Activity, Reports | Monthly status, installment/full/partial collection under current production rules, OR evidence, history |
 | TPM / weekly market | Overview, Participants, Activity, Reports | Market-day calendar, vendor attendance, goods |
 | TRM / per trip | Overview, Transporters, Activity, Reports | Quick trip, registered transporter trip, route context |
-| SLH / per head | Overview, Activity, Reports | Owner, animal lines, head count, package/add-on context, receipt grouping |
+| SLH / per head | Overview, Activity, Reports | Client, animal lines, head count, package/add-on context, receipt grouping |
 
 Facility-specific navigation may omit inapplicable sections. Uniform empty tabs are not required.
+
+### Transportation rate evidence
+
+Ordinance No. 12-2021 is available office reference evidence for the future TRM/transportation configuration model. The visible schedule records Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context; it also describes Cash Ticket issuance for terminal-fee collection.
+
+This evidence does not authorize retroactive classification. Historical `TrmTrip.Fee` remains the recorded financial truth. Future class/rate changes are effective-dated and prospective. Production configuration remains gated on confirming that Ordinance No. 12-2021 is still current or obtaining the superseding schedule.
 
 ### Facility reports
 
@@ -287,6 +293,19 @@ The interface must not force one entity to answer every question.
 | Who is responsible for or making payment? | Payor |
 | What is owed, collected, credited, and outstanding for this relationship? | Account |
 | What happened under an earlier holder or term? | Earlier occupancy/account |
+
+### Person terminology by operation
+
+Use relationship-specific language rather than treating `Vendor` as universal:
+
+- **Vendor** — temporary/TPM seller or participant where that term matches the operation;
+- **Occupant** — permanent rental-space holder;
+- **Payor** — person or organization financially responsible for or making payment;
+- **Transporter** — TRM actor;
+- **Client** — Slaughterhouse actor;
+- **Stallholder** — retained where it is established office/report terminology.
+
+These are interface terms. They do not require renaming backend entities merely for consistency.
 
 **TARGET ARCHITECTURE:** Account is a user-facing composition for one occupancy/term and its financial relationship. It need not become a new backend aggregate merely to support the interface.
 
@@ -326,9 +345,17 @@ Collections is an interface workspace, not a declaration that `Collection`/`Coll
 
 Provider credentials and webhook configuration belong to Administration > Business Configuration > Collection Channels.
 
+### Current correction authority
+
+Head and Admin retain the existing operational correction capabilities that the current application authorizes, including allowed collection/status corrections, current OR-evidence updates, occupancy lifecycle actions, inactive-record actions, and facility closure management. Current office practice does not require a separate free-text correction reason; audit history remains the accountability record.
+
+This does not define the future AccountableDocument/Cash Ticket void-and-replacement policy. Accountable-form corrections may require stricter evidence, reason, or approval rules when that lifecycle is designed.
+
 ### Future remittance
 
-**FUTURE CAPABILITY / UNRESOLVED DECISION:** the navigation reserves Collections > Remittance & Reconciliation. Current production has no active complete digital remittance workflow. An earlier partial collector-remittance implementation was retired by office decision. The reserved placement does not authorize its return, a Treasury approval workflow, or any assumption about ownership or reconciliation rules.
+**FUTURE CAPABILITY / UNRESOLVED DECISION:** the navigation reserves Collections > Remittance & Reconciliation. Current production has no active complete digital remittance workflow. An earlier partial collector-remittance implementation was retired by office decision.
+
+A simple `Remitted = Yes/No` field is not an acceptable substitute. Office accountable-form evidence treats remittance as an amount-and-accountability process with date, accountable officer, recipient/acknowledgement, deposit/cashier context, and collection-versus-remittance reconciliation. The reserved placement does not authorize implementation, restoration of the retired workflow, a Treasury approval flow, or any assumption about ownership.
 
 ## 11. Monitoring architecture
 
@@ -396,6 +423,21 @@ Print, PDF, and CSV are actions on a scoped report. They are not independent top
 - market closure and collection exception work.
 
 The official report/document set remains an EEMO decision gate in the decision registry.
+
+### Office-reference report structures
+
+Recent EEMO reference material provides business-structure evidence for future report design without requiring StallTrack to copy legacy spreadsheets visually:
+
+- **Monthly Rental of Stall Occupants:** occupant, monthly rental, January–December collections, total payment, total yearly rental, balance, totals/subtotals, Prepared by, and Verified by.
+- **Lessee / Stall Monitoring:** actual occupant/lessee, stall or space number, actual monthly rental, whole-year rental, yearly collection, and balance.
+- **Monthly Income / Market Operations:** Annual Target, monthly actual columns, Total/YTD, Percentage, and revenue lines such as Market Fees, ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Ice Plant, NPM/NCC/TCC rent, Arrears, Vegetable/Fruit Space Rental, Kanmanggay, Lot Rental, and Fines.
+- **Accountable-form reporting:** includes collection/accountability and remittance/deposit sections; its existence does not make digital remittance a current StallTrack capability.
+
+**TARGET ARCHITECTURE:** preserve required business information and configurable report date/signatories while allowing a cleaner StallTrack-owned layout. Office evidence does not by itself prove that every referenced sheet is an official statutory output or that every revenue line already has a final production `RevenueClassification`.
+
+### Revenue-target evidence
+
+The office Monthly Income reference already uses **Annual Target → monthly actuals → Total/YTD → Percentage**, so target reporting has office precedent. Target setup remains future because the authoritative target source, approval/governance, revision rules, period, and classification/facility scope are still unresolved. Existing report columns do not authorize unrestricted target editing.
 
 ## 13. Administration and configuration architecture
 
