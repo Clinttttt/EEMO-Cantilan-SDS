@@ -1,6 +1,6 @@
 # EEMO Revenue Architecture
 
-**Status:** Planning approved; Phase 0, Phase 1 — Revenue Classification, and Phase 2A — Dormant Collection Ledger Foundation are complete; next is the first bounded Phase 2 ledger-adoption slice.
+**Status:** Planning approved; Phases 0, 1 and 2A are complete. Phase 2B.1 (TPM/TABO) is merged to master at `0514d920` and remains shadow-only. Phase 2B.2 (TRM/TRANSPORTATION_PARKING) is merged to master at `f587dc48`; its exact pre-merge head `fc3adcf3` passed manually dispatched CI, including PostgreSQL/Testcontainers. It was deployed to production by successful deployment run `35950861923`, including successful deployment health checks, but remains shadow-only. Neither shadow reconciliation has switched a production writer or report. Phase 2 remains in progress. The planned next milestone is Phase 3 — AccountableDocument / OR pilot after the Phase 2B shadow proofs are integrated and verified.
 **Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
 **Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
 
@@ -62,15 +62,18 @@ A collection may have multiple classified lines and may relate to multiple histo
 
 ### Delinquency and Arrears
 
-- An account is **Delinquent** once it is at least one month behind.
-- **Arrears** means old or lapsed debt, not simply one or two currently unpaid months.
-- The exact age or status boundary for old/lapsed debt remains a Business Decision Gate.
-- When qualifying old debt is collected, its revenue classification is **Arrears** while its source obligation remains identifiable as TCC, NCC, NPM or another original source.
-- The system must preserve both the origin obligation and the revenue classification at recovery. It must not infer either from a name or report-time string matching.
+- **CONFIRMED TARGET:** an account becomes **Delinquent** at one month behind.
+- **CONFIRMED TARGET:** **Arrears** means qualifying old or lapsed debt, not simply one or two currently unpaid months.
+- **DECISION GATE:** the exact age/status boundary for old/lapsed qualification is unresolved.
+- **CONFIRMED TARGET:** when a debt qualifies as old/lapsed and is recovered, its revenue classification is **Arrears** while its source obligation remains identifiable as TCC, NCC, NPM or another original source. Preserve both; do not infer either from display text or report-time string matching.
+- The older 3+-months/1–2-months rule recorded in `EEMO_Complete_Documentation.md` is superseded as a business assumption. The approved 1-month/old-lapsed rules are target behavior; the Phase 5B runtime transition has not been implemented, so do not claim current production has migrated.
+- **REPORTING DECISION GATE:** the target collection classification for qualifying recovery is confirmed as Arrears. Separately, whether Monthly Income should display recovered cash under ARREARS or group it under its originating TCC/NCC/NPM category remains unresolved; do not choose a report-time override or grouping without explicit approval.
 
 ### Monthly obligations and flexible installments
 
 TCC, NCC, BBQ and similar monthly rental facilities remain monthly obligations. Their collection cadence may include multiple installments, each with its own Official Receipt. Flexible or daily installments do not make those obligations NPM-style daily billing.
+
+For example, a September obligation of ₱2,400 may be paid as ₱200 on Sep 3, ₱500 on Sep 8 and ₱1,000 on Sep 20, leaving ₱700 outstanding. Each actual collection is a separate event and may have its own Official Receipt. **Billing basis is not payment cadence.**
 
 ### NPM remains specialized
 
@@ -82,24 +85,26 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 
 | Official Receipt | Cash Ticket |
 |---|---|
-| Permanent stall rent | Market Fees |
+| Permanent stall and applicable permanent-rental charges | Market Fees |
 | ECF | Tabo |
 | Fish/Meat Vendor Fee | Transportation/Parking |
 | Weight & Measure | Vegetable/Fruit Space Rental |
 | Penalties/Fines | WCF |
-| Slaughterhouse | Landing/Berthing |
+| Current approved slaughterhouse OR charges | Landing/Berthing |
 
-One OR may contain multiple compatible itemized lines. Cash-Ticket lines cannot be inserted into that OR; OR and Cash Ticket are separate accountable instruments. Other tenants' permitted instrument policy is tenant-owned and effective-dated.
+**Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket.** One OR may contain multiple compatible itemized lines for the same collection/document context, such as stall rent, ECF and a penalty. OR and Cash Ticket lines cannot be mixed on one accountable document. This is the confirmed Cantilan mapping, not a universal LGU rule; additional Cash Ticket categories require explicit approval and tenant policy remains effective-dated.
 
 ### Other confirmed distinctions
 
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
 - Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications, even when collected from the same vendor.
 - Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount.
+- BBQ Stand may roll up under the broader Market operation for operational and reporting hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**. Market hierarchy does not determine BBQ's revenue classification, billing basis or accountable instrument; BBQ is not thereby `MARKET_FEES`, and no final BBQ semantic code is assigned here. No final Kanmanggay semantic code is approved; it belongs conceptually under Space Rental.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
 - The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications, may be collected separately from rent, and retain their respective Cantilan OR/CT policy.
 - Payor identity may be optional for appropriate transactional Cash Ticket collections.
 - Accountable-form inventory and annual revenue targets are part of the target system.
+- **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
 - Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market.
 - RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Do not resurrect the retired partial-remittance workflow as a substitute.
 
@@ -116,9 +121,9 @@ These are conceptual responsibilities, not an EF schema prescription. Tenant-own
 | CollectionAllocation | Explicit amount applied from a collection line to one or more source obligations. Enforce tenant ownership, valid outstanding amounts and auditable allocation/reversal. Do not invent automatic allocation order before policy is approved. |
 | ReceivableObligation | Allocation anchor and assessment snapshot for adapting an existing domain, with source type/id, period and detail quality. PaymentRecord, UtilityBill and NPM remain authoritative for their own amounts owed. A new obligation type may use this as its authority only through an explicit authority mode and design. |
 | AccountableDocument | OR or CT identity, physical number, status dates, owning collection, current-state flag and replacement links. Number uniqueness is tenant-scoped within the applicable instrument/series. Immutable after issue; void/replacement appends a new document. At most one current/active document per collection. |
-| AccountableFormBatch | Received series/booklet/range, form type, source/reference and receipt date. Defines a traceable inventory range, not a fictitious used transaction. |
-| AccountableFormUnit | Individual serial/control number and permanent state history. A unit is consumed when issued, including if its document is later voided. It never returns to available inventory. |
-| AccountableFormAssignment | Custody transfer to a collector/accountable officer with issuer, recipient, date and scope. History is attributable and append-only. |
+| AccountableFormBatch | Received series/booklet/range, including series-from and series-to, form type, source/reference and receipt date. Defines a traceable inventory range, not a fictitious used transaction. |
+| AccountableFormUnit | Individual serial/control number and permanent state history, including used and spoiled/cancelled where applicable. Remaining units are reconciled against the assigned range. A unit is consumed when issued, including if its document is later voided; it never returns to available inventory. |
+| AccountableFormAssignment | Custody transfer to a collector/accountable officer with issuer, recipient, date and scope. History is attributable and append-only; assigned officers account for tickets used and remaining. |
 | ChargeDefinition / ChargeRate | Approved charge identity, calculation basis and effective-dated tenant rate. Resolves through controlled configuration; it does not independently decide obligation balance. |
 | VehicleClass | Tenant-configurable stable vehicle identity used by transport/parking charges. Effective-dated rate is separate from its display name; trip, driver, plate and route may be optional operational context. |
 | PenaltyDefinition | Approved penalty type, applicability, rate/amount rule and effective dates. Collectors select an approved charge; they do not invent financial meaning or price. |
@@ -255,12 +260,12 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 |---|---|
 | Phase 0 — correctness baseline | COMPLETE. Independent verified correctness findings were fixed or explicitly dispositioned; see §15. It did not start a Collection/Receipt/CT migration. |
 | Phase 1 — Revenue Classification | **COMPLETE** (1A foundation, 1B.1 management backend and 1B.2 Revenue Setup UI). It established stable internal semantic identities, tenant-owned effective-dated instrument/presentation policy, confirmed Cantilan seed data, and the Head-facing management surface. Seed only confirmed rulings; do not guess the final catalog. This configuration is ready for later ledger consumption but is not authoritative for money. |
-| Phase 2 — Collection Ledger | **IN PROGRESS. Phase 2A foundation is COMPLETE.** `Collection` and `CollectionLine` now exist as a dormant, tenant-scoped, auditable, backup/restorable ledger foundation with additive PostgreSQL constraints. Existing specialized money sources remain authoritative; no current writer or report consumes the ledger yet. Next work is a bounded shadow source-adapter/reconciliation slice before any production cutover. |
-| Phase 3 — AccountableDocument / OR pilot | Establish OR ownership, document history/replacement and compatible itemized lines for a bounded OR workflow. Reconcile existing OR registry and legacy fields before switching writers. |
+| Phase 2 — Collection Ledger | **IN PROGRESS. Phase 2A foundation is COMPLETE.** `Collection` and `CollectionLine` exist as a dormant, tenant-scoped, auditable, backup/restorable ledger foundation. Phase 2B.1 TPM/TABO is merged to master at `0514d920` and remains shadow-only. Phase 2B.2 TRM/TRANSPORTATION_PARKING is merged to master at `f587dc48`; its exact pre-merge head `fc3adcf3` passed manually dispatched CI, including PostgreSQL/Testcontainers. The merge was deployed by successful production workflow run `35950861923`. Neither slice has switched production writers or reports. Phase 2 is not complete and no production cutover has occurred. |
+| Phase 3 — AccountableDocument / OR pilot | Planned next bounded milestone after the Phase 2B.2 shadow proof is integrated and verified. Establish OR ownership, document history/replacement and compatible itemized lines for a bounded OR workflow. Reconcile existing OR registry and legacy fields before switching writers. |
 | Phase 4 — shadow classified reporting | Compare classified collection projections with current reports without replacing their official source. Investigate every difference. |
 | Phase 5 — monthly installments | Adapt monthly obligations and PaymentRecord state to multiple immutable collections and explicit allocations. Preserve historical PaymentRecords; never synthesize missing old installments. |
-| Phase 5B — delinquency/Arrears transition | Apply the clarified account-status/recovery classifications only after the old/lapsed boundary and required historical treatment are approved. |
-| Phase 6 — Cash Ticket / accountable forms | Add CT document issuance, batches, units, custody, used/spoiled/cancelled history and reconciliation after operating policy is decided. |
+| Phase 5B — delinquency/Arrears transition | Apply the target delinquency rule and confirmed conditional Arrears recovery classification only after the old/lapsed qualification boundary is approved; resolve the separate Monthly Income presentation gate before report cutover. |
+| Phase 6 — Cash Ticket / accountable forms | Add CT document issuance and accountability after operating policy is decided: received series/ranges, assignment to collectors/accountable officers, used and remaining units, spoiled/cancelled forms where applicable, and reconciliation. |
 | Phase 7 — source adapters | Adapt utilities, TPM, transportation, fish/weight, penalties, slaughter and other sources as appropriate. Each specialized activity retains its owning domain. |
 | Phase 8 — production classified reporting | Switch approved RCD, Monthly Income and collector revenue views to verified posted classified lines after shadow reconciliation. |
 | Phase 9 — annual targets | Add target setup, revisions, YTD and attainment after target period/governance rules are decided. Keep attainment separate from Collection Efficiency. |
@@ -292,7 +297,13 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 
 **Phase 2A — Dormant Collection Ledger Foundation:** COMPLETE and verified through the normal PostgreSQL/Testcontainers CI path and production deployment. It introduced immutable `Collection` and `CollectionLine` persistence, exact Revenue Classification/policy references, tenant-aware relational constraints, typed source/origin identity, financial audit coverage, client-operation idempotency storage, and tenant backup/export/restore coverage. The migration is additive and contains no legacy backfill or writer/report cutover.
 
-**Next implementation work:** continue Phase 2 with a bounded shadow source-adapter/reconciliation slice. The next slice must prove deterministic mapping from an existing authoritative money source into `Collection`/`CollectionLine` without double counting or changing current operational behavior before any writer or report is switched.
+**Phase 2B.1 — TPM shadow reconciliation:** merged into master at `0514d920` after CI passed. It remains shadow-only and has not switched the production TPM writer or reports. It projects eligible paid `TpmAttendance` money to the `TABO` semantic classification and effective policy without writing `Collection` or `CollectionLine`.
+
+**Phase 2B.2 — TRM shadow reconciliation:** merged into master at `f587dc48`. Its exact pre-merge head `fc3adcf3` passed manually dispatched CI, including PostgreSQL/Testcontainers; the run is not attached to the PR check rollup. The merge was deployed by successful production workflow run `35950861923`, whose API health and portal checks passed. It remains shadow-only and has not switched the current TRM operational writer or report. It projects persisted `TrmTrip.Fee` using the Philippine-local date derived from `RecordedAt` to `TRANSPORTATION_PARKING`, without inferring a vehicle class, changing historical OR evidence, or writing ledger rows.
+
+Phase 2B.1 and Phase 2B.2 are merged but remain shadow-only. Phase 2B.2's exact pre-merge head passed manually dispatched CI/Testcontainers and was deployed to production at `f587dc48`. Both preserve their specialized source as authoritative. No production `Collection`/`CollectionLine` writer or classified report has cut over; Phase 2 remains in progress.
+
+**Planned next implementation milestone:** with both Phase 2B shadow proofs integrated and their checks verified, proceed toward the bounded **Phase 3 — AccountableDocument / OR pilot**. TPM demonstrates source/classification mapping from a `DateOnly` activity source; TRM demonstrates mapping from a UTC timestamp through the Philippine business date. Together they exercise tenant-safe policy resolution and explicit unresolved-money accounting without replacing either source. This is readiness for the next bounded pilot, not a declaration that Phase 2 is complete.
 
 Phase 2A has not introduced `CollectionAllocation`, `ReceivableObligation`, `AccountableDocument`, OR migration, Cash Ticket inventory/issuance, classified RCD, classified Monthly Income, installment migration, the Phase 5B delinquency/Arrears runtime transition, or revenue targets. Existing `PaymentRecord`, `DailyCollection`, `UtilityBill`, `SlaughterTransaction`, `TpmAttendance`, `TrmTrip`, `OnlinePaymentTransaction`, and existing OR/reporting flows remain authoritative/current behavior. No current production money writer or production report consumes `Collection`/`CollectionLine` yet.
 
@@ -300,7 +311,8 @@ Phase 2A has not introduced `CollectionAllocation`, `ReceivableObligation`, `Acc
 
 | Decision gate | Blocks or constrains |
 |---|---|
-| Exact old/lapsed Arrears qualification boundary | Phase 5B status transition, arrears recovery classification and historical reports. |
+| Exact old/lapsed Arrears qualification boundary | Determines which debts qualify for the confirmed Arrears recovery classification and blocks the Phase 5B status transition. |
+| Monthly Income presentation of recovered qualifying Arrears (ARREARS vs originating TCC/NCC/NPM grouping) | Blocks final report presentation decisions. Collection classification remains Arrears; the report display/grouping treatment is not approved here. |
 | Final complete official revenue-classification catalog/codes | Adding unresolved catalog entries and completing official classified-report coverage in later phases. Phase 1 includes only confirmed sources; do not invent the remainder. |
 | Automatic allocation policy for partial or multi-obligation collections | Any automatic allocation behavior in Phase 5. The model may support explicit allocations; do not guess ordering or split rules. |
 | Lot Rental OR/CT instrument | Issuing Lot Rental documents and production collection flow for that source in Phase 7/later operations. |
