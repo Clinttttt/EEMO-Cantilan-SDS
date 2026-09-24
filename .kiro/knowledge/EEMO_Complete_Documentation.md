@@ -111,7 +111,7 @@ Consequences the whole system holds to:
 
 ## 3. Core business rules
 
-- **Delinquency / Arrears:** Confirmed target semantics define Delinquent as at least one fully elapsed unpaid month and Arrears as qualifying old/lapsed debt. The exact old/lapsed qualification boundary remains unresolved. The former 3+-month / 1–2-month split is superseded; see `EEMO_REVENUE_ARCHITECTURE.md`. Runtime behavior must not be taken as evidence that the separate Phase 5B transition is complete.
+- **Delinquency / Arrears:** Current production defines Delinquent as at least one fully elapsed unpaid month. Active 1–2 month balances are lower-age/Normal follow-up; active 3+ month balances are higher-age/Critical follow-up. Arrears remains qualifying old/lapsed debt and its exact qualification boundary is unresolved. The former 3+-month / 1–2-month classification split is superseded; see `EEMO_REVENUE_ARCHITECTURE.md`. The deployed delinquency rule does not complete the separate Arrears qualification/recovery/reporting work.
 - **Contract expiry:** flagged when within 3 months; an expired contract drops off the current-holder roster
   (it stays in history) and can be renewed, which starts a fresh term at the stall's current rate.
 - **A space outlives its lessees.** A stall keeps its number, its section and its whole history when it is
