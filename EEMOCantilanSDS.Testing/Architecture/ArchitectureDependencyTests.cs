@@ -15,7 +15,7 @@ namespace EEMOCantilanSDS.Testing.Architecture;
 /// Both of the leaks this file used to record as open are now closed. Domain no longer hashes passwords inline — the user
 /// entities take a <c>HashedPassword</c> produced by <c>IPasswordHasher</c> — and Domain no longer names HTTP outcomes.
 /// What remains open is Application's <c>IAppDbContext</c>, which still exposes EF Core <c>DbSet</c>s, so "Application
-/// free of EF" is deliberately unasserted; it is recorded in <c>.kiro/knowledge/OUTSTANDING_WORK.md</c> with what closing
+/// free of EF" is deliberately unasserted; it is recorded in <c>docs/planning/IMPLEMENTATION_HISTORY.md</c> with what closing
 /// it would touch.
 /// </para>
 /// </summary>

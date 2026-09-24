@@ -5,12 +5,13 @@ on:
     branches: [master]
     paths-ignore:
       - '.github/**'
-      # Documentation-only commits must not spend a production deployment. The agent-facing knowledge base,
-      # the steering rules and the Codex entry point are all documentation.
-      - '.kiro/**'
+      # Documentation-only commits must not spend a production deployment. Canonical project knowledge,
+      # agent skills and repository guidance are all documentation.
+      - 'docs/**'
       - '.agents/**'
       - 'README.md'
       - 'AGENTS.md'
+      - 'CONTRIBUTING.md'
   workflow_dispatch:
 
 permissions:

@@ -13,14 +13,15 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 
 ## Read these before changing code, in this order
 
-1. `.kiro/knowledge/arch-rules.md` — implementation boundaries: what is allowed and what is forbidden.
-2. `.kiro/knowledge/patterns.md` — the code shapes to copy.
-3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is.
-4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — accepted business semantics.
-5. `.kiro/knowledge/EEMO_REVENUE_ARCHITECTURE.md` — approved target revenue architecture, migration roadmap and UI rules; distinguish intended target behavior from current implementation evidence.
+1. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
+2. `docs/architecture/ARCHITECTURE_RULES.md` — implementation boundaries: what is allowed and what is forbidden.
+3. `docs/architecture/APPLICATION_PATTERNS.md` — established code shapes to copy.
+4. `docs/architecture/SYSTEM_ARCHITECTURE.md` — why the current architecture is shaped this way.
+5. `docs/business/EEMO_BUSINESS_RULES.md` — accepted business semantics.
+6. `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue architecture and migration direction.
+7. Read the relevant domain-specific documents under `docs/interface/`, `docs/security/`, `docs/testing/`, and `docs/decisions/` before changing those areas.
 
-Short versions of the same material live in `.kiro/steering/` (`product.md`, `tech.md`, `structure.md`,
-`CONTEXT.md`). They are navigation aids, not a substitute for the complete documents.
+The repository knowledge base is tool-neutral. `.agents/skills/` contains repeatable review/runbook procedures; skills never override the canonical documents above.
 
 ## High-risk invariants
 
@@ -45,8 +46,8 @@ Short versions of the same material live in `.kiro/steering/` (`product.md`, `te
 - **Uniqueness is per tenant.** A username, email, stall number or OR number is unique within a municipality,
   not globally, so a cross-tenant lookup must handle multiple matches.
 - **Authentication uses the established boundaries.** Reuse the authorization guards. Authenticated endpoints use an
-  `AddApiHttpClient` client; the anonymous `IAuthApiClient` contains anonymous endpoints only. Mandatory Head MFA is
-  enforced after sign-in.
+  `AddApiHttpClient` client; the anonymous `IAuthApiClient` contains anonymous endpoints only. MFA enrollment is currently
+  optional; once enabled, the established two-step sign-in and recovery boundaries apply.
 - **Mobile writes are retry-safe.** Preserve the offline queue and `ClientOperationId` idempotency. The collector business
   date comes from the server-issued session date when available, with the device clock only as fallback.
 - **Scoped CSS must stay brace-balanced.** One unbalanced brace in a `.razor.css` corrupts the whole bundle and

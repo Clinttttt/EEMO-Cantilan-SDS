@@ -61,7 +61,7 @@ public class NpmMonthSettlementServiceTests
     /// <para>
     /// The divergence is not created by rounding - at ₱26.67 the month owed ₱800.10 - but rounding widens it from ten
     /// centavos to ten pesos. Recorded rather than "fixed", because the alternative is centavos in a fee a collector takes
-    /// in cash. See OUTSTANDING_WORK.md.
+    /// in cash. See docs/planning/IMPLEMENTATION_HISTORY.md.
     /// </para>
     /// </remarks>
     [Fact]

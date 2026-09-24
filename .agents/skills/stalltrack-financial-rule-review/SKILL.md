@@ -11,9 +11,9 @@ Protect the intended financial behaviour while making the requested change revie
 
 Read the root `AGENTS.md`, then the relevant parts of:
 
-- `.kiro/knowledge/EEMO_Complete_Documentation.md` for accepted business semantics;
-- `.kiro/knowledge/arch-rules.md` for implementation boundaries;
-- `.kiro/knowledge/patterns.md` for code shapes.
+- `docs/business/EEMO_BUSINESS_RULES.md` for accepted business semantics;
+- `docs/architecture/ARCHITECTURE_RULES.md` for implementation boundaries;
+- `docs/architecture/APPLICATION_PATTERNS.md` for code shapes.
 
 An explicit current task or business ruling governs the requested behaviour. Code and tests are evidence of current
 behaviour, not automatic proof of intended behaviour. If a ruling, documentation, tests and implementation disagree,

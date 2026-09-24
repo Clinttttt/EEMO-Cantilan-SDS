@@ -1,5 +1,5 @@
 /*
-   SecuritySetup — mandatory two-factor enrolment, presented as a modal over the portal.
+   SecuritySetup — optional two-factor enrolment, presented as a modal over the portal.
 
    Self-contained: scoped CSS only applies to the component that declares the markup (the shared
    TwoFactorPanel brings its own styles), with one deliberate ::deep rule to centre the panel's action row

@@ -9,8 +9,8 @@
 @*
     Optional two-factor enrolment for Heads, presented as a modal over the portal.
 
-    Enforced AFTER sign-in, never before: the Head is already authenticated when they arrive, so a mandatory
-    requirement can never lock anyone out. Once two-factor is active the dialog steps aside.
+    The Head is already authenticated when they arrive. This page recommends enrollment but is not an
+    authorization gate; once two-factor is active the dialog steps aside.
 
     The page deliberately renders a placeholder of the portal behind the dialog. The backdrop blurs whatever
     sits beneath it, so the real sidebar and top bar read as the portal being held back rather than a blank
@@ -99,7 +99,7 @@
             }
             else
             {
-                @* Two rows: why it is required, then what it involves. Splitting the wall of prose into
+                @* Two rows: why it is recommended, then what it involves. Splitting the wall of prose into
                    labelled rows lets a Head who is mid-task grasp the requirement at a glance. Shared with
                    the Settings dialog so both read identically. *@
                 <TwoFactorIntro Reason="@($"Your account can create and reset staff accounts and read every financial record for {Branding.Municipality}, so a second sign-in step is strongly recommended.")" />
@@ -137,7 +137,7 @@
 
     private void OnStatusChanged(MfaStatusDto status)
     {
-        // The panel reports every state change, so the gate lifts the moment enrolment completes.
+        // The panel reports every state change, so the page updates the moment enrolment completes.
         _enabled = status.Enabled;
         StateHasChanged();
     }
@@ -151,7 +151,7 @@
             if (status.IsSuccess && status.Value is not null)
                 _enabled = status.Value.Enabled;
         }
-        catch { /* leave the requirement in place if the check fails — it is only a convenience */ }
+        catch { /* leave the optional setup prompt in place if the check fails — it is only a convenience */ }
     }
 
     private void Continue() => Navigation.NavigateTo("/menu", forceLoad: true);
