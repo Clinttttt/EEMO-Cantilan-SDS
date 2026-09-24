@@ -51,6 +51,10 @@ public class GetFollowUpQueueQueryHandlerTests
             .Handle(new GetFollowUpQueueQuery(today.Year, today.Month), CancellationToken.None);
 
         var row = Assert.Single(result.Value!.Items, item => item.Reason == "Past occupancy balance");
+        // Preserve the separate ended-occupancy action path's existing placement; this is not a new age-based EEMO urgency rule.
+        Assert.Equal(1, row.Section);
+        Assert.Equal("High", row.Priority);
+        Assert.Equal("Past occupancy balance", row.Reason);
         Assert.Equal("delinquent", row.ReasonKind);
         Assert.NotEqual("arrears", row.ReasonKind);
     }

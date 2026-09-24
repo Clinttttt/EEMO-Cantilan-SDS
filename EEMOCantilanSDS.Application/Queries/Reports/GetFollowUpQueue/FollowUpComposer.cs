@@ -396,6 +396,8 @@ public static class FollowUpComposer
 
                 var ended = account.OccupancyEndedOn ?? account.ClosedOn ?? account.ExpiryDate;
 
+                // Preserve the existing operational placement for a separate ended-occupancy balance; this is not the
+                // age-based urgency rule for live delinquent accounts or a newly approved EEMO severity policy.
                 items.Add(new FollowUpItemDto(
                     SecImmediate,
                     "High",
