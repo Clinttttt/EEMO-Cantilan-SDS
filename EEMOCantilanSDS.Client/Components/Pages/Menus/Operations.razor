@@ -1,0 +1,101 @@
+@page "/operations"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@inject IFacilitiesApiClient FacilitiesApi
+
+<PageTitle>StallTrack — Operations</PageTitle>
+
+<main class="operations-page">
+    <header class="operations-header">
+        <p class="operations-eyebrow">Operations</p>
+        <h1>Facilities</h1>
+        <p class="operations-intro">Choose a facility to open its current workspace.</p>
+    </header>
+
+    @if (_loading)
+    {
+        <p class="operations-message" role="status">Loading configured facilities…</p>
+    }
+    else if (_loadFailed)
+    {
+        <div class="operations-message operations-error" role="alert">
+            <p>The facility list is temporarily unavailable.</p>
+            <button type="button" @onclick="LoadFacilitiesAsync">Try again</button>
+        </div>
+    }
+    else if (_facilities.Count == 0)
+    {
+        <p class="operations-message" role="status">No active facilities are available to open.</p>
+    }
+    else
+    {
+        <ul class="operations-list" aria-label="Configured facilities">
+            @foreach (var facility in _facilities)
+            {
+                <li class="operations-row" data-facility-code="@facility.Code">
+                    <div class="operations-facility-identity">
+                        <span class="operations-facility-code">@facility.ShortName</span>
+                        <h2>@facility.Name</h2>
+                    </div>
+                    @if (IsRouteable(facility.Code))
+                    {
+                        <a class="operations-open" href="@FacilityHref(facility)" aria-label="Open facility @facility.Name">
+                            Open facility
+                        </a>
+                    }
+                    else
+                    {
+                        <span>Unsupported code (@((int)facility.Code))</span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</main>
+
+@code {
+    private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
+    private bool _loading = true;
+    private bool _loadFailed;
+
+    protected override Task OnInitializedAsync() => LoadFacilitiesAsync();
+
+    private async Task LoadFacilitiesAsync()
+    {
+        _loading = true;
+        _loadFailed = false;
+
+        try
+        {
+            var period = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+            var result = await FacilitiesApi.GetFacilitySummariesAsync(period.Year, period.Month);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _facilities = Array.Empty<FacilitySidebarSummaryDto>();
+                _loadFailed = true;
+                return;
+            }
+
+            _facilities = result.Value.OrderBy(facility => facility.Code).ToArray();
+        }
+        catch
+        {
+            // A discovery page must not substitute the enum/fallback list when the tenant source is unavailable.
+            _facilities = Array.Empty<FacilitySidebarSummaryDto>();
+            _loadFailed = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string FacilityHref(FacilitySidebarSummaryDto facility)
+    {
+        var peers = _facilities.Select(peer => (Code: peer.Code, ShortName: (string?)peer.ShortName));
+        var slug = EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(facility.Code, facility.ShortName, peers);
+        return $"/facility/{slug}";
+    }
+
+    private static bool IsRouteable(FacilityCode code) => Enum.IsDefined(code);
+}
