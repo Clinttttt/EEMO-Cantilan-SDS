@@ -69,8 +69,12 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="eemo-drawer-header-title">@(IsEditing ? "Edit Vendor / Stall" : "Add New Vendor")</div>
-                        <div class="eemo-drawer-header-sub">@(IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system.")</div>
+                        <div class="eemo-drawer-header-title">@(UseOccupantTerminology
+                            ? (IsEditing ? "Edit Occupant & Space" : "Add Occupant & Space")
+                            : (IsEditing ? "Edit Vendor / Stall" : "Add New Vendor"))</div>
+                        <div class="eemo-drawer-header-sub">@(UseOccupantTerminology
+                            ? (IsEditing ? "Update the occupant and space information." : "Register a rental space and its current occupant.")
+                            : (IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system."))</div>
                     </div>
                 </div>
                 <button class="eemo-drawer-header-close" @onclick="HandleCancel" aria-label="Close">
@@ -83,7 +87,7 @@
 
                 <!-- §1 Leasee Information -->
                 <div class="avm-section">
-                    <div class="avm-section-label">Leasee Information</div>
+                    <div class="avm-section-label">@(UseOccupantTerminology ? "Occupant Information" : "Leasee Information")</div>
 
                     @* How the space is held. The office's registers record three kinds, and the two without a signed
                        contract have no leasee name, term or contract rate to state — asking for them would invite a
@@ -108,7 +112,7 @@
 
                     <div class="avm-row-2">
                         <div class="avm-group">
-                            <label class="avm-label">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
+                            <label class="avm-label">@(UseOccupantTerminology ? "Occupant" : "Actual Occupant (Leasee)") <span class="avm-req">*</span></label>
                             <input class="avm-input @(GetFieldError("ActualOccupant") != string.Empty ? "form-input-error" : "")" type="text" placeholder="Current stall occupant"
                                    @bind="Form.ActualOccupant" @bind:event="oninput" />
                             @if (GetFieldError("ActualOccupant") != string.Empty)
@@ -666,7 +670,7 @@
                 }
                 <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
                 <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
-                    @(IsEditing ? "Save Changes" : "Add Vendor")
+                    @(IsEditing ? "Save Changes" : UseOccupantTerminology ? "Add Occupant & Space" : "Add Vendor")
                 </button>
             </div>
 
@@ -711,6 +715,8 @@
     [Parameter] public bool Show { get; set; }
     /// true = Edit mode   false = Add mode
     [Parameter] public bool IsEditing { get; set; }
+    /// <summary>Use permanent rental-space terminology when hosted by the cross-facility occupancy registry.</summary>
+    [Parameter] public bool UseOccupantTerminology { get; set; }
 
     /// <summary>
     /// The form's token for the per-kilo section fee. A token is a key, not a price: the rate lives in the
