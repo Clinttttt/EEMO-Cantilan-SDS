@@ -23,17 +23,17 @@
 @inject IJSRuntime JS
 
 @* ───────────────────────────────────────────────────────────────────────────────
-   Follow-up Queue — an ACTION queue for the EEMO Head/Admin, distinct from the
+   Follow-up Queue — an attention queue for the EEMO Head/Admin, distinct from the
    Dashboard (financial overview) and the Financial/Month-End reports (ledgers). It
-   answers "what needs staff attention now?" — grouped by the action required, with a
-   priority, a reason, and a deep link to act. Scope is "as of today".
+   answers "what needs staff attention now?" — with a reason, source period, separate
+   priority, and a deep link to act. Scope is "as of today".
 
    Data: GET /api/Reports/follow-up (GetFollowUpQueueQuery) composes delinquency,
    per-facility compliance, the NPM daily streak, online + service receipts missing an
    OR, and contract expiry. No money KPIs here — only action items and counts.
 
-   DESIGN: government-restrained. Neutral surfaces; colour only on the thin priority
-   rail, the small reason badge, and the amount.
+   DESIGN: government-restrained. Neutral surfaces; urgency colours the priority badge
+   and thin row rail, while the reason remains neutral.
    ─────────────────────────────────────────────────────────────────────────────── *@
 
 <PageTitle>StallTrack — Follow-up Queue</PageTitle>
@@ -76,8 +76,8 @@
         </div>
         <div class="fq-hero-stats">
             <div class="fq-stat">
-                <div class="fq-stat-val fq-stat-critical">@SectionTotal(1)</div>
-                <div class="fq-stat-key">Immediate</div>
+                <div class="fq-stat-val">@SectionTotal(1)</div>
+                <div class="fq-stat-key">Action required</div>
             </div>
             <div class="fq-hero-divider"></div>
             <div class="fq-stat">
@@ -95,6 +95,12 @@
                 <div class="fq-stat-key">Operational</div>
             </div>
         </div>
+    </div>
+
+    <div class="fq-context-note" role="note" aria-label="Queue period and date context">
+        <strong>Period and date context</strong>
+        <span>Collection period: @PeriodLabel · queue as of @AsOf.ToString("MMMM d, yyyy").</span>
+        <span>Rows retain their source period. Delinquency uses fully elapsed months in a rolling window; current-period unpaid or partial balances stay separate. Online payments awaiting an OR may come from any period.</span>
     </div>
 
     <!-- Filter choices + search -->
@@ -129,9 +135,9 @@
                     <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
                 }
             </div>
-            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Resolved & dismissed items from previous periods">
+            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Past-period snapshot from source records; this is not a log of actions or local hides.">
                 <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
-                Whole-time History
+                Past-period view
             </a>
         </div>
     </div>
@@ -192,7 +198,7 @@
                 <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
             </div>
             <div class="fq-empty-title">No follow-up items for the selected scope.</div>
-            <div class="fq-empty-sub">All visible records are either paid, excused, or not yet due.</div>
+            <div class="fq-empty-sub">No items match the current queue filters.</div>
         </div>
     }
     else
@@ -209,7 +215,7 @@
                     </div>
                     @if (grp.Section.Id == SecImmediate && ImmediateExpiredContractCount > 0)
                     {
-                        <button type="button" class="fq-hideall" title="Dismiss every expired-contract item (they remain on the Closed Accounts page)" @onclick="HideAllExpiredContracts">
+                        <button type="button" class="fq-hideall" title="Hide expired-contract entries from this browser's live queue only; this is not recorded as follow-up history." @onclick="HideAllExpiredContracts">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                             Hide all Contract expired (@ImmediateExpiredContractCount)
                         </button>
@@ -236,7 +242,15 @@
                                         switch (col.Key)
                                         {
                                             case "reason":
-                                                <td><span class="fq-reason fq-rb-@PriClass(it.Priority)">@it.Reason</span></td>
+                                                <td>
+                                                    <div class="fq-row-signals">
+                                                        <span class="fq-reason">@it.Reason</span>
+                                                        <span class="fq-priority fq-rb-@PriClass(it.Priority)">
+                                                            <span class="fq-priority-caption">Priority</span>
+                                                            <span>@it.Priority</span>
+                                                        </span>
+                                                    </div>
+                                                </td>
                                                 break;
                                             case "payor":
                                                 <td>
@@ -264,7 +278,7 @@
                                                     <div class="fq-action-cell">
                                                         @if (grp.Section.Id == SecImmediate)
                                                         {
-                                                            <button type="button" class="fq-hidebtn" title="Dismiss from the live queue — reviewable under Past follow-up" @onclick="() => HideItem(it)">Hide</button>
+                                                            <button type="button" class="fq-hidebtn" title="Hide from this browser's live queue only; this is not recorded as follow-up history." @onclick="() => HideItem(it)">Hide locally</button>
                                                         }
                                                         @if (it.Action == "Add OR")
                                                         {
@@ -300,10 +314,7 @@
     }
 
     <div class="fq-foot-note">
-        Priorities — <span class="fq-legend fq-rb-critical">Critical</span> overdue / untraceable money ·
-        <span class="fq-legend fq-rb-high">High</span> act this week ·
-        <span class="fq-legend fq-rb-normal">Normal</span> routine follow-up ·
-        <span class="fq-legend fq-rb-review">Review</span> verify before action.
+        Priority describes urgency; reason and status describe what needs attention. For active Delinquent accounts, 1–2 fully elapsed unpaid months are Normal and 3+ are Critical. Current-period unpaid or partial balances are shown separately and are not Delinquent until a month fully elapses.
     </div>
 </div>
 
@@ -482,10 +493,9 @@
     private string _search = "";
     private FacilityCode? _facility;   // null = all facilities
 
-    // ── Manual hide (admin-dismissed "Needs immediate action" items) ──────────────
-    // The Head/Admin can dismiss items they don't want escalated here (e.g. an expired contract that
-    // is already handled on the Closed Accounts page). Nothing is auto-hidden. Hidden keys persist
-    // per-browser via localStorage; a toggle reveals them. Scope: Needs immediate action only.
+    // ── Browser-local hide for action-required items ───────────────────────────────
+    // Hidden keys persist in this browser via localStorage. They do not create a server action or follow-up-history event.
+    // Scope remains limited to section 1, preserving the existing control behavior.
     private const int SecImmediate = 1;
     private const string HiddenStorageKey = "eemo.followup.hidden";
     private HashSet<string> _hidden = new();
@@ -496,7 +506,7 @@
     private static string HideKey(FollowUpItemDto i) =>
         $"{i.Facility}|{i.ReasonKind}|{i.StallId?.ToString() ?? i.Identifier}|{i.Period}";
 
-    // Count of still-visible "Contract expired" items in Needs immediate action.
+    // Count of still-visible "Contract expired" items in the action-required section.
     //
     // Matched on the REASON, not the kind. "contract" is shared: a past-occupancy or closed-account balance carries it too
     // when the account owes fewer than the office's three months, so a button named for expired contracts was dismissing
@@ -948,15 +958,14 @@
 
     private static readonly SectionDef[] Sections =
     {
-        new(1, "Needs immediate action",
-               // Not every account here has a contract that ran out: some were closed outright, and a space let
-               // without a contract has no term to expire in the first place. What they share is that the lessee's
-               // occupancy is over while the money is not in.
-               "Higher-age delinquent accounts, received money still missing its receipt, and balances left by occupancies that have ended.",
-               "critical", "alert"),
+        new(1, "Action required",
+               // Priority varies by row: this group includes Critical delinquency, High evidence attention, and
+               // balances from ended occupancies. The row reason and priority are displayed separately.
+               "Higher-age delinquent accounts, missing receipt evidence, and outstanding balances from ended occupancies.",
+               "normal", "alert"),
         new(2, "Needs follow-up this period",
-               "Lower-age delinquent accounts, current-period unpaid balances, partial payments, and contracts expiring soon.",
-               "high", "wallet"),
+               "Lower-age delinquent accounts, current-period unpaid or partial balances, and contracts expiring soon.",
+               "normal", "wallet"),
         new(3, "Needs verification",
                "Excused / absent records to confirm before they affect the books.",
                "review", "shield"),
@@ -966,7 +975,7 @@
     };
 
     // ── Per-section table columns (context-aware) ──────────────────────────────────
-    // Sections are urgency bands but their content differs enough to warrant different columns:
+    // Sections group the work; each row states its own priority. Content differs enough to warrant different columns:
     //   • Verification (3) is excused/absent only — always ₱0, so a money column would mislead;
     //     show the period and the excuse note instead.
     //   • Operational (4) is always the current period (redundant) — lead with the activity note
@@ -981,14 +990,14 @@
             new Col("reason", "Reason"),
             new Col("payor", "Payor / Stall"),
             new Col("period", "Period"),
-            new Col("note", "Status"),
+            new Col("note", "Status / context"),
             new Col("action", "Action"),
         },
         4 => new[]
         {
             new Col("reason", "Reason"),
             new Col("payor", "Payor / Stall"),
-            new Col("note", "Activity"),
+            new Col("note", "Activity / status"),
             new Col("amount", "Amount"),
             new Col("action", "Action"),
         },
@@ -996,7 +1005,7 @@
         {
             new Col("reason", "Reason"),
             new Col("payor", "Payor / Stall"),
-            new Col("periodstatus", "Period & Status"),
+            new Col("periodstatus", "Period / status"),
             new Col("amount", "Amount"),
             new Col("action", "Action"),
         },
@@ -1039,8 +1048,8 @@
 
     private int CountFor(string key) => AllItems.Count(i =>
         (key == "all" || i.ReasonKind == key) && MatchesFacility(i) && MatchesSearch(i)
-        // Dismissed (hidden) immediate items are removed from the live queue, so they must not inflate the
-        // tab badge either — mirrors ItemsFor/SectionTotal. Hiding is only offered for the immediate section.
+        // Browser-hidden action-required items are removed from the live queue, so they must not inflate the
+        // tab badge either — mirrors ItemsFor/SectionTotal. Hiding is only offered for this section.
         && !(i.Section == SecImmediate && _hidden.Contains(HideKey(i))));
 
     private IReadOnlyList<FollowUpItemDto> Filtered() =>
@@ -1051,7 +1060,7 @@
     private List<FollowUpItemDto> ItemsFor(int section)
     {
         var items = Filtered().Where(i => i.Section == section);
-        // Dismissed items are permanently removed from the live queue (reviewable under Past follow-up).
+        // Hidden items are removed from this browser's live queue only; they are not added to Past follow-up.
         if (section == SecImmediate)
             items = items.Where(i => !_hidden.Contains(HideKey(i)));
         return items.ToList();   // server already ordered by priority/amount

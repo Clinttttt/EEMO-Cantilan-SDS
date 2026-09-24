@@ -1,7 +1,7 @@
 /* ══════════════════════════════════════════════════════════════════════════
    Follow-up Queue — scoped styles (fq-)
    Government-restrained: neutral white surfaces, generous spacing, one quiet accent
-   per row. Colour appears ONLY on the thin priority rail, the small reason badge,
+   per row. Colour appears only on the thin priority rail, the separate priority badge,
    and the amount. Reuses the app design tokens and the Month-End interaction
    patterns (search field, dropdown-with-backdrop) for consistency.
    ══════════════════════════════════════════════════════════════════════════ */
@@ -13,6 +13,21 @@
     gap: 10px;
     margin-bottom: 20px;
 }
+.fq-context-note {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0 0 16px;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid #cdd6df;
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-subtle);
+    font-size: 11.5px;
+    line-height: 1.55;
+}
+.fq-context-note strong { color: var(--text); font-size: 12px; }
 .fq-toolrow {
     display: flex;
     align-items: center;
@@ -21,7 +36,7 @@
 }
 .fq-filters {
     display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
-    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    background: var(--bg);
     border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
     border-radius: 10px; padding: 4px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
@@ -42,7 +57,7 @@
     font-size: 10.5px; font-weight: 800; text-align: center;
 }
 .fq-chip-active, .fq-chip-active:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    background: var(--navy);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -106,8 +121,11 @@
 .fq-row.fq-pri-normal td:first-child { border-left-color: #cdd6df; }
 .fq-row.fq-pri-review td:first-child { border-left-color: var(--green); }
 
-/* Reason badge (priority-coloured) */
-.fq-reason { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; padding: 3px 9px; border-radius: 6px; white-space: nowrap; }
+/* Reason and priority are distinct: the condition stays neutral while priority carries urgency colour. */
+.fq-row-signals { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.fq-reason { display: inline-block; max-width: 190px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; padding: 4px 9px; border-radius: 6px; background: var(--bg-icon); color: var(--text-subtle); line-height: 1.35; }
+.fq-priority { display: inline-flex; align-items: baseline; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .01em; padding: 3px 8px; border-radius: 6px; line-height: 1.2; }
+.fq-priority-caption { font-size: 8px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .76; }
 .fq-rb-critical { background: var(--red-bg); color: var(--red); }
 .fq-rb-high { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
 .fq-rb-normal { background: var(--bg-icon); color: var(--text-subtle); }
@@ -153,14 +171,6 @@
     font-size: 11.5px;
     color: var(--text-subtle);
     line-height: 2;
-}
-.fq-legend {
-    font-size: 9.5px;
-    font-weight: 700;
-    letter-spacing: .03em;
-    padding: 2px 7px;
-    border-radius: 6px;
-    margin: 0 2px;
 }
 
 /* ── Responsive ── */
@@ -379,10 +389,6 @@
     position: relative; display: flex; align-items: center; gap: 28px;
     background: var(--navy); border-radius: 14px; padding: 22px 28px; margin-bottom: 18px;
     overflow: hidden; flex-wrap: wrap;
-}
-.fq-hero::before {
-    content: ""; position: absolute; top: -40px; right: -40px; width: 220px; height: 220px;
-    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%); pointer-events: none;
 }
 .fq-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 230px; }
 .fq-hero-icon {
