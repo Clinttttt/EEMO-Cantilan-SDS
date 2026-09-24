@@ -5,8 +5,8 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Queries.Collectors.GetReportOfCollections;
 
 /// <summary>
-/// The Report of Collections for one collector over one period: what they took, receipt by receipt, and what they have
-/// since turned in. The office's own document, distinct from the collector's copy in the app.
+/// The Report of Collections for one collector over one period: collections attributed to them, receipt by receipt.
+/// The office's own document, distinct from the collector's copy in the app; it does not represent a separate remittance/deposit event.
 /// </summary>
 public sealed record GetReportOfCollectionsQuery(Guid CollectorId, DateOnly From, DateOnly To)
     : IRequest<Result<ReportOfCollectionsDto>>;
@@ -17,8 +17,8 @@ public sealed record GetReportOfCollectionsQuery(Guid CollectorId, DateOnly From
 /// has no place on it.
 /// </param>
 /// <param name="OfficeRecorded">
-/// Money taken at the office for the same facilities and period. Not this collector's accountability, and stated so the
-/// facility totals and this sheet do not appear to contradict each other.
+/// Money recorded at the office for the same facilities and period. It is not attributed to this collector, and is stated
+/// separately so the facility totals and this sheet do not appear to contradict each other.
 /// </param>
 public sealed record ReportOfCollectionsDto(
     Guid CollectorId,
@@ -43,8 +43,8 @@ public sealed record ReportOfCollectionsDto(
     // Of TotalCollected, the part that answered for a period BEFORE this one — an owed market day, or a rental paid after
     // its month. The office ruled on 2026-09-10 that a month must not appear to have earned what it merely caught up on:
     // ₱566 taken in September of which ₱30 settled an August day means September itself earned ₱536. Stated beside the
-    // total rather than moved out of it, because this document is a CASH accountability — the collector did hand over
-    // ₱566 — and moving it would make a past month's report change after it was printed.
+    // total rather than moved out of it, because this report describes collections attributed to the collector, not a
+    // separate remittance/deposit event. Stating the earlier-period portion separately preserves when it was collected.
     decimal CollectedForEarlierPeriods = 0m);
 
 public sealed record ReportFacilityLineDto(

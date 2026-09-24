@@ -7,9 +7,9 @@
 @inject IJSRuntime JS
 
 @*
-    The office's Report of Collections for one collector: what they took, receipt by receipt, and what they have since
-    turned in. Distinct from the collector's own copy in the app, and from the facility reports, which state a facility
-    across every collector.
+    The office's Report of Collections for one collector: collections attributed to them, receipt by receipt, with utility
+    figures presented separately. Distinct from the collector's own copy in the app, and from the facility reports, which
+    state a facility across every collector.
 
     Every figure comes from one query, so the summary, the facility breakdown, the daily record and the receipt listing
     cannot disagree. The shell and document styles are those the facility reports already carry.
@@ -107,9 +107,9 @@
 
             @if (r.CollectedForEarlierPeriods > 0m)
             {
-                @* The office's ruling, 2026-09-10: a period must not read as having earned what it only recovered. The total stays
-                   whole because this document answers for CASH the collector handled and remitted; what it earned is stated beside
-                   it. Shown only when there is arrears money, so an ordinary period is not given a line saying nothing. *@
+                @* The office's ruling, 2026-09-10: a period must not read as having earned what it only recovered. This report
+                   describes collections attributed to the collector, not a separate remittance/deposit event; the amount applied
+                   to earlier periods is stated beside the total. Shown only when there is arrears money. *@
                 <p class="cr-basis-note">
                     Of this total, &#8369;@r.CollectedForEarlierPeriods.ToString("N2") settled earlier periods.
                     @PeriodLabel itself accounts for &#8369;@((r.TotalCollected - r.CollectedForEarlierPeriods).ToString("N2")).
@@ -207,8 +207,8 @@
                 {
                     <p class="cr-note">
                         A further &#8369;@r.OfficeRecorded.ToString("N2") was taken at the office for these facilities in the
-                        same period, across @r.OfficeReceipts entr@(r.OfficeReceipts == 1 ? "y" : "ies"). It is not this
-                        collector's accountability and is stated so the facility totals and this sheet can be reconciled.
+                        same period, across @r.OfficeReceipts entr@(r.OfficeReceipts == 1 ? "y" : "ies"). It is not
+                        attributed to this collector and is stated so the facility totals and this sheet can be reconciled.
                     </p>
                 }
             </div>
@@ -320,8 +320,8 @@
                         </table>
                     </div>
                     <p class="cr-note">
-                        Banked separately as additional income, so these figures are outside the collections and the
-                        remittances above.
+                        Banked separately as additional income. These utility figures are outside the collections recorded
+                        for this collector above.
                     </p>
                 </div>
             }
