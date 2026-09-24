@@ -99,7 +99,7 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
 - Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications, even when collected from the same vendor.
 - Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount.
-- Kanmanggay is **Space Rental** and is distinct from BB / Barbecue Stand (BBQ). Do not merge Kanmanggay into the BBQ facility. No final Kanmanggay semantic code is approved; it belongs conceptually under Space Rental.
+- BBQ Stand may roll up under the broader Market operation for operational and reporting hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**. Market hierarchy does not determine BBQ's revenue classification, billing basis or accountable instrument; BBQ is not thereby `MARKET_FEES`, and no final BBQ semantic code is assigned here. No final Kanmanggay semantic code is approved; it belongs conceptually under Space Rental.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
 - The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications, may be collected separately from rent, and retain their respective Cantilan OR/CT policy.
 - Payor identity may be optional for appropriate transactional Cash Ticket collections.
