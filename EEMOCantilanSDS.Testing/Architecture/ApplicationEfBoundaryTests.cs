@@ -97,6 +97,9 @@ public class ApplicationEfBoundaryTests
         // the global filter, and no current money writer/report consumes these rows.
         "GetRevenueClassificationsQueryHandler.cs",
         "GetRevenueClassificationPolicyHistoryQueryHandler.cs",
+        // Phase 2B.1 deliberately keeps the bounded TPM shadow projection next to revenue policy resolution:
+        // one tenant-scoped read over paid attendance and effective-dated TABO policy, with no ledger write path.
+        "GetTpmCollectionShadowReconciliationQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",
