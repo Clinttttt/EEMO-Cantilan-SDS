@@ -15,12 +15,46 @@ namespace EEMOCantilanSDS.Testing.Application.Reports;
 
 /// <summary>
 /// The Follow-up Queue composes existing canonical sources into one action list. These tests lock in
-/// the composition rules: delinquent (3+) and arrears (1–2) split into different sections; a current-
+/// the composition rules: every account with at least one fully elapsed unpaid month is delinquent; a current-
 /// period unpaid stall already counted under delinquency is NOT duplicated; an excused/absent stall is
 /// shown for review (₱0, never as a debt); contract expiry and online "awaiting OR" surface correctly.
 /// </summary>
 public class GetFollowUpQueueQueryHandlerTests
 {
+    [Fact]
+    public async Task OneElapsedUnpaidMonthUsesDelinquentQueueCategory_NotAgeBasedArrears()
+    {
+        var handler = Build();
+
+        var result = await handler.Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, EEMOCantilanSDS.Domain.Constants.DomainRules.DelinquentThresholdMonths);
+        Assert.Equal(2, result.Value!.Items.Count(item => item.ReasonKind == "delinquent"));
+        Assert.DoesNotContain(result.Value.Items, item => item.ReasonKind == "arrears");
+    }
+
+    [Fact]
+    public async Task OneElapsedMonthOnEndedOccupancyIsNotClassifiedAsArrears()
+    {
+        var today = FixtureToday;
+        var ended = new ClosedStallAccountDto(
+            Guid.NewGuid(), InactiveAccountState.Superseded, FacilityCode.NPM, "New Public Market", "6",
+            "Teofila Reyes", "Teofila Reyes",
+            EffectivityDate: new DateOnly(today.Year, today.Month, 1),
+            DurationYears: 1, MonthlyRate: 900m,
+            ClosedOn: null, ExpiryDate: today,
+            LifetimeCollected: 0m, Uncollected: 900m, ClosedBy: null,
+            OccupancyEndedOn: today, ContractId: Guid.NewGuid(), MonthsUnpaid: 1);
+
+        var result = await Build(closedAccounts: new[] { ended })
+            .Handle(new GetFollowUpQueueQuery(today.Year, today.Month), CancellationToken.None);
+
+        var row = Assert.Single(result.Value!.Items, item => item.Reason == "Past occupancy balance");
+        Assert.Equal("delinquent", row.ReasonKind);
+        Assert.NotEqual("arrears", row.ReasonKind);
+    }
+
     private static StallComplianceDto Stall(string stallNo, string occupant, string status, decimal balance, int absentDays = 0) =>
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", 0m, 0m,
             status, 0m, balance, null, 0, 0, null, 0, balance, absentDays);
@@ -57,11 +91,11 @@ public class GetFollowUpQueueQueryHandlerTests
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
 
-        // NPM compliance: an arrears stall (also in delinquency → must NOT duplicate as current),
+        // NPM compliance: a delinquent stall (also in the delinquency list → must NOT duplicate as current),
         // an excused/absent stall, and a separate current-period unpaid stall.
         var npm = Report(new[]
         {
-            Stall("09", "Ben Cruz", "Unpaid", 2_400m),          // same as the arrears delinquency row
+            Stall("09", "Ben Cruz", "Unpaid", 2_400m),          // same as the delinquency row
             Stall("F-3", "Nida Flores", "Absent", 0m, absentDays: 30),
             Stall("12", "Lito Yu", "Unpaid", 1_500m),           // genuine current-period unpaid
         });
@@ -76,7 +110,7 @@ public class GetFollowUpQueueQueryHandlerTests
             .ReturnsAsync(new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),  // delinquent (3 mo)
-                new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // arrears (1 mo)
+                new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // delinquent (1 mo)
             });
 
         var closedRegister = new Mock<IClosedStallAccountQueries>();
@@ -127,7 +161,7 @@ public class GetFollowUpQueueQueryHandlerTests
     }
 
     [Fact]
-    public async Task Composes_DelinquentArrearsCurrentExcusedContractAndOnlineOr_WithoutDuplicates()
+    public async Task Composes_DelinquentCurrentExcusedContractAndOnlineOr_WithoutDuplicates()
     {
         var handler = Build();
 
@@ -136,18 +170,19 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.True(result.IsSuccess);
         var items = result.Value!.Items;
 
-        // Delinquent (3+ mo) → immediate (section 1), Critical.
-        var delinquent = Assert.Single(items, i => i.ReasonKind == "delinquent");
+        // Both one- and three-month balances are delinquent and appear in the immediate section.
+        var delinquentRows = items.Where(i => i.ReasonKind == "delinquent").ToList();
+        Assert.Equal(2, delinquentRows.Count);
+        var delinquent = Assert.Single(delinquentRows, i => i.Link == "/profile/tcc/04");
         Assert.Equal(1, delinquent.Section);
         Assert.Equal("Critical", delinquent.Priority);
         Assert.Equal("View vendor", delinquent.Action);
         Assert.Equal("/profile/tcc/04", delinquent.Link);   // no stall id on this row, so the number is the documented fallback
 
-        // Arrears (1–2 mo) → this-period (section 2).
-        var arrears = Assert.Single(items, i => i.ReasonKind == "arrears");
-        Assert.Equal(2, arrears.Section);
+        // Age alone does not create an Arrears queue category.
+        Assert.DoesNotContain(items, i => i.ReasonKind == "arrears");
 
-        // Current-period unpaid is stated for BOTH stalls: the arrears figure covers months that have already
+        // Current-period unpaid is stated for BOTH stalls: delinquency covers months that have already
         // elapsed and excludes the month in progress, so a stall can be behind on past months and also owe this
         // one. Suppressing the row for stall 09 dropped its current-month balance off the queue entirely.
         var current = items.Where(i => i.ReasonKind == "current").ToList();
@@ -303,18 +338,17 @@ public class GetFollowUpQueueQueryHandlerTests
 
     [Theory]
     [InlineData(12, "delinquent")]   // a former lessee owing twelve months
-    [InlineData(3, "delinquent")]    // exactly the office's threshold
-    [InlineData(2, "contract")]      // two months owing is arrears, not delinquency
-    [InlineData(1, "contract")]      // a single month, as a closed account often is
+    [InlineData(3, "delinquent")]    // three months owing
+    [InlineData(2, "delinquent")]    // two fully elapsed months
+    [InlineData(1, "delinquent")]    // one fully elapsed month meets the rule
     public async Task AnEndedAccount_IsCountedAsDelinquentByTheSameThresholdAsALiveOne(int monthsUnpaid, string expectedKind)
     {
         // The follow-up queue read 0 delinquent accounts while a former lessee of NPM stall 6 owed twelve months: a past
         // occupancy had no month count to be judged by, so every one of them was filed under "contract" whatever it owed.
-        // The office's rule is DelinquentThresholdMonths — three or more months owing is delinquent — and an ended
+        // The office's rule is one or more fully elapsed unpaid months, and an ended occupancy is judged by it too,
         // occupancy is judged by it now, because the debt is no smaller for the lessee having moved on.
         //
-        // The money is deliberately NOT the test: a closed account owing ₱570 for a single month is in arrears, and calling
-        // it delinquent because the figure looks large would make the office's own threshold untrue.
+        // The money is deliberately NOT the test: classification follows elapsed unpaid months, not the balance amount.
         var today = FixtureToday;
         var ended = new ClosedStallAccountDto(
             Guid.NewGuid(), InactiveAccountState.Superseded, FacilityCode.NPM, "New Public Market", "6",
@@ -384,7 +418,7 @@ public class GetFollowUpQueueQueryHandlerTests
 
     /// <summary>
     /// The office's rule: a month still in progress is never counted as unpaid, so a rolling delinquency figure ends with the
-    /// last month that CLOSED. Out by one month either flatters the collection rate or invents arrears nobody owes yet.
+    /// last month that CLOSED. Out by one month either flatters the collection rate or counts an unpaid month before it elapsed.
     /// The span is stated on the ROW, beside the money it describes, which is where a reader would check it.
     /// </summary>
     [Theory]

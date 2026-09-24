@@ -58,12 +58,10 @@
     var currentRecord = PaymentHistory.FirstOrDefault(p => p.Period == currentMonthKey);
     decimal currentPartial = currentRecord?.Status == Domain.Enums.PaymentStatus.Partial ? currentRecord.AmountPaid : 0;
 
-    string statusLabel = monthsUnpaid == 0 ? "Consistent Payer"
-                       : monthsUnpaid >= 3 ? "Delinquent"
-                                           : "With Arrears";
-    string statusClass = monthsUnpaid == 0 ? "ph-badge-consistent"
-                       : monthsUnpaid >= 3 ? "ph-badge-delinquent"
-                                           : "ph-badge-arrears";
+    // This rolling total includes the month in progress, so it cannot by itself prove that a fully elapsed month is unpaid.
+    // Keep this modal's aggregate badge descriptive rather than assigning either delinquency or unresolved Arrears status.
+    string statusLabel = monthsUnpaid == 0 ? "Consistent Payer" : "Unpaid Balance";
+    string statusClass = monthsUnpaid == 0 ? "ph-badge-consistent" : string.Empty;
 
     <div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
         <div class="ph-modal" @onclick:stopPropagation="true">

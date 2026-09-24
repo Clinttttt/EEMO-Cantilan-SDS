@@ -44,8 +44,7 @@ public class GetSystemSettingsQueryHandlerTests
 
         // Collection rules mirror DomainRules.
         Assert.Equal(DomainRules.DelinquentThresholdMonths, dto.Collection.DelinquentThresholdMonths);
-        Assert.Equal(1, dto.Collection.ArrearsMinMonths);
-        Assert.Equal(DomainRules.DelinquentThresholdMonths - 1, dto.Collection.ArrearsMaxMonths);
+        Assert.Equal(1, DomainRules.DelinquentThresholdMonths);
         Assert.Equal(DomainRules.PaymentHistoryMonths, dto.Collection.DelinquencyWindowMonths);
         Assert.Equal(DomainRules.ExpiringSoonMonths, dto.Collection.ContractExpiryWarningMonths);
 

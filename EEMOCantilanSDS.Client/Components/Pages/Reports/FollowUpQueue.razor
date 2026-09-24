@@ -938,7 +938,7 @@
         item.StallId.HasValue
         && item.Facility != FacilityCode.NPM
         && item.Amount.GetValueOrDefault() > 0m
-        && item.ReasonKind is "delinquent" or "arrears" or "contract";
+        && item.ReasonKind is "delinquent" or "contract";
 
 
     private static string Currency(decimal value) => $"₱{value:N0}";
@@ -954,7 +954,7 @@
                "Delinquent accounts, received money still missing its receipt, and balances left by occupancies that have ended.",
                "critical", "alert"),
         new(2, "Needs follow-up this period",
-               "Current-period unpaid balances, partial payments, early arrears, and contracts expiring soon.",
+               "Current-period unpaid balances, partial payments, and contracts expiring soon.",
                "high", "wallet"),
         new(3, "Needs verification",
                "Excused / absent records to confirm before they affect the books.",
@@ -1011,7 +1011,6 @@
     [
         new("all", "All"),
         new("delinquent", "Delinquent"),
-        new("arrears", "Arrears"),
         new("missingor", "Missing OR"),
         new("current", "Current-period"),
         new("contract", "Contract"),
@@ -1083,7 +1082,7 @@
         "npm" => "calendar",
         "excused" => "user-check",
         "misc" => "receipt",
-        _ => "user"   // delinquent / arrears / current
+        _ => "user"   // delinquent / current
     };
 
     private static string AmountLabel(FollowUpItemDto i)

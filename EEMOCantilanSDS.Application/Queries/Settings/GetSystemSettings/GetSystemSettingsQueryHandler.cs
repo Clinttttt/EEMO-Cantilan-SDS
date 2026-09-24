@@ -66,8 +66,6 @@ public class GetSystemSettingsQueryHandler(
 
         var collection = new CollectionRulesDto(
             DelinquentThresholdMonths: DomainRules.DelinquentThresholdMonths,
-            ArrearsMinMonths: 1,
-            ArrearsMaxMonths: DomainRules.DelinquentThresholdMonths - 1,
             DelinquencyWindowMonths: DomainRules.PaymentHistoryMonths,
             ContractExpiryWarningMonths: DomainRules.ExpiringSoonMonths,
             TimeZone: TimeZoneLabel);

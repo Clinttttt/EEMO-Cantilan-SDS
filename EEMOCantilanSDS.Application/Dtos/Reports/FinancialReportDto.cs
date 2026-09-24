@@ -12,7 +12,8 @@ namespace EEMOCantilanSDS.Application.Dtos.Reports;
 ///  • <see cref="CollectionRatePct"/> is amount-based: Collected / Billed (Collected + CurrentPeriodUnpaid).
 ///  • Per-head (SLH) / per-trip (TRM) / weekly-attendance (TPM) facilities are paid on service: they
 ///    contribute to Collected but carry no recurring unpaid balance (<see cref="FinancialFacilityRowDto.Unpaid"/> = null).
-///  • Delinquent = 3+ unpaid months; arrears = 1–2 unpaid months (kept in separate lists).
+///  • Delinquent = one or more fully elapsed unpaid months. Arrears qualification is unresolved and is never inferred
+///    from the age of an outstanding balance.
 /// </summary>
 public record FinancialReportDto(
     // ── Scope / identity ──
@@ -32,11 +33,11 @@ public record FinancialReportDto(
     string? PreviousPeriodLabel,
 
     // ── Attention & follow-up ──
-    // NOTE: these two lists are CAPPED for display (the most overdue accounts first). Never count or sum them to state
-    // how many accounts need follow-up or how much is owed — use the four totals at the end of this record, which are
-    // counted over every account.
+    // Delinquent is CAPPED for display (the most overdue accounts first). Never count or sum it to state
+    // how many delinquent accounts there are or how much they owe — use the delinquent totals at the end of this record.
     IReadOnlyList<AttentionAccountDto> Delinquent,
-    IReadOnlyList<AttentionAccountDto> Arrears,
+    /// <summary>Null while the old/lapsed Arrears qualification rule is unresolved.</summary>
+    IReadOnlyList<AttentionAccountDto>? Arrears,
 
     /// <summary>
     /// Every account with a balance, grouped by how long it has been owed. Counted over the WHOLE account set, never over
@@ -44,8 +45,8 @@ public record FinancialReportDto(
     /// to be showing.
     /// </summary>
     /// <remarks>
-    /// It answers a question the two lists cannot: whether the office is looking at a lot of recent arrears or at a few
-    /// debts that have been outstanding for years. The same ₱50,000 means very different things in those two cases.
+    /// It answers an age/severity question: whether balances are recent or have been outstanding for years. These age bands
+    /// do not define Delinquent or Arrears classifications.
     /// </remarks>
     IReadOnlyList<ReceivableAgingBandDto> Aging,
 
@@ -53,7 +54,7 @@ public record FinancialReportDto(
     /// Accounts whose contract term has run out while the occupant remains in the space, and what they owe.
     /// </summary>
     /// <remarks>
-    /// Not a separate debt: these accounts are already inside the delinquent and arrears figures, because the office keeps
+    /// Not a separate debt: these accounts are already inside the delinquent figures, because the office keeps
     /// collecting from a lapsed occupancy and the register is explicit that it is still being billed. This states how much
     /// of that money sits behind a term that has expired — an exposure the office can act on by renewing — so it must be
     /// read as a slice of the total and never added to it.
@@ -85,22 +86,22 @@ public record FinancialReportDto(
     string AttentionSpanLabel = "",
 
     // ── The TRUE follow-up figures ───────────────────────────────────────────────────────────────────────────────
-    // Counted over EVERY account, which <see cref="Delinquent"/> and <see cref="Arrears"/> cannot do: those are capped
+    // Counted over EVERY delinquent account; <see cref="Delinquent"/> is capped
     // at the most overdue accounts so the payload stays bounded. The report header used to count and sum the capped
-    // lists and label the result "outstanding in full", so an office with more accounts than the cap was shown fewer
+    // list and label the result "outstanding in full", so an office with more accounts than the cap was shown fewer
     // accounts and less money than it was owed, on a printed report that claimed to be complete.
 
-    /// <summary>Every account with 3 or more unpaid months, not only those listed in <see cref="Delinquent"/>.</summary>
+    /// <summary>Every account with one or more fully elapsed unpaid months, not only those listed in <see cref="Delinquent"/>.</summary>
     int DelinquentAccountsTotal = 0,
 
     /// <summary>What all of those accounts owe in full.</summary>
     decimal DelinquentOutstandingTotal = 0m,
 
-    /// <summary>Every account with 1–2 unpaid months, not only those listed in <see cref="Arrears"/>.</summary>
-    int ArrearsAccountsTotal = 0,
+    /// <summary>Null while the Arrears qualification boundary is unresolved; no age-derived count is reported.</summary>
+    int? ArrearsAccountsTotal = null,
 
-    /// <summary>What all of those accounts owe in full.</summary>
-    decimal ArrearsOutstandingTotal = 0m,
+    /// <summary>Null while the Arrears qualification boundary is unresolved; no age-derived amount is reported.</summary>
+    decimal? ArrearsOutstandingTotal = null,
 
     /// <summary>
     /// The period's metered utilities, per payor. Null when the office raised no bill for the period, and null for any
@@ -156,9 +157,8 @@ public record FinancialMiscDto(
 /// <param name="Accounts">Accounts whose unpaid-month count falls in this band, over the WHOLE set.</param>
 /// <param name="Outstanding">What those accounts owe in full.</param>
 /// <remarks>
-/// The bands partition every account with at least one unpaid month, so their counts sum to the delinquent and arrears
-/// totals combined and their amounts to those two amounts combined. Nothing is double-counted and nothing falls between
-/// bands, which is what makes the schedule safe to read beside the totals rather than instead of them.
+/// The bands partition every account with at least one unpaid month by age. They are a separate age/severity view, not a
+/// statement of Delinquent or Arrears classification.
 /// </remarks>
 public record ReceivableAgingBandDto(
     string Label,
@@ -166,7 +166,7 @@ public record ReceivableAgingBandDto(
     decimal Outstanding
 );
 
-/// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing, and
+/// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> reports age, not Arrears qualification, and
 /// <see cref="TermLapsed"/> marks an account whose term has run out while the space was never handed over — still
 /// collected, but the office needs to see that it also wants renewing.</summary>
 public record AttentionAccountDto(

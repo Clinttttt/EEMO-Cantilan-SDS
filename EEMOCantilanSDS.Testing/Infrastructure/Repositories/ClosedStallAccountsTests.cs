@@ -105,10 +105,10 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         Assert.Equal("Head", row.ClosedBy);
         Assert.Equal(2000m, row.LifetimeCollected);   // Jan + Feb paid
         Assert.Equal(2000m, row.Uncollected);          // Mar + Apr full rent owed
-        // Counted from the same month-by-month walk that produced the balance, so the two state the same account: two
-        // months owing, which is arrears rather than delinquency by the office's three-month threshold.
+        // Counted from the same month-by-month walk that produced the balance. Two fully elapsed unpaid months meet the
+        // confirmed delinquency threshold; this age count does not establish Arrears qualification.
         Assert.Equal(2, row.MonthsUnpaid);
-        Assert.True(row.MonthsUnpaid < DomainRules.DelinquentThresholdMonths);
+        Assert.True(row.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths);
     }
 
     [Fact]

@@ -643,7 +643,7 @@
     // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
     private static bool CanPay(FollowUpItemDto r) =>
         r.StallId.HasValue
-        && r.ReasonKind is "contract" or "current" or "delinquent" or "arrears";
+        && r.ReasonKind is "contract" or "current" or "delinquent";
 
     private string PayStallNo => _payItem is null
         ? string.Empty
@@ -903,7 +903,7 @@
     /// </summary>
     private (string Key, string Label)[] ReasonFilters =>
     [
-        ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"), ("missingor", "Missing OR"),
+        ("all", "All"), ("delinquent", "Delinquent"), ("missingor", "Missing OR"),
         ("current", "Current-period"), ("contract", "Contract"),
         ("npm", $"{FacilityCatalog.ShortNameOf(FacilityCode.NPM)} Daily"), ("excused", "Excused"),
         ("misc", "Miscellaneous"),
@@ -921,7 +921,7 @@
     private static readonly SecDef[] Sections =
     {
         new(1, "Needs immediate action", "Delinquent · missing receipts · ended occupancies", "critical"),
-        new(2, "Needs follow-up this period", "Unpaid · partial · arrears · expiring contracts", "high"),
+        new(2, "Needs follow-up this period", "Unpaid · partial · expiring contracts", "high"),
         new(3, "Needs verification", "Excused / absent records", "review"),
         new(4, "Facility-specific operational", "Daily · per-trip · market-day exceptions", "normal"),
     };
@@ -1021,7 +1021,7 @@
 
         // The same three words the register uses. "Expired account" read as though the debt had been set aside,
         // which for a lapsed term is untrue: the tenant is ordinarily still trading and the office is still
-        // collecting, and that account also appears in the arrears lists for its last twelve months.
+        // collecting, and that account also appears in the delinquency list for its last twelve months.
         var reason = a.State switch
         {
             InactiveAccountState.Closed => "Closed account",

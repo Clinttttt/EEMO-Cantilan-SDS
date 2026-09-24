@@ -37,8 +37,6 @@ public record SecurityPolicyDto(
 
 public record CollectionRulesDto(
     int DelinquentThresholdMonths,
-    int ArrearsMinMonths,
-    int ArrearsMaxMonths,
     int DelinquencyWindowMonths,
     int ContractExpiryWarningMonths,
     string TimeZone);

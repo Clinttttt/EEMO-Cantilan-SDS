@@ -97,7 +97,7 @@ public static class FollowUpComposer
             .Select(c => c.StallId)
             .ToHashSet();
 
-        // ── 1) Delinquency (3+ = delinquent, 1–2 = arrears). The span is the caller's: a period screen asks for a
+        // ── 1) Delinquency (one or more fully elapsed unpaid months). The span is the caller's: a period screen asks for a
         // rolling twelve months, the Financial Reports for each account's whole position. ──
         //
         // These rows are the authoritative statement of a stall's outstanding balance in this list. Later sections
@@ -109,15 +109,14 @@ public static class FollowUpComposer
         var moneyStatedForStall = new HashSet<Guid>();
         foreach (var d in delinquency)
         {
-            if (d.MonthsUnpaid < 1) continue;
+            if (d.MonthsUnpaid < DomainRules.DelinquentThresholdMonths) continue;
             delinquentKeys.Add(Key(d.FacilityCode, d.StallNo));
             if (d.StallId is { } stallWithMoney) moneyStatedForStall.Add(stallWithMoney);
-            var isDelinquent = d.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths;
             items.Add(new FollowUpItemDto(
-                Section: isDelinquent ? SecImmediate : SecThisPeriod,
-                Priority: isDelinquent ? "Critical" : "Normal",
-                Reason: isDelinquent ? "Delinquent" : "Arrears",
-                ReasonKind: isDelinquent ? "delinquent" : "arrears",
+                Section: SecImmediate,
+                Priority: "Critical",
+                Reason: "Delinquent",
+                ReasonKind: "delinquent",
                 Facility: d.FacilityCode,
                 Model: Model(d.FacilityCode),
                 Person: Named(d.Occupant),
@@ -162,7 +161,7 @@ public static class FollowUpComposer
                 }
 
                 // Current-period unpaid / partial. Stated even for a stall that also appears under delinquency or
-                // arrears: those figures cover months that have ALREADY elapsed and deliberately exclude the month
+                // delinquency: those figures cover months that have ALREADY elapsed and deliberately exclude the month
                 // in progress, so the two do not overlap. Suppressing this row hid the current month's balance
                 // altogether — invisible while the delinquency list was near-empty, and money off the screen once
                 // that list started reporting every month a payor actually owed.
@@ -317,7 +316,7 @@ public static class FollowUpComposer
         {
             var key = Key(c.FacilityCode, c.StallNo);
 
-            // A lapsed term needs renewing, which is why this row exists — but if a delinquency or arrears row above
+            // A lapsed term needs renewing, which is why this row exists — but if a delinquency row above
             // already states this stall's outstanding balance, this row must state none. Nora M. Doloriel's stall 20
             // read ₱33,300 as Delinquent AND ₱5,400 as Contract expired: one debt, two money rows, ₱38,700
             // contributed to the header for a ₱33,300 account. The row keeps its status, its period and its action;
@@ -397,15 +396,14 @@ public static class FollowUpComposer
                     SecImmediate,
                     "High",
                     account.State == InactiveAccountState.Closed ? "Closed account balance" : "Past occupancy balance",
-                    // Filed by the office's own measure of how far behind an account is: three or more months owing is
-                    // delinquent, fewer is not. An ended occupancy is judged by the same rule as a live one, because the
+                    // An ended occupancy is judged by the same one-or-more fully elapsed unpaid month rule as a live one, because the
                     // debt is no smaller for the lessee having moved on. The queue read 0 delinquent accounts while a
                     // former lessee of stall 6 owed twelve months, all of it filed under "contract".
                     //
                     // The row's WORDING is deliberately left alone. "Past occupancy balance" tells the office this is not
                     // the sitting lessee, which "Delinquent" would hide; only what the row is COUNTED as changes. And it is
-                    // the month count, not the money, that decides: a closed account owing ₱570 for a single month is in
-                    // arrears, not delinquent, and calling it delinquent would make the office's own threshold untrue.
+                    // the month count, not the money, that decides. A positive balance with no elapsed unpaid month count
+                    // remains a contract/occupancy review; it is not classified as Arrears based on age.
                     account.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths ? "delinquent" : "contract",
                     account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), Where(account.StallNo),
                     account.Uncollected, false,
