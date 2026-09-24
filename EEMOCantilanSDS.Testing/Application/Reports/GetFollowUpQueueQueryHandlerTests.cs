@@ -207,7 +207,7 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.True(result.IsSuccess);
         var items = result.Value!.Items;
 
-        // Both one- and three-month balances are delinquent and appear in the immediate section.
+        // Both balances are delinquent; only the three-month balance is Immediate/Critical.
         var delinquentRows = items.Where(i => i.ReasonKind == "delinquent").ToList();
         Assert.Equal(2, delinquentRows.Count);
         var delinquent = Assert.Single(delinquentRows, i => i.Link == "/profile/tcc/04");
