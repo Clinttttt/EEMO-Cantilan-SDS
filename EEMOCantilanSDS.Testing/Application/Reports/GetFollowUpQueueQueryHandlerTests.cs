@@ -55,6 +55,38 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.NotEqual("arrears", row.ReasonKind);
     }
 
+    [Theory]
+    [InlineData(1, 2, "Normal")]
+    [InlineData(2, 2, "Normal")]
+    [InlineData(3, 1, "Critical")]
+    [InlineData(5, 1, "Critical")]
+    public async Task DelinquentClassificationDoesNotSetFollowUpUrgency(
+        int missedMonths, int expectedSection, string expectedPriority)
+    {
+        var row = new DelinquentStallDto(FacilityCode.TCC, "77", "Test Account", missedMonths, 1_200m);
+        var result = await Build(delinquency: new[] { row })
+            .Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value!.Items, candidate => candidate.ReasonKind == "delinquent");
+        Assert.Equal("Delinquent", item.Reason);
+        Assert.Equal(expectedSection, item.Section);
+        Assert.Equal(expectedPriority, item.Priority);
+        Assert.DoesNotContain(result.Value.Items, candidate => candidate.ReasonKind == "arrears");
+    }
+
+    [Fact]
+    public async Task CurrentPeriodBalanceWithoutElapsedUnpaidMonth_IsNotClassifiedAsDelinquent()
+    {
+        var currentPeriodRow = new DelinquentStallDto(FacilityCode.NPM, "12", "Lito Yu", 0, 1_500m);
+        var result = await Build(delinquency: new[] { currentPeriodRow })
+            .Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(result.Value!.Items, item => item.ReasonKind == "current" && item.Person == "Lito Yu");
+        Assert.DoesNotContain(result.Value.Items, item => item.ReasonKind == "delinquent" && item.Person == "Lito Yu");
+    }
+
     private static StallComplianceDto Stall(string stallNo, string occupant, string status, decimal balance, int absentDays = 0) =>
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", 0m, 0m,
             status, 0m, balance, null, 0, 0, null, 0, balance, absentDays);
@@ -86,7 +118,8 @@ public class GetFollowUpQueueQueryHandlerTests
         IReadOnlyList<UnreceiptedPaymentDto>? cash = null,
         IReadOnlyList<UtilityBill>? utilityBills = null,
         IReadOnlyList<ClosedStallAccountDto>? closedAccounts = null,
-        DateOnly? today = null)
+        DateOnly? today = null,
+        IReadOnlyList<DelinquentStallDto>? delinquency = null)
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -107,7 +140,7 @@ public class GetFollowUpQueueQueryHandlerTests
 
         reports.Setup(r => r.GetDelinquentStallsAsync(
                 It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<DelinquentStallDto>
+            .ReturnsAsync(delinquency ?? new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),  // delinquent (3 mo)
                 new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // delinquent (1 mo)

@@ -347,9 +347,9 @@ public class GetFollowUpHistoryQueryHandlerTests
         // Same composition rules as the live queue.
         var delinquent = items.Where(i => i.ReasonKind == "delinquent").ToList();
         Assert.Equal(2, delinquent.Count);
-        Assert.All(delinquent, item => Assert.Equal(1, item.Section));
-        Assert.Contains(delinquent, item => item.Amount == 12_000m);
-        Assert.Contains(delinquent, item => item.Amount == 2_400m);
+        Assert.Equal(1, Assert.Single(delinquent, item => item.Amount == 12_000m).Section);
+        Assert.Equal(2, Assert.Single(delinquent, item => item.Amount == 2_400m).Section);
+        Assert.All(delinquent, item => Assert.NotEqual("Arrears", item.Reason));
         Assert.DoesNotContain(items, i => i.ReasonKind == "arrears");
         // Both stalls state their period balance: the delinquency figure covers elapsed months and excludes the month
         // in progress, so a stall behind on past months can also owe the current one.

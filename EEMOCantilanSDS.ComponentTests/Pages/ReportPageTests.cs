@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -322,6 +324,40 @@ public class ReportPageTests : TestContext
             Assert.Contains("Rosa Magbanua", cut.Markup);
             Assert.Contains("3 unpaid months", cut.Markup);
             Assert.Contains("Jose Dalumpines", cut.Markup);
+            Assert.DoesNotContain("Accounts in arrears", cut.Markup);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void NullArrearsValues_RoundTripThroughReportJson_AndRenderAsUnavailable()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        var dto = SampleReport() with
+        {
+            Arrears = null,
+            ArrearsAccountsTotal = null,
+            ArrearsOutstandingTotal = null
+        };
+
+        var json = JsonSerializer.Serialize(dto, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrears").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrearsAccountsTotal").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrearsOutstandingTotal").ValueKind);
+
+        var roundTripped = JsonSerializer.Deserialize<FinancialReportDto>(json, options)!;
+        Assert.Null(roundTripped.Arrears);
+        Assert.Null(roundTripped.ArrearsAccountsTotal);
+        Assert.Null(roundTripped.ArrearsOutstandingTotal);
+
+        var cut = RenderReport(roundTripped);
+        OpenSection(cut, "Follow-up");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No age-based Arrears count or amount is reported", cut.Markup);
+            Assert.DoesNotContain("0 Arrears", cut.Markup);
             Assert.DoesNotContain("Accounts in arrears", cut.Markup);
         }, RenderTimeout);
     }

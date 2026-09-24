@@ -32,6 +32,9 @@ public static class FollowUpComposer
     private const int SecVerify = 3;
     private const int SecOperational = 4;
 
+    // Preserves the existing queue's higher-age urgency split only; it is not the delinquency qualification threshold.
+    private const int ImmediateSeverityAgeMonths = 3;
+
     // Excused days that warrant a review (repeated absence). A fully-excused month is always shown.
     private const int RepeatedAbsentThreshold = 10;
 
@@ -110,11 +113,12 @@ public static class FollowUpComposer
         foreach (var d in delinquency)
         {
             if (d.MonthsUnpaid < DomainRules.DelinquentThresholdMonths) continue;
+            var immediateSeverity = d.MonthsUnpaid >= ImmediateSeverityAgeMonths;
             delinquentKeys.Add(Key(d.FacilityCode, d.StallNo));
             if (d.StallId is { } stallWithMoney) moneyStatedForStall.Add(stallWithMoney);
             items.Add(new FollowUpItemDto(
-                Section: SecImmediate,
-                Priority: "Critical",
+                Section: immediateSeverity ? SecImmediate : SecThisPeriod,
+                Priority: immediateSeverity ? "Critical" : "Normal",
                 Reason: "Delinquent",
                 ReasonKind: "delinquent",
                 Facility: d.FacilityCode,
