@@ -61,10 +61,11 @@ public sealed record ClosedStallAccountDto(
     /// How many billing months of this occupancy still carry a balance.
     /// </summary>
     /// <remarks>
-    /// The office's measure of how far behind an account is: <see cref="Domain.Constants.DomainRules.DelinquentThresholdMonths"/>
-    /// or more is delinquent, one or two is arrears. It is stated here so an ENDED occupancy can be judged by the same rule as a
-    /// live one. The follow-up queue read 0 delinquent accounts while a former lessee owed twelve months, because a past
-    /// occupancy had no month count to be judged by and was filed under "contract" instead.
+    /// The count of billing months of this occupancy that still carry a balance. One or more fully elapsed unpaid months
+    /// meet the confirmed Delinquent definition; this age count does not determine Arrears qualification. It is stated here
+    /// so an ENDED occupancy can be judged by the same delinquency rule as a live one. The follow-up queue read 0 delinquent
+    /// accounts while a former lessee owed twelve months, because a past occupancy had no month count to be judged by and
+    /// was filed under "contract" instead.
     ///
     /// <para>Counted from the same month-by-month walk that produces <see cref="Uncollected"/>, so the two can never disagree:
     /// a month contributes to this count exactly when it contributes money to that balance.</para>

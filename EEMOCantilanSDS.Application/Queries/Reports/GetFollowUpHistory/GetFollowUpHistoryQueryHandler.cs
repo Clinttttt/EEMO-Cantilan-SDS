@@ -92,7 +92,7 @@ public class GetFollowUpHistoryQueryHandler(
                 .Where(c => c.IsExpired)
                 .ToList();
 
-            // The whole-time view used to pass no delinquency at all, so its Delinquent and Arrears chips read 0
+            // The whole-time view used to pass no delinquency at all, so its Delinquent chip read 0
             // while 58 accounts sat under "Contract expired" — a page telling the office there are no delinquents.
             // Safe to state now that one occupancy contributes one balance: the lapsed rows beside these keep their
             // renewal status and action but no longer restate the money. Asked for the WHOLE account, because that

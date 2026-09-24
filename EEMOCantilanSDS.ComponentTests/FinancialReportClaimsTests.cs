@@ -58,13 +58,25 @@ public class FinancialReportClaimsTests
     {
         var markup = ReadReport(string.Empty);
 
-        // "3 or more unpaid months" and "1–2 unpaid months" were typed literally, so changing the office's threshold left
-        // the note contradicting the figure beside it. Both now read DomainRules.DelinquentThresholdMonths.
-        Assert.Contains("@DomainRules.DelinquentThresholdMonths or more unpaid months", markup);
-        Assert.Contains("1–@(DomainRules.DelinquentThresholdMonths - 1) unpaid months", markup);
+        Assert.Contains("At least one fully elapsed unpaid month", markup);
+        Assert.Contains("The old/lapsed qualification boundary is not defined", markup);
+        Assert.DoesNotContain("DomainRules.DelinquentThresholdMonths - 1", markup);
+        Assert.DoesNotContain("unpaid months</div>", markup);
+    }
 
-        Assert.DoesNotContain(">3 or more unpaid months<", markup);
-        Assert.DoesNotContain(">1–2 unpaid months<", markup);
+    [Fact]
+    public void SettingsAndFinancialSummary_DoNotPublishAnAgeBasedArrearsSplit()
+    {
+        var root = RepositoryRoot().FullName;
+        var settings = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Menus", "Settings.razor"));
+        var summary = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "FinancialSummaryDocument.razor"));
+        var completeDocumentation = File.ReadAllText(Path.Combine(root, ".kiro", "knowledge", "EEMO_Complete_Documentation.md"));
+
+        Assert.Contains("Not defined; not inferred from unpaid-month age", settings);
+        Assert.DoesNotContain("ArrearsMinMonths", settings);
+        Assert.Contains("Not defined. No age-based total is reported", summary);
+        Assert.DoesNotContain("1 to @(DomainRules.DelinquentThresholdMonths - 1)", summary);
+        Assert.DoesNotContain("3+ unpaid months inside a rolling 12-month window = delinquent; 1–2 = arrears", completeDocumentation);
     }
 
     [Fact]
@@ -252,7 +264,7 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         Assert.Contains("Model.CurrentPeriodUnpaid", markup);
-        Assert.Contains("Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal", markup);
+        Assert.Contains("private decimal FollowUpOutstanding => Model.DelinquentOutstandingTotal", markup);
         Assert.Contains("Model.LapsedWithBalanceOutstanding", markup);
         Assert.Contains("Model.ClosedWithBalanceOutstanding", markup);
 
@@ -444,7 +456,7 @@ public class FinancialReportClaimsTests
     [Fact]
     public void ReceivableAging_AppearsOnlyWhenTheDebtSpansMoreThanOneBand()
     {
-        // With every account in the youngest band the schedule repeats the arrears count beside it, and naming the empty
+        // With every account in the youngest band the schedule repeats the delinquency count beside it, and naming the empty
         // bands states an absence the office already knows — the ages are a scale for reading a schedule, not a prediction
         // that anyone will reach them. So the panel appears when there is a spread, and stays away when there is not.
         var markup = ReadReport(string.Empty);

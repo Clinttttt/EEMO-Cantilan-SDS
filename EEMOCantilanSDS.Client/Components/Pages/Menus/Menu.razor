@@ -217,7 +217,7 @@
                     <div class="panel">
                         <div class="panel-header">
                             <div class="panel-title">Recent Transactions</div>
-                            <a href="/audit" class="panel-link">View All</a>
+                            <a href="/audit-trail" class="panel-link">View All</a>
                         </div>
                         <table class="data-table">
                             <thead>
@@ -251,6 +251,7 @@
                             <div class="panel-title">⚠ Overdue Vendors</div>
                             <a href="/vendors?filter=delinquent" class="panel-link">View All</a>
                         </div>
+                        <div class="delinquent-empty-sub">Delinquent from one fully elapsed unpaid month; color indicates age/severity only.</div>
                         <div class="delinquent-list">
                             @if (!DelinquentVendors.Any())
                             {
@@ -275,7 +276,8 @@
                                     </div>
                                     <div class="delinquent-right">
                                         <div class="delinquent-amount">₱@v.Balance.ToString("N0")</div>
-                                        <div class="delinquent-months @(v.MonthsUnpaid >= 3 ? "text-red" : "text-gold")">
+                                        <div class="delinquent-months @(v.MonthsUnpaid >= 3 ? "text-red" : "text-gold")"
+                                             title="Delinquent from one fully elapsed unpaid month; color indicates age/severity only.">
                                             @v.MonthsUnpaid mo. unpaid
                                         </div>
                                     </div>

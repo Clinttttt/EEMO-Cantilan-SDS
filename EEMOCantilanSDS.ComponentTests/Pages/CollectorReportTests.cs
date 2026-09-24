@@ -108,6 +108,25 @@ public class CollectorReportTests : TestContext
     }
 
     [Fact]
+    public void DisplayedFiguresAreDescribedAsCollectorAttributedCollections_NotRemittances()
+    {
+        var sheet = Sheet() with
+        {
+            CollectedForEarlierPeriods = 60m,
+            UtilityBilled = 100m,
+            UtilityCollected = 40m
+        };
+        var cut = RenderSheet(CollectorId, sheet);
+
+        cut.WaitForAssertion(() =>
+        {
+            var renderedCopy = System.Text.RegularExpressions.Regex.Replace(cut.Markup, @"\s+", " ");
+            Assert.Contains("collections recorded for this collector above", renderedCopy, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("remittance", cut.Markup, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
     public void TheReceiptListingAddsUpToTheSummary()
     {
         var cut = RenderSheet(CollectorId, Sheet());

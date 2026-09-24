@@ -42,12 +42,10 @@ public class FinancialSummaryDocumentTests : TestContext
         Delinquent: new List<AttentionAccountDto>
         {
             new("Rosa Magbanua", FacilityCode.TCC, "04", "TCC · Stall 04", 4_800m, 3),
-            new("Merlita A. Abuso", FacilityCode.ICE, "7", "ICE · Stall 7", 33_300m, 37, TermLapsed: true)
-        },
-        Arrears: new List<AttentionAccountDto>
-        {
+            new("Merlita A. Abuso", FacilityCode.ICE, "7", "ICE · Stall 7", 33_300m, 37, TermLapsed: true),
             new("Jose Dalumpines", FacilityCode.NCC, "11-B", "NCC · Stall 11-B", 3_600m, 2)
         },
+        Arrears: null,
         Aging: new List<ReceivableAgingBandDto>
         {
             new("1–2 months", 1, 3_600m),
@@ -75,10 +73,8 @@ public class FinancialSummaryDocumentTests : TestContext
         ClosedWithBalanceCount: 2,
         ClosedWithBalanceOutstanding: 11_370m,
         AttentionSpanLabel: "since January 2026",
-        DelinquentAccountsTotal: 6,
-        DelinquentOutstandingTotal: 38_100m,
-        ArrearsAccountsTotal: 4,
-        ArrearsOutstandingTotal: 3_600m,
+        DelinquentAccountsTotal: 7,
+        DelinquentOutstandingTotal: 41_700m,
         Misc: new FinancialMiscDto(12m, 0m, 12m, 0, 1, true, new List<MonthEndUtilityRowDto>
         {
             new("1", "Kim Chui", 12m, 0m, 0m, 0m, null, FacilityCode.NPM, PaymentStatus.Unpaid, PaymentStatus.Unpaid)
@@ -187,12 +183,11 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.Contains("₱1,650", model);
         Assert.Contains("₱1,099", model);
 
-        // Every account, not the capped lists: the report states 6 and 4, while the lists carry 2 and 1.
+        // Every delinquent account, not the capped list: the report states 7 while the fixture list carries 3.
         var followUp = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Accounts needing follow-up")).TextContent;
-        Assert.Contains("6 accounts", followUp);
-        Assert.Contains("4 accounts", followUp);
-        Assert.Contains("Listing 2 of 6 accounts", followUp);
-        Assert.Contains("Listing 1 of 4 accounts", followUp);
+        Assert.Contains("7 accounts", followUp);
+        Assert.Contains("Not defined. No age-based total is reported", followUp);
+        Assert.Contains("Listing 3 of 7 accounts", followUp);
     }
 
     [Fact]
@@ -204,11 +199,11 @@ public class FinancialSummaryDocumentTests : TestContext
         {
             Aging = new List<ReceivableAgingBandDto> { new("1–2 months", 1, 3_600m) },
             Delinquent = new List<AttentionAccountDto>(),
-            Arrears = new List<AttentionAccountDto>(),
+            Arrears = null,
             DelinquentAccountsTotal = 0,
             DelinquentOutstandingTotal = 0m,
-            ArrearsAccountsTotal = 0,
-            ArrearsOutstandingTotal = 0m,
+            ArrearsAccountsTotal = null,
+            ArrearsOutstandingTotal = null,
             Misc = null
         });
 
@@ -222,6 +217,8 @@ public class FinancialSummaryDocumentTests : TestContext
 
         // The follow-up section stays — its figures are the point — and says plainly that nobody is on the lists.
         Assert.Contains("Accounts needing follow-up", sheet);
+        Assert.Contains("Arrears qualification", sheet);
+        Assert.Contains("does not mean qualifying old/lapsed debt is absent", sheet);
         Assert.Contains("No account still being billed carries an unpaid month", sheet);
     }
 

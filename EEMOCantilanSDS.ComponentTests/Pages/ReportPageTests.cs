@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -42,14 +44,11 @@ public class ReportPageTests : TestContext
         Delinquent: new List<AttentionAccountDto>
         {
             new("Rosa Magbanua", FacilityCode.TCC, "04", "TCC · Stall 04", 4_800m, 3),
-            new("Merlita A. Abuso", FacilityCode.ICE, "7", "ICE · Stall 7", 33_300m, 37, TermLapsed: true)
-        },
-        Arrears: new List<AttentionAccountDto>
-        {
+            new("Merlita A. Abuso", FacilityCode.ICE, "7", "ICE · Stall 7", 33_300m, 37, TermLapsed: true),
             new("Jose Dalumpines", FacilityCode.NCC, "11-B", "NCC · Stall 11-B", 3_600m, 2)
         },
-        // The three accounts above, aged: Jose at 2 months, Rosa at 3, Merlita at 37. The bands reconcile with the
-        // delinquent and arrears totals rather than offering a second count of the same debt.
+        Arrears: null,
+        // The three delinquent accounts above are aged separately: Jose at 2 months, Rosa at 3, Merlita at 37.
         Aging: new List<ReceivableAgingBandDto>
         {
             new("1–2 months", 1, 3_600m),
@@ -77,12 +76,10 @@ public class ReportPageTests : TestContext
         {
             new("OR-9", "Luz Cano", FacilityCode.NPM, "5", new DateTime(2026, 3, 25), null, "Daily Fee", 930m)
         },
-        // Set to agree with the two lists above: below the display cap, the totals and the lists describe the same
+        // Set to agree with the delinquent list above: below the display cap, the totals and list describe the same
         // accounts. Left at their defaults these would be nought, and the page header states them.
-        DelinquentAccountsTotal: 2,
-        DelinquentOutstandingTotal: 38_100m,   // 4,800 + 33,300
-        ArrearsAccountsTotal: 1,
-        ArrearsOutstandingTotal: 3_600m);
+        DelinquentAccountsTotal: 3,
+        DelinquentOutstandingTotal: 41_700m);   // 4,800 + 33,300 + 3,600
 
     private IRenderedComponent<ReportPage> RenderReport(FinancialReportDto dto)
     {
@@ -312,7 +309,7 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
-    public void Renders_DelinquentAndArrears_Separately()
+    public void RendersOneMonthDelinquency_AndKeepsArrearsUnresolved()
     {
         var cut = RenderReport(SampleReport());
 
@@ -321,10 +318,47 @@ public class ReportPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Delinquent accounts", cut.Markup);
-            Assert.Contains("Accounts in arrears", cut.Markup);
+            Assert.Contains("At least one fully elapsed unpaid month", cut.Markup);
+            Assert.Contains("Arrears qualification", cut.Markup);
+            Assert.Contains("old/lapsed qualification boundary is not defined", cut.Markup);
             Assert.Contains("Rosa Magbanua", cut.Markup);
             Assert.Contains("3 unpaid months", cut.Markup);
             Assert.Contains("Jose Dalumpines", cut.Markup);
+            Assert.DoesNotContain("Accounts in arrears", cut.Markup);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void NullArrearsValues_RoundTripThroughReportJson_AndRenderAsUnavailable()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+        var dto = SampleReport() with
+        {
+            Arrears = null,
+            ArrearsAccountsTotal = null,
+            ArrearsOutstandingTotal = null
+        };
+
+        var json = JsonSerializer.Serialize(dto, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrears").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrearsAccountsTotal").ValueKind);
+        Assert.Equal(JsonValueKind.Null, document.RootElement.GetProperty("arrearsOutstandingTotal").ValueKind);
+
+        var roundTripped = JsonSerializer.Deserialize<FinancialReportDto>(json, options)!;
+        Assert.Null(roundTripped.Arrears);
+        Assert.Null(roundTripped.ArrearsAccountsTotal);
+        Assert.Null(roundTripped.ArrearsOutstandingTotal);
+
+        var cut = RenderReport(roundTripped);
+        OpenSection(cut, "Follow-up");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No age-based Arrears count or amount is reported", cut.Markup);
+            Assert.DoesNotContain("0 Arrears", cut.Markup);
+            Assert.DoesNotContain("Accounts in arrears", cut.Markup);
         }, RenderTimeout);
     }
 
@@ -435,16 +469,16 @@ public class ReportPageTests : TestContext
 
         OpenSection(cut, "Follow-up");
 
-        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".attn-search input").Count), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".attn-search input")), RenderTimeout);
 
-        // Typing in the delinquent column's box narrows that column and leaves the arrears column alone.
+        // Search narrows the one delinquency list; unresolved Arrears is not represented as an age-based people list.
         cut.FindAll(".attn-search input")[0].Input("merlita");
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Merlita A. Abuso", cut.Markup);
             Assert.DoesNotContain("Rosa Magbanua", cut.Markup);
-            Assert.Contains("Jose Dalumpines", cut.Markup);
+            Assert.DoesNotContain("Jose Dalumpines", cut.Markup);
         }, RenderTimeout);
 
         // A term with no match says so rather than showing an empty panel.
@@ -462,8 +496,8 @@ public class ReportPageTests : TestContext
         {
             DelinquentAccountsTotal = 63,
             DelinquentOutstandingTotal = 500_000m,
-            ArrearsAccountsTotal = 12,
-            ArrearsOutstandingTotal = 40_000m,
+            ArrearsAccountsTotal = null,
+            ArrearsOutstandingTotal = null,
         };
 
         var cut = RenderReport(report);
@@ -474,12 +508,11 @@ public class ReportPageTests : TestContext
         {
             // The header states figures rather than a sentence now, so they are read off the elements that hold them —
             // a raw string match would break on the CSS-isolation attribute Blazor adds to the class. What the test is
-            // really holding is unchanged: both come from the report's TOTALS (63 + 12 accounts, ₱500,000 + ₱40,000) and
-            // not from the three rows the fixture actually renders.
+            // really holding is unchanged: the delinquent count and balance come from report TOTALS, not the rows rendered.
             var stats = cut.FindAll(".rpt-attn-stat-val").Select(e => e.TextContent.Trim()).ToList();
-            Assert.Contains("75", stats);
-            Assert.Contains("₱540,000", stats);
-            Assert.Contains("outstanding in full", cut.Markup);
+            Assert.Contains("63", stats);
+            Assert.Contains("₱500,000", stats);
+            Assert.Contains("delinquent balance", cut.Markup);
         }, RenderTimeout);
     }
 
@@ -501,7 +534,7 @@ public class ReportPageTests : TestContext
         {
             var note = cut.Find(".attn-capped").TextContent;
             Assert.Contains("63", note);
-            Assert.Contains("2", note);   // the two rows the fixture carries
+            Assert.Contains("3", note);   // the three delinquent rows the fixture carries
         }, RenderTimeout);
     }
 
@@ -521,7 +554,7 @@ public class ReportPageTests : TestContext
     [Fact]
     public void TheColumnCountsStateEveryAccount()
     {
-        var report = SampleReport() with { DelinquentAccountsTotal = 63, ArrearsAccountsTotal = 12 };
+        var report = SampleReport() with { DelinquentAccountsTotal = 63, ArrearsAccountsTotal = null };
 
         var cut = RenderReport(report);
 
@@ -530,7 +563,8 @@ public class ReportPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("63", cut.Find(".attn-count-red").TextContent.Trim());
-            Assert.Equal("12", cut.Find(".attn-count-amber").TextContent.Trim());
+            Assert.Empty(cut.FindAll(".attn-count-amber"));
+            Assert.Contains("Arrears qualification", cut.Markup);
         }, RenderTimeout);
     }
 }

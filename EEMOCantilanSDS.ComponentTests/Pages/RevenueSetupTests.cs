@@ -588,7 +588,7 @@ public sealed class RevenueSetupTests : TestContext
             new SystemSettingsDto(
                 new OfficeProfileDto("EEMO", "Cantilan", "Surigao del Sur", "StallTrack", "EEMO Head"),
                 new SecurityPolicyDto(15, 7, 5, 15, ["SuperAdmin", "Admin"]),
-                new CollectionRulesDto(1, 12, 24, 12, 3, "Asia/Manila"),
+                new CollectionRulesDto(1, 12, 3, "Asia/Manila"),
                 new SystemInfoDto("StallTrack", "1.0", "Test", "Asia/Manila", DateTime.UtcNow),
                 [])));
         Services.AddSingleton(settings.Object);

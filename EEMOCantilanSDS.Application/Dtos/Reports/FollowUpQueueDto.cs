@@ -4,7 +4,7 @@ namespace EEMOCantilanSDS.Application.Dtos.Reports;
 
 /// <summary>
 /// The admin Follow-up Queue payload — an ACTION list (not a finance view) composed from the same
-/// canonical sources used by the dashboard and reports: delinquency/arrears, per-facility stall
+/// canonical sources used by the dashboard and reports: delinquency, per-facility stall
 /// compliance, NPM utility balances, the NPM daily streak, online payments awaiting OR, service-facility receipts missing an
 /// OR, and contract expiry. Scope is "as of today". No money KPIs are introduced here — only the
 /// actionable items and their counts.
@@ -25,7 +25,7 @@ public record FollowUpItemDto(
     int Section,
     string Priority,     // Critical | High | Normal | Review
     string Reason,       // display label, e.g. "Delinquent", "Missing OR"
-    string ReasonKind,   // filter key: delinquent | arrears | missingor | current | contract | npm | excused | misc
+    string ReasonKind,   // filter key: delinquent | missingor | current | contract | npm | excused | misc
     FacilityCode Facility,
     string Model,        // "Daily stall" | "Monthly rental" | "Per-head" | "Per-trip" | "Weekly market"
     string Person,

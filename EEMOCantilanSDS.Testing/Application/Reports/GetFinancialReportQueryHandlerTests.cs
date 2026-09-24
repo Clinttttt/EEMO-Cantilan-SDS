@@ -16,11 +16,37 @@ namespace EEMOCantilanSDS.Testing.Application.Reports;
 /// <summary>
 /// The financial report composes the canonical per-facility report (stall facilities) with the
 /// paid-on-service facilities (SLH/TRM/TPM). These tests lock in: totals reconcile to the facility
-/// breakdown; the rate is amount-based; delinquent (3+ months) and arrears (1–2 months) are split;
+/// breakdown; the rate is amount-based; delinquency starts at one fully elapsed unpaid month and Arrears is not inferred by age;
 /// paid-on-service facilities carry no unpaid balance and a 100% rate; recent records are mapped.
 /// </summary>
 public class GetFinancialReportQueryHandlerTests
 {
+    [Fact]
+    public async Task OneElapsedMonthIsDelinquent_AndArrearsIsNotDerivedFromMonthAge()
+    {
+        var (handler, reports, _) = Build();
+        var rows = new[]
+        {
+            new DelinquentStallDto(FacilityCode.TCC, "01", "One month", 1, 100m),
+            new DelinquentStallDto(FacilityCode.TCC, "02", "Two months", 2, 200m),
+            new DelinquentStallDto(FacilityCode.TCC, "03", "Three months", 3, 300m),
+            new DelinquentStallDto(FacilityCode.TCC, "04", "Older", 8, 800m),
+        };
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(rows);
+
+        var report = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.Equal(1, DomainRules.DelinquentThresholdMonths);
+        Assert.Equal(rows.Length, report.DelinquentAccountsTotal);
+        Assert.Equal(rows.Sum(row => row.OutstandingBalance), report.DelinquentOutstandingTotal);
+        Assert.Null(report.Arrears);
+        Assert.Null(report.ArrearsAccountsTotal);
+        Assert.Null(report.ArrearsOutstandingTotal);
+    }
+
     private static StallComplianceDto Payor(string stallNo, string occupant, decimal paid, decimal balance, int missedMonths) =>
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", 0m, 0m,
             balance > 0 ? "Partial" : "Paid", paid, balance, null, missedMonths, 0, null, 0, paid + balance);
@@ -66,14 +92,14 @@ public class GetFinancialReportQueryHandlerTests
             .ReturnsAsync(Array.Empty<MonthEndUtilityRowDto>());
 
         // NPM: collected 80,000 / outstanding 20,000 (rate 80). Three occupied stalls:
-        //   one delinquent (3 missed months), one in arrears (1 missed month), one fully paid.
+        //   two delinquent (3 and 1 missed months), one fully paid.
         //   Fee breakdown: ₱810 daily-fee + ₱346 fish (346 kg @ ₱1/kg), and the counted records behind them —
         //   27 collections recorded of 30 collectable stall-days. Counted by the repository at each stall's own
         //   daily fee rather than inferred here by dividing money by one rate.
         var npm = Report(80_000m, 20_000m, 80m, paid: 6, partial: 2, unpaid: 0, new[]
         {
             Payor("12", "Rosa Magbanua", 0m, 12_000m, 3),   // delinquent
-            Payor("07", "Maria Velasco", 500m, 3_000m, 1),  // arrears
+            Payor("07", "Maria Velasco", 500m, 3_000m, 1),  // delinquent: one fully elapsed month
             Payor("01", "Pedro Santos", 900m, 0m, 0),       // fully paid (occupied, no balance)
         }, feeBreakdown: new FeeTypeBreakdownDto(810m, 346m, null, PaidDayRecords: 27, ExpectedDayRecords: 30));
 
@@ -82,7 +108,7 @@ public class GetFinancialReportQueryHandlerTests
             .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
                 code == FacilityCode.NPM ? npm : empty);
 
-        // Delinquency comes from the shared rolling-window method: one delinquent (3 mo) + one arrears (1 mo).
+        // Delinquency comes from the shared rolling-window method: both one- and three-month debt qualify.
         reports.Setup(r => r.GetDelinquentStallsAsync(
                 It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DelinquentStallDto>
@@ -152,12 +178,12 @@ public class GetFinancialReportQueryHandlerTests
         // claimed to be complete. The totals must describe every account; only the lists are shortened.
         var (handler, reports, _) = Build();
 
-        // 60 delinquent (3+ unpaid months) and 60 in arrears (1–2) — both past the cap of 50.
+        // 120 accounts with at least one elapsed unpaid month — all in the single confirmed delinquency category.
         var many = new List<DelinquentStallDto>();
         for (var i = 0; i < 60; i++)
             many.Add(new(FacilityCode.NPM, $"D{i:00}", $"Delinquent {i:00}", 3, 1_000m));
         for (var i = 0; i < 60; i++)
-            many.Add(new(FacilityCode.NPM, $"A{i:00}", $"Arrears {i:00}", 1, 100m));
+            many.Add(new(FacilityCode.NPM, $"A{i:00}", $"One month {i:00}", 1, 100m));
 
         reports.Setup(r => r.GetDelinquentStallsAsync(
                 It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
@@ -170,36 +196,31 @@ public class GetFinancialReportQueryHandlerTests
 
         // The lists are capped …
         Assert.Equal(50, r.Delinquent.Count);
-        Assert.Equal(50, r.Arrears.Count);
+        Assert.Null(r.Arrears);
 
         // … and the totals are not.
-        Assert.Equal(60, r.DelinquentAccountsTotal);
-        Assert.Equal(60_000m, r.DelinquentOutstandingTotal);   // 60 × ₱1,000
-        Assert.Equal(60, r.ArrearsAccountsTotal);
-        Assert.Equal(6_000m, r.ArrearsOutstandingTotal);       // 60 × ₱100
+        Assert.Equal(120, r.DelinquentAccountsTotal);
+        Assert.Equal(66_000m, r.DelinquentOutstandingTotal);   // 60 × ₱1,000 + 60 × ₱100
+        Assert.Null(r.ArrearsAccountsTotal);
+        Assert.Null(r.ArrearsOutstandingTotal);
 
         // Stated as the office reads it: what the header would show is the whole debt, not the visible part.
-        Assert.Equal(120, r.DelinquentAccountsTotal + r.ArrearsAccountsTotal);
-        Assert.Equal(66_000m, r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
-        Assert.NotEqual(r.Delinquent.Sum(d => d.Balance) + r.Arrears.Sum(a => a.Balance),
-                        r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal);
+        Assert.NotEqual(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
     }
 
     [Fact]
-    public async Task TheDelinquentSplit_FollowsTheOfficesThreshold_NotANumberWrittenInTheReport()
+    public async Task OneTwoAndThreePlusElapsedMonthsAreDelinquent_AndArrearsIsNotAnAgeComplement()
     {
-        // The report read "MonthsUnpaid >= 3" and "1 to 2" literally, so changing the office's threshold would have left it
-        // disagreeing with the follow-up queue and the dashboard about which accounts are delinquent — the drift the
-        // contract-expiry rule suffered from being stated in two places. Driven from the constant so the two cannot part.
-        var t = DomainRules.DelinquentThresholdMonths;
+        // The classification follows the confirmed one-month rule. Age bands are separate; no below-threshold rows are
+        // converted to Arrears because the old/lapsed qualification boundary remains unresolved.
         var (handler2, reports2, _) = Build();
 
         var rows = new List<DelinquentStallDto>
         {
-            new(FacilityCode.NPM, "AT",    "At the threshold",   t,     1_000m),
-            new(FacilityCode.NPM, "OVER",  "Over the threshold", t + 5, 1_000m),
-            new(FacilityCode.NPM, "UNDER", "Just under it",      t - 1, 100m),
-            new(FacilityCode.NPM, "ONE",   "One month owing",    1,     100m),
+            new(FacilityCode.NPM, "ONE",   "One month owing",    1, 100m),
+            new(FacilityCode.NPM, "TWO",   "Two months owing",   2, 200m),
+            new(FacilityCode.NPM, "THREE", "Three months owing", 3, 300m),
+            new(FacilityCode.NPM, "OLDER", "Older debt",         8, 800m),
         };
 
         reports2.Setup(r => r.GetDelinquentStallsAsync(
@@ -209,15 +230,12 @@ public class GetFinancialReportQueryHandlerTests
         var result2 = await handler2.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
         var rep = result2.Value!;
 
-        // At the threshold counts as delinquent; a month below it does not.
-        Assert.Equal(2, rep.DelinquentAccountsTotal);
-        Assert.Contains(rep.Delinquent, a => a.Name == "At the threshold");
-
-        // Every account with a balance lands in exactly one of the two lists — complementary by construction, so none can
-        // be counted twice or fall between them.
-        Assert.Equal(2, rep.ArrearsAccountsTotal);
-        Assert.Equal(rows.Count, rep.DelinquentAccountsTotal + rep.ArrearsAccountsTotal);
-        Assert.DoesNotContain(rep.Arrears, a => a.Name == "At the threshold");
+        Assert.Equal(rows.Count, rep.DelinquentAccountsTotal);
+        Assert.Equal(1_400m, rep.DelinquentOutstandingTotal);
+        Assert.Equal(1, DomainRules.DelinquentThresholdMonths);
+        Assert.Null(rep.Arrears);
+        Assert.Null(rep.ArrearsAccountsTotal);
+        Assert.Null(rep.ArrearsOutstandingTotal);
     }
 
     [Theory]
@@ -255,14 +273,13 @@ public class GetFinancialReportQueryHandlerTests
         // would state a smaller debt than the office is owed. The bands are built from the FULL set and they partition it —
         // every account with a balance lands in exactly one band — so the schedule reconciles with the two totals rather
         // than offering a second, disagreeing count of the same money.
-        var t = DomainRules.DelinquentThresholdMonths;
         var (handler3, reports3, _) = Build();
 
         var agingRows = new List<DelinquentStallDto>
         {
             new(FacilityCode.NPM, "1", "One month",     1,     300m),
-            new(FacilityCode.NPM, "2", "Just under",    t - 1, 600m),
-            new(FacilityCode.TCC, "3", "At threshold",  t,   1_000m),
+            new(FacilityCode.NPM, "2", "Two months",    2,     600m),
+            new(FacilityCode.TCC, "3", "Three months",  3,   1_000m),
             new(FacilityCode.TCC, "4", "Five months",   5,   1_500m),
             new(FacilityCode.NCC, "5", "Half a year",   6,   2_000m),
             new(FacilityCode.NCC, "6", "Eleven months", 11,  3_000m),
@@ -280,16 +297,13 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(agingRows.Count, aged.Aging.Sum(b => b.Accounts));
         Assert.Equal(agingRows.Sum(x => x.OutstandingBalance), aged.Aging.Sum(b => b.Outstanding));
 
-        // …and the schedule agrees with the two totals it sits beside.
-        Assert.Equal(aged.DelinquentAccountsTotal + aged.ArrearsAccountsTotal, aged.Aging.Sum(b => b.Accounts));
-        Assert.Equal(aged.DelinquentOutstandingTotal + aged.ArrearsOutstandingTotal, aged.Aging.Sum(b => b.Outstanding));
+        // All rows meet the delinquency boundary; the age schedule remains an independent severity view.
+        Assert.Equal(aged.DelinquentAccountsTotal, aged.Aging.Sum(b => b.Accounts));
+        Assert.Equal(aged.DelinquentOutstandingTotal, aged.Aging.Sum(b => b.Outstanding));
+        Assert.Null(aged.Arrears);
 
-        // The youngest band is exactly what the report calls arrears, because both come from the same threshold.
-        Assert.Equal(aged.ArrearsAccountsTotal, aged.Aging.First().Accounts);
-        Assert.Equal(aged.ArrearsOutstandingTotal, aged.Aging.First().Outstanding);
-
-        // Boundaries are inclusive-from: an account AT the threshold is delinquent, not arrears.
-        Assert.Equal(2_500m, aged.Aging[1].Outstanding);    // 1,000 at the threshold + 1,500 at five months
+        Assert.Equal(900m, aged.Aging[0].Outstanding);      // ages 1–2
+        Assert.Equal(2_500m, aged.Aging[1].Outstanding);    // ages 3 and 5
         Assert.Equal(5_000m, aged.Aging[2].Outstanding);    // 2,000 at six + 3,000 at eleven
         Assert.Equal(38_300m, aged.Aging[3].Outstanding);   // 5,000 at twelve + 33,300 at thirty-seven
     }
@@ -298,7 +312,7 @@ public class GetFinancialReportQueryHandlerTests
     public async Task LapsedExposure_CountsOnlyLapsedAccountsThatOwe_AndStaysInsideTheTotal()
     {
         // A lapsed term is still billed, because the occupant is still trading — the register is explicit about it. So this
-        // figure is part of the delinquent and arrears totals, and must never read as an addition to them.
+        // figure is part of the delinquent total, and must never read as an addition to it.
         var (handler4, reports4, _) = Build();
 
         var lapsedRows = new List<DelinquentStallDto>
@@ -318,8 +332,7 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(33_300m, exposed.LapsedWithBalanceOutstanding);
 
         // Inside the total, not beside it.
-        Assert.True(exposed.LapsedWithBalanceOutstanding
-            <= exposed.DelinquentOutstandingTotal + exposed.ArrearsOutstandingTotal);
+        Assert.True(exposed.LapsedWithBalanceOutstanding <= exposed.DelinquentOutstandingTotal);
     }
 
     [Theory]
@@ -357,16 +370,16 @@ public class GetFinancialReportQueryHandlerTests
     {
         // The ordinary case, and the one that let the old bug hide: below the cap the two ways of counting give the same
         // answer, so nothing looked wrong until an office grew past fifty accounts in one bucket.
-        var (handler, _, _) = Build();   // the default fixture has one delinquent and one in arrears
+        var (handler, _, _) = Build();   // the default fixture has two delinquent accounts
 
         var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None);
 
         var r = result.Value!;
 
         Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
-        Assert.Equal(r.Arrears.Count, r.ArrearsAccountsTotal);
+        Assert.Null(r.Arrears);
+        Assert.Null(r.ArrearsAccountsTotal);
         Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
-        Assert.Equal(r.Arrears.Sum(a => a.Balance), r.ArrearsOutstandingTotal);
     }
 
     [Fact]
@@ -383,9 +396,9 @@ public class GetFinancialReportQueryHandlerTests
         var r = result.Value!;
 
         Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
-        Assert.Equal(r.Arrears.Count, r.ArrearsAccountsTotal);
+        Assert.Null(r.Arrears);
+        Assert.Null(r.ArrearsAccountsTotal);
         Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
-        Assert.Equal(r.Arrears.Sum(a => a.Balance), r.ArrearsOutstandingTotal);
     }
 
     [Fact]
@@ -512,9 +525,9 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(2, r.ClosedWithBalanceCount);
         Assert.Equal(65_820m, r.ClosedWithBalanceOutstanding);
 
-        // ...but NOT folded into the record-based current delinquency/arrears lists.
+        // ...but NOT folded into the record-based current delinquency list.
         Assert.DoesNotContain(r.Delinquent, d => d.StallNo is "91" or "92");
-        Assert.DoesNotContain(r.Arrears, d => d.StallNo is "91" or "92");
+        Assert.Null(r.Arrears);
     }
 
     [Fact]
@@ -523,7 +536,7 @@ public class GetFinancialReportQueryHandlerTests
         var (handler, reports, _) = Build();
 
         // A lapsed account's term ran out but the space was never handed over, so the tenant is ordinarily still
-        // trading and the arrears figures already carry the debt. Counting it under closed balances as well stated
+        // trading and the delinquent figures already carry the debt. Counting it under closed balances as well stated
         // the same money twice: Cantilan read ₱1,905,300 of "closed / expired" beside a ₱519,880 follow-up total,
         // and 57 of those 58 accounts were the same live receivables over a longer span.
         _lastStalls!.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
@@ -542,20 +555,18 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
-    public async Task SplitsDelinquentFromArrears_ByMissedMonths()
+    public async Task OneMonthAndOlderBalancesAreDelinquent_ArrearsRemainsUnclassified()
     {
         var (handler, _, _) = Build();
 
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
-        var delinquent = Assert.Single(r.Delinquent);
-        Assert.Equal("Rosa Magbanua", delinquent.Name);
-        Assert.Equal(3, delinquent.UnpaidMonths);
-        Assert.Equal(12_000m, delinquent.Balance);
-
-        var arrears = Assert.Single(r.Arrears);
-        Assert.Equal("Maria Velasco", arrears.Name);
-        Assert.Equal(1, arrears.UnpaidMonths);
+        Assert.Equal(2, r.Delinquent.Count);
+        Assert.Contains(r.Delinquent, item => item.Name == "Rosa Magbanua" && item.UnpaidMonths == 3 && item.Balance == 12_000m);
+        Assert.Contains(r.Delinquent, item => item.Name == "Maria Velasco" && item.UnpaidMonths == 1 && item.Balance == 3_000m);
+        Assert.Null(r.Arrears);
+        Assert.Null(r.ArrearsAccountsTotal);
+        Assert.Null(r.ArrearsOutstandingTotal);
     }
 
     [Fact]

@@ -94,7 +94,7 @@ else
                         </table>
                     </section>
 
-                    @* 2 — recurring rent can fall into arrears; a service fee cannot. Derived from the headline, so the two
+                    @* 2 — recurring rent can remain unpaid across periods; a service fee cannot. Derived from the headline, so the two
                          halves always add back to it. *@
                     <section class="doc-sec">
                         <h2 class="doc-sec-title">II. Collection by model</h2>
@@ -153,9 +153,9 @@ else
                                     <td class="doc-num">—</td>
                                 </tr>
                                 <tr>
-                                    <th scope="row">Whole account, still occupied</th>
-                                    <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal + Model.ArrearsOutstandingTotal)</td>
-                                    <td class="doc-num">@(Model.DelinquentAccountsTotal + Model.ArrearsAccountsTotal)</td>
+                                    <th scope="row">Delinquent accounts, still occupied</th>
+                                    <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal)</td>
+                                    <td class="doc-num">@Model.DelinquentAccountsTotal</td>
                                 </tr>
                                 <tr>
                                     <th scope="row">Lapsed term, within the whole account</th>
@@ -295,21 +295,19 @@ else
                         </table>
                     </section>
 
-                    @* 7 — the accounts the figures above are asking the office to act on. Both lists are capped, and the
-                         header states the whole set, so a capped list can never read as the whole debt. *@
+                    @* 7 — delinquent accounts based on the confirmed one-month rule. Arrears is not classified by age. *@
                     <section class="doc-sec doc-sec-break">
                         <h2 class="doc-sec-title">VII. Accounts needing follow-up</h2>
                         <table class="doc-table">
                             <tbody>
                                 <tr>
-                                    <th scope="row">Delinquent — @DomainRules.DelinquentThresholdMonths or more unpaid months</th>
+                                    <th scope="row">Delinquent — at least one fully elapsed unpaid month</th>
                                     <td class="doc-num">@Model.DelinquentAccountsTotal accounts</td>
                                     <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal)</td>
                                 </tr>
                                 <tr>
-                                    <th scope="row">In arrears — 1 to @(DomainRules.DelinquentThresholdMonths - 1) unpaid months</th>
-                                    <td class="doc-num">@Model.ArrearsAccountsTotal accounts</td>
-                                    <td class="doc-num doc-owed">@Money(Model.ArrearsOutstandingTotal)</td>
+                                    <th scope="row">Arrears qualification</th>
+                                    <td colspan="2">Not defined. No age-based total is reported; this does not mean qualifying old/lapsed debt is absent.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -320,13 +318,7 @@ else
                             @DebtTable(Model.Delinquent, Model.DelinquentAccountsTotal)
                         }
 
-                        @if (Model.Arrears.Count > 0)
-                        {
-                            <h3 class="doc-sub-title">Accounts in arrears</h3>
-                            @DebtTable(Model.Arrears, Model.ArrearsAccountsTotal)
-                        }
-
-                        @if (Model.Delinquent.Count == 0 && Model.Arrears.Count == 0)
+                        @if (Model.Delinquent.Count == 0)
                         {
                             <p class="doc-line">
                                 No account still being billed carries an unpaid month. Former occupancies are in section III.

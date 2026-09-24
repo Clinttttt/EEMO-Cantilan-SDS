@@ -212,8 +212,8 @@
                     @if (loaded)
                     {
                         <div class="set-row"><span class="set-key">Current period</span><span class="set-val">@_model!.System.ServerDate.ToString("MMMM yyyy") <span class="set-pill pill-ok">Open</span></span></div>
-                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">≥ @_model.Collection.DelinquentThresholdMonths unpaid months</span></div>
-                        <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">@_model.Collection.ArrearsMinMonths–@_model.Collection.ArrearsMaxMonths unpaid months</span></div>
+                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">At least @_model.Collection.DelinquentThresholdMonths fully elapsed unpaid month(s)</span></div>
+                        <div class="set-row"><span class="set-key">Arrears qualification</span><span class="set-val">Not defined; not inferred from unpaid-month age</span></div>
                         <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
                         <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
                         <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">₱0 owed · never unpaid</span></div>

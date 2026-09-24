@@ -58,7 +58,8 @@ namespace EEMOCantilanSDS.Domain.Constants
     public static class DomainRules
     {
         public const int PaymentHistoryMonths = 12;
-        public const int DelinquentThresholdMonths = 3;
+        /// <summary>One fully elapsed unpaid month is sufficient for delinquent status.</summary>
+        public const int DelinquentThresholdMonths = 1;
         public const int ExpiringSoonMonths = 3;
         public const int MaxFailedLoginAttempts = 5;
         public const int LockoutMinutes = 15;
@@ -132,7 +133,7 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// </para>
         /// <para>
         /// The rule lives here because six paths compute a daily-billed obligation — the stall profile's ledger, its
-        /// 12-month grid, the payment dialog's billable months, the reports and arrears engine, the collector's own
+        /// 12-month grid, the payment dialog's billable months, the reports and delinquency classification, the collector's own
         /// report, and the inactive-accounts register — and they disagreed about the month in progress: the profile
         /// stated the days earned while the reports and the collector stated the whole month, so one stall carried two
         /// different balances depending on which screen the office opened.

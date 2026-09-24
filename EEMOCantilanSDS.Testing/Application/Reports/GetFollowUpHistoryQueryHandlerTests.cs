@@ -39,7 +39,7 @@ public class GetFollowUpHistoryQueryHandlerTests
         var empty = Report(Array.Empty<StallComplianceDto>());
         var npm = Report(new[]
         {
-            Stall("09", "Ben Cruz", "Unpaid", 2_400m),   // also the arrears delinquency row → deduped
+            Stall("09", "Ben Cruz", "Unpaid", 2_400m),   // also the one-month delinquency row → deduped
             Stall("F-3", "Nida Flores", "Absent", 0m, absentDays: 30),
             Stall("12", "Lito Yu", "Unpaid", 1_500m),    // genuine current-period unpaid
         });
@@ -54,7 +54,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),  // delinquent (3 mo)
-                new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // arrears (1 mo)
+                new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // delinquent (1 mo)
             });
 
         // The whole-time view asks for each account's WHOLE position rather than a rolling twelve months, so it
@@ -267,11 +267,12 @@ public class GetFollowUpHistoryQueryHandlerTests
 
         var dto = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
 
-        // It used to pass no delinquency at all, so the page read "Delinquent 0 · Arrears 0" while listing accounts
+        // It used to pass no delinquency at all, so the page read "Delinquent 0" while listing accounts
         // that were years behind — a follow-up screen stating there is nobody to follow up. The figures are the whole
         // account, matching the register beside them.
         Assert.Contains(dto.Items, i => i.ReasonKind == "delinquent" && i.Amount == 48_000m);
-        Assert.Contains(dto.Items, i => i.ReasonKind == "arrears" && i.Amount == 4_800m);
+        Assert.Contains(dto.Items, i => i.ReasonKind == "delinquent" && i.Amount == 4_800m);
+        Assert.DoesNotContain(dto.Items, i => i.ReasonKind == "arrears");
 
         // And no stall states the same money twice, which is what made this safe to switch on. The guarantee is per
         // WINDOW, not per stall: the delinquency figures cover months that have already elapsed and stop at the
@@ -344,11 +345,13 @@ public class GetFollowUpHistoryQueryHandlerTests
         var items = dto.Items;
 
         // Same composition rules as the live queue.
-        var delinquent = Assert.Single(items, i => i.ReasonKind == "delinquent");
-        Assert.Equal(1, delinquent.Section);
-        var arrears = Assert.Single(items, i => i.ReasonKind == "arrears");
-        Assert.Equal(2, arrears.Section);
-        // Both stalls state their period balance: the arrears figure covers elapsed months and excludes the month
+        var delinquent = items.Where(i => i.ReasonKind == "delinquent").ToList();
+        Assert.Equal(2, delinquent.Count);
+        Assert.Equal(1, Assert.Single(delinquent, item => item.Amount == 12_000m).Section);
+        Assert.Equal(2, Assert.Single(delinquent, item => item.Amount == 2_400m).Section);
+        Assert.All(delinquent, item => Assert.NotEqual("Arrears", item.Reason));
+        Assert.DoesNotContain(items, i => i.ReasonKind == "arrears");
+        // Both stalls state their period balance: the delinquency figure covers elapsed months and excludes the month
         // in progress, so a stall behind on past months can also owe the current one.
         var current = items.Where(i => i.ReasonKind == "current").ToList();
         Assert.Equal(2, current.Count);

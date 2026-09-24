@@ -151,7 +151,7 @@
             @*  The two kinds of money must never be added into one figure, and each must carry its own count or
                 "₱32,430" beside "58 accounts" reads as though it covered all of them. Money on an account that has
                 ENDED or on a current lessee's PRIOR term is stated by this register alone. Money on a LAPSED term
-                is a live receivable the arrears and follow-up lists already state in full, so adding the two would
+                is a live receivable the delinquency and follow-up lists already state in full, so adding the two would
                 double the municipality's receivables.  *@
             <div class="ca-sum-card ca-sum-warn">
                 <div class="ca-sum-val">@Money(EndedUncollected(rows))</div>
@@ -193,7 +193,7 @@
                 Retained for transparency and audit. A balance here is <strong>stated by this register alone</strong>
                 when the account has ended — closed, handed to another lessee, or the earlier term of a lessee who
                 renewed. A <strong>lapsed</strong> term is different: the tenant is still in place and the office
-                keeps collecting, so that balance also appears in the arrears and follow-up lists, and the two
+                keeps collecting, so that balance also appears in the delinquency and follow-up lists, and the two
                 figures above are deliberately never added. Renewing writes nothing off.
             </div>
 
@@ -790,7 +790,7 @@
     private static List<ClosedStallAccountDto> EndedRows(IEnumerable<ClosedStallAccountDto> rows)
         => rows.Where(r => r.State != InactiveAccountState.Lapsed).ToList();
 
-    /// <summary>Accounts whose term merely lapsed — a live receivable the arrears and follow-up lists carry in full.</summary>
+    /// <summary>Accounts whose term merely lapsed — a live receivable the delinquency and follow-up lists carry in full.</summary>
     private static List<ClosedStallAccountDto> LapsedRows(IEnumerable<ClosedStallAccountDto> rows)
         => rows.Where(r => r.State == InactiveAccountState.Lapsed).ToList();
 
