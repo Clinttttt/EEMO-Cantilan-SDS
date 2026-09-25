@@ -122,11 +122,11 @@
                 <div class="operations-card-heading">
                     <h2 id="rent-income-title">Rent Income — Stall Rental</h2>
                     <p class="operations-card-label">RENT INCOME</p>
-                    <p class="operations-card-description">Permanent stall and commercial-space rental income.</p>
+                    <p class="operations-card-description">Permanent stall and recurring rental income.</p>
                 </div>
             </header>
 
-            <ul class="operations-facility-links operations-rental-facility-links" aria-label="Configured permanent rental facilities">
+            <ul class="operations-facility-links operations-rental-facility-links" aria-label="Configured rent-income facilities">
                 @foreach (var facility in RentIncomeFacilities)
                 {
                     <li class="operations-register-item">
@@ -182,45 +182,68 @@
             </ul>
         </section>
 
-        <section class="operations-card operations-card-span operations-additional-card" aria-labelledby="additional-workspaces-title">
+        <section class="operations-card operations-card-span" aria-labelledby="slaughterhouse-title">
             <header class="operations-card-header">
                 <span class="operations-card-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M3 20h18M5 20V8l7-4 7 4v12M8 20v-5h8v5M8 9h.01M12 9h.01M16 9h.01" />
-                    </svg>
+                    <FacilityMark Code="FacilityCode.SLH" Ink="FacilityMarkInk.White" Size="20" />
                 </span>
                 <div class="operations-card-heading">
-                    <h2 id="additional-workspaces-title">Additional Facility Workspaces</h2>
-                    <p class="operations-card-label">FACILITY WORKSPACES</p>
-                    <p class="operations-card-description">Current enterprise workspaces not separately identified in the supplied Market Operations income grouping.</p>
+                    <h2 id="slaughterhouse-title">Slaughterhouse</h2>
+                    <p class="operations-card-label">SPECIALIZED ENTERPRISE</p>
+                    <p class="operations-card-description">Livestock processing, approved slaughter charges, and itemized collection activity.</p>
                 </div>
             </header>
 
-            @if (AdditionalFacilityWorkspaces.Any())
+            @if (SlaughterhouseWorkspace is { } slaughterhouse)
             {
-                <ul class="operations-services operations-additional-links" aria-label="Additional configured facility workspaces">
-                    @foreach (var facility in AdditionalFacilityWorkspaces)
+                <ul class="operations-services" aria-label="Slaughterhouse workspace">
+                    <li class="operations-register-item">
+                        <a class="operations-register-row operations-register-row-link" href="@FacilityHref(slaughterhouse)">
+                            <span class="operations-instrument-slot">
+                                <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
+                            </span>
+                            <span class="operations-service-name">@slaughterhouse.Name (@slaughterhouse.Code)</span>
+                            <span class="operations-row-chevron" aria-hidden="true">→</span>
+                        </a>
+                    </li>
+                </ul>
+            }
+            else if (!_loading && !_loadFailed)
+            {
+                <p class="operations-no-facilities">The slaughterhouse workspace is not currently configured.</p>
+            }
+        </section>
+
+        @if (OtherEconomicEnterpriseWorkspaces.Any())
+        {
+            <section class="operations-card operations-card-span" aria-labelledby="other-enterprises-title">
+                <header class="operations-card-header">
+                    <span class="operations-card-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M3 20h18M5 20V8l7-4 7 4v12M8 20v-5h8v5M8 9h.01M12 9h.01M16 9h.01" />
+                        </svg>
+                    </span>
+                    <div class="operations-card-heading">
+                        <h2 id="other-enterprises-title">Other Economic Enterprises</h2>
+                        <p class="operations-card-label">CONFIGURED ENTERPRISES</p>
+                        <p class="operations-card-description">Tenant-configured enterprise workspaces and additional revenue operations.</p>
+                    </div>
+                </header>
+
+                <ul class="operations-services operations-additional-links" aria-label="Other configured economic-enterprise workspaces">
+                    @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
                     {
                         <li class="operations-register-item">
                             <a class="operations-register-row operations-register-row-link" href="@FacilityHref(facility)">
-                                <span class="operations-instrument-slot">
-                                    @if (facility.Code == FacilityCode.SLH)
-                                    {
-                                        <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
-                                    }
-                                </span>
+                                <span class="operations-instrument-slot"></span>
                                 <span class="operations-service-name">@facility.Name (@facility.Code)</span>
                                 <span class="operations-row-chevron" aria-hidden="true">→</span>
                             </a>
                         </li>
                     }
                 </ul>
-            }
-            else if (!_loading && !_loadFailed)
-            {
-                <p class="operations-no-facilities">No additional facility workspaces are configured.</p>
-            }
-        </section>
+            </section>
+        }
     </div>
 </main>
 
@@ -252,13 +275,15 @@
     private bool _loadFailed;
 
     private IEnumerable<FacilitySidebarSummaryDto> RentIncomeFacilities =>
-        new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC }
+        new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ }
             .Select(ConfiguredFacility)
             .OfType<FacilitySidebarSummaryDto>();
 
-    private IEnumerable<FacilitySidebarSummaryDto> AdditionalFacilityWorkspaces => _facilities
-        .Where(facility => IsRouteable(facility.Code)
-            && (facility.Code is FacilityCode.BBQ or FacilityCode.SLH || IsCustomFacility(facility.Code)))
+    private FacilitySidebarSummaryDto? SlaughterhouseWorkspace =>
+        ConfiguredFacility(FacilityCode.SLH);
+
+    private IEnumerable<FacilitySidebarSummaryDto> OtherEconomicEnterpriseWorkspaces => _facilities
+        .Where(facility => IsRouteable(facility.Code) && IsCustomFacility(facility.Code))
         .OrderBy(facility => facility.Code);
 
     protected override Task OnInitializedAsync() => LoadFacilitiesAsync();
