@@ -68,6 +68,47 @@ The current parallel Income from Market sprint is divided as follows:
 
 Do not invent a route merely to make a page navigable. Feature sessions report the desired route in their handoff; Session M or the explicitly designated integration owner wires shared navigation after visual approval.
 
+## Shared localhost preview policy
+
+All V2 workstreams use one browser-review endpoint:
+
+`https://localhost:7167`
+
+Coding remains parallel across isolated worktrees, but only one StallTrack Client preview may own the shared port at a time.
+
+Local switching helper:
+
+`C:\Users\ASUS VIVOBOOK\Downloads\Preview-StallTrack.ps1`
+
+PowerShell convenience command:
+
+`preview <SESSION>`
+
+Examples:
+
+`preview C` — Market Fees from the primary V2 checkout
+`preview D` — WCF from Session D's worktree
+`preview E` — ECF from Session E's worktree
+`preview F` — Tabo from Session F's worktree
+
+The helper stops the previous StallTrack V2 Client preview and starts the selected worktree on port 7167. It does not stop or modify Codex sessions.
+
+Rules:
+
+- Do not assign permanent per-session ports such as 7267, 7367, or similar.
+- Do not edit committed `launchSettings.json` just to get a unique worktree port.
+- Do not run multiple StallTrack V2 Client previews concurrently.
+- A completion handoff should report the review URL using `https://localhost:7167` plus the feature route.
+- If port 7167 is occupied by an unknown/non-StallTrack process, stop and report the conflict rather than killing it.
+
+## Codex session continuity
+
+The local multi-session launcher resumes the latest Codex chat associated with each worktree directory.
+
+Closing and reopening `StallTrack-Sessions-PowerShell.lnk` must resume those worktree chats instead of starting fresh chats or replaying the assignment prompt.
+
+Worktree isolation is therefore also the session-continuity boundary: A resumes A, D resumes D, and so on.
+
 ## Shared-file locks
 
 Parallel feature sessions must **not** edit the following unless Clint explicitly assigns that shared-file change:

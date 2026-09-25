@@ -78,6 +78,8 @@ Migrations are **additive only** (production applies them at startup).
 - Do not edit another active session's owned files or integration-locked shared files.
 - Feature sessions should request shared-file integration instead of editing shared navigation/shell files themselves.
 - Separate Git worktrees are required for concurrent implementation sessions, except for an explicitly documented temporary exception.
+- All V2 browser review uses the single shared preview endpoint `https://localhost:7167`. Only one StallTrack Client preview may run at a time; coding sessions remain parallel, but a session must take the shared preview slot before asking for localhost review.
+- Use the local `Preview-StallTrack.ps1` helper / `preview <SESSION>` command to switch the shared preview. Do not change committed `launchSettings.json` or assign permanent per-session ports such as 7267/7367.
 - Build success is not visual approval. Leave UI work uncommitted until Clint has reviewed the localhost result unless the task explicitly says otherwise.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
