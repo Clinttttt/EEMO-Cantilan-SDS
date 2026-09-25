@@ -81,20 +81,34 @@
             <ul class="operations-services operations-services-columns">
                 @foreach (var service in IncomeFromMarketServices)
                 {
-                    <li class="operations-service-row">
-                        <span class="operations-service-name">@service.Name</span>
-                        <span class="operations-service-status">
-                            @if (service.Instrument is not null)
-                            {
-                                <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
-                            }
-                            @if (service.WorkspaceCode is { } workspaceCode && ConfiguredFacility(workspaceCode) is { } workspace)
-                            {
-                                <a class="operations-service-action" href="@FacilityHref(workspace)" aria-label="Open @workspace.Name">
-                                    <span aria-hidden="true">→</span>
-                                </a>
-                            }
-                        </span>
+                    var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
+                    <li class="operations-register-item">
+                        @if (workspace is not null)
+                        {
+                            <a class="operations-register-row operations-register-row-link" href="@FacilityHref(workspace)">
+                                <span class="operations-instrument-slot">
+                                    @if (service.Instrument is not null)
+                                    {
+                                        <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
+                                    }
+                                </span>
+                                <span class="operations-service-name">@ServiceLabel(service, workspace)</span>
+                                <span class="operations-row-chevron" aria-hidden="true">→</span>
+                            </a>
+                        }
+                        else
+                        {
+                            <div class="operations-register-row">
+                                <span class="operations-instrument-slot">
+                                    @if (service.Instrument is not null)
+                                    {
+                                        <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
+                                    }
+                                </span>
+                                <span class="operations-service-name">@ServiceLabel(service, workspace)</span>
+                                <span class="operations-row-chevron" aria-hidden="true">→</span>
+                            </div>
+                        }
                     </li>
                 }
             </ul>
@@ -115,17 +129,22 @@
             <ul class="operations-facility-links operations-rental-facility-links" aria-label="Configured permanent rental facilities">
                 @foreach (var facility in RentIncomeFacilities)
                 {
-                    <li>
-                        <a class="operations-facility-link" href="@FacilityHref(facility)">
-                            <span class="operations-facility-code">@facility.ShortName</span>
-                            <span class="operations-facility-name">@facility.Name</span>
-                            <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
-                            <span class="operations-facility-arrow" aria-hidden="true">→</span>
+                    <li class="operations-register-item">
+                        <a class="operations-register-row operations-register-row-link" href="@FacilityHref(facility)">
+                            <span class="operations-instrument-slot">
+                                <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
+                            </span>
+                            <span class="operations-service-name">@facility.Name (@facility.Code)</span>
+                            <span class="operations-row-chevron" aria-hidden="true">→</span>
                         </a>
                     </li>
                 }
-                <li class="operations-rent-arrears">
-                    <span class="operations-service-name">Arrears</span>
+                <li class="operations-register-item">
+                    <div class="operations-register-row">
+                        <span class="operations-instrument-slot"></span>
+                        <span class="operations-service-name">Arrears</span>
+                        <span class="operations-row-chevron" aria-hidden="true">→</span>
+                    </div>
                 </li>
             </ul>
         </section>
@@ -147,14 +166,17 @@
             <ul class="operations-services">
                 @foreach (var service in SpaceRentalServices)
                 {
-                    <li class="operations-service-row">
-                        <span class="operations-service-name">@service.Name</span>
-                        <span class="operations-service-status">
-                            @if (service.Instrument is not null)
-                            {
-                                <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
-                            }
-                        </span>
+                    <li class="operations-register-item">
+                        <div class="operations-register-row">
+                            <span class="operations-instrument-slot">
+                                @if (service.Instrument is not null)
+                                {
+                                    <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
+                                }
+                            </span>
+                            <span class="operations-service-name">@service.Name</span>
+                            <span class="operations-row-chevron" aria-hidden="true">→</span>
+                        </div>
                     </li>
                 }
             </ul>
@@ -176,14 +198,19 @@
 
             @if (AdditionalFacilityWorkspaces.Any())
             {
-                <ul class="operations-facility-links operations-additional-links" aria-label="Additional configured facility workspaces">
+                <ul class="operations-services operations-additional-links" aria-label="Additional configured facility workspaces">
                     @foreach (var facility in AdditionalFacilityWorkspaces)
                     {
-                        <li>
-                            <a class="operations-facility-link" href="@FacilityHref(facility)">
-                                <span class="operations-facility-code">@facility.ShortName</span>
-                                <span class="operations-facility-name">@facility.Name</span>
-                                <span class="operations-facility-arrow" aria-hidden="true">→</span>
+                        <li class="operations-register-item">
+                            <a class="operations-register-row operations-register-row-link" href="@FacilityHref(facility)">
+                                <span class="operations-instrument-slot">
+                                    @if (facility.Code == FacilityCode.SLH)
+                                    {
+                                        <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
+                                    }
+                                </span>
+                                <span class="operations-service-name">@facility.Name (@facility.Code)</span>
+                                <span class="operations-row-chevron" aria-hidden="true">→</span>
                             </a>
                         </li>
                     }
@@ -268,6 +295,11 @@
 
     private static string InstrumentCssClass(string instrument) =>
         $"operations-instrument operations-instrument-{instrument.ToLowerInvariant()}";
+
+    private static string ServiceLabel(OperationService service, FacilitySidebarSummaryDto? workspace) =>
+        service.WorkspaceCode == FacilityCode.ICE
+            ? $"{workspace?.Name ?? service.Name} ({FacilityCode.ICE})"
+            : service.Name;
 
     private static string InstrumentName(string instrument) => instrument switch
     {
