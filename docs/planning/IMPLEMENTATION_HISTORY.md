@@ -1,0 +1,2273 @@
+﻿# Outstanding work
+
+Everything known to be unfinished, with what was VERIFIED against the code rather than assumed. Ordered by
+risk-adjusted value. Update this file in the same commit that changes an item's status — a backlog that lags the code is
+worse than none.
+
+Last reviewed: 2026-08-29.
+
+> **Historical record:** This file preserves dated implementation findings and decisions; its status and older business
+> assumptions may be stale. The approved target revenue architecture, current EEMO rulings, decision gates and implementation
+> phase are in `../business/REVENUE_ARCHITECTURE.md`. Preserve this implementation history, but do not treat an old planning note
+> as the current target or silently prefer it over a newer ruling.
+
+---
+
+## Architecture review backlog
+
+Source: `StallTrack_Architecture_Review.md` (external, 2026-08-11). Its claims were checked one at a time; where the
+review was wrong or overstated, that is recorded here rather than silently dropped.
+
+### 1. Tenant isolation — DONE, with three residuals recorded below
+
+Shipped in `4a6ea50` (characterization tests), `eee55d8` (writes fail closed), `70075c0` (reads fail closed, authenticated
+fallback removed).
+
+What it does now: an authenticated caller resolves to their OWN municipality or to nothing — never to the default. A
+token-less caller (login, activation, webhook, background work, startup) still resolves to the default, which is correct
+for paths with no user. An unresolved tenant reads NOTHING and cannot write at all. A context built with no accessor
+(design-time tooling, migrations, much of the test suite) still works across tenants; `AppDbContext.HasTenantAccessor`
+separates "system" from "unresolved", which `Guid.Empty` used to conflate.
+
+RESIDUALS — not defects today, but the ways this can quietly regress:
+
+- **The no-accessor escape hatch is ungated.** `new AppDbContext(options)` sees every tenant, by design, for tooling and
+  tests. Verified 2026-08-12 that NO production code uses that constructor — the only 235 call sites are in the two test
+  projects. Nothing stops one being added. Making the constructor `internal` with `InternalsVisibleTo` would let the
+  compiler enforce it; NOT done because `dotnet ef` design-time behaviour was not verified and a broken migration workflow
+  is a poor trade for a guardrail. A source-scanning test was considered and rejected as brittle across CI paths.
+- **`IgnoreQueryFilters()` is now PINNED — `CrossTenantReadsAreNamedTests`, 2026-08-16.** It was free to call anywhere: nothing
+  failed and nothing warned, and the mistake would not look like one, because a query returning MORE rows than it should reads
+  exactly like a query that works. The allowed set is now stated as an allow-list of FILES, each grouped under the pattern it
+  belongs to. A new file reaching across tenants fails the build until somebody adds it deliberately, with a reason — the decision
+  becomes visible in a diff instead of arriving inside a repository nobody re-reads.
+  - **This note said "roughly a dozen" call sites. There are 86, across 37 files.** Every one was read before being pinned.
+  - Six legitimate patterns: PRE-AUTH IDENTITY (login, activation, reset, verification, refresh and device tokens — no tenant is
+    resolved yet, so the LGU is derived FROM the record found, each looked up by a globally unique secret and pinned by the handler
+    afterwards); PLATFORM OPERATOR (gated by `PlatformOperatorPolicy` before reading); GLOBAL REFERENCE DATA (`Municipalities` is
+    not tenant-owned — a municipality cannot be scoped to itself — read by the caller's own id or code); SEEDING AND STARTUP (no
+    tenant exists yet); SOFT-DELETE ONLY (`OrNumberRegistry`, `AdminRepository`, `CollectorRepository` re-apply
+    `MunicipalityId == mid` BY HAND — a cancelled receipt's OR number is still spent, a deleted account's username still taken);
+    and WHOLE-DATABASE WORK (export/restore, operator-only by definition).
+  - Granularity is per FILE, not per line or count. Line numbers churn on every edit and counts invite blind bumping; a file is
+    either an established cross-tenant boundary or it is not.
+  - Three assertions, each proven load-bearing by reintroducing the defect: an unnamed file is caught (with file and line named in
+    the message); a DEAD allow-list entry fails, because a name outliving its reason silently re-permits the next read added to
+    that file; and the scan itself must find the audited volume, because a test that finds nothing passes as quietly as one that
+    finds nothing wrong — the lesson `TenantFilterCoverageTests` taught when it passed with an entity deliberately excluded.
+- **Tenant isolation IS now proven against real Postgres** (`TenantIsolationTests`, four cases: each tenant sees only its
+  own; an unresolved tenant sees nothing while the rows demonstrably exist; another tenant's row is unreachable by primary
+  key; a write is stamped with the writer's tenant). Proven load-bearing on 2026-08-12: reinstating the old fail-open
+  filter failed `AnUnresolvedTenantReadsNothing` and ONLY that one — the three resolved-tenant cases correctly still
+  passed, since that defect opens only the unresolved path. The filter was then restored byte-identical.
+
+### 3. Move password hashing out of Domain — DONE
+
+Verification went behind `IPasswordHasher` in `19085b3`; the password-change methods followed in `fdc3700`; the three
+`Create` factories and the package reference are done now. Domain no longer hashes, verifies, or references an identity
+package — its csproj has NO package references at all.
+
+The volume was the risk: six production callers and ~102 test sites, every one able to pass plaintext where a hash was meant,
+with both being `string`. Rather than trust careful editing, `HashedPassword` (Domain) makes it a COMPILE error: the
+factories and password-change methods accept only that type, and the only way to obtain one is `IPasswordHasher.Hash`. The
+compiler then listed all 96 remaining sites, and each was rewritten at the file, line and column the compiler pointed at, so
+nothing was guessed and nothing missed.
+
+The stored format is unchanged — the same `PasswordHasher<BaseUser>` with default options — which is what lets existing
+accounts sign in. Six tests fail if the format changes, which is the guardrail that matters most here.
+
+`HashedPassword` also refuses an empty value: an empty hash accepts nothing, so it is a bug rather than a state, and failing
+where it is constructed beats writing a row whose owner can never sign in.
+
+Verification (six login/restore sites) went through `IPasswordHasher` in `19085b3`. The password-CHANGING half is now done
+too: `CompletePasswordReset`, `CompleteActivation` and both `ResetPassword` methods take an already-hashed value, and
+`BaseUser.VerifyPassword` — which constructed an Identity hasher inline — is deleted, with its five callers asking the port
+that the login handlers already use. `PayorUser.ResetPassword` was dead and went with it.
+
+The compiler could NOT catch the dangerous part of this change: four callers passed plaintext into parameters that now mean
+a hash, and both are strings. Storing plaintext as a hash would lock that account out permanently. Each was found and fixed
+by hand, and the risk is covered by test: reinstating the plaintext call failed
+`Reset_ValidToken_ChangesPassword_ConsumesToken_AndRevokesSessions`.
+
+Tests hash through the real implementation via `TestPasswords.Hash`/`.Accepts`, because a test that hashed differently from
+production would prove nothing about whether an account can sign in.
+
+The `Create` factories, the package reference and the "Domain free of Identity" assertion are all done — see the item 3
+heading above for how the ~102 call sites were changed safely.
+
+Shipped in the commit that added `IPasswordHasher` (Application port), `IdentityPasswordHasher` (Infrastructure), and
+migrated the SIX verification call sites: admin, collector and payor login, and the three restore handlers that
+re-authenticate. Those files no longer import ASP.NET Identity at all.
+
+The format is deliberately unchanged — `PasswordHasher<BaseUser>` with default options, exactly what the call sites used —
+because every stored hash was written that way. Tests assert that a hash produced by `AdminUser.Create` and by
+`CollectorUser.Create` verifies through the port; if that ever fails, the office is locked out of its own system.
+
+Also fixed while there: a malformed or empty stored hash used to throw `FormatException` out of a login attempt, giving a
+500 where a 401 belongs. It reads as "wrong password" now.
+
+REMAINING — the harder half. Domain still hashes in eight places: `BaseUser` (4), `AdminUser` (2), `CollectorUser` (2),
+`PayorUser` (2 — includes its own `Create`). Those are `Create` factories and `ChangePassword`/`ResetPassword` methods that
+take PLAINTEXT. Fixing it properly means the factories accept an already-computed hash, which changes their signatures and
+therefore every caller: seeders, onboarding activation, first-console-admin, MFA reset, password reset, and a good number
+of tests. That is a wide, mechanical change and should be its own commit — with the same compatibility test as its
+guardrail, because it is the change that could lock everyone out.
+
+Corrections to the review worth keeping:
+- It said seeding depends on the filter being a no-op. It does not — `MunicipalitySeeder` reads a table that is not
+  tenant-owned, and the facility and rate seeders already use `IgnoreQueryFilters()` and stamp explicitly.
+- It implied authenticated requests could fail OPEN. They could not: they fell back to the DEFAULT municipality, so the
+  real hazard was reading Cantilan's data, not everyone's.
+- Production carried ZERO unstamped rows in every tenant-owned table (checked 2026-08-11), so no backfill was needed.
+
+### 2. Split the oversized repositories — DONE
+
+`CollectorRepository` ~80KB, `StallRepository` ~59KB, `PaymentRepository` ~52KB. They mix aggregate writes, auth lookup,
+mobile projections, reports and uniqueness checks.
+
+Done: `IStallLedgerQueries` (`466fa11`), `IMissingReceiptQueries` (`2f9bffc`), `IStallMobileQueries` (`0d1ebad`) and
+`ICollectorMobileQueries` (`13ffe29`), `ICollectorReportingQueries` (`99ae349`), `IClosedStallAccountQueries` +
+`IContractAttentionQueries` (`f100980`), `IStallRegisterQueries` (`e11081f`), `IOrNumberRegistry` (this commit).
+`IPaymentRepository` is now load-by-id, add, update and the two stall-scoped receipt allowances; `ICollectorRepository` is
+the ACCOUNT only; and `IStallRepository` is the stall AGGREGATE only — load with contracts, let, transfer, close, and rule
+on stall-number uniqueness — with the register, stallholders list, section summaries, the collector app's projections and
+both follow-up reads on their own read contracts. Plain OR availability is no longer a method on five module repositories:
+it is one port with one implementation (`DbOrNumberRegistry`) over the one rule (`OrNumberRegistry`), and the composition
+test asserts it is absent from all five.
+
+Approach that is working, and worth continuing: split the CONTRACT first, leave the code in place, then move files as a
+mechanical follow-up. The reads share private obligation arithmetic, and duplicating money arithmetic is how two screens
+start disagreeing. Registrations resolve the EXISTING repository instance rather than registering the type twice — two
+instances per request would mean two change trackers, so a read after a write in the same request could miss it.
+
+Remaining, in order:
+- **THE FILE MOVES — `CollectorRepository` DONE, two to go.** Every contract slice split interfaces and left the
+  implementations in place, on purpose. The moves are the mechanical follow-up that actually shrinks the files, and the private
+  arithmetic they share has to be moved deliberately rather than duplicated.
+
+  `CollectorRepository` 81KB → four partial files (2026-08-15): entry 10.7KB (the account repository), `.Mobile.cs` 51.6KB (the
+  three projections the collector's app reads), `.Reporting.cs` 13.8KB (what the office reads about its collectors), and
+  `.Recognition.cs` 9.4KB — the shared arithmetic, deliberately in ONE file, because it decides what a peso is counted as and
+  when, and the office reconciles the app against its own reports by hand.
+
+  How it was done safely, worth repeating for the remaining two:
+  - **Two verified steps, not one.** First the class became `partial` and the primary-constructor parameters were captured into
+    `_context` / `_feeRateResolver` / `_clock` (78 references renamed) — a pure rename, built and fully tested before anything
+    moved. Only then were the blocks moved. A primary-constructor parameter is in scope ONLY in the file that declares it, which
+    is why the capture is required; `FacilityReportsRepository` already carries the same note for the same reason.
+  - **Proved behaviour-neutral by construction, not by hope.** Every code line of the original was compared against the
+    concatenation of the four files, ignoring usings, namespaces, braces and comments: 1,145 lines in, 1,145 out, IDENTICAL. A
+    move that quietly altered a figure could not survive that check, and the three suites passed unchanged.
+  - A PowerShell trap cost one attempt: `@(@(1059,1302))` FLATTENS to `@(1059,1302)`, so the loop read 1059 as a whole range,
+    `$range[1]` was null, and `$lines[1058..-1]` wrapped to produce a 2,364-line file. Ranges need `[int[][]]` with a leading
+    comma. Restored from a copy taken beforehand and redone.
+
+  `StallRepository` 59KB → six partial files (2026-08-15): entry 12KB (the aggregate and the ordinary stall reads),
+  `.Attention.cs` 3.8KB (contracts needing attention), `.Mobile.cs` 13KB (the collector app's two rounds), `.Register.cs`
+  13.1KB (the List of Stallholders), `.ClosedAccounts.cs` 21.9KB (the inactive-accounts register), and `.Collectable.cs` 2.3KB
+  — the shared arithmetic deciding which days of a month a space is collectable for, which the mobile rounds and the printed
+  register must answer identically. Same two-step method; 677 code lines in, 677 out, IDENTICAL.
+
+  `PaymentRepository` 53KB → three partial files (2026-08-15): entry 9.9KB (the payment aggregate, per-facility record reads
+  and the receipt-number availability checks), `.Ledger.cs` 36.2KB (one account's history, summary, outstanding months and
+  collection history, carrying the obligation arithmetic they share) and `.MissingReceipts.cs` 10.6KB (money taken whose OR is
+  still blank). Same two-step method; 615 code lines in, 615 out, IDENTICAL.
+
+  **ITEM 2 IS NOW COMPLETE.** Contracts and implementations are both split. No file among the three exceeds 52KB, and the
+  largest remaining single file is `CollectorRepository.Mobile.cs` — one 620-line method (`GetCollectorReportAsync`) accounts
+  for most of it, and breaking THAT up is a redesign of one query rather than a file move, so it is deliberately not attempted
+  here.
+
+  A note for whoever does the next one: `IsORNumberUniqueAsync` on `PaymentRepository` is public but on no Application
+  contract. It is genuinely used — by `UtilityBillRepository` and the composition tests — so it was left alone, but it is a
+  seam nobody has named.
+
+**Item 3 (password hashing out of Domain) is recorded above**, in the position it was actually done in. It appeared here a second
+time as a duplicate `### 3` heading, which made the list read as though there were two item 3s.
+
+### 4. Move `Result<T>` and paging models out of Domain — DONE
+
+`Result<T>` and `CursorPagedResult<T>` now live in `Application.Common`. Domain never referenced either, so no rule changed;
+what changed is that the domain no longer carries a type named after HTTP outcomes (`Unauthorized`, `Conflict`, `NoContent`)
+or a paging contract. An architecture test asserts both — that they are absent from Domain AND present in Application, so it
+cannot pass by their having been deleted.
+
+497 files use these types. Rather than add a using line to every one, each consumer project declares the namespace globally
+via `<Using Include="EEMOCantilanSDS.Application.Common" />`. The move is about where the types BELONG; a diff touching every
+handler would have buried that. Two accidental usings went with the move (`System.Xml.XPath` and a JS-interop static import
+that had no business in a result type).
+
+DONE for the layer that mattered (2026-08-15): Application and Infrastructure no longer name HTTP status codes.
+
+`ResultStatus` states the KIND of outcome in the office's terms — `Conflict` for "it already exists", `NotFound`, `Forbidden`,
+`Locked`, `UpstreamFailed` for "something we depend on failed" — and `ApiBaseController.HandleResponse` switches on THAT and
+owns the response shape. 133 sites across 48 files lost their bare 400/401/403/404/409/423/500/502, and none remain.
+
+The HTTP responses are unchanged, and that is the point: every one of those statuses is read by something. The portal branches
+on Conflict to say a username is taken, on NotFound to say the account is gone, and treats Unauthorized and Forbidden as "your
+session ended" rather than an error to display; the mobile app and the sync path read them too.
+
+Sequenced so that could be proved rather than hoped:
+
+1. **The characterisation test came first.** `Testing/Api/HandleResponseContractTests.cs` pins every status the API returns,
+   including which failures carry their message in the body and which deliberately say nothing (401 must not hint whether an
+   account exists; 404 has nothing to add), and the per-field shape of validation errors. Written and passing BEFORE the
+   translation moved, so it describes the old behaviour, not the new code's opinion of it.
+2. **`Result<T>` carries the status; `StatusCode` is DERIVED from it.** Nothing that reads the number had to change — and the
+   portal legitimately speaks in numbers, because `HttpClients/HandleResponse.cs` rebuilds a `Result` FROM a real HTTP
+   response. `Result<T>` was never the wire contract, which is what made this safe; had it been serialised, the portal would
+   have needed changing in lockstep.
+3. The numeric `Failure(message, int)` overload remains for exactly those callers, and maps to the same category by the same
+   table, so the two can never disagree.
+
+Proven load-bearing by mis-mapping one category (Conflict to BadRequest): only the 409 case failed.
+
+DONE (2026-08-16 finished the tail). Nothing outside the API's own boundary speaks in HTTP numbers any more.
+
+The PORTAL was converted 2026-08-15: all 14 of its comparisons now read the category — `Status == ResultStatus.Conflict` rather
+than `StatusCode == 409` — across Accounts, Menu, Report, Settings, Transactions, ExportData, FollowUpQueue, MonthEndReport,
+PastFollowUpQueue, StallHolderList, TwoFactorPanel and AuthProxyController.
+
+The TESTS followed: 100 assertions across 44 files now assert the category a handler STATED rather than the number it translates
+to. For a handler-produced result the category is the source of truth and the number is derived, so this asserts the thing itself.
+
+Three places keep speaking in numbers, deliberately:
+- `HandleResponseContractTests` — it IS the HTTP contract, so it must assert statuses.
+- The middleware tests — those read `HttpContext.Response.StatusCode`, a real HTTP response.
+- `ResultStatusMappingTests` — it pins BOTH directions, including the 429 that has no category.
+
+Verified equivalent before converting, not after: every site compared against a code that maps one-to-one. **The one lossy
+direction was checked and avoided** — an HTTP status nobody maps (429, which the rate-limited sign-in and password-reset
+endpoints really do return) falls to `Invalid`, so rewriting a `StatusCode == 400` check as `Status == Invalid` WOULD silently
+treat a throttled request as a bad one. `ResultStatusMappingTests` pins that trap explicitly.
+
+`Result<T>.StatusCode` stays: `HttpClients/HandleResponse.cs` builds a Result FROM a real HTTP response, where the number is the
+input.
+
+### 5. Replace `IAppDbContext` feature by feature — BOUNDARY PINNED 2026-08-17; the sweep is deliberately NOT done
+
+**What was done: `ApplicationEfBoundaryTests`.** EF sits in **38 of Application's 790 files**, and it can no longer spread to a 39th
+without somebody adding the name deliberately. That is the part of "Application free of EF" that carries the architectural value, and it
+carries none of the risk.
+
+**Why the conversion itself was measured and then declined as a sweep.** The obvious move — point each of the 35 handlers at the
+repository interface that already exists — is NOT a swap. The clearest case proves it:
+
+| | Query |
+|---|---|
+| `GetMyOfficeProfileQueryHandler` | `context.Municipalities.IgnoreQueryFilters().FirstOrDefaultAsync(...)` |
+| `IMunicipalityRepository.GetByIdAsync` | `context.Municipalities.AsNoTracking().FirstOrDefaultAsync(...)` |
+
+They differ on the query filter, and **`Municipality` IS soft-deletable**, so the filter is real: the handler finds a soft-deleted
+municipality and the repository does not. Swapping them would quietly turn a loaded office profile into a 404. Verified, not assumed —
+`ApplyQueryFilters` applies `!IsDeleted` to every `AuditableEntity`.
+
+Every one of the 35 needs that comparison made, and they cluster in **auth, account recovery and onboarding** — where a silent behaviour
+change is worst and least visible. Against a benefit that is architectural rather than behavioural, a sweep is the wrong trade.
+
+**It is still worth doing per feature**, when a feature is being changed anyway and its queries are being read properly. The allow-list
+makes that progress visible: convert a handler, and `TheAllowedSetHasNoDEADEntries` tells you to remove its name. When the list empties,
+the EF package reference can come out of Application and the review's original test becomes free.
+
+The clusters, for whoever picks one up: onboarding/assessment (12), auth/recovery/MFA (11), rates and OR series (6), municipality profile
+and payment settings (4), platform operator (2), online payments (2), plus the seam itself and the paging helper.
+
+37 call sites, 38 EF imports in Application. Do NOT run as a campaign: convert a feature only while already changing it.
+Each one risks a behaviour change in authentication or onboarding. Remove the EF package reference from Application only
+after the last caller goes.
+
+### 6. Extract a Contracts project — CLOSED 2026-08-17, the office decided the current setup stands
+
+**Decision: leave it as it is. The portal keeps posting command types, and the compile-time wire check is the reason.**
+
+The measurement below is what the decision rests on, so it is kept rather than deleted. `[FromBody]` binds the COMMAND TYPE itself on
+70 endpoints, which is what makes the portal's wire contract checked by the compiler end to end: add a parameter to a command and the
+portal stops building, before anything is deployed. Accidental, but real protection on a money path.
+
+Giving the portal its own request models while the API went on binding commands would have removed that check and replaced it with
+nothing — drift appearing at runtime as a field the API silently ignores, a required record parameter arriving absent as a 400, or a
+decimal quietly defaulting to zero. Doing it safely meant the API binding the same models across all 70 endpoints: a large change
+whose main benefit was tidiness, weighed against a guarantee that already works.
+
+**If this is ever reopened**, it is only worth doing in that safe form — shared request models bound by BOTH sides, staged one
+controller at a time — and never as "the portal gets its own models" alone. The architecture test that wanted this (no API-client
+interfaces in Application) stays unbuilt for the same reason; that is now a deliberate gap, not an oversight.
+
+~107 DTOs, 29 typed API-client interfaces and 19 request files sit in Application, so HttpClients, Blazor, MAUI and the
+tests depend on the whole assembly. Correct in principle and the largest single change on the list; do it after the
+boundaries are right.
+
+**Measured 2026-08-16 before starting, and it changed the plan.** Moving the DTOs alone achieves nothing. The consumers use
+`Application.Command` types as heavily as DTOs — 63 references in HttpClients and 61 in the portal — because the portal POSTS
+command types as its request bodies. The commands ARE its wire contract.
+
+So freeing the consumers from Application means separating each command from its handler and from its MediatR
+`IRequest<Result<T>>` binding: either MediatR comes into Contracts, or the portal gets its own request models and something maps
+them. That is a redesign of how the portal talks to the API, not a file move, and no compiler-verified mechanical stage gets there.
+
+Whoever picks this up should decide FIRST which of those two it is. Until then the DTO move on its own is churn with no benefit —
+the consumers would still reference Application for the commands.
+
+**The office chose option (b) — the portal gets its own request models — and a further measurement 2026-08-16 shows that option
+carries a condition that must be decided with it.**
+
+`[FromBody]` binds the COMMAND TYPE ITSELF on 70 API endpoints (31 others already bind a purpose-made request type). That is what
+makes the wire contract compile-checked end to end today: add a parameter to a command and the portal stops building, before
+anything is deployed. It is accidental, but it is real protection on a money path.
+
+Giving the portal its own request models while the API goes on binding commands would REMOVE that check and replace it with
+nothing. The two shapes would then agree only by convention, and drift would appear at runtime as a field the API silently
+ignores, a required record parameter arriving absent as a 400, or — worst and quietest — a decimal defaulting to zero. A rate, a
+duration or an amount could go missing on a form that still reports success.
+
+So option (b) is only safe if the API binds the SAME request models the portal posts, with the handler mapping request → command.
+That is the whole 70 endpoints, and it is what makes the change worth doing rather than merely tidy: it separates the wire
+contract from the MediatR message, which is the actual coupling.
+
+**Decision needed before any code moves:** does the API bind the new request models too (safe, ~70 endpoints touched, compile-time
+checking preserved on both sides), or does the portal define models the API does not share (smaller, and silently
+drift-prone — not recommended)? If the answer is the first, this can be staged one controller at a time, each stage compiling and
+testable, which is the only way a change this size stays verifiable.
+
+One thing that helps and is cheap whenever it happens: the namespaces can stay as they are. `Result<T>` moved to
+`Application.Common` with consumer projects declaring the namespace globally rather than editing 497 files, and the same approach
+keeps a Contracts move reviewable — the assembly changes, the namespace does not.
+
+### 7. One transaction boundary per command — DONE
+
+Audited every handler that calls `SaveChangesAsync` more than once (nine of them) and separated the two shapes: several
+saves in ALTERNATIVE branches are fine, several in ONE path are the defect.
+
+Two genuine defects, one more than the review named:
+
+- `CreateStallCommandHandler` saved the stall, then its first contract. A failure between them produced a let space with no
+  agreement behind it — on the register, answering for a month's rent, with no lessee, term or start date to bill against.
+- `CreateCollectorCommandHandler` saved the account, then its facility assignments. A failure between them produced a
+  collector who could sign in but was assigned nowhere, and the office's natural remedy (create them again) would then fail
+  on the unique employee ID.
+
+Both are now one commit. No new abstraction was needed: entity ids are generated in memory and neither second step reads
+the row written by the first (the assignment lookup reads FACILITIES), so a single `SaveChangesAsync` inserts both in one
+transaction. Proven load-bearing — reinstating the interleaved save failed all three new tests and left the handover test,
+which was already single-commit, correctly passing.
+
+Not defects, checked and recorded so nobody re-audits them: `IssueOnlinePaymentOrNumberCommandHandler` and
+`InitiateOnlinePaymentCommandHandler` save once per module branch (monthly / NPM daily / utility / fish day);
+`VerifyMfaLoginCommandHandler`, `LoginCommandHandler` and `ResetPasswordByTokenCommandHandler` save once per outcome, each
+followed by its own return.
+
+`IUnitOfWork` deliberately still exposes only `SaveChangesAsync`. An explicit transaction API would only be needed by a
+handler that must read its own writes mid-command, and none of these does; adding one now would invite ambient-transaction
+bugs for no benefit. If a future command needs it, that is the moment to add it.
+
+### 8. Inject time instead of static clocks — DONE on the server (Client display defaults remain)
+
+`IClock` (Application) with `SystemClock` (Infrastructure, singleton) and `FixedClock` (tests). Three members only —
+`UtcNow` for instants, `PhilippineNow`/`PhilippineToday` for the office's working day. The rest of `PhilippineTime` stays
+static on purpose: converting a stored instant, or bounding a local day or month in UTC, is a pure function of its
+arguments and needs no clock.
+
+DONE — the lockout rule. It was written three times, identically, on `AdminUser`, `CollectorUser` and `PayorUser`, while
+the state it works on always lived on `BaseUser`; it is now one `RecordFailedLogin(asOf)` and one `IsLockedOut(asOf)` on
+the base. The four login/MFA handlers pass `clock.UtcNow`. The three `builder.Ignore(x => x.IsLockedOut)` lines are gone
+with it, since a method is not mappable — confirmed by the integration suite, which builds the real model.
+
+Thirteen tests now cover a rule that previously had none worth having: "the account unlocks after fifteen minutes" could
+only be verified by waiting, so the part that protects the office — that a lockout ENDS — went unasserted. Each runs
+against all three user types, because a lockout policy differing by account type is a security hole rather than an
+inconsistency. Proven load-bearing: making the lockout permanent failed six of them.
+
+DONE — token expiry. Five windows, not the three the review named: refresh, activation, password reset, MFA challenge and
+email verification all compared against the machine clock inside `BaseUser` and now take the instant. Six handlers and
+`TokenService` supply it.
+
+Two faults found while converting, both recorded because they were invisible rather than harmless:
+
+- `BaseUser.IsRefreshTokenValid(token)` had NO callers and could never have returned true — it compared a raw token against
+  the stored HASH. The refresh path had grown its own copy of the rule instead. Replaced by
+  `CanRefresh(refreshTokenHash, asOf)`, which `TokenService.ValidateRefreshToken` now calls.
+- That copy contained a FOURTH transcription of the lockout check, in Infrastructure, missed by the lockout slice above. So
+  a locked account could have kept refreshing its session if the two ever drifted. It now asks the user.
+
+Seven more tests, each asserting the half of the rule that was unassertable: that the token STOPS working. Proven
+load-bearing — making activation tokens permanent, and dropping the lockout consultation from refresh, each failed exactly
+the test that describes it.
+
+DONE — the reporting periods. The three report handlers (`GetFinancialReport`, `GetFollowUpHistory`, `GetFollowUpQueue`) took
+13 static clock reads between them and now take `IClock`. These decide which month an unqualified monthly report means, how
+far a whole-year snapshot runs, and where a rolling delinquency span ends.
+
+Four of those reads were in STATIC helpers, where a primary-constructor parameter is not available — the compiler said so
+(CS9105). Rather than make the helpers instance methods they now take `DateOnly today`: a static helper that reaches for a
+clock cannot be tested, and passing the date in is the pattern the domain already uses.
+
+Eight new cases assert what was previously unassertable — that the report is dated by the clock it was given, and that a
+rolling span ends with the last CLOSED month, including a future month asked for (clamped, nothing owed yet) and across a
+year boundary. Written first against the wrong field: the span lands on the ROW beside the money, not on the report header,
+and the real values were read from the failure rather than guessed. Proven load-bearing — anchoring the span on today
+instead of the month asked for fails one case and only that one.
+
+DONE — `PaymentRepository`, 12 reads. It now takes `IClock`; the test-convenience constructor keeps the real clock and says
+so, and a test that cares which day it is uses the full constructor. Everything this repository decides about eligibility —
+which market days are chargeable, who holds a stall now, which rate applies — is a question about "today".
+
+Four new tests pin the date: the current month is billed only to today, the same month owes more later in the month, a closed
+month bills the office's reference month whatever the calendar length, and a month still in the future is not offered at all.
+The daily rate is DERIVED from a closed month rather than written down, so no Cantilan figure is asserted for every LGU.
+
+Two things learned while proving them load-bearing, both worth keeping:
+- The eligibility bound is enforced TWICE — once on the occupancy window and once per month — so removing either clamp leaves
+  the other and the tests still pass. Redundant guards are good for production and misleading for a defect probe.
+- What the probe must break is the INJECTION: made to ignore the injected clock and read the static one, three of the four
+  fail. That is the assertion that matters, and it is why these tests could not have been written before.
+
+DONE — every repository. `FacilityReportsRepository` (12 reads across four partial files), `TrmRepository` (7),
+`CollectorRepository` and `StallRepository` (3 each), and the six single-read repositories: `PayorRepository`,
+`FacilityRepository`, `VendorRepository`, `SlaughterRepository`, `TpmRepository`, `TransactionFeedRepository`. There are now
+ZERO static clock reads anywhere under `Infrastructure/Repositories`.
+
+Each keeps a test-convenience constructor that supplies the real clock and says so, so none of the ~150 repository test
+setups had to change; a test that cares which day it is passes a fixed clock to the full constructor.
+
+Three things worth remembering from doing it:
+- `FacilityReportsRepository` is PARTIAL, so a primary-constructor parameter is out of scope in the other files. The clock is
+  captured into a field for the same reason `_context` already was.
+- Its occupancy/obligation helpers were STATIC. They became instance methods rather than taking a date through every caller;
+  the memoising `ConditionalWeakTable` stays static, keyed by stall instance, so caching behaviour is unchanged.
+- A blanket text replace turned `PhilippineTime.TodayUtcRange()` into `clock.PhilippineTodayUtcRange()` in `TrmRepository`,
+  because "Today" is a prefix of "TodayUtcRange". Caught by the compiler, fixed to `PhilippineTime.DayUtcRange(clock.
+  PhilippineToday)` — the pure helper, dated by the clock — and the rest of the codebase checked for the same mangling.
+
+Five new tests pin dates on the delinquency arithmetic: arrears count only months that have ENDED, a future anchor is clamped
+to the last closed month (the yearly view offers every month, so this is reachable), and the count rises by exactly one when a
+month closes with nothing paid in between. Proven load-bearing — ignoring the injected clock fails the future-anchor case, and
+only that one, because the real date is already past the others. That asymmetry is the point: without a stated date, the
+clamp is untestable for most of the year.
+
+DONE — the WRITE path. Eleven commands and services that stamp a date into the ledger permanently now take `IClock`:
+`CreateStall`, `ToggleStallStatus`, both bulk imports plus `BulkImportDailyHistory`, `RecordPayment`, `SetFacilityRate`,
+`SettleNpmDays`, `SettleNpmMonth`, `NpmMonthSettlementService` and `InitiateOnlinePayment` (whose reference number carries the
+issue date). A wrong date here is not a display fault — it is written down and later reconciled against paper.
+
+`InitiateOnlinePayment`'s reference generator was static, so it takes the instant as a parameter rather than becoming an
+instance method: the same pattern used for the report helpers.
+
+Four new tests pin the rate-effective date, which is the clearest case: a rate takes effect the day it was set and NEVER
+before, because re-rating a month whose receipts are already issued would disagree with the paper. Proven load-bearing — all
+four fail when the handler ignores the injected clock.
+
+A scripted edit went wrong here and is worth recording. Driving the additions from the compiler's error positions worked for
+194 sites, then looped on four: where the constructor sits inside a tuple — `return (new Handler(...), mock);` — the script
+found the TUPLE's closing paren, so the argument landed outside the constructor, the error persisted, and it appended again
+each pass. One line ended with 90 copies. Caught by scanning for lines with more than one `new FixedClock(`, the four files
+restored from git, and those four fixed by hand. `Select-String` counts LINES, not occurrences, so the first check under-
+reported the damage — the count has to be per-match.
+
+DONE — the READ path (2026-08-14). Twenty query handlers and four validators now take `IClock`. Nothing here writes to the
+ledger, but a report that silently disagrees with the office's own idea of "today" is still a wrong answer, and the year bound
+on the report validators ("no later than next year") could not be stated in a test at all while it moved on its own.
+
+Two things worth carrying forward from this slice:
+
+- **A date-pinned test can pass by coincidence.** Pinned first to a fixed date in the CURRENT year, nine of ten year-bound
+  cases still passed with the validators ignoring the injected clock — the static bound happened to agree. Pinning to a year
+  the server's calendar cannot match (2031) made every case load-bearing; five then failed under the reintroduced defect.
+  This is the same family as the earlier vacuous assertions: a green test that cannot fail proves nothing.
+- **A DI-resolved dependency has no compile-time guard.** Validators are assembly-scanned and built per request, so the four
+  that now need `IClock` would have compiled, passed their unit tests (which construct them directly), and failed only when a
+  clerk submitted the form. `Testing/Application/ValidatorResolutionTests.cs` now asserts every constructor parameter of every
+  validator is registered by the real `AddApplicationService` + `AddInfrastructureService`, plus a named test for the clock
+  registration itself. Proven by deleting the registration: the four validators and the named test failed.
+  (Registration is pure — it only reads configuration and hands EF a connection string — so this needs no database.)
+
+DONE for the whole SERVER (2026-08-15). Domain now reads the static clock in ZERO places.
+
+The last three were `Contract.IsExpired`, `Contract.IsExpiringSoon` and `Terminate`'s default end date. An entity cannot be given
+a constructor dependency, so the two properties became methods taking the date — `IsExpiredOn(DateOnly asOf)` and
+`IsExpiringSoonOn(DateOnly asOf)` — and `Stall.IsContractExpired()` took a date with them, since it delegates.
+
+Why methods rather than a convenience property that reads the clock: this decides whether a contract still ACCRUES, and the
+office asks it of past months as well as of today. A register for June cannot be answered with August's opinion, and while it
+was a property no test could state a date at all. 14 new tests pin the boundary the office's own paper takes — a term effective
+the 7th runs THROUGH the 7th N years on — plus the renewal window, that expired and expiring-soon are never both true, and that
+an open-ended space never quietly falls due. Proven load-bearing: making the method ignore its parameter failed 7 of the 14.
+
+Smaller findings from the same pass:
+
+- **The blast radius was a tenth of what it looked like.** A search for `.IsExpired` returns ~30 hits, but almost all are
+  `ContractAttentionDto.IsExpired` (already computed as-of a date by the repository) or `OnboardingDraft.IsExpired` (a token,
+  different type). Only `Stall.IsContractExpired` and three test assertions actually used the entity's property. Worth checking
+  the receiver's TYPE before sizing a change like this.
+- **`Terminate`'s `?? PhilippineTime.Today` default was dead.** All 29 call sites already passed an explicit date, so the
+  parameter is now required. The end date decides which months belong to the outgoing lessee and which to the incoming one, so
+  defaulting it to "the day the clerk did the paperwork" was never right.
+- **The two EF `builder.Ignore` lines for these properties were removed** — a method cannot be mapped, so the model is
+  unchanged and no migration is involved.
+- **`AddMonths(3)` in the entity is now `DomainRules.ExpiringSoonMonths`**, which is 3. The handlers already passed that
+  constant to the repository while the entity hardcoded the number.
+
+RESOLVED 2026-08-16 on the office's ruling, and now ONE rule:
+- **Two expressions of the expiry rule — unified.** `Contract.IsExpiredOn(asOf)` was `asOf > ExpiryDate` while
+  `DomainRules.TermHasExpired` additionally guarded `durationYears > 0` and `!= OpenEndedTermYears`. They agreed on every
+  contract `Create` produced but DISAGREED on a signed term of zero years: the entity called it expired the day after it began,
+  the rule called it not expired. The office ruled such a contract INVALID, so the state is refused at entry and the entity now
+  DELEGATES to `DomainRules.TermHasExpired` — there is no longer a second answer to disagree with.
+  - Refused in three places, each for a different reason. `Contract.Create` and `Contract.UpdateTerms` refuse a signed term of
+    nought years so the state is unrepresentable rather than merely unreached. `UpdateStallCommandHandler` answers the same case
+    with a stated reason, because a domain exception would reach the office as a server error — and it is the only screen that
+    could ever have set an existing term to nought.
+  - **NOT in the validator, and that is deliberate.** Requiring at least one year there was tried first and would have broken a
+    legitimate edit: the stall DTO reports `activeContract?.DurationYears ?? 0`, so a stall with NO active contract reports
+    nought years, and both edit forms pass whatever they were handed straight back. The command does not carry the arrangement,
+    so a validator cannot tell "no term to state" from "a term of nought years". `UpdateStallContractYearsTests` pins the
+    validator's acceptance of nought so it cannot be tidied away.
+  - An occupancy WITHOUT a signed contract keeps the open-ended sentinel whatever number arrives, so correcting a space-only
+    row's effectivity date is still possible and cannot leave it holding a nought-year term.
+  - **Stored rows written before the invariant remain possible** and are handled safely: EF materialises them without the
+    factory, and both rules now say NOT expired, while `BillsCalendarMonth` still says they owe nothing. So such a row generates
+    no demand and is not reported as an expired contract needing renewal. Production was NOT queried for them — the database
+    password is only in CI secrets — but every application path already refused nought-year signed terms before this change
+    (create form, stallholder import, renewal, assigning a past occupant), so the only way one could exist is a hand-written row.
+    **If the office ever reports a contract showing no term, that is the row to look for.**
+- `StallContractStatus`'s parameterless `IsCurrentVendor(dto)` overload still reads the static clock. It delegates to an
+  `IsCurrentVendor(dto, today)` that IS testable, and its single caller is in the Client — so it belongs with the Client bucket.
+- **The Client's clock reads — AUDITED 2026-08-17, and the audit is the answer.** The count was **241 sites in 62 files**, not ~205:
+  `PhilippineTime.Now` 147, `PhilippineTime.Today` 58, `ToPhilippineTime` 29, plus 7 raw `DateTime.*`. Every one was classified before
+  anything was changed, and **only one was a defect**. Converting the rest would be churn.
+  - **The reason most of them are fine is worth stating, because it is easy to forget: this is Blazor SERVER.** All of it runs on the
+    server, so `PhilippineTime.Now` is the server's clock in Philippine time — there is no browser clock to distrust, and none of
+    these is the "untestable static clock" problem the server-side work was about.
+  - **80 display or formatting** (`ToString`, interpolation, year/month labels). **114 field and property initialisers** — form
+    defaults and date-picker seeds, e.g. a slaughter transaction's date defaulting to today. **Calendar and navigation seeds**
+    (`DailyCollectionCalendar`, `Report`, `CollectionExceptions`, `LiveClock`, `Transactions`' future-date clamp) legitimately want
+    the real today. **2 API arguments**, both asking for the current month's view in `Profile`. All correct as they stand.
+  - **7 raw `DateTime` sites, now 4, none ever a defect.** The four that remain are UTC-to-UTC comparisons that must stay UTC (JWT
+    expiry ×2, a health span, a backup trigger timestamp). The other three went with the dead code below.
+  - **Both dead spots DELETED 2026-08-17**, for the same reason the admin console's seeded records went: dead data that reads as real
+    is worse than dead data.
+    - `PaymentSubmitDto.SavedAt` was stamped with `DateTime.UtcNow` and read by nobody — no consumer of `OnSave` ever looked at it, so
+      it recorded a time that answered no question. When a payment is recorded is the server's to stamp, not a modal's.
+    - `PayorDemoData` was **referenced nowhere** and fabricated a named payor with outstanding balances (₱2,400 unpaid, ₱1,200
+      partial) and a payment history carrying **OR numbers** — 124533, 120114, 118402 — against a REAL facility, Tampak Commercial
+      Center. Invented receipt numbers have no business sitting in a revenue system's source, even unreferenced.
+  - **7 sites evaluate contract expiry in the portal** (`DomainRules.TermHasExpired` in six facility pages and one import screen).
+    Left alone deliberately: they call the SHARED domain rule, so there is no second opinion — only a display badge computed from it.
+  - **THE ONE DEFECT: "Expiring soon" on the stall profile.** It wrote the renewal window as a literal `3` months AND omitted the
+    "not already expired" half of the rule, so **a term that ran out two years ago was badged "Expiring soon"** — the one thing that
+    badge exists to distinguish. `Vendor.razor` had the logic right but also hardcoded the 3. Both now use
+    `DomainRules.ExpiringSoonMonths`, and the profile matches `Contract.IsExpiringSoonOn`.
+    - `ExpiringSoonWindowTests` pins the rule at its boundaries AND asserts against the markup that neither screen holds its own
+      copy — the domain tests alone stayed green while the page mislabelled an expired term, which is why the source assertions
+      exist. Both faults proven caught by reintroducing each one.
+- **Audit stamps stay put.** ~150 `DateTime.UtcNow` in Domain are `CreatedAt`/`UpdatedAt` assignments; they belong with the
+  interceptor.
+
+### 9. Split API / Infrastructure / Client registrations — DONE
+
+DONE, and each claim verified against the code first:
+
+- **AutoMapper removed entirely.** The profile was empty and there was not one `IMapper`, `.Map<>` or `CreateMap` call in the
+  solution: a package, a registration and a class that did nothing. Package reference gone; an architecture test asserts
+  Application does not reference it.
+- **`AddApplicationService` no longer takes `IConfiguration`.** It never read it, and the MediatR lambda parameter shadowed
+  it with the same name, so the file looked as though it configured MediatR from app settings.
+- **The Client's `AddPersistence` is now `AddApiHttpClients`.** It registers outbound HTTP clients; the portal has no
+  database and stores nothing.
+- **Startup work moved out of `Program.cs` into `DatabaseStartup` (Infrastructure).** 184 lines down to 74. Migration
+  locking, seeding and default-tenant resolution are persistence concerns and now sit with persistence, and the
+  advisory-lock key is a public constant that `MigrationAdvisoryLockTests` REFERENCES instead of transcribing.
+- **Two false comments corrected.** Both claimed that an unresolved default municipality leaves the tenant filter "a no-op"
+  and lets "token-less writes go unstamped". Neither has been true since the boundary was made to fail closed: token-less
+  reads return nothing and such writes are refused. One of them was an operator-facing WARNING, so it would have pointed
+  ops the wrong way during exactly the incident it exists to describe.
+
+One deliberate behaviour difference: startup logs now use the application's default logger category rather than
+`ILogger<Program>`. Only affects log filtering by category.
+
+DONE (2026-08-15 completed the reshuffle). `AddInfrastructureService` is now a seven-line composition over seven groups that
+each register ONE concern: `AddPersistence`, `AddEemoCaching`, `AddTenancyAndRates`, `AddRepositories`,
+`AddInfrastructureServices`, `AddOnlinePayments`, `AddBackupGateway`. It was a single 150-line method mixing all of them, so
+nothing could be changed without reading all of it and a dropped line looked like every other line.
+
+**The blocker recorded here — "no test can prove it beyond the application still starts" — was removed first, deliberately, then
+the reshuffle was done against it.** `Testing/Infrastructure/CompositionRootTests.cs`:
+
+- **Resolves every service this codebase registers** — 550 of them, including every MediatR handler and every validator — from
+  the real composition, built in the same order as `Program.cs` (`AddApi` + `AddInfrastructureService` + `AddApplicationService`).
+  A group left uncalled is a failing test rather than a 500 on the one page that needed it. Proven by deleting the `IClock`
+  registration: 66 of 549 services became unbuildable.
+- **Asserts no service type is registered twice.** This is what makes moving registrations between groups SAFE: with each type
+  registered once, order cannot decide which registration wins, nor what `IEnumerable<T>` yields. Had there been a duplicate, a
+  reshuffle could have altered the application with every other test still green.
+- Deliberately NOT `ValidateOnBuild` over the whole container: that also walks the framework's descriptors (SignalR's
+  connection dispatcher, MVC's result executors, Swagger's options), which need pieces only a real `WebApplication` provides.
+  Stubbing those would chase a moving target and prove nothing about this codebase.
+
+The reshuffle itself was verified by comparing the container before and after: 551 registrations, same service types, same
+lifetimes, same implementations — IDENTICAL. (Done with a temporary snapshot test, removed once it had served.)
+
+One finding, recorded not fixed: **the PayMongo gateway throws at RESOLUTION when `PayMongo:BaseUrl` is unset**, and three
+online-payment handlers depend on it. In a deployment missing that key those three endpoints fail at request time rather than at
+startup — fail-late where fail-fast would be kinder. The composition test supplies the key so it represents a configured
+deployment; making startup refuse instead is a separate decision.
+
+### 10. Strengthen the architecture tests — DONE, with two deliberate gaps
+
+DONE:
+
+- **`TenantFilterCoverageTests`** — every tenant-owned entity is filtered BY MUNICIPALITY, no tenant-owned type hides under
+  a non-tenant-owned TPH root (a hole the per-root attachment cannot see), and the model really is largely tenant-owned so
+  the checks cannot pass vacuously. Written first as "has a filter" and it PASSED with a tenant-owned entity deliberately
+  excluded — a soft-deletable entity always has a filter, so the filter has to be READ, not counted. That mistake is worth
+  remembering: it is the difference between a test and the appearance of one.
+- **Domain free of MediatR** added to the existing dependency test; Domain has zero MediatR/EF usings and references
+  neither.
+- **Application free of ASP.NET Identity** and **of AutoMapper** (earlier commits).
+- A third stale tenancy comment corrected, on `ApplyQueryFilters`, which still described the filter as "a no-op while
+  CurrentMunicipalityId is empty".
+- **`SectionRateReadersAreNamedTests` — added 2026-08-29**, when an office's own market section gained its own daily fee.
+  A section's rate and its metering default have a NAMED readership, each entry with its reason: the resolver that loads the
+  rate into the fee snapshot, and the office's own configuration screen, which states back what the office entered.
+  Everything else asks `NpmDailyFee`, which settles the order in one place — the stall's own rate, then its section's, then
+  its area's, then the market's. The danger is a second reader answering the same question by a different rule and missing
+  that order, which is the shape of every borrowed-rate defect this platform has had, and each of those was found by an
+  office reading its own collections rather than by the code. Proven load-bearing: a report that starts naming the table
+  fails the test. The dead-entry check earned its keep immediately — it rejected the entity's own file, which never names
+  the SET.
+- Two allowances were added to `ApplicationEfBoundaryTests` the same day, with their reasons: the two handlers that write
+  one effective-dated section rate, and the one that writes the metering default, beside `SetFacilityRateCommandHandler`,
+  which is the same single-row write in the same feature. The test refused them until they were named, which is the layer
+  rule staying enforced rather than eroding one handler at a time.
+
+STILL TO DO, and each is blocked by an unfinished item rather than by effort:
+
+- **No HTTP status codes in Domain** — DONE. `Domain_KnowsNothingAboutHttp` asserts `Result<T>` and `CursorPagedResult<T>` are
+  absent from Domain AND present in Application, so it cannot pass by their having been deleted.
+- **Application free of EF** — answered as a BOUNDARY, not an absence: `ApplicationEfBoundaryTests` pins the 38 files that use EF and
+  fails when a 39th appears. The full absence still needs item 5's per-feature conversion, which was measured and declined as a sweep;
+  the reasoning and the evidence are under item 5. The allow-list emptying is what would make the original test free.
+- **No API-client interfaces in Application** — will not be built. It needed item 6, which the office closed: the portal keeps posting
+  command types because that is what makes the wire contract compile-checked across 70 endpoints. A deliberate gap, not pending work.
+- **Cross-tenant services explicitly named** — DONE. `CrossTenantReadsAreNamedTests` pins the 86 `IgnoreQueryFilters()` call
+  sites, by file, each under the pattern that justifies it. See item 1's residuals for the audit.
+- **API policy and Application authorization share one authorizer** — unified behind `PlatformOperatorPolicy` in `8d58fc9`,
+  but asserting it structurally means reading an authorization-policy lambda. Judged too brittle to be worth it; the
+  behavioural tests in `PlatformOperatorGuardTests` cover the rule itself.
+
+### 11. Reorganize Application into feature folders — CLOSED 2026-08-18, the office decided the current structure stands
+
+**Decision: keep it. This is CQRS over Clean Architecture, not vertical slices, and the current layout is the coherent expression of
+that.** Feature folders are a vertical-slice idiom; adopting them here would half-adopt an architecture this system does not use.
+
+Checked before agreeing, because "leave it" deserves evidence as much as a change does:
+
+- `Command/` (262 files) and `Queries/` (275) are **already grouped by feature** — Auth, Onboarding, Payments, Rates, Collectors,
+  DailyCollections, Municipalities, and so on.
+- Each use case **already has its own folder** holding its command, handler and validator together, e.g.
+  `Command/Payments/BulkImportDailyHistory/` contains exactly `BulkImportDailyHistoryCommand.cs`,
+  `…CommandHandler.cs`, `…CommandValidator.cs`.
+- `Dtos/` (107 files) **mirrors the same feature names** — `Dtos/Auth`, `Dtos/Onboarding`, `Dtos/Payments`.
+
+So the shape is layer → feature → use case, and a use case is already co-located. The only thing a vertical slice would add is putting
+each DTO in the same folder as its handler — and since the DTOs are already grouped under the same feature names, that is a small gain
+against moving roughly **660 files** and changing every namespace in the layer.
+
+**What would change this.** If the team ever moves to vertical slices deliberately, this is the change to make, and it should be made
+wholesale rather than as a partial migration that leaves two conventions side by side. Short of that, the current structure is not a
+compromise — it is the right answer for the architecture in use.
+
+**The architecture backlog is now closed.** Items 1, 2, 3, 4, 7, 8, 9 done; item 5 answered as a pinned boundary with per-feature
+conversion left as opportunistic work; items 6 and 11 closed as decisions with their reasoning recorded; item 10 done except the two
+tests that 5 and 6 would have unlocked, which are now deliberate gaps rather than pending work.
+
+`Command`/`Queries`/`Dtos`/`Requests` scatter each capability. File moves only, no behaviour. Last, because it churns
+every path and would bury a real change in the diff.
+
+### Test reliability — one flake found and fixed, worth watching for more
+
+`ClosedAccountsRenewTests.Proceed_StatesNoFigures_SoTheStallKeepsItsOwnRate` failed once in a full-suite run on 2026-08-12
+and passed in isolation and on re-run. Cause: it clicked the renew row and then immediately `Find`-ed a button inside the
+dialog, which renders asynchronously, and asserted on the sent request straight after the click. The other tests in the
+same file already waited. Fixed by waiting for the footer button and for the request, using the file's existing
+`WaitForElement`/`WaitForAssertion`/`RenderTimeout` idiom; the full suite then passed three times running.
+
+Worth knowing because CI runs these on every push, so a flake of this shape shows up as a failed DEPLOY rather than as a
+test problem. Any remaining `cut.Find(...)` immediately after an interaction that triggers rendering or an HTTP call is the
+same hazard.
+
+---
+
+## Confirmed office rules
+
+Answered by the office (interview, 2026-08-12). Recorded here because they are policy, not code, and the next person
+should not have to re-derive them.
+
+**A YEAR OF RENT IS TWELVE MONTHS EXACTLY — ₱10,800 for a ₱900 space. RULED 2026-09-12 WITH DOCUMENTARY EVIDENCE.
+IMPLEMENTED the same day.** The office produced its own *List of Stallholders* for the New Public Market, Vegetable Area: every row
+reads effectivity 6/7/2023, **3 yrs**, 4.8 sq.m., ₱900.00 monthly per contract, ₱900.00 actual monthly, and **Whole Year
+Rental ₱10,800.00**. Twelve months, no thirteenth part-month.
+
+- **What the code did instead.** `Contract.ComputeExpiry` was `effectivity.AddYears(n)`, so the expiry date was
+  INSIDE the term: a one-year term from 1 Jan 2023 covered 1 Jan 2023 *through* 1 Jan 2024 — twelve months **plus one day**.
+  Found while testing the extension renewal on stall 6 (Teofila Reyes).
+- **The ₱30 only ever reached a DAILY-collected space, and this is the part the original note got wrong.**
+  Monthly-billed accounts were ALREADY correct: `Contract.BillsCalendarMonth` counts N × 12 calendar months of its own accord
+  and never consulted the expiry date — a past fix, whose comment records that it once billed thirty-seven months for a
+  three-year term. `WholeYearRental` is likewise `MonthlyRentalRate * 12`. So the ₱10,830 arose on NPM, where a stall is
+  charged per market day up to and including the expiry. Anyone re-deriving this should not expect to find monthly rent wrong.
+- **The rule lived in TWO places, not one, and they were only accidentally in agreement.** `Contract.ComputeExpiry` had the
+  formula and `DomainRules.TermHasExpired` had its own copy (`start.AddYears(n) < asOf`). Both now read a single new
+  `DomainRules.TermLastDay`, which is the only statement of the arithmetic in the codebase.
+- **The blast radius was far wider than the eleven files first recorded — SEVEN production sites had their OWN inline copy**,
+  none of which the original note found, and every one of which would have kept the old reading and disagreed with billing by a
+  day: `ToggleStallStatusCommandHandler` (×2), `FacilityRepository`, `GetUtilityRegisterQueryHandler`,
+  `StallRepository.Attention`, `VendorRepository`, `FacilityReportsRepository.Breakdowns` (the daily collectable-days
+  calculation — a money path). Plus **three in the console UI**, which display the expiry the office reads: `Vendor.razor` (×2)
+  and `Profile.razor`. All ten now call the shared rule. A `DateTime` overload of `TermLastDay` was added for the DTOs.
+  **The lesson: grep `.razor` as well as `.cs`; the first search missed the UI entirely.**
+- **Figures that moved**, all by one day and none of them money already received: every contract's expiry date; a term
+  expiring on an anniversary is now expired; expiring-soon, lapsed follow-up, Closed Accounts, the utility register, the
+  sidebar's unpaid counts, and stall profiles. No payment record was altered and no migration was needed.
+- **Tests:** `WholeYearRentalRulingTests` states the office's own arithmetic — ₱10,800 for one year, ₱32,400 for three, both
+  counted as billing months and walked a year beyond the term to prove they stop — plus 366 collectable days for the
+  leap-spanning year (it was 367), live on the last day, expired on the anniversary, and the entity and shared rule agreeing.
+  Injection-proof: restoring `AddYears(n)` compiled and failed 16 tests, 2 of them the new ones. Fourteen existing tests
+  asserted the old rule and were moved with their intent intact; each was checked individually for a genuine break.
+- **Not asserted in pesos for the daily case**, deliberately: a daily-collected month is capped at the monthly rent, so
+  days × the daily fee is not what an account is billed. That ceiling has its own tests.
+- The office's document is kept at `../evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg`, so the next
+  person reads the evidence rather than taking this entry's word for it.
+
+**THE ONE STALE ROW HAS BEEN CORRECTED (2026-09-13).** NPM stall 6, Teofila Reyes, contract
+`9bdfe3d9-af7d-486b-8a55-b06966370f77`: her 2023 one-year term was stored with `EndedOn = 2026-09-11`, the day before her
+renewal, because the row was written *before* commit `39657862` taught the renewal path to clamp that date to the term's
+expiry. Now `2023-12-31`, which is what the current code would write. Verified read-only that it was **the only such row**,
+and that **none remains** — the query is `EndedOn > (EffectivityDate + DurationYears years - 1 day)` over `Contracts`.
+
+- **The office approved it** after being told the one visible consequence: the account moves from the 2026 grouping to 2023
+  in the Register of Inactive Stall Accounts.
+- **No money moved, and this was verified rather than argued.** The billable window was already `min(2026-09-11,
+  2023-12-31)` and is now `min(2023-12-31, 2023-12-31)` — the same day — so her balance stays ₱10,800, twelve months, the
+  office's own figure. That stall carries **zero** rows in `PaymentRecords`, `DailyCollections`, `UtilityBills` and
+  `StallMonthlyExceptions`, so nothing could be orphaned by narrowing the occupancy window.
+- **Applied by hand, guarded and reversible:** a single `UPDATE ... WHERE "Id" = … AND "EndedOn" = DATE '2026-09-11'` inside
+  a transaction, the second condition being an optimistic guard so it could not apply if the row had changed since it was
+  read. `UPDATE 1`. To reverse, set it back to `2026-09-11`.
+- **The audit columns were deliberately left alone.** Setting `UpdatedAt`/`UpdatedBy` would assert that the office edited
+  the contract that day, which they did not; this was maintenance, and its honest record is this note and the commit, not a
+  mutated audit column.
+- **Both places the office could see it were fixed in code first**, so a future stale row is harmless either way: the
+  profile's activity grid clamps its spans to the expiry (`Profile.ChargeableSpan`, commit `04a012a2`) and the profile no
+  longer prints the open-ended sentinel as "99 years / expires 2125" (`e7e0c31f`).
+- **Rejected on the way: a separate archive table for finished contracts**, which the office proposed. `Contracts` is
+  already the history — each term is its own row, flagged active or not, and the register already separates them. A second
+  table would duplicate the separation rather than add it, which is the fault class this session spent the day removing.
+  Measured, not guessed: **109 files carry 384 references** to `Contracts`/`ContractId`/`Occupancies`, and `Stall.Occupancies`
+  builds the whole money timeline from that one collection. Also considered and rejected: displaying the TERM period instead
+  of the occupancy period in the register. It breaks a closure — Karmilita Log's contract runs to 2027-08-09 and is still
+  active; she is in the register because her stall was closed on 2026-09-06, so her row must read the closure, not the term.
+
+
+not re-attributed.** Ruled 2026-09-10, after the office found the Report of Collections reading ₱566 where the collectors
+list read ₱536. The gap was one August day collected on 1 September: the report counted by the moment money was recorded,
+the list by the period the fee was FOR. The office's first instinct was to move the money to the month it belongs to, and
+the reason that was not done is worth keeping: with a fee-month basis, settling a 30 September day in October **rewrites
+September's report after it has been printed**, and nothing is snapshotted — the document is regenerated live every time.
+A cash basis can only ever add to the current period, so changes move forward. So the total stays whole and the report now
+states how much of it answered for earlier periods (`CollectedForEarlierPeriods`), letting the office read what the month
+earned without the document ever changing behind them.
+- Revenue attribution by the month a fee belongs to is unaffected and remains the rule everywhere it decides whether a
+  month was good: the facility reports, monthly obligations, arrears and the whole compliance path.
+- The collectors list was aligned to the report, and three faults went with it: no paid filter at all (an absence carries
+  the day's fee, so a stall marked absent would have counted as money), the month-end difference omitted, and utilities
+  included where the office banks them separately and the report excludes them.
+- **The tests that existed could not see this.** They seeded a fee whose own day and whose recorded moment fell in the same
+  month, so either basis gave the same answer — which is why the disagreement survived. The new test collects a December
+  day in January and asserts from BOTH months.
+
+**Excusing a month excuses its electricity and water.** Ruled 2026-09-08. A payor excused for a month is not billed for
+that month at all — the utilities go with the rent. Where they do owe a light or water bill they can still pay it through
+the collector or the office; what an excusal removes is the OBLIGATION, not the ability to settle. Asked because the
+screens disagreed: `PaymentRepository.Ledger.cs` (twice) and `StallRepository.ClosedAccounts.cs` already forgave the
+utilities while the compliance path billed them. Implemented in `57f9c0c3`/`33722e34` by billing an excused month exactly
+what it TOOK — rent and utilities together — because dropping the utilities while their payment stayed in the period total
+would have recreated the drift fixed in `64624dff`, pointing the other way.
+
+**Month-End does not count utilities the way the Financial report does.** Asked and answered 2026-08-29: it stays as it
+is. A meter charge is not a stall or a daily fee, and the sheet's own Miscellaneous table already states electricity and
+water on their own. Recorded because the two documents will keep looking inconsistent to anyone comparing their totals,
+and that difference is deliberate.
+
+**A section's rate applies from the day it is stated, and never backwards.** Ruled 2026-08-29, when the office asked to
+price its own market sections. Their words: nothing already recorded is touched. The rows are effective-dated exactly as
+`FacilityRates` are, and the daily fee is resolved as of the day being billed — which the settlement service already does,
+one day at a time — so a rate stated today leaves yesterday's unpaid day on the figure it was always owed at.
+
+**A stall let at its own rate keeps that rate.** Ruled 2026-08-29 in the same breath: an own rate is what that space was
+allocated at, so a section's figure does not overrule it. `NpmDailyFee` answers in that order — the stall's own rate, then
+its section's, then its area's, then the market's — and the order is stated once, there.
+
+**Activation asks a payor for no name.** Decided 2026-08-27 after the office saw a payor type "Godon Larl" for the
+register's "Godon Lar". The one-time code and the registered mobile number are the whole proof of ownership; the name was
+only ever the greeting. It now comes from the active contract for the stall the code was issued for, so an account cannot
+be greeted by its owner's typo for ever.
+
+**The sheet is a Monthly Collection Report, not a month-end one.** Renamed 2026-08-22 at the office's request, after they
+pointed out the title claimed something the document does not do: nothing about it waits for the month to close, and the
+office opens August on the twenty second. A closed month prints its period plainly; a month still running prints "as of"
+the day the figures were taken, so a filed copy cannot be mistaken for the final position. The route
+(`/reports/month-end`) and the C# type names were deliberately left alone — a bookmark should keep working, and renaming
+`MonthEndReportDto` would be churn the office never sees.
+
+**No LGU holds destructive power over another's data.** Raised by the office itself (2026-08-20) and acted on 2026-08-21.
+The platform operator is now an account carrying the `IsPlatformOperator` flag and nothing else: `PlatformOperatorPolicy.IsOperator`
+takes one argument and returns it. Until then the policy also accepted `isDefaultTenant && role == SuperAdmin`, a documented
+fallback from when the default municipality was the only one on the platform. That clause made one municipality's Head the operator
+over all of them, including `POST api/backup/restore`, a destructive restore across the whole shared database with every LGU's
+records in it. The Head keeps its own per-LGU backup and restore, exactly like every other Head, and loses `BackupController`'s six
+endpoints and the nine `PlatformOperatorGuard.IsCurrentAsync` sites (the onboarding pipeline and the two operator queries).
+`AdminAuthController`'s two MFA endpoints are `Roles = SuperAdmin` and were never gated by the policy. Console sign-in already
+read the flag directly, so `admin.stalltrack.site` is unchanged by it. The full record, including what was verified before
+deleting the clause and which tests were inverted, is under "Retired work" below.
+
+**Client names identify the client.** Confirmed by the office 2026-08-14: within one LGU there are no namesakes — two
+different people carrying the same name is a national-scale problem, not a municipality's. So a slaughterhouse owner's typed
+name IS their identity, and matching by name (ignoring case and redundant whitespace, per `PersonName`) is sufficient. No
+payor/client entity is required. What a name cannot survive is a genuine misspelling, which is a data-entry correction, not a
+modelling gap.
+
+**OR numbers.** Unique per TRANSACTION within the LGU. The same number must never appear against another vendor, or in
+another module. But one transaction may produce several RECORDS, and those share the one number, because it was one
+payment: two kinds of animal on one slaughterhouse receipt; several market days paid at once; several months settled
+together. Verified 2026-08-12 that the code implements exactly this — all five repositories route to one
+`OrNumberRegistry` (Infrastructure/Repositories/OrNumberRegistry.cs), which allows the repeat within one stall's months,
+one stall's days, and one slaughter receipt (same owner AND same date), and refuses it everywhere else. It also checks
+soft-deleted rows, so deleting a record never frees its receipt number, and it scopes per municipality so a second LGU
+may reuse a number that exists only in another.
+
+**A collector's feed answers for the money, the office's reports answer for the day.** Established 2026-08-24 when the office
+settled three payors' Aug 22, 23 and 24 in one afternoon and found ₱30 on the app's Records tab against a ₱90 receipt. Two
+bases coexist deliberately. The mobile Records feed is a cash view: every source in it, including NPM daily fees since this
+date, is selected on when the money was taken, and a receipt shared by several days reads as one card carrying the whole
+amount with the days it covered named in its detail. Every facility report is an accrual view: a fee counts in the period the
+day it covers falls in, which is why a late-settled day turns its own calendar cell green and why the trend showed ₱90 on each
+of the three days rather than ₱270 on one. Nothing in the facility report repositories reads a record timestamp, so the two
+never disagree by accident. The caption over the trend was corrected the same day; it had said "recorded collections".
+
+**One entry per payor on the collector's Records feed.** Decided 2026-08-24 after the office saw one payor twice on the same
+day, ₱90 on one receipt and ₱30 on another, and asked for the name to appear once. An entry is a payor at one stall for the
+day, whatever number of receipts they were given, and it states the money that payor handed over. Nothing the office answers
+for is collapsed: the entry holds each receipt intact and the detail names every one against its own time and amount, with
+the days or months it covered underneath. Never merged, and each refusal is tested: an absence (a ₱0 statement, not money),
+an office-recorded entry (attribution must stay plain), and two stalls of one payor (the office reads a stall). The rule
+lives in `EEMOCantilanSDS.Mobile.Core/Records/CollectorRecordGrouping.cs` rather than the razor page precisely so it can be
+tested, the mobile UI having no automated coverage; `CollectorRecordGroupingTests` is the record of it.
+
+**The three billing rules** stand as implemented, per the same interview: a term of N years owes exactly N × 12 months'
+rent; an expired contract stops accruing rent but keeps its balance collectable; a current or yearly market report counts
+only the market days elapsed as of the report date.
+
+---
+
+## Open questions for the office
+
+### HISTORICAL / SUPERSEDED — EXAMINED 2026-08-31 (second pass): a per-municipality market billing basis
+
+This section preserves the pre-implementation design record. The rule object, persistence, activation wiring and core
+settlement behavior described below now exist. Later adoption work removed the remaining fixed-rent assumptions from
+Vendor Registry, returning-payor flows, import, rosters/exports and basis-sensitive profile/configuration presentation.
+Treat statements such as “missing” and “not started” below as historical, not current status.
+
+The office refined its own idea and it is a better design than the first pass. Two bases for the market:
+
+- **Daily with a monthly goal** — the month is let for a rent and collected in installments. Cantilan's rule, and the default.
+- **Pure days** — the month owes the days it has, ₱30 × 31 = ₱930 in a long month, and the monthly figure is REMOVED from the
+  screens, because a monthly amount is meaningless when no two months owe the same.
+
+Chosen at onboarding, changeable afterwards from Facility Configuration, with a one-time confirmation of the rule in force
+before vendors are added or imported.
+
+**Feasible, and three of the four pieces already exist in this codebase.**
+
+1. **The one-time confirmation modal exists.** `Client/Components/Shared/MarketRentReminder.razor` already asks an LGU to
+   confirm the monthly rent in force, once. It is Head-only ("an Admin cannot edit rates, so a question they cannot answer
+   would be noise"), skips a tenant with no market, and FAILS QUIET - "a setup question must never stand between the office
+   and its work". The new question is that same component's next version, not a new invention.
+2. **The choke point exists.** Thirteen production paths compute a daily-billed month and every one goes through
+   `DomainRules.DailyBilledMonthObligation` / `DailyBilledMonthCoverage`, and every one already holds a `FeeRateSnapshot`
+   (verified file by file). The snapshot is the carrier for the basis.
+3. **The per-municipality home exists.** `Facility` is `IMunicipalityOwned`, so a basis lives on the market's own facility row
+   as an additive column, exactly as `CustomSectionNames` already does.
+4. **Missing:** the pure-days arithmetic, and the rule object that chooses between them.
+
+**THE CORRECTION, and it matters more than the feature.** The office described the logic as "if it is Cantilan do this, if it
+is a non-Cantilan municipality do that". **The code must not decide that way, and this codebase already refuses to.** In
+`GetNpmRatesQueryHandler` - the very handler that would host the new option - the exemption is decided by POSITIVE PROOF of
+the caller's own municipality row being the default one, and the reason is written out beside it: a request carrying no
+municipality claim resolves to the default tenant code by a platform-wide fallback, so a code comparison would have exempted
+the very LGU that most needed asking. Behaviour follows the office's STATED CONFIGURATION. Cantilan behaves as it does
+because its configuration says monthly goal, which is also the default - so a second LGU choosing the monthly goal gets
+identical behaviour with no code change, and no LGU can be given the wrong rule by a rename or a missing claim.
+
+**The rule object, which is what makes partial adoption impossible.**
+`NpmMonthBasis { RentGoal, PureDays }` on the facility; one interface with two implementations - one that answers a month
+with its rent and tops a short month up, one that answers a month with its days and has no adjustment at all. Resolved once
+per request, carried on the snapshot, asked by all thirteen paths. `DomainRules` keeps the arithmetic; the rule object
+chooses which. Then **delete the basis-less overloads** so a path that has not been converted cannot compile, and add an
+architecture test naming the readership - the pattern this repository already uses three times
+(`SectionRateReadersAreNamedTests`, `ApplicationEfBoundaryTests`, `CrossTenantReadsAreNamedTests`).
+
+**What "remove the monthly table" actually reaches**, so the office can see the size: the vendor form's Monthly Rental input
+and its Whole Year line; `Stall.MonthlyRate` as it applies to market stalls; the roster's "Monthly Rentals per Contract"
+column; the coverage column on the ledger and the three reports; the payor portal's `monthlyRate` field on a balance; the
+monthly-to-daily assist; and `MarketRentReminder` itself, which stops being about a rent and becomes about a basis. The
+collector app needs no change on the daily side - it already bills per day - but its month totals come through the same
+helpers, so they follow the rule object.
+
+**Still to confirm before building:** February. On pure days a 28-day February owes ₱840 with no ₱60 top-up, and a year
+collects 365 installments rather than 360. The office's plan implies accepting that, since it is the whole point of the
+basis, but it should be said out loud once because it is money.
+
+**Cantilan's safety:** the default is RentGoal, so its behaviour and every live tenant's is unchanged byte for byte, and the
+existing suites are the proof - they encode today's rule and must all stay green without amendment.
+
+### EXAMINED, not built: letting each municipality choose how a daily-billed month is measured (asked 2026-08-31)
+
+The office wants a control on Facility Configuration where a municipality picks its own basis: either **the rent** (a month
+owes ₱900 however many days the calendar gave it, which is Cantilan's rule and stays its default) or **the days** (31 × ₱30 =
+₱930, with no month-end adjustment). Examined before quoting it. **It is feasible, and this codebase is unusually well
+shaped for it, but it changes the platform's definition of an obligation and there are three consequences the office has to
+accept first.**
+
+**What exists today, precisely.** `DomainRules.DailyBilledMonthObligation` reads:
+`var rent = monthlyRent > 0 ? monthlyRent : dailyFee * 30; if (daysHeld >= daysInMonth) return rent;`
+So a full month owes the rent whether the calendar gave 28 days or 31, and where the office has stated NO monthly rent the
+rent is thirty installments. **Both of the office's options therefore collapse to ₱900 today: there is no mode that bills
+₱930.** The second basis is genuinely new.
+
+**Why it is feasible: the rule is already in one place.** Thirteen production files compute a daily-billed month - the
+stall ledger and its grid, the closed-accounts register, the market settlement service, the settle-month command, the
+collector's own report, the revenue report, three report handlers, the register, `Stall.ResolveMonthlyRent` and the
+monthly-rent assist - and **every one of them goes through those two `DomainRules` functions.** So the basis has one natural
+home rather than thirteen. Better still, **all thirteen already hold a `FeeRateSnapshot`** (verified file by file), which is
+already tenant-resolved, so the snapshot is the carrier: `DomainRules` gains the basis as a parameter, and callers pass
+`snapshot.MonthBasis`. `FeeRateSnapshot` is a sealed class with two constructors, so an optional third argument leaves every
+existing construction, including some thirty in tests, compiling unchanged.
+
+**The three consequences to accept before it is built:**
+1. **February loses its top-up.** On the days basis a 28-day February owes 28 × ₱30 = ₱840, and the ₱60 month-end adjustment
+   that exists to bring a short month up to its rent must be switched OFF - the office's own words were "no adjustment".
+   Over a year the days basis collects 365 installments against the rent basis's 360.
+2. **"A month" stops being a fixed figure.** The roster's "Monthly Rentals per Contract" column, the "Whole Year" line on the
+   stall form, and the coverage column on the reports all currently mean "the rent × 12". On the days basis a year is 365
+   installments, so those labels and figures need revising for that municipality or they will state something untrue.
+3. **The monthly-to-daily assist becomes advisory.** It divides a typed monthly figure by thirty; on the days basis a monthly
+   figure is not the billing basis at all.
+
+**The real risk is partial adoption, not arithmetic.** If the basis reaches twelve of the thirteen paths, one screen says
+₱900 while another says ₱930 - the exact fault `EarnedThrough`'s own remarks record, where "one stall carried two different
+balances depending on which screen the office opened". Mitigation is cheap and should be part of the work: remove the
+basis-less overloads and add an architecture test that fails the build if any production file computes a month without one.
+
+**Shape of the work, if the office says go:** an additive per-municipality setting defaulting to Rent (so Cantilan and every
+live tenant is byte-for-byte unchanged); the basis carried on `FeeRateSnapshot`; a branch in `NpmMonthSettlementService` that
+disables the month-end adjustment on the days basis; the thirteen call sites threaded; the architecture test; the control on
+Facility Configuration stating in one line what each basis means; and tests for both bases across February, a 30-day month
+and a 31-day month, plus a part-month.
+
+**Not started. The office's decision on the three consequences comes first**, particularly the February one, since it is the
+month where the two bases differ most and the difference is money.
+
+### BUILT 2026-08-30: closing one of the office's own market sections (asked, planned, then built the same day)
+
+The office wants an option on a section's Edit that CLOSES it, so it hides from the NPM page, and asked whether the payors
+in it "remain frozen". Examined before proposing anything. It is possible, and the shape below is the one that cannot lose
+an office money. **Nothing is built yet.**
+
+**The finding that decides the design: this platform ALREADY has the freeze, and it is per STALL.** `Stall.Close(today)`
+sets `Status = Closed` and `ClosedAt`, which drops the stall out of the register (`StallRepository.Register`) and into Closed
+Accounts. On `Reopen`, `ToggleStallStatusCommandHandler.ExcuseClosurePeriodAsync` writes the whole frozen span as excused -
+absent daily collections for the market - so a temporary closure never back-bills as arrears. That path is tested and in
+use. **A section closure must therefore NOT invent a second freezing rule**, or one click would rewrite the billing of every
+stall in the section, creating excusals nobody reviewed.
+
+**So closing a section means availability and visibility for the SECTION, and the office chose for it to close the stalls
+too:**
+- it is no longer offered when a stall is recorded (`AddVendorModal` receives the list from `NPM.razor`), nor by the
+  stallholder importer;
+- it is hidden from the market page's own section tabs;
+- it still appears in Facility Configuration, marked closed, so it can be reopened;
+- it still appears in reports, in the payment-history importer and on the settings screen, because collections happened
+  there and a report has to reconcile;
+- **no stall, balance, contract or payment changes.** A payor in a closed section keeps their balances, their history and
+  their ability to pay, and the payor portal never reads a section at all (confirmed: only the console and the collector app
+  do), so nothing about their screens changes.
+
+**The guard as first proposed was to refuse closing while any stall is still ACTIVE.** The office chose otherwise, so the
+guard became a confirmation instead; the reasoning is kept because it is why the confirmation states what it states. Hiding a
+tab hides the stalls under it, and a section with active stalls still owes daily fees.
+
+**Storage:** a small undated table (`FacilitySectionClosures`, unique on municipality + facility + section, additive
+migration), not a flag encoded into the `CustomSectionNames` text[] column. Same shape as `FacilitySectionRates`.
+
+**Six readers to touch, and two that must NOT be:** the market page (tabs + picker) and the stallholder importer filter
+closed sections out; Facility Configuration, the payment-history importer and the settings screen keep them and mark them;
+`FacilityReportsRepository.Sections` and the collector app are left exactly alone. Note that
+`FacilityRepository.GetNpmCustomSectionsAsync` derives its list from the registry AND from names found on stalls, so a
+closed section with stalls still resolves - which is what keeps history intact.
+
+**The office's answer, given 2026-08-30 in as many words: close the stalls in the same act, with a warning on screen.** So
+that is what was built, and the guard is no longer a refusal but a confirmation. Closing a section closes every stall still
+open in it; `FacilitySectionClosure` records WHICH stalls the act closed, so reopening returns exactly those and leaves a
+stall the office had already closed itself exactly as it was. Closing twice adds any stall recorded in between.
+
+**The freeze is not reimplemented.** Each stall is closed and reopened by sending `ToggleStallStatusCommand`, the path the
+per-stall control already uses, which drops a stall out of the register and, on reopen, writes its frozen span as excused so
+nothing back-bills. A second copy of that arithmetic would have been a second rule for the same money.
+
+**It is never one press.** "Close section" appears only inside a section's Edit and opens a statement rather than acting: it
+names the section, says how many spaces it reaches, and says that they stop being billed from today and that reopening
+excuses the closed days. The act is a second press that repeats the count. Reopening carries no warning, because returning a
+space and excusing its days takes nothing away. What the office is told afterwards uses the count the SERVER reports, since a
+stall may have been recorded while the drawer was open.
+
+**One refinement to the plan above, found while building it:** a closed section is filtered out of what the market page
+DISPLAYS and OFFERS, not out of the page's own section list. That list is also what `SectionStatedRate` reads, and a stall
+being edited in a closed section must still resolve its section's fee, or the form would fall back to the market's rate and
+stamp it on as the stall's own, which outranks its section's for ever.
+
+Migration `20260830131709_AddFacilitySectionClosures`, additive: one table, one unique index, and a `uuid[]` of stall ids.
+Seven handler tests and four component tests. Both properties injection-proved: closing every stall rather than only the open
+ones fails one test, and reporting a change where the section was never closed fails another.
+
+These cannot be answered by reading code.
+
+### Asked by the office 2026-08-29, on Facility Configuration and the stall form — NOT YET DONE
+
+Recorded verbatim in substance, because the message that carried them failed to send and the office asked that none be lost.
+Ordered as they were given, with what each one costs to do and the two that need a decision before anybody writes code.
+
+1. **DONE 2026-08-30. The fee field's box was narrower than the box inside it.** `.cfg-sec-fee` was a fixed 110px holding a
+   92px input plus 20px of padding, the peso sign and a gap, about 127px, so the figure was pushed out of its own field. It
+   now sizes to its content and the input fills it. **If this was not the input the office meant, it should say so** - no
+   input in this console centres its value, so this was the only defect the geometry could show.
+
+2. **REMOVED 2026-08-30. The section metering default is gone, and the office was right both times it asked.**
+   It first asked for removal on 2026-08-29, then decided to keep it on the reasoning that onboarding sets utilities for
+   other municipalities. That reasoning was wrong (onboarding carries a custom area's NAME and nothing else), and so was
+   the reason I gave for keeping it: that Facility Configuration was the only place a non-Cantilan office could state the
+   pattern. **Reading the code settles it.** `NPM.razor` opens every new market stall's form with `FeeTypes = { Electricity,
+   Water }` already ticked, and `SectionMeterDefaults.Apply` could only ever ADD. So the section default could add nothing
+   that was not there. Its only reachable effect was to re-tick a meter a clerk had just unticked, if they then changed the
+   section, which is worse than nothing. It could not express the one thing that would have helped an unmetered market -
+   starting with FEWER meters - because removing a meter is the direction proven dangerous and forbidden.
+   **What went:** the two checkboxes and their note, the metering words in a section's row, the half of Save that wrote
+   them, `SectionMeterDefaults` and its tests, `SetNpmSectionUtilitiesCommand` with its handler, endpoint, API client
+   method and tests, the repository read, the two DTO fields, and three integration tests.
+   **What stayed, and why:** the `FacilitySectionUtilities` table, its entity and its mapping. Production applies
+   migrations at startup and this platform is additive only, so dropping a table would fail a running instance mid-deploy.
+   Keeping it also means rows an office already has are still carried by its backup and still removed with the tenant. The
+   entity says DORMANT in its own remarks, and `SectionRateReadersAreNamedTests.TheMeteringDefaultStaysDormant` fails if
+   anything reads it again. Injection-proved.
+
+3. **DONE 2026-08-30. The two longest lines in the drawer cut to one clause each.** The deactivate confirmation went from
+   157 characters to 96, and the inactive note from 99 to 70. Every other note in the drawer was already one short line, so
+   these were the only long descriptions left on the screen.
+
+4. **DONE 2026-08-30, and deliberately narrower than asked. ₱900 a month fills ₱30 a day.** The arithmetic is the office's
+   own and was already a documented constant, `DomainRules.DailyBilledMonthDays`; a stall already runs it the other way to
+   show a monthly equivalent. `Client/Services/DailyFeeFromMonthlyRent.cs` runs it back.
+   **Where it does NOT fire, and why the office should know:** a figure in a custom section stall's daily field becomes that
+   stall's OWN rate, and an own rate outranks its section's stated fee for ever. The form already leaves that field blank
+   wherever the office has priced the section, so filling it from the rent would have re-created the fault fixed in
+   `971acbcd` for every stall recorded in a priced section. It therefore fills only a field that already holds a figure,
+   never one left blank, never while editing an existing stall, and never over a figure the clerk typed.
+   Eleven unit tests and seven component tests. **An injection proof earned its keep here**: deleting the blank-field guard
+   left every test passing, because another guard masked it on those inputs. A test that isolates the rule was added and the
+   proof now fails as it should.
+
+5. **DONE 2026-08-29. Electricity and water open at ₱1.00 on the FORM, and nowhere else.** The office chose the form over
+   the resolver when the difference was put to it, which keeps the rule adopted after Madrid was found charging Cantilan's
+   per-kilo fee: a figure nobody stated must never become a figure somebody is billed. `Client/Services/UtilityRateSuggestion.cs`
+   holds the figure and says in its own remarks that a resolver, report, bill or settlement asking it for a figure would be
+   that fault in a new place. It is seeded only when the office presses Edit rates, sits in the field where the office can
+   change it, and becomes a rate on Save like every other figure there. Covered by `UtilityRateSuggestionTests` and
+   `FacilityConfigurationRatesTests`; injection-proved both ways.
+   **One consequence the office should know:** because Save writes every changed rate, opening Edit rates and saving now also
+   states ₱1.00 for a metered rate that had none. The field shows the figure and a one-line note says so, so nothing is
+   hidden, but it is a real change in what Save does.
+
+6. **DONE 2026-08-29. The three canonical area rates no longer read ₱0.** They state the figure the area is actually billed:
+   its own where the office has stated one, otherwise the market's own daily stall fee, which is what the fee rule resolves
+   to. Where the market itself has no stated fee the row reads "Not set" rather than inventing a figure. `AreaRateStated` in
+   `FacilityConfiguration.razor`; three tests in `FacilityConfigurationRatesTests`.
+
+7. **DONE 2026-08-30. The three canonical areas read as a record, and state the name in use.** They were three open fields
+   showing the office's own name as a value and the platform's as a grey placeholder, so an area nobody had renamed read as
+   blank where it meant "called the default". Each now states its name with a "default" tag where it is the platform's, and
+   the fields appear behind "Edit names" - the same ruling already applied to the rates and the sections. The fields stay
+   EMPTY while editing, because pre-filling the default would store it as the office's own name on the next Save.
+   Its own CSS classes rather than the rate rows': an existing test reads `.cfg-rate-value` as meaning a stated rate, and
+   reusing it broke seven tests before the classes were separated.
+
+### Audit of the market month basis, 2026-08-31
+
+Asked for after the basis shipped, with the import named first. **Three blockers found, all the same shape, all fixed.** Two
+of the three were mine from the same afternoon.
+
+- **FIXED. The stallholder import refused every row from an office on the days basis.** It required a monthly figure on every
+  row. Such an office states none on its own List of Stallholders because it has none, so it could choose the rule and then
+  import nothing. The requirement now applies only where the office HAS a monthly rent.
+- **FIXED, and mine. `CreateStallCommandValidator` refused every market stall on the days basis.** I hid the monthly field
+  from the vendor form and left the validator demanding a figure greater than nought.
+- **FIXED, and mine. `UpdateStallCommandValidator` refused every EDIT of one.** Same cause. That validator now looks the
+  stall up, because its command carries a stall id rather than a facility and the relaxation is only for a market; a stall id
+  that answers nothing is refused rather than excused.
+
+**Cleared after examination, and stated because each looked like a defect until read:**
+
+- **The Follow-up Queue and the market reports are correct already.** Both funnel into
+  `FacilityReportsRepository.CalculateNpmDailyObligation`, which walks the months and asks
+  `_rateSnapshot.MonthRule.Obligation` for each - converted with the other ten call sites. The queue reads
+  `GetDelinquentStallsAsync` and `GetFacilityReportsAsync`, so it inherits the same answer rather than computing its own.
+- **`DomainRules.DailyBilledMonthCredit` needs no basis.** It takes the obligation as an INPUT and credits forgiven days at
+  one installment each, capped at that obligation. On the days basis that leaves exactly the days charged; on the rent goal it
+  leaves the rent less the forgiven days. Correct on both without knowing which.
+- **The daily-history and payment-history imports record what was PAID**, per day and per period, and never compute what a
+  month owes. Basis-agnostic.
+- **The payor portal shows a market stall's DAILY rate** (`isDailyBilled ? dailyRate : monthlyRate`), so no payor has ever
+  been shown a monthly figure for a market space.
+- **The collector app bills per day** and takes its month totals through the same helpers, so it follows the rule object.
+
+**Not yet audited against the basis:** report SCREEN COPY (the figures come through the rule, but wording in places still
+says a month is thirty days), the export, and the Taboan/terminal/slaughterhouse paths - none of which have a market month,
+but which share report scaffolding worth a read.
+
+**AUDIT COMPLETED 2026-08-31 (second pass).** Two more screens were stating a month nobody owes, and both are fixed:
+
+- **FIXED. The Public Market Report's register** computed `DailyRate * 30m` written out in the page, so it stated ₱900 for a
+  market that owes ₱930 in a long month. It now prints a dash where no monthly amount exists.
+- **FIXED. The settings page** read "₱900/month, collected at ₱30/day" for every office, including one whose month owes the
+  days it has. It now names the rule in force.
+
+**THE GUARD WAS TIGHTENED because it could not have caught either.** `MonthBasisIsAskedOfTheRuleTests` named the
+`DomainRules` helpers only, and both faults wrote the arithmetic out themselves. It now also polices `DailyBilledMonthDays`
+and a literal `* 30m`, with ten named files and a reason each - the constant's own definition, `Stall.ResolveMonthlyRent`,
+the two rate readers, the four screens that state the convention to an office, and the assist that runs it backwards.
+Injection-proved: a raw multiplication added to a report handler fails it by name. The dead-entry half immediately caught a
+wrong entry of mine, which is the reason to have it.
+
+**Cleared on this pass:**
+- **The export** reads the report's own `Coverage` and `CoverageBalance` and adds nothing, so it inherits the rule. Its
+  monthly rental table is scoped to TCC, NCC, BBQ and ICE, none of which has a market month.
+- **Taboan, the terminal and the slaughterhouse** bill per market day, per trip and per head. None has a month to measure.
+
+### Audit of 2026-08-30's work, done at the office's request
+
+Three findings, and two of them are corrections to claims I made myself the same day. Recorded so the record is the
+measurement rather than the reasoning.
+
+- **FALSE CLAIM, corrected: the rollout page said every user needs an email address.** A COLLECTOR's email is optional -
+  `CreateCollectorCommandValidator` only validates a format when one was entered, blanks are stored NULL so several
+  collectors may have none, and `CreateCollectorCommandHandler` takes the collector's password from the Head. Only an
+  ADMIN's email is required (`CreateAdminCommandValidator`: "Email is required"). The label now says so.
+- **FALSE CLAIM, corrected: the rollout page said mobile numbers are prepared for import.** The stallholder importer has no
+  such column. Its columns are occupant, name on contract, stall or space number, effectivity, years, area, monthly rental,
+  actual monthly, whole year and delinquent, plus Section for the market and Area Location for NCC. A payor supplies their
+  own number at activation, so there is nothing for the office to prepare. Reverted to the accurate list.
+- **MEASURED, after reasoning wrongly twice: what rounding the derived daily fee actually costs.** The figure reaches only
+  a stall in one of the office's own sections, and `Stall.ResolveMonthlyRent` makes such a stall's month thirty of its OWN
+  daily rate, because the office's stated market month does not apply to a section it does not price. So ₱800 a month
+  derives ₱27 a day and the month owes ₱810, while the monthly figure typed above it, the contract's record, still reads
+  ₱800. The divergence is not caused by rounding - at ₱26.67 the month owed ₱800.10 - but rounding widens it from ten
+  centavos to ten pesos.
+  My first attempt reasoned from `DailyBilledMonthCoverage` and concluded the month cannot exceed a stated rent, which is
+  true for a CANONICAL stall and false for a custom-section one. The second attempt asserted ₱780 and the service answered
+  ₱900, because the stall's own `MonthlyRate` field is not what a daily-billed month bills. Both are now pinned by
+  `NpmMonthSettlementServiceTests.ACustomSectionStallsMonthIsThirtyOfItsOwnRoundedDailyFee`.
+  **DECIDED by the office 2026-08-30: keep whole-peso daily rates and accept the divergence.** A contract monthly figure of
+  ₱800 with a daily rate of ₱27 billing ₱810 a month is the answer it wants, on the grounds that a whole-peso fee is the
+  truth a collector works with. The office added the condition that Cantilan's own rule must not be contradicted - ₱900 a
+  month is ₱30 a day - and believed that already held by design. **It does, and it is now pinned rather than believed:**
+  the derived figure only ever reaches a CUSTOM-section stall, `Stall.ResolveDailyFee` reads a stall's own daily rate only
+  when it is in a custom section, and the form renders no daily fee field for one of the three canonical areas at all. So a
+  canonical Cantilan stall keeps the ordinance's ₱30 whatever rent is typed against it. `ACantilanAreaStallKeepsTheOrdinanceRateWhateverRentIsTyped`
+  asserts both halves and fails if the field is ever offered for a canonical area; ₱900 dividing to exactly ₱30 is asserted
+  too, since rounding cannot disturb a figure that already divides. **Closed.**
+
+### Audit findings examined 2026-09-08/09 — one FIXED, two DISMISSED, with the evidence for each
+
+Recorded so a third audit does not raise them again, and because in both dismissed cases "fixing" them would have made the
+system worse.
+
+- **The financial report's Recent Records linked a payor by STALL NUMBER — FIXED 2026-09-09.** The last live instance of the fault
+  fixed in `7d4b2bc2`. It survived that commit because `FinancialRecordDto` carried no stall id to pass: the transaction feed's
+  `Reference` is a LABEL shared across facilities (stall no, plate, animal), so it can never identify anything. `TransactionFeedDto`
+  and `FinancialRecordDto` now carry `Guid? StallId`, populated for the two stall-based feed paths (monthly rent, daily collections)
+  and left null for slaughter, terminal trips and market-day vendors, which have no stall. `Report.razor` links by id where there is
+  one and falls back to the number where there is not — unchanged behaviour for the rows that never had a stall.
+  - Pinned at BOTH levels, because either alone passes while the bug lives: `TransactionFeedTests` seeds two stalls both numbered "1"
+    in different sections with the payment on the second, and `ReportPageTests` asserts the rendered href WHOLE (a `Contains` for the
+    id would still pass if the number were what the link used).
+  - **Every other profile link was checked at the same time and is already by id** — `TCC.razor`, `Vendor.razor`, `ClosedAccounts.razor`,
+    `PastFollowUpQueue.razor`, and `FacilityStallsTable.razor`, which prefers the GUID with a comment naming this very reason.
+
+- **`FacilityPage.razor:455` linking a profile by STALL NUMBER is not ambiguous.** Raised as the same fault fixed in
+  `FollowUpComposer` and `ClosedAccounts` (`7d4b2bc2`), where NPM's per-area numbering gives one facility several stall "1"s.
+  It does not apply to this component's four consumers — BBQ, Iceplant, NCC and CustomFacility. The unique index is
+  `(FacilityId, COALESCE(CustomSectionName,''), StallNo) WHERE Section IS NULL`, and its own migration comment says non-NPM
+  facilities stay at per-facility uniqueness. `CustomSectionName` is only ever set when `isNpm`
+  (`BulkImportStallholdersCommandHandler.cs:36`; every other writer is NPM-specific), and `CreateStallCommandValidator`'s
+  exactly-one-section rule is `.When(FacilityCode == NPM)`. So a stall number IS unique inside those facilities. **Left alone.**
+
+- **`LastCollectedOf` not skipping market-closure days is correct.** A day only qualifies as a carrier if it is already PAID,
+  so a closure day can only be chosen when the office collected it and declared the closure afterwards — the money is real.
+  Skipping would be the dangerous behaviour: were the only paid day of a short month also a closure day, the carrier would
+  come back null and the month-end difference would be dropped silently, leaving the month short for ever. Nothing downstream
+  loses it either — the collection sums filter on `IsPaid` and the date range only, never on closure, and carry
+  `DailyFee + MonthEndAdjustment` together. **Left alone, and the reasoning is now in the method's own remarks.**
+
+### Verified accurate and left alone during that audit
+
+- The rollout page's facility list against `FacilityCode` (NPM, TCC, NCC, BBQ, ICE, SLH, TRM, TPM, Custom1-5).
+- Its billing models against the console's own words: daily stall, weekly market, monthly rental, per trip, per head, per
+  kilo.
+- Its four rollout stages against the registry's `rolloutStage` and the admin app's own pages.
+- "Report & receipt setup" after removing the payment-account claim: `ActivateMunicipalityCommand` carries branding,
+  facilities, rates, one administrator and an OR series, and no payment account. Online payment runs through the platform's
+  own gateway, not a per-LGU one.
+- The rounding rule is reachable from `AddVendorModal` and its tests only; no server path derives a daily fee from a
+  monthly rent.
+- The controller move: all 38 files are renames at 100% similarity, so no `[Route]` and no class name changed. Twelve live
+  routes probed across all eight new folders, and `api/onboarding/{token}` was confirmed matched rather than missing by a
+  DELETE returning 405 where an absent route returns 404.
+
+### Found while examining the above, 2026-08-29
+
+- **An operator locked out with an UNCONFIRMED address has no self-service path (2026-08-30).** Diagnosed from a real
+  report: the office set the operator's `Email` directly in the database, asked for a password reset, and no email arrived.
+  Working as designed, and the design has a dead end. `RequestPasswordResetCommandHandler` requires
+  `IsActive && EmailVerified`, and `EmailVerified` is set only by `CompleteActivation` or by confirming an emailed link, so
+  a SQL-set address is unconfirmed. `OnEmailChanged` clears the flag on purpose, so that an address swapped in cannot
+  inherit the old one's trust and start receiving reset links.
+  The in-app fix exists and works: signing in shows a one-line notice with "Send confirmation" (`ad075ba7`, `8b6ad26`).
+  It requires knowing the current password. An operator who has BOTH forgotten its password and never confirmed its
+  address needs a database write (`UPDATE "Users" SET "EmailVerified" = true`), because the operator has nobody above it.
+  Not fixed: any anonymous "resend confirmation" would send mail to an address chosen by whoever last edited the database,
+  which is a decision for the office rather than an oversight to patch.
+
+- **`InitiateOnlinePaymentCommand.Days` has no caller.** The payor portal's day picker became fish-specific when per-day
+  kilos arrived, so a plain daily month is paid in full, which is the API's own documented default ("Full balance only").
+  The multi-day count and its guards are still tested server-side and still correct; they simply have no client. Not a
+  defect, and not to be "fixed" by sending a count nobody chose.
+- **The platform repository's CI never ran a test until 2026-08-29.** It built three apps and stopped, so the admin
+  console's forty specs had never run on a runner. Both projects are now named explicitly in `ci.yml`.
+- **`apps/payor` had no specs at all** and now has sixty, over the session, the shared token refresh, the initiate request
+  shape and the fish day arithmetic. The landing site still has none.
+
+1. **Two Postgres firewall rules — REMOVED 2026-08-17** on the office's instruction. They opened `180.194.5.178` and
+   `180.195.158.234` indefinitely, for machines nobody uses. `AllowAllAzureServicesAndResourcesWithinAzureIps` remains, which is how
+   the API and the backup workflow reach the database — verified straight after removal by `/health/ready` answering `ready` and
+   `/api/municipalities` still reading. A one-off inspection now needs a temporary rule for the current address, which is the
+   sequence recorded in `ONBOARDING_FLOW.md`.
+
+---
+
+## Retired work
+
+Items that were open and are now closed, kept because the reasoning is what stops them being reintroduced.
+
+- **The excusal faults were audited against production and NEITHER reached the data — 2026-09-07 (`9e7c20b8`).** Read-only, with the
+  session forced read-only at the server too. Six excused days exist in the whole database: Karmilita Log, stall 1, Sari Sari, 31 Aug to
+  5 Sep, written by `head` at 09:58 PH on 6 September — the closure the office reported. Every one has a created-to-updated gap under a
+  millisecond, so each row was CREATED as an excusal rather than rewritten from an existing record. That is the legitimate case: days
+  with nothing recorded, on a stall whose section was closed. **No debt was forgiven and no repair is needed.** There are no monthly
+  exceptions in the database at all, in any municipality, so the part-paid month fault has no instances either.
+  - The queries live at `../../tools/diagnostics/excusal-audit.sql` with the result recorded in their own header, so nobody re-runs them
+    against production to learn the answer.
+  - **Two faults in the diagnostic itself, found by running it.** It referenced a column `Note` that does not exist — it is `Remarks` —
+    so that query errored and returned nothing; the month fault was still ruled out, but by the scale query rather than the one written
+    for it. And grouping by an exact `UpdatedAt` found nothing on a batch that plainly existed, because the timestamp is set per row as
+    each is marked: six days of one reopen differed by microseconds. Bucketed to the second it finds it. A diagnostic that fails past
+    the reader is worth less than none, so both are corrected.
+
+- **Closing a section no longer forgives days the office recorded as owed — 2026-09-06 (`570a19ce`, `b4a4f38d`, `4e342c82`).** Three
+  distinct faults were reported as one. Two of the office's own descriptions were wrong, and the corrections matter more than the fixes.
+  - **CLOSING EXCUSES NOTHING.** `Stall.Close` writes no rows and the section handler only closes stalls. The excusal runs on REOPEN,
+    over the frozen span. The act that wrote those records reopened the section.
+  - What was actually lost is days INSIDE the span: `ToggleStallStatusCommandHandler` took a day recorded as *Not Collected* and rewrote
+    it as excused. The paid case was guarded from the start; the owed case was not, and owed is the one that costs money. **Only a day
+    nobody recorded is excused now.** Days with no record still are, which is what stops a closure becoming arrears — the test asserts
+    both halves, because a fix that merely stopped excusing would have created the fault the feature exists to prevent.
+  - **The pile of identical cards was a display fault, not duplicate data.** `CollectorRepository.Mobile.cs` filters the records feed on
+    `(UpdatedAt ?? CreatedAt)` — when a row was WRITTEN, not the day it settles — so one closure excusing six days produced six cards
+    stamped 09:58 on a day nobody touched the section. Excused days for one payor at one stall are one card now, reading "Sep 1–3 ·
+    excused". An absence still never merges with a PAYMENT: putting one inside a receipt total would have a collector remitting a day
+    nobody owes.
+  - **The report never consulted the closure table at all.** Here the obvious fix would have been worse than the fault: the section cards
+    must sum to the facility total, so filtering closed sections out would have dropped real revenue from the breakdown while the total
+    kept it. A closed section is omitted only when it has nothing to report for the period; one that took money earlier keeps its card.
+    Closing a section today therefore does not rewrite last month's report.
+
+- **A part-paid month is not excused by a closure either — 2026-09-07 (`e12d78e2`).** The paid case was guarded; the partial case was not,
+  and it is the worse of the two. An excused month contributes NOTHING to the obligation while the money handed over is still counted
+  across the period, so excusing a part-paid month forgave the remainder AND let the payment float onto other months. Not a lenient
+  write-off — money crossing periods. A month with money against it, paid or part paid, is never excused by a closure. A month with none
+  still is.
+
+- **Money paid for a month stays with that month, even when the office excuses it — 2026-09-07 (`64624dff`).** The office's ruling, from
+  its own example: September owes ₱900, ₱500 is paid, ₱400 remains, the office excuses September. The ₱500 belongs to September; only the
+  ₱400 is excused; October must not move.
+  - Expressed by billing an excused month EXACTLY WHAT IT WAS PAID, so obligation and payment cancel inside their own month and no
+    surplus exists to travel. A month with nothing paid is billed nothing and forgiven whole, which is the ordinary case — and the reason
+    the fix is not simply "stop skipping excused months".
+  - **A part payment is credited to RENT first**, capped at the month's rent. A rent exception excuses rent; crediting it to electricity
+    first would have settled both and written off a light bill the office never waived.
+  - Confined to `CalculateMonthlyRentObligationDue`, which has ONE caller. Checked before writing: `CalculateStallRentObligationDue` is
+    only reached where no payment record exists, so nothing can drift there, and the other four readers of the excused-month set skip
+    month by month rather than differencing totals. **This also closed the audit's finding that manual excusals had no payment check** —
+    the arithmetic is now right whichever handler created the exception.
+  - The tests assert a COMPARISON, the same account with and without the excusal, because the figure that matters is not September's
+    balance but whether October's moved. An absolute assertion passes while money drifts, which is how this survived.
+
+- **The platform operator has no backup scope — the office's ruling, 2026-09-07 (`8292664c`).** Each municipality holds its own
+  credentials and a catastrophe can be put right directly on the cloud, so an operator console for whole-database backup and restore was
+  scope nobody needed. 1,916 lines removed: six endpoints, the API client and interface, `TriggerBackup`, `TriggerRestore`, four run
+  queries, three DTOs, `IBackupService` with its GitHub Actions implementation and options, the DI gateway, and in the Blazor page the
+  operator section, its two dialogs, its state and formatters, plus the cross-page restore toast.
+  - **Checked before deleting:** `backup.yml` and `restore.yml` drive `pg_dump` and `psql` directly against the database and
+    `backup-freshness.yml` makes no API calls, so nothing outside the app used those endpoints. How backups actually run is untouched.
+  - **The office's own per-tenant backups are untouched** — separate commands, separate client, separate page section. `BackupArtifact`
+    was in the deletion list until the compiler showed the tenant export, tenant backup file and tenant restore snapshot all use it.
+  - **The compiler found the references, not grep.** Greps of the form `Project\**\*.cs` UNDER-REPORT deep paths — one reported
+    `RestoreNotifier` as dead when the toast and the page both used it. Every removal was verified by a build.
+  - The `GitHubBackup` token is still in production app settings. The code that read it is gone so it is inert; removing a deployed
+    secret is the office's to do.
+
+- **The Stall Holder List can be read as of an earlier year — 2026-09-06 (`c5740ec5`), corrected 2026-09-07 (`3aaa8daf`).** Asked for so
+  the office can answer a panel about 2019. A control alone would have answered nothing: the roster lists CURRENT holders and drops
+  closed and expired accounts, so no filter over the rows it returns could bring back somebody who has left.
+  - The year is an AS-OF point read against the contract history, not a filter. No year and the CURRENT year both mean today, so the
+    register the office opens every morning is unchanged — same rows, totals, request and cache entry, with a test asserting the two reads
+    are identical row for row.
+  - The year is part of the cache key, a historical read is never saved as the page's fast-reopen copy, and the sheet prints
+    "AS OF DECEMBER 31, <year>" with the year in the CSV filename. A printed page leaves the screen behind.
+  - **The first version answered a snapshot with a range.** It used a whole-year window and took the first match, and occupancy windows
+    are ordered OLDEST first — the summary on `OccupanciesOverlapping` said "newest first" and had been wrong longer than the feature
+    existed. A stall re-let in April 2019 was reported under the lessee who left in March, and one vacated by June still appeared on a 31
+    December roster. Both bounds are the stated day now, which can match at most one occupancy.
+
+- **An Excel export that opens readable — 2026-09-06 (`f07c7dc7`).** The CSV showed `########` in the Effectivity column. Not our data:
+  Excel prints a DATE or NUMBER as hashes when the column is narrower than the value, and its default column holds about eight
+  characters, so `8/9/2026` appeared and `8/11/2026` did not. **A CSV cannot carry a column width**, so nothing written into it could
+  have fixed this.
+  - The two text-forcing tricks are refused on purpose by `CsvCell`, which neutralises a leading `=` or tab so an occupant name recorded
+    as `=HYPERLINK(...)` cannot run when the office double-clicks an export. That safeguard was not worth trading for a column width.
+  - So there is an Excel button beside the CSV one, and **the CSV is kept** — anything consuming that file still works. Values go in as
+    what they ARE, so the sheet sorts and filters properly; text dates sort alphabetically and file 1 September before 2 August.
+  - `DocumentFormat.OpenXml 3.5.1`, pinned. Microsoft's own package, MIT, one dependency, targets net10.0 — chosen over a friendlier
+    wrapper because a short dependency chain with plain provenance is worth more here than convenience. The tests read the bytes back
+    through the same library: a workbook Excel refuses to open would be worse than the hashes.
+
+- **Collectors can settle a closed month in the field — the office's ruling, 2026-09-06 (`3566a3bd`).** The arrears screen said a payor
+  was a month behind and offered no way to take it.
+  - **The past month's days were NOT added to the day chips**, and that is the substance. A month let for a rent owes that rent whatever
+    its calendar gave it: a 31-day month at ₱30 owes ₱900, not ₱930, the last installments folded into a month-end difference. Offering
+    the days would have collected ₱930 and reported the month settled.
+  - So a closed month is settled AS A MONTH through `SettleNpmMonthCommand`, the same settlement the portal uses. The handler already
+    checked the collector's assigned facility and stamped the collector's id; only the route was closed. The collector app got its own
+    endpoint onto that command and the administrators' endpoint is untouched, with a test pinning both.
+
+- **The mobile Records feed is banded by area — 2026-09-06 (`7fd9cbda`).** A flat run of cards each repeating its own area. Banded the way
+  the Menu's collection screen already groups, so the card no longer states what the heading above it says. Canonical areas keep the
+  market's own order — grouping alone falls into alphabetical order and files Fish above Vegetable, reading as though the market had been
+  reorganised. A facility with no areas is banded by the facility, since a band with nothing to say is worse than none.
+
+- **The utility sheet opens with nothing collected — 2026-09-06 (`9d57e27a`).** It used to open with each owing utility already marked
+  Paid, deciding on the collector's behalf that money had changed hands. Three equal buttons became the utility row itself: tap to mark
+  collected, with a part payment behind its own quiet action. **The receipt is asked for once** — offices issuing one per utility can
+  still say so. The rule about which receipt goes against which utility moved to `Mobile.Core` so it could be tested; an injection proof
+  then showed every test covered only water being left out, so half the rule was unguarded until both directions were stated.
+
+- **The collector's Reports screen reads as a statement of account — 2026-09-06 (`219011bc`).** Ten identical rows, every figure the same
+  weight, so the sum a collector remits sat level with a count of excused records. Weight follows meaning now: the money he answers for,
+  then money that is not his to remit, then the payors as ONE block because those four counts partition the same people, then an event
+  count that opens nothing as a plain line. Two tests hold that no drill-down was lost — the real risk was a list the detail view can
+  still title while nothing opens it — and they read the card names out of the page rather than listing them.
+
+- **The Collection History Total row took the biggest month instead of adding the months up — FIXED 2026-09-06.** Reported from use on
+  the New Public Market history: August showed ₱1,140.00 outstanding and September ₱840.00, and the Total row said ₱1,140.00 rather
+  than the ₱1,980.00 the office is still owed. All six facility report pages totalled Outstanding with `Max` while totalling Collected
+  beside it with `Sum`, so the row contradicted itself on the same line and every one of them understated arrears.
+  - **Summing is right because each monthly row is that month ALONE.** `CurrentAccountStart` bounds the obligation below by the period
+    start (`max(newest occupancy start, periodStart)`), and the compliance balance is period obligation minus period collections — so
+    the months are disjoint and add up. Checked in the code rather than assumed, because if the figures had been CUMULATIVE arrears the
+    right answer would have been the LAST month, not the sum, and `Max` would have been nearly right by accident.
+  - `FacilityReportsHistoryTests.History_MonthlyOutstanding_AddsUpToTheYearsOwnFigure` states it as a property, not an arithmetic
+    example: the months must add up to what the same code computes over the whole YEAR. If the monthly figures ever become cumulative,
+    that test fails and the total has to change with them.
+    - **The equality was still being asserted beside the property until 2026-09-08**, one line under a comment saying asserting it was
+      the overclaim an audit had caught: the earlier fix was left half-applied and a second audit found the pair contradicting each
+      other. Now only `summed >= year.Outstanding` is asserted. Equality holds for this seed because it has no prepayment, and that is
+      a fact about the seed, not the property — pinning it would fail a seed that added a prepayment, for no fault at all.
+  - **For Follow-up is deliberately NOT totalled — it is dashed.** It counts people: the same payor unpaid in several months would be
+    counted once per month, and the page holds only the monthly counts, so no true figure can be formed there. Consistent with Total
+    Stalls beside it, which was already dashed for the same reason. `Max` was not defensible there either — a payor owing in August and
+    settled in September is still someone the office chased.
+  - `FacilityHistoryTotalsTests` guards the presentation across all six pages, because the markup is duplicated and the original fault
+    was in all six: a fix applied to whichever page somebody happened to be looking at would leave five reports quietly understating.
+
+- **Closing the operator's sign-in did not close the operator's API access — FIXED 2026-09-05 (`PlatformOperatorBoundaryMiddleware`).**
+  Recorded from an independent audit that was right and a commit message of mine that was wrong. `LoginCommandHandler` refuses the
+  platform operator a municipal portal session, and that part worked. But `TokenService` mints the SAME token for `console-login` as
+  for the municipal login: `Role = SuperAdmin` and `MunicipalityId = user.MunicipalityId`, which for the operator is the DEFAULT
+  municipality. Municipal controllers authorise on role alone — `StallsController` and `ReportsController` are
+  `[Authorize(Roles = "SuperAdmin,Admin")]` — and the tenant filter resolves from that same claim. So an operator holding a console
+  session could still read the default LGU's stalls, collections and reports through the API directly.
+  - My commit message for `821a0ac3` said closing the sign-in door had "the same effect" as restructuring account ownership. That
+    was wrong, and the audit was right to catch it. The screen was closed; the boundary was not.
+  - **The fix is DEFAULT DENY, allow-listed by prefix**, in middleware placed after `UseAuthorization` beside
+    `MustChangePasswordMiddleware`. Listing municipal endpoints to forbid would leave every new controller exposed until somebody
+    remembered to add it; listing what the operator needs is short and fails closed. The allow-list was enumerated from the admin
+    console's OWN sources rather than assumed — activation, adminauth, assessment, municipalities, onboarding, platform-setup,
+    health — and nothing else was found to call the API with an operator token. 24 tests, both directions, because getting the list
+    wrong one way exposes an office's records and the other way locks the operator out of the platform it runs.
+  - **`RefreshTokenCommandHandler` was examined and left WITHOUT a guard — 2026-09-08. This is a decision, not an omission.** It renews an
+    access token through `CreateAccessToken` and asks nothing about who the account is, which was raised on 2026-09-05 as a loose end: a
+    refresh cookie issued before `821a0ac3` keeps working. Adding the obvious guard would have been actively wrong, for two reasons.
+    - **The operator's own console refreshes through that same route.** `auth.interceptor.ts` posts to `api/adminauth/refresh-token`, and
+      its comment says so — that is what keeps the operator signed in. Refusing operators there would sign the operator out of the platform
+      it runs, every time its access token expired. That is the exact failure the boundary was built to avoid.
+    - **It would gain nothing.** `TokenService` adds the `PlatformOperator` claim to EVERY token it mints for an operator account, refreshed
+      ones included, so `PlatformOperatorBoundaryMiddleware` refuses them on every municipal endpoint. The cookie can mint tokens; the
+      tokens cannot reach an office's records. The boundary holds at the data layer, which is where it matters.
+    - `TokenServiceMunicipalityClaimTests.ARefreshedAccessTokenStillCarriesTheOperatorFlag` pins that premise deliberately through
+      `CreateAccessToken` — the method the refresh path calls — because the sibling test goes through `CreateToken`, and if the two ever
+      diverge so the claim is added only on the login route, the boundary would open silently.
+    - What an operator holding such a cookie CAN still do is reach the allow-listed platform endpoints, which is what its console needs.
+  - **THE ALLOW-LIST HAD A PREFIX HOLE, found by audit and fixed 2026-09-07 (`3aaa8daf`).** It was matched with a bare `StartsWith`, so
+    `/api/activation` also admitted `/api/activation-codes` — a MUNICIPAL endpoint that issues a payor's single-use activation code and
+    authorises `SuperAdmin`, which is exactly what the operator's token carries. The operator could bind a payor account to a stall in
+    another market, through the middleware written to stop it doing municipal work. Matched on a path boundary now: a request either IS
+    an allowed path or continues it after a slash. The API's route prefixes were enumerated to confirm `activation-codes` was the only
+    one over-admitted. Four tests hold the boundary from both sides.
+  - **The operator's backup scope was REMOVED on the office's ruling 2026-09-07 (`8292664c`)** — see its own entry below. The note that
+    used to sit here, about the Blazor panel being unreachable, no longer describes anything: the panel and its endpoints are gone.
+
+- **Six credential pages discarded input typed before the circuit connects — FIXED 2026-09-05.** AccountSetup, AdminActivate,
+  ChangePassword, ForgotPassword and ResetPassword now carry the same `FormReady => RendererInfo.IsInteractive` gate as Login.razor,
+  with inputs and submit disabled until it is true. They all root on `.setup-root`, which `App.razor` treats as the signal to hide the
+  boot splash immediately — so each showed a complete but dead form while the SignalR circuit was still connecting, and Blazor's
+  interactive first render then replaced the inputs with empty component state. Anything typed in that window was lost, and the slower
+  the connection the wider it was.
+  - **VerifyEmail was on the list and did not need it:** same root, but it has no inputs at all, so it has nothing to lose.
+  - `CredentialPagesWaitForInteractivityTests` holds the convention, because nothing in the compiler requires a new credential page to
+    remember it and the failure is silent — the form looks perfect and quietly discards work. It checks the property AND that it
+    actually reaches at least two controls, since gating only the button is the case that still loses typing.
+  - **One trap for whoever adds the next one:** bUnit throws `MissingRendererInfoException` unless a test states the renderer info, and
+    `SetRendererInfo` initialises the service provider — so it must come after every `Services.Add…` call in the harness. When it does
+    not, the stack trace names `AddTestAuthorization`, not `SetRendererInfo`. `ChangePasswordTests` carries the note.
+
+- **The 0 KB collector download — FIXED 2026-08-22.** Collectors scanning the QR and tapping Download were sometimes left with a
+  0 KB `.apk`. Measured against production before changing anything: **four of eight** full downloads of the 41 MB file returned
+  Azure Static Web Apps' own "500 Internal Server Error" page. The file itself was sound — `HEAD` answered 200 with the right
+  `content-type`, ranged requests answered 206 with exact byte counts, and the body began with a real `PK` archive signature — so
+  it was the host failing on the large body, not the file, the MIME type or the config.
+  - The APK is now attached to a **GitHub Release** under a fixed asset name, so
+    `/releases/latest/download/stalltrack-collector-latest.apk` always resolves to the newest build. Verified after publishing:
+    **eight of eight** downloads returned all 43,082,581 bytes.
+  - `publish-apk.yml` no longer stages the APK into the site, so the failing host never serves it. The workflow needs
+    `contents: write` for the release and nothing else. The old path redirects (302) to the release, verified, so links already
+    shared keep working — which also means the API's built-in default URL stays correct without any app setting.
+  - `Mobile__DownloadUrl` on the API points straight at the release so the in-app update check follows no redirect. The
+    release asset is named **`stalltrack-collector-latest.apk`**: `/releases/latest/download/stalltrack-collector.apk`
+    answers 302 and then 404s, so a check that stops at the redirect proves nothing. Verified 2026-08-25 by following the
+    redirect: the configured name returns 200 at 43,115,349 bytes.
+  - **Published builds:** `collector-1.1.1-3` (the arrears sheet answering for its own day), `collector-1.1.2-4` (the
+    Records card reading the whole receipt, the payor's own area on it, the market round's area chips),
+    `collector-1.1.3-5` (one entry per payor with every receipt named inside it) and `collector-1.1.4-6` (Profile states
+    v1.1.4 rather than "v1.1.3 (5)", and the update prompts name the version on offer). All 2026-08-24.
+  - `Mobile__LatestVersionCode` / `Mobile__LatestVersion` were raised from 2 / 1.1.0 to **6 / 1.1.4** on 2026-08-25 at the
+    office's instruction, which restarted the API. `api/mobile/version` confirmed afterwards, and both containers were
+    re-checked against HEAD. Devices below versionCode 6 are now prompted to update.
+  - The 41 MB binary also stopped being tracked in git; the release holds it and `mobile-app-site/download/*.apk` is ignored.
+
+- **The platform-operator fallback clause is RETIRED — done 2026-08-21.** `PlatformOperatorPolicy.IsOperator` now takes one
+  argument and returns it: the `IsPlatformOperator` flag on the account is the whole rule. Until this change the policy also
+  returned true for `isDefaultTenant && role == SuperAdmin`, which made the DEFAULT municipality's Head the platform operator, and
+  therefore let one municipality's Head trigger `POST api/backup/restore` — a destructive restore over the whole shared database,
+  every LGU's records included. The office raised it itself (2026-08-20): a single LGU should hold no destructive power over
+  another's data. The clause was a documented fallback from when that municipality was the only one on the platform, and its own
+  remarks named the condition to delete it on.
+
+  That condition was met: the office created its operator at `admin.stalltrack.site/setup` and confirmed it signs in. Verified
+  before deleting the clause that this would not lock everyone out — `TokenService` puts the `PlatformOperator` claim on the token
+  for any account carrying the flag, which is the fact the API's policy reads, so the dedicated operator satisfies both the API
+  policy and the database-backed guard.
+
+  What the default office's Head lost, and it is deliberate: `BackupController` (6 endpoints), and the nine
+  `PlatformOperatorGuard.IsCurrentAsync` call sites — the onboarding pipeline (assessment approve/decline, validation approve,
+  return-to-draft, activation) and the two operator queries. `AdminAuthController`'s two MFA endpoints are `Roles = SuperAdmin`
+  and were never gated by the policy, so they are unaffected. The Head keeps its own per-LGU backup and restore, exactly like
+  every other Head.
+
+  Changed in the same commit, or the portal would have contradicted the API: `Settings.razor` decided
+  `_isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant` locally, and now calls the policy the way `Backups.razor` does.
+  Left alone it would have gone on showing the default office's Head whole-database controls the API refuses, and shown the real
+  operator none of the ones it allows. `PlatformOperatorGuard.IsCurrentAsync` no longer reads the caller's municipality at all,
+  since the question no longer turns on it.
+
+  Two tests that existed to assert the fallback were inverted rather than deleted, so the refusal is now what is pinned:
+  `PlatformOperatorGuardTests.TheDefaultMunicipalitysHeadIsRefused` and
+  `ConsoleAdminHandlerTests.Guard_DefaultMunicipalitysHead_IsRefused`. `PlatformOperatorPolicyTests` also asserts that the rule
+  takes exactly one argument, so a future clause about a role or a municipality cannot be added quietly. Four onboarding test
+  classes had been acting as the default municipality's Head to reach activation and approval; they now seed a real operator
+  account, which is how the platform itself creates one (under the default municipality's id, per
+  `CreateFirstConsoleAdminCommandHandler`).
+
+  Console sign-in was already reading the flag directly rather than the policy, so `admin.stalltrack.site` behaviour is unchanged
+  by this; the comments in `LoginCommand` and `LoginCommandHandler` explaining the old divergence were corrected.
+
+## Deferred product work
+
+- **From the 2026-09-07 audit, not fixed and why.** Two independent reviews of the day's fourteen commits, with a third verifying their
+  claims. Three findings were confirmed at high severity and fixed the same day: the operator allow-list's prefix hole and the as-of
+  roster's range-for-a-snapshot (both `3aaa8daf`), and the manual-excusal float, which the office's own arithmetic ruling closed
+  (`64624dff`). These remain open. **None of them loses money**, which is why they were not rushed at the end of a long day.
+  - **`SettleNpmMonthCommandHandler` misses a short-month adjustment gate** that its sibling `NpmMonthSettlementService` has. It bites
+    only where a fee changes mid-month, so the two paths would price such a month differently. The smallest fix is to add the same flag to
+    the condition.
+  - **The Collection History Total can exceed the year's own figure.** Summing the monthly Outstanding is right — the months are disjoint —
+    but each month's balance clamps at zero per stall, so a stall that overpaid in one month and underpaid in another sums higher than the
+    year computed in one pass. The guarding test cannot fail on it because its seed never overpays. Either state the year's own figure in
+    the Total, or extend the seed and accept the divergence knowingly.
+  - **`?year=0` on the stallholder list returns a 500** rather than a refusal. The query validates the month but not the year bound.
+  - **The count of payors left out of a utility billing run lives only in a `title` attribute.** It is the one place that fact appears now
+    that the second line was removed on the office's instruction, and a tooltip is not a statement — a collector on a phone never sees it.
+  - **The excused-day span is gap-blind.** "Sep 1–3" is printed whether the excused days are 1, 2 and 3 or only 1 and 3, which contradicts
+    the day count beside it. Emitting consecutive runs would fix it.
+  - **`SetNpmSectionClosedCommandHandler` can commit the per-stall freezes and write no closure row** if a later stall's toggle is refused.
+    Downgraded to latent because the refusal path is effectively unreachable today, but if it ever fires the section is half-closed with
+    nothing recording it.
+
+- **Whether the office wants a repair path at all is now moot — but the shape of one is worth remembering.** The 2026-09-07 audit asked
+  whether the forward-only excusal fixes needed a data repair. They did not: the production audit found nothing wrongly excused. If a
+  future fault does write bad excusals, the safe direction is to return the affected days to UNPAID — restoring the debt rather than
+  inventing a payment — and the office should be told it may need to chase money it had stopped asking for.
+
+- **From the 2026-09-03 audit, not fixed and why.** An independent review of that day's commits found three bugs (all fixed: the
+  multi-day settlement queueing one day, arrears naming the wrong payor on a re-let stall, and the activation mapper deriving
+  "Region XIII" as an office acronym from the new address). It also found these, left deliberately:
+  - **`api/Mobile/npm/arrears` does not validate year/month.** Ask it for a month that has already closed and it takes the
+    current-month branch, where the month-end difference is not yet applied, so the figure comes out at bare installments. Not
+    reachable from the app - `Market.razor` passes the round's own month - but an authenticated collector could call it directly.
+    The fix belongs with the closed-month collector path below, since both turn on treating a closed month as closed.
+  - **`SectionClosed` matches a section name without a facility predicate.** `VendorRepository` filters closures to NPM but not
+    the stalls, so a non-NPM stall whose `CustomSectionName` collides with a closed NPM section name would be flagged. The
+    server-side reopen guard has the identical gap, so screen and server agree rather than disagree - which is why this is a
+    tidiness item and not a live defect.
+  - **Three of the new architecture tests are weaker than their names.** They are `Contains` checks over file text:
+    `EveryPageThatSavesHandlesTheFailureThatSavingThrows` never looks for `finally { IsSaving = false; }`;
+    `OnlyTransientFailuresAreQueued` never checks that a queue call is actually guarded;
+    `PrintIsOfferedOnlyOnTheTabsThatAreDocuments` only requires the gate string to appear somewhere in the file. Each still holds
+    its rule at file granularity and each has a dead-entry check, but none would catch a regression confined to one call site.
+  - **The admin console shows no province for a request recorded before the address change.** The Province row was dropped
+    because the new requesting-office line contains it; older records hold an office name there instead, so their province is
+    now absent from that screen.
+  - **A catalogue click with the picker already open is a silent no-op** when a facility became unfinished in the meantime
+    (`onboarding-workspace.ts`, the guard returns before `picking.set(false)`). Reaching it needs a field cleared while the
+    picker is open.
+
+- **The collector cannot take a closed month to zero from the phone.** Recorded 2026-09-02, when the arrears screen began stating
+  past months. `SettleNpmDaysCommandHandler` marks days paid at each day's own fee and applies no month-end difference, so
+  settling all twenty-eight days of a February leaves the ₱60 that its installments could not reach still owed. That is the
+  correct figure, not a bug, and the screen says "A closed month is settled at the office" rather than letting a collector doubt
+  the app. What is missing is a collector path that settles a whole closed month, difference included, the way the staff
+  `SettleNpmMonth` command and the online payment path already do. It needs its own command, its own receipt handling and its own
+  tests; it was not bolted onto the day sheet.
+- **The arrears read costs a query per stall per month.** `StallRepository.GetMobileNpmArrearsAsync` asks
+  `NpmMonthSettlementService.ComputePayableAsync` once per stall per unsettled month, and each of those reads that month's daily
+  collections and closures. Bounded to twelve months, so Cantilan's ten stalls cost tens of queries and it is comfortably fast.
+  A hundred-stall market would cost thousands. The fix, when a market needs it, is to prefetch the span once and let the
+  settlement service walk it from memory — which means extracting its per-month walk behind the fetch, NOT reimplementing the
+  month rule anywhere else.
+- **The save freeze is fixed on all ten sheets — DONE 2026-09-03.** `Market.razor` on 09-02, then the nine across
+  `MonthlyCollection`, `Slaughter`, `Taboan` and `Terminal`. Each had a `try/finally` wrapping only the reload after the write, so
+  a timeout threw past it and left the saving flag set with Cancel disabled beside it. All ten now clear the flag in a `finally`
+  and keep Cancel live, and four architecture tests in `CollectionSheetsCannotLockTheCollectorOutTests` hold the rule — they read
+  the `.razor` files as text, because no test project references the MAUI app and no harness renders these pages.
+  - **What is queued on a thin signal was decided per sheet, not uniformly.** Queued: a tabo vendor entry, an ad-hoc trip, a
+    registered transporter's trip, a monthly rental payment, a balance collection, slaughter lines — each creates a record the
+    office does not hold and replays idempotently. NOT queued, and the screen says so: marking a tabo vendor paid and correcting
+    a slaughter line both amend a row the server already holds, and replaying an amendment against a row that may have been paid,
+    voided or superseded meanwhile is how one payment becomes two records. Registering a transporter reloads and auto-opens its
+    trip sheet, which a queued write cannot do.
+  - **Slaughter queues only the lines not yet recorded.** Its lines are submitted one at a time and it stops on the first
+    failure; the earlier ones were accepted under no client operation id of their own, so queueing them again would charge the
+    owner twice. Where the exception gives no line number, nothing is queued and the day is reloaded instead.
+  - **Two Cancels are still disabled, deliberately.** The activation-code generator and the online-payment OR encoder already
+    wrap their writes in `try/catch/finally`, so their flags always clear and no wedge is possible.
+  - **A defect in my own Market fix, found by the sweep:** its connectivity catch would have queued a DAILY COLLECTION when the
+    sheet was a utility payment, recording a day's stall fee for money taken for electricity and water. The catch now refuses the
+    misc sheet explicitly rather than relying on the flags happening to be false.
+
+- **The payor's own portal moved to Angular — `payor.stalltrack.site`, built 2026-08-27 to 08-29.** One host serves every
+  LGU, so the office is read from the payor's own account rather than from the address. Sign-in holds NOTHING readable by
+  script: the API sets HttpOnly, Secure, SameSite=Strict cookies, the app holds one boolean and a display name, and a
+  reload asks the API whether the refresh cookie is still good. Verified in the deployed bundle that no `localStorage` or
+  `sessionStorage` appears anywhere in it.
+  - Screens: sign-in, activation, accounts, balances, history, and the two the gateway returns to. A payment started at
+    `payor.stalltrack.site` returns there and not to the console, because the API validates the request's Origin against
+    `OnlinePayments:AllowedReturnOrigins` and falls back to the configured portal. Blazor sends no Origin (server to
+    server) and is unchanged.
+  - **The Blazor payor pages are still live and have NOT been retired.** Remaining before they can be: a Profile screen,
+    the OR toaster over `/hubs/payor`, and the receipt sheet a payor sees on tapping a paid month.
+  - `deploy-payor.yml` is still `workflow_dispatch` only. The push trigger is written out in a comment, ready to enable
+    once the portal is judged complete.
+  - The layout was rebuilt twice on the office's own reading: first as a statement rather than a stack of cards, then with
+    both filled navy panels removed. Their words: this is government things. Navy is left on the masthead, the thin gold
+    rule under it, and one action button per screen.
+
+- **A fish stall's own portal read ₱0.00 while the office's stall profile read ₱60 — fixed 2026-08-27.** The fish
+  section's payable item carries no amount by design, because each of its days costs the base fee plus that day's weighing
+  fee, so the days are offered one by one instead of billed as one figure. The payor's balance was summed from those items
+  and therefore summed to nothing. It now takes the base fee for the owed days from the same settlement service the
+  office's ledger and the collector's app settle against. Proven by injection: without the fix the test reports 0, exactly
+  as photographed.
+
+- **Online payment settles SEVERAL owed days — 2026-08-28.** The collector's app had done this for months; online could
+  pay only one day, so a payor three days behind opened three checkouts.
+  - An ordinary market stall pays a COUNT of owed days, oldest first, because that is the order the office's settlement
+    walks a month: paying a later day while an earlier one stayed open would leave an arrear behind a settled day. The
+    existing daily-month target already settles a partial amount that way, so nothing downstream changed.
+  - The fish section states its days one by one, each with the kilos declared for THAT day — the office's instruction of
+    2026-08-29, and right: a payment covering three days owes three weights. A fifth target kind and one nullable text
+    column of `day:kilos` pairs. Plain text and ordered, because the office reads its own tables by hand when reconciling,
+    and because the resume guard compares that text.
+  - Two office-side consumers had to learn the new kind, and one mattered more than any rule: the awaiting-receipt queue
+    is a SQL projection, and a payment missing from it can never be receipted — invisible rather than wrong. Injection
+    proved it: without the change the queue returns empty.
+  - **A stale checkout is never resumed at yesterday's price.** A session is resumed only while it still asks for the same
+    money — and for fish days, the same days with the same kilos. That was the ₱240-shown, ₱180-charged defect.
+
+- **An office prices and lays out its OWN market sections from Facility Configuration — 2026-08-28/29.** A section of an
+  LGU's own could previously only come into being as a side effect of recording a stall in it, and could be priced only
+  one stall at a time.
+  - Sections are added, listed with their stall counts, and removed (only while empty) in the market's own configuration
+    drawer, beside the three canonical areas it already renames there. A name the market already uses is refused against
+    the office's OWN labels.
+  - A section carries its own effective-dated daily fee in `FacilitySectionRates`, kept apart from `FacilityRate` because
+    a rate keyed by a NAME is not a rate keyed by an ordinance key, and widening the snapshot's key would have meant
+    reworking the one read path every peso passes through. The snapshot answers both, so no caller learns there are two
+    tables.
+  - A section also records whether its stalls are usually metered, in `FacilitySectionUtilities`. A DEFAULT for a stall
+    being recorded there and nothing more: the meters belong to the space, the portal already refuses to strip a stall's
+    electricity when a clerk corrects its section, and this must not become a second way to do the same thing. Undated,
+    because a default bills nothing and has no history worth keeping.
+  - **The audit of 2026-08-29 found the two paths that would have made the section fee inert**, and it was found by
+    auditing rather than reported by the office. The stall form and the stallholder import both stamped a figure onto a
+    custom-section stall's OWN daily rate — the clerk's, else another stall's, else the market's. An own rate outranks its
+    section's for ever, so an office pricing a section at ₱25 would have gone on collecting ₱30 from every stall either
+    path created. Both now leave a stall unpriced where its section carries a fee. The import was the worse of the two: one
+    file does it to a whole row of the market at once.
+  - Also cleared by that audit, stated because it nearly went the other way: three reports read the market's rate key
+    directly and looked like the old precedence. They are correct — the per-stall figure they receive is already resolved
+    through `NpmDailyFee`, and the market's rate is only the fallback for an office that has stated no rate at all.
+  - The drawer itself was made formal on the office's reading: rates are STATED with an explicit Edit action rather than
+    opening as live number fields (a stray keystroke used to become a rate change on Save), the three area rates are
+    grouped and named by the office's own word for each area, and four boxed paragraphs became one line each.
+  - **Remaining:** `GetSystemSettings` / `GetNpmRates` state the market's rate only, and should list the per-area rows and
+    now the section fees; and onboarding accepts a new LGU's section NAMES but no fees, so a newly activated office prices
+    them afterwards here.
+
+- **The platform operator can recover its own account — 2026-08-28.** It was the one account on the platform with nobody
+  above it to restore access, and the only way back was editing the database by hand. Three things were in the way, all
+  the same omission from different sides.
+  - A reset link is only ever emailed to a CONFIRMED address, and nothing ever asked the operator to confirm its own. The
+    forgot-password endpoint therefore found the account, judged it ineligible, and returned its usual neutral success:
+    silence by design, for a request that could never work. Creating the first operator now sends the same confirmation
+    every other account gets, and any signed-in account can ask for its own (the command carries no id — the subject is
+    the token's account).
+  - Both the reset and the confirmation link defaulted to the LGU console, whose sign-in refuses an operator. Each builder
+    now has an operator base, environment-driven exactly as the existing one is.
+  - The emails no longer name a municipality at the operator, or tell it to ask an office Head for help. It is stamped to
+    the default tenant for context, which is not the same as belonging to it.
+  - The console gained `/forgot-password` and `/reset-password/:token`, and a one-line notice above the workspace while
+    the address is unconfirmed. Neither screen reports whether an address is known, because the API is enumeration-safe
+    and this passes that through.
+
+- **Report of Collections (per collector) — WIRED TO REAL FIGURES 2026-08-25, at `/collectors/{id}/report`, opened from the
+  document action on the collector's row.** The office asked for a collector report and chose the treasury wording for its
+  title. What was agreed, after checking what every existing page already answers: the document is one collector over one
+  period, and the four things nothing else answers are a per-collector facility breakdown, a daily record whose "For Earlier
+  Days" column explains a day whose collection exceeds what that day could owe, the complete receipt listing that is ticked
+  against the booklet, and the absences that collector marked. Deliberately excluded: payor balances and follow-up lists
+  (the facility reports own them), facility revenue against expected (same), and any comparison with other collectors,
+  because a ranking is not what an accountable officer signs. Utilities keep their own table, a meter charge not being a
+  stall or daily fee. Period tabs are Daily, Weekly and Monthly with Monthly opening, a day being a cash view and a month
+  the accountability view. The office ruled OUT stating an amount in words.
+  - Every figure comes from ONE query (`GetReportOfCollections`), so the summary, the facility breakdown, the daily record
+    and the receipt listing cannot disagree. `CollectorReportTests` pins that the receipt listing adds up to the summary and
+    that the reconciliation strip agrees with itself.
+  - Receipt numbers are typed one by one, so a from-to range prints only where the numbers are numeric and run unbroken; a
+    plain count stands in its place otherwise. Tested three ways.
+  - "Days with collections" is a count, NOT "so many of so many": what a collector could have collected depends on each
+    facility's own calendar, and a figure the document cannot substantiate has no place on it.
+  - The signatory footer needs its own three columns on every sheet. `SignatureStrip` declares `display: contents` on
+    purpose, handing layout to its host, so a sheet that omits `.print-report-signatures` gets the lines stacked down the
+    page. That is what this document did until the wrapper was added, and a test now pins the slots inside that footer.
+  - **Remittance — BUILT AND THEN RETIRED ON THE OFFICE'S DECISION, 2026-08-25.** The office answered the five questions: a remittance covers a DATE RANGE of collections, it may never exceed what was
+    collected (a refusal, not a warning, in their words bad design otherwise), electricity and water are banked separately as
+    additional income and are therefore outside it, the Head and Administrators are the ones who record it, and a reference
+    number is optional but its absence is reported back. `CollectorRemittance` is additive: a new table, two indexes and a
+    restricted key to the collector, so production applies it at startup without touching anything that exists.
+    - Two rules make the figure exact rather than a guess. Coverage ranges of one collector may not overlap. And the money is
+      matched on WHEN IT WAS TAKEN, never on the day a fee was for: match on the fee day and a payor settling owed days
+      leaves cash that can never be remitted, since its day already sits inside an earlier remittance.
+    - A part payment on a monthly bill is applied to the fee charge first and capped there, the excess belonging to the
+      separately banked utilities, because the received amount carries no split of its own.
+    - It is never deleted. A mistake is voided with a reason, which frees its days for the correct record.
+    - `CollectorRemittances` is in `TenantDataTables.Restorable` and the export: a restore that reinstated the collections
+      without it would show every peso as still in a collector's hands. The architecture test caught that omission.
+    - Proven by injection: with the ceiling rule neutered the refusal test fails, and with utilities counted as fee money two
+      repository tests fail.
+    - Recorded from the office side: `GET`/`POST api/Collectors/{id}/remittances`, both `SuperAdmin,Admin` while the rest of
+      the controller stays Head-only, and a drawer opened from the collector's activity view that states the three figures
+      before an amount is typed. A refusal is shown as the server wrote it, since those messages name the figures and the
+      days another remittance covers.
+    - One definition of fee money serves the report: `CollectorFeeMoney.MonthlyFeePortion`. A document whose summary and its
+      own tables disagree would be worse than one that states a single figure and says what it excludes.
+    - **RETIRED 2026-08-25, the same day, by the office's decision.** They concluded that what the collector records on the
+      phone IS the basis, that the office handles the handover of cash in its own way, and that the feature added complexity
+      for no gain they could use. Removed: the drawer, both endpoints, the client calls, `RecordCollectorRemittance`,
+      `GetCollectorRemittances`, the repository and the Remittances section of the sheet. The memo line for money recorded at
+      the office stays, standing on its own.
+      - The `CollectorRemittances` table, its entity and its backup wiring REMAIN, written by nothing. Dropping them is the
+        one destructive step in the change, and no data should be risked to delete an empty, unused table. The entity's own
+        comment says so, and dropping it is a one-line migration if the office is sure.
+      - A correction the office should have on record: they worried a collector could press a remittance button without cash
+        arriving. In what was built a collector could not record one at all, the endpoint being Head and Administrator only
+        and the handler refusing anyone holding a collector identity. The decision rests on their other reasons.
+
+- **Monthly facilities now state which month a late payment answers for — DONE 2026-08-25.** Raised and deferred by the office
+  the same day, then closed. A rental line carries its BILLED MONTH as a date rather than a label, so the sheet can tell a
+  rental paid inside its own month from one paid after it: July's rent paid on 24 August counts with the earlier periods in the
+  daily record, while August's rent paid on the same day does not, and the receipt names the month either way. Proven by
+  injection: comparing the month as though it were a day fails the test.
+  - The daily record's column is still headed "For Earlier Days", which is what a market office reads, and the closing note on
+    the sheet states that a rental paid after its month is counted there too.
+
+- **A CSV export of the Report of Collections is NOT wanted.** The office decided 2026-08-25 that print and PDF are enough.
+  Recorded so nobody builds it on the assumption that every report needs one.
+
+- **Eleven report stylesheets still carry unscoped phone media queries, which a printed page can match.** A printed page is
+  measured in CSS pixels, so `@media (max-width: 900px)` matches paper as readily as a phone — proven on the month-end sheet, where
+  an unscoped `768px` block printed the signatories stacked down the page and gave the sheet a phone's 14px side padding instead of
+  its 12mm margin. Because those blocks sit AFTER the print block in each file, they win.
+  - Fixed where documents are actually printed and were reported: `MonthEndReport`, `StallHolderList` and `ExportData` now scope
+    their phone blocks to `screen`.
+  - **SWEEP COMPLETED 2026-08-25.** The remaining thirteen stylesheets are scoped: `BbqReports`, `CustomReports`, `IceReports`,
+    `NccReports`, `NpmReports` (four blocks), `SlhReports`, `TccReports`, `TpmReports`, `TrmReports`, `ClosedAccounts`,
+    `CollectionExceptions`, `FollowUpQueue`, `PastFollowUpQueue`. Each diff is the two added words and nothing else.
+    - Why it was worth doing rather than leaving: `NpmReports`'s 700px block sets `.print-report-meta`,
+      `.print-report-summary` AND `.print-report-signatures` to a single column. For media queries a printed page measures its
+      CONTENT box, so A4 with 12mm margins is about 703px and A4 with one-inch margins about 601px: the office's own choice of
+      margins decided whether its facility sheets printed with the strip stacked down the page. That is the same fault already
+      proven on the month-end sheet.
+    - What could not be verified: the printed output itself. The change can only stop a phone rule from overriding a print
+      rule, and every rule in those blocks is phone-shaped (single-column grids, reduced padding), the print blocks stating
+      print's own layout. Worth printing one facility sheet to confirm.
+
+- **A market may price its areas apart — PHASE 1 SHIPPED 2026-08-23 (`88e94d92`), phases 2 to 5 open.** The office asked
+  for it: Cantilan charges ₱30 across its market, but another LGU may charge ₱35 for vegetables and ₱30 for fish.
+  - **Done.** `FeeRateKey.NpmDailyStallVegetable|Fish|Meat` (10, 11, 12) — ordinary rate keys, so an area's rate inherits
+    an effective date, a never-retroactive change, the audit trail and the resolver's wrong-facility refusal. No
+    migration (the column is already an int). `NpmDailyFee.ForStallOrNull/ForStall/ForAreaOrNull` states the whole rule
+    in one place: own-area stall's own rate → the area's stated rate → the market's stated rate → nothing.
+    `FacilityRateKeys.PerAreaDailyKey` / `IsPerAreaDailyKey`. Pinned by `NpmDailyFeeTests` (10 assertions) and by the
+    invariant in `FeeRateSnapshotFacilityTests` that every key is either offered by its owner or withheld on purpose.
+  - **Deliberately withheld:** the three keys are NOT in `FacilityRateKeys.For(NPM)`, which is the single list behind the
+    rate editor's rows (`FacilityRepository:114`), its write validator (`SetFacilityRateCommandValidator:17`) and
+    activation's pairing rule (`ActivateMunicipalityCommandValidator:99`). So no screen offers one and nothing can store
+    one. They join that list in the same change that makes billing read them, because a rate an office could set while
+    every collection still charged the market rate is worse than not offering it.
+  - **Phase 2, the money work:** route every daily-fee read through `NpmDailyFee`. The sites, counted:
+    `RecordDailyCollectionCommandHandler:98` · `SettleNpmDaysCommandHandler:58,86` · `SettleNpmMonthCommandHandler:78,
+    104,106,125` · `NpmMonthSettlementService:138,148,221,227,229` · `BulkImportDailyHistoryCommandHandler:82,235` ·
+    `BulkImportStallholdersCommandHandler:43` · `PaymentRepository.Ledger:127,131,301,305,428` ·
+    `StallRepository.ClosedAccounts:54,217,221` · `StallRepository.Mobile:35` · `StallRepository.Register:70` ·
+    `CollectorRepository:53` · `FacilityReportsRepository:51` · `GetSettleableNpmDaysQueryHandler:76` ·
+    `GetDailyCollectionMonthQueryHandler:68` · `GetMonthEndReportQueryHandler:63` · `GetCollectionReportQueryHandler:44`
+    · `GetFinancialReportQueryHandler:101` · `GetSystemSettingsQueryHandler:99` · `GetNpmRatesQueryHandler:29`. The
+    pattern `stall.ResolveDailyFee(snapshot.Resolve(NpmDailyStall, day))` becomes `NpmDailyFee.ForStall(stall, snapshot,
+    day)`; the several sites that resolve a bare rate for display need an area or a stall in hand first. Do it in small
+    groups, with the Phase 0 Cantilan baselines green after each.
+  - **Phase 2 SHIPPED 2026-08-23** in two commits: `f4cd817b` (2a, what creates a charge) and `86ff114d` (2b, what
+    states one). Rerouted through `NpmDailyFee`: `RecordDailyCollection` · `SettleNpmDays` · `SettleNpmMonth` ·
+    `NpmMonthSettlementService` · `BulkImportDailyHistory` · `BulkImportStallholders` (per AREA imported) ·
+    `PaymentRepository.Ledger` · `StallRepository.ClosedAccounts` / `.Mobile` / `.Register` · `GetSettleableNpmDays` ·
+    `GetDailyCollectionMonth` · `FacilityReportsRepository` (+ Revenue, Breakdowns, Compliance) · `CollectorRepository`
+    (+ Mobile, Recognition). Three refusals became per-stall rather than per-market, and the daily-history import gate
+    now asks `NpmDailyFee.AnyStated` with a per-ROW refusal naming the stall's area, so a day can never be filed at zero.
+    Proven by `RecordDailyCollectionPerAreaRateTests` (billing) and `StallHoldersListPerAreaRateTests` (reporting), both
+    against seeded rate rows; TEMP-DEFECTs restoring the market-only reads failed them.
+  - **Phase 2c SHIPPED 2026-08-23** with phase 3 (`860f78d1`). The month-end, collection and financial reports measured
+    every stall's coverage at the MARKET's rate and derived a month as thirty daily fees, ignoring a stated
+    `NpmMonthlyStall` — so an office stating ₱1,000 a month while collecting ₱35 a day read ₱1,050 on its reports beside
+    ₱1,000 on its roster, a disagreement that predated per-area rates. `DomainRules.DailyBilledMonthCoverage` now answers
+    for all three: the stated month where there is one, else thirty installments of THIS space's fee, less one
+    installment per excused day. Pinned by `DailyBilledMonthCoverageTests` and one handler assertion.
+  - **Phase 3 SHIPPED 2026-08-23** (`860f78d1`). The three keys joined `FacilityRateKeys.For(NPM)`, so the rate editor
+    lists them, its write path accepts them and activation's pairing rule allows them. The invariant test's
+    withheld-on-purpose branch is gone.
+    - **A cleared area rate (zero) reads as "not priced apart"** and the market's rate answers. The rate editor posts a
+      row only when its value changes, so there is no delete: an office withdraws an area rate by clearing it. Read
+      literally, zero would have made that area's stalls free and written a ₱0 collection. The MARKET's own rate keeps
+      its documented meaning, where zero says the office charges nothing under that head.
+  - **Phase 4 SHIPPED 2026-08-23** (eemo `b710868b`, platform `0930e38`). The onboarding form always took a rate per
+    section; the console filed the FIRST as the market's rate and dropped the rest. Each priced area is now filed under
+    its own key. The market's rate is still sent and answers for an area left unpriced and for a stall of the market's own
+    areas carrying no rate; it is read from the first of the THREE the office priced, never from a custom row, so one
+    area's figure is not handed to the rest. The "prices its areas differently" warning is gone (nothing is dropped); the
+    warning that remains names the unpriced areas and the rate they will bill at. Pinned by five console specs, two API
+    pairing facts and one activation-handler fact.
+  - **The feature is complete for the portal and onboarding.** Remaining: **phase 5**, the mobile collector app, which
+    receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM daily reads) and needs the area's; and
+    `GetSystemSettings` / `GetNpmRates`, which state the MARKET's rate as a settings figure - correct as far as it goes,
+    but they should list the per-area rows now that an office can set them.
+    - **2026-08-29: a market's own SECTIONS can now be priced too, and both remainders above now carry that as well.**
+      The mobile app needs a section's rate for the same reason it needs an area's, and the settings figures should list
+      section fees beside the per-area rows. See the section-fee entry under Deferred product work.
+    - **2026-08-29, examined: the collector app's NPM reads are ALREADY resolved, and this half of phase 5 is stale.**
+      `StallRepository.Mobile` builds `MobileNpmCollectionDto.DailyRate` through `NpmDailyFee.ForStall`, so an area's rate
+      and a section's both reach the phone; the app multiplies that resolved figure by the days it previews rather than a
+      market-wide one, and the server recomputes on settle. The slaughterhouse per-head rates phase 5 also named were
+      fixed in `a293b552`. `MobileSyncDtos.CustomRate` is the slaughterhouse's custom-animal rate, not a market rate, and
+      is a legitimate per-transaction figure.
+    - **DONE 2026-08-29 for the settings PAGE:** each area or section the office prices apart is stated after the market's
+      own figure, named by the office's own word for the area. Appended only, so an office that prices nothing apart reads
+      what it always read.
+    - **STILL OPEN:** `GetNpmRates` / `NpmRatesDto`, which hands a single market rate to eight screens as a FORM DEFAULT
+      (imports, the vendor form, the profile, the rent reminder, two reports). Listing per-area and per-section rows there
+      changes what those forms pre-fill, which is a wider change than a page's own words and wants its own pass.
+      - **DONE 2026-08-29 for the figures stated against an AREA.** The query now answers what a stall in each of the three
+        areas is billed — the area's own rate where the office prices it apart, else the market's — through
+        `NpmDailyFee.ForAreaOrNull`, so a screen and the collector cannot answer by different rules. Corrected: both import
+        section pickers and the vendor fee breakdown's three area lines. All three figures equal the market's for an office
+        that prices nothing apart, and an office that has stated nothing states nothing rather than borrowing.
+      - **DONE 2026-08-29: the three per-STALL surfaces now state the fee that stall is billed.** The stall read carries
+        `ResolvedDailyFee` beside `DailyRate`: what the stall IS billed, settled by `NpmDailyFee`, beside the rate the
+        space was LET at as recorded on it. Kept apart deliberately, because the forms that EDIT a stall must show what was
+        recorded against it, and a form pre-filled with a resolved figure would stamp it as the stall's own rate, which
+        outranks its section's for ever. Corrected: the stall profile's Rate field, the vendor detail card, and
+        `CollectionExceptions.StatExpected()`. The vendor registry projection carries it too. Five tests, and with the read
+        handing back the stored rate instead, three of them fail.
+      - Kept as the record of what was wrong: three surfaces stated a figure for ONE STALL from the market's
+        rate.** The stall profile's Rate field (`Profile.razor`), the vendor detail card's "Daily Fee Rate"
+        (`Vendor.razor`), and `CollectionExceptions.StatExpected()`, which multiplies days by it. Latent today, wrong the
+        moment an office prices an area or one of its own sections apart. Each needs its stall's RESOLVED fee carried on the
+        DTO it already holds, the way `FacilityReportsRepository.NpmFeeFor` does it for the compliance projection — three
+        queries and their shapes, which is why it was not bundled into the DTO pass.
+      - A stall's own rate is deliberately NOT in `NpmRatesDto` and should not be: it belongs to the stall, and a screen
+        stating one stall's fee asks the server for that stall's figure rather than deriving it from a table of areas.
+  - **Phase 5:** the mobile collector app, which receives a resolved rate (`MobileSlaughterCollectionDto` and the NPM
+    daily reads) and needs the area's.
+  - **A month, when an area is priced apart:** the existing custom-section rule is the precedent — a stall let at its own
+    rate has its month as thirty of those. `NpmMonthlyStall` stays market-wide, and the office's stated monthly still
+    wins where it states one. The onboarding monthly-rent field is KEPT on the office's own instruction (2026-08-23):
+    removing it would silently re-price any office whose ordinance states a month directly (₱1,000 a month with a ₱35
+- **Borrowed ordinance constants: the audit of 2026-08-23/24.** A sweep for `FeeRates.*` and `?? <constant>` outside the
+  Domain, the seeder and the tests found the reference municipality's figures reaching other offices' screens. Fixed in
+  `a293b552` and the commit after it: the mobile slaughterhouse payload (built from `FeeRates.SlhHogTotalPerHead` /
+  `SlhLargeTotalPerHead` for every LGU), the mobile app's own `?? 250m` / `?? 365m`, TPM's `?? 100m` and its uncollected
+  total, TRM's four `?? 30m` and its pending total, and the Collection Manager's expected total at `FeeRates.NpmDailyFee`.
+  Each now reads the office's own resolved rate, and states nothing until that answer arrives.
+  - **Still borrowing, and deliberately left alone — landmines, not live defects.** Five initialisers hold Cantilan's
+    figure as their starting value: `TpmDtos.VendorFee` and `TrmDtos.TripFee` (both always overwritten by their overview
+    handler's `with { }`), and `_npmDailyRate` / `_npmFishRate` on `CollectorRepository`, `FacilityReportsRepository` and
+    `TransactionFeedRepository` (the value before `LoadNpmRatesAsync` runs). Changing them to zero is only safe once every
+    public entry point on those repositories is confirmed to load rates first; doing it without that check would turn a
+    borrowed figure into a silent zero, which is worse. The check is bounded: find every read of the two fields and walk
+    up to its entry point.
+  - **Why the mobile one survived so long:** `GetMobileSlaughterCollectionQueryHandlerTests` mocks the repository, so the
+    constants never ran in a test. The rule this suggests: a payload assembled in a repository needs a repository-level
+    test, not only a handler test. `MobileSlaughterCollectionRatesTests` is that test.
+
+- **Two shell rules used to reach paper, and both are now settled globally (2026-08-23, `50677d49`).** Recorded because every
+  printable page inherited them, so a future report does not have to rediscover either.
+  - `body { background: var(--bg) }` (#f0f4f8) printed across the whole page whenever background graphics are on, which every
+    report needs for the seal and the table headings. The office reported it as "the outer whitespace is not pure white".
+    `print.css` now sets `html, body { background: #fff !important }`; it loads last, so it holds everywhere.
+  - `.admin-layout { min-height: 100vh }` survived printing. On paper a viewport height IS a page height, so the layout box stayed
+    a whole page tall even when the sheet inside it ended halfway down, and the leftover printed as a trailing blank sheet — the
+    blank second page reported on the stallholder roster, which had never been diagnosed. The floor is lifted inside app.css's
+    print block. Both are pinned by `StallHolderListPrintSheetTests`.
+
+- **A municipality's seal is a base64 data URI, which costs a round trip on every login paint.** Because a seal can be large, it is
+  deliberately kept out of persistent component state: putting one there can exceed the circuit's SignalR message limit and drop the
+  connection with "connection closed with an error". The login page therefore carries the office's NAME across the prerender
+  boundary but re-fetches the seal, showing a plain municipal-hall outline until it arrives. Nothing wrong is ever painted, but the
+  slot visibly fills a moment later, which the office reported as flicker (2026-08-22).
+  - The durable fix is to serve a seal as a URL rather than embed it: an endpoint that streams the stored bytes with a long
+    cache-control, and branding returning that address. The persisted value becomes a short string, the browser caches the image
+    across pages and refreshes, and the first paint carries it.
+  - Not done here because it is a server change touching how branding is stored and served, and the signed-in shell — where the
+    complaint actually came from — was fixed on its own (the sidebar now carries branding across the boundary like the login and
+    change-password pages already did).
+
+- **The Financial report now counts the market's utilities; Month-End and the Collection report still do not.** Asked for by the
+  office 2026-08-22: electricity and water are the market's revenue, so NPM's Collected states them. Done in
+  `GetFinancialReportQueryHandler` only — the row, the footer totals, the row's rate, and every bar of the trend. The other two
+  reports read the same `FacilityReportsDto.TotalRevenue`, which is deliberately still stall fees alone, so for the same month the
+  Financial report's NPM total will now exceed Month-End's by the utilities collected.
+  - Left that way on purpose rather than changed in passing. Month-End prints a line per stall and a facility total the office ties
+    together by hand; utilities are billed per stall too, but its payor lines carry stall fees only, so folding utilities into its
+    total would stop that document adding up. Extending it means giving it a utilities line of its own, which is a change to a
+    printed month-end document and wants the office's word first.
+  - `CalculateNpmRevenueAsync` was deliberately NOT touched, which is what keeps every per-stall document consistent.
+  - Weekly is excluded by design: a utility bill is billed for a month and carries no week, so a weekly report counts stall fees
+    alone. Pinned by `AWeeklyReport_CountsStallFeesAlone`.
+  - The utility figures are attributed by BILLING period, not by payment date, which is how `GetNpmUtilityTotalsAsync` has always
+    read them. `UtilityBill` does carry `ElecPaidAt`/`WaterPaidAt`, so a cash-received view is possible later if the office wants
+    the column to mean money received in the period rather than money against that period's bills.
+
+- **Thirty eight other dialogs still close when their backdrop is clicked, and some of them hold typed work.** The rule the
+  office's report established (2026-08-21, Reset Password on Staff Accounts): a dialog holding text somebody typed must not be
+  dismissed by a stray click on the backdrop, because there is no warning, no undo, and nothing to recover it from. A confirm
+  prompt holding no input may keep the convenience. Reset Password was fixed and pinned by
+  `AccountsResetPasswordTests.TheBackdropIsInert_SoAStrayClickCannotDiscardTheTypedPasswords`; the remaining overlays were
+  counted (39 `modal-overlay` elements carrying a click handler) but not swept, because the ones that hold a form and the ones
+  that hold a confirmation have to be told apart by reading each, and a blanket change would make every confirm prompt harder
+  to leave. The candidates worth reading first are the ones with typed input: `Collector.razor` (3), `Backups.razor` (6),
+  `Accounts.razor`'s two remaining prompts, and the facility forms in `NPM`, `TPM` and `TRM`.
+
+- **The Tabo-an weekly trend still expands one weekday across a month.** `TpmReports.razor`'s `MarketDaysOfMonth` plots each
+  occurrence of `_marketDay`, and `_marketDay` is inferred from the first attendance record of the month. In a month the office
+  moved its market day, that plots one weekday only: for a Friday to Thursday move starting 27 August it would draw bars for 7, 14,
+  21 and 28 August, when the 28th is no longer a market day and the 27th is. It reads from recorded data, so it never relabels
+  history the way the calendar did (fixed 2026-08-21, see `TpmOverviewMarketDatesTests`); it simply plots the wrong set in the one
+  month a change begins. The fix is the same one the calendar took: read `TpmOverviewDto.MarketDates`, which now carries the
+  month's real dates. It needs the reports page to fetch the overview, which it does not currently do, which is why this is
+  recorded rather than bundled into the calendar fix.
+
+- **Eight report stylesheets still print edge-to-edge, awaiting a go-ahead.** `Bbq`, `Custom`, `Ice`, `Ncc`, `Slh`, `Tcc`, `Tpm`,
+  `Trm` each carry `.print-report-sheet { padding: 0 !important }` in their own scoped stylesheet, so their sheets print hard
+  against the paper edge. `NpmReports.razor.css` had the identical line and was fixed to `12mm` on 2026-08-18; the other eight are
+  the same one-line change each. The office has been told and has not yet said to proceed, which is why they are recorded rather
+  than done.
+  - The mechanism, since it is not obvious: `print.css` loads LAST and sets `@page { margin: 0 }` deliberately, so the browser has
+    no margin box in which to print its own date, URL and page numbers. **Each sheet therefore supplies its own padding.** A
+    component stylesheet saying `padding: 0` is not overriding a default — it is removing the only margin the page has.
+  - And it wins even though `print.css` is later and also `!important`: scoped CSS compiles `.print-report-sheet` to
+    `.print-report-sheet[b-xxxxx]`, and the attribute selector outranks the bare class on specificity.
+
+**Out of scope — not StallTrack.** Screenshots of a "Console Ops / Deployment Control Center" page were sent during this work
+and carried in the notes as outstanding UI work. It is a DIFFERENT product: its own screenshots list Spinner API, AMYL and
+StockPilot alongside StallTrack as rows in a multi-project deployment dashboard. The office confirmed 2026-08-15 to stick to
+StallTrack. Recorded here only so nobody picks it up again. (An earlier screenshot of a "Staff Accounts / Bookings / Pickup"
+page was likewise from another project.)
+
+- **`MustChangePassword` is now ENFORCED** (was: set but never enforced). Resolved 2026-08-14 at the office's decision:
+  - `ChangeMyPasswordCommand` — the signed-in administrator replaces their own password, re-authenticating first (an
+    office-issued password may have been handed over on paper) and refusing a new password equal to the old one, which would
+    satisfy the requirement while leaving the account on a password the office knows. Returns fresh tokens, because the
+    requirement travels as a claim: without new ones the user changes their password and is asked again.
+  - `MustChangePasswordMiddleware` (API) refuses every other endpoint meanwhile, with a short explicit allow-list — change
+    the password, read current-user, refresh, log out, health — and a machine-readable code so the portal routes on the code
+    rather than on English prose. The allow-list is asserted in both directions: blocking too little makes it cosmetic,
+    blocking too much locks the office out of the screen that would fix it.
+  - `MustChangePasswordGuard` (portal) sends a flagged session to `/change-password`. It is the experience, not the
+    boundary: the API is the gate, since a guard living only in the browser is a suggestion.
+  - The new page carries NO LGU branding. `AuthBrandPanel` defaults to Cantilan's seal and office name, and the branding
+    endpoint that would supply the real ones is itself blocked while the requirement stands — so using it would have shown
+    Cantilan's identity to every other municipality.
+  - Resetting your OWN password no longer flags the account: choosing a password is not being issued one. An existing test
+    asserted the opposite while setting the acting user to the target — it was describing an office-issued reset with a
+    self-reset's setup, and is now split into both cases.
+  - A source-level test asserts the middleware is REGISTERED, and in the right place. Found necessary the hard way: deleting
+    the registration left all sixteen behavioural tests green while nothing enforced anything.
+  - Collectors and payors are unaffected — neither type sets the flag, and a missing claim means "not required", so older
+    tokens and non-admin accounts are never caught by it.
+
+
+- **NPM daily history for CUSTOM sections — now tested end to end** (2026-08-15). The path was CORRECT; what was missing was
+  any test that could tell. The existing import tests mock the stall lookup with `It.IsAny<MarketSection?>()`, so whatever
+  section is asked for, the mock hands back the same stall — dropping the section entirely could not fail them.
+  `BulkImportDailyHistoryCustomSectionTests` uses the real repository over a real context and seeds the same space NUMBER in
+  three sections (Vegetable Area, "Sari Sari", "Carinderia"), because the market numbers spaces independently per section and
+  the only thing between one lessee's money and another's account is that the section is carried through and matched.
+  - **A weakness found while proving the tests bite, and worth keeping in mind:** with the filter dropped, one import test
+    failed and its MIRROR passed by luck. `BulkImportDailyHistoryCommandHandler` keys matched stalls into a dictionary by
+    number (`stallsByNo[no] = stall`), so when two same-numbered spaces come back the second silently OVERWRITES the first, and
+    which lessee is credited depends on the order rows are returned in. The section filter means it never happens today. The
+    test that cannot be lucky is the repository-level one, which counts what the filter returned.
+  - **RESOLVED 2026-08-16 on the office's ruling: an ambiguous row is REFUSED.** All three imports keyed matched spaces into a
+    dictionary by number, so when two spaces shared one the second silently replaced the first and which lessee was credited
+    depended on the order the repository returned them in. They now GROUP, and a row naming a number that more than one space
+    carries is rejected with a reason that names the number and says what to do — the office is the only party that knows which
+    space it meant.
+    - Applied to all three, because it is one rule: the daily-history import (which day's money), the payment-history import
+      (which account paid), and the stallholders import (which occupancy a lessee holds — there, guessing would have renewed,
+      reopened or re-rated the wrong space).
+    - Proven load-bearing by disabling the refusal: only the ambiguous-row test failed, and the unambiguous case still settles
+      normally, so the refusal cannot be passing by rejecting everything.
+- **Hiding or soft-deleting an OR — RETIRED 2026-08-16, there is no such thing.** The office states that once an Official
+  Receipt is issued it stays part of the record; there is no withdrawal step in the actual workflow. So nothing was built, and
+  the queue is already right: "Missing OR" flags only records whose OR is BLANK, which is exactly a collection taken but not yet
+  receipted.
+  - Verified the correction paths the office DOES use already exist, as the office pointed out: `SetStallMonthlyException` and
+    `ClearStallMonthlyException` excuse or un-excuse a past billing month (₱0 owed, never counted unpaid), `RecordPayment`
+    records money against a past month, and `SettleNpmDays`/`SettleNpmMonth` settle past market days. Correcting a past period
+    is therefore a matter of marking it, not of unmaking a receipt.
+
+## Rulings from the office, 2026-08-16
+
+Seven questions that had been blocking work were answered. Recorded here with what each one settles, because the reasoning is
+the part that gets lost.
+
+1. **An issued OR is never withdrawn.** See above — retired rather than built.
+2. **Forwarded headers: accept, trusted as tightly as Azure allows.** So absolute redirects stop being scheme-downgraded to
+   `http`.
+3. **A signed contract of zero years is INVALID.** Zero years is only legitimate for a space-only occupancy, which is why such
+   a row is not treated as expired — it carries the open-ended sentinel instead. The two expiry rules must be made to agree.
+4. **PayMongo: fail fast at startup** rather than three endpoints failing at request time.
+5. **An import row naming a number two spaces share is REFUSED**, not placed on a best guess.
+6. **The Earlier Terms occupant match reuses `PersonName`** — same name, however spelled or spaced, is the same person, which
+   is the rule the office already confirmed for the slaughterhouse.
+7. **Section colours reuse the three existing colours cyclically** — no new hues, and every section distinguishable whatever an
+   LGU calls its own.
+
+And for item 6: **the portal gets its own request models** rather than continuing to post command types.
+- **The Backups page's duplicate headings — DONE 2026-08-16, and it turned up something worse.** Four cards, not two: a platform
+  operator saw **two** headed "Recent backups" and **two** headed "Recent restores". The first pair is this LGU's own saved data
+  ("the most recent 15 are kept"); the second, inside `@if (_isOperator)`, is the whole-database workflow runs. Only an operator
+  sees both, which is why it survived — but an operator is exactly who must never confuse one municipality's restore with every
+  municipality's. Renamed to **"Whole-database backup runs"** and **"Whole-database restore runs"**, each subtitled "every
+  municipality at once, not this office alone". The office-facing pair keeps its plain wording. The old line numbers in this note
+  were stale; the titles were at 162/245/386/448.
+  - **The real find: the portal decided who the platform operator is BY ITSELF**, comparing the municipality claim against the
+    default tenant's code written straight into the markup. `PlatformOperatorPolicy` exists specifically to stop that — its own
+    summary says the rule once "lived in three" places and "they disagreed, and not harmlessly" — and the portal was a fourth.
+  - It carried only the documented FALLBACK clause (default tenant + SuperAdmin) and ignored the `IsPlatformOperator` account flag
+    entirely. So **a dedicated operator account — the intended mechanism, and what a fresh deployment gets — was shown none of the
+    whole-database controls the API already permits it**, while any SuperAdmin of the default tenant saw them.
+  - **Not a security hole:** every endpoint on `BackupController` is `[Authorize(Policy = "PlatformOperator")]`, checked before
+    concluding anything. The UI flag decided only what was DISPLAYED. Verified endpoint by endpoint.
+  - Now calls `PlatformOperatorPolicy.IsOperator`, exactly as the API's policy does, using `AppClaimTypes` instead of literals.
+    (At the time this meant passing three facts, including the tenant code from `TenantConstants.DefaultTenantCode`; the fallback
+    clause was retired on 2026-08-21 and the rule now takes only the operator flag, so both call sites pass just that.) The
+    comparison mirrors the API's case sensitivity deliberately: looser would offer controls the API then refuses, stricter would
+    hide ones it allows.
+  - `BackupsOperatorDecisionTests` states the decision for every combination that matters, and asserts **no file in the portal
+    contains the default tenant's code at all** — the multi-tenancy guard, asserted against the source because that is where the
+    fault lived. Both were proven load-bearing by reintroducing the old line.
+- **A pre-deploy backup gate now exists** (was: a deployment could migrate before a fresh backup existed). Added
+  2026-08-14 as a `backup-gate` job in `deploy-production.yml`, between the test gate and the deployment:
+  - It asks one question — does this deployment change the database schema? — by diffing the pushed range against
+    `EEMOCantilanSDS.Infrastructure/Migrations`. Migrations are applied on API startup, so a deployment carrying one reshapes
+    the office's data before anyone can check it.
+  - If it does, `backup.yml` is dispatched and WAITED for. Success is a precondition of deploying; a failed or slow backup
+    stops the release rather than migrating without one.
+  - Deliberately conditional. Most deployments carry no migration, and demanding a dump for every one would add minutes to
+    every release and teach the office to ignore the gate.
+  - Deliberately unconditional WITHIN that case: no "only if the last backup is older than N hours". A schema change is
+    rare, a dump takes minutes, and threshold arithmetic is one more thing to get wrong in the job whose only job is to be
+    trustworthy.
+  - It fails SAFE. When the range cannot be determined — a manual run, a force-push, a parent missing from the clone — it
+    treats the deployment as a schema change and takes the backup. Being wrong that way costs one dump.
+  - Verified before pushing: all six workflow files parse; the deploy job's dependency on the gate is asserted; and the
+    detection script was run against real history — a code-only range answers "no", the last real migration commit answers
+    "yes, 3 files", and all three unknowable cases fail safe.
+  - NOT yet exercised end to end, because `.github/**` is path-ignored for deployments, so this commit does not itself
+    deploy. The non-schema path runs on the next ordinary release; the schema path runs on the next migration.
+
+- **`restore.yml` now quiesces the API** (was: writes could land mid-restore). Added 2026-08-14:
+  - The API is stopped before anything is touched, because it is the only writer — the portal and the collectors' app both
+    go through it. Left running, it would accept collections while the restore replaced the very rows they land in, and
+    those receipts would be gone with nobody told. It also fixes what the file already warned about: a pool of open
+    connections can block the transactional `--clean`, so a restore could fail on a busy morning for no visible reason.
+  - The pre-restore snapshot is now taken AFTER the stop, so the one artifact meant to undo the run is actually the state
+    the run replaced.
+  - Remaining sessions are closed before restoring (own session excluded), since a forgotten psql or pgAdmin window is
+    enough to fail the `--clean` after the office is already committed.
+  - The API is restarted with `if: always()` and its health asserted, so a failed restore cannot leave the office with an
+    outage on top of the problem they were recovering from. A rehearsal skips the stop, the disconnect and the health
+    assertion — it never stopped anything.
+  - The portal is deliberately left running: it writes nothing, a Head who just triggered a restore should see a site
+    reporting trouble rather than a dead one, and it recovers by itself when the API returns.
+  - Verified before pushing: all six workflows parse, and the STEP ORDER is asserted programmatically rather than eyeballed
+    (stop before snapshot, disconnect between stop and restore, restart after restore and unconditional).
+  - EXERCISED END TO END on 2026-08-14, against production, at the office's instruction (the system is not yet in service).
+    The API went `Running` → `Stopped` → `Running`, observed from Azure while the run progressed; the log shows the stop, the
+    drain, "Closed 0 other session(s)", a successful restore, 29 tables / 65 migrations, and the API answering `/health`
+    afterwards. The pre-restore safety dump is retained as an artifact (29,072 bytes, 90 days). A rehearsal was run first,
+    against a scratch database, so a logic error would have surfaced there rather than against the live one.
+
+- **Restore rehearsals can now be cleaned up** — `drill-cleanup.yml`. The rehearsal is what makes the recovery procedure
+  practisable, but it leaves the scratch copy behind and its summary only told the operator to drop it; nobody could, because
+  the database password lives in this repository's secrets and nowhere else. Found immediately after running the first drill.
+  A separate file on purpose: `restore.yml` is what the office reaches for on its worst day, and a DROP branch inside the
+  recovery tool would sit one input away from the production name. The production database is refused twice, both times
+  against the secret rather than a hardcoded name, and the target must look like a rehearsal copy so a typo cannot destroy
+  another database on the same server. Both paths were exercised: asked for the production name it refused and SKIPPED every
+  later step, and asked for the drill copy it dropped it and proved production still present.
+- **`Profile` "Earlier Terms" card — now tested** (2026-08-15). It had no test because no fixture existed to render the profile;
+  there is one now (`ComponentTests/Pages/ProfileEarlierTermsTests.cs`), built against a NON-market facility deliberately, since
+  the NPM profile also builds a daily heat-map and fetches resolved rates that this card never touches.
+  Seven cases, and the ones that matter are about money belonging to the right lessee: a stranger's ENDED term must not offer
+  "record payment on this term" (it would invite the clerk to post the present lessee's money onto the previous lessee's
+  account), a LAPSED term must offer it (that term is still the one in force), and a re-let stall's two rows must each state
+  their own collected and uncollected. Proven load-bearing by loosening the guard to `Uncollected > 0`: only the stranger case
+  failed.
+  - **Found while writing it, and NOT changed:** the card decides "same lessee as now" with
+    `string.Equals(prior.Occupant?.Trim(), Stall.ActualOccupant.Trim(), OrdinalIgnoreCase)` — it does not use `PersonName`,
+    so unlike the slaughterhouse it does not collapse INTERNAL whitespace. "Kim  Chui" and "Kim Chui" are the same person to one
+    and different to the other. Aligning them would make this money gate offer collection in a case it currently withholds it,
+    which is a behaviour change on a money path: the office should say so first. Recorded rather than decided.
+- **"Same payor" matching NARROWED to genuine namesakes** (was: exact free-text comparison). Resolved 2026-08-14. A
+  slaughterhouse client is the name a clerk typed — there is no client entity — and that name gated the OR-reuse rule. With
+  exact equality, entering the second animal of one receipt as "Juan dela Cruz" when the first was "Juan Dela Cruz" made the
+  office's own receipt look like another person's and **the OR the office had already written was refused**; a client's
+  history and monthly totals also split across spellings. `Domain/Common/PersonName.cs` now defines the rule (trim, collapse
+  internal whitespace, ignore case), stored names are canonical on write, and it is applied at:
+  the OR-reuse check (`OrNumberRegistry`), the four owner lookups in `SlaughterRepository`, the receipt groupings in
+  `DashboardRepository` and `TransactionFeedRepository`, the month-end report, the follow-up "Missing OR" grouping, and the
+  three client report groupings. Capitalisation is preserved in storage and display — only comparison ignores it.
+  - `20260814080342_CanonicaliseSlaughterOwnerNames` canonicalises whitespace in existing rows. Data only, no schema change,
+    idempotent, `Down` deliberately empty. It was **necessary, not tidying**: the owner picker now offers canonical names, so
+    a pre-existing double-spaced row would have become unreachable through it.
+  - Proven against real PostgreSQL, because `Trim().ToLower()` in a predicate is SQL the in-memory provider never has to
+    translate — it answers in LINQ and would pass whether or not the SQL works.
+  - **RESOLVED by the office 2026-08-14: within one LGU there are no namesakes.** Two different people sharing a name is a
+    problem of national scope, not of a municipality's own client list, so a name IS the client's identity here and no payor
+    entity is needed. That closes what was recorded as the remaining half of this item.
+  - What still fragments a client is a genuine MISSPELLING (not a recapitalisation) — "Villanueva" entered once as
+    "Villaneuva" is two clients, and no rule derived from the name can tell a typo from a different person. That is a
+    data-entry correction concern (find and fix the wrong entry), not an identity one, and it needs no schema: the office can
+    correct the name and the transactions rejoin. Worth a duplicate-name warning at entry time if the office ever asks.
+- **The follow-up header stated the VISIBLE rows, not the whole debt** — resolved 2026-08-14 (`372b7a62`). The Financial
+  Report's Attention & Follow-up header read "N accounts need follow-up · ₱X outstanding in full" while counting and summing
+  the two lists beside it, which are capped at 50 accounts each (`AttentionLimit`) to bound the payload. An office with more
+  than fifty accounts in a bucket was therefore shown fewer accounts and less money than it was owed, under a heading that
+  claims completeness; the column counts had the same fault. `FinancialReportDto` now carries `DelinquentAccountsTotal`,
+  `DelinquentOutstandingTotal`, `ArrearsAccountsTotal` and `ArrearsOutstandingTotal`, counted before the cap, and a capped
+  list says so on the page.
+  - It could only appear at scale: below the cap both ways of counting agree, which is why it survived. A test pins that
+    agreement so the two paths cannot quietly diverge again.
+  - The new fields default to nought, which is its own hazard — a construction path that forgets them shows an empty header
+    above a populated list. Both production paths set them (including the All-time view, which builds its DTO from another),
+    and a test covers the All-time path specifically.
+
+- **The bare domain answered 404** — resolved 2026-08-14 (`79b471b5`). There was no route for `/` at all (`Home.razor` held a
+  commented-out sample) and the router carries no `NotFound`, so `console.stalltrack.site` told the office the page did not
+  exist. The root now forwards to `/menu` when signed in and `/login` when not, renders nothing of its own, replaces itself in
+  history, and is standalone so the shell is not drawn around a redirect. `"/"` had to be matched EXACTLY in
+  `AppShell.IsStandalonePage`: every path contains it, so a substring entry would strip the sidebar from the whole portal.
+
+- **Known small duplications**: mobile `_recordsCache`/`_reportCache` are never cleared on logout;
+  `FacilityReportsModal.razor` still hardcodes `#4a9eff`.
+
+  - **`SettleNpmMonthCommandHandler`'s repeated logic — resolved 2026-08-15.** What the two settle handlers actually shared was a
+    16-line prologue, and the part of it that mattered was the AUTHORISATION rule: a collector may settle only where they are
+    assigned. An authorisation rule kept in two copies is one that eventually gets fixed in only one of them, and this one decides
+    who may record that the office received money. Both now call `Common/Authorization/NpmSettlementAccess`.
+    - **Neither copy had ever been tested**: every existing test for these handlers runs as an administrator, so the collector
+      branch never executed. Six cases now cover it from BOTH entry points — a rule kept in one place still needs proving at each
+      door that uses it — including the other direction, so the guard cannot pass by refusing everyone. Proven load-bearing by
+      dropping the assignment requirement: the two "not assigned" cases failed, one per handler.
+    - One dead condition went with it: the old guard also tested `stall.Facility is null`, which cannot be true there because the
+      preceding line returns unless `stall.Facility?.Code == NPM`.
+
+  Two entries that used to sit in this list were examined on 2026-08-15 and turned out to be misdescribed. Recorded here so
+  nobody "fixes" them into a defect:
+
+  - **"the dashboard computes compliance twice" — it does not.** The two calls answer DIFFERENT questions over different spans:
+    `GetFacilitySnapshotAsync` gives THIS MONTH's compliance for ONE facility (the per-facility cards), while
+    `GetDelinquentStallsAsync(null, …)` gives rolling-window delinquency across ALL facilities (the overdue list), deliberately
+    the same computation the Financial Reports attention list uses so the two agree. They share a helper; they are not the same
+    question. Merging them to save a pass would change the figures on one of the two.
+  - **"mobile caches are never cleared on logout" — true, and CONFIRMED BY THE OFFICE 2026-08-16 as by design.** Both key on
+    `Session.Menu?.CollectorId`, so two collectors on one device do NOT mix. The pattern is cache-then-refresh: the cached view
+    shows instantly and a background fetch replaces it, and keeping the cached view when that fetch fails is deliberate offline
+    resilience for a collector in the field. Clearing on logout would trade that away. Nothing to fix.
+
+  - **`FacilityReportsRepository.Revenue.cs`'s occupancy memo was `static`; now an instance field** (2026-08-15). The comment
+    claimed "cached for the life of this request", which a process-wide table does not deliver — it only behaved that way
+    because EF hands each request its own entity graph. The memo also has no as-of date in its key while `Stall.Occupancies`
+    takes one, so a caller asking as of a different date would silently get the first answer. Harmless today (the as-of date
+    affects only `IsCurrent`, which neither predicate there reads) and now limited to one request and one clock, which is what
+    the comment always said.
+- **Absolute redirects are scheme-downgraded to `http`.** Found 2026-08-14 while verifying the root route: the live
+  `Location` header is `http://console.stalltrack.site/login`, not `https://`. TLS terminates at Azure's front end, so the app
+  sees `http` and builds absolute redirect URLs with that scheme; there is no `UseForwardedHeaders` in the Client pipeline.
+  HSTS is set (`max-age=31536000`), so a returning browser upgrades internally, and the `http` URL 301s to `https` anyway —
+  but a first-time visitor makes one plaintext request for the URL.
+  - NOT fixed on purpose. The remedy is `UseForwardedHeaders` as the FIRST middleware, and on App Service the usual
+    configuration clears `KnownProxies`/`KnownNetworks` because the proxy address is not fixed — which means trusting
+    `X-Forwarded-*` from any caller. That is spoofable, and it also changes the client IP that rate limiting and the firewall
+    rules see. A trade-off for the office to choose, not one to make quietly.
+
+- **The router's `NotFound` — DONE 2026-08-16, on the third mechanism.** Any mistyped URL rendered a blank page. Confirmed live
+  before the fix: 404 with a body of ZERO bytes, so the office saw white space with no statement and no way back; the status code
+  was already correct. Now answered by a **terminal fallback endpoint** in `Client/Program.cs`, rendering
+  `Components/Pages/NotFoundDocument.razor` with a 404. Verified live: 726 bytes, styled, no app shell, no tenant named.
+  - **Three mechanisms were tried and two shipped uselessly. Do not try them again.**
+    1. The router's `<NotFound>` markup. The framework documents it as **ineffective in a Blazor Web App** — and it is. Worse,
+       **bUnit honours it**, so the test asserting it PASSED while production stayed blank. A test that lied.
+    2. `Router.NotFoundPage`, the .NET 10 replacement. Correct for navigation inside a running circuit; never consulted for a
+       typed address. It is still wired up, for that case.
+    3. `UseStatusCodePagesWithReExecute`. Ruled out **by evidence**: an unmatched undotted path returns an explicit
+       `Content-Length: 0`, and `StatusCodePagesMiddleware` does nothing when a length is already set. Comparing a dotted path
+       (no Content-Length) with an undotted one (Content-Length: 0) is what revealed it.
+  - The fallback's shape carries three decisions: the `:nonfile` constraint so a missing asset still fails as a missing file;
+    `/api` excluded because those callers are code, not people (the sign-in form and token refresh read those responses, and
+    handing them HTML to parse is how "wrong password" becomes a parse error); and it renders a whole DOCUMENT, because a fallback
+    renders a component with nothing to supply the page around it — the first working version answered with 219 bytes of bare
+    unstyled markup.
+  - `NotFoundDocument` is deliberately lighter than `App.razor`, not a copy: no Blazor script, no circuit, no splash, no SignalR.
+    The page shows nothing that changes and its only control is a link. `app.css` alone carries `.empty-state`, `.btn-primary` and
+    the colour variables.
+  - The way back is an `<a href>`, not a button — load-bearing, because this render is STATIC, so an `@onclick` would be wired to
+    nothing and the only way off the page would silently do nothing. `AccessDenied` can afford a button; it only renders inside a
+    live circuit.
+  - `/not-found` uses `MinimalLayout` (the page declares it, as `PayorLayout` pages do). On a not-found render the path IS the
+    mistyped address, so `MainLayout`'s path-based sidebar rule would have drawn the full app shell around it — a menu offered to
+    a visitor who may not be signed in. Listing `/not-found` in `AppShell` was tried and reverted: it implies the path governs,
+    when the page does.
+  - **The lesson worth keeping: run the built portal locally before deploying.** Three deploys were spent verifying in production
+    because it was treated as the only way to see the truth. Starting the Release DLL on a spare port takes seconds, and it is what
+    caught the missing document — as well as confirming a missing `.css`, an unknown `/api` path, sign-in, and the SignalR
+    handshake were all still correct.
+
+- **Mojibake in five stylesheet comment blocks — REPAIRED 2026-08-17.** `Accounts`, `Collector`, `FacilityConfiguration`, `Menu`
+  and `Settings`. Comments only, and that was PROVEN rather than assumed: with every `/* … */` block stripped, the remaining CSS in
+  all five files is byte-identical before and after. Line endings were preserved per file (they differ — `Accounts` is all CRLF,
+  `FacilityConfiguration` is almost all LF), so the diff is 39 lines and no more.
+  - Three distinct manglings, each restored to what it was meant to be: `â€"` → `—` (em dash), `â"€` → `─`, and a six-character
+    run → `═`. The last had been through CP437 rather than CP1252, which is why it looked nothing like the others.
+  - **The sweep I had been using was BLIND to two of the three.** `Select-String -Pattern "Ã|â€"` matches the em-dash form but
+    NOT the mangled `─` or `═`, because neither contains the byte pair it looks for. It reported these files as clean while they
+    held 238 corrupt sequences — the check said what I wanted to hear. Use this instead, which looks for all three:
+
+    ```powershell
+    $bad = @([string]([char]226)+[char]8364+[char]8221,   # em dash, via CP1252
+             [string]([char]226)+[char]8221+[char]8364,   # box light horizontal
+             [string]([char]206)+[char]8220+[char]195+[char]178+[char]195+[char]8240)  # box double, via CP437
+    # plus the generic markers: "Ã" and "â€"
+    ```
+  - Cause worth knowing, because it recurs: `powershell -File` on 5.1 reads a BOM-less script as ANSI, so em dashes inside a
+    script's own string literals reach the files it writes already corrupted. The same thing damaged three comment lines during
+    the `CollectorRepository` split and was repaired in the commit after it. Sweep BEFORE committing, and STOP when it reports.
+  - A further trap found while repairing these: PowerShell **silently drops console output** for lines containing these bytes, so
+    a scan can appear to find nothing when it found plenty. Print line NUMBERS and an ASCII-folded rendering, never the raw line.
+
+- **Orphaned CSS in `FollowUpQueue.razor.css` — REMOVED 2026-08-17.** 184 lines of dead rules: `.fq-intro*`, `.fq-scope*` and the
+  whole `.fq-pay-*` monthly-payment-modal block. Confirmed dead by scanning the ENTIRE Client: those tokens appear nowhere except
+  that stylesheet. The diff is `0 insertions, 184 deletions` — a pure removal.
+  - **Seven classes looked orphaned and were NOT.** `.fq-pri-critical/high/normal/review` and `.fq-sec-critical/high/review` never
+    appear literally in the markup because they are composed at runtime — `fq-pri-@PriClass(it.Priority)` and
+    `fq-sec-@grp.Section.Tone`. A name-by-name search called all 25 candidates unused; deleting the seven would have silently
+    stripped the priority and severity colour-coding off a screen the office uses to chase money. **Search by PREFIX, and read the
+    markup, before deleting a class.**
+  - The "mixed line endings" hazard recorded here was a working-copy illusion: `.gitattributes` sets `* text=auto`, so the file is
+    stored with LF whatever the checkout looks like, and the diff stayed clean.

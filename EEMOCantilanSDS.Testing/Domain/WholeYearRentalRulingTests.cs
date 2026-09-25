@@ -10,7 +10,7 @@ namespace EEMOCantilanSDS.Testing;
 /// The Municipality of Cantilan's List of Stallholders for the New Public Market vegetable area gives, for every row:
 /// effectivity 6/7/2023, a term of 3 yrs, 4.8 sq.m., ₱900.00 monthly per contract, and a WHOLE YEAR RENTAL OF ₱10,800.00.
 /// That is twelve months exactly, with no thirteenth part-month. Ruled 2026-09-12; the document is kept at
-/// .kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg.
+/// docs/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg.
 /// </para>
 ///
 /// <para>

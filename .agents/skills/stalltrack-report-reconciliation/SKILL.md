@@ -10,7 +10,7 @@ Determine whether apparently different figures should agree before changing eith
 ## Authority
 
 Read the root `AGENTS.md`, the Reporting and billing sections of
-`.kiro/knowledge/EEMO_Complete_Documentation.md`, and the applicable architecture rules. Explicit current business
+`docs/business/EEMO_BUSINESS_RULES.md`, and the applicable rules under `docs/architecture/`. Explicit current business
 rulings govern. If documentation, tests, code and observed production disagree, identify the contradiction and decide
 which source is stale; do not make reports agree by silently adopting whichever implementation is easiest to reuse.
 

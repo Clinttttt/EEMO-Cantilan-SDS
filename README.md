@@ -83,7 +83,7 @@ dotnet ef migrations script --project EEMOCantilanSDS.Infrastructure --startup-p
 
 A push to `master` builds both container images (tagged with the commit SHA), pushes them to Azure Container
 Registry, and updates the two Azure Web App sitecontainers — portal and API. Roughly 10–13 minutes.
-Documentation-only paths (`.kiro/**`, `.agents/**`, `README.md`, `AGENTS.md`) do not trigger it.
+Documentation-only paths (`docs/**`, `.agents/**`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`) do not trigger it.
 
 Verify rather than trust: the deployed image tag equals `HEAD`, API `/health` returns 200, portal `/login`
 returns 200, and the scoped CSS bundle is brace-balanced. Collector-app changes additionally need a RELEASE APK
@@ -93,18 +93,16 @@ rebuild before collectors see them.
 
 ## Conventions and rules
 
-Read these before changing code, in this reading order:
+The permanent, tool-neutral project knowledge base lives under `docs/`. Start with:
 
-1. `.kiro/knowledge/arch-rules.md` — implementation boundaries: what is allowed and what is forbidden
-2. `.kiro/knowledge/patterns.md` — the code shapes to copy
-3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
-4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — accepted business semantics
-5. `.kiro/knowledge/EEMO_REVENUE_ARCHITECTURE.md` — approved target EEMO revenue architecture, business decision gates, migration phases and UI rules
+1. `docs/README.md` — documentation map, authority order and conflict handling
+2. `docs/architecture/ARCHITECTURE_RULES.md` — implementation boundaries
+3. `docs/architecture/APPLICATION_PATTERNS.md` — established code shapes
+4. `docs/architecture/SYSTEM_ARCHITECTURE.md` — architectural rationale
+5. `docs/business/EEMO_BUSINESS_RULES.md` — accepted business semantics
+6. `docs/business/REVENUE_ARCHITECTURE.md` — approved target EEMO revenue architecture and migration direction
 
-Short versions of the same material live in `.kiro/steering/`. `AGENTS.md` is the root entry point for agents
-that look there (Codex) and defines authority and conflict handling. This reading order is navigation, not automatic
-precedence: explicit current rulings, intended documentation, implementation/tests/workflows and verified production
-behaviour may disagree, and the contradiction must be investigated to determine which source is stale.
+`AGENTS.md` is the concise root entry point for coding agents. `.agents/skills/` contains repeatable StallTrack-specific review and operational procedures. Skills do not override canonical documentation. Explicit current rulings, intended documentation, implementation/tests/workflows and verified production behaviour can disagree; surface the contradiction and determine which source is stale before changing behaviour.
 
 Three rules worth stating on the front page:
 

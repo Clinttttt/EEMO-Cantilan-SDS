@@ -70,7 +70,7 @@ public class FinancialReportClaimsTests
         var root = RepositoryRoot().FullName;
         var settings = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Menus", "Settings.razor"));
         var summary = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "FinancialSummaryDocument.razor"));
-        var completeDocumentation = File.ReadAllText(Path.Combine(root, ".kiro", "knowledge", "EEMO_Complete_Documentation.md"));
+        var completeDocumentation = File.ReadAllText(Path.Combine(root, "docs", "business", "EEMO_BUSINESS_RULES.md"));
 
         Assert.Contains("Not defined; not inferred from unpaid-month age", settings);
         Assert.DoesNotContain("ArrearsMinMonths", settings);

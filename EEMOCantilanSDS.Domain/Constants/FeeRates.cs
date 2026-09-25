@@ -168,7 +168,7 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// This used to run through the anniversary itself, and the comment here cited the office's own paper for it. The
         /// paper says otherwise: the Municipality of Cantilan's List of Stallholders states, for every ₱900 space, a Whole
         /// Year Rental of ₱10,800.00 — twelve months, with no thirteenth part-month. Ruled 2026-09-12, the document kept at
-        /// .kiro/knowledge/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg.
+        /// docs/evidence/npm-vegetable-area-stallholder-list-2026-09-12.jpg.
         /// </para>
         ///
         /// <para>
