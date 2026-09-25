@@ -52,79 +52,6 @@
                 ShowProgress="true"
                 ProgressPercentage="@CollectionRate" />
 
-            <nav class="npm-workspace-selector" aria-label="Public Market workspaces">
-                <button type="button"
-                        class="npm-workspace-button @(ActiveWorkspace == PublicMarketWorkspace.PermanentStalls ? "active" : string.Empty)"
-                        aria-pressed="@(ActiveWorkspace == PublicMarketWorkspace.PermanentStalls)"
-                        @onclick="() => ActiveWorkspace = PublicMarketWorkspace.PermanentStalls">
-                    <span class="npm-workspace-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" focusable="false"><path d="M3 10h18M5 10l1.5-5h11L19 10M6 10v10h12V10M9 14h2m2 0h2" /></svg>
-                    </span>
-                    <span class="npm-workspace-copy">
-                        <span class="npm-workspace-name">Permanent Stalls</span>
-                        <span class="npm-workspace-description">Stall occupancy and daily collection</span>
-                    </span>
-                </button>
-                <button type="button"
-                        class="npm-workspace-button @(ActiveWorkspace == PublicMarketWorkspace.MarketServices ? "active" : string.Empty)"
-                        aria-pressed="@(ActiveWorkspace == PublicMarketWorkspace.MarketServices)"
-                        @onclick="() => ActiveWorkspace = PublicMarketWorkspace.MarketServices">
-                    <span class="npm-workspace-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" focusable="false"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" /></svg>
-                    </span>
-                    <span class="npm-workspace-copy">
-                        <span class="npm-workspace-name">Market Services</span>
-                        <span class="npm-workspace-description">Market and vendor-related collections</span>
-                    </span>
-                </button>
-                <button type="button"
-                        class="npm-workspace-button @(ActiveWorkspace == PublicMarketWorkspace.UtilitiesAndCharges ? "active" : string.Empty)"
-                        aria-pressed="@(ActiveWorkspace == PublicMarketWorkspace.UtilitiesAndCharges)"
-                        @onclick="() => ActiveWorkspace = PublicMarketWorkspace.UtilitiesAndCharges">
-                    <span class="npm-workspace-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" focusable="false"><path d="M13 2 4 14h6l-1 8 11-12h-6z" /></svg>
-                    </span>
-                    <span class="npm-workspace-copy">
-                        <span class="npm-workspace-name">Utilities &amp; Charges</span>
-                        <span class="npm-workspace-description">Electricity and water-related charges</span>
-                    </span>
-                </button>
-                <button type="button"
-                        class="npm-workspace-button @(ActiveWorkspace == PublicMarketWorkspace.TemporaryOpenSpace ? "active" : string.Empty)"
-                        aria-pressed="@(ActiveWorkspace == PublicMarketWorkspace.TemporaryOpenSpace)"
-                        @onclick="() => ActiveWorkspace = PublicMarketWorkspace.TemporaryOpenSpace">
-                    <span class="npm-workspace-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" focusable="false"><path d="M3 20 12 4l9 16M6 20v-6h12v6M12 4v10" /></svg>
-                    </span>
-                    <span class="npm-workspace-copy">
-                        <span class="npm-workspace-name">Temporary / Open-Space</span>
-                        <span class="npm-workspace-description">Temporary market and event space use</span>
-                    </span>
-                </button>
-            </nav>
-
-            @if (ActiveWorkspace == PublicMarketWorkspace.PermanentStalls)
-            {
-                var isAllSection = ActiveSection == "All";
-                var isFishSection = ActiveSection == "Fish Area";
-                var fishKgCollected = FishKgCollected;
-                // Custom sections aren't in the canonical Sections dictionary — guard every lookup so an
-                // active custom tab can never throw. Label = the custom name; description = a generic note.
-                var isCustomSection = !isAllSection && !Sections.ContainsKey(ActiveSection);
-                var sectionLabel = isAllSection
-                    ? "All Sections"
-                    : isCustomSection ? ActiveSection : FacilityCatalog.SectionLabelOf(FacilityCode.NPM, ActiveSection);
-                var sectionDesc = isAllSection
-                    ? "All NPM stalls — Vegetable · Fish · Meat"
-                    : Sections.TryGetValue(ActiveSection, out var _secInfo) ? _secInfo.Description : "Custom section — daily collection";
-                // Fish: show the daily-rent portion only, with the ₱/kg fee broken out separately
-                // so the two aren't conflated when read or summed.
-                var collectedMonth = isAllSection
-                    ? (Report?.TotalRevenue ?? 0m)
-                    : isFishSection
-                        ? Math.Max(0m, SectionCollected(ActiveSection) - fishKgCollected)
-                        : SectionCollected(ActiveSection);
-
             <!-- ── Section Tabs ── -->
             <div class="npm-section-tabs">
                 @{
@@ -203,6 +130,27 @@
             </Toolbar>
 
             <!-- ── Section Info Bar ── -->
+            @{
+                var isAllSection = ActiveSection == "All";
+                var isFishSection = ActiveSection == "Fish Area";
+                var fishKgCollected = FishKgCollected;
+                // Custom sections aren't in the canonical Sections dictionary — guard every lookup so an
+                // active custom tab can never throw. Label = the custom name; description = a generic note.
+                var isCustomSection = !isAllSection && !Sections.ContainsKey(ActiveSection);
+                var sectionLabel = isAllSection
+                    ? "All Sections"
+                    : isCustomSection ? ActiveSection : FacilityCatalog.SectionLabelOf(FacilityCode.NPM, ActiveSection);
+                var sectionDesc = isAllSection
+                    ? "All NPM stalls — Vegetable · Fish · Meat"
+                    : Sections.TryGetValue(ActiveSection, out var _secInfo) ? _secInfo.Description : "Custom section — daily collection";
+                // Fish: show the daily-rent portion only, with the ₱/kg fee broken out separately
+                // so the two aren't conflated when read or summed.
+                var collectedMonth = isAllSection
+                    ? (Report?.TotalRevenue ?? 0m)
+                    : isFishSection
+                        ? Math.Max(0m, SectionCollected(ActiveSection) - fishKgCollected)
+                        : SectionCollected(ActiveSection);
+            }
             <div class="npm-section-info">
                 <div class="npm-section-info-left">
                     <div class="npm-section-label">@sectionLabel</div>
@@ -295,36 +243,6 @@
                         </div>
                     }
                 }
-            }
-            }
-            else
-            {
-                var workspaceContent = WorkspaceContentFor(ActiveWorkspace);
-                <section class="npm-service-workspace" aria-labelledby="npm-service-workspace-title">
-                    <header class="npm-service-workspace-heading">
-                        <p class="npm-service-workspace-eyebrow">@workspaceContent.Eyebrow</p>
-                        <h2 id="npm-service-workspace-title">@workspaceContent.Title</h2>
-                        <p>@workspaceContent.Description</p>
-                    </header>
-                    <div class="npm-service-grid">
-                        @foreach (var service in workspaceContent.Services)
-                        {
-                            <article class="npm-service-card">
-                                <span class="npm-service-icon" aria-hidden="true">
-                                    <svg viewBox="0 0 24 24" focusable="false"><path d="M6 3h12v18l-6-3-6 3zM9 8h6M9 12h6" /></svg>
-                                </span>
-                                <div class="npm-service-copy">
-                                    <h3>@service.Name</h3>
-                                    <p>@service.Description</p>
-                                </div>
-                                @if (service.Instrument is not null)
-                                {
-                                    <span class="@InstrumentBadgeClass(service.Instrument)" aria-label="@InstrumentAccessibleName(service.Instrument)">@service.Instrument</span>
-                                }
-                            </article>
-                        }
-                    </div>
-                </section>
             }
 
         </div><!-- end content-area -->
@@ -441,78 +359,10 @@
 
     bool SidebarCollapsed = false;
 
-    private enum PublicMarketWorkspace
-    {
-        PermanentStalls,
-        MarketServices,
-        UtilitiesAndCharges,
-        TemporaryOpenSpace
-    }
-
-    private PublicMarketWorkspace ActiveWorkspace = PublicMarketWorkspace.PermanentStalls;
-
     string SearchQuery = string.Empty;
     string ActiveSection = "All";
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
-
-    private sealed record PublicMarketService(string Name, string Description, string? Instrument);
-    private sealed record WorkspaceContent(
-        string Eyebrow,
-        string Title,
-        string Description,
-        IReadOnlyList<PublicMarketService> Services);
-
-    private static readonly IReadOnlyList<PublicMarketService> MarketServiceItems =
-    [
-        new("Market Fees", "Market-related fee collection.", "CT"),
-        new("Fish / Meat Vendor Fee", "Vendor fee collection for applicable fish and meat market activity.", "OR"),
-        new("Weight & Measure", "Weight and measure registration or service collection.", "OR"),
-        new("Penalties / Fines", "Approved market penalties and fines.", "OR"),
-    ];
-
-    private static readonly IReadOnlyList<PublicMarketService> UtilityChargeItems =
-    [
-        new("ECF", "Electricity-related market charge.", "OR"),
-        new("WCF", "Water-related market charge.", "CT"),
-    ];
-
-    private static readonly IReadOnlyList<PublicMarketService> TemporarySpaceItems =
-    [
-        new("Vegetable / Fruit Space Rental", "Temporary vegetable and fruit selling space.", "CT"),
-        new("Kanmanggay / Space Rental", "Kanmanggay and related space use.", null),
-        new("Lot / Event Rental", "Lot and event rental activity.", null),
-    ];
-
-    private static WorkspaceContent WorkspaceContentFor(PublicMarketWorkspace workspace) => workspace switch
-    {
-        PublicMarketWorkspace.MarketServices => new(
-            "MARKET SERVICES",
-            "Market Services",
-            "Market and vendor-related collection services.",
-            MarketServiceItems),
-        PublicMarketWorkspace.UtilitiesAndCharges => new(
-            "UTILITIES & CHARGES",
-            "Utilities & Charges",
-            "Utility-related market charges and collections.",
-            UtilityChargeItems),
-        PublicMarketWorkspace.TemporaryOpenSpace => new(
-            "TEMPORARY / OPEN-SPACE",
-            "Temporary / Open-Space",
-            "Temporary selling areas, open-space use, and event or lot rental activity.",
-            TemporarySpaceItems),
-        _ => throw new ArgumentOutOfRangeException(nameof(workspace), workspace, null)
-    };
-
-    private static string InstrumentBadgeClass(string instrument) =>
-        $"npm-service-instrument npm-service-instrument-{instrument.ToLowerInvariant()}";
-
-    private static string InstrumentAccessibleName(string instrument) => instrument switch
-    {
-        "OR" => "Official Receipt (OR)",
-        "CT" => "Cash Ticket (CT)",
-        _ => instrument,
-    };
 
     // Per-LGU custom NPM sections (registry ∪ stall names, with stall counts). Drives the extra tabs/cards
     // and the remove-when-empty control; empty for Cantilan so the page is unchanged.
