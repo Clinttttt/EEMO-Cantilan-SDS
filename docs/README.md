@@ -24,6 +24,7 @@ Do not silently choose whichever source is easiest to implement. Surface the con
 Before changing V2 code, read:
 
 - `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of current production, target V2, future/hidden capability, decision gates, sidebar direction, migration strategy, and UI-preservation rules.
+- when concurrent V2 sessions are active, `planning/ACTIVE_WORKSTREAMS.md` — temporary worktree/file ownership and shared-file locks. This is coordination guidance, not business authority.
 - this `README.md` — authority order and canonical documentation map.
 - the relevant authoritative business/architecture source for the task, especially `architecture/ARCHITECTURE_RULES.md`, `architecture/APPLICATION_PATTERNS.md`, `business/EEMO_BUSINESS_RULES.md`, and `business/REVENUE_ARCHITECTURE.md`.
 - `decisions/DECISION_REGISTRY.md` before assuming a business, accountability, report, route-identity, target, remittance, or classification decision.
@@ -77,6 +78,7 @@ Before changing V2 code, read:
 
 ### Planning and evidence
 
+- `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
 - `planning/IMPLEMENTATION_HISTORY.md` — historical implementation/backlog record. It is evidence, not automatic current authority.
 - `evidence/` — office/reference evidence retained with the repository.
 - `../tools/diagnostics/` — diagnostic scripts; diagnostics are evidence tools, not application behavior.

@@ -14,11 +14,12 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 ## Read these before changing code, in this order
 
 1. `docs/v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of CURRENT vs TARGET V2 vs FUTURE/BLOCKED work, V2 scope, sidebar direction, migration rules, and strict UI-preservation policy.
-2. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
-3. Read the relevant authoritative business/architecture source for the task — especially `docs/business/EEMO_OPERATIONAL_RULEBOOK.md`, `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
-4. `docs/decisions/DECISION_REGISTRY.md` — confirm that the task does not assume a blocked, future, or unresolved EEMO decision.
-5. Inspect current code, migrations, tests, CI/workflows, and verified production behavior as evidence of what is actually implemented now.
-6. Read relevant domain-specific documents under `docs/interface/`, `docs/security/`, and `docs/testing/` before changing those areas.
+2. When concurrent V2 workstreams are active, read `docs/planning/ACTIVE_WORKSTREAMS.md` — temporary session/worktree ownership and shared-file locks. It controls edit ownership only and never overrides business/architecture authority.
+3. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
+4. Read the relevant authoritative business/architecture source for the task — especially `docs/business/EEMO_OPERATIONAL_RULEBOOK.md`, `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
+5. `docs/decisions/DECISION_REGISTRY.md` — confirm that the task does not assume a blocked, future, or unresolved EEMO decision.
+6. Inspect current code, migrations, tests, CI/workflows, and verified production behavior as evidence of what is actually implemented now.
+7. Read relevant domain-specific documents under `docs/interface/`, `docs/security/`, and `docs/testing/` before changing those areas.
 
 The repository knowledge base is tool-neutral. `.agents/skills/` contains repeatable review/runbook procedures; skills never override the canonical documents above.
 
@@ -69,6 +70,15 @@ dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.cs
 Migrations are **additive only** (production applies them at startup).
 
 ## Working agreements
+
+### Active multi-session coordination
+
+- When concurrent V2 workstreams are active, read `docs/planning/ACTIVE_WORKSTREAMS.md` before editing.
+- The active-workstream registry governs temporary file/worktree ownership only. It never overrides canonical business, architecture, security, or decision documentation.
+- Do not edit another active session's owned files or integration-locked shared files.
+- Feature sessions should request shared-file integration instead of editing shared navigation/shell files themselves.
+- Separate Git worktrees are required for concurrent implementation sessions, except for an explicitly documented temporary exception.
+- Build success is not visual approval. Leave UI work uncommitted until Clint has reviewed the localhost result unless the task explicitly says otherwise.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
   (stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, produced invalid YAML).
