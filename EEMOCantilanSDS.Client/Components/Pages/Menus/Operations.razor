@@ -7,56 +7,282 @@
 
 <main class="operations-page">
     <header class="operations-header">
-        <p class="operations-eyebrow">Operations</p>
-        <h1>Facilities</h1>
-        <p class="operations-intro">Choose a facility to open its current workspace.</p>
+        <p class="operations-eyebrow">OPERATIONS</p>
+        <h1>Operations</h1>
+        <p class="operations-intro">Choose an operational area to open current facility work or review the services planned for StallTrack V2.</p>
     </header>
+
+    <section class="operations-policy" aria-label="Cantilan collection instrument policy references">
+        <dl class="operations-legend">
+            <div>
+                <dt class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</dt>
+                <dd>Official Receipt</dd>
+            </div>
+            <div>
+                <dt class="operations-instrument operations-instrument-ct" aria-label="Cash Ticket">CT</dt>
+                <dd>Cash Ticket</dd>
+            </div>
+        </dl>
+        <p>Instrument labels shown from the confirmed Cantilan collection policy. These are policy references only; accountable-document and Cash Ticket inventory workflows are not available here.</p>
+    </section>
 
     @if (_loading)
     {
-        <p class="operations-message" role="status">Loading configured facilities…</p>
+        <p class="operations-discovery" role="status">Loading configured facility links…</p>
     }
     else if (_loadFailed)
     {
-        <div class="operations-message operations-error" role="alert">
-            <p>The facility list is temporarily unavailable.</p>
+        <div class="operations-discovery operations-discovery-error" role="alert">
+            <p>Configured facility links are temporarily unavailable. Service information remains visible, but no fallback facility links are shown.</p>
             <button type="button" @onclick="LoadFacilitiesAsync">Try again</button>
         </div>
     }
     else if (_facilities.Count == 0)
     {
-        <p class="operations-message" role="status">No active facilities are available to open.</p>
+        <p class="operations-discovery" role="status">No configured facility links are currently available.</p>
     }
-    else
-    {
-        <ul class="operations-list" aria-label="Configured facilities">
-            @foreach (var facility in _facilities)
+
+    <div class="operations-grid">
+        <section class="operations-card" aria-labelledby="public-market-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <FacilityMark Code="FacilityCode.NPM" Ink="FacilityMarkInk.Navy" Size="20" />
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">MARKET OPERATIONS</p>
+                    <h2 id="public-market-title">Public Market</h2>
+                    <p>Permanent market spaces and related market collection services.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in PublicMarketServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+
+            @if (ConfiguredFacility(FacilityCode.NPM) is { } npm)
             {
-                <li class="operations-row" data-facility-code="@facility.Code">
-                    <div class="operations-facility-identity">
-                        <span class="operations-facility-code">@facility.ShortName</span>
-                        <h2>@facility.Name</h2>
-                    </div>
-                    @if (IsRouteable(facility.Code))
-                    {
-                        <a class="operations-open" href="@FacilityHref(facility)" aria-label="Open facility @facility.Name">
-                            Open facility
-                        </a>
-                    }
-                    else
-                    {
-                        <span>Unsupported code (@((int)facility.Code))</span>
-                    }
-                </li>
+                <div class="operations-card-actions">
+                    <a class="operations-action-link" href="@FacilityHref(npm)">
+                        Open @npm.Name
+                        <span aria-hidden="true">→</span>
+                    </a>
+                </div>
             }
-        </ul>
-    }
+        </section>
+
+        <section class="operations-card" aria-labelledby="rental-spaces-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <FacilityMark Code="FacilityCode.TCC" Ink="FacilityMarkInk.Navy" Size="20" />
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">RENTAL OPERATIONS</p>
+                    <h2 id="rental-spaces-title">Commercial &amp; Rental Spaces</h2>
+                    <p>Permanent rental facilities and recurring space obligations.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in CommercialRentalServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+
+            <div class="operations-card-actions operations-facility-actions" aria-label="Configured rental facilities">
+                @foreach (var facility in RentalFacilities)
+                {
+                    <a class="operations-facility-link" href="@FacilityHref(facility)">
+                        <span class="operations-facility-code">@facility.ShortName</span>
+                        <span>@facility.Name</span>
+                        <span class="operations-facility-arrow" aria-hidden="true">→</span>
+                    </a>
+                }
+                @if (!_loading && !_loadFailed && !RentalFacilities.Any())
+                {
+                    <p class="operations-no-facilities">No configured rental facilities are available.</p>
+                }
+            </div>
+        </section>
+
+        <section class="operations-card" aria-labelledby="temporary-space-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M4 19h16M6 19V8l6-4 6 4v11M9 19v-5h6v5M8 9h.01M12 9h.01M16 9h.01" />
+                    </svg>
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">SPACE &amp; EVENT OPERATIONS</p>
+                    <h2 id="temporary-space-title">Temporary / Open-Space Rental</h2>
+                    <p>Temporary selling spaces, open-space use, and event or lot rentals.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in TemporarySpaceServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+        </section>
+
+        <section class="operations-card" aria-labelledby="taboan-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <FacilityMark Code="FacilityCode.TPM" Ink="FacilityMarkInk.Navy" Size="20" />
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">MARKET-DAY OPERATIONS</p>
+                    <h2 id="taboan-title">Tabo-an Public Market</h2>
+                    <p>Market-day vendor activity and Tabo collections.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in TaboanServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+
+            @if (ConfiguredFacility(FacilityCode.TPM) is { } tpm)
+            {
+                <div class="operations-card-actions">
+                    <a class="operations-action-link" href="@FacilityHref(tpm)">
+                        Open @tpm.Name
+                        <span aria-hidden="true">→</span>
+                    </a>
+                </div>
+            }
+        </section>
+
+        <section class="operations-card" aria-labelledby="transport-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <FacilityMark Code="FacilityCode.TRM" Ink="FacilityMarkInk.Navy" Size="20" />
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">TRANSPORT OPERATIONS</p>
+                    <h2 id="transport-title">Transportation &amp; Parking</h2>
+                    <p>Terminal trips and future vehicle-class based transportation collections.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in TransportationServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+
+            @if (ConfiguredFacility(FacilityCode.TRM) is { } trm)
+            {
+                <div class="operations-card-actions">
+                    <a class="operations-action-link" href="@FacilityHref(trm)">
+                        Open @trm.Name
+                        <span aria-hidden="true">→</span>
+                    </a>
+                </div>
+            }
+        </section>
+
+        <section class="operations-card" aria-labelledby="slaughterhouse-title">
+            <header class="operations-card-header">
+                <span class="operations-card-icon" aria-hidden="true">
+                    <FacilityMark Code="FacilityCode.SLH" Ink="FacilityMarkInk.Navy" Size="20" />
+                </span>
+                <div class="operations-card-heading">
+                    <p class="operations-card-label">SERVICE OPERATIONS</p>
+                    <h2 id="slaughterhouse-title">Slaughterhouse</h2>
+                    <p>Per-animal slaughter activity and approved service charges.</p>
+                </div>
+            </header>
+
+            <ul class="operations-services">
+                @foreach (var service in SlaughterhouseServices)
+                {
+                    @ServiceRow(service)
+                }
+            </ul>
+
+            @if (ConfiguredFacility(FacilityCode.SLH) is { } slh)
+            {
+                <div class="operations-card-actions">
+                    <a class="operations-action-link" href="@FacilityHref(slh)">
+                        Open @slh.Name
+                        <span aria-hidden="true">→</span>
+                    </a>
+                </div>
+            }
+        </section>
+    </div>
+
+    <section class="operations-additional" aria-label="Additional planned service">
+        <div class="operations-additional-heading">
+            <p class="operations-additional-label">ADDITIONAL PLANNED SERVICE</p>
+            <h2>Landing / Berthing</h2>
+        </div>
+        <div class="operations-additional-status" aria-label="Cash Ticket policy reference, planned for V2">
+            <span class="operations-instrument operations-instrument-ct" aria-label="Cash Ticket">CT</span>
+            <span class="operations-status-badge operations-status-planned-v2">Planned V2</span>
+        </div>
+    </section>
 </main>
 
 @code {
+    private static readonly IReadOnlyList<OperationService> PublicMarketServices =
+    [
+        new("Permanent stalls / applicable permanent rental", "OR", null),
+        new("Market Fees", "CT", null),
+        new("ECF", "OR", null),
+        new("WCF", "CT", "Planned"),
+        new("Fish / Meat Vendor Fee", "OR", null),
+        new("Weight & Measure", "OR", null),
+        new("Penalties / Fines", "OR", null),
+    ];
+
+    private static readonly IReadOnlyList<OperationService> CommercialRentalServices =
+    [
+        new("Applicable permanent rental charges", "OR", null),
+    ];
+
+    private static readonly IReadOnlyList<OperationService> TemporarySpaceServices =
+    [
+        new("Vegetable / Fruit Space Rental", "CT", null),
+        new("Kanmanggay / Space Rental", null, "Planned"),
+        new("Lot / Event Rental", null, "Planned"),
+    ];
+
+    private static readonly IReadOnlyList<OperationService> TaboanServices =
+    [
+        new("Tabo / market-day collection", "CT", null),
+    ];
+
+    private static readonly IReadOnlyList<OperationService> TransportationServices =
+    [
+        new("Current terminal activity", null, "Current"),
+        new("Transportation / Parking", "CT", null),
+        new("Vehicle-class rate model", null, "Planned"),
+    ];
+
+    private static readonly IReadOnlyList<OperationService> SlaughterhouseServices =
+    [
+        new("Current approved slaughter charges", "OR", null),
+        new("Approved configurable add-ons", null, "Planned"),
+    ];
+
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
     private bool _loading = true;
     private bool _loadFailed;
+
+    private IEnumerable<FacilitySidebarSummaryDto> RentalFacilities => _facilities
+        .Where(facility => facility.Code is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE
+            || IsCustomFacility(facility.Code))
+        .OrderBy(facility => facility.Code);
 
     protected override Task OnInitializedAsync() => LoadFacilitiesAsync();
 
@@ -90,6 +316,48 @@
         }
     }
 
+    private RenderFragment ServiceRow(OperationService service) => builder =>
+    {
+        builder.OpenElement(0, "li");
+        builder.AddAttribute(1, "class", "operations-service-row");
+        builder.OpenElement(2, "span");
+        builder.AddAttribute(3, "class", "operations-service-name");
+        builder.AddContent(4, service.Name);
+        builder.CloseElement();
+        builder.OpenElement(5, "span");
+        builder.AddAttribute(6, "class", "operations-service-status");
+
+        if (service.Instrument is not null)
+        {
+            builder.OpenElement(7, "span");
+            builder.AddAttribute(8, "class", $"operations-instrument operations-instrument-{service.Instrument.ToLowerInvariant()}");
+            builder.AddAttribute(9, "aria-label", InstrumentName(service.Instrument));
+            builder.AddContent(10, service.Instrument);
+            builder.CloseElement();
+        }
+
+        if (service.Status is not null)
+        {
+            builder.OpenElement(11, "span");
+            builder.AddAttribute(12, "class", $"operations-status-badge operations-status-{service.Status.ToLowerInvariant().Replace(' ', '-')}");
+            builder.AddContent(13, service.Status);
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static string InstrumentName(string instrument) => instrument switch
+    {
+        "OR" => "Official Receipt",
+        "CT" => "Cash Ticket",
+        _ => instrument,
+    };
+
+    private FacilitySidebarSummaryDto? ConfiguredFacility(FacilityCode code) =>
+        _facilities.FirstOrDefault(facility => facility.Code == code && IsRouteable(facility.Code));
+
     private string FacilityHref(FacilitySidebarSummaryDto facility)
     {
         var peers = _facilities.Select(peer => (Code: peer.Code, ShortName: (string?)peer.ShortName));
@@ -98,4 +366,9 @@
     }
 
     private static bool IsRouteable(FacilityCode code) => Enum.IsDefined(code);
+
+    private static bool IsCustomFacility(FacilityCode code) =>
+        (int)code >= (int)FacilityCode.Custom1 && (int)code <= (int)FacilityCode.Custom5;
+
+    private sealed record OperationService(string Name, string? Instrument, string? Status);
 }
