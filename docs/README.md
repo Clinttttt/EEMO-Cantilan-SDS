@@ -47,6 +47,7 @@ Before changing V2 code, read:
 
 ### Business
 
+- `business/EEMO_OPERATIONAL_RULEBOOK.md` — direct EEMO Head/staff rulings, office-evidence reconciliations, confirmed operational rules, and the short list of genuinely unresolved business questions. Read this before asking EEMO to re-confirm workflow details.
 - `business/EEMO_BUSINESS_RULES.md` — current specialized facility behavior and accepted office semantics.
 - `business/REVENUE_ARCHITECTURE.md` — target collections, classifications, accountable documents, reporting, and migration phases.
 

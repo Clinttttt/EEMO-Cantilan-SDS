@@ -272,13 +272,13 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-020
 - **SUBJECT:** Qualification of old/lapsed debt as Arrears
-- **STATUS:** NEEDS EEMO INPUT
-- **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** What exact age, occupancy status, or other criteria make old/lapsed debt qualify as Arrears?
-- **RATIONALE:** Current age bands establish delinquency and urgency but do not establish Arrears classification.
-- **EVIDENCE / SOURCE:** Current explicit ruling; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 4 and 14; current reports intentionally leave Arrears unset.
-- **IMPACT:** Blocks Arrears status/classification UI and related report cutover. Use Outstanding Balance, Delinquent, and Ended-Occupancy Balance meanwhile.
-- **REVISIT CONDITION:** Close only with an explicit EEMO qualification rule and separate decision on Monthly Income presentation of recovered qualifying Arrears.
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED BUSINESS RULE
+- **DECISION / QUESTION:** Active current accounts become Delinquent after one fully elapsed unpaid month. **Arrears** is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed; it is not a month-count synonym for ordinary active-account delinquency.
+- **RATIONALE:** The Head explicitly distinguished current unpaid-month delinquency from old/lapsed owed debt. This preserves Delinquent, follow-up severity, and Arrears as separate concepts.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), sections 1 and 15; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
+- **IMPACT:** Active 1+ elapsed unpaid months remain Delinquent; do not relabel them Arrears. Old/lapsed owed stall debt may be presented as Arrears. The separate question of how cash recovered from Arrears maps into Monthly Income remains part of the revenue-classification work under IA-028.
+- **REVISIT CONDITION:** Revisit only if EEMO changes the old/lapsed-debt rule or supplies a more specific formal qualification test.
 
 ### IA-021 — Current correction authority
 
@@ -392,13 +392,13 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-030
 - **SUBJECT:** Future transport/parking configuration
-- **STATUS:** NEEDS EEMO INPUT
-- **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Use Ordinance No. 12-2021 as documented office evidence for the terminal-fee model, but confirm that it remains the current, unamended schedule before production configuration. The visible schedule records Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context on the ordinance. Future rates remain effective-dated and prospective.
-- **RATIONALE:** The ordinance provides a concrete class/rate basis and explicitly describes Cash Ticket issuance, but historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
-- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 4, 5, 7, and 14; TRM shadow reconciliation status.
-- **IMPACT:** Future setup belongs under Administration and TRM work remains under Facilities. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable trips. Cash Ticket remains the target instrument for Transportation/Parking under the confirmed Cantilan policy.
-- **REVISIT CONDITION:** Close when EEMO confirms Ordinance No. 12-2021 is still current or supplies the superseding schedule and any required route/class changes.
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED BUSINESS RULE
+- **DECISION / QUESTION:** Use the documented Ordinance No. 12-2021 vehicle-class schedule as the current Cantilan basis for V2 transport/parking planning: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context where applicable. Transportation/Parking uses Cash Ticket. Future configuration remains effective-dated and prospective.
+- **RATIONALE:** The office reference and latest project ruling confirm that the schedule is the working basis; the remaining design problem is implementation, not rate discovery. Historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
+- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; direct current project/business ruling consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), section 10; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
+- **IMPACT:** Future setup belongs under Administration. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable collections. The old driver/trip-heavy UI must not obscure that the office's primary concern is CT-based transport/parking collection.
+- **REVISIT CONDITION:** Revisit only if EEMO supplies a superseding ordinance/schedule or explicitly changes the vehicle-class basis.
 
 ### IA-031 — AccountableDocument production authority
 
@@ -490,14 +490,12 @@ The following items require EEMO input, a UX decision, or a stated technical pre
 
 | ID | Gate | Blocks or constrains |
 |---|---|---|
-| IA-020 | Exact Arrears qualification boundary | Arrears status/classification and report cutover |
 | IA-022 | Online-payment operational ownership | Queue ownership, escalation, and messaging |
-| IA-024 | Whether and how remittance should exist | Any visible remittance capability |
+| IA-024 | Exact remittance/RCD operating sequence | Any visible remittance capability |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
 | IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
-| IA-030 | Ordinance currentness / superseding transportation schedule | Production transportation setup and classified flow |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 
 ## 5. Superseded interpretations

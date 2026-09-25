@@ -15,7 +15,7 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 
 1. `docs/v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of CURRENT vs TARGET V2 vs FUTURE/BLOCKED work, V2 scope, sidebar direction, migration rules, and strict UI-preservation policy.
 2. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
-3. Read the relevant authoritative business/architecture source for the task — especially `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
+3. Read the relevant authoritative business/architecture source for the task — especially `docs/business/EEMO_OPERATIONAL_RULEBOOK.md`, `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
 4. `docs/decisions/DECISION_REGISTRY.md` — confirm that the task does not assume a blocked, future, or unresolved EEMO decision.
 5. Inspect current code, migrations, tests, CI/workflows, and verified production behavior as evidence of what is actually implemented now.
 6. Read relevant domain-specific documents under `docs/interface/`, `docs/security/`, and `docs/testing/` before changing those areas.

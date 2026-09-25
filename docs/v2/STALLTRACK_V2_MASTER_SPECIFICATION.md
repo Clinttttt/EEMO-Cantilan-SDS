@@ -188,7 +188,7 @@ Rules:
 - current-period unpaid does not automatically mean delinquent;
 - ended-occupancy balance is separate from current-occupant delinquency.
 
-The exact Arrears qualification boundary remains a business decision gate; do not infer it from month count.
+Arrears is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed. Do not use ordinary active-account month age alone to relabel delinquency as Arrears. The separate report-classification question for cash later recovered from Arrears remains open.
 ### Reports
 
 Reports is the central **read-only and printable output area**, not merely analytics.
@@ -336,9 +336,9 @@ No AccountableDocument, Cash Ticket custody, remittance, WCF, or vehicle-class w
 | Revenue target setup/attainment | FUTURE / gated |
 | Remittance & Reconciliation | FUTURE; renewed approval required |
 | WCF dual-entry Web/Mobile | FUTURE / gated |
-| Transportation class/rate redesign | NEEDS EEMO INPUT |
+| Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
-| Exact Arrears qualification boundary | NEEDS EEMO INPUT |
+| Arrears qualification boundary | CONFIRMED; recovered-cash report mapping remains open |
 | Official report/document register | NEEDS EEMO INPUT |
 
 ## 17. Clean-adoption migration strategy
@@ -384,14 +384,12 @@ This is a content/ownership migration, not a visual redesign.
 
 At minimum, consult `docs/decisions/DECISION_REGISTRY.md` before work involving:
 
-- IA-020 — exact Arrears qualification boundary;
 - IA-022 — online-payment operational ownership;
-- IA-024 — whether/how remittance should exist;
+- IA-024 — exact remittance/RCD operating sequence;
 - IA-025 — official report/document set;
 - IA-026 — facility name/code display policy;
 - IA-027 — revenue-target governance and revision;
-- IA-028 — final revenue-classification catalog;
-- IA-030 — transportation ordinance/current rate schedule;
+- IA-028 — final revenue-classification catalog, including recovered-Arrears reporting and unresolved income-group mappings;
 - IA-034 — canonical account/detail route identity.
 
 A UI label cannot close a business decision gate.
@@ -410,6 +408,7 @@ A UI label cannot close a business decision gate.
 Read this master specification first, then follow the detailed source for the task:
 
 - `docs/README.md` — authority, documentation map, conflict handling.
+- `docs/business/EEMO_OPERATIONAL_RULEBOOK.md` — direct EEMO Head/staff rulings, office-evidence reconciliation, confirmed workflow rules, and the current high-value open questions.
 - `docs/business/EEMO_BUSINESS_RULES.md` — current accepted business semantics.
 - `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue/document architecture and migration phases.
 - `docs/interface/INFORMATION_ARCHITECTURE.md` — detailed target interface/workspace model.
