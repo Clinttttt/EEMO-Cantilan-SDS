@@ -1,7 +1,8 @@
 .operations-page {
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 3rem;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 2rem clamp(1rem, 2vw, 2rem) 3rem;
     color: var(--text);
 }
 
@@ -194,6 +195,10 @@
     box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
 }
 
+.operations-card-span {
+    grid-column: 1 / -1;
+}
+
 .operations-card::before {
     position: absolute;
     inset: 0 auto 0 0;
@@ -323,28 +328,6 @@
     background: var(--bg-icon);
 }
 
-.operations-status-badge {
-    display: inline-flex;
-    min-height: 1.25rem;
-    align-items: center;
-    padding: 0.08rem 0.38rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text-muted);
-    background: var(--bg-card);
-    font-size: 0.62rem;
-    font-weight: 600;
-    line-height: 1.15;
-    white-space: nowrap;
-}
-
-.operations-status-planned,
-.operations-status-planned-v2 {
-    border-color: transparent;
-    color: var(--text-muted);
-    background: var(--bg-icon);
-}
-
 .operations-card-actions {
     margin-top: auto;
     padding-top: 0.65rem;
@@ -431,57 +414,6 @@
     color: var(--text-muted);
     font-size: 0.73rem;
     line-height: 1.4;
-}
-
-.operations-additional {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-    overflow: hidden;
-    margin-top: 1rem;
-    padding: 0.65rem 0.85rem 0.65rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-card);
-    box-shadow: 0 1px 2px rgba(13, 33, 55, .035);
-}
-
-.operations-additional::before {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
-    background: var(--gold);
-    content: "";
-}
-
-.operations-additional-heading {
-    min-width: 0;
-}
-
-.operations-additional-label {
-    margin: 0 0 0.1rem;
-    color: var(--text-muted);
-    font-size: 0.59rem;
-    font-weight: 700;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-}
-
-.operations-additional h2 {
-    margin: 0;
-    color: var(--navy);
-    font-size: 0.82rem;
-    font-weight: 700;
-    line-height: 1.3;
-}
-
-.operations-additional-status {
-    display: flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 0.35rem;
 }
 
 .operations-action-link:focus-visible,
