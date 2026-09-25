@@ -50,15 +50,15 @@ If the month closes with an unpaid remainder, the exact outstanding amount carri
 
 ## 3. Revenue grouping: current working model
 
-The office references use more than one presentation grouping. StallTrack must not assume that every board/report heading is the same semantic level.
+The **Monthly Income sheet is the official reporting grouping** StallTrack should reproduce for the formal Monthly Income/report structure.
 
-The Monthly Income reference presents a Market Operations-oriented structure including:
+Its current Market Operations-oriented groups include:
 
 - Income from Market
 - Rent Income (Stall Rental)
 - Space Rental
 
-The office board additionally shows separate headings such as:
+The office board remains valid operational/tally evidence and may show the same revenue in a more practical monthly-working arrangement, including headings such as:
 
 - Income from Malinawa
 - Income from Ice Plant
@@ -69,9 +69,9 @@ The office board additionally shows separate headings such as:
 - Lot Rental
 - Other Income
 
-This difference is important. StallTrack may use an operational navigation grouping that differs from the final official reporting classification, but report classification must ultimately follow the EEMO-approved official catalog.
+The board is therefore useful for workflow and tally context, but the **sheet governs the formal report grouping** unless EEMO later replaces it with a newer official report format.
 
-The exact canonical reporting-group structure remains an open question; see Q1.
+StallTrack navigation may still organize work operationally; report classification and Monthly Income output must follow the official sheet structure.
 ## 4. Confirmed Cantilan instrument policy
 
 The following Cantilan mappings are confirmed for the current V2 design:
@@ -125,7 +125,7 @@ Future StallTrack support should therefore be capable of representing:
 
 Do not reduce this to a boolean `Remitted = Yes/No`.
 
-The exact relationship between daily RCD preparation and booklet/range-exhaustion remittance still needs one direct clarification; see Q9.
+Remittance is triggered when the assigned Cash Ticket range/batch is fully consumed. Do not model routine remittance while accountable CT stock remains unconsumed.
 ## 6. Cash Ticket payer identity
 
 For transactional Cash Ticket collections, payor identity is **optional**, not universally mandatory.
@@ -164,15 +164,14 @@ Do not put all market-related revenue inside the NPM stall page merely because t
 
 Confirmed points:
 
-- Fish/Meat Vendor Fee is a distinct reportable revenue line.
-- Weight & Measure / Registration is also a distinct reportable revenue line in office references.
-- Fish/meat-related charges can be based on daily weighed quantity.
-- Working examples given in discussion include fish around ₱1/kg and meat around ₱66/kg.
+- **Fish/Meat Vendor Fee and Weight & Measure / Registration are two separate charges.**
+- Fish/Meat Vendor Fee follows a monthly-rent style obligation; the working example is about ₱900 monthly and may be collected as ₱30 daily installments.
+- Weight & Measure is separate and uses weighed quantity.
+- Working examples: fish ≈ ₱1/kg; meat ≈ ₱66/kg.
 - These are not Slaughterhouse charges.
 - Fish/Meat Vendor Fee is currently treated as OR in the approved Cantilan mapping.
 - Weight & Measure / Registration is currently treated as OR in the approved Cantilan mapping.
-
-However, the historical notes contain inconsistent wording about whether the per-kilo amount belongs to Fish/Meat Vendor Fee, Weight & Measure, or both. This must be clarified before the backend model is finalized; see Q4.
+- Keep their collection/report lines distinct even when one vendor pays both.
 ## 10. Transportation / parking
 
 Current V2 rule:
@@ -203,7 +202,7 @@ Confirmed:
 - the itemization is for transparency, not permission for collectors to invent arbitrary prices;
 - approved additional charge types may be configured where authorized.
 
-The office board shows **Income from Slaughterhouse** as its own visible income heading. This is stronger evidence than treating Slaughterhouse as Market Fees. Final reporting-group placement should be confirmed once, then encoded consistently; see Q6.
+The office board shows **Income from Slaughterhouse** as its own visible income heading. Keep Slaughterhouse as a separate specialized income/operation presentation rather than treating it as Market Fees.
 ## 12. Space rental and event rental
 
 Confirmed:
@@ -218,13 +217,15 @@ Confirmed:
 - Kanmanggay belongs conceptually under Space Rental.
 - Fines may arise in rental/market contexts and should appear as explicit OR line items.
 
+Additional confirmed rules:
+
+- **Kanmanggay is Space Rental** and is charged per space on a monthly basis.
+- **Fines/Penalties report under their own dedicated Fines/Penalties revenue line**, even when the fine originated from a rental or vendor context.
+
 Still unresolved:
 
-- accountable instrument and exact charging basis for Kanmanggay;
-- accountable instrument for Lot Rental;
-- whether a paid fine reports to a dedicated Fines classification or to the originating revenue source.
-
-See Q7 and Q8.
+- accountable instrument for Kanmanggay;
+- accountable instrument for Lot Rental.
 ## 13. BBQ, Ice Plant, Slaughterhouse, and additional enterprises
 
 ### BBQ Stand
@@ -233,15 +234,15 @@ Office board evidence places **Barbecue Stands** under Rent Income. Treat BBQ as
 
 ### Ice Plant
 
-The office board shows **Income from Ice Plant** as a separate heading, while the Monthly Income sheet places Ice Plant within the broader market-operation table and current StallTrack models ICE as a monthly rental facility.
+For current V2 planning, treat **Income from Ice Plant** as a monthly space/rental-type income source associated with the Ice Plant. A working example given is around ₱1,000/month.
 
-This is not yet safe to collapse into one assumption. See Q5.
+Do not invent a separate ice-sales transaction model unless EEMO later explicitly requires one.
 
 ### Slaughterhouse
 
 Treat as its own specialized operation/workspace. Do not silently classify it as Market Fees.
 
-### Malinawa and missing EEMO operations
+### Malinawa and configurable additional EEMO revenues
 
 The office board includes an Income from Malinawa family with entries such as:
 
@@ -251,9 +252,9 @@ The office board includes an Income from Malinawa family with entries such as:
 - Entrance Fees
 - Cottages
 
-These are in eventual StallTrack scope because the goal is to cover the missing EEMO operations, not only the facilities already implemented.
+For StallTrack V2, these do not need a hardcoded semantic catalog before UI/backend work can proceed. Support them as **admin-configurable revenue/service entries** with a label and configured rate/basis as needed.
 
-Their actual active status, instruments and charging bases still need confirmation; see Q10.
+This same configurable pattern may support other future EEMO revenue lines that are not part of the fixed core catalog, provided they remain tenant-scoped and auditable.
 ## 14. Revenue targets and reporting
 
 Confirmed target direction:
@@ -266,6 +267,12 @@ Confirmed target direction:
 Do not confuse Revenue Target Attainment with Collection Efficiency.
 
 Target edit authority/governance can be finalized later; it does not block the current UI catalog.
+
+### Goodwill / Refund
+
+The office board includes a Goodwill/Refund line. For the current V2 scope, do not build a complex refund/reversal workflow around this evidence.
+
+The report may support a simple bottom-level **Refund** label and manually entered amount where the office requires it. Treat this as report input/presentation for now, not as proof of a full financial reversal subsystem.
 
 ## 15. What should no longer be re-asked
 
@@ -286,63 +293,50 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 - whether Penalties/Fines are itemized on OR;
 - whether CT payor name may be optional;
 - whether partial remittance is allowed in the normal workflow;
+- whether Cash Ticket remittance is triggered before the assigned range is consumed — normal remittance waits until the assigned CT range/batch is exhausted;
 - whether current transportation vehicle-rate evidence is usable for V2 planning;
+- whether the Monthly Income sheet is the formal reporting grouping — it is; the board remains valid working/tally evidence;
+- whether Fish/Meat Vendor Fee and Weight & Measure are separate charges — they are;
+- whether Kanmanggay is Space Rental — it is, charged monthly per space;
+- whether Fines/Penalties report to a dedicated revenue line — they do;
+- whether Slaughterhouse should be treated as Market Fees — it should remain a separate specialized operation/income presentation;
+- whether Malinawa-style additional revenues must all be hardcoded — they may be admin-configurable label/rate entries;
 - whether StallTrack should eventually include missing EEMO operations beyond the original NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM set.
 ## 16. High-value open questions for EEMO staff
 
-Only ask questions that materially change the domain model, report mapping or accountable workflow.
+Only ask questions that still materially change the domain model, rate calculation, instrument policy, or report mapping.
 
-### Q1 — Which income grouping is the official current reporting structure?
+### Q1 — What exactly belongs to Market Fees?
 
-The Monthly Income sheet groups items under **Income from Market / Rent Income / Space Rental**, while the office board separately shows **Malinawa, Ice Plant, Receipts from Market (CT), Berthing/Landing, Slaughterhouse, Rent Income, Lot Rental, Other Income**.
+The office references show Market Fees alongside other Cash Ticket activity.
 
-**Question:** Which grouping should StallTrack reproduce as the official Monthly Income/report classification?
+**Question:** What specific transactions are included under **Market Fees**? Is **Comfort Room** part of Market Fees or a separate revenue line? Please list the common items.
 
-### Q2 — What exactly belongs to “Market Fees”?
+### Q2 — How are ECF and WCF amounts calculated?
 
-The office references show Market Fees alongside other CT items such as Comfort Room, Tabo and Parking/Transportation.
+The instrument policy is already confirmed: ECF = OR, WCF = CT.
 
-**Question:** What specific transactions are classified as **Market Fees**? Is Comfort Room part of Market Fees or its own revenue line?
+**Question:** For **ECF** and **WCF**, is the amount based on actual meter/consumption, a fixed rate, or an amount taken from a bill/reading? For Fiesta/Araw temporary electricity use, is the same ECF calculation used?
 
 ### Q3 — Transfer Large Cattle
 
-**Question:** What transaction triggers **Transfer Large Cattle**, how is the amount computed, and does it use OR or Cash Ticket?
+**Question:** What activity triggers **Transfer Large Cattle**, how is the fee calculated, and does it use **OR or Cash Ticket**?
 
-### Q4 — Fish/Meat Vendor Fee versus Weight & Measure
+### Q4 — Kanmanggay and Lot Rental instruments
 
-The office references list these separately, but earlier notes mix the per-kilo basis.
+The charging bases are already known enough for UI planning: Kanmanggay is monthly per-space; Lot Rental is per lot.
 
-**Question:** Are **Fish/Meat Vendor Fee** and **Weight & Measure/Registration** two separate charges? If yes, what is the charging basis for each? A simple fish-vendor and meat-vendor example would settle this.
+**Question:** Which document is used for **Kanmanggay** and **Lot Rental (Fiesta/Araw)** — **OR or Cash Ticket**?
 
-### Q5 — Ice Plant income
+### Q5 — Cash received from old Arrears
 
-**Question:** What does **Income from Ice Plant** actually represent today: rental of spaces, ice sales/services, or both? Is StallTrack's current monthly-rental ICE model only one part of the Ice Plant income?
+The Arrears definition itself is already confirmed.
 
-### Q6 — Slaughterhouse official report grouping
+**Question:** When old/lapsed **Arrears are finally paid**, does the collected cash report under the dedicated **Arrears** line, or under the original facility line such as **NPM / TCC / NCC**?
 
-**Question:** Should **Income from Slaughterhouse** remain its own official income group, or is it rolled into another group in the current Monthly Income report?
+## 17. Deferred questions that do not block current V2 work
 
-### Q7 — Kanmanggay and Lot Rental instruments
-
-**Question:** Which accountable instrument is used for **Kanmanggay** and **Lot Rental (Fiesta/Araw)** — OR or Cash Ticket? For Kanmanggay, what determines the amount charged?
-
-### Q8 — Fines and Arrears reporting classification
-
-**Question:** When a fine is paid, does the cash report under a dedicated **Fines/Penalties** line or under the original rental/service line? Also, when old Arrears are finally paid, does that cash report under **Arrears** or back under NPM/TCC/NCC where the debt originated?
-
-### Q9 — Daily RCD versus Cash Ticket exhaustion/remittance
-
-We know CT stock is consumed and normal remittance should be whole, not partial.
-
-**Question:** If the Cash Ticket batch is not yet exhausted at day-end, does the collector still prepare/remit a daily RCD, or is physical remittance/accounting triggered only when the assigned CT batch/range is consumed?
-
-### Q10 — Malinawa scope
-
-**Question:** For Malinawa, which services are currently active — Catering, Dormitory, Function Hall, Entrance Fees, Cottages — and what instrument/rate basis does each use?
-
-## 17. Questions to ask later only if needed
-
-These do not block the current presentation/UI pass and should not distract staff now:
+Do not distract staff with these during the presentation sprint unless they become necessary:
 
 - online-payment exception ownership;
 - final signatory matrix for every official report;
@@ -352,4 +346,4 @@ These do not block the current presentation/UI pass and should not distract staf
 
 ---
 
-This rulebook should be updated immediately whenever EEMO answers one of the open questions. Once a question is resolved, move it into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+This rulebook should be updated immediately whenever EEMO answers one of the five open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
