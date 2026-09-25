@@ -116,6 +116,8 @@ The Platform Operator remains outside this interface architecture in the separat
 
 **FUTURE CAPABILITY:** Accountable Forms has a reserved target position between Monitoring and Reports but remains hidden until a functional capability is released.
 
+These workspaces describe **capability ownership and user responsibility**. They do not require the global sidebar to reproduce every workspace subdivision as permanent group labels. The approved global sidebar is a curated set of real, high-frequency destinations; contextual and secondary destinations remain inside their owning workspace. See `../v2/STALLTRACK_V2_MASTER_SPECIFICATION.md`, section 8.
+
 `Overview` is the target interface label for the portfolio landing workspace called `Dashboard` in the earlier revenue-architecture outline. The purpose is unchanged; the target label emphasizes orientation and attention rather than a card-based visual treatment.
 
 ### Workspace responsibilities
@@ -130,7 +132,9 @@ The Platform Operator remains outside this interface architecture in the separat
 | Reports | Read-only Receivables, Cash Revenue, Management, and Operational reporting | Mutable workflows |
 | Administration | Business configuration, people/access, office setup, system administration | Daily collection work |
 
-## 7. Exact target Web navigation tree
+## 7. Target Web capability/navigation ownership tree
+
+This tree defines where capabilities belong and how users reach deeper work. It is **not a requirement that every node or workspace heading appear as a permanent global-sidebar item**. The curated global sidebar is defined in the V2 master specification and may link directly into a workspace's primary current destination.
 
 Items marked `[future]` remain hidden until functional. Items marked `[contextual]` are not permanent global entries.
 

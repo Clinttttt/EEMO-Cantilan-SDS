@@ -13,13 +13,12 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 
 ## Read these before changing code, in this order
 
-1. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
-2. `docs/architecture/ARCHITECTURE_RULES.md` — implementation boundaries: what is allowed and what is forbidden.
-3. `docs/architecture/APPLICATION_PATTERNS.md` — established code shapes to copy.
-4. `docs/architecture/SYSTEM_ARCHITECTURE.md` — why the current architecture is shaped this way.
-5. `docs/business/EEMO_BUSINESS_RULES.md` — accepted business semantics.
-6. `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue architecture and migration direction.
-7. Read the relevant domain-specific documents under `docs/interface/`, `docs/security/`, `docs/testing/`, and `docs/decisions/` before changing those areas.
+1. `docs/v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of CURRENT vs TARGET V2 vs FUTURE/BLOCKED work, V2 scope, sidebar direction, migration rules, and strict UI-preservation policy.
+2. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
+3. Read the relevant authoritative business/architecture source for the task — especially `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
+4. `docs/decisions/DECISION_REGISTRY.md` — confirm that the task does not assume a blocked, future, or unresolved EEMO decision.
+5. Inspect current code, migrations, tests, CI/workflows, and verified production behavior as evidence of what is actually implemented now.
+6. Read relevant domain-specific documents under `docs/interface/`, `docs/security/`, and `docs/testing/` before changing those areas.
 
 The repository knowledge base is tool-neutral. `.agents/skills/` contains repeatable review/runbook procedures; skills never override the canonical documents above.
 
@@ -53,6 +52,7 @@ The repository knowledge base is tool-neutral. `.agents/skills/` contains repeat
 - **Scoped CSS must stay brace-balanced.** One unbalanced brace in a `.razor.css` corrupts the whole bundle and
   breaks every page; neither `dotnet build` nor `/health` catches it.
 - **Prerendering runs `OnInitializedAsync` twice.** Never consume a one-time token there.
+- **Interface V2 preserves the production UI by default.** Do not visually redesign an existing page, shell, card, table, or workflow merely because it is being migrated to V2. Adopt the proven current/old UI first, then make only the additions or adjustments required by approved V2 structure, terminology, workflow placement, accessibility, semantic correctness, consistency, or a specifically approved visual task. A navigation or vocabulary change is not permission to redesign the page body.
 
 ## Commands
 

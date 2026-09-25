@@ -464,13 +464,25 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-036
 - **SUBJECT:** Initial implementation boundary
-- **STATUS:** PROPOSED
-- **TYPE:** UX DECISION
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED UX DECISION
 - **DECISION / QUESTION:** Begin with Web navigation vocabulary, role visibility, a small additive alias set, and one Facilities landing entry while preserving current page bodies.
 - **RATIONALE:** It validates the target mental model with the smallest runtime surface and no financial change.
 - **EVIDENCE / SOURCE:** Audit recommendation re-evaluated against UI-1/UI-2 sequencing in [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) and formalized in the migration plan.
 - **IMPACT:** Explicitly excludes reports, facility workflow rewrites, account redesign, Mobile, visual redesign, and all future financial capabilities.
-- **REVISIT CONDITION:** Confirm after the presentation and before opening the implementation task; reduce scope further if route or shell risk cannot be isolated.
+- **REVISIT CONDITION:** Revisit only if a proposed slice expands beyond additive navigation/vocabulary/facility-entry work or requires page-body redesign, financial behavior change, or a future capability.
+
+### IA-037 — Curated global sidebar and production visual preservation
+
+- **ID:** IA-037
+- **SUBJECT:** Global Web sidebar composition and V2 visual baseline
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED UX DECISION
+- **DECISION / QUESTION:** The global sidebar is a curated set of real, high-frequency destinations rather than a literal rendering of every V2 capability domain. Preserve the proven production sidebar visual treatment by default. The current approved destinations are Overview, Operations, Collection Activity, Online Payments, Payors & Accounts, Monitoring, Reports, Collectors, Audit Trail, and Settings; Collectors/Audit retain current Head-only authority.
+- **RATIONALE:** Capability ownership and global navigation answer different questions. A compact real-destination sidebar keeps daily office work fast while deeper V2 subdivisions remain contextual inside their owning workspace. V2 is not a visual-reset project.
+- **EVIDENCE / SOURCE:** Current approved V2 task ruling; current production sidebar/code; [STALLTRACK_V2_MASTER_SPECIFICATION.md](../v2/STALLTRACK_V2_MASTER_SPECIFICATION.md), sections 3 and 8; [DESIGN_SYSTEM.md](../interface/DESIGN_SYSTEM.md), production UI preservation rule.
+- **IMPACT:** Individual facilities, Collection Manager, Follow-up History, and Export Data are not required permanent global entries. Existing routes remain compatible. A navigation-content change does not authorize page-body redesign.
+- **REVISIT CONDITION:** Revisit only when a new functional capability proves it needs permanent global access or office workflow evidence shows the curated list is insufficient.
 
 ## 4. Decision-gate summary
 

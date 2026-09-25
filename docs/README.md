@@ -21,16 +21,20 @@ Do not silently choose whichever source is easiest to implement. Surface the con
 
 ## Core reading order
 
-Before changing code, read:
+Before changing V2 code, read:
 
-- `architecture/ARCHITECTURE_RULES.md` — non-negotiable implementation boundaries.
-- `architecture/APPLICATION_PATTERNS.md` — established code shapes to copy.
-- `architecture/SYSTEM_ARCHITECTURE.md` — rationale and trade-offs.
-- `business/EEMO_BUSINESS_RULES.md` — accepted current business semantics.
-- `business/REVENUE_ARCHITECTURE.md` — approved target revenue architecture and phased migration.
-- The relevant domain-specific documents below.
+- `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of current production, target V2, future/hidden capability, decision gates, sidebar direction, migration strategy, and UI-preservation rules.
+- this `README.md` — authority order and canonical documentation map.
+- the relevant authoritative business/architecture source for the task, especially `architecture/ARCHITECTURE_RULES.md`, `architecture/APPLICATION_PATTERNS.md`, `business/EEMO_BUSINESS_RULES.md`, and `business/REVENUE_ARCHITECTURE.md`.
+- `decisions/DECISION_REGISTRY.md` before assuming a business, accountability, report, route-identity, target, remittance, or classification decision.
+- current code, migrations, tests, CI/workflows, and verified production behavior as implementation evidence.
+- the relevant specialized interface, security, testing, operations, or evidence documents below.
 
 ## Documentation map
+
+### V2 orientation
+
+- `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — canonical V2 orientation and change-control specification. Start here; follow its links to the detailed authoritative domain documents.
 
 ### Architecture
 

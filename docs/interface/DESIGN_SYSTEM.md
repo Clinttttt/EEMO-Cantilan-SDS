@@ -21,6 +21,20 @@ The design system prioritizes:
 
 Avoid visual novelty that makes routine work harder.
 
+### 1.1 Production UI preservation — strict V2 rule
+
+Interface V2 is an adoption and consistency program, not a visual-reset project. The current/proven production UI is the default visual baseline.
+
+- Preserve existing page layout, shell treatment, cards, tables, spacing, hierarchy, and domain-specific workflow presentation when they already work.
+- Add or adjust UI only when an approved V2 requirement needs it: information architecture, workflow placement, terminology, accessibility, semantic correctness, consistency, or a real new capability.
+- Prefer additive changes and small local corrections over wholesale page recomposition.
+- Do not replace a proven production component with a new visual pattern merely to make a page look "V2", "modern", or more generic.
+- Navigation or route migration does not imply page-body redesign.
+- When a visual change is genuinely required, reuse the established StallTrack production language first: navy structure, restrained gold accents, neutral work surfaces, compact operational density, and existing domain-specific patterns.
+- If the old/current UI and a proposed V2 visual treatment conflict, preserve the old/current UI unless the task explicitly approves that visual change or the existing presentation is demonstrably misleading, inaccessible, inconsistent, or unable to support the required workflow.
+
+This preservation rule does not freeze defects. Misleading labels, broken responsive behavior, inaccessible controls, inconsistent states, or UI that cannot express an approved V2 capability should be corrected with the smallest compatible change.
+
 ## 2. Canonical page anatomy
 
 A normal office page should follow this order when the concepts apply:
