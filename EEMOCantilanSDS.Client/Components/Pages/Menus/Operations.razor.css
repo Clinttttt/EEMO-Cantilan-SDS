@@ -324,7 +324,9 @@
 .operations-service-name {
     min-width: 0;
     color: var(--text);
-    line-height: 1.35;
+    font-size: 0.81rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .operations-row-chevron {
