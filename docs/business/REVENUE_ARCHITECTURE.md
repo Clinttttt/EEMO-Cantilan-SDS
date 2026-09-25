@@ -90,7 +90,9 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 | Fish/Meat Vendor Fee | Transportation/Parking |
 | Weight & Measure | Vegetable/Fruit Space Rental |
 | Penalties/Fines | WCF |
-| Current approved slaughterhouse OR charges | Landing/Berthing |
+| Kanmanggay / Space Rental | Landing/Berthing |
+| Lot Rental (Fiesta / Araw) |  |
+| Current approved slaughterhouse OR charges |  |
 
 **Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket.** One OR may contain multiple compatible itemized lines for the same collection/document context, such as stall rent, ECF and a penalty. OR and Cash Ticket lines cannot be mixed on one accountable document. This is the confirmed Cantilan mapping, not a universal LGU rule; additional Cash Ticket categories require explicit approval and tenant policy remains effective-dated.
 
@@ -98,15 +100,16 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
 - Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications, even when collected from the same vendor.
-- Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is available office reference evidence for the future catalog: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Confirm that the ordinance remains current before production rollout. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively.
-- BBQ Stand may roll up under the broader Market operation for operational and reporting hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**. Market hierarchy does not determine BBQ's revenue classification, billing basis or accountable instrument; BBQ is not thereby `MARKET_FEES`, and no final BBQ semantic code is assigned here. No final Kanmanggay semantic code is approved; it belongs conceptually under Space Rental.
+- Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is the current Cantilan V2 planning basis: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively. Revisit only if EEMO supplies a superseding schedule.
+- BBQ Stand may roll up under the broader Market operation for operational hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**, charged monthly per space, and uses OR. Lot Rental is charged per lot and uses OR. Market hierarchy does not by itself determine BBQ's final semantic revenue code; BBQ is not thereby `MARKET_FEES`.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
 - The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications, may be collected separately from rent, and retain their respective Cantilan OR/CT policy.
 - Payor identity may be optional for appropriate transactional Cash Ticket collections.
 - Accountable-form inventory and annual revenue targets are part of the target system. EEMO Monthly Income reference material already shows Annual Target, monthly actuals, Total/YTD and Percentage, establishing office precedent for target reporting; target source, approval/governance, revision policy, period and classification/facility scope remain unresolved.
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
-- Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market.
-- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Do not resurrect the retired partial-remittance workflow as a substitute.
+- Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market. Cantilan Lot Rental uses OR; Kanmanggay Space Rental also uses OR.
+- When qualifying old/lapsed Arrears are paid, the collection reports under the dedicated **Arrears** revenue classification while retaining the originating facility/obligation reference for traceability.
+- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Cash Ticket remittance is triggered when the assigned CT range/batch is consumed; do not resurrect the retired partial-remittance workflow as a substitute.
 
 ## 5. Target domain components
 
@@ -129,7 +132,7 @@ These are conceptual responsibilities, not an EF schema prescription. Tenant-own
 | PenaltyDefinition | Approved penalty type, applicability, rate/amount rule and effective dates. Collectors select an approved charge; they do not invent financial meaning or price. |
 | SlaughterApprovedAddon | Approved configurable add-on and effective rate, selected in addition to the standard package. Whether each component is a separate official classification remains a decision gate. |
 | RevenueTarget | Tenant target amount and period linked to an approved classification/group, with optional facility scope where policy requires it. Office Monthly Income material establishes Annual Target/monthly actual/YTD/% precedent. Revisions must be attributable and historically explainable; authoritative source, target calendar/fiscal year, approval and revision governance remain unresolved. |
-| Temporary/Event Rental | Separate activity for event/lot/open-space rental with date/event, location/lot, renter, optional area/supporting details and configured charges. It is not a permanent Stall/Contract. Instrument policy must be resolved before Lot Rental collections are issued. |
+| Temporary/Event Rental | Separate activity for event/lot/open-space rental with date/event, location/lot, renter, optional area/supporting details and configured charges. It is not a permanent Stall/Contract. Cantilan Lot Rental uses OR; Kanmanggay Space Rental uses OR, while Vegetable/Fruit Space Rental remains CT. |
 
 Common lifecycle rules: every tenant-owned catalog, policy and transaction is tenant-scoped and included in backup/restore. Tenant-scoped uniqueness is enforced for identities and accountable numbers. Rates and allowed instruments are effective-dated where stated; posted money and issued-document meaning remain reproducible after later configuration changes. Posted collections, lines, allocations and issued documents are retained as audit evidence; corrections append reversal/replacement history. Mutable setup is audited and deactivated or versioned rather than deleted when referenced. Exact soft-delete mechanics remain an implementation choice, but soft deletion must not release an issued number or erase financial history.
 

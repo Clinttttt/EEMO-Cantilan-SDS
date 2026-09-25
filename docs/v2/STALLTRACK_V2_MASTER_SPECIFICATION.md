@@ -188,7 +188,7 @@ Rules:
 - current-period unpaid does not automatically mean delinquent;
 - ended-occupancy balance is separate from current-occupant delinquency.
 
-Arrears is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed. Do not use ordinary active-account month age alone to relabel delinquency as Arrears. The separate report-classification question for cash later recovered from Arrears remains open.
+Arrears is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed. Do not use ordinary active-account month age alone to relabel delinquency as Arrears. When qualifying Arrears are paid, the collected cash reports under the dedicated Arrears revenue line while retaining the originating facility/obligation reference.
 ### Reports
 
 Reports is the central **read-only and printable output area**, not merely analytics.
@@ -338,7 +338,7 @@ No AccountableDocument, Cash Ticket custody, remittance, WCF, or vehicle-class w
 | WCF dual-entry Web/Mobile | FUTURE / gated |
 | Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
-| Arrears qualification boundary | CONFIRMED; recovered-cash report mapping remains open |
+| Arrears qualification and recovered-cash mapping | CONFIRMED; old/lapsed debt and paid Arrears use the dedicated Arrears classification with source traceability |
 | Official report/document register | NEEDS EEMO INPUT |
 
 ## 17. Clean-adoption migration strategy
@@ -389,7 +389,7 @@ At minimum, consult `docs/decisions/DECISION_REGISTRY.md` before work involving:
 - IA-025 — official report/document set;
 - IA-026 — facility name/code display policy;
 - IA-027 — revenue-target governance and revision;
-- IA-028 — final revenue-classification catalog, including recovered-Arrears reporting and unresolved income-group mappings;
+- IA-028 — final revenue-classification catalog and unresolved income/service mappings;
 - IA-034 — canonical account/detail route identity.
 
 A UI label cannot close a business decision gate.

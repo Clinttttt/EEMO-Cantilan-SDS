@@ -36,7 +36,7 @@ Only these values are used:
 Two cross-document distinctions are explicit at this baseline:
 
 1. [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) names the target landing workspace `Dashboard`. The current interface architecture ruling names it `Overview`. This registry treats Overview as the target interface label while preserving the same portfolio-summary purpose. This is an interface wording refinement, not a financial/domain change.
-2. Baseline code, tests, and the revenue architecture agree that `DomainRules.DelinquentThresholdMonths = 1`: every account with at least one fully elapsed unpaid month is delinquent, Arrears remains unavailable until its old/lapsed qualification rule is resolved, and three months is only an urgency/severity boundary.
+2. Baseline code, tests, and the accepted EEMO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary.
 
 ## 3. Decisions
 
@@ -277,7 +277,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **DECISION / QUESTION:** Active current accounts become Delinquent after one fully elapsed unpaid month. **Arrears** is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed; it is not a month-count synonym for ordinary active-account delinquency.
 - **RATIONALE:** The Head explicitly distinguished current unpaid-month delinquency from old/lapsed owed debt. This preserves Delinquent, follow-up severity, and Arrears as separate concepts.
 - **EVIDENCE / SOURCE:** Direct EEMO Head clarification consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), sections 1 and 15; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
-- **IMPACT:** Active 1+ elapsed unpaid months remain Delinquent; do not relabel them Arrears. Old/lapsed owed stall debt may be presented as Arrears. The separate question of how cash recovered from Arrears maps into Monthly Income remains part of the revenue-classification work under IA-028.
+- **IMPACT:** Active 1+ elapsed unpaid months remain Delinquent; do not relabel them Arrears. Old/lapsed owed stall debt may be presented as Arrears. When qualifying Arrears are paid, the cash reports under the dedicated Arrears revenue line while the originating facility/obligation remains linked for traceability.
 - **REVISIT CONDITION:** Revisit only if EEMO changes the old/lapsed-debt rule or supplies a more specific formal qualification test.
 
 ### IA-021 — Current correction authority
@@ -322,8 +322,8 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Any future remittance workflow
 - **STATUS:** NEEDS EEMO INPUT
 - **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Keep remittance out of the current product until EEMO approves a useful end-to-end workflow. A simple `Remitted = Yes/No` flag is explicitly insufficient. Any future design must define covered amount, date, accountable officer, recipient/acknowledgement, deposit or cashier context, reconciliation states, correction/void behavior, and whether treasury participation is in scope.
-- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Office accountable-form evidence also shows that remittance is an amount-and-accountability process, not merely a boolean collection status.
+- **DECISION / QUESTION:** Keep remittance out of the current product until a complete accountable workflow is implemented. One key operating rule is now confirmed: a Cash Ticket assignment is remitted/accounted for when its assigned batch/range has been fully consumed; normal partial remittance is not allowed. A simple `Remitted = Yes/No` flag is still insufficient. The future design must still define covered amount, date, accountable officer, recipient/acknowledgement, deposit/cashier context, reconciliation states, correction/void behavior, and any Treasury handoff that is actually in scope.
+- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Current EEMO clarification establishes the CT-exhaustion trigger, while office accountable-form evidence shows that remittance remains an amount-and-accountability process, not merely a boolean collection status.
 - **EVIDENCE / SOURCE:** [IMPLEMENTATION_HISTORY.md](../planning/IMPLEMENTATION_HISTORY.md), retired work record; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), section 4; latest office accountable-form reference showing remittance/deposit and collection-versus-remittance fields.
 - **IMPACT:** Blocks any visible Remittance workspace, collector-balance claim, or simplistic remitted checkbox. Collection reporting remains collection reporting.
 - **REVISIT CONDITION:** Reopen only through a new EEMO business case that defines the complete process; previous removed endpoints/UI do not constitute approval.

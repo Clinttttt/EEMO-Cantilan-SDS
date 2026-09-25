@@ -29,7 +29,7 @@ Working rule from the Head discussion:
 
 Do not revive the superseded rule `1–2 months = Arrears`.
 
-A remaining reporting question still exists about how **cash collected against Arrears** should appear in Monthly Income; see Open Question Q8.
+When qualifying old/lapsed Arrears are finally paid, the collected cash reports under the dedicated **Arrears** revenue line. Preserve the originating facility/debt reference (for example NPM/TCC/NCC) separately for traceability; do not lose the source obligation simply because the cash is classified as Arrears.
 ## 2. Monthly rental obligations and flexible collection cadence
 
 TCC, NCC, BBQ, ICE and other monthly rental facilities remain **monthly obligations** even when staff collect in installments.
@@ -89,6 +89,8 @@ The following Cantilan mappings are confirmed for the current V2 design:
 | Landing / Berthing | CT |
 | Weight & Measure / Registration | OR |
 | Penalties / Fines | OR |
+| Kanmanggay / Space Rental | OR |
+| Lot Rental (Fiesta / Araw) | OR |
 | Current approved slaughterhouse charges | OR |
 
 Rules:
@@ -219,13 +221,9 @@ Confirmed:
 
 Additional confirmed rules:
 
-- **Kanmanggay is Space Rental** and is charged per space on a monthly basis.
+- **Kanmanggay is Space Rental**, charged per space on a monthly basis, and uses **Official Receipt (OR)**.
+- **Lot Rental (Fiesta/Araw)** is priced per lot and uses **Official Receipt (OR)**.
 - **Fines/Penalties report under their own dedicated Fines/Penalties revenue line**, even when the fine originated from a rental or vendor context.
-
-Still unresolved:
-
-- accountable instrument for Kanmanggay;
-- accountable instrument for Lot Rental.
 ## 13. BBQ, Ice Plant, Slaughterhouse, and additional enterprises
 
 ### BBQ Stand
@@ -299,6 +297,8 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 - whether Fish/Meat Vendor Fee and Weight & Measure are separate charges — they are;
 - whether Kanmanggay is Space Rental — it is, charged monthly per space;
 - whether Fines/Penalties report to a dedicated revenue line — they do;
+- whether Kanmanggay and Lot Rental use OR — they do;
+- whether paid old/lapsed Arrears report under the dedicated Arrears revenue line — they do, while the originating facility/debt reference remains traceable;
 - whether Slaughterhouse should be treated as Market Fees — it should remain a separate specialized operation/income presentation;
 - whether Malinawa-style additional revenues must all be hardcoded — they may be admin-configurable label/rate entries;
 - whether StallTrack should eventually include missing EEMO operations beyond the original NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM set.
@@ -322,18 +322,6 @@ The instrument policy is already confirmed: ECF = OR, WCF = CT.
 
 **Question:** What activity triggers **Transfer Large Cattle**, how is the fee calculated, and does it use **OR or Cash Ticket**?
 
-### Q4 — Kanmanggay and Lot Rental instruments
-
-The charging bases are already known enough for UI planning: Kanmanggay is monthly per-space; Lot Rental is per lot.
-
-**Question:** Which document is used for **Kanmanggay** and **Lot Rental (Fiesta/Araw)** — **OR or Cash Ticket**?
-
-### Q5 — Cash received from old Arrears
-
-The Arrears definition itself is already confirmed.
-
-**Question:** When old/lapsed **Arrears are finally paid**, does the collected cash report under the dedicated **Arrears** line, or under the original facility line such as **NPM / TCC / NCC**?
-
 ## 17. Deferred questions that do not block current V2 work
 
 Do not distract staff with these during the presentation sprint unless they become necessary:
@@ -346,4 +334,4 @@ Do not distract staff with these during the presentation sprint unless they beco
 
 ---
 
-This rulebook should be updated immediately whenever EEMO answers one of the five open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+This rulebook should be updated immediately whenever EEMO answers one of the three open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
