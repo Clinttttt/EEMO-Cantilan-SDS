@@ -1,0 +1,575 @@
+@page "/operations/ecf"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+
+<PageTitle>StallTrack — General Distribution / ECF</PageTitle>
+
+<main class="ecf-page">
+    <nav class="ecf-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">General Distribution / ECF</span>
+    </nav>
+
+    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · ECF")"
+                  Title="General Distribution / ECF"
+                  Subtitle="Electricity assessments and Official Receipt collections for market accounts."
+                  Icon="@ElectricityIcon"
+                  Stats="HeroStats" />
+
+    <section class="ecf-period-desk" aria-labelledby="ecf-period-title">
+        <div class="ecf-period-copy">
+            <p class="ecf-eyebrow">CURRENT BILLING PERIOD</p>
+            <h2 id="ecf-period-title">September 2026</h2>
+            <p>Review electricity assessments and collections for the current period.</p>
+        </div>
+        <div class="ecf-period-actions">
+            <div class="ecf-instrument" aria-label="Collection instrument: Official Receipt">
+                <span class="ecf-or-chip">OR</span>
+                <strong>Official Receipt</strong>
+            </div>
+            <div class="ecf-action-buttons">
+                <button class="ecf-button ecf-button-primary" type="button" @onclick="OpenAssessmentModal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    New ECF Assessment
+                </button>
+                <button class="ecf-button ecf-button-secondary" type="button" @onclick="OpenPaymentModal">Record Payment</button>
+                <a class="ecf-button ecf-button-report" href="/operations/ecf/report">Report</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="ecf-main-grid">
+        <section class="ecf-panel ecf-assessments-panel" aria-labelledby="ecf-assessments-title">
+            <header class="ecf-panel-header">
+                <div>
+                    <p class="ecf-eyebrow">ELECTRICITY ACCOUNTS</p>
+                    <h2 id="ecf-assessments-title">Current Assessments</h2>
+                    <p>Electricity charges and balances for configured market accounts.</p>
+                </div>
+                <div class="ecf-assessment-header-actions">
+                    <span class="ecf-period-tag">September 2026</span>
+                    <a class="ecf-button ecf-button-secondary ecf-view-all" href="/operations/ecf/accounts">View All</a>
+                </div>
+            </header>
+
+            <div class="ecf-toolbar" aria-label="Assessment filters">
+                <label class="ecf-filter-control">
+                    <span class="ecf-sr-only">Filter by area</span>
+                    <select aria-label="Filter by area" @bind="_areaFilter">
+                        <option value="All Areas">All Areas</option>
+                        <option value="Fish Section">Fish Section</option>
+                        <option value="Meat Section">Meat Section</option>
+                        <option value="Common Area">Common Area</option>
+                    </select>
+                </label>
+                <label class="ecf-search-control">
+                    <span class="ecf-sr-only">Search occupant, account, or area</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="10.8" cy="10.8" r="6.8" />
+                        <path d="m16 16 4.5 4.5" />
+                    </svg>
+                    <input type="search"
+                           placeholder="Search occupant, account, or area..."
+                           aria-label="Search occupant, account, or area"
+                           @bind="_searchText"
+                           @bind:event="oninput" />
+                </label>
+            </div>
+
+            <div class="ecf-table-wrap" role="region" aria-label="Current ECF assessments" tabindex="0">
+                <table class="ecf-table ecf-assessment-table">
+                    <caption class="ecf-sr-only">September 2026 electricity account assessments and balances</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Occupant</th>
+                            <th scope="col">Basis</th>
+                            <th scope="col" class="ecf-number">Due</th>
+                            <th scope="col" class="ecf-number">Paid</th>
+                            <th scope="col" class="ecf-number">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var account in LandingAccounts)
+                        {
+                            <tr>
+                                <td class="ecf-occupant-cell">
+                                    <strong class="ecf-account-name">@account.Occupant</strong>
+                                    <span class="ecf-account-area">@AccountContext(account)</span>
+                                </td>
+                                <td>@ShortBasis(account.Basis)</td>
+                                <td class="ecf-number">@Money(account.Due)</td>
+                                <td class="ecf-number">@Money(account.Paid)</td>
+                                <td class="ecf-number ecf-balance">@Money(account.Balance)</td>
+                            </tr>
+                        }
+                        @if (!LandingAccounts.Any())
+                        {
+                            <tr><td class="ecf-empty-cell" colspan="5">No electricity accounts match the selected filters.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="ecf-table-footer">
+                <span>Showing @LandingAccounts.Count() of @FilteredAccounts.Count() electricity accounts</span>
+                <span>Billing period: September 2026</span>
+            </footer>
+        </section>
+
+        <aside class="ecf-panel ecf-summary-panel" aria-labelledby="ecf-summary-title">
+            <header class="ecf-panel-header">
+                <div>
+                    <p class="ecf-eyebrow">CURRENT PERIOD</p>
+                    <h2 id="ecf-summary-title">Electricity Collection Position</h2>
+                    <p>September 2026</p>
+                </div>
+            </header>
+
+            <dl class="ecf-summary-list">
+                <div class="ecf-summary-emphasis">
+                    <dt>Total billed</dt>
+                    <dd>@Money(TotalBilled)</dd>
+                </div>
+                <div>
+                    <dt>Collected</dt>
+                    <dd>@Money(TotalCollected)</dd>
+                </div>
+                <div>
+                    <dt>Outstanding</dt>
+                    <dd>@Money(TotalOutstanding)</dd>
+                </div>
+                <div>
+                    <dt>Paid accounts</dt>
+                    <dd>@PaidAccountCount of @Accounts.Count</dd>
+                </div>
+                <div>
+                    <dt>Accounts with balance</dt>
+                    <dd>@AccountsWithBalance</dd>
+                </div>
+                <div>
+                    <dt>Instrument</dt>
+                    <dd><span class="ecf-inline-or">OR</span> Official Receipt</dd>
+                </div>
+            </dl>
+
+            <div class="ecf-collection-rate" aria-label="Collection rate @CollectionRate.ToString("N1") percent">
+                <p class="ecf-eyebrow">COLLECTION RATE</p>
+                <strong>@CollectionRate.ToString("N1")%</strong>
+                <p>@Money(TotalCollected) collected<br />of @Money(TotalBilled) billed</p>
+            </div>
+        </aside>
+    </div>
+
+    <section class="ecf-panel ecf-activity-panel" aria-labelledby="ecf-activity-title">
+        <header class="ecf-panel-header ecf-activity-header">
+            <div>
+                <p class="ecf-eyebrow">CURRENT PERIOD</p>
+                <h2 id="ecf-activity-title">Billing &amp; Collection Activity</h2>
+                <p>Recent ECF assessment and Official Receipt collection activity.</p>
+            </div>
+        </header>
+
+        <div class="ecf-table-wrap" role="region" aria-label="ECF billing and collection activity" tabindex="0">
+            <table class="ecf-table ecf-activity-table">
+                <caption class="ecf-sr-only">Recent September 2026 ECF billing and Official Receipt collection activity</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Account</th>
+                        <th scope="col">Period</th>
+                        <th scope="col">Activity</th>
+                        <th scope="col" class="ecf-number">Amount</th>
+                        <th scope="col" class="ecf-number">Balance</th>
+                        <th scope="col">OR</th>
+                        <th scope="col">Recorded by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in Activities)
+                    {
+                        <tr>
+                            <td>@activity.Date</td>
+                            <td><strong>@activity.Account</strong></td>
+                            <td>@activity.Period</td>
+                            <td>@activity.Type</td>
+                            <td class="ecf-number">@Money(activity.Amount)</td>
+                            <td class="ecf-number">@Money(activity.Balance)</td>
+                            <td>@activity.OrNumber</td>
+                            <td>@activity.RecordedBy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+@if (_assessmentModalOpen)
+{
+    <div class="ecf-modal-overlay" role="presentation" @onclick="CloseAssessmentModal">
+        <section class="ecf-modal ecf-assessment-modal" role="dialog" aria-modal="true" aria-labelledby="ecf-assessment-title" @onclick:stopPropagation="true">
+            <button class="ecf-modal-close" type="button" aria-label="Close new ECF assessment" @onclick="CloseAssessmentModal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <header class="ecf-modal-header">
+                <p class="ecf-eyebrow">ECF · NEW ASSESSMENT</p>
+                <h2 id="ecf-assessment-title">New Electricity Assessment</h2>
+                <p>Create the electricity charge for the selected billing period.</p>
+            </header>
+
+            <div class="ecf-context-strip">
+                <div><span>Billing Period</span><strong>September 2026</strong></div>
+                <div><span>Revenue Source</span><strong>General Distribution / ECF</strong></div>
+                <div><span>Instrument</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
+            </div>
+
+            <div class="ecf-form-grid">
+                <label class="ecf-field">
+                    <span>Account / Stall</span>
+                    <input @bind="_assessmentAccount" autocomplete="off" />
+                </label>
+                <label class="ecf-field">
+                    <span>Occupant</span>
+                    <input @bind="_assessmentOccupant" autocomplete="off" />
+                </label>
+                <label class="ecf-field ecf-field-full">
+                    <span>Area</span>
+                    <input @bind="_assessmentArea" autocomplete="off" />
+                </label>
+                <label class="ecf-field ecf-field-full">
+                    <span>Charge Basis</span>
+                    <select @bind="_chargeBasis">
+                        <option value="@BasisKind.Metered">Metered Consumption</option>
+                        <option value="@BasisKind.Submetered">Submetered Consumption</option>
+                        <option value="@BasisKind.Fixed">Fixed Monthly Charge</option>
+                        <option value="@BasisKind.Allocation">Electric Bill Allocation</option>
+                        <option value="@BasisKind.Manual">Manual Approved Amount</option>
+                    </select>
+                </label>
+            </div>
+
+            @if (_chargeBasis is BasisKind.Metered or BasisKind.Submetered)
+            {
+                <section class="ecf-charge-fields" aria-labelledby="ecf-metered-title">
+                    <p class="ecf-charge-heading" id="ecf-metered-title">@(_chargeBasis == BasisKind.Submetered ? "SUBMETERED CONSUMPTION" : "METERED CONSUMPTION")</p>
+                    <div class="ecf-form-grid">
+                        <label class="ecf-field">
+                            <span>Previous Reading</span>
+                            <div class="ecf-unit-input"><input type="number" step="0.1" @bind="_previousReading" /><span>kWh</span></div>
+                        </label>
+                        <label class="ecf-field">
+                            <span>Current Reading</span>
+                            <div class="ecf-unit-input"><input type="number" step="0.1" @bind="_currentReading" /><span>kWh</span></div>
+                        </label>
+                        <label class="ecf-field">
+                            <span>Consumption</span>
+                            <input value="@MeteredConsumption.ToString("N1") kWh" readonly />
+                        </label>
+                        <label class="ecf-field">
+                            <span>Rate</span>
+                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_rate" /></div>
+                            <small>per kWh</small>
+                        </label>
+                    </div>
+                </section>
+            }
+            else if (_chargeBasis == BasisKind.Fixed)
+            {
+                <section class="ecf-charge-fields" aria-labelledby="ecf-fixed-title">
+                    <p class="ecf-charge-heading" id="ecf-fixed-title">FIXED MONTHLY CHARGE</p>
+                    <div class="ecf-form-grid">
+                        <label class="ecf-field ecf-field-full">
+                            <span>Monthly Charge</span>
+                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_monthlyCharge" /></div>
+                        </label>
+                    </div>
+                </section>
+            }
+            else if (_chargeBasis == BasisKind.Allocation)
+            {
+                <section class="ecf-charge-fields" aria-labelledby="ecf-allocation-title">
+                    <p class="ecf-charge-heading" id="ecf-allocation-title">ELECTRIC BILL ALLOCATION</p>
+                    <div class="ecf-form-grid">
+                        <label class="ecf-field">
+                            <span>Utility Bill Amount</span>
+                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_utilityBillAmount" /></div>
+                        </label>
+                        <label class="ecf-field">
+                            <span>Allocated Amount</span>
+                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_allocatedAmount" /></div>
+                        </label>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="ecf-charge-fields" aria-labelledby="ecf-approved-title">
+                    <p class="ecf-charge-heading" id="ecf-approved-title">APPROVED CHARGE</p>
+                    <div class="ecf-form-grid">
+                        <label class="ecf-field ecf-field-full">
+                            <span>Approved Amount</span>
+                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_approvedAmount" /></div>
+                        </label>
+                    </div>
+                </section>
+            }
+
+            <div class="ecf-amount-due">
+                <span>AMOUNT DUE</span>
+                <strong>@Money(AssessmentAmountDue)</strong>
+            </div>
+
+            <footer class="ecf-modal-footer">
+                <button class="ecf-button ecf-button-secondary" type="button" @onclick="CloseAssessmentModal">Cancel</button>
+                <button class="ecf-button ecf-button-primary" type="button" @onclick="SaveAssessment">Save Assessment</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_paymentModalOpen && _paymentAccount is not null)
+{
+    <div class="ecf-modal-overlay" role="presentation" @onclick="ClosePaymentModal">
+        <section class="ecf-modal ecf-payment-modal" role="dialog" aria-modal="true" aria-labelledby="ecf-payment-title" @onclick:stopPropagation="true">
+            <button class="ecf-modal-close" type="button" aria-label="Close ECF payment" @onclick="ClosePaymentModal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <header class="ecf-modal-header">
+                <p class="ecf-eyebrow">ECF · OFFICIAL RECEIPT COLLECTION</p>
+                <h2 id="ecf-payment-title">Record ECF Payment</h2>
+            </header>
+
+            <div class="ecf-payment-context">
+                <div class="ecf-payment-account">
+                    <span>ACCOUNT / OCCUPANT</span>
+                    <strong>@PaymentContext(_paymentAccount)</strong>
+                </div>
+                <div class="ecf-payment-facts">
+                    <div><span>Billing Period</span><strong>September 2026</strong></div>
+                    <div><span>Amount Due</span><strong>@Money(_paymentAccount.Due)</strong></div>
+                    <div><span>Previously Paid</span><strong>@Money(_paymentAccount.Paid)</strong></div>
+                    <div><span>Outstanding</span><strong>@Money(_paymentAccount.Balance)</strong></div>
+                    <div><span>Instrument</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
+                </div>
+            </div>
+
+            <div class="ecf-form-grid ecf-payment-form">
+                <label class="ecf-field ecf-field-full">
+                    <span>Payment Amount</span>
+                    <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" max="@_paymentAccount.Balance" inputmode="decimal" @bind="_paymentAmount" /></div>
+                </label>
+                <div class="ecf-field ecf-field-full">
+                    <span>Instrument</span>
+                    <div class="ecf-instrument-field"><span class="ecf-inline-or">OR</span> Official Receipt</div>
+                </div>
+                <label class="ecf-field ecf-field-full">
+                    <span>OR Number</span>
+                    <input @bind="_orNumber" autocomplete="off" />
+                </label>
+            </div>
+
+            <div class="ecf-amount-due ecf-remaining-summary">
+                <span>REMAINING BALANCE</span>
+                <strong>@Money(RemainingPaymentBalance)</strong>
+            </div>
+
+            <footer class="ecf-modal-footer">
+                <button class="ecf-button ecf-button-secondary" type="button" @onclick="ClosePaymentModal">Cancel</button>
+                <button class="ecf-button ecf-button-primary" type="button" @onclick="SavePayment">Record Payment</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private const string BillingPeriod = "September 2026";
+    private const string UpdatedOn = "Sep 26, 2026";
+
+    private string _areaFilter = "All Areas";
+    private string _searchText = string.Empty;
+    private bool _assessmentModalOpen;
+    private bool _paymentModalOpen;
+    private EcfAccount? _paymentAccount;
+    private string _assessmentAccount = "NPM F-01";
+    private string _assessmentOccupant = "Juan Dela Cruz";
+    private string _assessmentArea = "Fish Section";
+    private BasisKind _chargeBasis = BasisKind.Metered;
+    private decimal _previousReading = 1245.6m;
+    private decimal _currentReading = 1256.1m;
+    private decimal _rate = 12m;
+    private decimal _monthlyCharge = 350m;
+    private decimal _utilityBillAmount = 18500m;
+    private decimal _allocatedAmount = 1200m;
+    private decimal _approvedAmount = 500m;
+    private decimal _paymentAmount;
+    private string _orNumber = string.Empty;
+
+    private static readonly List<EcfAccount> Accounts = CreateAccounts();
+
+    private static readonly IReadOnlyList<EcfActivity> Activities = new[]
+    {
+        new EcfActivity(UpdatedOn, "NPM F-01", BillingPeriod, "OR Payment", 420m, 0m, "001234567", "Collector A"),
+        new EcfActivity(UpdatedOn, "NPM M-04", BillingPeriod, "Assessment", 680m, 280m, "—", "Admin"),
+        new EcfActivity(UpdatedOn, "NPM F-07", BillingPeriod, "Assessment", 350m, 350m, "—", "Admin"),
+        new EcfActivity(UpdatedOn, "Shared Market Area", BillingPeriod, "OR Payment", 1200m, 0m, "001234569", "Admin")
+    };
+
+    private IEnumerable<EcfAccount> FilteredAccounts => Accounts.Where(account =>
+        (_areaFilter == "All Areas" || account.Area == _areaFilter)
+        && (string.IsNullOrWhiteSpace(_searchText)
+            || account.Code.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || account.Occupant.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || account.Area.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
+
+    private IEnumerable<EcfAccount> LandingAccounts => FilteredAccounts.Take(8);
+    private decimal TotalBilled => Accounts.Sum(account => account.Due);
+    private decimal TotalCollected => Accounts.Sum(account => account.Paid);
+    private decimal TotalOutstanding => Accounts.Sum(account => account.Balance);
+    private int PaidAccountCount => Accounts.Count(account => account.Balance == 0m);
+    private int AccountsWithBalance => Accounts.Count(account => account.Balance > 0m);
+    private decimal CollectionRate => TotalBilled == 0m ? 0m : TotalCollected / TotalBilled * 100m;
+    private decimal MeteredConsumption => Math.Max(_currentReading - _previousReading, 0m);
+    private decimal AssessmentAmountDue => _chargeBasis switch
+    {
+        BasisKind.Metered or BasisKind.Submetered => MeteredConsumption * _rate,
+        BasisKind.Fixed => _monthlyCharge,
+        BasisKind.Allocation => _allocatedAmount,
+        BasisKind.Manual => _approvedAmount,
+        _ => 0m
+    };
+    private decimal RemainingPaymentBalance => _paymentAccount is null
+        ? 0m
+        : Math.Max(_paymentAccount.Balance - _paymentAmount, 0m);
+
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = Money(TotalBilled), Label = "Billed" },
+        new() { Value = Money(TotalCollected), Label = "Collected" },
+        new() { Value = Money(TotalOutstanding), Label = "Outstanding" }
+    };
+
+    private RenderFragment ElectricityIcon => @<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M13.2 2.5 5.8 13h5.4l-.6 8.5L18.2 11h-5.5l.5-8.5Z" />
+    </svg>;
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+
+    private static string AccountContext(EcfAccount account) =>
+        account.Code == "COMMON-01" ? account.Area : $"{account.Code} · {account.Area}";
+
+    private static string PaymentContext(EcfAccount account) =>
+        $"{AccountContext(account)} · {account.Occupant}";
+
+    private static string ShortBasis(BasisKind basis) => basis switch
+    {
+        BasisKind.Metered => "Metered",
+        BasisKind.Submetered => "Submetered",
+        BasisKind.Fixed => "Fixed",
+        BasisKind.Allocation => "Bill allocation",
+        BasisKind.Manual => "Approved amount",
+        _ => "—"
+    };
+
+    private void OpenAssessmentModal() => _assessmentModalOpen = true;
+
+    private void CloseAssessmentModal() => _assessmentModalOpen = false;
+
+    private void SaveAssessment() => CloseAssessmentModal();
+
+    private void OpenPaymentModal()
+    {
+        _paymentAccount = Accounts.FirstOrDefault(account => account.Balance > 0m);
+        _paymentAmount = _paymentAccount?.Balance ?? 0m;
+        _orNumber = string.Empty;
+        _paymentModalOpen = _paymentAccount is not null;
+    }
+
+    private void ClosePaymentModal()
+    {
+        _paymentModalOpen = false;
+        _paymentAccount = null;
+    }
+
+    private void SavePayment() => ClosePaymentModal();
+
+    private static List<EcfAccount> CreateAccounts()
+    {
+        var accounts = new List<EcfAccount>
+        {
+            Metered("NPM F-01", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
+            Metered("NPM M-04", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
+            Fixed("NPM F-07", "Maria Flores", "Fish Section", 350m, 0m, null),
+            Allocated("COMMON-01", "Shared Market Area", "Common Area", 1200m, 1200m, "001234569"),
+            Metered("NPM F-02", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
+            Metered("NPM F-03", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
+            Metered("NPM F-05", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
+            Metered("NPM F-06", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
+            Metered("NPM F-08", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
+            Metered("NPM F-09", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
+            Metered("NPM M-01", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
+            Metered("NPM M-02", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
+            Metered("NPM M-03", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
+            Metered("NPM M-05", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
+            Metered("NPM M-06", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
+            Metered("NPM M-07", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
+            Metered("NPM M-08", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
+            Metered("NPM M-09", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
+            Metered("NPM F-10", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
+            Metered("NPM F-11", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
+            Fixed("NPM F-12", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
+            Allocated("COMMON-02", "Market Lighting", "Common Area", 720m, 720m, "001234587"),
+            Manual("NPM M-10", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
+            Metered("NPM M-11", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
+            Allocated("SHARED-MEAT-01", "Meat Section Shared Connection", "Common Area", 2600m, 1440m, "001234590"),
+            Manual("NPM F-13", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
+        };
+
+        return accounts;
+    }
+
+    private static EcfAccount Metered(string code, string occupant, string area, decimal due, decimal paid, decimal previousReading, string? orNumber, BasisKind basis = BasisKind.Metered)
+    {
+        const decimal exampleRate = 12m;
+        var currentReading = previousReading + due / exampleRate;
+        return new EcfAccount(code, occupant, area, basis, due, paid, previousReading, currentReading, exampleRate, orNumber);
+    }
+
+    private static EcfAccount Fixed(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Fixed, due, paid, null, null, null, orNumber);
+
+    private static EcfAccount Allocated(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Allocation, due, paid, null, null, null, orNumber);
+
+    private static EcfAccount Manual(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Manual, due, paid, null, null, null, orNumber);
+
+    private enum BasisKind
+    {
+        Metered,
+        Submetered,
+        Fixed,
+        Allocation,
+        Manual
+    }
+
+    private sealed record EcfAccount(
+        string Code,
+        string Occupant,
+        string Area,
+        BasisKind Basis,
+        decimal Due,
+        decimal Paid,
+        decimal? PreviousReading,
+        decimal? CurrentReading,
+        decimal? Rate,
+        string? OrNumber)
+    {
+        public decimal Balance => Math.Max(Due - Paid, 0m);
+        public decimal? Consumption => PreviousReading is { } previous && CurrentReading is { } current
+            ? Math.Max(current - previous, 0m)
+            : null;
+    }
+
+    private sealed record EcfActivity(string Date, string Account, string Period, string Type, decimal Amount, decimal Balance, string OrNumber, string RecordedBy);
+}

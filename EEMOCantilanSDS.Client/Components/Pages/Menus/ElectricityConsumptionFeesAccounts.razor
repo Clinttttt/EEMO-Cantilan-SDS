@@ -1,0 +1,310 @@
+@page "/operations/ecf/accounts"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+
+<PageTitle>StallTrack — Electricity Accounts</PageTitle>
+
+<main class="ecfa-page">
+    <nav class="ecfa-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <a href="/operations/ecf">General Distribution / ECF</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Electricity Accounts</span>
+    </nav>
+
+    <header class="ecfa-heading">
+        <div>
+            <p class="ecfa-eyebrow">GENERAL DISTRIBUTION / ECF</p>
+            <h1>Electricity Accounts</h1>
+            <p>Detailed ECF billing, consumption, collections, and balances.</p>
+        </div>
+        <div class="ecfa-heading-context">
+            <span>Billing Period</span>
+            <strong>September 2026</strong>
+        </div>
+    </header>
+
+    <section class="ecfa-register" aria-labelledby="ecfa-register-title">
+        <header class="ecfa-register-heading">
+            <div>
+                <p class="ecfa-eyebrow">ELECTRICITY ACCOUNTS</p>
+                <h2 id="ecfa-register-title">September Assessments</h2>
+                <p>Account-level readings, assessments, OR collections, and balances.</p>
+            </div>
+            <a class="ecfa-back-link" href="/operations/ecf">Back to ECF</a>
+        </header>
+
+        <div class="ecfa-toolbar" aria-label="Electricity account filters">
+            <label>
+                <span class="ecfa-sr-only">Filter by area</span>
+                <select aria-label="Filter by area" @bind="_areaFilter">
+                    <option value="All Areas">All Areas</option>
+                    <option value="Fish Section">Fish Section</option>
+                    <option value="Meat Section">Meat Section</option>
+                    <option value="Common Area">Common Area</option>
+                </select>
+            </label>
+            <label>
+                <span class="ecfa-sr-only">Filter by balance</span>
+                <select aria-label="Filter by balance" @bind="_balanceFilter">
+                    <option value="All Balances">All Balances</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Unpaid">Unpaid</option>
+                </select>
+            </label>
+            <label class="ecfa-search">
+                <span class="ecfa-sr-only">Search occupant, account, stall, or area</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="10.8" cy="10.8" r="6.8" />
+                    <path d="m16 16 4.5 4.5" />
+                </svg>
+                <input type="search"
+                       placeholder="Search occupant, account, stall, or area..."
+                       aria-label="Search occupant, account, stall, or area"
+                       @bind="_searchText"
+                       @bind:event="oninput" />
+            </label>
+        </div>
+
+        <div class="ecfa-table-wrap" role="region" aria-label="Detailed electricity account assessments" tabindex="0">
+            <table class="ecfa-table">
+                <caption class="ecfa-sr-only">September 2026 ECF accounts, readings, assessments, collections, OR numbers, and balances</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Account / Area</th>
+                        <th scope="col">Occupant</th>
+                        <th scope="col">Basis</th>
+                        <th scope="col" class="ecfa-number">Previous Reading</th>
+                        <th scope="col" class="ecfa-number">Current Reading</th>
+                        <th scope="col" class="ecfa-number">Consumption</th>
+                        <th scope="col" class="ecfa-number">Rate</th>
+                        <th scope="col" class="ecfa-number">Due</th>
+                        <th scope="col" class="ecfa-number">Paid</th>
+                        <th scope="col" class="ecfa-number">Balance</th>
+                        <th scope="col">OR Number</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last Updated</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var account in FilteredAccounts)
+                    {
+                        <tr>
+                            <td>
+                                <strong class="ecfa-account-primary">@AccountName(account)</strong>
+                                <span class="ecfa-account-secondary">@account.Area</span>
+                            </td>
+                            <td>@account.Occupant</td>
+                            <td>@BasisLabel(account.Basis)</td>
+                            <td class="ecfa-number">@Reading(account.PreviousReading)</td>
+                            <td class="ecfa-number">@Reading(account.CurrentReading)</td>
+                            <td class="ecfa-number">@Consumption(account)</td>
+                            <td class="ecfa-number">@Rate(account)</td>
+                            <td class="ecfa-number">@Money(account.Due)</td>
+                            <td class="ecfa-number">@Money(account.Paid)</td>
+                            <td class="ecfa-number ecfa-balance">@Money(account.Balance)</td>
+                            <td>@(account.OrNumber ?? "—")</td>
+                            <td><span class="ecfa-status @StatusCss(account)">@Status(account)</span></td>
+                            <td>Sep 26, 2026</td>
+                            <td><button class="ecfa-view-button" type="button" @onclick="() => _selectedAccount = account">View</button></td>
+                        </tr>
+                    }
+                    @if (!FilteredAccounts.Any())
+                    {
+                        <tr><td class="ecfa-empty-cell" colspan="14">No electricity accounts match the selected filters.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="ecfa-register-footer">
+            <span>@FilteredAccounts.Count() electricity account@(FilteredAccounts.Count() == 1 ? "" : "s")</span>
+            <span>Billing period: September 2026</span>
+        </footer>
+    </section>
+</main>
+
+@if (_selectedAccount is not null)
+{
+    <div class="ecfa-modal-overlay" role="presentation" @onclick="CloseDetail">
+        <section class="ecfa-detail-modal" role="dialog" aria-modal="true" aria-labelledby="ecfa-detail-title" @onclick:stopPropagation="true">
+            <button class="ecfa-modal-close" type="button" aria-label="Close electricity account detail" @onclick="CloseDetail">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <header class="ecfa-detail-header">
+                <p class="ecfa-eyebrow">ELECTRICITY ACCOUNT</p>
+                <h2 id="ecfa-detail-title">@AccountName(_selectedAccount)</h2>
+                <p>@_selectedAccount.Area · @_selectedAccount.Occupant</p>
+            </header>
+            <div class="ecfa-detail-body">
+                <dl class="ecfa-detail-grid">
+                    <div><dt>Account</dt><dd>@AccountName(_selectedAccount)</dd></div>
+                    <div><dt>Occupant</dt><dd>@_selectedAccount.Occupant</dd></div>
+                    <div><dt>Area</dt><dd>@_selectedAccount.Area</dd></div>
+                    <div><dt>Billing Period</dt><dd>September 2026</dd></div>
+                    <div><dt>Charge Basis</dt><dd>@BasisLabel(_selectedAccount.Basis)</dd></div>
+                    <div><dt>Previous Reading</dt><dd>@Reading(_selectedAccount.PreviousReading)</dd></div>
+                    <div><dt>Current Reading</dt><dd>@Reading(_selectedAccount.CurrentReading)</dd></div>
+                    <div><dt>Consumption</dt><dd>@Consumption(_selectedAccount)</dd></div>
+                    <div><dt>Rate</dt><dd>@Rate(_selectedAccount)</dd></div>
+                    <div><dt>Due</dt><dd>@Money(_selectedAccount.Due)</dd></div>
+                    <div><dt>Paid</dt><dd>@Money(_selectedAccount.Paid)</dd></div>
+                    <div><dt>Balance</dt><dd>@Money(_selectedAccount.Balance)</dd></div>
+                    <div><dt>OR Number</dt><dd>@(_selectedAccount.OrNumber ?? "—")</dd></div>
+                    <div><dt>Status</dt><dd>@Status(_selectedAccount)</dd></div>
+                </dl>
+
+                @if (_selectedAccount.Consumption is not null)
+                {
+                    <section class="ecfa-meter-history" aria-labelledby="ecfa-history-title">
+                        <header>
+                            <p class="ecfa-eyebrow">METER HISTORY</p>
+                            <h3 id="ecfa-history-title">Reading History</h3>
+                        </header>
+                        <div class="ecfa-history-table-wrap">
+                            <table class="ecfa-history-table">
+                                <thead><tr><th>Period</th><th>Previous</th><th>Current</th><th>Usage</th></tr></thead>
+                                <tbody>
+                                    <tr><td>June</td><td>—</td><td>—</td><td>—</td></tr>
+                                    <tr><td>July</td><td>—</td><td>—</td><td>—</td></tr>
+                                    <tr><td>August</td><td>—</td><td>—</td><td>—</td></tr>
+                                    <tr>
+                                        <td>September</td>
+                                        <td>@Reading(_selectedAccount.PreviousReading)</td>
+                                        <td>@Reading(_selectedAccount.CurrentReading)</td>
+                                        <td>@Consumption(_selectedAccount)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                }
+            </div>
+            <footer class="ecfa-detail-footer">
+                <button class="ecfa-button" type="button" @onclick="CloseDetail">Close</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private string _areaFilter = "All Areas";
+    private string _balanceFilter = "All Balances";
+    private string _searchText = string.Empty;
+    private EcfAccount? _selectedAccount;
+
+    private static readonly List<EcfAccount> Accounts = CreateAccounts();
+
+    private IEnumerable<EcfAccount> FilteredAccounts => Accounts.Where(account =>
+        (_areaFilter == "All Areas" || account.Area == _areaFilter)
+        && (_balanceFilter == "All Balances" || Status(account) == _balanceFilter)
+        && (string.IsNullOrWhiteSpace(_searchText)
+            || account.Code.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || account.Occupant.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || account.Area.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
+
+    private static string AccountName(EcfAccount account) =>
+        account.Code.StartsWith("NPM ", StringComparison.Ordinal) ? account.Code : account.Occupant;
+
+    private static string BasisLabel(BasisKind basis) => basis switch
+    {
+        BasisKind.Metered => "Metered Consumption",
+        BasisKind.Submetered => "Submetered Consumption",
+        BasisKind.Fixed => "Fixed Monthly Charge",
+        BasisKind.Allocation => "Electric Bill Allocation",
+        BasisKind.Manual => "Manual Approved Amount",
+        _ => "—"
+    };
+
+    private static string Reading(decimal? value) => value is { } reading ? $"{reading:N3} kWh" : "—";
+
+    private static string Consumption(EcfAccount account) =>
+        account.Consumption is { } consumption ? $"{consumption:N3} kWh" : "—";
+
+    private static string Money(decimal value) => $"₱{value:N2}";
+
+    private static string Rate(EcfAccount account) => account.Basis switch
+    {
+        BasisKind.Metered or BasisKind.Submetered => "—",
+        BasisKind.Fixed => $"{Money(account.Due)} / month",
+        BasisKind.Allocation => $"{Money(account.Due)} allocated",
+        BasisKind.Manual => "—",
+        _ => "—"
+    };
+
+    private static string Status(EcfAccount account) => account.Balance == 0m ? "Paid" : account.Paid > 0m ? "Partial" : "Unpaid";
+
+    private static string StatusCss(EcfAccount account) => Status(account).ToLowerInvariant();
+
+    private void CloseDetail() => _selectedAccount = null;
+
+    private static List<EcfAccount> CreateAccounts()
+    {
+        var accounts = new List<EcfAccount>
+        {
+            Metered("NPM F-01", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
+            Metered("NPM M-04", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
+            Fixed("NPM F-07", "Maria Flores", "Fish Section", 350m, 0m, null),
+            Allocated("COMMON-01", "Shared Market Area", "Common Area", 1200m, 1200m, "001234569"),
+            Metered("NPM F-02", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
+            Metered("NPM F-03", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
+            Metered("NPM F-05", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
+            Metered("NPM F-06", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
+            Metered("NPM F-08", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
+            Metered("NPM F-09", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
+            Metered("NPM M-01", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
+            Metered("NPM M-02", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
+            Metered("NPM M-03", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
+            Metered("NPM M-05", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
+            Metered("NPM M-06", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
+            Metered("NPM M-07", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
+            Metered("NPM M-08", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
+            Metered("NPM M-09", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
+            Metered("NPM F-10", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
+            Metered("NPM F-11", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
+            Fixed("NPM F-12", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
+            Allocated("COMMON-02", "Market Lighting", "Common Area", 720m, 720m, "001234587"),
+            Manual("NPM M-10", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
+            Metered("NPM M-11", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
+            Allocated("SHARED-MEAT-01", "Meat Section Shared Connection", "Common Area", 2600m, 1440m, "001234590"),
+            Manual("NPM F-13", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
+        };
+
+        return accounts;
+    }
+
+    private static EcfAccount Metered(string code, string occupant, string area, decimal due, decimal paid, decimal previousReading, string? orNumber, BasisKind basis = BasisKind.Metered)
+    {
+        const decimal exampleRate = 12m;
+        return new EcfAccount(code, occupant, area, basis, due, paid, previousReading, previousReading + due / exampleRate, orNumber);
+    }
+
+    private static EcfAccount Fixed(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Fixed, due, paid, null, null, orNumber);
+
+    private static EcfAccount Allocated(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Allocation, due, paid, null, null, orNumber);
+
+    private static EcfAccount Manual(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
+        new(code, occupant, area, BasisKind.Manual, due, paid, null, null, orNumber);
+
+    private enum BasisKind
+    {
+        Metered,
+        Submetered,
+        Fixed,
+        Allocation,
+        Manual
+    }
+
+    private sealed record EcfAccount(string Code, string Occupant, string Area, BasisKind Basis, decimal Due, decimal Paid, decimal? PreviousReading, decimal? CurrentReading, string? OrNumber)
+    {
+        public decimal Balance => Math.Max(Due - Paid, 0m);
+        public decimal? Consumption => PreviousReading is { } previous && CurrentReading is { } current
+            ? Math.Max(current - previous, 0m)
+            : null;
+    }
+}
