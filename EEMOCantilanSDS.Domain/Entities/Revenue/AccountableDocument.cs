@@ -83,6 +83,25 @@ public sealed class AccountableDocument : AuditableEntity, IMunicipalityOwned
         State = AccountableDocumentState.ReconciliationRequired;
         Touch(updatedBy);
     }
+    /// <summary>
+    /// Permanently records a collector's physical issue of an assigned document when canonical
+    /// posting cannot be accepted. The ticket stays bound to its original operation and is never
+    /// returned to office inventory. AssignedUserId is retained as custody evidence.
+    /// </summary>
+    public void MarkPhysicalIssueReconciliationRequired(
+        Guid clientOperationId, DateTime issuedAtUtc, string updatedBy)
+    {
+        if (State is not (AccountableDocumentState.Assigned or AccountableDocumentState.InOffice))
+            throw new InvalidOperationException("Only an unused ticket can be recorded as physically issued.");
+        if (clientOperationId == Guid.Empty)
+            throw new ArgumentException("Client operation id is required.", nameof(clientOperationId));
+        if (issuedAtUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Physical issue timestamp must be UTC.", nameof(issuedAtUtc));
+        State = AccountableDocumentState.ReconciliationRequired;
+        ClientOperationId = clientOperationId;
+        ConsumedAtUtc = issuedAtUtc;
+        Touch(updatedBy);
+    }
 
     public void Void(string updatedBy)
     {

@@ -132,12 +132,36 @@ public sealed class MobileSyncService
         EnsureAutoRetry();
     }
 
-    /// <summary>Drops a queued row (e.g. a Rejected item the collector chooses to discard).</summary>
-    public async Task DiscardAsync(Guid clientOperationId)
+    /// <summary>
+    /// Durably records a physically issued Cash Ticket and its exact WCF intent in the same queue file.
+    /// Failure is surfaced to the caller, which must not report a safe capture or offer another ticket.
+    /// </summary>
+    public async Task EnqueueIssuedDocumentAsync(PendingOperation operation)
     {
+        operation.LocalStatus = PendingLocalStatus.Pending;
+        operation.IssuedDocumentState = IssuedDocumentLocalState.IssuedLocallyPendingSync;
+        operation.ResultMessage = null;
+        operation.OwnerKey = _collector.CollectorKey;
+        if (string.IsNullOrWhiteSpace(operation.OwnerKey))
+            throw new InvalidOperationException("A signed-in collector is required to issue a Cash Ticket.");
+        await _store.AddIssuedDocumentOperationAsync(operation);
+        await RefreshCountAsync();
+        NotifyChanged();
+        _ = Task.Run(() => TrySyncInBackgroundAsync(force: true));
+        EnsureAutoRetry();
+    }
+
+    /// <summary>Drops a queued row (e.g. a Rejected item the collector chooses to discard).</summary>
+    public async Task<bool> DiscardAsync(Guid clientOperationId)
+    {
+        var existing = (await _store.GetAllAsync()).FirstOrDefault(o => o.ClientOperationId == clientOperationId);
+        if (existing is null) return false;
+        if (existing.AccountableDocumentId is not null || existing.IssuedDocumentState is not null)
+            return false;
         await _store.RemoveAsync(clientOperationId);
         await RefreshCountAsync();
         NotifyChanged();
+        return true;
     }
 
     /// <summary>
@@ -247,12 +271,33 @@ public sealed class MobileSyncService
             switch (itemResult.Status)
             {
                 case SyncResultStatus.Synced:
-                    await _store.RemoveAsync(op.ClientOperationId);
+                    if (op.AccountableDocumentId is not null || op.IssuedDocumentState is not null)
+                    {
+                        op.LocalStatus = PendingLocalStatus.Synced;
+                        op.IssuedDocumentState = IssuedDocumentLocalState.SyncedAcknowledged;
+                        op.ResultMessage = itemResult.Message ?? "Cash Ticket acknowledged by the server.";
+                        await _store.UpdateAsync(op);
+                    }
+                    else
+                    {
+                        await _store.RemoveAsync(op.ClientOperationId);
+                    }
                     synced++;
                     break;
 
+                case SyncResultStatus.ReconciliationRequired:
+                    op.LocalStatus = PendingLocalStatus.ReconciliationRequired;
+                    op.IssuedDocumentState = IssuedDocumentLocalState.ReconciliationRequired;
+                    op.ResultMessage = itemResult.Message ?? "Physical Cash Ticket requires office reconciliation.";
+                    await _store.UpdateAsync(op);
+                    rejected++;
+                    break;
+
                 case SyncResultStatus.Rejected:
-                    op.LocalStatus = PendingLocalStatus.Rejected;
+                    op.LocalStatus = op.AccountableDocumentId is null
+                        ? PendingLocalStatus.Rejected : PendingLocalStatus.ReconciliationRequired;
+                    if (op.AccountableDocumentId is not null)
+                        op.IssuedDocumentState = IssuedDocumentLocalState.ReconciliationRequired;
                     op.ResultMessage = itemResult.Message;
                     await _store.UpdateAsync(op);
                     rejected++;

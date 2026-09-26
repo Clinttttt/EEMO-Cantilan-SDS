@@ -6,6 +6,8 @@ using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
@@ -16,7 +18,8 @@ namespace EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 public sealed class SyncOfflineCollectionsCommandHandler(
     ISender sender,
     ISyncRepository syncRepository,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    WcfCollectionWorkflow? wcfWorkflow = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -30,6 +33,26 @@ public sealed class SyncOfflineCollectionsCommandHandler(
 
         foreach (var op in request.Operations)
         {
+            if (op.Kind == OfflineOperationKind.WcfCollection)
+            {
+                if (wcfWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "WCF canonical sync is not configured."));
+                    continue;
+                }
+                var outcome = await wcfWorkflow.PostMobileAsync(new WcfCollectionPostRequest(
+                    op.PayloadVersion, op.ClientOperationId, op.BusinessDate, op.UtilityBillId ?? Guid.Empty,
+                    op.ReceivedAmount ?? 0m, op.WaterSourceVersion ?? 0, op.AccountableDocumentId ?? Guid.Empty,
+                    op.DocumentNumber ?? string.Empty, op.IssuedAtUtc), ct);
+                var wcfStatus = outcome.IsSuccess ? SyncResultStatus.Synced
+                    : outcome.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
+                        ? SyncResultStatus.ReconciliationRequired
+                        : IsTransient(outcome.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, wcfStatus,
+                    outcome.IsSuccess ? null : outcome.Error));
+                continue;
+            }
             // Idempotent: a record already carrying this client operation id means it was synced.
             if (await syncRepository.IsOperationProcessedAsync(op.ClientOperationId, ct))
             {
@@ -40,7 +63,9 @@ public sealed class SyncOfflineCollectionsCommandHandler(
             var (ok, statusCode, message) = await DispatchAsync(op, ct);
             var status = ok
                 ? SyncResultStatus.Synced
-                : IsTransient(statusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                : message?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
+                    ? SyncResultStatus.ReconciliationRequired
+                    : IsTransient(statusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
 
             results.Add(new SyncOperationResultDto(op.ClientOperationId, status, ok ? null : message));
         }
@@ -49,7 +74,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
             results.Count(r => r.Status == SyncResultStatus.Synced),
             results.Count(r => r.Status == SyncResultStatus.Rejected),
             results.Count(r => r.Status == SyncResultStatus.Failed),
-            results);
+            results,
+            results.Count(r => r.Status == SyncResultStatus.ReconciliationRequired));
 
         return Result<SyncOfflineCollectionsResultDto>.Success(dto);
     }
@@ -103,11 +129,22 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 }
                 case OfflineOperationKind.NpmUtility:
                 {
+                    var preserveWaterSource = false;
+                    if (wcfWorkflow is not null)
+                    {
+                        var resolution = await wcfWorkflow.ReconcileLegacyMobileWaterAsync(op, ct);
+                        if (!resolution.IsSuccess)
+                            return (false, resolution.StatusCode, resolution.Error);
+                        if (resolution.Value?.RequiresReconciliation == true)
+                            return (false, 409, "RECONCILIATION_REQUIRED: " + resolution.Value.Message);
+                        preserveWaterSource = resolution.Value?.PreserveWaterSource == true;
+                    }
                     var r = await sender.Send(new EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment.RecordUtilityPaymentCommand(
                         op.UtilityBillId ?? Guid.Empty,
                         op.ElecStatus ?? PaymentStatus.Unpaid, op.ElecPartialAmount,
                         op.WaterStatus ?? PaymentStatus.Unpaid, op.WaterPartialAmount,
-                        op.ElecORNumber, op.WaterORNumber, op.Remarks, op.ClientOperationId), ct);
+                        op.ElecORNumber, op.WaterORNumber, op.Remarks, op.ClientOperationId,
+                        preserveWaterSource), ct);
                     return (r.IsSuccess, r.StatusCode, r.Error);
                 }
                 default:

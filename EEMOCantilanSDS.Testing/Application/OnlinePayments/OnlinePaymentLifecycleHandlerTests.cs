@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
@@ -36,7 +37,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Result<CheckoutSessionResult>? gatewayResult = null,
         Mock<INpmMonthSettlementService>? npmServiceOut = null,
         Mock<IUtilityBillRepository>? utilOut = null,
-        IFeeRateResolver? feeRates = null)
+        IFeeRateResolver? feeRates = null,
+        Mock<IPaymentGateway>? gatewayOut = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -62,7 +64,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var payorRepo = new Mock<IPayorRepository>();
         payorRepo.Setup(r => r.LinkExistsAsync(It.IsAny<Guid>(), stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(linked);
 
-        var gateway = new Mock<IPaymentGateway>();
+        var gateway = gatewayOut ?? new Mock<IPaymentGateway>();
         gateway.SetupGet(g => g.Provider).Returns("PayMongo");
         gateway.Setup(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(gatewayResult ?? Result<CheckoutSessionResult>.Success(new CheckoutSessionResult("https://pay", "cs_test", "PayMongo")));
@@ -263,6 +265,48 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Assert.Equal(stall.Id, captured.TargetStallId);
         Assert.Equal(220m, captured.Amount);          // full utility balance
         Assert.Null(captured.PaymentRecordId);
+    }
+
+    [Theory]
+    [InlineData(CollectionSourcePart.Electricity, false)]
+    [InlineData(CollectionSourcePart.Water, false)]
+    [InlineData(CollectionSourcePart.Water, true)]
+    public async Task NpmUtility_DoesNotStartCombinedCheckoutAfterEitherPartLeavesLegacy(
+        CollectionSourcePart transitionedPart, bool canonical)
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 2m, 5m);
+        if (transitionedPart == CollectionSourcePart.Electricity)
+            bill.MarkElectricityPendingCutover();
+        else
+        {
+            bill.MarkWaterPendingCutover();
+            if (canonical)
+            {
+                var boundary = DateTime.UtcNow;
+                var cutover = CollectionSettlementCutover.Freeze(Guid.NewGuid(),
+                    CollectionSourceKind.UtilityBill, bill.Id, CollectionSourcePart.Water,
+                    bill.WaterSourceVersion, boundary, bill.WaterCharge, 0m, bill.WaterCharge,
+                    "{\"pendingCheckouts\":0}", Guid.NewGuid(), boundary);
+                bill.ActivateCanonicalWaterSettlement(cutover);
+            }
+        }
+
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        var utilityRepo = new Mock<IUtilityBillRepository>();
+        utilityRepo.Setup(r => r.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bill);
+        var gateway = new Mock<IPaymentGateway>();
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true,
+            onlineRepoOut: onlineRepo, utilOut: utilityRepo, gatewayOut: gateway);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(
+            stall.Id, 2026, 6, PayorPayableKind.NpmUtility), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -656,37 +656,40 @@ public sealed class CollectionComposerWorkflow(
                 source.Allocation.SourceKind, source.Allocation.SourceId, source.Allocation.Amount,
                 source.Allocation.SourcePart, source.Allocation.SourceSnapshot)).ToList())).ToList();
 
-        var now = DateTime.UtcNow;
-        var collection = Collection.Post(
-            draft.BusinessDate, now, ActorIdentity(actor), actor.Username, actor.Role,
-            collectionLineDrafts, payerName: draft.PayerNameSnapshot,
-            clientOperationId: request.ClientOperationId, payorId: draft.PayorId);
-        document.Consume(collection.Id, request.ClientOperationId, now, actor.Username);
-
-        foreach (var group in resolved.Sources.GroupBy(x => new SourceIdentity(
-                     x.Allocation.SourceKind, x.Allocation.SourceId, x.Allocation.SourcePart)))
-        {
-            var source = group.First();
-            var allocated = group.Sum(x => x.Allocation.Amount);
-            if (source.UtilityBill is { } bill)
-                bill.ApplyCanonicalElectricityProjection(source.Settled + allocated,
-                    document.DocumentNumber, now, actor.Username);
-            else if (source.PaymentRecord is { } payment)
-                payment.ApplyCanonicalRentProjection(source.Settled + allocated, now, actor.Username);
-            else
-                throw Problem("A resolved source has no canonical projection adapter.", ResultStatus.Conflict);
-        }
-
-        draft.MarkPosted(request.ExpectedRevision, collection.Id, actor.Username);
-        var operation = PostingOperation.Record(actor.MunicipalityId, request.ClientOperationId,
-            IntentVersion, normalizedIntent, WebOrigin, ActorIdentity(actor),
-            PostingOperationStatus.Succeeded, null, null, collection.Id, document.Id, now);
-        db.Collections.Add(collection);
-        db.PostingOperations.Add(operation);
-
+        Collection collection;
         try
         {
-            await db.SaveChangesAsync(ct);
+            var projections = resolved.Sources.GroupBy(x => new SourceIdentity(
+                    x.Allocation.SourceKind, x.Allocation.SourceId, x.Allocation.SourcePart))
+                .Select(group =>
+                {
+                    var source = group.First();
+                    var cumulative = source.Settled + group.Sum(x => x.Allocation.Amount);
+                    return (Action<DateTime>)(now =>
+                    {
+                        if (source.UtilityBill is { } bill)
+                        {
+                            if (source.Allocation.SourcePart == CollectionSourcePart.Electricity)
+                                bill.ApplyCanonicalElectricityProjection(cumulative, document.DocumentNumber, now, actor.Username);
+                            else if (source.Allocation.SourcePart == CollectionSourcePart.Water)
+                                bill.ApplyCanonicalWaterProjection(cumulative, document.DocumentNumber, now, actor.Username);
+                            else
+                                throw Problem("Unsupported UtilityBill source part.", ResultStatus.Conflict);
+                        }
+                        else if (source.PaymentRecord is { } payment)
+                            payment.ApplyCanonicalRentProjection(cumulative, now, actor.Username);
+                        else
+                            throw Problem("A resolved source has no canonical projection adapter.", ResultStatus.Conflict);
+                    });
+                }).ToList();
+
+            collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
+                actor.MunicipalityId, request.ClientOperationId, IntentVersion, normalizedIntent,
+                WebOrigin, ActorIdentity(actor), actor.Username, actor.Role, draft.BusinessDate,
+                actor.Username, collectionLineDrafts, document, payorId: draft.PayorId,
+                payerName: draft.PayerNameSnapshot, sourceProjections: projections,
+                beforeCommit: (collectionId, _) => draft.MarkPosted(request.ExpectedRevision, collectionId, actor.Username),
+                ct: ct);
         }
         catch (DbUpdateConcurrencyException)
         {

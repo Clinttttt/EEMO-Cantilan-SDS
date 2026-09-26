@@ -10,7 +10,8 @@ public enum OfflineOperationKind
     Slaughter = 3,
     Trip = 4,
     TpmVendor = 5,
-    NpmUtility = 6
+    NpmUtility = 6,
+    WcfCollection = 7
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -20,7 +21,8 @@ public enum SyncResultStatus
 {
     Synced = 1,
     Rejected = 2,
-    Failed = 3
+    Failed = 3,
+    ReconciliationRequired = 4
 }
 
 /// <summary>
@@ -67,7 +69,13 @@ public sealed record SyncOfflineOperationDto(
     PaymentStatus? WaterStatus = null,
     decimal? WaterPartialAmount = null,
     string? ElecORNumber = null,
-    string? WaterORNumber = null);
+    string? WaterORNumber = null,
+    int PayloadVersion = 0,
+    decimal? ReceivedAmount = null,
+    long? WaterSourceVersion = null,
+    Guid? AccountableDocumentId = null,
+    string? DocumentNumber = null,
+    DateTime? IssuedAtUtc = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,
@@ -78,4 +86,5 @@ public sealed record SyncOfflineCollectionsResultDto(
     int SyncedCount,
     int RejectedCount,
     int FailedCount,
-    IReadOnlyList<SyncOperationResultDto> Results);
+    IReadOnlyList<SyncOperationResultDto> Results,
+    int ReconciliationRequiredCount = 0);

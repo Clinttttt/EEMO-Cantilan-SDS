@@ -33,7 +33,7 @@ public sealed class CachingMobileApiClient(
     // always hit the network when online (see ReadThroughAsync), wiping them gives no online benefit and
     // only destroys the offline copy a collector relies on after going offline.
     private static readonly string[] CollectionPrefixes =
-        { "npm", "utility", "monthly", "slaughter", "trm", "tpm" };
+        { "npm", "utility", "wcf", "monthly", "slaughter", "trm", "tpm" };
 
     // ── Reads: cache on success, serve last-known on connectivity failure ───
     public Task<Result<MobileMenuDto>> GetMenuAsync() =>
@@ -66,6 +66,16 @@ public sealed class CachingMobileApiClient(
 
     public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
         ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
+
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
+        ReadThroughAsync($"wcf|obligations|{throughYear}|{throughMonth}", () => inner.GetWcfObligationsAsync(throughYear, throughMonth));
+
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
+        ReadThroughAsync("wcf|cash-tickets", inner.GetAvailableCashTicketsAsync);
+
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionOutcomeDto>> PostWcfCollectionAsync(
+        EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionPostRequest request) =>
+        InvalidatingAsync(() => inner.PostWcfCollectionAsync(request));
 
     public Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month) =>
         ReadThroughAsync($"monthly|{facility}|{year}|{month}", () => inner.GetMonthlyCollectionAsync(facility, year, month));

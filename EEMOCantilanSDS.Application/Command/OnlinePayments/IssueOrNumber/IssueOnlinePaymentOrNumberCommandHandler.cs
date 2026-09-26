@@ -199,6 +199,20 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (bill is null)
             return Result<bool>.Failure("Linked utility bill not found.", ResultStatus.Failed);
 
+        // This legacy online transaction cannot turn its combined OR into a WCF Cash Ticket,
+        // nor can it update a source part after scoped cutover. Preserve the OR staff supplied and
+        // the captured transaction for controlled reconciliation without changing UtilityBill.
+        if (bill.ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
+            || bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+        {
+            transaction.MarkSettlementReconciliationRequired(
+                "legacy combined utility OR was issued after a utility source entered cutover", orNumber);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+                tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+            return Result<bool>.Success(true);
+        }
+
         if (!await orNumbers.IsAvailableForUtilityBillAsync(orNumber, bill.Id, cancellationToken))
             return Result<bool>.Failure("OR number already exists.", ResultStatus.Conflict);
 

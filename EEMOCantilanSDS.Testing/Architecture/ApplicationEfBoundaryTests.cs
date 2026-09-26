@@ -145,6 +145,10 @@ public class ApplicationEfBoundaryTests
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
         // operation through one IAppDbContext save.
         "CollectionComposerWorkflow.cs",
+        // The WCF operation adapter and accountable-form custody workflow require one tenant-scoped tracked
+        // context to revalidate Water/document state and persist the shared posting outcome atomically.
+        "WcfCollectionWorkflow.cs",
+        "AccountableFormCustodyWorkflow.cs",
     };
 
     private static List<string> FindApplicationFilesUsingEf()

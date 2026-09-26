@@ -24,6 +24,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
 using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTrmCollection;
@@ -39,7 +40,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "Collector")]
 [Route("api/[controller]")]
 [ApiController]
-public class MobileController(ISender sender) : ApiBaseController(sender)
+public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow) : ApiBaseController(sender)
 {
     [HttpGet("menu")]
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
@@ -199,6 +200,24 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     [HttpPost("npm-utility/pay")]
     public async Task<ActionResult<bool>> RecordNpmUtilityPaymentAsync([FromBody] RecordMobileUtilityPaymentRequest request)
     {
+        var legacyWater = await wcfWorkflow.ReconcileLegacyMobileWaterAsync(new SyncOfflineOperationDto(
+            request.ClientOperationId ?? Guid.Empty,
+            OfflineOperationKind.NpmUtility,
+            PhilippineTime.Today,
+            UtilityBillId: request.BillId,
+            ElecStatus: request.ElecStatus,
+            ElecPartialAmount: request.ElecPartialAmount,
+            WaterStatus: request.WaterStatus,
+            WaterPartialAmount: request.WaterPartialAmount,
+            ElecORNumber: request.ElecORNumber,
+            WaterORNumber: request.WaterORNumber));
+        if (!legacyWater.IsSuccess)
+            return HandleResponse(Result<bool>.Failure(
+                legacyWater.Error ?? "The legacy Water operation requires reconciliation.", legacyWater.StatusCode ?? 409));
+        if (legacyWater.Value?.RequiresReconciliation == true)
+            return HandleResponse(Result<bool>.Failure(
+                "RECONCILIATION_REQUIRED: " + legacyWater.Value.Message, 409));
+
         var result = await Sender.Send(new RecordUtilityPaymentCommand(
             request.BillId,
             request.ElecStatus, request.ElecPartialAmount,

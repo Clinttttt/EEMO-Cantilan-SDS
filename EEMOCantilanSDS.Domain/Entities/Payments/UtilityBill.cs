@@ -381,5 +381,39 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedAt = projectedAtUtc;
             UpdatedBy = updatedBy;
         }
+
+        /// <summary>
+        /// Updates the legacy Water status/amount/document fields as a compatibility projection of
+        /// canonical WCF settlement. WaterORNumber is retained only as a legacy column name; its
+        /// value here is the Cash Ticket number and is never accountable-document authority.
+        /// </summary>
+        public void ApplyCanonicalWaterProjection(
+            decimal cumulativeSettled,
+            string? latestCashTicketNumber,
+            DateTime projectedAtUtc,
+            string updatedBy)
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.Canonical
+                || WaterSettlementCutoverId is null)
+                throw new InvalidOperationException("Water compatibility projection requires Canonical settlement authority.");
+            if (cumulativeSettled < 0m || cumulativeSettled > WaterCharge
+                || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
+                throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
+            if (projectedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Projection time must be UTC.", nameof(projectedAtUtc));
+            if (latestCashTicketNumber?.Length > 50)
+                throw new ArgumentException("Cash Ticket number must not exceed 50 characters.", nameof(latestCashTicketNumber));
+
+            WaterStatus = cumulativeSettled == 0m
+                ? PaymentStatus.Unpaid
+                : cumulativeSettled >= WaterCharge ? PaymentStatus.Paid : PaymentStatus.Partial;
+            WaterPartialAmount = WaterStatus == PaymentStatus.Partial ? cumulativeSettled : 0m;
+            WaterORNumber = cumulativeSettled == 0m ? null
+                : string.IsNullOrWhiteSpace(latestCashTicketNumber) ? WaterORNumber : latestCashTicketNumber.Trim();
+            WaterPaidAt = cumulativeSettled == 0m ? null : WaterPaidAt ?? projectedAtUtc;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+            UpdatedAt = projectedAtUtc;
+            UpdatedBy = updatedBy;
+        }
     }
 }

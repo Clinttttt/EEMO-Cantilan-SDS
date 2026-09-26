@@ -1,6 +1,16 @@
 @page "/operations/water-consumption-fees"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IWcfCollectionsApiClient WcfApi
+@inject ICollectorsApiClient CollectorsApi
+@inject IJSRuntime JS
 
 <PageTitle>StallTrack — Water Consumption Fees</PageTitle>
 
@@ -13,194 +23,291 @@
 
     <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · WCF")"
                   Title="Water Consumption Fees"
-                  Subtitle="Water billing and Cash Ticket collections for market accounts."
+                  Subtitle="Water obligations and Cash Ticket collection readiness from the utility register."
                   Icon="@WaterIcon"
                   Stats="HeroStats" />
 
     <section class="wcf-desk" aria-labelledby="wcf-desk-title">
         <div class="wcf-desk-copy">
-            <p class="wcf-eyebrow">CURRENT BILLING PERIOD</p>
-            <h2 id="wcf-desk-title">September 2026</h2>
-            <p>Review water assessments and collections for the current period.</p>
+            <p class="wcf-eyebrow">COLLECTIBLE WATER OBLIGATIONS THROUGH</p>
+            <h2 id="wcf-desk-title">@ThroughPeriodLabel</h2>
+            <p>Older unpaid WCF periods remain visible. Billing period is separate from the collection business date.</p>
         </div>
-
         <div class="wcf-desk-actions">
-            <div class="wcf-instrument" aria-label="Collection instrument: Cash Ticket">
+            <label class="wcf-filter-control">
+                <span class="wcf-sr-only">Show obligations through billing month</span>
+                <input type="month" aria-label="Show obligations through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+            <div class="wcf-instrument" aria-label="WCF policy resolves to Cash Ticket">
                 <span class="wcf-ct-chip">CT</span>
                 <strong>Cash Ticket</strong>
             </div>
-            <div class="wcf-action-buttons">
-                <button class="wcf-button wcf-button-primary" type="button" @onclick="OpenAssessmentModal">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    New WCF Assessment
-                </button>
-                <button class="wcf-button wcf-button-secondary" type="button" @onclick="() => OpenPaymentModal()">
-                    Record Payment
-                </button>
-                <a class="wcf-button wcf-button-report" href="/operations/water-consumption-fees/report">
-                    Report
-                </a>
-            </div>
+            <button class="wcf-button wcf-button-secondary" type="button" @onclick="LoadAsync" disabled="@_busy">Refresh sources</button>
         </div>
     </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="wcf-notice" role="status">@_message</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="wcf-notice wcf-notice-error" role="alert">@_error</div>
+    }
+    @if (_busy && _quotes.Count == 0)
+    {
+        <div class="wcf-notice" role="status">Loading authoritative UtilityBill Water sources…</div>
+    }
 
     <div class="wcf-main-grid">
         <section class="wcf-panel wcf-assessments-panel" aria-labelledby="wcf-assessments-title">
             <header class="wcf-panel-header">
                 <div>
-                    <p class="wcf-eyebrow">WATER ACCOUNTS</p>
-                    <h2 id="wcf-assessments-title">Current Assessments</h2>
-                    <p>Water charges and balances for configured stalls, spaces, and service areas.</p>
+                    <p class="wcf-eyebrow">UTILITYBILL / WATER</p>
+                    <h2 id="wcf-assessments-title">WCF Obligations</h2>
+                    <p>Assessment, readings, rate, prior settlement evidence, and outstanding balance are server-derived.</p>
                 </div>
                 <div class="wcf-assessment-header-actions">
-                    <span class="wcf-period-tag">September 2026</span>
-                    <a class="wcf-button wcf-button-secondary wcf-view-all" href="/operations/water-consumption-fees/accounts">View All</a>
+                    <span class="wcf-period-tag">@_quotes.Count source@(_quotes.Count == 1 ? "" : "s")</span>
                 </div>
             </header>
 
-            <div class="wcf-toolbar" aria-label="Assessment filters">
-                <label class="wcf-filter-control">
-                    <span class="wcf-sr-only">Filter by area</span>
-                    <select aria-label="Filter by area" @bind="_areaFilter">
-                        <option>All Areas</option>
-                        <option>Fish Section</option>
-                        <option>Meat Section</option>
-                        <option>Shared Areas</option>
-                    </select>
-                </label>
+            <div class="wcf-toolbar" aria-label="WCF source filters">
                 <label class="wcf-search-control">
-                    <span class="wcf-sr-only">Search stall, area, or account</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="10.8" cy="10.8" r="6.8" />
-                        <path d="m16 16 4.5 4.5" />
-                    </svg>
-                    <input type="search"
-                           placeholder="Search occupant, account, or area..."
-                           aria-label="Search occupant, account, or area"
-                           @bind="_searchText"
-                           @bind:event="oninput" />
+                    <span class="wcf-sr-only">Search payer, stall, or facility</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search payer, stall, or facility…" aria-label="Search WCF sources" @bind="_searchText" @bind:event="oninput" />
                 </label>
             </div>
 
-            <div class="wcf-table-wrap wcf-assessment-scroll" role="region" aria-label="Current water assessments, scroll for additional accounts" tabindex="0">
+            <div class="wcf-table-wrap wcf-assessment-scroll" role="region" aria-label="WCF obligation sources" tabindex="0">
                 <table class="wcf-table wcf-assessment-table">
-                    <caption class="wcf-sr-only">September 2026 water account assessments and balances</caption>
+                    <caption class="wcf-sr-only">Water obligations through @ThroughPeriodLabel</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Occupant</th>
-                            <th scope="col">Basis</th>
-                            <th scope="col" class="wcf-number">Due</th>
-                            <th scope="col" class="wcf-number">Paid</th>
-                            <th scope="col" class="wcf-number">Balance</th>
+                            <th scope="col">Payer / Source</th>
+                            <th scope="col">Period · meter</th>
+                            <th scope="col" class="wcf-number">Assessed</th>
+                            <th scope="col" class="wcf-number">Previously settled</th>
+                            <th scope="col" class="wcf-number">Outstanding</th>
+                            <th scope="col">Authority</th>
+                            <th scope="col">Collection</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var account in FilteredAccounts)
+                        @foreach (var quote in FilteredQuotes)
                         {
                             <tr>
                                 <td class="wcf-occupant-cell">
-                                    <strong class="wcf-account-name">@account.ResponsibleParty</strong>
-                                    <span class="wcf-account-area">@account.IdentityLine</span>
+                                    <strong class="wcf-account-name">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</strong>
+                                    <span class="wcf-account-area">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
                                 </td>
-                                <td>@account.Basis</td>
-                                <td class="wcf-number">₱@account.Due.ToString("N2")</td>
-                                <td class="wcf-number">₱@account.Paid.ToString("N2")</td>
-                                <td class="wcf-number wcf-balance">₱@account.Balance.ToString("N2")</td>
+                                <td>@Period(quote.BillingYear, quote.BillingMonth)<span class="wcf-account-area">@quote.Consumption.ToString("N2") m³ × PHP @quote.RatePerCubicMeter.ToString("N2")</span></td>
+                                <td class="wcf-number">@Money(quote.AssessedAmount)</td>
+                                <td class="wcf-number">@Money(quote.CumulativeSettledEvidence)</td>
+                                <td class="wcf-number wcf-balance">@Money(quote.OutstandingAmount)</td>
+                                <td><span class="wcf-period-tag">@quote.SettlementAuthority</span></td>
+                                <td>
+                                    @if (quote.CanCollectCanonical && quote.OutstandingAmount > 0m && _tickets.Count > 0)
+                                    {
+                                        <button class="wcf-button wcf-button-primary" type="button" @onclick="() => OpenCollection(quote)">Collect with CT</button>
+                                    }
+                                    else if (quote.SettlementAuthority == SettlementAuthority.Legacy)
+                                    {
+                                        <span>Awaiting controlled cutover</span>
+                                    }
+                                    else if (quote.SettlementAuthority == SettlementAuthority.PendingCutover)
+                                    {
+                                        <span>Reconciliation in progress</span>
+                                    }
+                                    else if (quote.OutstandingAmount <= 0m)
+                                    {
+                                        <span>Settled</span>
+                                    }
+                                    else
+                                    {
+                                        <span>No available CT</span>
+                                    }
+                                </td>
                             </tr>
                         }
-                        @if (!FilteredAccounts.Any())
+                        @if (!FilteredQuotes.Any())
                         {
-                            <tr>
-                                <td class="wcf-empty-cell" colspan="5">No water accounts match the selected filters.</td>
-                            </tr>
+                            <tr><td class="wcf-empty-cell" colspan="7">No collectible UtilityBill Water obligations were found through @ThroughPeriodLabel.</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
+            <footer class="wcf-table-footer">
+                <span>@FilteredQuotes.Count() WCF source@(@FilteredQuotes.Count() == 1 ? "" : "s")</span>
+                <span>Assessment authority remains UtilityBill / Water</span>
+            </footer>
         </section>
 
         <aside class="wcf-panel wcf-summary-panel" aria-labelledby="wcf-summary-title">
             <header class="wcf-panel-header">
                 <div>
-                    <p class="wcf-eyebrow">CURRENT PERIOD</p>
-                    <h2 id="wcf-summary-title">Water Collection Position</h2>
-                    <p>September 2026</p>
+                    <p class="wcf-eyebrow">SERVER-DERIVED POSITION</p>
+                    <h2 id="wcf-summary-title">WCF balances</h2>
+                    <p>Obligations through @ThroughPeriodLabel</p>
                 </div>
             </header>
-
             <dl class="wcf-summary-list">
-                <div class="wcf-summary-emphasis">
-                    <dt>Total billed</dt>
-                    <dd>₱1,410.00</dd>
-                </div>
-                <div>
-                    <dt>Collected</dt>
-                    <dd>₱1,048.00</dd>
-                </div>
-                <div class="wcf-summary-outstanding">
-                    <dt>Outstanding</dt>
-                    <dd>₱362.00</dd>
-                </div>
-                <div>
-                    <dt>Paid accounts</dt>
-                    <dd>2 of 5</dd>
-                </div>
-                <div>
-                    <dt>Accounts with balance</dt>
-                    <dd>3</dd>
-                </div>
-                <div>
-                    <dt>Instrument</dt>
-                    <dd><span class="wcf-inline-ct">CT</span> Cash Ticket</dd>
-                </div>
+                <div class="wcf-summary-emphasis"><dt>Assessed</dt><dd>@Money(_quotes.Sum(x => x.AssessedAmount))</dd></div>
+                <div><dt>Previously settled evidence</dt><dd>@Money(_quotes.Sum(x => x.CumulativeSettledEvidence))</dd></div>
+                <div class="wcf-summary-outstanding"><dt>Outstanding</dt><dd>@Money(_quotes.Sum(x => x.OutstandingAmount))</dd></div>
+                <div><dt>Obligations with balance</dt><dd>@_quotes.Count(x => x.OutstandingAmount > 0m)</dd></div>
+                <div><dt>Assigned / in-office CTs available</dt><dd>@_tickets.Count</dd></div>
+                <div><dt>Settlement activation</dt><dd>Not activated</dd></div>
+                <div><dt>Instrument</dt><dd><span class="wcf-inline-ct">CT</span> Cash Ticket</dd></div>
             </dl>
-
-            <div class="wcf-collection-rate" aria-label="WCF collection rate 74.33 percent">
-                <span class="wcf-collection-rate-label">COLLECTION RATE</span>
-                <strong class="wcf-collection-rate-value">74.33%</strong>
-                <span class="wcf-collection-rate-detail">₱1,048.00 collected</span>
-                <span class="wcf-collection-rate-detail wcf-collection-rate-billed">of ₱1,410.00 billed</span>
-            </div>
+            <p class="wcf-account-area">Previously settled evidence is a source balance fact; it is not counted as new Collection Activity.</p>
         </aside>
     </div>
+
+    <section class="wcf-panel wcf-custody-panel" aria-labelledby="wcf-custody-title">
+        <header class="wcf-panel-header">
+            <div>
+                <p class="wcf-eyebrow">HEAD / ADMIN CUSTODY</p>
+                <h2 id="wcf-custody-title">Cash Ticket books and assignments</h2>
+                <p>Register received physical ranges, assign unused tickets to an active collector, and inspect unit custody.</p>
+            </div>
+        </header>
+        <div class="wcf-custody-grid">
+            <form class="wcf-custody-form" @onsubmit="ReceiveBookAsync" @onsubmit:preventDefault="true">
+                <h3>Receive Cash Ticket range</h3>
+                <label class="wcf-field">Series name<input required maxlength="80" @bind="_seriesName" /></label>
+                <label class="wcf-field">Number prefix<input required maxlength="20" @bind="_numberPrefix" /></label>
+                <div class="wcf-form-grid">
+                    <label class="wcf-field">First serial<input type="number" min="0" @bind="_firstSerial" /></label>
+                    <label class="wcf-field">Last serial<input type="number" min="0" @bind="_lastSerial" /></label>
+                    <label class="wcf-field">Serial width<input type="number" min="1" max="12" @bind="_serialWidth" /></label>
+                </div>
+                <button class="wcf-button wcf-button-primary" type="submit" disabled="@_busy">Receive book</button>
+            </form>
+            <form class="wcf-custody-form" @onsubmit="AssignRangeAsync" @onsubmit:preventDefault="true">
+                <h3>Assign unused range</h3>
+                <label class="wcf-field">Cash Ticket book
+                    <select @bind="_assignmentBookId">
+                        <option value="">Select book</option>
+                        @foreach (var book in CashTicketBooks)
+                        {
+                            <option value="@book.BookId">@book.SeriesName · @book.NumberPrefix@book.FirstSerialNumber–@book.LastSerialNumber</option>
+                        }
+                    </select>
+                </label>
+                <label class="wcf-field">Collector
+                    <select @bind="_assignmentCollectorId">
+                        <option value="">Select active collector</option>
+                        @foreach (var collector in _collectors.Where(x => x.IsActive))
+                        {
+                            <option value="@collector.Id">@collector.FullName · @collector.EmployeeId</option>
+                        }
+                    </select>
+                </label>
+                <div class="wcf-form-grid">
+                    <label class="wcf-field">First serial<input type="number" min="0" @bind="_assignmentFirstSerial" /></label>
+                    <label class="wcf-field">Last serial<input type="number" min="0" @bind="_assignmentLastSerial" /></label>
+                </div>
+                <button class="wcf-button wcf-button-secondary" type="submit" disabled="@_busy">Assign range</button>
+            </form>
+        </div>
+        <div class="wcf-table-wrap" role="region" aria-label="Cash Ticket book custody" tabindex="0">
+            <table class="wcf-table wcf-activity-table">
+                <thead><tr><th scope="col">Book</th><th scope="col">Ticket</th><th scope="col">Custody state</th><th scope="col">Assigned collector</th></tr></thead>
+                <tbody>
+                    @foreach (var book in CashTicketBooks)
+                    {
+                        @foreach (var ticket in book.Documents)
+                        {
+                            <tr>
+                                <td>@book.SeriesName</td>
+                                <td>@ticket.DocumentNumber</td>
+                                <td>@ticket.State</td>
+                                <td>@(ticket.AssignedUserId is { } userId ? _collectors.FirstOrDefault(x => x.Id == userId)?.FullName ?? "Assigned user" : "Office custody")</td>
+                            </tr>
+                        }
+                    }
+                    @if (!CashTicketBooks.SelectMany(x => x.Documents).Any())
+                    {
+                        <tr><td class="wcf-empty-cell" colspan="4">No Cash Ticket books are registered for this tenant.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 
     <section class="wcf-panel wcf-activity-panel" aria-labelledby="wcf-activity-title">
         <header class="wcf-panel-header wcf-activity-header">
             <div>
-                <p class="wcf-eyebrow">BILLING &amp; COLLECTION</p>
-                <h2 id="wcf-activity-title">Billing &amp; Collection Activity</h2>
-                <p>Recent WCF assessment and payment activity.</p>
+                <p class="wcf-eyebrow">CANONICAL COLLECTION EVENTS</p>
+                <h2 id="wcf-activity-title">WCF Collection Activity</h2>
+                <p>Each row is one posted Collection. Expand it to inspect the WCF line and source snapshot.</p>
             </div>
         </header>
-
-        <div class="wcf-table-wrap" role="region" aria-label="Recent WCF billing and collection activity" tabindex="0">
+        <div class="wcf-table-wrap" role="region" aria-label="Canonical WCF collection activity" tabindex="0">
             <table class="wcf-table wcf-activity-table">
-                <caption class="wcf-sr-only">Recent water assessment and Cash Ticket payment activity</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Account</th>
-                        <th scope="col">Period</th>
-                        <th scope="col">Activity</th>
-                        <th scope="col" class="wcf-number">Amount</th>
-                        <th scope="col" class="wcf-number">Balance</th>
-                        <th scope="col">Recorded By</th>
-                    </tr>
-                </thead>
+                <caption class="wcf-sr-only">WCF Collections for @ThroughPeriodLabel</caption>
+                <thead><tr><th scope="col">Business date</th><th scope="col">Cash Ticket / payer</th><th scope="col">Disposition</th><th scope="col" class="wcf-number">Total</th><th scope="col">Details</th></tr></thead>
                 <tbody>
-                    @foreach (var activity in _activities)
+                    @foreach (var item in _activity)
                     {
                         <tr>
-                            <td>@activity.Date</td>
-                            <td>@activity.Account</td>
-                            <td>@activity.Period</td>
-                            <td><span class="wcf-activity-kind">@activity.Type</span></td>
-                            <td class="wcf-number">₱@activity.Amount.ToString("N2")</td>
-                            <td class="wcf-number wcf-balance">₱@activity.Balance.ToString("N2")</td>
-                            <td>@activity.RecordedBy</td>
+                            <td>@item.BusinessDate.ToString("dd MMM yyyy")<span class="wcf-account-area">Recorded @PhilippineTime.ToPhilippineTime(item.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
+                            <td><strong>@item.DocumentNumber</strong><span class="wcf-account-area">@(item.PayerName ?? "No payer snapshot")</span></td>
+                            <td><span class="wcf-activity-kind">@item.Disposition</span></td>
+                            <td class="wcf-number">@Money(item.TotalAmount)</td>
+                            <td>
+                                <details>
+                                    <summary>@item.ItemCount item@(item.ItemCount == 1 ? "" : "s")</summary>
+                                    <ul class="wcf-detail-list">
+                                        @foreach (var line in item.Lines)
+                                        {
+                                            <li>
+                                                <strong>@line.ClassificationName</strong> — @Money(line.Amount)
+                                                <span>@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) + " obligation" : "WCF obligation") · @(line.SourceLabel ?? "UtilityBill / Water")</span>
+                                                <span>@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Frozen Water source and meter calculation snapshot" : line.CalculationSnapshot)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </details>
+                            </td>
                         </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr><td class="wcf-empty-cell" colspan="5">No canonical WCF Collections were posted in this business-date period.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="wcf-panel wcf-activity-panel" aria-labelledby="wcf-reconciliation-title">
+        <header class="wcf-panel-header wcf-activity-header">
+            <div>
+                <p class="wcf-eyebrow">PHYSICAL DOCUMENT EXCEPTIONS</p>
+                <h2 id="wcf-reconciliation-title">Cash Ticket reconciliation</h2>
+                <p>Issued tickets that could not be accepted as canonical collections remain unavailable and require office review.</p>
+            </div>
+        </header>
+        <div class="wcf-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
+            <table class="wcf-table wcf-activity-table">
+                <thead><tr><th scope="col">Recorded</th><th scope="col">Ticket</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                <tbody>
+                    @foreach (var exception in _exceptions)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
+                            <td>@(exception.DocumentNumber ?? "Document identity unresolved")</td>
+                            <td>@ShortId(exception.ClientOperationId)</td>
+                            <td>@exception.OutcomeCode</td>
+                            <td>@exception.OutcomeDetails</td>
+                        </tr>
+                    }
+                    @if (_exceptions.Count == 0)
+                    {
+                        <tr><td class="wcf-empty-cell" colspan="5">No WCF reconciliation exceptions are currently recorded.</td></tr>
                     }
                 </tbody>
             </table>
@@ -208,523 +315,222 @@
     </section>
 </main>
 
-@if (_assessmentModalOpen)
+@if (_collectionQuote is not null)
 {
-    <div class="wcf-modal-backdrop" role="presentation" @onclick="CloseAssessmentModal">
-        <section class="wcf-modal wcf-assessment-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-assessment-modal-title" tabindex="-1" @onclick:stopPropagation="true">
-            <button class="wcf-modal-close" type="button" aria-label="Close new water assessment" @onclick="CloseAssessmentModal">×</button>
+    <div class="wcf-modal-backdrop" role="presentation" @onclick="CloseCollection">
+        <section class="wcf-modal wcf-payment-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-collect-title" @onclick:stopPropagation="true">
             <header class="wcf-modal-header">
-                <p class="wcf-eyebrow">WCF · NEW ASSESSMENT</p>
-                <h2 id="wcf-assessment-modal-title">New Water Assessment</h2>
-                <p>Create the water charge for the selected billing period.</p>
+                <span class="wcf-inline-ct">CT</span>
+                <h2 id="wcf-collect-title">Review WCF Cash Ticket collection</h2>
+                <p>This focused collection posts one WCF line against one Water obligation.</p>
             </header>
-
-            <div class="wcf-context-strip">
-                <div><span>Billing Period</span><strong>September 2026</strong></div>
-                <div><span>Revenue Source</span><strong>Water Consumption Fees</strong></div>
-                <div><span>Instrument</span><strong><span class="wcf-inline-ct">CT</span> Cash Ticket</strong></div>
-            </div>
-
-            <div class="wcf-form-grid">
-                <div class="wcf-field wcf-field-full">
-                    <span>Assessment account assignment</span>
-                    <div class="wcf-assignment-toggle" role="group" aria-label="Assessment account assignment">
-                        <button type="button" aria-pressed="@(!_manualAssignment ? "true" : "false")" class="@(!_manualAssignment ? "is-selected" : string.Empty)" @onclick="() => SetAssignmentMode(false)">Existing Stall / Payor</button>
-                        <button type="button" aria-pressed="@(_manualAssignment ? "true" : "false")" class="@(_manualAssignment ? "is-selected" : string.Empty)" @onclick="() => SetAssignmentMode(true)">Manual / Standalone</button>
-                    </div>
-                </div>
-
-                @if (!_manualAssignment)
-                {
-                    <div class="wcf-field wcf-field-full">
-                        <span>Water account</span>
-                        @if (_assessmentAccount is null)
+            <dl class="wcf-summary-list">
+                <div><dt>Payer snapshot</dt><dd>@(_collectionQuote.PayerNameSnapshot ?? "Unavailable")</dd></div>
+                <div><dt>Obligation period</dt><dd>@Period(_collectionQuote.BillingYear, _collectionQuote.BillingMonth)</dd></div>
+                <div><dt>Collection business date</dt><dd>@PhilippineTime.Today.ToString("dd MMM yyyy")</dd></div>
+                <div><dt>Water outstanding</dt><dd>@Money(_collectionQuote.OutstandingAmount)</dd></div>
+                <div><dt>Cash Ticket</dt><dd>
+                    <select aria-label="Assigned or in-office Cash Ticket" value="@_selectedDocumentId" @onchange="ChangeDocument">
+                        @foreach (var ticket in _tickets)
                         {
-                            <button class="wcf-picker-trigger" type="button" @onclick="OpenAssessmentAccountPicker">Select an existing Stall / Payor</button>
-                            <small class="wcf-field-hint">Search by occupant / payor or Stall No.</small>
+                            <option value="@ticket.DocumentId">@ticket.DocumentNumber</option>
                         }
-                        else
-                        {
-                            <div class="wcf-selected-account">
-                                <div><strong>@_assessmentAccount.ResponsibleParty</strong><span>@_assessmentAccount.IdentityLine</span></div>
-                                <button class="wcf-button wcf-button-secondary" type="button" @onclick="OpenAssessmentAccountPicker">Change</button>
-                            </div>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <label class="wcf-field">
-                        <span>Stall No. <em>Optional</em></span>
-                        <input type="number" min="1" step="1" @bind="_manualStallNumber" />
-                        <small class="wcf-field-hint">Enter a known Stall No. This does not create a stall.</small>
-                    </label>
-                    <label class="wcf-field">
-                        <span>Occupant / responsible party</span>
-                        <input @bind="_manualResponsibleParty" />
-                    </label>
-                    <label class="wcf-field wcf-field-full">
-                        <span>Area / water account</span>
-                        <input @bind="_manualArea" />
-                    </label>
-                    <div class="wcf-assessment-number-preview wcf-field-full">
-                        <span>WCF account identity</span>
-                        <strong>@ManualWcfIdentity</strong>
-                    </div>
-                }
-
-                <div class="wcf-field wcf-field-full">
-                    <span>Charge basis</span>
-                    <div class="wcf-basis-toggle" role="group" aria-label="Charge basis">
-                        <button type="button"
-                                aria-pressed="@(_chargeBasis == WcfChargeBasis.Metered ? "true" : "false")"
-                                class="@(_chargeBasis == WcfChargeBasis.Metered ? "is-selected" : string.Empty)"
-                                @onclick="() => _chargeBasis = WcfChargeBasis.Metered">Metered</button>
-                        <button type="button"
-                                aria-pressed="@(_chargeBasis == WcfChargeBasis.ManualApproved ? "true" : "false")"
-                                class="@(_chargeBasis == WcfChargeBasis.ManualApproved ? "is-selected" : string.Empty)"
-                                @onclick="() => _chargeBasis = WcfChargeBasis.ManualApproved">Manual Approved</button>
-                    </div>
-                </div>
-
-                @if (_chargeBasis == WcfChargeBasis.Metered)
-                {
-                    <div class="wcf-meter-reading-label">METERED CONSUMPTION</div>
-
-                    <label class="wcf-field">
-                        <span>Previous Reading</span>
-                        @if (_manualAssignment)
-                        {
-                            <input type="number" min="0" step="0.1" @bind="_previousReading" @bind:event="oninput" />
-                        }
-                        else
-                        {
-                            <input value="@(_assessmentAccount is null ? "—" : $"{_previousReading:0.0} m³")" readonly />
-                        }
-                    </label>
-                    <label class="wcf-field">
-                        <span>Current Reading</span>
-                        <input type="number" min="@_previousReading" step="0.1" disabled="@(!_manualAssignment && _assessmentAccount is null)" @bind="_currentReading" @bind:event="oninput" />
-                    </label>
-                    <label class="wcf-field">
-                        <span>Consumption</span>
-                        <input value="@(_assessmentAccount is null && !_manualAssignment ? "—" : $"{AssessmentConsumption:0.##} m³")" readonly />
-                    </label>
-                    <label class="wcf-field">
-                        <span>Rate</span>
-                        <input value="₱@_rate.ToString("N2") / m³" readonly />
-                    </label>
-                }
-                else
-                {
-                    <div class="wcf-meter-reading-label">APPROVED CHARGE</div>
-                    <label class="wcf-field wcf-field-full">
-                        <span>Approved Amount</span>
-                        <div class="wcf-currency-input">
-                            <span aria-hidden="true">₱</span>
-                            <input type="number" min="0" step="0.01" inputmode="decimal" @bind="_approvedAmount" @bind:event="oninput" />
-                        </div>
-                    </label>
-                }
-            </div>
-
-            <div class="wcf-amount-due">
-                <span>AMOUNT DUE</span>
-                <strong>₱@((_assessmentAccount is null && !_manualAssignment ? 0m : AssessmentAmountDue).ToString("N2"))</strong>
-            </div>
-
+                    </select>
+                </dd></div>
+                <div><dt>Received amount (PHP)</dt><dd><input type="number" min="0.01" max="@_collectionQuote.OutstandingAmount" step="0.01" value="@_amount" @onchange="ChangeAmount" /></dd></div>
+            </dl>
+            <p class="wcf-account-area">Source authority, outstanding balance, and document custody are revalidated when this Collection is posted.</p>
             <footer class="wcf-modal-footer">
-                <button class="wcf-button wcf-button-secondary" type="button" @onclick="CloseAssessmentModal">Cancel</button>
-                <button class="wcf-button wcf-button-primary" type="button" disabled="@(!CanSaveAssessment)" @onclick="SaveAssessment">Save Assessment</button>
+                <button class="wcf-button wcf-button-secondary" type="button" @onclick="CloseCollection">Cancel</button>
+                <button class="wcf-button wcf-button-primary" type="button" @onclick="PostAsync" disabled="@(!CanPost || _busy)">Post Collection</button>
             </footer>
-        </section>
-    </div>
-}
-
-@if (_paymentModalOpen)
-{
-    <div class="wcf-modal-backdrop" role="presentation" @onclick="ClosePaymentModal">
-        <section class="wcf-modal wcf-payment-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-payment-modal-title" tabindex="-1" @onclick:stopPropagation="true">
-            <button class="wcf-modal-close" type="button" aria-label="Close WCF payment" @onclick="ClosePaymentModal">×</button>
-            <header class="wcf-modal-header">
-                <p class="wcf-eyebrow">WCF · CASH TICKET COLLECTION</p>
-                <h2 id="wcf-payment-modal-title">Record WCF Payment</h2>
-            </header>
-
-            <div class="wcf-payment-context">
-                <div class="wcf-payment-account">
-                    <span>ACCOUNT / OCCUPANT</span>
-                    @if (_paymentAccount is null)
-                    {
-                        <button class="wcf-picker-trigger" type="button" @onclick="OpenPaymentAccountPicker">Select a WCF account with a balance</button>
-                    }
-                    else
-                    {
-                        <strong>@_paymentAccount.ResponsibleParty · @_paymentAccount.IdentityLine</strong>
-                        <button class="wcf-payment-change" type="button" @onclick="OpenPaymentAccountPicker">Change account</button>
-                    }
-                </div>
-                <div class="wcf-payment-facts">
-                    <div><span>Billing Period</span><strong>September 2026</strong></div>
-                    <div><span>Amount Due</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentDue:N2}")</strong></div>
-                    <div><span>Previously Paid</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentPreviouslyPaid:N2}")</strong></div>
-                    <div><span>Outstanding</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentOutstanding:N2}")</strong></div>
-                    <div><span>Instrument</span><strong><span class="wcf-inline-ct">CT</span> Cash Ticket</strong></div>
-                </div>
-            </div>
-
-            <div class="wcf-form-grid wcf-payment-form">
-                <label class="wcf-field wcf-field-full">
-                    <span>Payment Amount</span>
-                    <div class="wcf-currency-input">
-                        <span aria-hidden="true">₱</span>
-                        <input type="number" min="0" step="0.01" max="@_paymentOutstanding" value="@_paymentAmount" disabled="@(_paymentAccount is null)" @oninput="OnPaymentAmountInput" />
-                    </div>
-                </label>
-            </div>
-
-            <div class="wcf-amount-due wcf-remaining-summary">
-                <span>REMAINING BALANCE</span>
-                <strong>@(_paymentAccount is null ? "—" : $"₱{RemainingPaymentBalance:N2}")</strong>
-            </div>
-
-            <footer class="wcf-modal-footer">
-                <button class="wcf-button wcf-button-secondary" type="button" @onclick="ClosePaymentModal">Cancel</button>
-                <button class="wcf-button wcf-button-primary" type="button" disabled="@(!CanSavePayment)" @onclick="SavePayment">Record Payment</button>
-            </footer>
-        </section>
-    </div>
-}
-
-@if (_assessmentAccountPickerOpen)
-{
-    <div class="wcf-picker-backdrop" role="presentation" @onclick="CloseAccountPickers">
-        <section class="wcf-picker-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-assessment-picker-title" tabindex="-1" @onclick:stopPropagation="true" @onkeydown="HandlePickerKeyDown">
-            <button class="wcf-modal-close" type="button" aria-label="Close account selection" @onclick="CloseAccountPickers">×</button>
-            <header class="wcf-modal-header">
-                <p class="wcf-eyebrow">WCF · EXISTING ACCOUNT</p>
-                <h2 id="wcf-assessment-picker-title">Select Stall / Payor</h2>
-                <p>Search by occupant / payor or Stall No.</p>
-            </header>
-            <label class="wcf-picker-search">
-                <span class="wcf-sr-only">Search occupant or Stall No.</span>
-                <input type="search" placeholder="Search occupant, payor, or Stall No..." @bind="_assessmentAccountSearch" @bind:event="oninput" autofocus />
-            </label>
-            <div class="wcf-picker-results" role="listbox" aria-label="Existing water accounts">
-                @foreach (var account in FilteredAssessmentChoices)
-                {
-                    <button type="button" role="option" aria-selected="@ReferenceEquals(_assessmentAccount, account)" class="wcf-picker-option" @onclick="() => SelectAssessmentAccount(account)">
-                        <span><strong>@account.ResponsibleParty</strong><small>@account.IdentityLine</small></span>
-                        <span class="wcf-picker-area">@account.AccountLabel</span>
-                    </button>
-                }
-                @if (!FilteredAssessmentChoices.Any())
-                {
-                    <p class="wcf-picker-empty">No water accounts match that search.</p>
-                }
-            </div>
-        </section>
-    </div>
-}
-
-@if (_paymentAccountPickerOpen)
-{
-    <div class="wcf-picker-backdrop" role="presentation" @onclick="CloseAccountPickers">
-        <section class="wcf-picker-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-payment-picker-title" tabindex="-1" @onclick:stopPropagation="true" @onkeydown="HandlePickerKeyDown">
-            <button class="wcf-modal-close" type="button" aria-label="Close WCF account selection" @onclick="CloseAccountPickers">×</button>
-            <header class="wcf-modal-header">
-                <p class="wcf-eyebrow">WCF · CASH TICKET COLLECTION</p>
-                <h2 id="wcf-payment-picker-title">Select WCF Account</h2>
-                <p>Choose an account with an outstanding balance.</p>
-            </header>
-            <label class="wcf-picker-search">
-                <span class="wcf-sr-only">Search occupant or Stall No.</span>
-                <input type="search" placeholder="Search occupant, payor, or Stall No..." @bind="_paymentAccountSearch" @bind:event="oninput" autofocus />
-            </label>
-            <div class="wcf-picker-results" role="listbox" aria-label="Water accounts with a balance">
-                @foreach (var account in FilteredPaymentChoices)
-                {
-                    <button type="button" role="option" aria-selected="@ReferenceEquals(_paymentAccount, account)" class="wcf-picker-option" @onclick="() => SelectPaymentAccount(account)">
-                        <span><strong>@account.ResponsibleParty</strong><small>@account.IdentityLine</small></span>
-                        <span class="wcf-picker-balance">Balance <strong>₱@account.Balance.ToString("N2")</strong></span>
-                    </button>
-                }
-                @if (!FilteredPaymentChoices.Any())
-                {
-                    <p class="wcf-picker-empty">No outstanding WCF accounts match that search.</p>
-                }
-            </div>
         </section>
     </div>
 }
 
 @code {
-    private readonly List<WcfAccount> _accounts =
-    [
-        new() { WcfNumber = 1, StallNumber = 1, AccountLabel = "Stall No. 1", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Due = 168m, Paid = 168m, Balance = 0m },
-        new() { WcfNumber = 2, StallNumber = 2, AccountLabel = "Stall No. 2", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Due = 312m, Paid = 200m, Balance = 112m },
-        new() { WcfNumber = 3, StallNumber = 3, AccountLabel = "Stall No. 3", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Due = 150m, Paid = 0m, Balance = 150m },
-        new() { WcfNumber = 4, AccountLabel = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Cleaning Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Due = 500m, Paid = 500m, Balance = 0m },
-        new() { WcfNumber = 5, StallNumber = 4, AccountLabel = "Stall No. 4", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Due = 280m, Paid = 180m, Balance = 100m }
-    ];
-
-    private readonly List<WcfActivity> _activities =
-    [
-        new() { Date = "Sep 26, 2026", Account = "WCF No. 5 · Stall No. 4 · Fish Section", Period = "Sep 2026", Type = "CT Payment", Amount = 180m, Balance = 100m, RecordedBy = "Collector A" },
-        new() { Date = "Sep 25, 2026", Account = "WCF No. 2 · Stall No. 2 · Meat Section", Period = "Sep 2026", Type = "CT Payment", Amount = 112m, Balance = 112m, RecordedBy = "Collector A" },
-        new() { Date = "Sep 25, 2026", Account = "WCF No. 3 · Stall No. 3 · Fish Section", Period = "Sep 2026", Type = "Assessment", Amount = 150m, Balance = 150m, RecordedBy = "Admin" },
-        new() { Date = "Sep 24, 2026", Account = "WCF No. 1 · Stall No. 1 · Fish Section", Period = "Sep 2026", Type = "CT Payment", Amount = 168m, Balance = 0m, RecordedBy = "Collector B" }
-    ];
-
-    private bool _assessmentModalOpen;
-    private bool _paymentModalOpen;
-    private bool _assessmentAccountPickerOpen;
-    private bool _paymentAccountPickerOpen;
-    private bool _manualAssignment;
-    private string _areaFilter = "All Areas";
+    private DateOnly _through = PhilippineTime.Today;
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private string _searchText = string.Empty;
-    private string _assessmentAccountSearch = string.Empty;
-    private string _paymentAccountSearch = string.Empty;
-    private string _manualStallNumber = string.Empty;
-    private string _manualResponsibleParty = string.Empty;
-    private string _manualArea = string.Empty;
-    private WcfAccount? _assessmentAccount;
-    private WcfAccount? _paymentAccount;
-    private WcfChargeBasis _chargeBasis = WcfChargeBasis.Metered;
-    private decimal _previousReading;
-    private decimal _currentReading;
-    private decimal _rate = 40m;
-    private decimal _approvedAmount;
-    private decimal _paymentDue;
-    private decimal _paymentPreviouslyPaid;
-    private decimal _paymentOutstanding;
-    private decimal _paymentAmount;
+    private List<WcfObligationQuoteDto> _quotes = [];
+    private List<CashTicketDocumentDto> _tickets = [];
+    private List<WcfCollectionActivityDto> _activity = [];
+    private List<WcfReconciliationExceptionDto> _exceptions = [];
+    private List<AccountableFormBookDto> _books = [];
+    private List<CollectorListDto> _collectors = [];
+    private string _seriesName = string.Empty;
+    private string _numberPrefix = "CT";
+    private long _firstSerial;
+    private long _lastSerial;
+    private int _serialWidth = 6;
+    private Guid? _assignmentBookId;
+    private Guid? _assignmentCollectorId;
+    private long _assignmentFirstSerial;
+    private long _assignmentLastSerial;
+    private WcfObligationQuoteDto? _collectionQuote;
+    private Guid? _selectedDocumentId;
+    private decimal _amount;
+    private Guid? _operationId;
+    private bool _busy;
+    private string? _message;
+    private string? _error;
 
+    private string ThroughPeriodLabel => _through.ToString("MMMM yyyy");
+    private IEnumerable<AccountableFormBookDto> CashTicketBooks => _books.Where(x => x.InstrumentType == RevenueInstrumentType.CashTicket);
+    private bool CanPost => _collectionQuote?.CanCollectCanonical == true && _selectedDocumentId.HasValue
+        && _amount > 0m && _amount <= (_collectionQuote?.OutstandingAmount ?? 0m);
     private List<FacilityHero.HeroStat> HeroStats =>
     [
-        new() { Value = "₱1,410.00", Label = "Billed" },
-        new() { Value = "₱1,048.00", Label = "Collected" },
-        new() { Value = "₱362.00", Label = "Outstanding" }
+        new() { Value = _quotes.Count(x => x.OutstandingAmount > 0m).ToString(), Label = "Open WCF periods" },
+        new() { Value = Money(_quotes.Sum(x => x.OutstandingAmount)), Label = "WCF outstanding" },
+        new() { Value = _tickets.Count.ToString(), Label = "Available CTs" }
     ];
+    private IEnumerable<WcfObligationQuoteDto> FilteredQuotes => _quotes.Where(x =>
+        string.IsNullOrWhiteSpace(_searchText)
+        || (x.PayerNameSnapshot?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+        || x.StallNo.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+        || x.FacilityName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+        || x.Section.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
-    private RenderFragment WaterIcon => builder =>
-    {
-        builder.OpenElement(0, "svg");
-        builder.AddAttribute(1, "viewBox", "0 0 24 24");
-        builder.AddAttribute(2, "fill", "none");
-        builder.AddAttribute(3, "stroke", "currentColor");
-        builder.AddAttribute(4, "stroke-width", "1.8");
-        builder.AddAttribute(5, "stroke-linecap", "round");
-        builder.AddAttribute(6, "stroke-linejoin", "round");
-        builder.AddAttribute(7, "aria-hidden", "true");
-        builder.AddMarkupContent(8, "<path d=\"M12 3.4s-6.4 7.1-6.4 11.2a6.4 6.4 0 0 0 12.8 0C18.4 10.5 12 3.4 12 3.4Z\"/><path d=\"M8.6 14.9a3.5 3.5 0 0 0 3.4 3\"/>");
-        builder.CloseElement();
-    };
+    protected override Task OnInitializedAsync() => LoadAsync();
 
-    private IEnumerable<WcfAccount> FilteredAccounts
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
     {
-        get
+        var value = args.Value?.ToString();
+        if (DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", out var parsed))
         {
-            var query = _accounts.AsEnumerable();
+            _through = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadAsync();
+        }
+    }
 
-            if (_areaFilter != "All Areas")
-                query = query.Where(account => account.AreaGroup == _areaFilter);
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var obligations = await WcfApi.GetObligationsAsync(_through.Year, _through.Month);
+            if (!obligations.IsSuccess) _error = obligations.Error ?? "Unable to load WCF source facts.";
+            else _quotes = obligations.Value?.ToList() ?? [];
+            var tickets = await WcfApi.GetAvailableCashTicketsAsync();
+            if (!tickets.IsSuccess) _error ??= tickets.Error ?? "Unable to load Cash Ticket custody state.";
+            else _tickets = tickets.Value?.ToList() ?? [];
+            var from = new DateOnly(_through.Year, _through.Month, 1);
+            var activity = await WcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
+            if (!activity.IsSuccess) _error ??= activity.Error ?? "Unable to load WCF Collection Activity.";
+            else _activity = activity.Value?.ToList() ?? [];
+            var exceptions = await WcfApi.GetReconciliationExceptionsAsync();
+            if (!exceptions.IsSuccess) _error ??= exceptions.Error ?? "Unable to load WCF reconciliation exceptions.";
+            else _exceptions = exceptions.Value?.ToList() ?? [];
+            var books = await WcfApi.GetBooksAsync();
+            if (!books.IsSuccess) _error ??= books.Error ?? "Unable to load accountable-form custody.";
+            else _books = books.Value?.ToList() ?? [];
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            if (!collectors.IsSuccess) _error ??= collectors.Error ?? "Unable to load active collector assignments.";
+            else _collectors = collectors.Value?.ToList() ?? [];
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
 
-            if (!string.IsNullOrWhiteSpace(_searchText))
+    private async Task ReceiveBookAsync()
+    {
+        if (_firstSerial < 0 || _lastSerial < _firstSerial || string.IsNullOrWhiteSpace(_seriesName) || string.IsNullOrWhiteSpace(_numberPrefix)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await WcfApi.ReceiveBookAsync(new ReceiveAccountableFormBookRequest(
+                RevenueInstrumentType.CashTicket, _seriesName.Trim(), _numberPrefix.Trim(),
+                _firstSerial, _lastSerial, _serialWidth));
+            if (!result.IsSuccess) { _error = result.Error ?? "The Cash Ticket book could not be received."; return; }
+            _message = $"Cash Ticket book received with {result.Value!.Documents.Count} units.";
+            _seriesName = string.Empty;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task AssignRangeAsync()
+    {
+        if (_assignmentBookId is not { } bookId || _assignmentCollectorId is not { } collectorId
+            || _assignmentFirstSerial < 0 || _assignmentLastSerial < _assignmentFirstSerial) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await WcfApi.AssignCashTicketsAsync(new AssignAccountableFormRangeRequest(
+                bookId, collectorId, _assignmentFirstSerial, _assignmentLastSerial));
+            if (!result.IsSuccess) { _error = result.Error ?? "The Cash Ticket range could not be assigned."; return; }
+            _message = $"Assigned {result.Value} Cash Ticket unit(s).";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private void OpenCollection(WcfObligationQuoteDto quote)
+    {
+        _collectionQuote = quote;
+        _amount = quote.OutstandingAmount;
+        _selectedDocumentId = _tickets.FirstOrDefault()?.DocumentId;
+        _operationId = null;
+    }
+
+    private void ChangeAmount(ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var amount) && amount != _amount)
+        {
+            _amount = amount;
+            _operationId = null;
+        }
+    }
+
+    private void ChangeDocument(ChangeEventArgs args)
+    {
+        _selectedDocumentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        _operationId = null;
+    }
+
+    private async Task PostAsync()
+    {
+        if (!CanPost || _collectionQuote is null || _selectedDocumentId is not { } documentId) return;
+        var document = _tickets.FirstOrDefault(x => x.DocumentId == documentId);
+        if (document is null) return;
+        _operationId ??= Guid.NewGuid();
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await WcfApi.PostAsync(new WcfCollectionPostRequest(
+                1, _operationId.Value, PhilippineTime.Today, _collectionQuote.UtilityBillId,
+                _amount, _collectionQuote.WaterSourceVersion, document.DocumentId,
+                document.DocumentNumber, IssuedAtUtc: null));
+            if (!result.IsSuccess)
             {
-                var term = _searchText.Trim();
-                query = query.Where(account =>
-                    account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
+                _error = result.Error ?? "The WCF Collection could not be posted.";
+                return;
             }
-
-            return query;
+            _message = $"Collection {ShortId(result.Value!.CollectionId)} · {result.Value.DocumentNumber} · {Money(result.Value.Amount)}.";
+            _collectionQuote = null;
+            await LoadAsync();
         }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
     }
 
-    private decimal AssessmentConsumption => Math.Max(0m, _currentReading - _previousReading);
-
-    private decimal AssessmentAmountDue => _chargeBasis switch
+    private void CloseCollection()
     {
-        WcfChargeBasis.Metered => AssessmentConsumption * _rate,
-        WcfChargeBasis.ManualApproved => _approvedAmount,
-        _ => 0m
-    };
-
-    private decimal RemainingPaymentBalance => Math.Max(0m, _paymentOutstanding - _paymentAmount);
-
-    private int NextWcfNumber => _accounts.Max(account => account.WcfNumber) + 1;
-
-    private string ManualWcfIdentity
-    {
-        get
-        {
-            var accountContext = string.IsNullOrWhiteSpace(_manualArea) ? "Standalone account" : _manualArea.Trim();
-            return int.TryParse(_manualStallNumber, out var stallNumber)
-                ? $"WCF No. {NextWcfNumber} · Stall No. {stallNumber} · {accountContext}"
-                : $"WCF No. {NextWcfNumber} · {accountContext}";
-        }
+        _collectionQuote = null;
+        _operationId = null;
     }
 
-    private bool CanSaveAssessment => _manualAssignment || _assessmentAccount is not null;
-    private bool CanSavePayment => _paymentAccount is not null && _paymentAmount > 0m && _paymentAmount <= _paymentOutstanding;
+    private static string Period(int year, int month) => new DateTime(year, month, 1).ToString("MMM yyyy");
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
 
-    private IEnumerable<WcfAccount> FilteredAssessmentChoices => FilterAccountChoices(_assessmentAccountSearch, _accounts);
-
-    private IEnumerable<WcfAccount> FilteredPaymentChoices => FilterAccountChoices(_paymentAccountSearch, _accounts.Where(account => account.Balance > 0m));
-
-    private static IEnumerable<WcfAccount> FilterAccountChoices(string search, IEnumerable<WcfAccount> accounts)
-    {
-        if (string.IsNullOrWhiteSpace(search))
-            return accounts;
-
-        var term = search.Trim();
-        return accounts.Where(account =>
-            account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
-            (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
-    }
-
-    private void OpenAssessmentModal()
-    {
-        _manualAssignment = false;
-        _assessmentAccount = null;
-        _assessmentAccountSearch = string.Empty;
-        _manualStallNumber = string.Empty;
-        _manualResponsibleParty = string.Empty;
-        _manualArea = string.Empty;
-        _chargeBasis = WcfChargeBasis.Metered;
-        _previousReading = 0m;
-        _currentReading = 0m;
-        _approvedAmount = 0m;
-        _assessmentModalOpen = true;
-    }
-
-    private void CloseAssessmentModal() => _assessmentModalOpen = false;
-
-    private void SaveAssessment()
-    {
-        if (CanSaveAssessment)
-            _assessmentModalOpen = false;
-    }
-
-    private void SetAssignmentMode(bool manual)
-    {
-        _manualAssignment = manual;
-        if (manual)
-        {
-            _assessmentAccount = null;
-            _previousReading = 0m;
-            _currentReading = 0m;
-        }
-    }
-
-    private void OpenAssessmentAccountPicker()
-    {
-        _assessmentAccountSearch = string.Empty;
-        _assessmentAccountPickerOpen = true;
-    }
-
-    private void SelectAssessmentAccount(WcfAccount account)
-    {
-        _assessmentAccount = account;
-        _previousReading = account.CurrentReading;
-        _currentReading = account.CurrentReading;
-        _assessmentAccountPickerOpen = false;
-    }
-
-    private void OpenPaymentModal()
-    {
-        _paymentAccount = null;
-        _paymentAccountSearch = string.Empty;
-        _paymentDue = 0m;
-        _paymentPreviouslyPaid = 0m;
-        _paymentOutstanding = 0m;
-        _paymentAmount = 0m;
-        _paymentModalOpen = true;
-    }
-
-    private void OpenPaymentAccountPicker()
-    {
-        _paymentAccountSearch = string.Empty;
-        _paymentAccountPickerOpen = true;
-    }
-
-    private void SelectPaymentAccount(WcfAccount account)
-    {
-        _paymentAccount = account;
-        _paymentDue = account.Due;
-        _paymentPreviouslyPaid = account.Paid;
-        _paymentOutstanding = account.Balance;
-        _paymentAmount = account.Balance;
-        _paymentAccountPickerOpen = false;
-    }
-
-    private void CloseAccountPickers()
-    {
-        _assessmentAccountPickerOpen = false;
-        _paymentAccountPickerOpen = false;
-    }
-
-    private void HandlePickerKeyDown(KeyboardEventArgs args)
-    {
-        if (args.Key == "Escape")
-            CloseAccountPickers();
-    }
-
-    private void OnPaymentAmountInput(ChangeEventArgs args)
-    {
-        if (decimal.TryParse(args.Value?.ToString(), out var amount))
-            _paymentAmount = amount;
-    }
-
-    private void ClosePaymentModal() => _paymentModalOpen = false;
-
-    private void SavePayment()
-    {
-        if (CanSavePayment)
-            _paymentModalOpen = false;
-    }
-
-    private sealed class WcfAccount
-    {
-        public int WcfNumber { get; init; }
-        public int? StallNumber { get; init; }
-        public string AccountLabel { get; init; } = string.Empty;
-        public string AreaLabel { get; init; } = string.Empty;
-        public string ResponsibleParty { get; init; } = string.Empty;
-        public string AreaGroup { get; init; } = string.Empty;
-        public string Basis { get; init; } = string.Empty;
-        public decimal PreviousReading { get; init; }
-        public decimal CurrentReading { get; init; }
-        public decimal Due { get; init; }
-        public decimal Paid { get; init; }
-        public decimal Balance { get; init; }
-        public string WcfLabel => $"WCF No. {WcfNumber}";
-        public string IdentityLine => StallNumber is int number
-            ? $"{WcfLabel} · Stall No. {number} · {AreaLabel}"
-            : $"{WcfLabel} · {AreaLabel}";
-    }
-
-    private enum WcfChargeBasis
-    {
-        Metered,
-        ManualApproved
-    }
-
-    private sealed class WcfActivity
-    {
-        public string Date { get; init; } = string.Empty;
-        public string Account { get; init; } = string.Empty;
-        public string Period { get; init; } = string.Empty;
-        public string Type { get; init; } = string.Empty;
-        public decimal Amount { get; init; }
-        public decimal Balance { get; init; }
-        public string RecordedBy { get; init; } = string.Empty;
-    }
+    private RenderFragment WaterIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5S6 10 6 14.5a6 6 0 0 0 12 0C18 10 12 3.5 12 3.5Z" /><path d="M9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" /></svg>;
 }

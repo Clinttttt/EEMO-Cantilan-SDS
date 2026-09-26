@@ -30,6 +30,24 @@ public class PendingOperationStoreTests : IDisposable
         Amount = 30m
     };
 
+    private static PendingOperation IssuedWcfOp() => new()
+    {
+        ClientOperationId = Guid.NewGuid(),
+        Kind = OfflineOperationKind.WcfCollection,
+        PayloadVersion = 1,
+        BusinessDate = new DateOnly(2026, 9, 27),
+        UtilityBillId = Guid.NewGuid(),
+        ReceivedAmount = 125m,
+        WaterSourceVersion = 9,
+        AccountableDocumentId = Guid.NewGuid(),
+        DocumentNumber = "CT-004126",
+        IssuedAtUtc = new DateTime(2026, 9, 27, 3, 10, 0, DateTimeKind.Utc),
+        OwnerKey = "collector-A",
+        Title = "Maria Santos",
+        FacilityLabel = "NPM",
+        Amount = 125m
+    };
+
     [Fact]
     public void ToDto_CarriesIsAbsent_WithoutClobberingIsPaidOrStall()
     {
@@ -128,5 +146,43 @@ public class PendingOperationStoreTests : IDisposable
         var all = await store.GetAllAsync();
         Assert.Equal(newer.ClientOperationId, all[0].ClientOperationId);
         Assert.Equal(older.ClientOperationId, all[1].ClientOperationId);
+    }
+
+    [Fact]
+    public async Task Physically_issued_ticket_and_operation_survive_a_fresh_store_instance()
+    {
+        var operation = IssuedWcfOp();
+        var writer = new PendingOperationStore(_dir);
+        await writer.AddIssuedDocumentOperationAsync(operation);
+
+        var reader = new PendingOperationStore(_dir);
+        var persisted = Assert.Single(await reader.GetAllAsync());
+
+        Assert.Equal(operation.ClientOperationId, persisted.ClientOperationId);
+        Assert.Equal(operation.AccountableDocumentId, persisted.AccountableDocumentId);
+        Assert.Equal(operation.DocumentNumber, persisted.DocumentNumber);
+        Assert.Equal(operation.UtilityBillId, persisted.UtilityBillId);
+        Assert.Equal(operation.ReceivedAmount, persisted.ReceivedAmount);
+        Assert.Equal(operation.BusinessDate, persisted.BusinessDate);
+        Assert.Equal(IssuedDocumentLocalState.IssuedLocallyPendingSync, persisted.IssuedDocumentState);
+        Assert.False(reader.HasStorageFault);
+    }
+
+    [Fact]
+    public async Task Corrupt_queue_keeps_a_restart_persistent_issue_block_and_preserves_evidence()
+    {
+        Directory.CreateDirectory(_dir);
+        await File.WriteAllTextAsync(Path.Combine(_dir, "pending-operations.json"), "{not valid json");
+
+        var first = new PendingOperationStore(_dir);
+        Assert.Empty(await first.GetAllAsync());
+        Assert.True(first.HasStorageFault);
+        Assert.Single(Directory.GetFiles(_dir, "pending-operations.json.unreadable-*"));
+
+        var afterRestart = new PendingOperationStore(_dir);
+        Assert.Empty(await afterRestart.GetAllAsync());
+        Assert.True(afterRestart.HasStorageFault);
+        await Assert.ThrowsAsync<IOException>(() => afterRestart.AddIssuedDocumentOperationAsync(IssuedWcfOp()));
+        Assert.Single(Directory.GetFiles(_dir, "pending-operations.json.unreadable-*"));
     }
 }

@@ -81,6 +81,7 @@ Before changing V2 code, read:
 
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
 - `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
+- `planning/PHASE4_WCF_WRITER_READINESS.md` — current UtilityBill Water/WCF writers, compatibility readers, Cash Ticket custody, and scoped cutover prerequisites; inventory only, not activation authority.
 - `planning/IMPLEMENTATION_HISTORY.md` — historical implementation/backlog record. It is evidence, not automatic current authority.
 - `evidence/` — office/reference evidence retained with the repository.
 - `../tools/diagnostics/` — diagnostic scripts; diagnostics are evidence tools, not application behavior.

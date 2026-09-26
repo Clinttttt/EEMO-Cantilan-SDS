@@ -3,7 +3,9 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
-using EEMOCantilanSDS.Application.Requests.Mobile;using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Requests.Mobile;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -45,6 +47,9 @@ public interface IMobileApiClient
     Task<Result<bool>> SettleNpmMonthAsync(SettleMobileNpmMonthRequest request);
     Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
     Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
+    Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth);
+    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
+    Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);

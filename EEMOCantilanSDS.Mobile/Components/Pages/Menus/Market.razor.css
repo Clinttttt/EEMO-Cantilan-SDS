@@ -761,6 +761,25 @@
     margin-left: 6px;
 }
 
+.misc-wcf-block {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 11px;
+    border: 1px solid var(--border, #dce4e9);
+    border-left: 3px solid var(--gold, #c8a84b);
+    border-radius: 7px;
+    background: var(--bg-soft, #f7f9fa);
+}
+
+.misc-wcf-source-label {
+    display: grid;
+    gap: 5px;
+    color: var(--text-subtle, #667682);
+    font-size: 11px;
+    font-weight: 700;
+}
+
 
 .misc-or-input {
     margin-top: 8px;

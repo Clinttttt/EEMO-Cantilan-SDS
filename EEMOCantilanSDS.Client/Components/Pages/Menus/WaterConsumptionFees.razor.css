@@ -697,6 +697,48 @@
     white-space: nowrap;
 }
 
+.wcf-custody-panel {
+    margin-top: 1rem;
+}
+
+.wcf-custody-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 0 1rem 1rem;
+}
+
+.wcf-custody-form {
+    display: grid;
+    gap: .7rem;
+    align-content: start;
+    padding: .9rem;
+    border: 1px solid #e1e6e9;
+    border-radius: 6px;
+    background: #f9fafb;
+}
+
+.wcf-custody-form h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: .82rem;
+    font-weight: 750;
+}
+
+.wcf-detail-list {
+    display: grid;
+    gap: .45rem;
+    margin: .55rem 0;
+    padding-left: 1.1rem;
+}
+
+.wcf-detail-list li span {
+    display: block;
+    margin-top: .16rem;
+    color: var(--text-subtle);
+    font-size: .7rem;
+}
+
 .wcf-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -1054,6 +1096,10 @@
 }
 
 @media (max-width: 920px) {
+    .wcf-custody-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .wcf-main-grid {
         grid-template-columns: minmax(0, 1fr);
     }

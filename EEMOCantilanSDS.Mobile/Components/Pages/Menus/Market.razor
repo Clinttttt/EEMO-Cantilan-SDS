@@ -4,6 +4,7 @@
 @using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Application.Dtos.Payors
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
@@ -587,78 +588,62 @@
                             }
                         }
 
-                        @if (SelectedBill.WaterCharge > 0m)
+                        @if (MiscElecPay != PaymentStatus.Unpaid)
                         {
-                            <button type="button" class="misc-util @(MiscWaterPay != PaymentStatus.Unpaid ? "misc-util-on" : "") @(SelectedBill.ElecCharge > 0m ? "misc-util-gap" : "")"
-                                    @onclick="ToggleWaterCollected">
-                                <span class="misc-util-check" aria-hidden="true">
-                                    @if (MiscWaterPay == PaymentStatus.Paid)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                    else if (MiscWaterPay == PaymentStatus.Partial)
-                                    {
-                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                    }
-                                </span>
-                                <span class="misc-util-body">
-                                    <span class="misc-util-name">Water</span>
-                                    <span class="misc-util-state">@UtilityStateLabel(MiscWaterPay, MiscWaterPartial)</span>
-                                </span>
-                                <span class="misc-util-amt">
-                                    @FormatPeso(SelectedBill.WaterBalanceDue)
-                                    @if (SelectedBill.WaterBalanceDue < SelectedBill.WaterCharge)
-                                    {
-                                        <span class="misc-util-of">of @FormatPeso(SelectedBill.WaterCharge)</span>
-                                    }
-                                </span>
-                            </button>
-                            <div class="misc-util-aside">
-                                <button type="button" class="misc-part-link @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")"
-                                        @onclick="ToggleWaterPartial">
-                                    @(MiscWaterPay == PaymentStatus.Partial ? "Collect in full instead" : "Part payment")
-                                </button>
-                            </div>
-                            @if (MiscWaterPay == PaymentStatus.Partial)
-                            {
-                                <input class="form-input" type="number" min="0" step="0.01" placeholder="Water partial amount" @bind="MiscWaterPartial" @bind:event="oninput" />
-                            }
+                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
+                                   placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
                         }
 
-                        @* The receipt, asked for ONCE. A payor handed one receipt for the whole bill is the ordinary case, and the
-                           sheet used to demand the number under each utility separately. Where the office does issue one per
-                           utility, that is still available - it is just no longer the only way. *@
-                        @if (MiscElecPay != PaymentStatus.Unpaid || MiscWaterPay != PaymentStatus.Unpaid)
-                        {
-                            @if (!MiscSeparateOr)
+                        <div class="misc-wcf-block">
+                            <div class="misc-period-label">Water Consumption · Cash Ticket</div>
+                            @if (WcfLoadFailed)
                             {
-                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
-                                       placeholder="OR no." @bind="MiscSharedOr" @bind:event="oninput" />
+                                <div class="misc-empty">Water collection eligibility could not be verified. Retry while online.</div>
+                            }
+                            else if (SelectedWcfQuote is null)
+                            {
+                                <div class="misc-empty">No outstanding Water obligation was returned for this stall through the selected collection month.</div>
                             }
                             else
                             {
-                                @if (MiscElecPay != PaymentStatus.Unpaid)
+                                <label class="misc-wcf-source-label">
+                                    <span>Water obligation · oldest outstanding periods first</span>
+                                    <select class="form-input" @bind="SelectedWcfBillId">
+                                        @foreach (var quote in WcfObligationsForSelectedStall)
+                                        {
+                                            <option value="@quote.UtilityBillId">@quote.BillingYear-@quote.BillingMonth.ToString("00") · @FormatPeso(quote.OutstandingAmount) due</option>
+                                        }
+                                    </select>
+                                </label>
+                                <div class="misc-util-state">@SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00") · @FormatPeso(SelectedWcfQuote.OutstandingAmount) outstanding</div>
+                                <div class="misc-util-state">@SelectedWcfQuote.PreviousReading m³ → @SelectedWcfQuote.CurrentReading m³ · @SelectedWcfQuote.Consumption m³ × @FormatPeso(SelectedWcfQuote.RatePerCubicMeter)/m³</div>
+                                @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
                                 {
-                                    <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
-                                           placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
+                                    <div class="misc-empty">Canonical WCF settlement is not active for this source. Do not issue a Cash Ticket through the canonical workflow.</div>
                                 }
-                                @if (MiscWaterPay != PaymentStatus.Unpaid)
+                                else if (Sync.HasStorageFault)
                                 {
-                                    <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
-                                           placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                                    <div class="misc-empty">Local ticket history needs attention. Offline Cash Ticket issue is blocked until storage is healthy.</div>
+                                }
+                                else
+                                {
+                                    <input class="form-input" type="number" min="0.01" step="0.01" placeholder="Amount received" @bind="WcfReceivedAmount" @bind:event="oninput" />
+                                    <select class="form-input" @bind="SelectedWcfDocumentId">
+                                        <option value="">Select assigned Cash Ticket</option>
+                                        @foreach (var ticket in AvailableWcfTickets)
+                                        {
+                                            <option value="@ticket.DocumentId">@ticket.DocumentNumber</option>
+                                        }
+                                    </select>
+                                    <button class="btn-primary" type="button" disabled="@(!CanCaptureWcf)" @onclick="CaptureWcfAsync">Record and issue Cash Ticket</button>
+                                    <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture). Obligation period: @SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00").</div>
                                 }
                             }
-
-                            @* Offered only where both are being settled, since one utility cannot have two receipts. *@
-                            @if (MiscElecPay != PaymentStatus.Unpaid && MiscWaterPay != PaymentStatus.Unpaid)
+                            @if (!string.IsNullOrWhiteSpace(WcfMessage))
                             {
-                                <div class="misc-util-aside">
-                                    <button type="button" class="misc-part-link @(MiscSeparateOr ? "on" : "")" @onclick="ToggleSeparateOr">
-                                        @(MiscSeparateOr ? "One receipt for both" : "Separate receipts")
-                                    </button>
-                                </div>
+                                <div class="misc-util-state">@WcfMessage</div>
                             }
-                        }
+                        </div>
 
                         <div class="misc-collect"><span>Collecting</span><strong>@FormatPeso(MiscCollectAmount)</strong></div>
                     </div>
@@ -835,13 +820,21 @@
     private decimal? FishKilos;
     private string ORNumber = string.Empty;
 
-    // Miscellaneous (electricity & water bill) collection, settled from the same daily sheet.
+    // Electricity remains a focused OR legacy-compatible part. Water is entered separately through WCF/CT.
     private bool SelectedIsMisc;
     private MobileUtilityBillDto? SelectedBill;
     private PaymentStatus MiscElecPay = PaymentStatus.Unpaid;
     private PaymentStatus MiscWaterPay = PaymentStatus.Unpaid;
     private decimal MiscElecPartial;
     private decimal MiscWaterPartial;
+    private IReadOnlyList<WcfObligationQuoteDto> WcfObligations = Array.Empty<WcfObligationQuoteDto>();
+    private IReadOnlyList<CashTicketDocumentDto> WcfTickets = Array.Empty<CashTicketDocumentDto>();
+    private readonly HashSet<Guid> LocallyIssuedWcfDocuments = new();
+    private bool WcfLoadFailed;
+    private decimal WcfReceivedAmount;
+    private Guid? SelectedWcfBillId;
+    private Guid? SelectedWcfDocumentId;
+    private string? WcfMessage;
 
     /// <summary>
     /// What each utility has already been credited with on this bill. The bill stores a TOTAL per utility, so a
@@ -852,24 +845,6 @@
     private string MiscElecOr = string.Empty;
     private string MiscWaterOr = string.Empty;
 
-    /// <summary>
-    /// The one receipt number covering whatever is being settled on this bill.
-    /// </summary>
-    /// <remarks>
-    /// A payor handed one receipt for the whole bill is the ordinary case, and the sheet used to demand the number twice - once
-    /// under electricity and once under water - so the collector typed it out again to satisfy a field. This holds it once and
-    /// it is copied to each utility being settled on confirm.
-    /// </remarks>
-    private string MiscSharedOr = string.Empty;
-
-    /// <summary>
-    /// True where the office issued a separate receipt per utility, which some do.
-    /// </summary>
-    /// <remarks>
-    /// Off by default because one receipt is the common case, and the collector should not have to say so. Turning it on reveals
-    /// a field per utility, which is exactly what the sheet used to insist on.
-    /// </remarks>
-    private bool MiscSeparateOr;
     private bool _scrollToMisc;
     // Every utility bill a stall still has to answer for, keyed by stall number and oldest first: this month's
     // bill and any earlier one left owed. The sheet settles them one at a time, starting with the oldest.
@@ -884,6 +859,32 @@
         SelectedStall is not null && UtilityByStallNo.TryGetValue(SelectedStall.StallNo, out var bills)
             ? bills
             : new List<MobileUtilityBillDto>();
+
+    private IReadOnlyList<WcfObligationQuoteDto> WcfObligationsForSelectedStall => SelectedStall is null
+        ? Array.Empty<WcfObligationQuoteDto>()
+        : WcfObligations.Where(x => x.StallId == SelectedStall.StallId && x.OutstandingAmount > 0m)
+            .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth).ToList();
+
+    private WcfObligationQuoteDto? SelectedWcfQuote => SelectedWcfBillId is { } billId
+        ? WcfObligationsForSelectedStall.FirstOrDefault(x => x.UtilityBillId == billId)
+        : null;
+
+    private IReadOnlyList<CashTicketDocumentDto> AvailableWcfTickets => WcfTickets
+        .Where(x => x.State == AccountableDocumentState.Assigned
+            && !LocallyIssuedWcfDocuments.Contains(x.DocumentId))
+        .ToList();
+
+    private CashTicketDocumentDto? SelectedWcfTicket => SelectedWcfDocumentId is { } id
+        ? AvailableWcfTickets.FirstOrDefault(x => x.DocumentId == id)
+        : null;
+
+    private bool CanCaptureWcf => SelectedWcfQuote is { CanCollectCanonical: true, OutstandingAmount: > 0m }
+        && SelectedWcfTicket is not null
+        && WcfReceivedAmount > 0m
+        && WcfReceivedAmount <= SelectedWcfQuote.OutstandingAmount
+        && decimal.Round(WcfReceivedAmount, 2, MidpointRounding.ToZero) == WcfReceivedAmount
+        && !Sync.HasStorageFault
+        && !IsSaving;
 
     private int SelectedOutstandingCount => SelectedStallBills.Count(b => b.BalanceDue > 0m);
 
@@ -916,9 +917,7 @@
             if (SelectedBill is null) return 0m;
             var elec = MiscElecPay == PaymentStatus.Paid ? SelectedBill.ElecBalanceDue
                      : MiscElecPay == PaymentStatus.Partial ? MiscElecPartial : 0m;
-            var water = MiscWaterPay == PaymentStatus.Paid ? SelectedBill.WaterBalanceDue
-                      : MiscWaterPay == PaymentStatus.Partial ? MiscWaterPartial : 0m;
-            return elec + water;
+            return elec;
         }
     }
 
@@ -944,13 +943,6 @@
         SheetError = null;
     }
 
-    private void ToggleWaterCollected()
-    {
-        MiscWaterPay = MiscWaterPay == PaymentStatus.Unpaid ? PaymentStatus.Paid : PaymentStatus.Unpaid;
-        if (MiscWaterPay == PaymentStatus.Unpaid) { MiscWaterPartial = 0m; MiscWaterOr = string.Empty; }
-        SheetError = null;
-    }
-
     // A part payment is a way of collecting, so choosing it marks the utility collected as well — the collector should not have
     // to tap twice to say one thing.
     private void ToggleElecPartial()
@@ -964,30 +956,6 @@
         {
             MiscElecPay = PaymentStatus.Partial;
         }
-        SheetError = null;
-    }
-
-    private void ToggleWaterPartial()
-    {
-        if (MiscWaterPay == PaymentStatus.Partial)
-        {
-            MiscWaterPay = PaymentStatus.Paid;
-            MiscWaterPartial = 0m;
-        }
-        else
-        {
-            MiscWaterPay = PaymentStatus.Partial;
-        }
-        SheetError = null;
-    }
-
-    // Switching between one receipt and two clears whichever fields are being left behind, so a number typed under the other
-    // arrangement cannot be submitted unseen.
-    private void ToggleSeparateOr()
-    {
-        MiscSeparateOr = !MiscSeparateOr;
-        MiscSharedOr = string.Empty;
-        MiscElecOr = MiscWaterOr = string.Empty;
         SheetError = null;
     }
 
@@ -1126,6 +1094,26 @@
                         g => g.OrderBy(b => b.BillingYear).ThenBy(b => b.BillingMonth).ToList(),
                         StringComparer.OrdinalIgnoreCase)
                 : new(StringComparer.OrdinalIgnoreCase);
+            var wcf = await MobileApi.GetWcfObligationsAsync(SelectedYear, SelectedMonth);
+            var tickets = await MobileApi.GetAvailableCashTicketsAsync();
+            WcfLoadFailed = !wcf.IsSuccess || wcf.Value is null || !tickets.IsSuccess || tickets.Value is null;
+            WcfObligations = wcf.IsSuccess && wcf.Value is not null
+                ? wcf.Value.Where(x => x.OutstandingAmount > 0m).ToList()
+                : Array.Empty<WcfObligationQuoteDto>();
+            if (SelectedWcfBillId is not { } selectedWcfBill
+                || !WcfObligationsForSelectedStall.Any(x => x.UtilityBillId == selectedWcfBill))
+                SelectedWcfBillId = WcfObligationsForSelectedStall.FirstOrDefault()?.UtilityBillId;
+            WcfTickets = tickets.IsSuccess && tickets.Value is not null
+                ? tickets.Value
+                : Array.Empty<CashTicketDocumentDto>();
+            LocallyIssuedWcfDocuments.Clear();
+            foreach (var queued in await Sync.GetAllAsync())
+            {
+                if (queued.Kind == OfflineOperationKind.WcfCollection && queued.AccountableDocumentId is { } documentId)
+                    LocallyIssuedWcfDocuments.Add(documentId);
+            }
+            if (SelectedWcfDocumentId is { } selected && !AvailableWcfTickets.Any(x => x.DocumentId == selected))
+                SelectedWcfDocumentId = null;
         }
         catch
         {
@@ -1133,6 +1121,70 @@
             // must not tell the collector a stall has no bill when it simply could not ask.
             UtilityLoadFailed = true;
             UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
+            WcfLoadFailed = true;
+            WcfObligations = Array.Empty<WcfObligationQuoteDto>();
+            WcfTickets = Array.Empty<CashTicketDocumentDto>();
+        }
+    }
+
+    private async Task CaptureWcfAsync()
+    {
+        if (!CanCaptureWcf || SelectedWcfQuote is not { } quote || SelectedWcfTicket is not { } ticket)
+        {
+            WcfMessage = Sync.HasStorageFault
+                ? "Local queue storage is not healthy. Do not issue a Cash Ticket."
+                : "Refresh the Water source and assigned Cash Tickets, then enter an amount within the outstanding balance.";
+            return;
+        }
+
+        IsSaving = true;
+        WcfMessage = null;
+        var operationId = Guid.NewGuid();
+        var operation = new PendingOperation
+        {
+            ClientOperationId = operationId,
+            Kind = OfflineOperationKind.WcfCollection,
+            PayloadVersion = 1,
+            BusinessDate = Today,
+            UtilityBillId = quote.UtilityBillId,
+            ReceivedAmount = WcfReceivedAmount,
+            WaterSourceVersion = quote.WaterSourceVersion,
+            AccountableDocumentId = ticket.DocumentId,
+            DocumentNumber = ticket.DocumentNumber,
+            IssuedAtUtc = DateTime.UtcNow,
+            FacilityLabel = "NPM",
+            Title = quote.PayerNameSnapshot ?? $"Stall {quote.StallNo}",
+            Detail = $"WCF · {quote.BillingYear}-{quote.BillingMonth:00} · CT {ticket.DocumentNumber}",
+            Amount = WcfReceivedAmount
+        };
+
+        try
+        {
+            // This durable local write binds the physical ticket to its immutable operation before this
+            // screen reports the issue as safely captured or starts synchronization.
+            await Sync.EnqueueIssuedDocumentAsync(operation);
+            LocallyIssuedWcfDocuments.Add(ticket.DocumentId);
+            WcfMessage = "Cash Ticket issue saved on this device. The ticket is unavailable for reuse.";
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result?.LocalStatus == PendingLocalStatus.Synced)
+                WcfMessage = "Cash Ticket acknowledged by the server. It remains consumed.";
+            else if (result?.LocalStatus == PendingLocalStatus.ReconciliationRequired)
+                WcfMessage = "RECONCILIATION REQUIRED. Keep this physical Cash Ticket; office review is required.";
+            else if (result is not null)
+                WcfMessage = "Cash Ticket issue is durably queued and awaiting synchronization.";
+            WcfReceivedAmount = 0m;
+            SelectedWcfDocumentId = null;
+            await LoadUtilityBillsAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            WcfMessage = "The physical ticket and operation could not be safely saved. Do not issue the ticket; resolve device storage attention first.";
+        }
+        finally
+        {
+            IsSaving = false;
         }
     }
 
@@ -1623,8 +1675,13 @@
                     ?? bills?.LastOrDefault();
         MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
-        MiscSeparateOr = false;
+        MiscElecOr = MiscWaterOr = string.Empty;
+        WcfReceivedAmount = 0m;
+        SelectedWcfBillId = WcfObligations.Where(x => x.StallId == stall.StallId && x.OutstandingAmount > 0m)
+            .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
+            .Select(x => (Guid?)x.UtilityBillId).FirstOrDefault();
+        SelectedWcfDocumentId = null;
+        WcfMessage = null;
         SheetError = null;
         ShowCollectionSheet = true;
     }
@@ -1651,8 +1708,7 @@
         MiscElecPay = PaymentStatus.Unpaid;
         MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
-        MiscSeparateOr = false;
+        MiscElecOr = MiscWaterOr = string.Empty;
         SheetError = null;
         _scrollToMisc = true;
     }
@@ -1881,13 +1937,17 @@
             SheetError = "No electricity or water bill on file for this stall.";
             return;
         }
-        if (MiscElecPay == PaymentStatus.Unpaid && MiscWaterPay == PaymentStatus.Unpaid)
+        if (MiscElecPay == PaymentStatus.Unpaid)
         {
-            SheetError = "Choose Paid or Partial for electricity and/or water.";
+            SheetError = "Choose an Electricity amount to collect. Water uses its separate Cash Ticket workflow.";
             return;
         }
         if (MiscElecPay == PaymentStatus.Partial && MiscElecPartial <= 0m) { SheetError = "Enter an electricity partial amount."; return; }
-        if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial <= 0m) { SheetError = "Enter a water partial amount."; return; }
+        if (MiscWaterPay != PaymentStatus.Unpaid)
+        {
+            SheetError = "Water cannot be included in an Electricity OR collection. Use the separate WCF Cash Ticket workflow.";
+            return;
+        }
         // A part payment is what is being taken now, so it cannot exceed what is still owed. Collecting the
         // whole of it is "Paid", not a partial that happens to equal the balance.
         if (MiscElecPay == PaymentStatus.Partial && MiscElecPartial > SelectedBill.ElecBalanceDue)
@@ -1895,36 +1955,10 @@
             SheetError = $"Electricity has {FormatPeso(SelectedBill.ElecBalanceDue)} still owed. Enter no more than that, or mark it Paid.";
             return;
         }
-        if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial > SelectedBill.WaterBalanceDue)
-        {
-            SheetError = $"Water has {FormatPeso(SelectedBill.WaterBalanceDue)} still owed. Enter no more than that, or mark it Paid.";
-            return;
-        }
-        // Which receipt each utility is settled under. The rule lives in Mobile.Core so it is tested: it decides what is written
-        // to the office's record, and a receipt number copied onto a row nobody collected would read back as a collection.
-        (MiscElecOr, MiscWaterOr) = EEMOCantilanSDS.Mobile.Collections.UtilityReceiptEntry.Resolve(
-            MiscSeparateOr,
-            MiscSharedOr,
-            MiscElecOr,
-            MiscWaterOr,
-            collectingElec: MiscElecPay != PaymentStatus.Unpaid,
-            collectingWater: MiscWaterPay != PaymentStatus.Unpaid);
-
-        // Worded for the field the collector is actually looking at: telling them "Electricity OR number is required" while one
-        // shared box is on screen sends them hunting for a field that is not there.
-        if (!MiscSeparateOr)
-        {
-            if (string.IsNullOrWhiteSpace(MiscSharedOr)) { SheetError = "Enter the OR number."; return; }
-        }
-        else
-        {
-            if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
-            if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
-        }
+        if (string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
         // A utility this bill does not charge for cannot be receipted on it: a water-only bill has no
         // electricity to settle, and marking it would receipt ₱0.
         if (SelectedBill.ElecCharge <= 0m && MiscElecPay != PaymentStatus.Unpaid) { SheetError = "This bill has no electricity charge."; return; }
-        if (SelectedBill.WaterCharge <= 0m && MiscWaterPay != PaymentStatus.Unpaid) { SheetError = "This bill has no water charge."; return; }
         // Nothing left owed means nothing to receipt. Without this, marking an already-settled bill Paid again
         // would post ₱0 and overwrite the OR number already on the office's record.
         if (MiscCollectAmount <= 0m) { SheetError = "Nothing left to collect on this bill."; return; }
@@ -1937,12 +1971,7 @@
         var elecPartial = MiscElecPay == PaymentStatus.Partial
             ? (decimal?)(ElecAlreadyPaid + MiscElecPartial)
             : null;
-        var waterPartial = MiscWaterPay == PaymentStatus.Partial
-            ? (decimal?)(WaterAlreadyPaid + MiscWaterPartial)
-            : null;
-        var elecOr = MiscElecPay != PaymentStatus.Unpaid ? MiscElecOr.Trim() : null;
-        var waterOr = MiscWaterPay != PaymentStatus.Unpaid ? MiscWaterOr.Trim() : null;
-        var orLabel = elecOr ?? waterOr;
+        var elecOr = MiscElecOr.Trim();
 
         if (!Sync.IsOnline)
         {
@@ -1955,13 +1984,13 @@
                 UtilityBillId = SelectedBill.BillId,
                 ElecStatus = MiscElecPay,
                 ElecPartialAmount = elecPartial,
-                WaterStatus = MiscWaterPay,
-                WaterPartialAmount = waterPartial,
+                WaterStatus = PaymentStatus.Unpaid,
+                WaterPartialAmount = null,
                 ElecORNumber = elecOr,
-                WaterORNumber = waterOr,
+                WaterORNumber = null,
                 FacilityLabel = "NPM",
                 Title = SelectedStall.PayorName,
-                Detail = $"No. {SelectedStall.StallNo} · utilities · OR {orLabel}",
+                Detail = $"No. {SelectedStall.StallNo} · Electricity · OR {elecOr}",
                 Amount = MiscCollectAmount
             });
             CloseCollectionSheet();
@@ -1970,7 +1999,7 @@
         }
 
         var result = await MobileApi.RecordNpmUtilityPaymentAsync(new RecordMobileUtilityPaymentRequest(
-            SelectedBill.BillId, MiscElecPay, elecPartial, MiscWaterPay, waterPartial, elecOr, waterOr, null));
+            SelectedBill.BillId, MiscElecPay, elecPartial, PaymentStatus.Unpaid, null, elecOr, null, null));
         if (!result.IsSuccess)
         {
             SheetError = result.Error ?? "Unable to record the utility payment.";
@@ -2003,8 +2032,10 @@
         SelectedBill = null;
         MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = MiscSharedOr = string.Empty;
-        MiscSeparateOr = false;
+        MiscElecOr = MiscWaterOr = string.Empty;
+        WcfReceivedAmount = 0m;
+        SelectedWcfDocumentId = null;
+        WcfMessage = null;
         SheetError = null;
     }
 

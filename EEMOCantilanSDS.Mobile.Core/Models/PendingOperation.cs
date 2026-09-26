@@ -17,7 +17,16 @@ public enum PendingLocalStatus
     Rejected = 2,
 
     /// <summary>Transient failure (server/network). Stays queued and is retried on the next sync.</summary>
-    Failed = 3
+    Failed = 3,
+    /// <summary>The physical ticket was issued, but the server requires office reconciliation.</summary>
+    ReconciliationRequired = 4
+}
+
+public enum IssuedDocumentLocalState
+{
+    IssuedLocallyPendingSync = 1,
+    SyncedAcknowledged = 2,
+    ReconciliationRequired = 3
 }
 
 /// <summary>
@@ -80,6 +89,15 @@ public sealed class PendingOperation
     public string? ElecORNumber { get; set; }
     public string? WaterORNumber { get; set; }
 
+    // Canonical WCF v1 received-money intent and physically issued Cash Ticket evidence.
+    public int PayloadVersion { get; set; }
+    public decimal? ReceivedAmount { get; set; }
+    public long? WaterSourceVersion { get; set; }
+    public Guid? AccountableDocumentId { get; set; }
+    public string? DocumentNumber { get; set; }
+    public DateTime? IssuedAtUtc { get; set; }
+    public IssuedDocumentLocalState? IssuedDocumentState { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -137,5 +155,11 @@ public sealed class PendingOperation
         WaterStatus,
         WaterPartialAmount,
         ElecORNumber,
-        WaterORNumber);
+        WaterORNumber,
+        PayloadVersion,
+        ReceivedAmount,
+        WaterSourceVersion,
+        AccountableDocumentId,
+        DocumentNumber,
+        IssuedAtUtc);
 }

@@ -20,6 +20,9 @@ public interface IPendingOperationStore
     /// <summary>Appends a newly-captured operation.</summary>
     Task AddAsync(PendingOperation operation);
 
+    /// <summary>Atomically persists a queued WCF operation with its consumed physical ticket identity.</summary>
+    Task AddIssuedDocumentOperationAsync(PendingOperation operation);
+
     /// <summary>Replaces the stored row that shares the same <c>ClientOperationId</c> (no-op if absent).</summary>
     Task UpdateAsync(PendingOperation operation);
 
