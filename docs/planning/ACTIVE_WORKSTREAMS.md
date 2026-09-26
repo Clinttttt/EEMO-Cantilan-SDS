@@ -1,175 +1,149 @@
-# StallTrack V2 — Active Workstreams
+# StallTrack V2 — Active Workstream
 
-**Status:** Active coordination record  
-**Scope:** Temporary file/worktree ownership for concurrent StallTrack V2 development.  
-**Authority:** This file controls edit ownership only. It does **not** override the canonical business, architecture, security, decision, or interface documents.
+**Status:** Consolidated pre-final V2 development
+**Canonical checkout:** `C:\dev\stalltrack-v2-clean`
+**Canonical branch:** `interface-v2/clean-adoption`
+**Shared preview:** `https://localhost:7167`
 
-## Why this file exists
+## Current development mode
 
-StallTrack V2 is being developed in parallel across multiple isolated Git worktrees. Each coding session must have one bounded workstream and must not edit another session's files or shared integration files unless Clint explicitly reassigns ownership.
+The parallel A–M UI sprint is closed for new implementation.
 
-Before editing code:
+From this point forward, StallTrack V2 UI work continues sequentially in the canonical checkout:
 
-1. Read `AGENTS.md`.
-2. Read this file.
-3. Read the canonical V2/business/decision documents required by `AGENTS.md`.
-4. Confirm that the file you intend to edit is owned by your current workstream.
-5. If the file is shared or owned by another active session, stop and request integration instead of editing it.
+`C:\dev\stalltrack-v2-clean`
 
-## Primary V2 checkout
+Do not start new feature implementation in the old A–M worktrees unless Clint explicitly reopens a workstream.
 
-| Purpose | Path | Branch |
-|---|---|---|
-| Current V2 visual/integration checkout | `C:\dev\stalltrack-v2-clean` | `interface-v2/clean-adoption` |
+The goal of this phase is to produce one coherent pre-final V2 repository with one accepted visual language, one integration history, and one localhost review target before later merging V2 back into the main StallTrack repository.
 
-### Temporary exception — Session C
+## Consolidated work
 
-Session C currently uses the primary checkout because the accepted/in-progress Market Fees UI already exists there as intentional uncommitted work.
+The following V2 work has been integrated into the canonical checkout:
 
-Session C must preserve all unrelated working-tree changes and evidence files. Do not reset, stash, clean, or broadly stage the primary checkout.
+| Area | Source | Canonical route | State |
+|---|---|---|---|
+| Operations discovery | Primary V2 checkout | `/operations` | Integrated |
+| Market Fees | Session C | `/operations/market-fees` | Integrated |
+| Market Fees Report | Session C | `/operations/market-fees/report` | Integrated |
+| Water Consumption Fees / WCF | Session D | `/operations/water-consumption-fees` | Integrated |
+| WCF Accounts | Session D | `/operations/water-consumption-fees/accounts` | Integrated |
+| WCF Report | Session D | `/operations/water-consumption-fees/report` | Integrated |
+| General Distribution / ECF | Session E | `/operations/ecf` | Integrated |
+| ECF Accounts | Session E | `/operations/ecf/accounts` | Integrated |
+| ECF Report | Session E | `/operations/ecf/report` | Integrated |
+| Tabo / TPM workspace | Session F | `/facility/tpm` | Integrated |
+| Tabo structured report | Session F | `/facility/tpm/report` | Integrated |
 
-Once Market Fees is visually approved and committed, Session C may be moved to its own isolated worktree if further parallel work requires it.
+The WCF and ECF entries are wired from `Operations.razor`. Tabo continues to use its existing canonical facility route.
 
-## Active session registry
+## Historical worktrees
 
-| Session | Workstream | Worktree / checkout | Branch | Owned feature boundary | Status |
-|---|---|---|---|---|---|
-| A | Rent Income | `C:\dev\stalltrack-v2-worktrees\a-rent-income` | `interface-v2/a-rent-income` | Rent Income contextual work explicitly assigned by Clint | Reserved / wait for task |
-| B | Space Rental | `C:\dev\stalltrack-v2-worktrees\b-space-rental` | `interface-v2/b-space-rental` | Space Rental contextual work explicitly assigned by Clint | Reserved / wait for task |
-| C | Market Fees | `C:\dev\stalltrack-v2-clean` | `interface-v2/clean-adoption` | `MarketFees.razor`, `MarketFees.razor.css`, and only specifically approved Market Fees changes | Active |
-| D | Water Consumption Fees / WCF | `C:\dev\stalltrack-v2-worktrees\d-wcf` | `interface-v2/d-wcf` | WCF contextual page files only | Active / isolated |
-| E | General Distribution / ECF | `C:\dev\stalltrack-v2-worktrees\e-ecf` | `interface-v2/e-ecf` | ECF contextual page files only | Active / isolated |
-| F | Tabo | `C:\dev\stalltrack-v2-worktrees\f-tabo` | `interface-v2/f-tabo` | Tabo contextual page files only | Active / isolated |
-| G | Fish / Meat Vendor Fees | `C:\dev\stalltrack-v2-worktrees\g-fish-meat-vendor` | `interface-v2/g-fish-meat-vendor` | Fish/Meat Vendor contextual page files only | Active / isolated |
-| H | Landing / Berthing | `C:\dev\stalltrack-v2-worktrees\h-landing-berthing` | `interface-v2/h-landing-berthing` | Landing/Berthing contextual page files only | Active / isolated |
-| I | Transportation Fees | `C:\dev\stalltrack-v2-worktrees\i-transportation` | `interface-v2/i-transportation` | Transportation contextual page files only | Active / isolated |
-| J | Weight & Measure / Registration | `C:\dev\stalltrack-v2-worktrees\j-weight-measure` | `interface-v2/j-weight-measure` | Weight & Measure contextual page files only | Active / isolated |
-| K | Large Cattle Transfer | `C:\dev\stalltrack-v2-worktrees\k-large-cattle` | `interface-v2/k-large-cattle` | Large Cattle contextual page files only | Active / isolated |
-| L | Ice Plant | `C:\dev\stalltrack-v2-worktrees\l-ice-plant` | `interface-v2/l-ice-plant` | Ice Plant contextual page files only | Active / isolated |
-| M | V2 Integration / Visual QA | `C:\dev\stalltrack-v2-worktrees\m-integration` | `interface-v2/m-integration` | Explicitly approved shared integration, route wiring, conflict resolution, cross-page visual QA | Integration only |
-| V2 | Planner / Reviewer | `C:\dev\stalltrack-v2-worktrees\v2-planner` | `interface-v2/v2-planner` | Read-only by default; planning/review/handoff | Planner |
+The old worktrees remain on disk for history/reference, but they are frozen for new work:
 
-## Income from Market assignment map
+- `C:\dev\stalltrack-v2-worktrees\a-rent-income`
+- `C:\dev\stalltrack-v2-worktrees\b-space-rental`
+- `C:\dev\stalltrack-v2-worktrees\d-wcf`
+- `C:\dev\stalltrack-v2-worktrees\e-ecf`
+- `C:\dev\stalltrack-v2-worktrees\f-tabo`
+- `C:\dev\stalltrack-v2-worktrees\g-fish-meat-vendor`
+- `C:\dev\stalltrack-v2-worktrees\h-landing-berthing`
+- `C:\dev\stalltrack-v2-worktrees\i-transportation`
+- `C:\dev\stalltrack-v2-worktrees\j-weight-measure`
+- `C:\dev\stalltrack-v2-worktrees\k-large-cattle`
+- `C:\dev\stalltrack-v2-worktrees\l-ice-plant`
+- `C:\dev\stalltrack-v2-worktrees\m-integration`
+- `C:\dev\stalltrack-v2-worktrees\v2-planner`
 
-The current parallel Income from Market sprint is divided as follows:
+At consolidation time, A, B, G, H, I, J, K, L, M, and V2 contained no implementation changes beyond the shared baseline. There was therefore no feature code from those branches to merge.
 
-| Operations entry | Session | Intended route |
-|---|---|---|
-| Market Fees | C | `/operations/market-fees` |
-| Water Consumption Fees / WCF | D | `/operations/water-consumption-fees` |
-| General Distribution / ECF | E | route to be approved during workstream |
-| Tabo | F | route to be approved during workstream |
-| Fish / Meat Vendor Fees | G | route to be approved during workstream |
-| Landing / Berthing | H | route to be approved during workstream |
-| Transportation Fees | I | route to be approved during workstream |
-| Weight & Measure / Registration | J | route to be approved during workstream |
-| Large Cattle Transfer | K | route to be approved during workstream |
-| Ice Plant | L | route to be approved during workstream |
+If a useful unmerged change is later discovered in one of those worktrees, inspect it first and integrate it deliberately into the canonical checkout. Do not resume independent UI evolution there.
 
-Do not invent a route merely to make a page navigable. Feature sessions report the desired route in their handoff; Session M or the explicitly designated integration owner wires shared navigation after visual approval.
+## Remaining V2 feature work
 
-## Shared localhost preview policy
+Unimplemented or still-to-be-refined contextual pages should now be developed directly and sequentially in the canonical checkout, including as applicable:
 
-All V2 workstreams use one browser-review endpoint:
+- Rent Income contextual refinements
+- Space Rental contextual refinements
+- Fish / Meat Vendor Fees
+- Landing / Berthing
+- Transportation Fees
+- Weight & Measure / Registration
+- Large Cattle Transfer
+- Ice Plant
+- remaining report refinements
+- cross-page visual consistency cleanup
+
+Do not recreate a parallel worktree sprint for these unless Clint explicitly asks.
+
+## Single implementation flow
+
+For each next page:
+
+1. Start from the latest `interface-v2/clean-adoption` HEAD.
+2. Read `AGENTS.md` and the relevant canonical business/decision documents.
+3. Inspect the most recently accepted V2 pages before designing another pattern.
+4. Implement only the requested page/workflow.
+5. Run `git diff --check`.
+6. Run the relevant Release build/tests.
+7. Preview through `https://localhost:7167`.
+8. Clint visually reviews the result.
+9. Make one focused commit after approval.
+10. Continue to the next page from that new accepted baseline.
+
+The next page must inherit established visual patterns unless its domain genuinely requires a different workflow.
+
+## Shared localhost preview
+
+All browser review uses:
 
 `https://localhost:7167`
 
-Coding remains parallel across isolated worktrees, but only one StallTrack Client preview may own the shared port at a time.
+Only one StallTrack Client preview runs at a time.
 
-Local switching helper:
+Local helper:
 
 `C:\Users\ASUS VIVOBOOK\Downloads\Preview-StallTrack.ps1`
 
 PowerShell convenience command:
 
-`preview <SESSION>`
+`preview C`
 
-Examples:
+Since the canonical checkout is now the development source, Session C / the clean checkout is the normal preview target. Custom routes can still be opened directly under port 7167.
 
-`preview C` — Market Fees from the primary V2 checkout
-`preview D` — WCF from Session D's worktree
-`preview E` — ECF from Session E's worktree
-`preview F` — Tabo from Session F's worktree
+Do not assign permanent feature ports such as 7267/7367.
 
-The helper stops the previous StallTrack V2 Client preview and starts the selected worktree on port 7167. It does not stop or modify Codex sessions.
+Do not change committed `launchSettings.json` solely for preview switching.
 
-Rules:
+## V2 visual contract
 
-- Do not assign permanent per-session ports such as 7267, 7367, or similar.
-- Do not edit committed `launchSettings.json` just to get a unique worktree port.
-- Do not run multiple StallTrack V2 Client previews concurrently.
-- A completion handoff should report the review URL using `https://localhost:7167` plus the feature route.
-- If port 7167 is occupied by an unknown/non-StallTrack process, stop and report the conflict rather than killing it.
+All new/refined pages must preserve one system-wide language:
 
-## Codex session continuity
+- dark navy + restrained municipal gold for application identity;
+- white/warm-white content surfaces;
+- compact administrative spacing;
+- strong readable typography;
+- restrained gray dividers/borders;
+- no random page-specific colors;
+- no automatic green for ordinary states such as Active or Paid;
+- no decorative SaaS-style charts unless the information genuinely benefits from one;
+- consistent hero proportions and icon treatment;
+- consistent button hierarchy;
+- consistent modal/form spacing;
+- one-border money inputs;
+- no unnecessary Notes fields;
+- no giant native dropdowns for searchable entities;
+- formal government-document styling for financial reports;
+- official EEMO report structure where evidence exists;
+- no invented financial/business semantics.
 
-The local multi-session launcher resumes the latest Codex chat associated with each worktree directory.
-
-Closing and reopening `StallTrack-Sessions-PowerShell.lnk` must resume those worktree chats instead of starting fresh chats or replaying the assignment prompt.
-
-Worktree isolation is therefore also the session-continuity boundary: A resumes A, D resumes D, and so on.
-
-## Shared-file locks
-
-Parallel feature sessions must **not** edit the following unless Clint explicitly assigns that shared-file change:
-
-- `EEMOCantilanSDS.Client/Components/Pages/Menus/Operations.razor`
-- `EEMOCantilanSDS.Client/Components/Pages/Menus/Operations.razor.css`
-- shared sidebar/navigation components
-- `MainLayout` or other global shell files
-- `FacilityHero.razor` / `FacilityHero.razor.css`
-- global design-system CSS/tokens
-- canonical business documentation
-- `docs/decisions/DECISION_REGISTRY.md`
-- shared revenue/domain models
-- API contracts
-- database migrations
-- deployment/workflow files
-
-A feature session that needs a shared-file change must place it in its completion report under **Shared-file integration requests**.
-
-Example:
-
-```text
-Shared-file integration request:
-Operations.razor
-Water Consumption Fees / WCF
-→ /operations/water-consumption-fees
-```
-
-## Feature-session editing rule
-
-A feature session may:
-
-- create or edit the page/component files explicitly assigned to its workstream;
-- use component-local hardcoded state for approved UI-only work;
-- inspect other accepted pages as visual/reference evidence;
-- build and run tests needed to validate its own work.
-
-A feature session may **not**:
-
-- redesign another workstream;
-- edit another session's owned files;
-- modify shared integration files merely to make its own page reachable;
-- change backend/domain/API/database behavior during a UI-only task;
-- alter confirmed OR/CT policy;
-- invent unresolved EEMO business rules;
-- commit before Clint visually approves the localhost result;
-- reset, clean, stash, or broadly stage work in another checkout.
+A page may differ structurally when its domain differs, but it should not invent a new design system.
 
 ## Business consistency
 
-Active ownership never changes business authority. Every session still follows the canonical reading order in `AGENTS.md`, especially:
+Consolidation does not change business authority.
 
-- `docs/v2/STALLTRACK_V2_MASTER_SPECIFICATION.md`
-- `docs/README.md`
-- `docs/business/EEMO_OPERATIONAL_RULEBOOK.md`
-- `docs/business/EEMO_BUSINESS_RULES.md`
-- `docs/business/REVENUE_ARCHITECTURE.md`
-- `docs/decisions/DECISION_REGISTRY.md`
-- relevant `docs/interface/` material
-
-Important current distinctions remain:
+Continue to preserve:
 
 - Facility != Revenue Classification
 - Obligation != Collection
@@ -178,84 +152,36 @@ Important current distinctions remain:
 - Cash Ticket collection != Cash Ticket inventory/accountability
 - Collection Efficiency != Revenue Target Attainment
 - Delinquency != Arrears
+- WCF = CT
+- ECF = OR
+- Tabo = CT
 
-## V2 visual consistency
+Do not invent unresolved Cantilan rules merely to complete a UI.
 
-Parallel UI sessions must preserve the accepted StallTrack V2 direction:
+## Commit policy
 
-- dark navy and restrained gold LGU identity;
-- dense administrative presentation;
-- strong readable typography;
-- compact white/warm-white surfaces;
-- restrained borders and status colors;
-- existing shell/sidebar visual language;
-- no generic SaaS redesign;
-- no random colorful icon system;
-- no excessive whitespace;
-- no prototype/demo wording in intended operational UI;
-- no global component redesign just to satisfy one isolated page.
+The canonical branch is the pre-final V2 integration history.
 
-Build success does not equal visual approval. Clint's localhost review is the visual gate.
+Use small, focused commits after visual approval.
 
-## Commit and integration policy
+Do not stage unrelated evidence files, secrets, local artifacts, generated binaries, or temporary files.
 
-Before visual approval:
+Before committing:
 
-- leave feature work uncommitted;
-- run `git diff --check`;
-- run the relevant build/tests;
-- report the exact files changed;
-- stop for visual review.
+- `git diff --check`
+- inspect `git status --short`
+- stage exact paths only
+- verify `git diff --cached --name-only`
 
-After approval:
+Do not push/deploy to production until the pre-final V2 review is explicitly complete.
 
-- stage only exact owned files;
-- verify `git diff --cached --name-only`;
-- make one focused workstream commit;
-- report the commit hash to the integration session.
+## Final merge target
 
-Session M must not cherry-pick or integrate a feature that Clint has not approved.
+The canonical V2 checkout is not production by itself.
 
-## Required completion handoff
+Current pre-final source:
 
-Every implementation session reports:
+`C:\dev\stalltrack-v2-clean`
+`interface-v2/clean-adoption`
 
-```text
-SESSION:
-WORKSTREAM:
-WORKTREE:
-BRANCH:
-
-FILES CREATED:
-FILES MODIFIED:
-
-BUSINESS ASSUMPTIONS USED:
-
-UI / BEHAVIOR IMPLEMENTED:
-
-SHARED-FILE INTEGRATION REQUESTS:
-
-VALIDATION:
-- git diff --check:
-- build/tests:
-- warnings/errors:
-
-NOT IMPLEMENTED / STILL GATED:
-
-VISUAL REVIEW URL:
-
-COMMIT:
-- uncommitted, or approved commit hash
-```
-
-## Updating this registry
-
-Update this file whenever:
-
-- a workstream moves to another session;
-- a session receives a new file boundary;
-- a worktree/branch is replaced;
-- a workstream completes and becomes integration-ready;
-- a shared-file lock is intentionally reassigned.
-
-Do not use this file as implementation history. Completed long-lived decisions belong in the canonical docs or decision registry.
+Later, after visual/business validation, this branch will be merged deliberately back into the main StallTrack repository/production integration path.

@@ -71,16 +71,14 @@ Migrations are **additive only** (production applies them at startup).
 
 ## Working agreements
 
-### Active multi-session coordination
+### Current V2 consolidation mode
 
-- When concurrent V2 workstreams are active, read `docs/planning/ACTIVE_WORKSTREAMS.md` before editing.
-- The active-workstream registry governs temporary file/worktree ownership only. It never overrides canonical business, architecture, security, or decision documentation.
-- Do not edit another active session's owned files or integration-locked shared files.
-- Feature sessions should request shared-file integration instead of editing shared navigation/shell files themselves.
-- Separate Git worktrees are required for concurrent implementation sessions, except for an explicitly documented temporary exception.
-- All V2 browser review uses the single shared preview endpoint `https://localhost:7167`. Only one StallTrack Client preview may run at a time; coding sessions remain parallel, but a session must take the shared preview slot before asking for localhost review.
-- Use the local `Preview-StallTrack.ps1` helper / `preview <SESSION>` command to switch the shared preview. Do not change committed `launchSettings.json` or assign permanent per-session ports such as 7267/7367.
-- Build success is not visual approval. Leave UI work uncommitted until Clint has reviewed the localhost result unless the task explicitly says otherwise.
+- The parallel A–M UI sprint is closed for new implementation. `C:\dev\stalltrack-v2-clean` on `interface-v2/clean-adoption` is the canonical pre-final V2 checkout.
+- Read `docs/planning/ACTIVE_WORKSTREAMS.md` before changing V2 UI. It records the consolidated state, remaining work, and the frozen historical worktrees.
+- Continue V2 UI work sequentially in the canonical checkout unless Clint explicitly reopens a parallel workstream.
+- Start every next page from the latest accepted canonical HEAD so it inherits the newest visual patterns and business corrections.
+- All browser review uses `https://localhost:7167`. Do not assign permanent feature ports such as 7267/7367 or change committed `launchSettings.json` only for preview switching.
+- Build success is not visual approval. Clint's localhost review remains the visual gate; once approved, make one focused commit before continuing to the next page.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
   (stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, produced invalid YAML).
