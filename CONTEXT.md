@@ -1,4 +1,4 @@
-﻿# StallTrack Domain Context
+# StallTrack Domain Context
 
 This glossary defines business terms used across StallTrack V2. It contains domain meaning only; implementation details belong elsewhere.
 
@@ -89,6 +89,14 @@ The persistent draft collection visible while staff move between Operations and 
 ## Approved Charge Line
 A Collection Line must map to an approved Revenue Classification/charge definition. Arbitrary free-text financial lines are not allowed; optional descriptive detail does not create a new revenue identity.
 
+## Governed Configurable Service
+A tenant-owned operational service whose structurally simple financial policy is defined through approved configuration rather than hard-coded guesswork. Required configuration may include stable service identity, Revenue Classification, effective-dated OR/CT policy, calculation basis/rate, Payor requirement, operational fields, active state, and allowed channels. It does not allow free-form collector-created charges. See [ADR-006](docs/decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
+
+## Setup Required Operation
+A known operation that may appear in authorized Web directory/setup surfaces while required financial policy is incomplete. It cannot create a financial Collection until the required configuration is valid and active. Transfer Large Cattle currently uses this handling while Cantilan's exact trigger, fee basis and instrument remain pending.
+
+## Mobile Configured Operation
+A focused Collector Mobile workflow exposed only when the operation is Active, Mobile-enabled, authorized/assigned to the collector, and compatible with accountable-document custody. The collector supplies transaction facts; the specialized source or approved configuration supplies classification, instrument, rate/calculation policy, and document requirements.
 ## Obligation Payment Limit
 An obligation-backed Collection Line cannot allocate more than the amount actually outstanding. V2 does not create unapplied customer credit, deposit, or advance balances unless a future approved business rule explicitly introduces them.
 

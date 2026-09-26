@@ -253,6 +253,23 @@ The office board includes an Income from Malinawa family with entries such as:
 For StallTrack V2, these do not need a hardcoded semantic catalog before UI/backend work can proceed. Support them as **admin-configurable revenue/service entries** with a label and configured rate/basis as needed.
 
 This same configurable pattern may support other future EEMO revenue lines that are not part of the fixed core catalog, provided they remain tenant-scoped and auditable.
+
+### Governed configurable service pattern
+
+A configurable service is allowed only when the operation is structurally simple enough to be represented safely by approved setup. It must not become an unrestricted generic fee form.
+
+Required governed setup may include stable service identity, approved Revenue Classification, effective-dated OR/CT policy, calculation basis/rate, Payor requirement, required transaction fields, active state, and allowed collection channels.
+
+Use **Setup Required** while any required financial policy is incomplete. An operation in Setup Required may appear in authorized Web Operations/setup surfaces, but it cannot create a financial Collection.
+
+Collectors never configure these rules. Collector Mobile may show an operation only when it is Active, Mobile-enabled, authorized/assigned to the collector, and compatible with accountable-document custody. The collector records transaction facts; StallTrack resolves the financial policy.
+
+If the operation later proves to require specialized approval, assessment, regulatory, lifecycle, or reconciliation behavior, promote it to a specialized source domain while preserving the canonical Collection model and existing posted history.
+
+**Transfer Large Cattle** is the first explicit use of this pattern. Its operation shell/directory may be designed now, but collection remains disabled until EEMO confirms and authorized setup records the exact trigger, fee/calculation basis, instrument, and required regulatory/reference details.
+
+See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
+
 ## 14. Revenue targets and reporting
 
 Confirmed target direction:
@@ -320,7 +337,9 @@ The instrument policy is already confirmed: ECF = OR, WCF = CT.
 
 ### Q3 — Transfer Large Cattle
 
-**Question:** What activity triggers **Transfer Large Cattle**, how is the fee calculated, and does it use **OR or Cash Ticket**?
+**Question:** What activity triggers **Transfer Large Cattle**, how is the fee calculated, and does it use **OR or Cash Ticket**? Confirm any mandatory certificate, ownership, animal/reference, approval, or regulatory fields that must be captured.
+
+**System-handling rule already resolved:** StallTrack uses the governed configurable-service boundary in IA-044 / ADR-006 while these Cantilan-specific facts are pending. The Operations directory and transaction-shell UX may proceed with **Setup Required**, but no financial Collection may be posted until the required approved configuration is complete. Do not guess an amount or receipt instrument.
 
 ## 17. Deferred questions that do not block current V2 work
 

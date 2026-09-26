@@ -556,6 +556,17 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** MASTER owns event/correction evidence and explicit period/cutoff/basis queries and drill-down, and labels legacy reconstruction limits. Reports remain derived. No automatic earlier-RCD restatement or later-period adjustment policy is approved; N/O/P/Q remain paused candidates.
 - **REVISIT CONDITION:** Office confirmation determines official cross-period RCD presentation/accounting. Preserve both query capabilities and the evidence needed for the eventual policy.
 
+### IA-044 — Governed configurable service operations
+
+- **ID:** IA-044
+- **SUBJECT:** Flexible but governed handling of locally defined EEMO services and Collector Mobile exposure
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt [ADR-006](ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md). A structurally simple local EEMO service may be represented by governed tenant configuration for classification, effective-dated instrument/rate/calculation policy, Payor requirement, operational fields, setup state and allowed collection channels. Incomplete setup cannot produce a financial Collection. Collectors record transaction facts only and never invent charge identity, rate, classification, or OR/CT policy.
+- **RATIONALE:** StallTrack needs to accommodate local services such as Transfer Large Cattle and future EEMO revenue lines without hard-coding guessed rules or stopping the entire V2 design while office policy is being confirmed.
+- **EVIDENCE / SOURCE:** Clint's explicit V2 architecture discussion and approval on 2026-09-27; existing Malinawa/configurable-service direction in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md); canonical no-arbitrary-line, instrument-policy, Mobile-authority and collection rules.
+- **IMPACT:** Operations may show **Setup Required** for incomplete services. Active services may feed the same canonical Collection infrastructure through Web and, only when explicitly enabled/authorized, focused Collector Mobile. Transfer Large Cattle's exact Cantilan trigger, fee/calculation basis, instrument and required regulatory details remain pending EEMO confirmation; IA-044 resolves system handling, not those business facts. A configurable service may later be promoted to a specialized source domain without rewriting posted history.
+- **REVISIT CONDITION:** A service requires materially specialized approval, regulatory, assessment, lifecycle or reconciliation behavior beyond the governed configuration model; promote that source rather than stretching the generic model.
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:

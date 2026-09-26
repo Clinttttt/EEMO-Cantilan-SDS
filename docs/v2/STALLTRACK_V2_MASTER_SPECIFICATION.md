@@ -153,6 +153,9 @@ Purpose: facility discovery and source-domain work.
 
 The Facilities landing uses the tenant-scoped configured facility catalog. Selecting a facility enters the specialized facility workflow; V2 structure must not erase NPM, monthly rental, SLH, TRM, TPM, utility, or custom-facility behavior.
 
+Operations may also list non-facility source operations and governed configurable services. A known but incomplete operation may appear as **Setup Required** for authorized Web users; that state is informational/configurational and cannot create money until all required approved policy is complete.
+
+Transfer Large Cattle currently follows this rule: its operation shell may exist, but Cantilan's exact trigger, rate/calculation basis, accountable instrument, and required regulatory fields remain pending EEMO confirmation. Do not guess them in UI or code.
 Do not fabricate Cash Ticket, OR, Accountable Forms, classification, or export workflows on the landing page merely because future architecture reserves them.
 ### Collections
 
@@ -311,7 +314,11 @@ Preserve:
 - server-issued business date as primary;
 - signed release/version coordination.
 
-No AccountableDocument, Cash Ticket custody, remittance, WCF, or vehicle-class workflow is implied by a navigation change.
+For governed configurable services, Mobile remains transaction-only. It may render an operation only when the service is Active, explicitly Mobile-enabled, authorized/assigned to the collector, and compatible with accountable-document custody. The collector supplies transaction facts; classification, instrument, rate/calculation policy, and document requirements come from the specialized source or approved tenant configuration.
+
+Do not expose Setup Required services as collectible actions to ordinary collectors. Head/Admin Web may still see their setup state. Mobile must never provide a generic form for inventing a charge name, arbitrary amount/rate, classification, or OR/CT choice.
+
+No AccountableDocument, Cash Ticket custody, remittance, WCF, vehicle-class, or configurable-service collection workflow is implied merely by a navigation change. Activation still requires its approved backend authority and rollout gate. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 ## 16. Capability status matrix
 
 | Capability | Status |
@@ -336,6 +343,8 @@ No AccountableDocument, Cash Ticket custody, remittance, WCF, or vehicle-class w
 | Revenue target setup/attainment | FUTURE / gated |
 | Remittance & Reconciliation | FUTURE; renewed approval required |
 | WCF dual-entry Web/Mobile | FUTURE / gated |
+| Governed configurable service operations | TARGET V2; IA-044. Setup Required is non-financial; Active services use approved policy and explicitly enabled channels. |
+| Transfer Large Cattle financial setup | BUSINESS POLICY PENDING; operation shell/configuration boundary may proceed, but collection remains blocked until trigger, calculation/rate, instrument, and required regulatory details are approved. |
 | Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
 | Arrears qualification and recovered-cash mapping | CONFIRMED; old/lapsed debt and paid Arrears use the dedicated Arrears classification with source traceability |
