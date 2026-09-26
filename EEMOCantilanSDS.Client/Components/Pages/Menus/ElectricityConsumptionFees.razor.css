@@ -960,3 +960,781 @@
         white-space: normal;
     }
 }
+
+/* WCF-aligned workspace refinement */
+.ecf-page {
+    width: 100%;
+    max-width: 1600px;
+    padding: 1.15rem clamp(1rem, 2.2vw, 2rem) 3rem;
+}
+
+.ecf-eyebrow {
+    color: #8a7438;
+    font-size: .64rem;
+    letter-spacing: .075em;
+}
+
+.ecf-period-desk,
+.ecf-panel {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .035);
+}
+
+.ecf-period-desk {
+    gap: 1.1rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.1rem;
+    border-left: 3px solid var(--gold);
+}
+
+.ecf-period-copy h2 {
+    font-size: 1rem;
+    font-weight: 750;
+}
+
+.ecf-period-copy > p:last-child,
+.ecf-panel-header > div > p:last-child {
+    font-size: .73rem;
+    line-height: 1.45;
+}
+
+.ecf-period-actions {
+    gap: .85rem;
+}
+
+.ecf-instrument {
+    gap: .48rem;
+    padding-right: .85rem;
+    border-right: 1px solid var(--border);
+    font-size: .76rem;
+    font-weight: 700;
+}
+
+.ecf-or-chip,
+.ecf-inline-or {
+    min-width: 1.7rem;
+    height: 1.25rem;
+    border-color: #b9c7d1;
+    border-radius: 4px;
+    background: #eef3f6;
+    color: var(--navy);
+    font-size: .6rem;
+    line-height: 1;
+}
+
+.ecf-or-chip {
+    min-width: 2.05rem;
+    height: 1.65rem;
+    padding: .18rem .42rem;
+    font-size: .68rem;
+}
+
+.ecf-button {
+    min-height: 2.38rem;
+    padding: .5rem .78rem;
+    border-radius: 6px;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.ecf-button:focus-visible,
+.ecf-modal-close:focus-visible,
+.ecf-toolbar select:focus-visible,
+.ecf-toolbar input:focus-visible,
+.ecf-form-grid input:focus-visible,
+.ecf-form-grid select:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.ecf-main-grid {
+    grid-template-columns: minmax(0, 1.62fr) minmax(17.5rem, .78fr);
+    align-items: stretch;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.ecf-panel {
+    min-width: 0;
+    overflow: hidden;
+    padding: 0;
+    background: #fff;
+}
+
+.ecf-panel-header {
+    gap: .9rem;
+    padding: .95rem 1rem .82rem;
+    border-bottom: 1px solid var(--border);
+    background: #fcfbf8;
+}
+
+.ecf-panel-header h2 {
+    font-size: .98rem;
+    font-weight: 750;
+}
+
+.ecf-panel-header > div > p:last-child {
+    max-width: 45rem;
+}
+
+.ecf-assessment-header-actions {
+    flex: 0 0 auto;
+    gap: .42rem;
+}
+
+.ecf-period-tag {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.55rem;
+    padding: .18rem .48rem;
+    border-radius: 5px;
+    background: #f5f7f8;
+    color: #435665;
+    font-size: .64rem;
+}
+
+.ecf-view-all {
+    min-height: 1.55rem;
+    padding: .18rem .55rem;
+    font-size: .64rem;
+}
+
+.ecf-toolbar {
+    display: grid;
+    grid-template-columns: minmax(9rem, .8fr) minmax(15rem, 2fr);
+    gap: .5rem;
+    margin: 0;
+    padding: .72rem .85rem;
+    border-bottom: 1px solid #e7ecef;
+    background: #fff;
+}
+
+.ecf-filter-control,
+.ecf-search-control {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+}
+
+.ecf-toolbar select,
+.ecf-toolbar input {
+    width: 100%;
+    min-width: 0;
+    height: 2.18rem;
+    border-color: #cfd8de;
+    border-radius: 5px;
+    color: var(--text);
+    font-size: .7rem;
+}
+
+.ecf-toolbar select {
+    appearance: none;
+    padding: 0 1.8rem 0 .58rem;
+    background-image: linear-gradient(45deg, transparent 50%, #718392 50%), linear-gradient(135deg, #718392 50%, transparent 50%);
+    background-position: calc(100% - 13px) 15px, calc(100% - 8px) 15px;
+    background-repeat: no-repeat;
+    background-size: 5px 5px, 5px 5px;
+    cursor: pointer;
+}
+
+.ecf-search-control svg {
+    left: .58rem;
+    top: 50%;
+    z-index: 1;
+    width: .92rem;
+    height: .92rem;
+    transform: translateY(-50%);
+}
+
+.ecf-search-control input {
+    padding: 0 .6rem 0 2rem;
+}
+
+.ecf-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border-top: 0;
+    overscroll-behavior-inline: contain;
+}
+
+.ecf-table {
+    color: #263744;
+    font-size: .69rem;
+    text-align: left;
+}
+
+.ecf-assessment-table {
+    min-width: 0;
+    table-layout: fixed;
+}
+
+.ecf-assessment-table th:first-child {
+    width: 38%;
+}
+
+.ecf-assessment-table th:nth-child(2) {
+    width: 16%;
+}
+
+.ecf-assessment-table th:nth-child(n + 3) {
+    width: 15.33%;
+}
+
+.ecf-table thead {
+    background: #f5f7f8;
+}
+
+.ecf-table th {
+    padding: .62rem .62rem;
+    border-bottom: 1px solid var(--border);
+    color: #596b78;
+    font-size: .59rem;
+    letter-spacing: .035em;
+    line-height: 1.25;
+}
+
+.ecf-table td {
+    padding: .66rem .62rem;
+    border-bottom-color: #edf0f2;
+    white-space: nowrap;
+}
+
+.ecf-table tbody tr:hover {
+    background: #fbfcfc;
+}
+
+.ecf-table td:first-child,
+.ecf-table th:first-child {
+    padding-left: .88rem;
+}
+
+.ecf-table td:last-child,
+.ecf-table th:last-child {
+    padding-right: .88rem;
+}
+
+.ecf-number {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.ecf-account-name {
+    font-size: .72rem;
+    font-weight: 750;
+}
+
+.ecf-account-area {
+    margin-top: .12rem;
+    color: #71808a;
+    font-size: .61rem;
+}
+
+.ecf-assessment-table .ecf-occupant-cell {
+    white-space: normal;
+}
+
+.ecf-empty-cell {
+    padding: 1.7rem !important;
+    color: #6b7b86;
+    text-align: center;
+}
+
+.ecf-table-footer {
+    gap: .75rem;
+    padding: .58rem .9rem;
+    border-top: 1px solid #e9edf0;
+    color: #71808a;
+    background: #fcfdfd;
+    font-size: .62rem;
+}
+
+.ecf-summary-panel {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
+
+.ecf-summary-list {
+    margin: 0;
+    padding: .15rem 1rem;
+}
+
+.ecf-summary-list > div {
+    display: grid;
+    grid-template-columns: minmax(7.6rem, .9fr) minmax(0, 1.1fr);
+    gap: .55rem;
+    min-height: 0;
+    padding: .64rem 0;
+    border-top: 0;
+    border-bottom: 1px solid #e9ecec;
+    font-size: .68rem;
+}
+
+.ecf-summary-list > div:last-child {
+    border-bottom: 0;
+}
+
+.ecf-summary-list dt {
+    color: #657581;
+}
+
+.ecf-summary-list dd {
+    color: var(--navy);
+    font-size: .71rem;
+    font-weight: 700;
+}
+
+.ecf-summary-list .ecf-summary-emphasis dd {
+    font-size: .86rem;
+    font-weight: 800;
+}
+
+.ecf-collection-rate {
+    margin: auto 1rem 1rem;
+    padding: .68rem .75rem;
+    border: 1px solid #d9e0e4;
+    border-radius: 6px;
+    background: #fbfbfa;
+}
+
+.ecf-collection-rate .ecf-eyebrow {
+    color: #707d85;
+    font-size: .58rem;
+}
+
+.ecf-collection-rate strong {
+    margin: .08rem 0 .12rem;
+    font-size: 1.02rem;
+    font-weight: 800;
+}
+
+.ecf-collection-rate p:last-child {
+    margin: 0;
+    color: #687984;
+    font-size: .64rem;
+    line-height: 1.4;
+}
+
+.ecf-activity-panel {
+    margin-top: 1rem;
+}
+
+.ecf-activity-table {
+    min-width: 820px;
+}
+
+.ecf-activity-table td:nth-child(4) {
+    color: #4e606b;
+}
+
+/* Modal composition and shared form controls */
+.ecf-modal {
+    width: min(100%, 760px);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    border-radius: 8px;
+}
+
+.ecf-payment-modal {
+    width: min(100%, 620px);
+}
+
+.ecf-modal-header {
+    padding: 1.15rem 1.35rem .9rem;
+}
+
+.ecf-modal-header h2 {
+    font-size: 1.08rem;
+    font-weight: 750;
+}
+
+.ecf-modal-header > p:last-child {
+    font-size: .73rem;
+    line-height: 1.45;
+}
+
+.ecf-context-strip {
+    gap: .9rem;
+    padding: .72rem 1.35rem;
+    border-bottom-color: #e8ecee;
+    background: #fcfbf8;
+}
+
+.ecf-context-strip span,
+.ecf-payment-facts span,
+.ecf-payment-account span {
+    font-size: .59rem;
+}
+
+.ecf-context-strip strong,
+.ecf-payment-facts strong,
+.ecf-payment-account strong {
+    font-size: .72rem;
+    line-height: 1.4;
+}
+
+.ecf-modal-section-label {
+    padding: .9rem 1.35rem 0;
+    color: #6c7b84;
+    font-size: .61rem;
+    font-weight: 800;
+    letter-spacing: .065em;
+}
+
+.ecf-form-grid {
+    gap: .78rem .85rem;
+    padding: .72rem 1.35rem 1rem;
+}
+
+.ecf-account-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-top: .6rem;
+    padding-bottom: .75rem;
+}
+
+.ecf-basis-form {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 0;
+    padding-bottom: 1rem;
+}
+
+.ecf-basis-form .ecf-field {
+    max-width: 25rem;
+}
+
+.ecf-field {
+    gap: .36rem;
+    color: #435665;
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.ecf-form-grid input,
+.ecf-form-grid select {
+    height: 2.25rem;
+    border-color: #cbd5db;
+    border-radius: 5px;
+    color: var(--text);
+    font-size: .72rem;
+}
+
+.ecf-form-grid input {
+    padding: 0 .62rem;
+}
+
+.ecf-form-grid select {
+    appearance: none;
+    padding: 0 1.8rem 0 .62rem;
+    background-image: linear-gradient(45deg, transparent 50%, #718392 50%), linear-gradient(135deg, #718392 50%, transparent 50%);
+    background-position: calc(100% - 13px) 15px, calc(100% - 8px) 15px;
+    background-repeat: no-repeat;
+    background-size: 5px 5px, 5px 5px;
+    cursor: pointer;
+}
+
+.ecf-form-grid input:focus,
+.ecf-form-grid select:focus {
+    border-color: #9a8245;
+    outline: 0;
+    box-shadow: 0 0 0 2px rgba(200, 168, 75, .16);
+}
+
+.ecf-charge-fields {
+    margin: 0 1.35rem;
+    border-top-color: #e8ecee;
+}
+
+.ecf-charge-heading {
+    margin-top: .78rem;
+    color: #6b7b86;
+    font-size: .61rem;
+}
+
+.ecf-charge-fields .ecf-form-grid {
+    padding: .65rem 0 1rem;
+}
+
+.ecf-unit-input,
+.ecf-money-control {
+    height: 2.25rem;
+    border-color: #cbd5db;
+    border-radius: 5px;
+}
+
+.ecf-unit-input:focus-within,
+.ecf-money-control:focus-within {
+    border-color: #9a8245;
+    box-shadow: 0 0 0 2px rgba(200, 168, 75, .16);
+}
+
+.ecf-unit-input input,
+.ecf-money-control input {
+    height: calc(2.25rem - 2px);
+    font-size: .72rem;
+}
+
+.ecf-amount-due {
+    margin: 0 1.35rem 1rem;
+    padding: .72rem .85rem;
+    border-color: #d9e0e4;
+    border-radius: 6px;
+    background: #fbfbfa;
+}
+
+.ecf-amount-due span {
+    color: #657581;
+    font-size: .6rem;
+}
+
+.ecf-amount-due strong {
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.ecf-modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: .72rem 1.35rem;
+    border-top-color: #e3e8eb;
+    background: #fff;
+}
+
+.ecf-payment-context {
+    padding: .8rem 1.35rem .55rem;
+}
+
+.ecf-payment-account {
+    padding-bottom: .7rem;
+    border-bottom-color: #e8ecee;
+}
+
+.ecf-payment-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .72rem .65rem;
+    padding-top: .7rem;
+}
+
+.ecf-payment-facts strong {
+    display: block;
+    white-space: nowrap;
+}
+
+.ecf-payment-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: .2rem;
+    padding-top: .65rem;
+    padding-bottom: .9rem;
+}
+
+.ecf-modal-footer .ecf-button {
+    min-height: 2.25rem;
+}
+
+@media (max-width: 1180px) {
+    .ecf-period-desk {
+        align-items: flex-start;
+    }
+
+    .ecf-period-actions {
+        align-items: flex-end;
+        flex-direction: column;
+        gap: .55rem;
+    }
+
+    .ecf-instrument {
+        align-self: flex-end;
+        padding-right: 0;
+        border-right: 0;
+    }
+
+    .ecf-main-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(16rem, .52fr);
+    }
+}
+
+@media (max-width: 920px) {
+    .ecf-main-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ecf-summary-panel {
+        display: grid;
+        grid-template-columns: minmax(0, .9fr) minmax(0, 1.5fr);
+        align-items: start;
+    }
+
+    .ecf-summary-panel .ecf-panel-header {
+        grid-row: span 2;
+        height: 100%;
+        border-right: 1px solid var(--border);
+        border-bottom: 0;
+    }
+
+    .ecf-collection-rate {
+        margin: 0 1rem 1rem;
+    }
+}
+
+@media (max-width: 760px) {
+    .ecf-page {
+        padding: .85rem .8rem 2rem;
+    }
+
+    .ecf-period-desk {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .8rem;
+        padding: .85rem;
+    }
+
+    .ecf-period-actions {
+        align-items: stretch;
+    }
+
+    .ecf-instrument {
+        align-self: flex-start;
+    }
+
+    .ecf-toolbar {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ecf-toolbar select,
+    .ecf-toolbar input {
+        height: 2.35rem;
+    }
+
+    .ecf-panel-header {
+        padding: .82rem .85rem .72rem;
+    }
+
+    .ecf-assessment-header-actions {
+        align-items: flex-end;
+        flex-direction: column;
+    }
+
+    .ecf-summary-panel {
+        display: flex;
+    }
+
+    .ecf-summary-panel .ecf-panel-header {
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .ecf-collection-rate {
+        margin: .2rem .85rem .85rem;
+    }
+
+    .ecf-account-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .ecf-modal-section-label {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .ecf-modal-header,
+    .ecf-context-strip,
+    .ecf-payment-context {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .ecf-form-grid {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .ecf-basis-form .ecf-field {
+        max-width: none;
+    }
+
+    .ecf-charge-fields {
+        margin-right: 1rem;
+        margin-left: 1rem;
+    }
+
+    .ecf-charge-fields .ecf-form-grid {
+        padding-right: 0;
+        padding-left: 0;
+    }
+
+    .ecf-amount-due {
+        margin-right: 1rem;
+        margin-left: 1rem;
+    }
+
+    .ecf-modal-footer {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+}
+
+@media (max-width: 520px) {
+    .ecf-period-actions {
+        gap: .7rem;
+    }
+
+    .ecf-action-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        width: 100%;
+    }
+
+    .ecf-action-buttons .ecf-button:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .ecf-assessment-header-actions {
+        gap: .3rem;
+    }
+
+    .ecf-period-tag,
+    .ecf-view-all {
+        min-height: 1.65rem;
+    }
+
+    .ecf-summary-panel {
+        display: flex;
+    }
+
+    .ecf-account-form,
+    .ecf-basis-form,
+    .ecf-payment-form {
+        grid-template-columns: 1fr;
+    }
+
+    .ecf-payment-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ecf-form-grid .ecf-field-full {
+        grid-column: auto;
+    }
+
+    .ecf-context-strip {
+        grid-template-columns: 1fr;
+        gap: .55rem;
+    }
+
+    .ecf-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .ecf-modal,
+    .ecf-payment-modal {
+        width: 100%;
+        max-height: 92vh;
+        border-radius: 12px 12px 0 0;
+    }
+}
