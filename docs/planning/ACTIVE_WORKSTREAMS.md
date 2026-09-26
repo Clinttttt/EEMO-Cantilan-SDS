@@ -74,16 +74,28 @@ Every active session can therefore inspect the latest accepted V2 work instead o
 
 Session C remains attached to the canonical checkout so its existing Codex conversation/worktree continuity is preserved. It must avoid broad shared-file changes while another feature session is actively editing related files.
 
-## Itemized Collections parallel-lane discipline
+## Itemized Collections single-MASTER implementation governance
 
-The N–Q sessions are one coordinated program, not four independent redesigns.
+N/O/P/Q are paused candidate workstreams, not active implementation agents.
 
-- **N — Itemized Collections Core** owns shared financial domain/application/persistence/API work for Collection, CollectionLine, allocations, canonical posting, instrument-policy enforcement, concurrency, and the AccountableDocument bridge. N is the contract authority for this program.
-- **O — Collection Composer / Web** owns Client-side Current Collection / Collection Composer UX and payor/operation entry surfaces. O must not invent backend contracts or edit shared revenue/domain models; when N has not exposed a required contract, O records an integration request and continues only with isolated UI work.
-- **P — Itemization Migration / Legacy Adapters** owns historical compatibility, legacy-source mapping, cutover/reconciliation design, and source adapters that preserve existing financial truth. P must not fabricate historical receipt groupings or allocations.
-- **Q — Collection Activity / RCD Reporting** owns read models, Collection Activity presentation, derived RCD/category aggregation, and itemized reporting. Q derives from canonical posted collection lines and must not create a second write path for financial totals.
+**Current status: PERMANENTLY PAUSED as implementation sessions.** Their partial, uncommitted worktrees remain available as read-only candidate evidence. Do not resume, modify, merge, discard, reset or synchronize them. Clint approved the canonical baseline and directed MASTER / V2 Planner to be the sole primary implementation agent, proceeding sequentially on `interface-v2/clean-adoption`, one bounded phase at a time. The role descriptions below and in the session guides record provenance, file history and architectural concern boundaries only; they do not assign work or authorize parallel implementation. MASTER may selectively reuse, adapt, reject, defer or reimplement candidate pieces after review.
 
-N may proceed with implementation immediately after reviewing the canonical decisions. O/P/Q may work simultaneously only inside those boundaries. Shared model/API changes proposed by O/P/Q are requests to N, not independent edits.
+- **N — Itemized Collections Core (candidate provenance)** records shared financial domain/application/persistence/API concerns for Collection, CollectionLine, allocations, posting, instrument policy, concurrency and accountable documents. Its partial work is read-only evidence and has no implementation contract authority.
+- **O — Collection Composer / Web (candidate provenance)** records Current Collection/Composer UX and payor/operation entry concerns. Its UI assumptions do not define backend contracts or shared financial models.
+- **P — Itemization Migration / Legacy Adapters (candidate provenance)** records historical compatibility, source mapping, cutover/reconciliation and adapter concerns. Candidate work must not fabricate historical receipt groupings or allocations.
+- **Q — Collection Activity / RCD Reporting (candidate provenance)** records read models, activity, derived RCD/category aggregation and itemized reporting concerns. Candidate reporting must not create a second write path or financial totals authority.
+
+MASTER proceeds through the approved phases sequentially. Candidate guidance does not authorize O/P/Q to work simultaneously or N to resume as a contract authority. MASTER decides whether candidate pieces are kept, adapted, rejected or deferred; prior implementation is not architectural approval.
+
+[IA-038 / ADR-001 — Business Payor identity](../decisions/ADR_001_BUSINESS_PAYOR_IDENTITY.md) is a confirmed StallTrack domain decision. MASTER implements its minimal shared contract and explicit source associations, preserves unresolved historical identity, and freezes posted payer evidence. This introduces no new assessment or settlement authority.
+
+[IA-039 / Q42 and IA-040 / Q43 — Per-source canonical settlement cutover](../decisions/ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md) are confirmed target architecture: an explicit scoped reconciliation gate before freezing opening evidence and activating Canonical authority, followed by canonical posting with atomic compatibility projections. MASTER owns the transition/posting contracts, writer enforcement and reconciliation evidence. Every affected writer and in-flight channel must be covered, including physical issued documents. Unready sources remain Legacy; late old submissions remain preserved reconciliation exceptions.
+
+[IA-041 / Q44 — Durable posting operation identity](../decisions/ADR_003_DURABLE_POSTING_OPERATIONS.md) binds tenant + ClientOperationId to normalized immutable intent and one durable outcome. MASTER owns registry, normalization, transaction behavior and consumer integration. The registry replaces mutable source keys as canonical idempotency authority. No new key bypasses document/source/reconciliation rules.
+
+[IA-042 / Q45 — Versioned Web drafts](../decisions/ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md) makes the server authoritative for durable tenant/user-owned draft state. MASTER owns revision-bound mutation/review, recovery UX and atomic single-post linkage. One DraftId yields at most one Collection, independently of operation-key retries. Shared editing/handoff is not approved; abandoned-draft retention is deferred.
+
+[IA-043 / Q46 — AsOf and LatestCorrected reporting](../decisions/ADR_005_CORRECTION_REPORTING_BASES.md) preserves immutable original/correction events and distinct business/effective/recorded dates. MASTER owns that evidence, financial effects and explicit reporting bases while preserving legacy-history limits. Official cross-period RCD treatment remains pending Office confirmation. Clint approved the [MASTER implementation baseline](../v2/ITEMIZED_COLLECTIONS_CANONICAL_IMPLEMENTATION_BASELINE.md) and sequential single-MASTER workflow.
 
 All N–Q sessions must read root `CONTEXT.md`, `docs/business/REVENUE_ARCHITECTURE.md`, `docs/decisions/DECISION_REGISTRY.md`, and the current code before acting.
 

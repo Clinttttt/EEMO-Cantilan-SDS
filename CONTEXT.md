@@ -3,7 +3,10 @@
 This glossary defines business terms used across StallTrack V2. It contains domain meaning only; implementation details belong elsewhere.
 
 ## Payor
-The person or business whose collection/document context is being recorded. A single accountable document belongs to one payor context. Payor identity may be optional for appropriate transactional Cash Ticket collections.
+The tenant-scoped canonical business identity of a person or organization whose identity StallTrack intentionally maintains across approved operational relationships. Payor identifies who those relationships belong to; specialized domains determine what is owed. It is independent of portal activation and cannot be inferred from matching names or other non-authoritative text. A single accountable document has one payer context, which may remain anonymous, named-snapshot-only, or one-off where the operation permits it. Posted payer evidence is preserved independently of later master-record edits. See [ADR-001](docs/decisions/ADR_001_BUSINESS_PAYOR_IDENTITY.md) for the accepted target constraints and conservative migration rules.
+
+## PayorUser
+The authentication/access identity. Its relationship to a business Payor, where supported, is explicit and optional; it is not the authoritative financial/business identity.
 
 ## Obligation
 An amount owed under a specialized business domain, such as stall rental or a utility assessment. An obligation is not the same thing as money received.
@@ -54,7 +57,7 @@ Transparent calculation detail for the fixed/approved slaughterhouse charge pack
 The shared working surface used to assemble compatible Collection Lines before money is posted. It may be entered from a specialized Operation or from a Payor/Account, but both paths represent the same collection workflow.
 
 ## Draft Collection
-An unposted working collection. Adding an item to a Draft Collection does not yet mean money has been received. A Draft becomes financial history only when it is reviewed and posted.
+An unposted working collection. In the approved Web target, it is server-persisted with a stable DraftId and revision, but creates no revenue, money allocation, document consumption, RCD entry or Collection Activity. Review and successful canonical posting create the resulting financial history. See [ADR-004](docs/decisions/ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md).
 
 ## Collection Session
 A user-facing visit/work session that may result in more than one Collection when the payer is settling both OR-compatible and CT-compatible items. A Collection Session is not itself a financial transaction.
@@ -130,7 +133,7 @@ Head and Admin may manage OR/CT books, series/ranges, assignment, and office cus
 A normal physical office collection cannot be posted without its required valid OR/CT number. Controlled exception workflows such as legitimate Awaiting OR online payments remain separate and do not weaken this rule.
 
 ## Draft Ownership
-An unfinished Current Collection remains a non-financial draft belonging to the current user/session context until resumed, reviewed, posted, or explicitly discarded. A stale draft must be revalidated before later posting.
+A Web draft belongs to its tenant and owning user and can be recovered in a later authenticated session. Mutations require its expected revision; review binds the exact meaningful financial state/revision. Posting revalidates current facts and requires renewed review for material changes. One DraftId produces at most one successful Collection, even across different ClientOperationId values. Initial ownership excludes shared editing/handoff; discard remains non-financial. See [ADR-004](docs/decisions/ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md).
 
 ## Concurrent Posting Guard
 Final posting revalidates outstanding amounts, allocations, document-number uniqueness/custody, instrument policy, and totals atomically. A stale concurrent attempt fails cleanly instead of double-settling an obligation.

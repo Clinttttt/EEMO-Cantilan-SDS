@@ -484,6 +484,78 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Individual facilities, Collection Manager, Follow-up History, and Export Data are not required permanent global entries. Existing routes remain compatible. A navigation-content change does not authorize page-body redesign.
 - **REVISIT CONDITION:** Revisit only when a new functional capability proves it needs permanent global access or office workflow evidence shows the curated list is insufficient.
 
+### IA-038 — Business Payor identity independent of authentication
+
+- **ID:** IA-038
+- **SUBJECT:** Tenant-owned business identity for approved operational relationships
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt a small, stable business Payor independent of authentication, governed by the twelve constraints in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). `PayorUser` remains optional authentication/access identity; authoritative source relationships determine eligible obligations; posted payer evidence is frozen.
+- **RATIONALE:** Office obligations must not depend on portal registration, and textual similarity cannot establish financial identity. Payor identifies who, without introducing assessment, balance, receivable, or settlement authority.
+- **EVIDENCE / SOURCE:** Clint's explicit acceptance of MASTER Grill Me Q41 on 2026-09-26, including all twelve constraints, recorded in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). This is a StallTrack engineering/domain decision, not an additional EEMO accounting policy.
+- **IMPACT:** Approved target semantics only. Preserve permitted anonymous/one-off payer contexts, tenant isolation, historical evidence, and unresolved legacy identity. MASTER owns sequential implementation; N/O/P/Q remain paused candidate workstreams. No partial candidate work or financial cutover is approved by this decision.
+- **REVISIT CONDITION:** Concrete source relationship or access requirements expose a conflict with these constraints; bring it to MASTER rather than infer identity or introduce another ledger.
+
+### IA-039 — Per-source canonical settlement cutover
+
+- **ID:** IA-039
+- **SUBJECT:** Opening legacy settlement and one settlement authority after conversion
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt [ADR-002](ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md): frozen evidenced opening settlement, explicit per-source Legacy/Canonical authority marker, canonical post-cutover collections/lines/allocations, and legacy paid/status fields maintained only as atomic compatibility projections.
+- **RATIONALE:** Incremental migration must preserve historical evidence while preventing independent legacy and canonical settlement paths from changing the same balance.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q42 approval on 2026-09-26, including eight clarifications and the payment/reversal example, recorded in ADR-002.
+- **IMPACT:** Every writer for a converted source, including Mobile, online and corrections, follows canonical posting. Retain original assessment, opening settlement, allocations and correction evidence. Opening settlement is not a new collection and must not inflate canonical cash reports/RCD/Activity. No source conversion or lane restart is authorized by this decision alone.
+- **REVISIT CONDITION:** A concrete source cannot satisfy the single-authority or atomic-projection rule; escalate before conversion. The separately approved operational readiness gate is IA-040 / Q43.
+
+### IA-040 — Controlled reconciliation gate before cutover
+
+- **ID:** IA-040
+- **SUBJECT:** Scoped reconciliation before freezing opening settlement and activating Canonical authority
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Apply the eight requirements in [ADR-002, Q43](ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md#controlled-reconciliation-gate--q43): mark an explicit scope Pending Cutover, quiesce its new legacy activity, drain/reconcile all in-flight channels and physical documents, freeze evidenced opening positions, then activate Canonical authority. Unready sources remain Legacy.
+- **RATIONALE:** Server cumulative state can omit physically collected money still in device queues or in-flight processing. Snapshotting server state alone cannot establish a reliable opening boundary.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q43 approval on 2026-09-26, including eight clarifications and the WCF PHP 800 assessment / PHP 300 reconciled opening settled / PHP 500 outstanding example.
+- **IMPACT:** Late old submissions become preserved reconciliation exceptions, retaining ClientOperationId/document identity; no automatic legacy write, opening-snapshot change, or conversion of cumulative values into receipts. Issued OR/CT units stay consumed. Unrelated sources continue normally. MASTER coordinates enforcement and evidence sequentially; no actual cutover is authorized by this decision alone.
+- **REVISIT CONDITION:** A proposed cutover cannot account for affected offline, physical-document, Web, online or retry/idempotency activity. Defer that scope rather than weaken the gate.
+
+### IA-041 — Durable posting operation identity
+
+- **ID:** IA-041
+- **SUBJECT:** Tenant-scoped immutable posting intent and durable outcome
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt the eleven requirements in [ADR-003](ADR_003_DURABLE_POSTING_OPERATIONS.md). TenantId + ClientOperationId binds one normalized semantic posting intent to its durable outcome. Equivalent retries return the existing authorized outcome; changed-intent reuse is an explicit IDEMPOTENCY CONFLICT; concurrent identical requests have one financial effect.
+- **RATIONALE:** Mutable source-row keys and duplicate flags cannot preserve posting intent or durable retry history through installments, corrections and cutover.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q44 approval on 2026-09-26, including scope, normalization, atomicity, authorization, correction, document and failure semantics.
+- **IMPACT:** MASTER owns the durable registry and atomic success transaction. Preserve original bindings after reversal, expose current disposition, distinguish infrastructure failure from durable business rejection, and never let a new key bypass document/source/reconciliation rules. Existing source keys are compatibility only once active. N/O/P/Q remain paused candidate workstreams.
+- **REVISIT CONDITION:** A proposed workflow cannot preserve immutable intent, tenant-safe authorized replay or atomic financial success; resolve it before that workflow converts.
+
+### IA-042 — Server-persisted versioned Web collection drafts
+
+- **ID:** IA-042
+- **SUBJECT:** Durable user-owned draft authority, revision-bound review and one successful posting
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Apply all ten requirements in [ADR-004](ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md). Stable tenant/user-owned DraftId, server persistence, expected-revision mutation checks, normalized financial review binding, final revalidation and atomic Posted/CollectionId linkage. One DraftId produces at most one successful Collection regardless of operation keys.
+- **RATIONALE:** Circuit-local state and a review boolean cannot provide durable recovery or protect review integrity across tabs. Posting retry identity and draft identity solve separate problems.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q45 approval on 2026-09-26, including ten requirements and multi-tab/posting examples.
+- **IMPACT:** Drafts create no revenue, allocation or document consumption and are excluded from financial Activity/RCD. Material changes require renewed review. MASTER owns draft persistence, contracts and consumers sequentially. Shared editing/handoff requires separate approval. Abandoned-draft retention is deferred. N/O/P/Q remain paused candidates.
+- **REVISIT CONDITION:** A concrete workflow requires shared ownership or cannot satisfy atomic single posting/review integrity; return to MASTER before expanding the model.
+
+### IA-043 — As-of and latest-corrected reporting
+
+- **ID:** IA-043
+- **SUBJECT:** Immutable events/corrections, recorded-knowledge cutoff and explicit reporting basis
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt all eleven requirements in [ADR-005](ADR_005_CORRECTION_REPORTING_BASES.md). AsOf uses only events/corrections durably recorded by its cutoff; LatestCorrected follows all currently applicable corrections to period events. Preserve original events, distinct dates, correction relationships and explicit financial effects. Official cross-period RCD treatment remains pending Office confirmation.
+- **RATIONALE:** Later or backdated corrections must not rewrite what the system knew earlier. A replacement physical document does not by itself represent another receipt of money.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q46 approval on 2026-09-26, including eleven requirements and the September 26 collection / September 27 reversal example.
+- **IMPACT:** MASTER owns event/correction evidence and explicit period/cutoff/basis queries and drill-down, and labels legacy reconstruction limits. Reports remain derived. No automatic earlier-RCD restatement or later-period adjustment policy is approved; N/O/P/Q remain paused candidates.
+- **REVISIT CONDITION:** Office confirmation determines official cross-period RCD presentation/accounting. Preserve both query capabilities and the evidence needed for the eventual policy.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
@@ -497,6 +569,7 @@ The following items require EEMO input, a UX decision, or a stated technical pre
 | IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
+| IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |
 
 ## 5. Superseded interpretations
 

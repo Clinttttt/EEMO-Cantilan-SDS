@@ -36,6 +36,7 @@ Before changing V2 code, read:
 ### V2 orientation
 
 - `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — canonical V2 orientation and change-control specification. Start here; follow its links to the detailed authoritative domain documents.
+- `v2/ITEMIZED_COLLECTIONS_CANONICAL_IMPLEMENTATION_BASELINE.md` — MASTER itemized collection implementation baseline prepared for Clint's approval; distinguishes accepted decisions, proposed implementation sequencing and remaining rollout gates. It does not authorize implementation while pending approval.
 
 ### Architecture
 
