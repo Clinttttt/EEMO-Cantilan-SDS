@@ -1,4 +1,6 @@
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -19,6 +21,20 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.Property(x => x.ElecStatus).IsRequired().HasConversion<int>();
             builder.Property(x => x.WaterStatus).IsRequired().HasConversion<int>();
+            builder.Property(x => x.ElectricitySettlementAuthorityState)
+                .HasConversion<int>().HasDefaultValue(SettlementAuthority.Legacy).IsRequired().IsConcurrencyToken();
+            builder.Property(x => x.WaterSettlementAuthorityState)
+                .HasConversion<int>().HasDefaultValue(SettlementAuthority.Legacy).IsRequired().IsConcurrencyToken();
+            builder.Property(x => x.ElectricitySettlementCutoverId);
+            builder.Property(x => x.WaterSettlementCutoverId);
+            builder.HasOne<CollectionSettlementCutover>().WithMany()
+                .HasForeignKey(x => new { x.MunicipalityId, x.ElectricitySettlementCutoverId })
+                .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne<CollectionSettlementCutover>().WithMany()
+                .HasForeignKey(x => new { x.MunicipalityId, x.WaterSettlementCutoverId })
+                .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
             builder.Property(x => x.ElecORNumber).HasMaxLength(50);
             builder.Property(x => x.WaterORNumber).HasMaxLength(50);
             builder.Property(x => x.ElecPaidAt);
@@ -56,7 +72,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.HasIndex(x => new { x.StallId, x.BillingYear, x.BillingMonth }).IsUnique();
 
             // Offline-sync idempotency: a client operation id maps to at most one bill (DB backstop).
-            builder.HasIndex(x => x.ClientOperationId)
+            builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId })
                 .IsUnique()
                 .HasFilter("\"ClientOperationId\" IS NOT NULL");
 

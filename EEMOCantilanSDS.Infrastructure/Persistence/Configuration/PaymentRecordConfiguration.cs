@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -17,7 +18,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.ToTable("PaymentRecords");
 
             // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop).
-            builder.HasIndex(x => x.ClientOperationId)
+            builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId })
                 .IsUnique()
                 .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
@@ -38,6 +39,17 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.Status)
                 .IsRequired()
                 .HasConversion<int>();
+
+            builder.Property(x => x.SettlementAuthorityState)
+                .HasConversion<int>()
+                .HasDefaultValue(SettlementAuthority.Legacy)
+                .IsRequired()
+                .IsConcurrencyToken();
+            builder.Property(x => x.SettlementCutoverId);
+            builder.HasOne<CollectionSettlementCutover>().WithMany()
+                .HasForeignKey(x => new { x.MunicipalityId, x.SettlementCutoverId })
+                .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
              
 
             builder.Property(s => s.ORNumber)

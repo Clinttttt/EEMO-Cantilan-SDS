@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using System;
 using System.Collections.Generic;
@@ -23,6 +24,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
         // Offline-sync idempotency key from the mobile client (null for online records).
         public Guid? ClientOperationId { get; private set; }
+        public SettlementAuthority SettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public Guid? SettlementCutoverId { get; private set; }
 
         // Fee breakdown
         public decimal BaseRentalAmount { get; private set; }
@@ -86,6 +89,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         string? remarks = null,
         string updatedBy = "System")
         {
+            EnsureLegacySettlementAuthority();
             ORNumber = orNumber;
             CollectorId = collectorId;
             Status = status;
@@ -117,6 +121,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void BackdateReceipt(DateTime receivedAt, string updatedBy = "System")
         {
+            EnsureLegacySettlementAuthority();
             if (PaidAt is null) return;
             if (receivedAt > PaidAt) return;
 
@@ -131,6 +136,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void SetOrNumber(string orNumber, string updatedBy = "System")
         {
+            EnsureLegacySettlementAuthority();
             ORNumber = orNumber;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
@@ -144,6 +150,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void MarkPaidOnline(string remarks, string updatedBy = "Online")
         {
+            EnsureLegacySettlementAuthority();
             Status = PaymentStatus.Paid;
             CollectorId = null;
             ORNumber = null;
@@ -162,6 +169,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void MarkPartiallyPaidOnline(decimal amountReceived, string remarks, string updatedBy = "Online")
         {
+            EnsureLegacySettlementAuthority();
             Status = PaymentStatus.Partial;
             CollectorId = null;
             ORNumber = null;
@@ -174,6 +182,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
         public void MarkUnpaid(string updatedBy = "System")
         {
+            EnsureLegacySettlementAuthority();
             Status = PaymentStatus.Unpaid;
             ORNumber = null;
             CollectorId = null;
@@ -184,7 +193,33 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
-        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+        public void SetClientOperationId(Guid clientOperationId)
+        {
+            EnsureLegacySettlementAuthority();
+            if (clientOperationId == Guid.Empty)
+                throw new ArgumentException("Client operation id must be valid.", nameof(clientOperationId));
+            ClientOperationId = clientOperationId;
+        }
+
+        public void MarkSettlementPendingCutover()
+        {
+            if (SettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Only a Legacy source can enter Pending Cutover.");
+            SettlementAuthorityState = SettlementAuthority.PendingCutover;
+        }
+
+        public void ActivateCanonicalSettlement(CollectionSettlementCutover cutover)
+        {
+            ArgumentNullException.ThrowIfNull(cutover);
+            if (SettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Reconciliation must complete before Canonical activation.");
+            if (cutover.SourceKind != CollectionSourceKind.PaymentRecord
+                || cutover.SourceId != Id || cutover.SourcePart is not null
+                || (MunicipalityId != Guid.Empty && cutover.MunicipalityId != MunicipalityId))
+                throw new InvalidOperationException("The frozen cutover does not identify this tenant's PaymentRecord source.");
+            SettlementCutoverId = cutover.Id;
+            SettlementAuthorityState = SettlementAuthority.Canonical;
+        }
 
         public void UpdateStatus(
             PaymentStatus status,
@@ -193,6 +228,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string updatedBy = "System",
             Guid? collectorId = null)
         {
+            EnsureLegacySettlementAuthority();
             // Auto-upgrade from Partial to Paid if partial amount equals or exceeds total bill
             if (status == PaymentStatus.Partial && partialAmount >= TotalBill)
             {
@@ -210,6 +246,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 CollectorId = collectorId.Value;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+        }
+
+        private void EnsureLegacySettlementAuthority()
+        {
+            if (SettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Legacy settlement writers are disabled once cutover begins.");
         }
     }
 }

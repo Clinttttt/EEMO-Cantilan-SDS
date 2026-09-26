@@ -27,6 +27,19 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }
+        DbSet<Payor> Payors { get; }
+        DbSet<CollectionAllocation> CollectionAllocations { get; }
+        DbSet<WebCollectionDraft> WebCollectionDrafts { get; }
+        DbSet<WebCollectionDraftLine> WebCollectionDraftLines { get; }
+        DbSet<WebCollectionDraftAllocation> WebCollectionDraftAllocations { get; }
+        DbSet<PostingOperation> PostingOperations { get; }
+        DbSet<CollectionSettlementCutover> CollectionSettlementCutovers { get; }
+        DbSet<AccountableFormBook> AccountableFormBooks { get; }
+        DbSet<AccountableDocument> AccountableDocuments { get; }
+        DbSet<AccountableFormAssignment> AccountableFormAssignments { get; }
+        DbSet<CollectionCorrection> CollectionCorrections { get; }
+        DbSet<CollectionCorrectionLine> CollectionCorrectionLines { get; }
+        DbSet<CollectionCorrectionAllocation> CollectionCorrectionAllocations { get; }
 
     /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
     DbSet<FacilitySectionRate> FacilitySectionRates { get; }

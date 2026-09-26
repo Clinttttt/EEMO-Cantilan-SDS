@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -18,6 +19,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.HasKey(c => c.Id);
 
             builder.Property(s=> s.StallId).IsRequired();
+            builder.Property(x => x.PayorId);
 
             builder.Property(s=> s.ORNumber)
                 .HasMaxLength(50);
@@ -51,6 +53,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.HasOne(c => c.Stall)
                 .WithMany(s => s.Contracts)
                 .HasForeignKey(c => c.StallId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(c => c.Payor)
+                .WithMany()
+                .HasForeignKey(c => new { c.MunicipalityId, c.PayorId })
+                .HasPrincipalKey(p => new { p.MunicipalityId, p.Id })
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.Ignore(x => x.ExpiryDate);

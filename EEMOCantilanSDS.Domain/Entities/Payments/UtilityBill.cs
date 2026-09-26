@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Domain.Entities.Payments
@@ -48,6 +49,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateTime? PaidAt { get; private set; }
         public string? Remarks { get; private set; }
         public Guid? ClientOperationId { get; private set; }
+        public SettlementAuthority ElectricitySettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public SettlementAuthority WaterSettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public Guid? ElectricitySettlementCutoverId { get; private set; }
+        public Guid? WaterSettlementCutoverId { get; private set; }
 
         // ── Computed (never negative; a lower current reading yields zero, not a credit) ──
         public decimal ElecConsumption => Math.Max(0m, ElecCurrentReading - ElecPreviousReading);
@@ -191,17 +196,29 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string? remarks = null,
             string updatedBy = "System")
         {
-            ElecStatus = Normalize(elecStatus, elecPartialAmount ?? 0m, ElecCharge, out var elecPartial);
+            var nextElecStatus = Normalize(elecStatus, elecPartialAmount ?? 0m, ElecCharge, out var elecPartial);
+            var nextWaterStatus = Normalize(waterStatus, waterPartialAmount ?? 0m, WaterCharge, out var waterPartial);
+            var nextElecOr = nextElecStatus == PaymentStatus.Unpaid ? null
+                : string.IsNullOrWhiteSpace(elecOrNumber) ? ElecORNumber : elecOrNumber;
+            var nextWaterOr = nextWaterStatus == PaymentStatus.Unpaid ? null
+                : string.IsNullOrWhiteSpace(waterOrNumber) ? WaterORNumber : waterOrNumber;
+
+            EnsureLegacyUtilityWriter(ElectricitySettlementAuthorityState,
+                nextElecStatus == ElecStatus && elecPartial == ElecPartialAmount && nextElecOr == ElecORNumber,
+                "electricity");
+            EnsureLegacyUtilityWriter(WaterSettlementAuthorityState,
+                nextWaterStatus == WaterStatus && waterPartial == WaterPartialAmount && nextWaterOr == WaterORNumber,
+                "water");
+
+            ElecStatus = nextElecStatus;
             ElecPartialAmount = elecPartial;
-            WaterStatus = Normalize(waterStatus, waterPartialAmount ?? 0m, WaterCharge, out var waterPartial);
+            WaterStatus = nextWaterStatus;
             WaterPartialAmount = waterPartial;
 
             // Per-utility OR: keep on payment, clear when reset to Unpaid.
-            if (ElecStatus == PaymentStatus.Unpaid) ElecORNumber = null;
-            else if (!string.IsNullOrWhiteSpace(elecOrNumber)) ElecORNumber = elecOrNumber;
+            ElecORNumber = nextElecOr;
 
-            if (WaterStatus == PaymentStatus.Unpaid) WaterORNumber = null;
-            else if (!string.IsNullOrWhiteSpace(waterOrNumber)) WaterORNumber = waterOrNumber;
+            WaterORNumber = nextWaterOr;
 
             // Per-utility paid-at: stamp on first settlement, preserve on re-marks, clear when reset to Unpaid.
             if (ElecStatus == PaymentStatus.Unpaid) ElecPaidAt = null;
@@ -239,6 +256,61 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline payment).</summary>
-        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+        public void SetClientOperationId(Guid clientOperationId)
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
+                || WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Legacy idempotency writers are disabled once cutover begins.");
+            if (clientOperationId == Guid.Empty)
+                throw new ArgumentException("Client operation id must be valid.", nameof(clientOperationId));
+            ClientOperationId = clientOperationId;
+        }
+
+        private static void EnsureLegacyUtilityWriter(
+            SettlementAuthority authority, bool unchanged, string utility)
+        {
+            if (authority != SettlementAuthority.Legacy && !unchanged)
+                throw new InvalidOperationException($"Legacy {utility} settlement writers are disabled once cutover begins.");
+        }
+
+        public void MarkElectricityPendingCutover()
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Only Legacy electricity settlement can enter Pending Cutover.");
+            ElectricitySettlementAuthorityState = SettlementAuthority.PendingCutover;
+        }
+
+        public void ActivateCanonicalElectricitySettlement(CollectionSettlementCutover cutover)
+        {
+            ArgumentNullException.ThrowIfNull(cutover);
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Electricity reconciliation must complete before Canonical activation.");
+            if (cutover.SourceKind != CollectionSourceKind.UtilityBill || cutover.SourceId != Id
+                || cutover.SourcePart != CollectionSourcePart.Electricity
+                || (MunicipalityId != Guid.Empty && cutover.MunicipalityId != MunicipalityId))
+                throw new InvalidOperationException("The frozen cutover does not identify this tenant's electricity source.");
+            ElectricitySettlementCutoverId = cutover.Id;
+            ElectricitySettlementAuthorityState = SettlementAuthority.Canonical;
+        }
+
+        public void MarkWaterPendingCutover()
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Only Legacy water settlement can enter Pending Cutover.");
+            WaterSettlementAuthorityState = SettlementAuthority.PendingCutover;
+        }
+
+        public void ActivateCanonicalWaterSettlement(CollectionSettlementCutover cutover)
+        {
+            ArgumentNullException.ThrowIfNull(cutover);
+            if (WaterSettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Water reconciliation must complete before Canonical activation.");
+            if (cutover.SourceKind != CollectionSourceKind.UtilityBill || cutover.SourceId != Id
+                || cutover.SourcePart != CollectionSourcePart.Water
+                || (MunicipalityId != Guid.Empty && cutover.MunicipalityId != MunicipalityId))
+                throw new InvalidOperationException("The frozen cutover does not identify this tenant's water source.");
+            WaterSettlementCutoverId = cutover.Id;
+            WaterSettlementAuthorityState = SettlementAuthority.Canonical;
+        }
     }
 }

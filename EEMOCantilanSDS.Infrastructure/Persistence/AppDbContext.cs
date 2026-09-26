@@ -65,6 +65,19 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }
         public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; set; }
         public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; set; }
+        public DbSet<Payor> Payors { get; set; }
+        public DbSet<CollectionAllocation> CollectionAllocations { get; set; }
+        public DbSet<WebCollectionDraft> WebCollectionDrafts { get; set; }
+        public DbSet<WebCollectionDraftLine> WebCollectionDraftLines { get; set; }
+        public DbSet<WebCollectionDraftAllocation> WebCollectionDraftAllocations { get; set; }
+        public DbSet<PostingOperation> PostingOperations { get; set; }
+        public DbSet<CollectionSettlementCutover> CollectionSettlementCutovers { get; set; }
+        public DbSet<AccountableFormBook> AccountableFormBooks { get; set; }
+        public DbSet<AccountableDocument> AccountableDocuments { get; set; }
+        public DbSet<AccountableFormAssignment> AccountableFormAssignments { get; set; }
+        public DbSet<CollectionCorrection> CollectionCorrections { get; set; }
+        public DbSet<CollectionCorrectionLine> CollectionCorrectionLines { get; set; }
+        public DbSet<CollectionCorrectionAllocation> CollectionCorrectionAllocations { get; set; }
         public DbSet<FacilitySectionRate> FacilitySectionRates { get; set; }
         public DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; set; }
         public DbSet<FacilitySectionClosure> FacilitySectionClosures { get; set; }

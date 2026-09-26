@@ -6,6 +6,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 /// <summary>An immutable classified portion of money received, retaining both policy and origin identity.</summary>
 public sealed class CollectionLine : BaseEntity, IMunicipalityOwned
 {
+    private readonly List<CollectionAllocation> _allocations = [];
     public Guid MunicipalityId { get; private set; }
     public Guid CollectionId { get; private set; }
     public Guid RevenueClassificationId { get; private set; }
@@ -14,6 +15,8 @@ public sealed class CollectionLine : BaseEntity, IMunicipalityOwned
     public CollectionSourceKind? SourceKind { get; private set; }
     public Guid? SourceId { get; private set; }
     public CollectionSourcePart? SourcePart { get; private set; }
+    public string? CalculationSnapshot { get; private set; }
+    public IReadOnlyCollection<CollectionAllocation> Allocations => _allocations.AsReadOnly();
 
     private CollectionLine() { }
 
@@ -25,7 +28,13 @@ public sealed class CollectionLine : BaseEntity, IMunicipalityOwned
         decimal amount,
         CollectionSourceKind? sourceKind,
         Guid? sourceId,
-        CollectionSourcePart? sourcePart) => new()
+        CollectionSourcePart? sourcePart,
+        string? calculationSnapshot,
+        IReadOnlyList<CollectionAllocationDraft>? allocations)
+    {
+        if (calculationSnapshot?.Length > 16_384)
+            throw new ArgumentException("Calculation snapshot is too large.", nameof(calculationSnapshot));
+        var line = new CollectionLine
         {
             Id = Guid.NewGuid(),
             MunicipalityId = municipalityId,
@@ -35,8 +44,18 @@ public sealed class CollectionLine : BaseEntity, IMunicipalityOwned
             Amount = amount,
             SourceKind = sourceKind,
             SourceId = sourceId,
-            SourcePart = sourcePart
+            SourcePart = sourcePart,
+            CalculationSnapshot = calculationSnapshot
         };
+        if (allocations is { Count: > 0 })
+        {
+            if (allocations.Sum(x => x.Amount) != amount)
+                throw new ArgumentException("Explicit allocations must equal the collection-line amount.", nameof(allocations));
+            foreach (var allocation in allocations)
+                line._allocations.Add(CollectionAllocation.Create(municipalityId, line.Id, allocation));
+        }
+        return line;
+    }
 
     internal static void ValidateSource(
         CollectionSourceKind? sourceKind,

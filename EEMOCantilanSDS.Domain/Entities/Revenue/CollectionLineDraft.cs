@@ -12,4 +12,6 @@ public sealed record CollectionLineDraft(
     decimal Amount,
     CollectionSourceKind? SourceKind = null,
     Guid? SourceId = null,
-    CollectionSourcePart? SourcePart = null);
+    CollectionSourcePart? SourcePart = null,
+    string? CalculationSnapshot = null,
+    IReadOnlyList<CollectionAllocationDraft>? Allocations = null);

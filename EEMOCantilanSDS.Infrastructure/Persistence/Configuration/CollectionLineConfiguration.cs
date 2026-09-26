@@ -20,6 +20,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
         });
 
         builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         builder.Property(x => x.MunicipalityId).IsRequired();
         builder.Property(x => x.CollectionId).IsRequired();
         builder.Property(x => x.RevenueClassificationId).IsRequired();
@@ -28,6 +29,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
         builder.Property(x => x.SourceKind).HasConversion<int?>();
         builder.Property(x => x.SourceId);
         builder.Property(x => x.SourcePart).HasConversion<int?>();
+        builder.Property(x => x.CalculationSnapshot).HasColumnType("text");
 
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectionId });
         builder.HasIndex(x => new
@@ -59,5 +61,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
                 x.Id
             })
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Navigation(x => x.Allocations).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
