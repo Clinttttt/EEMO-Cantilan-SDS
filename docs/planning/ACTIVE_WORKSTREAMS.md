@@ -1,149 +1,211 @@
-# StallTrack V2 — Active Workstream
+# StallTrack V2 — Active Workstreams
 
-**Status:** Consolidated pre-final V2 development
-**Canonical checkout:** `C:\dev\stalltrack-v2-clean`
-**Canonical branch:** `interface-v2/clean-adoption`
-**Shared preview:** `https://localhost:7167`
+**Status:** Active linked-worktree development
+**Repository model:** One Git repository, multiple linked worktrees/branches
+**Canonical integration checkout:** `C:\dev\stalltrack-v2-clean`
+**Canonical integration branch:** `interface-v2/clean-adoption`
+**Shared browser preview:** `https://localhost:7167`
 
-## Current development mode
+## Development model
 
-The parallel A–M UI sprint is closed for new implementation.
+StallTrack V2 uses one Git repository.
 
-From this point forward, StallTrack V2 UI work continues sequentially in the canonical checkout:
+The directories under:
+
+`C:\dev\stalltrack-v2-worktrees`
+
+are Git worktrees linked to the same repository as:
 
 `C:\dev\stalltrack-v2-clean`
 
-Do not start new feature implementation in the old A–M worktrees unless Clint explicitly reopens a workstream.
+They are not separate clones or independent projects.
 
-The goal of this phase is to produce one coherent pre-final V2 repository with one accepted visual language, one integration history, and one localhost review target before later merging V2 back into the main StallTrack repository.
+This lets multiple Codex sessions work on different branches simultaneously while sharing the same repository history.
 
-## Consolidated work
+The canonical integration branch is:
 
-The following V2 work has been integrated into the canonical checkout:
+`interface-v2/clean-adoption`
 
-| Area | Source | Canonical route | State |
+Feature branches are merged back into this branch after review.
+
+## Current consolidated baseline
+
+All active linked worktrees were synchronized to the current consolidated V2 baseline after the Market Fees, WCF, ECF, and Tabo work was integrated.
+
+The canonical baseline already contains:
+
+- Operations workspace
+- Market Fees workspace
+- Market Fees report
+- Water Consumption Fees / WCF workspace
+- WCF accounts page
+- WCF report
+- General Distribution / ECF workspace
+- ECF accounts page
+- ECF report
+- Tabo / TPM refinement
+- Tabo structured report
+- WCF and ECF Operations navigation wiring
+
+Every active session can therefore inspect the latest accepted V2 work instead of designing against an older copy.
+
+## Session / branch / worktree map
+
+| Session | Workstream | Branch | Worktree |
 |---|---|---|---|
-| Operations discovery | Primary V2 checkout | `/operations` | Integrated |
-| Market Fees | Session C | `/operations/market-fees` | Integrated |
-| Market Fees Report | Session C | `/operations/market-fees/report` | Integrated |
-| Water Consumption Fees / WCF | Session D | `/operations/water-consumption-fees` | Integrated |
-| WCF Accounts | Session D | `/operations/water-consumption-fees/accounts` | Integrated |
-| WCF Report | Session D | `/operations/water-consumption-fees/report` | Integrated |
-| General Distribution / ECF | Session E | `/operations/ecf` | Integrated |
-| ECF Accounts | Session E | `/operations/ecf/accounts` | Integrated |
-| ECF Report | Session E | `/operations/ecf/report` | Integrated |
-| Tabo / TPM workspace | Session F | `/facility/tpm` | Integrated |
-| Tabo structured report | Session F | `/facility/tpm/report` | Integrated |
+| A | Rent Income | `interface-v2/a-rent-income` | `C:\dev\stalltrack-v2-worktrees\a-rent-income` |
+| B | Space Rental | `interface-v2/b-space-rental` | `C:\dev\stalltrack-v2-worktrees\b-space-rental` |
+| C | Market Fees / canonical UI continuity | `interface-v2/clean-adoption` | `C:\dev\stalltrack-v2-clean` |
+| D | Water Consumption Fees / WCF | `interface-v2/d-wcf` | `C:\dev\stalltrack-v2-worktrees\d-wcf` |
+| E | General Distribution / ECF | `interface-v2/e-ecf` | `C:\dev\stalltrack-v2-worktrees\e-ecf` |
+| F | Tabo | `interface-v2/f-tabo` | `C:\dev\stalltrack-v2-worktrees\f-tabo` |
+| G | Fish / Meat Vendor Fees | `interface-v2/g-fish-meat-vendor` | `C:\dev\stalltrack-v2-worktrees\g-fish-meat-vendor` |
+| H | Landing / Berthing | `interface-v2/h-landing-berthing` | `C:\dev\stalltrack-v2-worktrees\h-landing-berthing` |
+| I | Transportation Fees | `interface-v2/i-transportation` | `C:\dev\stalltrack-v2-worktrees\i-transportation` |
+| J | Weight & Measure / Registration | `interface-v2/j-weight-measure` | `C:\dev\stalltrack-v2-worktrees\j-weight-measure` |
+| K | Large Cattle Transfer | `interface-v2/k-large-cattle` | `C:\dev\stalltrack-v2-worktrees\k-large-cattle` |
+| L | Ice Plant | `interface-v2/l-ice-plant` | `C:\dev\stalltrack-v2-worktrees\l-ice-plant` |
+| M | Integration / Visual QA | `interface-v2/m-integration` | `C:\dev\stalltrack-v2-worktrees\m-integration` |
+| V2 | Planner / Reviewer | `interface-v2/v2-planner` | `C:\dev\stalltrack-v2-worktrees\v2-planner` |
 
-The WCF and ECF entries are wired from `Operations.razor`. Tabo continues to use its existing canonical facility route.
+Session C remains attached to the canonical checkout so its existing Codex conversation/worktree continuity is preserved. It must avoid broad shared-file changes while another feature session is actively editing related files.
 
-## Historical worktrees
+## Baseline synchronization
 
-The old worktrees remain on disk for history/reference, but they are frozen for new work:
+Before the multi-session launcher opens Codex tabs, it runs:
 
-- `C:\dev\stalltrack-v2-worktrees\a-rent-income`
-- `C:\dev\stalltrack-v2-worktrees\b-space-rental`
-- `C:\dev\stalltrack-v2-worktrees\d-wcf`
-- `C:\dev\stalltrack-v2-worktrees\e-ecf`
-- `C:\dev\stalltrack-v2-worktrees\f-tabo`
-- `C:\dev\stalltrack-v2-worktrees\g-fish-meat-vendor`
-- `C:\dev\stalltrack-v2-worktrees\h-landing-berthing`
-- `C:\dev\stalltrack-v2-worktrees\i-transportation`
-- `C:\dev\stalltrack-v2-worktrees\j-weight-measure`
-- `C:\dev\stalltrack-v2-worktrees\k-large-cattle`
-- `C:\dev\stalltrack-v2-worktrees\l-ice-plant`
-- `C:\dev\stalltrack-v2-worktrees\m-integration`
-- `C:\dev\stalltrack-v2-worktrees\v2-planner`
+`C:\Users\ASUS VIVOBOOK\Downloads\Sync-StallTrack-Worktrees.ps1`
 
-At consolidation time, A, B, G, H, I, J, K, L, M, and V2 contained no implementation changes beyond the shared baseline. There was therefore no feature code from those branches to merge.
+The sync helper is intentionally conservative.
 
-If a useful unmerged change is later discovered in one of those worktrees, inspect it first and integrate it deliberately into the canonical checkout. Do not resume independent UI evolution there.
+For each linked worktree:
 
-## Remaining V2 feature work
+- clean + only behind canonical → fast-forward to canonical;
+- already current → no action;
+- uncommitted changes present → skip;
+- branch has unmerged commits → skip;
+- no automatic reset;
+- no automatic rebase;
+- no forced checkout;
+- no work is discarded.
 
-Unimplemented or still-to-be-refined contextual pages should now be developed directly and sequentially in the canonical checkout, including as applicable:
+This ensures idle sessions inherit the latest accepted UI and business corrections without overwriting active work.
 
-- Rent Income contextual refinements
-- Space Rental contextual refinements
-- Fish / Meat Vendor Fees
-- Landing / Berthing
-- Transportation Fees
-- Weight & Measure / Registration
-- Large Cattle Transfer
-- Ice Plant
-- remaining report refinements
-- cross-page visual consistency cleanup
+## Session continuity
 
-Do not recreate a parallel worktree sprint for these unless Clint explicitly asks.
+The launcher is:
 
-## Single implementation flow
+`C:\Users\ASUS VIVOBOOK\Downloads\StallTrack-Sessions-PowerShell.lnk`
 
-For each next page:
+which runs:
 
-1. Start from the latest `interface-v2/clean-adoption` HEAD.
-2. Read `AGENTS.md` and the relevant canonical business/decision documents.
-3. Inspect the most recently accepted V2 pages before designing another pattern.
-4. Implement only the requested page/workflow.
+`C:\Users\ASUS VIVOBOOK\Downloads\StallTrack-Sessions.ps1`
+
+Each tab resumes the latest Codex conversation associated with that worktree using no-daemon mode.
+
+The launcher does not inject the old `You are StallTrack Session ...` assignment prompts.
+
+Do not move/rename the existing worktree directories casually; the stable worktree paths help preserve Codex session continuity.
+
+## Parallel-work rule
+
+Parallel work is allowed only when workstreams are genuinely separated.
+
+A feature session owns its contextual page/component files.
+
+Do not independently edit another feature session's files.
+
+Shared files require explicit coordination, especially:
+
+- `EEMOCantilanSDS.Client/Components/Pages/Menus/Operations.razor`
+- `Operations.razor.css`
+- shared sidebar/navigation
+- `MainLayout`
+- `FacilityHero.razor` / `FacilityHero.razor.css`
+- global CSS/design tokens
+- shared domain/revenue models
+- API contracts
+- migrations
+- canonical business/decision documentation
+- deployment/workflow files
+
+When a feature needs a shared navigation change, record the requested route in its handoff and integrate it through the canonical branch rather than letting several sessions edit the same shared file concurrently.
+
+## Canonical integration flow
+
+Use this sequence for each feature:
+
+1. Sync the feature branch to the latest canonical baseline before starting.
+2. Work only inside that session's linked worktree.
+3. Inspect the latest accepted V2 pages for visual consistency.
+4. Keep business/domain rules specific to the feature.
 5. Run `git diff --check`.
 6. Run the relevant Release build/tests.
-7. Preview through `https://localhost:7167`.
-8. Clint visually reviews the result.
-9. Make one focused commit after approval.
-10. Continue to the next page from that new accepted baseline.
+7. Preview the feature through the shared localhost slot.
+8. Clint visually reviews it.
+9. Commit the approved feature on its feature branch.
+10. Merge that feature branch into `interface-v2/clean-adoption`.
+11. Run the combined build from `C:\dev\stalltrack-v2-clean`.
+12. Sync idle worktrees forward again.
 
-The next page must inherit established visual patterns unless its domain genuinely requires a different workflow.
+Do not let many feature branches accumulate for days without integration; that recreates the stale-UI problem.
 
 ## Shared localhost preview
 
-All browser review uses:
+All sessions use one browser endpoint:
 
 `https://localhost:7167`
 
 Only one StallTrack Client preview runs at a time.
 
-Local helper:
+PowerShell helper:
 
-`C:\Users\ASUS VIVOBOOK\Downloads\Preview-StallTrack.ps1`
+`preview <SESSION>`
 
-PowerShell convenience command:
+Examples:
 
-`preview C`
+`preview C` — canonical / Market Fees checkout
+`preview D` — WCF branch
+`preview E` — ECF branch
+`preview F` — Tabo branch
+`preview K` — Large Cattle branch
 
-Since the canonical checkout is now the development source, Session C / the clean checkout is the normal preview target. Custom routes can still be opened directly under port 7167.
+The preview helper switches the running Client process only. It does not close or modify Codex sessions.
 
-Do not assign permanent feature ports such as 7267/7367.
+Do not assign permanent per-session ports such as 7267, 7367, or 7467.
 
-Do not change committed `launchSettings.json` solely for preview switching.
+## Visual consistency contract
 
-## V2 visual contract
+Multiple branches do not mean multiple design systems.
 
-All new/refined pages must preserve one system-wide language:
+Every feature must inherit the accepted V2 language:
 
-- dark navy + restrained municipal gold for application identity;
+- dark navy application identity;
+- restrained municipal gold;
 - white/warm-white content surfaces;
 - compact administrative spacing;
 - strong readable typography;
-- restrained gray dividers/borders;
+- restrained gray borders/dividers;
 - no random page-specific colors;
 - no automatic green for ordinary states such as Active or Paid;
-- no decorative SaaS-style charts unless the information genuinely benefits from one;
-- consistent hero proportions and icon treatment;
-- consistent button hierarchy;
-- consistent modal/form spacing;
+- consistent hero proportions and gold outlined icon treatment;
+- consistent primary/secondary button hierarchy;
+- consistent modal/form spacing and controls;
 - one-border money inputs;
 - no unnecessary Notes fields;
 - no giant native dropdowns for searchable entities;
-- formal government-document styling for financial reports;
-- official EEMO report structure where evidence exists;
-- no invented financial/business semantics.
+- formal government-document styling for reports;
+- official EEMO report structure when evidence exists;
+- no generic SaaS redesign;
+- no invented business semantics.
 
-A page may differ structurally when its domain differs, but it should not invent a new design system.
+A page may differ structurally because its business workflow differs, but it must still look like the same StallTrack system.
 
 ## Business consistency
 
-Consolidation does not change business authority.
+Worktree ownership never changes business authority.
 
-Continue to preserve:
+Preserve these distinctions:
 
 - Facility != Revenue Classification
 - Obligation != Collection
@@ -156,32 +218,34 @@ Continue to preserve:
 - ECF = OR
 - Tabo = CT
 
-Do not invent unresolved Cantilan rules merely to complete a UI.
+Do not invent unresolved Cantilan rules merely to finish a page.
 
-## Commit policy
+## Commit / merge discipline
 
-The canonical branch is the pre-final V2 integration history.
+Before approval:
 
-Use small, focused commits after visual approval.
+- do not merge into canonical;
+- keep changes scoped to the feature branch;
+- run diff/build validation;
+- report the review URL.
 
-Do not stage unrelated evidence files, secrets, local artifacts, generated binaries, or temporary files.
+After approval:
 
-Before committing:
+- stage exact files only;
+- commit one focused feature change;
+- merge into canonical;
+- run the combined build;
+- sync idle branches.
 
-- `git diff --check`
-- inspect `git status --short`
-- stage exact paths only
-- verify `git diff --cached --name-only`
+Never use broad reset/clean/stash operations across worktrees.
 
-Do not push/deploy to production until the pre-final V2 review is explicitly complete.
+Do not push/deploy production merely because a feature branch builds.
 
-## Final merge target
+## Pre-final destination
 
-The canonical V2 checkout is not production by itself.
-
-Current pre-final source:
+All approved V2 feature branches ultimately converge into:
 
 `C:\dev\stalltrack-v2-clean`
 `interface-v2/clean-adoption`
 
-Later, after visual/business validation, this branch will be merged deliberately back into the main StallTrack repository/production integration path.
+That checkout is the pre-final V2 integration source that will later be merged deliberately back into the main StallTrack repository/production path.

@@ -71,14 +71,15 @@ Migrations are **additive only** (production applies them at startup).
 
 ## Working agreements
 
-### Current V2 consolidation mode
+### Current V2 linked-worktree mode
 
-- The parallel A–M UI sprint is closed for new implementation. `C:\dev\stalltrack-v2-clean` on `interface-v2/clean-adoption` is the canonical pre-final V2 checkout.
-- Read `docs/planning/ACTIVE_WORKSTREAMS.md` before changing V2 UI. It records the consolidated state, remaining work, and the frozen historical worktrees.
-- Continue V2 UI work sequentially in the canonical checkout unless Clint explicitly reopens a parallel workstream.
-- Start every next page from the latest accepted canonical HEAD so it inherits the newest visual patterns and business corrections.
-- All browser review uses `https://localhost:7167`. Do not assign permanent feature ports such as 7267/7367 or change committed `launchSettings.json` only for preview switching.
-- Build success is not visual approval. Clint's localhost review remains the visual gate; once approved, make one focused commit before continuing to the next page.
+- StallTrack V2 uses one Git repository with linked Git worktrees for concurrent sessions. `C:\dev\stalltrack-v2-clean` on `interface-v2/clean-adoption` is the canonical pre-final integration checkout; the A–M directories under `C:\dev\stalltrack-v2-worktrees` are linked worktrees of that same repository, not independent clones.
+- Read `docs/planning/ACTIVE_WORKSTREAMS.md` before changing V2 UI. It defines session ownership, branch/worktree mapping, integration rules, and shared-file boundaries.
+- Every feature branch must begin from the latest accepted canonical HEAD. The local launcher safely fast-forwards an idle clean worktree when it is only behind canonical; it never resets, rebases, or overwrites dirty/diverged work automatically.
+- Sessions may work concurrently only on clearly separated feature boundaries. Shared navigation, shell, global design-system files, and cross-feature integration belong to the canonical integration flow.
+- After Clint approves a feature, make one focused commit on that feature branch and merge it back into `interface-v2/clean-adoption`; then sync the remaining idle worktrees forward before starting more UI work.
+- All browser review uses `https://localhost:7167`. Only one StallTrack Client preview runs at a time; do not assign permanent feature ports such as 7267/7367 or change committed `launchSettings.json` only for preview switching.
+- Build success is not visual approval. Clint's localhost review remains the visual gate.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
   (stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, produced invalid YAML).
