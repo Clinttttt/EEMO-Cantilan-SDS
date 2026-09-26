@@ -78,7 +78,7 @@
                 </label>
             </div>
 
-            <div class="ecf-table-wrap" role="region" aria-label="Current ECF assessments" tabindex="0">
+            <div class="ecf-table-wrap ecf-assessment-scroll" role="region" aria-label="Current ECF assessments, scroll for additional accounts" tabindex="0">
                 <table class="ecf-table ecf-assessment-table">
                     <caption class="ecf-sr-only">September 2026 electricity account assessments and balances</caption>
                     <thead>
@@ -91,7 +91,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var account in LandingAccounts)
+                        @foreach (var account in FilteredAccounts)
                         {
                             <tr>
                                 <td class="ecf-occupant-cell">
@@ -104,7 +104,7 @@
                                 <td class="ecf-number ecf-balance">@Money(account.Balance)</td>
                             </tr>
                         }
-                        @if (!LandingAccounts.Any())
+                        @if (!FilteredAccounts.Any())
                         {
                             <tr><td class="ecf-empty-cell" colspan="5">No electricity accounts match the selected filters.</td></tr>
                         }
@@ -112,7 +112,7 @@
                 </table>
             </div>
             <footer class="ecf-table-footer">
-                <span>Showing @LandingAccounts.Count() of @FilteredAccounts.Count() electricity accounts</span>
+                <span>@FilteredAccounts.Count() electricity accounts</span>
                 <span>Billing period: September 2026</span>
             </footer>
         </section>
@@ -154,9 +154,10 @@
             </dl>
 
             <div class="ecf-collection-rate" aria-label="Collection rate @CollectionRate.ToString("N1") percent">
-                <p class="ecf-eyebrow">COLLECTION RATE</p>
-                <strong>@CollectionRate.ToString("N1")%</strong>
-                <p>@Money(TotalCollected) collected<br />of @Money(TotalBilled) billed</p>
+                <span class="ecf-collection-rate-label">COLLECTION RATE</span>
+                <strong class="ecf-collection-rate-value">@CollectionRate.ToString("N1")%</strong>
+                <span class="ecf-collection-rate-detail">@Money(TotalCollected) collected</span>
+                <span class="ecf-collection-rate-detail ecf-collection-rate-billed">of @Money(TotalBilled) billed</span>
             </div>
         </aside>
     </div>
@@ -221,7 +222,7 @@
             <div class="ecf-context-strip">
                 <div><span>Billing Period</span><strong>September 2026</strong></div>
                 <div><span>Revenue Source</span><strong>General Distribution / ECF</strong></div>
-                <div><span>Instrument</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
+                <div><span>Collection document</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
             </div>
 
             <div class="ecf-modal-section-label">ELECTRICITY ACCOUNT</div>
@@ -354,7 +355,7 @@
                     <div><span>Amount Due</span><strong>@Money(_paymentAccount.Due)</strong></div>
                     <div><span>Previously Paid</span><strong>@Money(_paymentAccount.Paid)</strong></div>
                     <div><span>Outstanding</span><strong>@Money(_paymentAccount.Balance)</strong></div>
-                    <div><span>Instrument</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
+                    <div><span>Collection document</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
                 </div>
             </div>
 
@@ -391,7 +392,7 @@
     private bool _assessmentModalOpen;
     private bool _paymentModalOpen;
     private EcfAccount? _paymentAccount;
-    private string _assessmentAccount = "NPM F-01";
+    private string _assessmentAccount = "1";
     private string _assessmentOccupant = "Juan Dela Cruz";
     private string _assessmentArea = "Fish Section";
     private BasisKind _chargeBasis = BasisKind.Metered;
@@ -409,9 +410,9 @@
 
     private static readonly IReadOnlyList<EcfActivity> Activities = new[]
     {
-        new EcfActivity(UpdatedOn, "NPM F-01", BillingPeriod, "OR Payment", 420m, 0m, "001234567", "Collector A"),
-        new EcfActivity(UpdatedOn, "NPM M-04", BillingPeriod, "Assessment", 680m, 280m, "—", "Admin"),
-        new EcfActivity(UpdatedOn, "NPM F-07", BillingPeriod, "Assessment", 350m, 350m, "—", "Admin"),
+        new EcfActivity(UpdatedOn, "Stall No. 1", BillingPeriod, "OR Payment", 420m, 0m, "001234567", "Collector A"),
+        new EcfActivity(UpdatedOn, "Stall No. 2", BillingPeriod, "Assessment", 680m, 280m, "—", "Admin"),
+        new EcfActivity(UpdatedOn, "Stall No. 3", BillingPeriod, "Assessment", 350m, 350m, "—", "Admin"),
         new EcfActivity(UpdatedOn, "Shared Market Area", BillingPeriod, "OR Payment", 1200m, 0m, "001234569", "Admin")
     };
 
@@ -422,7 +423,6 @@
             || account.Occupant.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
             || account.Area.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
 
-    private IEnumerable<EcfAccount> LandingAccounts => FilteredAccounts.Take(8);
     private decimal TotalBilled => Accounts.Sum(account => account.Due);
     private decimal TotalCollected => Accounts.Sum(account => account.Paid);
     private decimal TotalOutstanding => Accounts.Sum(account => account.Balance);
@@ -456,7 +456,10 @@
     private static string Money(decimal amount) => $"₱{amount:N2}";
 
     private static string AccountContext(EcfAccount account) =>
-        account.Code == "COMMON-01" ? account.Area : $"{account.Code} · {account.Area}";
+        account.Code.StartsWith("COMMON-", StringComparison.OrdinalIgnoreCase)
+        || account.Code.StartsWith("SHARED-", StringComparison.OrdinalIgnoreCase)
+            ? account.Area
+            : $"Stall No. {account.Code} · {account.Area}";
 
     private static string PaymentContext(EcfAccount account) =>
         $"{AccountContext(account)} · {account.Occupant}";
@@ -497,32 +500,32 @@
     {
         var accounts = new List<EcfAccount>
         {
-            Metered("NPM F-01", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
-            Metered("NPM M-04", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
-            Fixed("NPM F-07", "Maria Flores", "Fish Section", 350m, 0m, null),
+            Metered("1", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
+            Metered("2", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
+            Fixed("3", "Maria Flores", "Fish Section", 350m, 0m, null),
             Allocated("COMMON-01", "Shared Market Area", "Common Area", 1200m, 1200m, "001234569"),
-            Metered("NPM F-02", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
-            Metered("NPM F-03", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
-            Metered("NPM F-05", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
-            Metered("NPM F-06", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
-            Metered("NPM F-08", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
-            Metered("NPM F-09", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
-            Metered("NPM M-01", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
-            Metered("NPM M-02", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
-            Metered("NPM M-03", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
-            Metered("NPM M-05", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
-            Metered("NPM M-06", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
-            Metered("NPM M-07", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
-            Metered("NPM M-08", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
-            Metered("NPM M-09", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
-            Metered("NPM F-10", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
-            Metered("NPM F-11", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
-            Fixed("NPM F-12", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
+            Metered("4", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
+            Metered("5", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
+            Metered("6", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
+            Metered("7", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
+            Metered("8", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
+            Metered("9", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
+            Metered("10", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
+            Metered("11", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
+            Metered("12", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
+            Metered("13", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
+            Metered("14", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
+            Metered("15", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
+            Metered("16", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
+            Metered("17", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
+            Metered("18", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
+            Metered("19", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
+            Fixed("20", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
             Allocated("COMMON-02", "Market Lighting", "Common Area", 720m, 720m, "001234587"),
-            Manual("NPM M-10", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
-            Metered("NPM M-11", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
+            Manual("21", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
+            Metered("22", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
             Allocated("SHARED-MEAT-01", "Meat Section Shared Connection", "Common Area", 2600m, 1440m, "001234590"),
-            Manual("NPM F-13", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
+            Manual("23", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
         };
 
         return accounts;

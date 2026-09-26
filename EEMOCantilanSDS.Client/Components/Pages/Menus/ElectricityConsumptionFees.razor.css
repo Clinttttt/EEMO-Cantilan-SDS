@@ -559,9 +559,9 @@
     min-width: 0;
 }
 
-.ecf-context-strip span,
-.ecf-payment-facts span,
-.ecf-payment-account span {
+.ecf-context-strip span:not(.ecf-inline-or),
+.ecf-payment-facts span:not(.ecf-inline-or),
+.ecf-payment-account span:not(.ecf-inline-or) {
     display: block;
     margin-bottom: 4px;
     color: var(--text-subtle);
@@ -579,9 +579,10 @@
     font-weight: 750;
 }
 
-.ecf-context-strip .ecf-inline-or {
+.ecf-context-strip .ecf-inline-or,
+.ecf-payment-facts .ecf-inline-or {
     display: inline-flex;
-    margin-right: 4px;
+    margin: 0 4px 0 0;
     vertical-align: middle;
 }
 
@@ -1160,6 +1161,41 @@
     overscroll-behavior-inline: contain;
 }
 
+.ecf-table-wrap:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+}
+
+.ecf-assessment-scroll {
+    max-height: 16rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: #aab5bc #f3f5f6;
+    scrollbar-width: thin;
+}
+
+.ecf-assessment-scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ecf-assessment-scroll::-webkit-scrollbar-track {
+    background: #f3f5f6;
+}
+
+.ecf-assessment-scroll::-webkit-scrollbar-thumb {
+    border: 2px solid #f3f5f6;
+    border-radius: 8px;
+    background: #aab5bc;
+}
+
+.ecf-assessment-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f5f7f8;
+}
+
 .ecf-table {
     color: #263744;
     font-size: .69rem;
@@ -1293,29 +1329,43 @@
 }
 
 .ecf-collection-rate {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .3rem .9rem;
     margin: auto 1rem 1rem;
     padding: .68rem .75rem;
     border: 1px solid #d9e0e4;
     border-radius: 6px;
-    background: #fbfbfa;
+    color: var(--navy);
+    background: #fff;
 }
 
-.ecf-collection-rate .ecf-eyebrow {
+.ecf-collection-rate-label {
     color: #707d85;
     font-size: .58rem;
+    font-weight: 750;
+    letter-spacing: .065em;
 }
 
-.ecf-collection-rate strong {
-    margin: .08rem 0 .12rem;
+.ecf-collection-rate-value {
+    color: var(--navy);
     font-size: 1.02rem;
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
-.ecf-collection-rate p:last-child {
-    margin: 0;
+.ecf-collection-rate-detail {
+    min-width: 0;
     color: #687984;
     font-size: .64rem;
-    line-height: 1.4;
+    line-height: 1.35;
+}
+
+.ecf-collection-rate-billed {
+    text-align: right;
+    white-space: nowrap;
 }
 
 .ecf-activity-panel {
@@ -1363,9 +1413,9 @@
     background: #fcfbf8;
 }
 
-.ecf-context-strip span,
-.ecf-payment-facts span,
-.ecf-payment-account span {
+.ecf-context-strip span:not(.ecf-inline-or),
+.ecf-payment-facts span:not(.ecf-inline-or),
+.ecf-payment-account span:not(.ecf-inline-or) {
     font-size: .59rem;
 }
 
