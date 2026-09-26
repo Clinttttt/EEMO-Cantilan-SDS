@@ -77,9 +77,12 @@ Migrations are **additive only** (production applies them at startup).
 - Read `docs/planning/ACTIVE_WORKSTREAMS.md` before changing V2 UI. It defines session ownership, branch/worktree mapping, integration rules, and shared-file boundaries.
 - Every feature branch must begin from the latest accepted canonical HEAD. The local launcher safely fast-forwards an idle clean worktree when it is only behind canonical; it never resets, rebases, or overwrites dirty/diverged work automatically.
 - Sessions may work concurrently only on clearly separated feature boundaries. Shared navigation, shell, global design-system files, and cross-feature integration belong to the canonical integration flow.
-- After Clint approves a feature, make one focused commit on that feature branch and merge it back into `interface-v2/clean-adoption`; then sync the remaining idle worktrees forward before starting more UI work.
+- A finished feature must not remain isolated on its worktree branch. After its scoped validation passes, make one focused feature commit and merge it locally into `interface-v2/clean-adoption` through the canonical integration flow; do not wait for GitHub Actions, deployment, or a remote CI cycle during this V2 UI sprint. If the merge conflicts with active shared-file work, stop and coordinate instead of forcing it.
+- After every successful canonical merge, run the combined Client build from `C:\dev\stalltrack-v2-clean`, then sync every clean/idle linked worktree forward so later sessions inherit the newest accepted UI and structure.
+- Multiple sessions do not have permission to invent multiple UI systems. Before creating or refining a page, inspect the latest accepted canonical V2 pages and reuse their established hero proportions, page width, left/right workspace structure, white summary surfaces, table density, modal/form spacing, input treatment, button hierarchy, report styling, typography, and restrained navy/gold/neutral palette wherever the business workflow allows.
+- Structural consistency does not mean copying the wrong business model: WCF/ECF may share visual patterns while Market Fees, Tabo, Landing/Berthing, Large Cattle, rent, and space-rental workflows retain their own domain behavior.
 - All browser review uses `https://localhost:7167`. Only one StallTrack Client preview runs at a time; do not assign permanent feature ports such as 7267/7367 or change committed `launchSettings.json` only for preview switching.
-- Build success is not visual approval. Clint's localhost review remains the visual gate.
+- Build success is not visual approval. Clint's localhost review remains the visual gate for design acceptance, but local feature integration should remain fast and should not depend on production deployment or remote CI.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
   (stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, produced invalid YAML).

@@ -101,11 +101,11 @@ which runs:
 
 `C:\Users\ASUS VIVOBOOK\Downloads\StallTrack-Sessions.ps1`
 
-Each tab resumes the latest Codex conversation associated with that worktree using no-daemon mode.
+Each tab resumes its pinned Codex conversation by exact session ID using no-daemon mode. The launcher does not rely on `resume --last`, which previously allowed multiple tabs to compete for the same recent conversation.
 
 The launcher does not inject the old `You are StallTrack Session ...` assignment prompts.
 
-Do not move/rename the existing worktree directories casually; the stable worktree paths help preserve Codex session continuity.
+Do not move/rename the existing worktree directories casually; the stable worktree paths and pinned session mapping preserve Codex session continuity.
 
 ## Parallel-work rule
 
@@ -133,22 +133,25 @@ When a feature needs a shared navigation change, record the requested route in i
 
 ## Canonical integration flow
 
-Use this sequence for each feature:
+Use this fast local sequence for every feature:
 
 1. Sync the feature branch to the latest canonical baseline before starting.
 2. Work only inside that session's linked worktree.
-3. Inspect the latest accepted V2 pages for visual consistency.
-4. Keep business/domain rules specific to the feature.
+3. Inspect the latest accepted canonical V2 pages before styling so the feature inherits the current UI language and structure.
+4. Keep business/domain rules specific to the feature; visual consistency never justifies copying the wrong workflow.
 5. Run `git diff --check`.
-6. Run the relevant Release build/tests.
-7. Preview the feature through the shared localhost slot.
-8. Clint visually reviews it.
-9. Commit the approved feature on its feature branch.
-10. Merge that feature branch into `interface-v2/clean-adoption`.
-11. Run the combined build from `C:\dev\stalltrack-v2-clean`.
-12. Sync idle worktrees forward again.
+6. Run the relevant local Release build/tests required for that scoped work.
+7. Preview through the shared localhost slot when visual review is needed.
+8. Create one focused feature commit containing only that workstream's files.
+9. Merge the finished feature locally into `interface-v2/clean-adoption` promptly; do not leave completed code isolated on a feature branch.
+10. If the merge touches or conflicts with an actively edited shared file, stop and coordinate instead of forcing the merge.
+11. Run the combined Client build from `C:\dev\stalltrack-v2-clean`.
+12. Confirm the integrated page from `https://localhost:7167`.
+13. Sync every clean/idle linked worktree forward again so later sessions inherit the newest canonical UI and structure.
 
-Do not let many feature branches accumulate for days without integration; that recreates the stale-UI problem.
+This V2 UI integration cycle is local-first. Do not push, deploy, or wait for GitHub Actions/remote CI merely to integrate and inspect a completed feature.
+
+Do not let completed feature branches accumulate without integration; that recreates the stale-UI problem.
 
 ## Shared localhost preview
 
