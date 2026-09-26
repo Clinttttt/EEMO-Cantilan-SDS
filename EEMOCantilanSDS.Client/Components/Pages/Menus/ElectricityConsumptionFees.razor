@@ -270,7 +270,7 @@
                     @foreach (var activity in _activity)
                     {
                         <tr>
-                            <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span class="ecf-account-area">Recorded @activity.RecordedAtUtc.ToLocalTime().ToString("HH:mm")</span></td>
+                            <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span class="ecf-account-area">Recorded @PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm")</span></td>
                             <td><strong>@activity.DocumentNumber</strong><span class="ecf-account-area">@(activity.PayerName ?? "No payer snapshot")</span></td>
                             <td>@activity.CurrentDisposition</td>
                             <td class="ecf-number">@Money(activity.TotalAmount)</td>
@@ -302,7 +302,7 @@
 </main>
 
 @code {
-    private DateTime _period = DateTime.Today;
+    private DateTime _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
     private string _areaFilter = string.Empty;
     private string _searchText = string.Empty;
     private List<EcfObligationQuoteDto> _quotes = [];
@@ -344,7 +344,7 @@
 
     private async Task ReloadAsync()
     {
-        _period = DateTime.Today;
+        _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
         await LoadAsync();
     }
 
