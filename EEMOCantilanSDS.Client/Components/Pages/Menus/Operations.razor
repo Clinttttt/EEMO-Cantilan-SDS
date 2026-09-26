@@ -252,8 +252,8 @@
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
         new("Market Fees", "CT", Route: "/operations/market-fees"),
-        new("General Distribution / ECF", "OR"),
-        new("Water Consumption Fees / WCF", "CT"),
+        new("General Distribution / ECF", "OR", Route: "/operations/ecf"),
+        new("Water Consumption Fees / WCF", "CT", Route: "/operations/water-consumption-fees"),
         new("Tabo", "CT", FacilityCode.TPM),
         new("Fish / Meat Vendor Fees", "OR"),
         new("Landing / Berthing", "CT"),
