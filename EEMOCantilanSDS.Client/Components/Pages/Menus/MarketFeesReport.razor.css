@@ -1,0 +1,805 @@
+.mfr-page,
+.mfr-page * {
+    box-sizing: border-box;
+}
+
+.mfr-page {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: .75rem 1rem 1.8rem;
+    color: #172b3b;
+}
+
+.mfr-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 0 0 .7rem;
+    color: #67747d;
+    font-size: .7rem;
+}
+
+.mfr-breadcrumb a {
+    color: #67747d;
+    text-decoration: none;
+}
+
+.mfr-breadcrumb a:hover {
+    color: #17354c;
+    text-decoration: underline;
+}
+
+.mfr-page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 .85rem;
+}
+
+.mfr-page-title h1 {
+    margin: 0;
+    color: #17354c;
+    font-size: 1.25rem;
+    font-weight: 750;
+    line-height: 1.2;
+}
+
+.mfr-page-title p {
+    margin: .2rem 0 0;
+    color: #68757d;
+    font-size: .72rem;
+}
+
+.mfr-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: .45rem;
+}
+
+.mfr-select-control {
+    display: grid;
+    gap: .18rem;
+    color: #59666e;
+    font-size: .59rem;
+    font-weight: 700;
+    letter-spacing: .045em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.mfr-select-shell {
+    position: relative;
+    display: block;
+}
+
+.mfr-select-shell::after {
+    position: absolute;
+    top: 50%;
+    right: .55rem;
+    width: .42rem;
+    height: .42rem;
+    border-right: 1.5px solid #44535d;
+    border-bottom: 1.5px solid #44535d;
+    content: "";
+    pointer-events: none;
+    transform: translateY(-70%) rotate(45deg);
+}
+
+.mfr-select-control select {
+    min-width: 5.2rem;
+    height: 2rem;
+    padding: .3rem 1.55rem .3rem .55rem;
+    appearance: none;
+    border: 1px solid #b9c2c8;
+    border-radius: 4px;
+    color: #17354c;
+    background: #fff;
+    font: inherit;
+    font-size: .73rem;
+    letter-spacing: normal;
+    line-height: 1.2;
+    text-transform: none;
+}
+
+.mfr-print-button,
+.mfr-export-button {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    padding: .3rem .65rem;
+    border: 1px solid #aeb9c0;
+    border-radius: 4px;
+    color: #17354c;
+    background: #fff;
+    font: inherit;
+    font-size: .7rem;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.mfr-print-button {
+    border-color: #17354c;
+    color: #fff;
+    background: #17354c;
+}
+
+.mfr-print-button:hover {
+    background: #254a64;
+}
+
+.mfr-print-button svg {
+    width: .88rem;
+    height: .88rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.mfr-export-button:disabled {
+    color: #46545d;
+    background: #fff;
+    cursor: not-allowed;
+}
+
+.mfr-select-control select:focus-visible,
+.mfr-print-button:focus-visible,
+.mfr-export-button:focus-visible,
+.mfr-table-scroll:focus-visible {
+    outline: 2px solid #b08720;
+    outline-offset: 2px;
+}
+
+.mfr-document {
+    width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+    padding: 1.25rem 1.35rem 1.4rem;
+    border: 1px solid #c7cdd1;
+    border-radius: 2px;
+    color: #171b1e;
+    background: #fff;
+}
+
+.mfr-letterhead {
+    padding: 0 0 .85rem;
+    border-bottom: 1px solid #8f989d;
+    text-align: center;
+}
+
+.mfr-government-heading {
+    display: grid;
+    grid-template-columns: 5rem minmax(0, 1fr) 5rem;
+    align-items: center;
+    justify-items: center;
+    gap: .8rem;
+    max-width: 39rem;
+    margin: 0 auto .42rem;
+}
+
+.mfr-government-logo {
+    display: block;
+    width: 4.25rem;
+    height: 4.25rem;
+    object-fit: contain;
+}
+
+.mfr-government-copy {
+    width: 100%;
+    color: #202326;
+    font-size: .73rem;
+    line-height: 1.35;
+}
+
+.mfr-government-copy p {
+    margin: .03rem 0;
+}
+
+.mfr-government-copy .mfr-municipality {
+    margin-top: .12rem;
+    font-size: .8rem;
+    font-weight: 750;
+    letter-spacing: .025em;
+}
+
+.mfr-office-name {
+    margin: .18rem 0 .28rem;
+    color: #171b1e;
+    font-size: .75rem;
+    font-weight: 750;
+    letter-spacing: .025em;
+    line-height: 1.35;
+}
+
+.mfr-letterhead h2 {
+    margin: .18rem 0 .08rem;
+    color: #111;
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    line-height: 1.3;
+}
+
+.mfr-report-year {
+    margin: 0;
+    color: #343a3e;
+    font-size: .72rem;
+}
+
+.mfr-financial-summary {
+    margin: .78rem 0 .85rem;
+    border: 1px solid #aeb6bb;
+    background: #fff;
+}
+
+.mfr-financial-summary > h2 {
+    margin: 0;
+    padding: .32rem .58rem .08rem;
+    color: #4b555b;
+    font-size: .59rem;
+    font-weight: 750;
+    letter-spacing: .06em;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.mfr-summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: .18rem .58rem .48rem;
+}
+
+.mfr-summary-row > div {
+    min-width: 0;
+    padding: .1rem .65rem;
+    border-left: 1px solid #d0d5d8;
+}
+
+.mfr-summary-row > div:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.mfr-summary-row dt {
+    color: #59646a;
+    font-size: .57rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.mfr-summary-row dd {
+    margin: .15rem 0 0;
+    color: #14181b;
+    font-size: .94rem;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.mfr-report-section {
+    margin: 0;
+    padding: .62rem 0 .58rem;
+    border-top: 1px solid #b9c0c4;
+}
+
+.mfr-section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: .75rem;
+    margin: 0 0 .36rem;
+}
+
+.mfr-section-label {
+    margin: 0 0 .12rem;
+    color: #59646a;
+    font-size: .57rem;
+    font-weight: 750;
+    letter-spacing: .06em;
+    line-height: 1.25;
+}
+
+.mfr-section-heading h2 {
+    margin: 0;
+    color: #171b1e;
+    font-size: .83rem;
+    font-weight: 750;
+    line-height: 1.25;
+}
+
+.mfr-period-note {
+    margin: 0 0 .04rem;
+    color: #50595e;
+    font-size: .65rem;
+    text-align: right;
+}
+
+.mfr-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+.mfr-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    color: #171b1e;
+    font-size: .66rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.mfr-table th,
+.mfr-table td {
+    padding: .32rem .25rem;
+    border: 1px solid #929a9f;
+    vertical-align: middle;
+}
+
+.mfr-table thead th {
+    color: #171b1e;
+    background: #f3f4f4;
+    font-size: .58rem;
+    font-weight: 750;
+    line-height: 1.15;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.mfr-table tbody th,
+.mfr-table tfoot th {
+    color: #171b1e;
+    font-weight: 700;
+    text-align: left;
+}
+
+.mfr-table tbody td,
+.mfr-table tfoot td {
+    color: #171b1e;
+}
+
+.mfr-table tfoot th,
+.mfr-table tfoot td {
+    border-top: 1.5px solid #50585d;
+    font-weight: 750;
+}
+
+.mfr-number {
+    text-align: right !important;
+    white-space: nowrap;
+}
+
+.mfr-month-heading {
+    text-align: center !important;
+}
+
+.mfr-monthly-table {
+    font-size: clamp(.53rem, .48vw, .65rem);
+}
+
+.mfr-monthly-table th,
+.mfr-monthly-table td {
+    padding: .3rem .13rem;
+}
+
+.mfr-monthly-table thead th {
+    font-size: clamp(.5rem, .43vw, .58rem);
+    letter-spacing: .015em;
+}
+
+.mfr-monthly-table .mfr-col-revenue {
+    width: 13%;
+}
+
+.mfr-monthly-table .mfr-col-target {
+    width: 9%;
+}
+
+.mfr-monthly-table .mfr-col-month {
+    width: 5.3%;
+}
+
+.mfr-monthly-table .mfr-col-total {
+    width: 9.5%;
+}
+
+.mfr-monthly-table .mfr-col-percent {
+    width: 4.9%;
+}
+
+.mfr-total-column {
+    border-left: 1.5px solid #70797e !important;
+    font-weight: 750;
+}
+
+.mfr-compact-table {
+    max-width: 52rem;
+    font-size: .69rem;
+}
+
+.mfr-compact-table .mfr-col-section {
+    width: 52%;
+}
+
+.mfr-compact-table .mfr-col-collection {
+    width: 30%;
+}
+
+.mfr-compact-table .mfr-col-share {
+    width: 18%;
+}
+
+.mfr-compact-table .mfr-col-date {
+    width: 24%;
+}
+
+.mfr-compact-table .mfr-col-daily-section {
+    width: 25%;
+}
+
+.mfr-compact-table .mfr-col-daily-total {
+    width: 26%;
+}
+
+.mfr-basis-section {
+    padding-bottom: 0;
+}
+
+.mfr-basis-table {
+    width: 100%;
+    max-width: 41rem;
+    border-collapse: collapse;
+    color: #171b1e;
+    font-size: .66rem;
+}
+
+.mfr-basis-table th,
+.mfr-basis-table td {
+    padding: .22rem .35rem;
+    border-bottom: 1px solid #d0d5d8;
+    line-height: 1.25;
+    text-align: left;
+}
+
+.mfr-basis-table th {
+    width: 42%;
+    color: #50595e;
+    font-weight: 650;
+}
+
+.mfr-basis-table td {
+    color: #171b1e;
+    font-variant-numeric: tabular-nums;
+}
+
+.mfr-ct-chip {
+    display: inline-flex;
+    min-width: 1.35rem;
+    align-items: center;
+    justify-content: center;
+    margin-right: .2rem;
+    padding: .03rem .18rem;
+    border: 1px solid #90999e;
+    border-radius: 2px;
+    color: #172b3b;
+    font-size: .57rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.mfr-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 1100px) {
+    .mfr-monthly-table {
+        min-width: 1020px;
+    }
+}
+
+@media (max-width: 900px) {
+    .mfr-page {
+        padding: .7rem .75rem 1.4rem;
+    }
+
+    .mfr-page-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: .65rem;
+    }
+
+    .mfr-controls {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .mfr-document {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .mfr-summary-row {
+        grid-template-columns: 1fr 1fr;
+        row-gap: .3rem;
+    }
+
+    .mfr-summary-row > div:nth-child(3) {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .mfr-summary-row dd {
+        font-size: .82rem;
+    }
+
+    .mfr-government-heading {
+        grid-template-columns: 3.5rem minmax(0, 1fr) 3.5rem;
+        gap: .25rem;
+    }
+
+    .mfr-government-logo {
+        width: 3.15rem;
+        height: 3.15rem;
+    }
+
+    .mfr-government-copy {
+        font-size: .62rem;
+    }
+
+    .mfr-government-copy .mfr-municipality {
+        font-size: .68rem;
+    }
+
+    .mfr-office-name {
+        font-size: .64rem;
+    }
+
+    .mfr-letterhead h2 {
+        font-size: .7rem;
+    }
+
+    .mfr-section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: .2rem;
+    }
+
+    .mfr-period-note {
+        text-align: left;
+    }
+
+    .mfr-monthly-table {
+        min-width: 1020px;
+        font-size: .6rem;
+    }
+
+    .mfr-monthly-table thead th {
+        font-size: .55rem;
+    }
+
+    .mfr-compact-table {
+        min-width: 520px;
+    }
+}
+
+@media print {
+    .mfr-page {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        color: #111;
+    }
+
+    .mfr-screen-only {
+        display: none !important;
+    }
+
+    .mfr-document {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        padding: 3mm;
+        border: 0;
+        border-radius: 0;
+        color: #111;
+        background: #fff;
+        box-shadow: none;
+    }
+
+    .mfr-letterhead {
+        padding-bottom: 2.5mm;
+        border-bottom: .3mm solid #555;
+        break-after: avoid;
+    }
+
+    .mfr-government-heading {
+        grid-template-columns: 17mm minmax(0, 1fr) 17mm;
+        gap: 3mm;
+        max-width: 120mm;
+        margin-bottom: 1.5mm;
+    }
+
+    .mfr-government-logo {
+        width: 15mm;
+        height: 15mm;
+    }
+
+    .mfr-government-copy {
+        color: #111;
+        font-size: 8pt;
+    }
+
+    .mfr-government-copy .mfr-municipality {
+        font-size: 9pt;
+    }
+
+    .mfr-office-name {
+        margin: 1mm 0 1.5mm;
+        font-size: 8.5pt;
+    }
+
+    .mfr-letterhead h2 {
+        margin: 1mm 0 .5mm;
+        font-size: 9pt;
+    }
+
+    .mfr-report-year {
+        font-size: 8pt;
+    }
+
+    .mfr-financial-summary {
+        margin: 2.5mm 0;
+        border-color: #777;
+        break-inside: avoid;
+    }
+
+    .mfr-financial-summary > h2 {
+        padding: 1mm 2mm 0;
+        color: #333;
+        font-size: 6.5pt;
+    }
+
+    .mfr-summary-row {
+        padding: .5mm 2mm 1.5mm;
+    }
+
+    .mfr-summary-row > div {
+        padding: .5mm 2mm;
+        border-color: #aaa;
+    }
+
+    .mfr-summary-row dt {
+        color: #333;
+        font-size: 6.5pt;
+    }
+
+    .mfr-summary-row dd {
+        margin-top: .7mm;
+        color: #111;
+        font-size: 10pt;
+    }
+
+    .mfr-report-section {
+        padding: 2mm 0;
+        border-color: #888;
+        break-inside: avoid;
+    }
+
+    .mfr-section-heading {
+        margin-bottom: 1.5mm;
+        break-after: avoid;
+    }
+
+    .mfr-section-label {
+        color: #333;
+        font-size: 6.2pt;
+    }
+
+    .mfr-section-heading h2 {
+        color: #111;
+        font-size: 8.5pt;
+    }
+
+    .mfr-period-note {
+        color: #333;
+        font-size: 7pt;
+    }
+
+    .mfr-table-scroll {
+        width: 100%;
+        max-width: none;
+        overflow: visible;
+    }
+
+    .mfr-table,
+    .mfr-monthly-table,
+    .mfr-compact-table {
+        width: 100%;
+        min-width: 0 !important;
+        color: #111;
+        font-size: 6.8pt;
+    }
+
+    .mfr-monthly-table {
+        font-size: 6.3pt;
+    }
+
+    .mfr-table th,
+    .mfr-table td {
+        padding: 1mm .7mm;
+        border-color: #777;
+        color: #111;
+    }
+
+    .mfr-table thead th {
+        color: #111;
+        background: #f1f1f1;
+        font-size: 6.2pt;
+    }
+
+    .mfr-monthly-table thead th {
+        font-size: 5.9pt;
+    }
+
+    .mfr-table tbody th,
+    .mfr-table tbody td,
+    .mfr-table tfoot th,
+    .mfr-table tfoot td {
+        background: #fff;
+    }
+
+    .mfr-table thead {
+        display: table-header-group;
+    }
+
+    .mfr-table tr {
+        break-inside: avoid;
+    }
+
+    .mfr-basis-table {
+        max-width: 110mm;
+        font-size: 7pt;
+    }
+
+    .mfr-basis-table th,
+    .mfr-basis-table td {
+        padding: .7mm 1.2mm;
+        border-color: #aaa;
+    }
+
+    .mfr-basis-table th {
+        color: #333;
+    }
+
+    .mfr-basis-table td {
+        color: #111;
+    }
+
+    .mfr-ct-chip {
+        color: #111;
+        border-color: #777;
+    }
+}

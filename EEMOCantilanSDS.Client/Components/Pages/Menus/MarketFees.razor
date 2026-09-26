@@ -1,0 +1,652 @@
+@page "/operations/market-fees"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Domain.Common
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — Market Fees</PageTitle>
+
+<main class="mf-page">
+    <nav class="mf-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Market Fees</span>
+    </nav>
+
+    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · Market Fees")"
+                  Title="Market Fees"
+                  Subtitle="Market Fees collection workspace."
+                  Icon="@MarketIcon"
+                  Stats="HeroStats" />
+
+    <section class="mf-desk" aria-labelledby="mf-desk-title">
+        <div class="mf-desk-copy">
+            <p class="mf-overline">TODAY'S COLLECTION DESK</p>
+            <h2 id="mf-desk-title">@PhilippineTime.Today.ToString("dddd, MMMM d, yyyy")</h2>
+            <p>Review today's collection totals by section.</p>
+        </div>
+
+        <div class="mf-desk-actions">
+            <div class="mf-instrument">
+                <span class="mf-instrument-chip">CT</span>
+                <div>
+                    <span>Accountable instrument</span>
+                    <strong>Cash Ticket</strong>
+                </div>
+            </div>
+            <div class="mf-action-buttons">
+                <button class="mf-primary-button" type="button" @onclick="OpenAddSectionModal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Add Section
+                </button>
+                <button class="mf-report-button" type="button" title="Market Fees report" @onclick='() => Navigation.NavigateTo("/operations/market-fees/report")'>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5" />
+                    </svg>
+                    Report
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <div class="mf-grid">
+        <section class="mf-card mf-sections-card" aria-labelledby="mf-sections-title">
+            <header class="mf-card-header">
+                <div>
+                    <p class="mf-overline">COLLECTION SECTIONS</p>
+                    <h2 id="mf-sections-title">Market Fee Sections</h2>
+                    <p>Daily Market Fees are recorded and summarized by configured section.</p>
+                </div>
+                <button class="mf-primary-button mf-record-button" type="button" @onclick="OpenDailyTotalsModal">
+                    Record Daily Totals
+                </button>
+            </header>
+
+            <div class="mf-section-list">
+                @foreach (var section in _sections)
+                {
+                    <article class="mf-section-row">
+                        <div class="mf-section-heading">
+                            <div class="mf-section-name">
+                                <h3>@section.Name</h3>
+                                @if (!string.IsNullOrWhiteSpace(section.ShortCode))
+                                {
+                                    <span class="mf-section-code">@section.ShortCode</span>
+                                }
+                                <span class="mf-config-state @(section.IsActive ? "is-active" : "is-inactive")">
+                                    <span class="mf-config-state-dot" aria-hidden="true"></span>
+                                    @(section.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(section.Description))
+                        {
+                            <p class="mf-section-description">@section.Description</p>
+                        }
+
+                        <dl class="mf-section-metrics">
+                            <div>
+                                <dt>Basis</dt>
+                                <dd>@section.Basis</dd>
+                            </div>
+                            <div>
+                                <dt>Configured rate</dt>
+                                <dd>₱@section.Rate.ToString("N2")</dd>
+                            </div>
+                            <div class="mf-today-metric">
+                                <dt>Today's total</dt>
+                                <dd>₱@section.TodayTotal.ToString("N2")</dd>
+                            </div>
+                        </dl>
+
+                        <div class="mf-section-footer">
+                            <span class="mf-effective-date">Effective @section.EffectiveDate.ToString("MMM d, yyyy")</span>
+                            <div class="mf-section-actions">
+                                <button class="mf-row-action" type="button" @onclick="() => OpenEditSectionModal(section)">
+                                    Edit Section
+                                </button>
+                                <button class="mf-row-action" type="button" @onclick="() => OpenUpdateTotalModal(section)">
+                                    Update Total
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <aside class="mf-card mf-summary-card" aria-labelledby="mf-summary-title">
+            <header class="mf-card-header">
+                <div>
+                    <p class="mf-overline">TODAY'S SUMMARY</p>
+                    <h2 id="mf-summary-title">Collection Position</h2>
+                    <p>Market Fees collection totals for the business date.</p>
+                </div>
+            </header>
+
+            <dl class="mf-summary-list">
+                <div class="mf-summary-total">
+                    <dt>Total collected</dt>
+                    <dd>₱@TotalCollected.ToString("N2")</dd>
+                </div>
+                <div>
+                    <dt>Active sections</dt>
+                    <dd>@ActiveSectionCount</dd>
+                </div>
+                <div>
+                    <dt>Highest collection</dt>
+                    <dd>@(HighestCollectionSection?.Name ?? "—")</dd>
+                </div>
+                <div>
+                    <dt>Highest section total</dt>
+                    <dd>₱@HighestSectionTotal.ToString("N2")</dd>
+                </div>
+                <div>
+                    <dt>Average per section</dt>
+                    <dd>₱@AveragePerSection.ToString("N2")</dd>
+                </div>
+                <div>
+                    <dt>Cash Ticket</dt>
+                    <dd><span class="mf-inline-ct">CT</span> Cash Ticket</dd>
+                </div>
+                <div>
+                    <dt>Last updated</dt>
+                    <dd>@LatestUpdateTime</dd>
+                </div>
+            </dl>
+
+            @if (HighestCollectionSection is { } topSection)
+            {
+                <div class="mf-top-section">
+                    <div class="mf-top-section-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <path d="M4 19h16M6 16V9m6 7V5m6 11v-4" />
+                        </svg>
+                    </div>
+                    <div class="mf-top-section-copy">
+                        <p class="mf-overline">TOP COLLECTION SECTION</p>
+                        <div class="mf-top-section-heading">
+                            <strong>@topSection.Name</strong>
+                            <strong>₱@topSection.TodayTotal.ToString("N2")</strong>
+                        </div>
+                        <p>@TopCollectionShare.ToString("N1")% of today's Market Fees collection</p>
+                    </div>
+                </div>
+            }
+        </aside>
+    </div>
+
+    <section class="mf-card mf-activity-card" aria-labelledby="mf-activity-title">
+        <header class="mf-card-header mf-activity-heading">
+            <div>
+                <p class="mf-overline">TODAY</p>
+                <h2 id="mf-activity-title">Daily Collection Summary</h2>
+                <p>Section-level totals for @PhilippineTime.Today.ToString("MMM d, yyyy").</p>
+            </div>
+        </header>
+
+        <div class="mf-table-wrap">
+            <table class="mf-table">
+                <caption class="sr-only">Market Fees daily collection totals by section</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Section</th>
+                        <th scope="col">Basis</th>
+                        <th scope="col" class="mf-number">Rate</th>
+                        <th scope="col" class="mf-number">Total</th>
+                        <th scope="col">Recorded by</th>
+                        <th scope="col">Last updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var section in _sections)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.Today.ToString("MMM d, yyyy")</td>
+                            <td><strong>@section.Name</strong></td>
+                            <td>@section.Basis</td>
+                            <td class="mf-number">₱@section.Rate.ToString("N2")</td>
+                            <td class="mf-number"><strong>₱@section.TodayTotal.ToString("N2")</strong></td>
+                            <td>@section.RecordedBy</td>
+                            <td>@section.LastUpdated</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+@if (_addSectionModalOpen)
+{
+    <div class="mf-modal-backdrop" @onclick="CloseAddSectionModal">
+        <section class="mf-modal" role="dialog" aria-modal="true" aria-labelledby="mf-add-section-title" @onclick:stopPropagation="true">
+            <button class="mf-modal-close" type="button" aria-label="Close" @onclick="CloseAddSectionModal">×</button>
+            <div class="mf-modal-heading">
+                <p class="mf-overline">MARKET FEES · SECTION SETUP</p>
+                <h2 id="mf-add-section-title">Add Collection Section</h2>
+                <p>Create a section for daily Market Fees collection.</p>
+            </div>
+
+            <div class="mf-form">
+                <label class="mf-field mf-field-span">
+                    <span>Section Name</span>
+                    <input @bind="_newSection.Name" required autocomplete="off" />
+                </label>
+                <label class="mf-field">
+                    <span>Short Code</span>
+                    <input @bind="_newSection.ShortCode" autocomplete="off" />
+                </label>
+                <label class="mf-field">
+                    <span>Collection Basis</span>
+                    <select @bind="_newSection.Basis">
+                        <option>Fixed amount</option>
+                        <option>Configured</option>
+                    </select>
+                </label>
+                <label class="mf-field">
+                    <span>Configured Rate</span>
+                    <div class="mf-money-input">
+                        <span aria-hidden="true">₱</span>
+                        <input type="number" min="0" step="0.01" inputmode="decimal" @bind="_newSection.Rate" />
+                    </div>
+                </label>
+                <label class="mf-field">
+                    <span>Effective Date</span>
+                    <input type="date" @bind="_newSection.EffectiveDate" />
+                </label>
+                <fieldset class="mf-status-field">
+                    <legend>Status</legend>
+                    <div class="mf-status-options">
+                        <label class="mf-status-option">
+                            <input type="radio" name="add-section-status" checked="@(_newSection.Status == "Active")" @onchange="@(_ => _newSection.Status = "Active")" />
+                            <span>Active</span>
+                        </label>
+                        <label class="mf-status-option">
+                            <input type="radio" name="add-section-status" checked="@(_newSection.Status == "Inactive")" @onchange="@(_ => _newSection.Status = "Inactive")" />
+                            <span>Inactive</span>
+                        </label>
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="mf-modal-actions">
+                <button class="mf-secondary-button" type="button" @onclick="CloseAddSectionModal">Cancel</button>
+                <button class="mf-primary-button" type="button" @onclick="AddSection">Add Section</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_editSectionModalOpen && _editingSection is not null)
+{
+    <div class="mf-modal-backdrop" @onclick="CloseEditSectionModal">
+        <section class="mf-modal" role="dialog" aria-modal="true" aria-labelledby="mf-edit-section-title" @onclick:stopPropagation="true">
+            <button class="mf-modal-close" type="button" aria-label="Close" @onclick="CloseEditSectionModal">×</button>
+            <div class="mf-modal-heading">
+                <p class="mf-overline">MARKET FEES · SECTION SETUP</p>
+                <h2 id="mf-edit-section-title">Edit Collection Section</h2>
+            </div>
+
+            <div class="mf-form">
+                <label class="mf-field mf-field-span">
+                    <span>Section Name</span>
+                    <input @bind="_editingSection.Name" required autocomplete="off" />
+                </label>
+                <label class="mf-field">
+                    <span>Short Code</span>
+                    <input @bind="_editingSection.ShortCode" autocomplete="off" />
+                </label>
+                <label class="mf-field">
+                    <span>Collection Basis</span>
+                    <select @bind="_editingSection.Basis">
+                        <option>Fixed amount</option>
+                        <option>Configured</option>
+                    </select>
+                </label>
+                <label class="mf-field">
+                    <span>Configured Rate</span>
+                    <div class="mf-money-input">
+                        <span aria-hidden="true">₱</span>
+                        <input type="number" min="0" step="0.01" inputmode="decimal" @bind="_editingSection.Rate" />
+                    </div>
+                </label>
+                <label class="mf-field">
+                    <span>Effective Date</span>
+                    <input type="date" @bind="_editingSection.EffectiveDate" />
+                </label>
+                <fieldset class="mf-status-field">
+                    <legend>Status</legend>
+                    <div class="mf-status-options">
+                        <label class="mf-status-option">
+                            <input type="radio" name="edit-section-status" checked="@(_editingSection.Status == "Active")" @onchange="@(_ => _editingSection.Status = "Active")" />
+                            <span>Active</span>
+                        </label>
+                        <label class="mf-status-option">
+                            <input type="radio" name="edit-section-status" checked="@(_editingSection.Status == "Inactive")" @onchange="@(_ => _editingSection.Status = "Inactive")" />
+                            <span>Inactive</span>
+                        </label>
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="mf-modal-actions">
+                <button class="mf-secondary-button" type="button" @onclick="CloseEditSectionModal">Cancel</button>
+                <button class="mf-primary-button" type="button" @onclick="SaveSectionChanges">Save Changes</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_dailyTotalsModalOpen)
+{
+    <div class="mf-modal-backdrop" @onclick="CloseDailyTotalsModal">
+        <section class="mf-modal mf-wide-modal" role="dialog" aria-modal="true" aria-labelledby="mf-daily-totals-title" @onclick:stopPropagation="true">
+            <button class="mf-modal-close" type="button" aria-label="Close" @onclick="CloseDailyTotalsModal">×</button>
+            <div class="mf-modal-heading">
+                <p class="mf-overline">MARKET FEES · DAILY COLLECTION</p>
+                <h2 id="mf-daily-totals-title">Record Daily Totals</h2>
+            </div>
+
+            <div class="mf-modal-context">
+                <div>
+                    <span>Revenue Source</span>
+                    <strong>Market Fees</strong>
+                </div>
+                <div>
+                    <span>Instrument</span>
+                    <strong><span class="mf-inline-ct">CT</span> Cash Ticket</strong>
+                </div>
+                <div>
+                    <span>Business Date</span>
+                    <strong>@PhilippineTime.Today.ToString("MMM d, yyyy")</strong>
+                </div>
+            </div>
+
+            <div class="mf-daily-entry-list">
+                @foreach (var section in _sections.Where(section => section.IsActive))
+                {
+                    <div class="mf-daily-entry">
+                        <div class="mf-daily-entry-heading">
+                            <h3>@section.Name</h3>
+                            <span>Rate: <strong>₱@section.Rate.ToString("N2")</strong></span>
+                        </div>
+                        <label class="mf-field">
+                            <span>Daily Total</span>
+                            <div class="mf-money-input">
+                                <span aria-hidden="true">₱</span>
+                                <input type="number" min="0" step="0.01" inputmode="decimal" @bind="section.EditTotal" />
+                            </div>
+                        </label>
+                    </div>
+                }
+            </div>
+
+            <div class="mf-form-summary">
+                <span>Market Fees total</span>
+                <strong>₱@DailyEntryTotal.ToString("N2")</strong>
+            </div>
+
+            <div class="mf-modal-actions">
+                <button class="mf-secondary-button" type="button" @onclick="CloseDailyTotalsModal">Cancel</button>
+                <button class="mf-primary-button" type="button" @onclick="SaveDailyTotals">Save Daily Totals</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_updateTotalModalOpen && _editingSectionTarget is not null)
+{
+    <div class="mf-modal-backdrop" @onclick="CloseUpdateTotalModal">
+        <section class="mf-modal mf-update-modal" role="dialog" aria-modal="true" aria-labelledby="mf-update-total-title" @onclick:stopPropagation="true">
+            <button class="mf-modal-close" type="button" aria-label="Close" @onclick="CloseUpdateTotalModal">×</button>
+            <div class="mf-modal-heading">
+                <p class="mf-overline">MARKET FEES · DAILY COLLECTION</p>
+                <h2 id="mf-update-total-title">Update Daily Total</h2>
+                <p>@_editingSectionTarget.Name</p>
+            </div>
+
+            <div class="mf-modal-context mf-update-context">
+                <div>
+                    <span>Business Date</span>
+                    <strong>@PhilippineTime.Today.ToString("MMM d, yyyy")</strong>
+                </div>
+                <div>
+                    <span>Current Total</span>
+                    <strong>₱@_editingSectionTarget.TodayTotal.ToString("N2")</strong>
+                </div>
+            </div>
+
+            <div class="mf-form mf-update-form">
+                <label class="mf-field">
+                    <span>Daily Total</span>
+                    <div class="mf-money-input">
+                        <span aria-hidden="true">₱</span>
+                        <input type="number" min="0" step="0.01" inputmode="decimal" @bind="_updatedTotal" />
+                    </div>
+                </label>
+            </div>
+
+            <div class="mf-modal-actions">
+                <button class="mf-secondary-button" type="button" @onclick="CloseUpdateTotalModal">Cancel</button>
+                <button class="mf-primary-button" type="button" @onclick="UpdateSectionTotal">Update Total</button>
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private bool _addSectionModalOpen;
+    private bool _editSectionModalOpen;
+    private bool _dailyTotalsModalOpen;
+    private bool _updateTotalModalOpen;
+    private MarketFeeSection? _editingSectionTarget;
+    private MarketFeeSectionDraft? _editingSection;
+    private decimal _updatedTotal;
+
+    private MarketFeeSectionDraft _newSection = new();
+
+    private List<MarketFeeSection> _sections =
+    [
+        new()
+        {
+            Name = "Comfort Room",
+            ShortCode = "CR",
+            Description = "Cash Ticket collection area.",
+            Basis = "Fixed amount",
+            Rate = 5m,
+            TodayTotal = 2150m,
+            IsActive = true,
+            RecordedBy = "Collector A",
+            LastUpdated = "10:12 AM",
+            LastUpdatedAt = PhilippineTime.Today.ToDateTime(new TimeOnly(10, 12)),
+            EffectiveDate = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue)
+        },
+        new()
+        {
+            Name = "General Market Area",
+            ShortCode = "GMA",
+            Description = "General daily market-fee collection section.",
+            Basis = "Configured",
+            Rate = 20m,
+            TodayTotal = 2200m,
+            IsActive = true,
+            RecordedBy = "Collector B",
+            LastUpdated = "10:08 AM",
+            LastUpdatedAt = PhilippineTime.Today.ToDateTime(new TimeOnly(10, 8)),
+            EffectiveDate = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue)
+        }
+    ];
+
+    private decimal TotalCollected => _sections.Sum(section => section.TodayTotal);
+    private int ActiveSectionCount => _sections.Count(section => section.IsActive);
+    private MarketFeeSection? HighestCollectionSection => _sections.OrderByDescending(section => section.TodayTotal).FirstOrDefault();
+    private decimal HighestSectionTotal => HighestCollectionSection?.TodayTotal ?? 0m;
+    private decimal AveragePerSection => _sections.Count == 0 ? 0m : TotalCollected / _sections.Count;
+    private decimal TopCollectionShare => TotalCollected == 0m ? 0m : HighestSectionTotal / TotalCollected * 100m;
+    private decimal DailyEntryTotal => _sections.Where(section => section.IsActive).Sum(section => section.EditTotal);
+    private string LatestUpdateTime => _sections
+        .Where(section => section.LastUpdatedAt.HasValue)
+        .OrderByDescending(section => section.LastUpdatedAt)
+        .FirstOrDefault()?.LastUpdated ?? "—";
+
+    private List<FacilityHero.HeroStat> HeroStats =>
+    [
+        new() { Value = $"₱{TotalCollected:N2}", Label = "Today's collections" },
+        new() { Value = ActiveSectionCount.ToString(), Label = "Active sections" },
+        new() { Value = LatestUpdateTime, Label = "Last updated" }
+    ];
+
+    private RenderFragment MarketIcon => builder =>
+    {
+        builder.OpenElement(0, "svg");
+        builder.AddAttribute(1, "viewBox", "0 0 24 24");
+        builder.AddAttribute(2, "fill", "none");
+        builder.AddAttribute(3, "stroke", "currentColor");
+        builder.AddAttribute(4, "stroke-width", "1.9");
+        builder.AddAttribute(5, "stroke-linecap", "round");
+        builder.AddAttribute(6, "stroke-linejoin", "round");
+        builder.AddMarkupContent(7, "<path d=\"M4 20h16M5 20V10h14v10M4 10l2-5h12l2 5M8 20v-5h8v5\"/><path d=\"M7 10v2M12 10v2M17 10v2\"/>");
+        builder.CloseElement();
+    };
+
+    private void OpenAddSectionModal()
+    {
+        _newSection = new MarketFeeSectionDraft();
+        _addSectionModalOpen = true;
+    }
+
+    private void CloseAddSectionModal() => _addSectionModalOpen = false;
+
+    private void AddSection()
+    {
+        if (string.IsNullOrWhiteSpace(_newSection.Name))
+            return;
+
+        _sections.Add(new MarketFeeSection
+        {
+            Name = _newSection.Name.Trim(),
+            ShortCode = _newSection.ShortCode.Trim(),
+            Basis = _newSection.Basis,
+            Rate = _newSection.Rate,
+            EffectiveDate = _newSection.EffectiveDate,
+            IsActive = string.Equals(_newSection.Status, "Active", StringComparison.Ordinal),
+            LastUpdated = "—"
+        });
+
+        _addSectionModalOpen = false;
+    }
+
+    private void OpenEditSectionModal(MarketFeeSection section)
+    {
+        _editingSectionTarget = section;
+        _editingSection = new MarketFeeSectionDraft
+        {
+            Name = section.Name,
+            ShortCode = section.ShortCode,
+            Basis = section.Basis,
+            Rate = section.Rate,
+            EffectiveDate = section.EffectiveDate,
+            Status = section.IsActive ? "Active" : "Inactive"
+        };
+        _editSectionModalOpen = true;
+    }
+
+    private void CloseEditSectionModal()
+    {
+        _editSectionModalOpen = false;
+        _editingSection = null;
+        _editingSectionTarget = null;
+    }
+
+    private void SaveSectionChanges()
+    {
+        if (_editingSection is null || _editingSectionTarget is null || string.IsNullOrWhiteSpace(_editingSection.Name))
+            return;
+
+        _editingSectionTarget.Name = _editingSection.Name.Trim();
+        _editingSectionTarget.ShortCode = _editingSection.ShortCode.Trim();
+        _editingSectionTarget.Basis = _editingSection.Basis;
+        _editingSectionTarget.Rate = _editingSection.Rate;
+        _editingSectionTarget.EffectiveDate = _editingSection.EffectiveDate;
+        _editingSectionTarget.IsActive = string.Equals(_editingSection.Status, "Active", StringComparison.Ordinal);
+        CloseEditSectionModal();
+    }
+
+    private void OpenDailyTotalsModal()
+    {
+        foreach (var section in _sections.Where(section => section.IsActive))
+            section.EditTotal = section.TodayTotal;
+
+        _dailyTotalsModalOpen = true;
+    }
+
+    private void CloseDailyTotalsModal() => _dailyTotalsModalOpen = false;
+
+    private void SaveDailyTotals()
+    {
+        var updatedAt = PhilippineTime.Now;
+        foreach (var section in _sections.Where(section => section.IsActive))
+        {
+            section.TodayTotal = section.EditTotal;
+            section.LastUpdated = updatedAt.ToString("h:mm tt");
+            section.LastUpdatedAt = updatedAt;
+        }
+
+        _dailyTotalsModalOpen = false;
+    }
+
+    private void OpenUpdateTotalModal(MarketFeeSection section)
+    {
+        _editingSectionTarget = section;
+        _updatedTotal = section.TodayTotal;
+        _updateTotalModalOpen = true;
+    }
+
+    private void CloseUpdateTotalModal()
+    {
+        _updateTotalModalOpen = false;
+        _editingSectionTarget = null;
+    }
+
+    private void UpdateSectionTotal()
+    {
+        if (_editingSectionTarget is null)
+            return;
+
+        _editingSectionTarget.TodayTotal = _updatedTotal;
+        var updatedAt = PhilippineTime.Now;
+        _editingSectionTarget.LastUpdated = updatedAt.ToString("h:mm tt");
+        _editingSectionTarget.LastUpdatedAt = updatedAt;
+        CloseUpdateTotalModal();
+    }
+
+    private sealed class MarketFeeSection
+    {
+        public string Name { get; set; } = string.Empty;
+        public string ShortCode { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Basis { get; set; } = "Fixed amount";
+        public decimal Rate { get; set; }
+        public DateTime EffectiveDate { get; set; }
+        public bool IsActive { get; set; }
+        public decimal TodayTotal { get; set; }
+        public decimal EditTotal { get; set; }
+        public string RecordedBy { get; set; } = "—";
+        public string LastUpdated { get; set; } = "—";
+        public DateTime? LastUpdatedAt { get; set; }
+    }
+
+    private sealed class MarketFeeSectionDraft
+    {
+        public string Name { get; set; } = "Comfort Room";
+        public string ShortCode { get; set; } = "CR";
+        public string Basis { get; set; } = "Fixed amount";
+        public decimal Rate { get; set; } = 5m;
+        public DateTime EffectiveDate { get; set; } = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
+        public string Status { get; set; } = "Active";
+    }
+}

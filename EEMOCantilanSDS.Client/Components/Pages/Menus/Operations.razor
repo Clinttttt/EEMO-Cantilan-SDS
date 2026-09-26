@@ -82,10 +82,11 @@
                 @foreach (var service in IncomeFromMarketServices)
                 {
                     var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
+                    var href = service.Route ?? (workspace is not null ? FacilityHref(workspace) : null);
                     <li class="operations-register-item">
-                        @if (workspace is not null)
+                        @if (href is not null)
                         {
-                            <a class="operations-register-row operations-register-row-link" href="@FacilityHref(workspace)">
+                            <a class="operations-register-row operations-register-row-link" href="@href">
                                 <span class="operations-instrument-slot">
                                     @if (service.Instrument is not null)
                                     {
@@ -250,7 +251,7 @@
 @code {
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
-        new("Market Fees", "CT"),
+        new("Market Fees", "CT", Route: "/operations/market-fees"),
         new("General Distribution / ECF", "OR"),
         new("Water Consumption Fees / WCF", "CT"),
         new("Tabo", "CT", FacilityCode.TPM),
@@ -348,5 +349,9 @@
     private static bool IsCustomFacility(FacilityCode code) =>
         (int)code >= (int)FacilityCode.Custom1 && (int)code <= (int)FacilityCode.Custom5;
 
-    private sealed record OperationService(string Name, string? Instrument, FacilityCode? WorkspaceCode = null);
+    private sealed record OperationService(
+        string Name,
+        string? Instrument,
+        FacilityCode? WorkspaceCode = null,
+        string? Route = null);
 }
