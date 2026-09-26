@@ -1,0 +1,223 @@
+@page "/operations/water-consumption-fees/accounts"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+
+<PageTitle>StallTrack — Water Accounts</PageTitle>
+
+<main class="wcf-accounts-page">
+    <nav class="wcf-accounts-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <a href="/operations/water-consumption-fees">Water Consumption Fees</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Water Accounts</span>
+    </nav>
+
+    <header class="wcf-accounts-heading">
+        <div>
+            <p class="wcf-accounts-eyebrow">WCF · CURRENT BILLING PERIOD</p>
+            <h1>Water Accounts</h1>
+            <p>Detailed WCF billing, readings, collections, and balances.</p>
+        </div>
+        <div class="wcf-accounts-heading-actions">
+            <span class="wcf-accounts-period"><span>Billing Period</span><strong>September 2026</strong></span>
+            <a class="wcf-accounts-back" href="/operations/water-consumption-fees">Back to WCF</a>
+        </div>
+    </header>
+
+    <section class="wcf-accounts-panel" aria-labelledby="wcf-accounts-register-title">
+        <header class="wcf-accounts-panel-header">
+            <div>
+                <p class="wcf-accounts-eyebrow">WATER ACCOUNTS</p>
+                <h2 id="wcf-accounts-register-title">September Assessments</h2>
+                <p>Meter readings, Cash Ticket collections, and current balances.</p>
+            </div>
+        </header>
+
+        <div class="wcf-accounts-toolbar" aria-label="Water account filters">
+            <label>
+                <span class="wcf-accounts-sr-only">Filter by area</span>
+                <select aria-label="Filter by area" @bind="_areaFilter">
+                    <option>All Areas</option>
+                    <option>Fish Section</option>
+                    <option>Meat Section</option>
+                    <option>Shared Areas</option>
+                </select>
+            </label>
+            <label>
+                <span class="wcf-accounts-sr-only">Filter by balance</span>
+                <select aria-label="Filter by balance" @bind="_balanceFilter">
+                    <option>All Balances</option>
+                    <option>Paid</option>
+                    <option>Partial</option>
+                    <option>Unpaid</option>
+                </select>
+            </label>
+            <label class="wcf-accounts-search">
+                <span class="wcf-accounts-sr-only">Search occupant, account, stall, or area</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="10.8" cy="10.8" r="6.8" />
+                    <path d="m16 16 4.5 4.5" />
+                </svg>
+                <input type="search"
+                       placeholder="Search occupant, account, stall, or area..."
+                       aria-label="Search occupant, account, stall, or area"
+                       @bind="_searchText"
+                       @bind:event="oninput" />
+            </label>
+        </div>
+
+        <div class="wcf-accounts-table-wrap" role="region" aria-label="Detailed water account assessments" tabindex="0">
+            <table class="wcf-accounts-table">
+                <caption class="wcf-accounts-sr-only">September 2026 water accounts, readings, assessments, payments, and balances</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Account / Area</th>
+                        <th scope="col">Occupant</th>
+                        <th scope="col">Basis</th>
+                        <th scope="col" class="wcf-accounts-number">Previous Reading</th>
+                        <th scope="col" class="wcf-accounts-number">Current Reading</th>
+                        <th scope="col" class="wcf-accounts-number">Consumption</th>
+                        <th scope="col" class="wcf-accounts-number">Due</th>
+                        <th scope="col" class="wcf-accounts-number">Paid</th>
+                        <th scope="col" class="wcf-accounts-number">Balance</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last Updated</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var account in FilteredAccounts)
+                    {
+                        <tr>
+                            <td>
+                                <strong class="wcf-accounts-primary">@account.Name</strong>
+                                <span class="wcf-accounts-secondary">@account.AreaLabel</span>
+                            </td>
+                            <td>@account.ResponsibleParty</td>
+                            <td>@account.Basis</td>
+                            <td class="wcf-accounts-number">@account.PreviousReading.ToString("0.##") m³</td>
+                            <td class="wcf-accounts-number">@account.CurrentReading.ToString("0.##") m³</td>
+                            <td class="wcf-accounts-number">@account.Consumption.ToString("0.##") m³</td>
+                            <td class="wcf-accounts-number">₱@account.Due.ToString("N2")</td>
+                            <td class="wcf-accounts-number">₱@account.Paid.ToString("N2")</td>
+                            <td class="wcf-accounts-number wcf-accounts-balance">₱@account.Balance.ToString("N2")</td>
+                            <td><span class="wcf-accounts-status @account.StatusClass">@account.Status</span></td>
+                            <td class="wcf-accounts-updated">@account.LastUpdated</td>
+                            <td><button class="wcf-accounts-view" type="button" @onclick="() => OpenAccount(account)">View</button></td>
+                        </tr>
+                    }
+                    @if (!FilteredAccounts.Any())
+                    {
+                        <tr>
+                            <td class="wcf-accounts-empty" colspan="12">No water accounts match the selected filters.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="wcf-accounts-table-footer">
+            <span>@FilteredAccounts.Count() of @_accounts.Count water accounts</span>
+            <span>Billing period: September 2026</span>
+        </footer>
+    </section>
+</main>
+
+@if (_selectedAccount is not null)
+{
+    <div class="wcf-accounts-modal-backdrop" role="presentation" @onclick="CloseAccount">
+        <section class="wcf-accounts-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-account-detail-title" tabindex="-1" @onclick:stopPropagation="true">
+            <button class="wcf-accounts-modal-close" type="button" aria-label="Close water account details" @onclick="CloseAccount">×</button>
+            <header class="wcf-accounts-modal-header">
+                <p class="wcf-accounts-eyebrow">WATER ACCOUNT · SEPTEMBER 2026</p>
+                <h2 id="wcf-account-detail-title">@_selectedAccount.Name</h2>
+                <p>@_selectedAccount.AreaLabel</p>
+            </header>
+
+            <dl class="wcf-accounts-detail-grid">
+                <div><dt>Occupant / Responsible Party</dt><dd>@_selectedAccount.ResponsibleParty</dd></div>
+                <div><dt>Calculation Basis</dt><dd>@_selectedAccount.Basis</dd></div>
+                <div><dt>Previous Reading</dt><dd>@_selectedAccount.PreviousReading.ToString("0.##") m³</dd></div>
+                <div><dt>Current Reading</dt><dd>@_selectedAccount.CurrentReading.ToString("0.##") m³</dd></div>
+                <div><dt>Consumption</dt><dd>@_selectedAccount.Consumption.ToString("0.##") m³</dd></div>
+                <div><dt>Current Due</dt><dd>₱@_selectedAccount.Due.ToString("N2")</dd></div>
+                <div><dt>Paid</dt><dd>₱@_selectedAccount.Paid.ToString("N2")</dd></div>
+                <div><dt>Balance</dt><dd>₱@_selectedAccount.Balance.ToString("N2")</dd></div>
+                <div><dt>Status</dt><dd>@_selectedAccount.Status</dd></div>
+                <div><dt>Last Updated</dt><dd>@_selectedAccount.LastUpdated</dd></div>
+            </dl>
+
+            <footer class="wcf-accounts-modal-footer">
+                <button class="wcf-accounts-close-button" type="button" @onclick="CloseAccount">Close</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly List<WaterAccountRecord> _accounts =
+    [
+        new() { Name = "Fish F-01", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Consumption = 4.2m, Due = 168m, Paid = 168m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 26, 10:12 AM" },
+        new() { Name = "Meat M-04", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Consumption = 7.8m, Due = 312m, Paid = 200m, Balance = 112m, Status = "Partial", LastUpdated = "Sep 25, 9:42 AM" },
+        new() { Name = "Fish F-07", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Consumption = 3.75m, Due = 150m, Paid = 0m, Balance = 150m, Status = "Unpaid", LastUpdated = "Sep 25, 8:55 AM" },
+        new() { Name = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Consumption = 12.5m, Due = 500m, Paid = 500m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 24, 3:18 PM" },
+        new() { Name = "Fish F-12", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Consumption = 7m, Due = 280m, Paid = 180m, Balance = 100m, Status = "Partial", LastUpdated = "Sep 26, 9:50 AM" }
+    ];
+
+    private string _areaFilter = "All Areas";
+    private string _balanceFilter = "All Balances";
+    private string _searchText = string.Empty;
+    private WaterAccountRecord? _selectedAccount;
+
+    private IEnumerable<WaterAccountRecord> FilteredAccounts
+    {
+        get
+        {
+            var query = _accounts.AsEnumerable();
+            if (_areaFilter != "All Areas")
+                query = query.Where(account => account.AreaGroup == _areaFilter);
+
+            if (_balanceFilter != "All Balances")
+                query = query.Where(account => account.Status == _balanceFilter);
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                var term = _searchText.Trim();
+                query = query.Where(account =>
+                    account.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query;
+        }
+    }
+
+    private void OpenAccount(WaterAccountRecord account) => _selectedAccount = account;
+
+    private void CloseAccount() => _selectedAccount = null;
+
+    private sealed class WaterAccountRecord
+    {
+        public string Name { get; init; } = string.Empty;
+        public string AreaLabel { get; init; } = string.Empty;
+        public string ResponsibleParty { get; init; } = string.Empty;
+        public string AreaGroup { get; init; } = string.Empty;
+        public string Basis { get; init; } = string.Empty;
+        public decimal PreviousReading { get; init; }
+        public decimal CurrentReading { get; init; }
+        public decimal Consumption { get; init; }
+        public decimal Due { get; init; }
+        public decimal Paid { get; init; }
+        public decimal Balance { get; init; }
+        public string Status { get; init; } = string.Empty;
+        public string LastUpdated { get; init; } = string.Empty;
+        public string StatusClass => Status switch
+        {
+            "Unpaid" => "is-unpaid",
+            "Partial" => "is-partial",
+            _ => "is-neutral"
+        };
+    }
+}

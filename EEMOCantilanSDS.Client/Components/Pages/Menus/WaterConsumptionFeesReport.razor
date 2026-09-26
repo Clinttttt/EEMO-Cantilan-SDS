@@ -1,0 +1,223 @@
+@page "/operations/water-consumption-fees/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<PageTitle>StallTrack — Water Consumption Fees Report</PageTitle>
+
+<main class="wcf-report-page">
+    <nav class="wcf-report-breadcrumb no-print" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <a href="/operations/water-consumption-fees">Water Consumption Fees</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Report</span>
+    </nav>
+
+    <header class="wcf-report-heading">
+        <div>
+            <p class="wcf-report-eyebrow">EEMO ADMIN · WATER CONSUMPTION FEES</p>
+            <h1>Water Consumption Fees Report</h1>
+            <p>Monthly billing, collections, and revenue performance.</p>
+        </div>
+        <div class="wcf-report-controls no-print">
+            <label>
+                <span>Fiscal Year</span>
+                <select aria-label="Fiscal year">
+                    <option selected>2026</option>
+                </select>
+            </label>
+            <button type="button" class="wcf-report-button wcf-report-print" @onclick="PrintReport">Print Report</button>
+            <button type="button" class="wcf-report-button" disabled>Export</button>
+        </div>
+    </header>
+
+    <section class="wcf-report-identity" aria-label="Report office identity">
+        <p>Republic of the Philippines</p>
+        <p>Province of Surigao del Sur</p>
+        <p>Municipality of Cantilan</p>
+        <h2>MUNICIPAL ECONOMIC ENTERPRISES DEVELOPMENT OFFICE</h2>
+        <strong>WATER CONSUMPTION FEES REPORT</strong>
+        <span>Fiscal Year 2026</span>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-financial-position-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">FINANCIAL POSITION</p>
+                <h2 id="wcf-financial-position-title">Annual Revenue Position</h2>
+            </div>
+            <p class="wcf-report-definition">Target attainment = YTD revenue collected ÷ approved annual target.</p>
+        </header>
+        <dl class="wcf-report-position">
+            <div><dt>Annual Target</dt><dd>—</dd><span>Approved WCF target</span></div>
+            <div><dt>YTD Collection</dt><dd>—</dd><span>Official monthly revenue</span></div>
+            <div><dt>Remaining Target</dt><dd>—</dd><span>Target less YTD collection</span></div>
+            <div><dt>Target Attainment</dt><dd>—</dd><span>YTD divided by annual target</span></div>
+        </dl>
+        <p class="wcf-report-note">The approved WCF target and official 2026 revenue figures are not confirmed in the available source evidence.</p>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-official-summary-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">OFFICIAL MONTHLY SUMMARY</p>
+                <h2 id="wcf-official-summary-title">Water Consumption Fees — Fiscal Year 2026</h2>
+            </div>
+        </header>
+        <div class="wcf-report-table-wrap wcf-official-table-wrap" role="region" aria-label="Official monthly revenue summary" tabindex="0">
+            <table class="wcf-report-table wcf-official-table">
+                <caption class="wcf-report-sr-only">Official Annual Target, monthly revenue, year-to-date total, and percentage for Water Consumption Fees in fiscal year 2026</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Revenue Classification</th>
+                        <th scope="col" class="wcf-report-number">Annual Target</th>
+                        <th scope="col">Jan</th><th scope="col">Feb</th><th scope="col">Mar</th><th scope="col">Apr</th>
+                        <th scope="col">May</th><th scope="col">Jun</th><th scope="col">Jul</th><th scope="col">Aug</th>
+                        <th scope="col">Sep</th><th scope="col">Oct</th><th scope="col">Nov</th><th scope="col">Dec</th>
+                        <th scope="col" class="wcf-report-number">YTD Total</th>
+                        <th scope="col" class="wcf-report-number">%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">Water Consumption Fees / WCF</th>
+                        <td class="wcf-report-number">—</td>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+                        <td class="wcf-report-number">—</td><td class="wcf-report-number">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="wcf-report-note">— indicates no confirmed source value for fiscal year 2026.</p>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-billing-position-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">WCF BILLING &amp; COLLECTION</p>
+                <h2 id="wcf-billing-position-title">Monthly Billing Position</h2>
+            </div>
+            <p class="wcf-report-definition">Collection rate = collected ÷ billed. It measures billing recovery, not target attainment.</p>
+        </header>
+        <div class="wcf-report-table-wrap" role="region" aria-label="Monthly billing and collection position" tabindex="0">
+            <table class="wcf-report-table">
+                <caption class="wcf-report-sr-only">September 2026 WCF billing, collections, outstanding balance, and account counts</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Month</th><th scope="col" class="wcf-report-number">Billed</th>
+                        <th scope="col" class="wcf-report-number">Collected</th><th scope="col" class="wcf-report-number">Outstanding</th>
+                        <th scope="col" class="wcf-report-number">Collection Rate</th><th scope="col" class="wcf-report-number">Accounts Billed</th>
+                        <th scope="col" class="wcf-report-number">Accounts with Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">September 2026</th><td class="wcf-report-number">₱1,410.00</td>
+                        <td class="wcf-report-number">₱1,048.00</td><td class="wcf-report-number">₱362.00</td>
+                        <td class="wcf-report-number">74.33%</td><td class="wcf-report-number">5</td><td class="wcf-report-number">3</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-account-summary-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">SEPTEMBER 2026</p>
+                <h2 id="wcf-account-summary-title">Water Account Summary</h2>
+            </div>
+            <label class="wcf-report-month-control no-print">
+                <span>Billing Month</span>
+                <select aria-label="Selected billing month" disabled><option>September 2026</option></select>
+            </label>
+        </header>
+        <div class="wcf-report-table-wrap" role="region" aria-label="September water account detail" tabindex="0">
+            <table class="wcf-report-table wcf-account-summary-table">
+                <caption class="wcf-report-sr-only">September 2026 account readings, consumption, billed amounts, payments, and balances</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Account / Stall</th><th scope="col">Occupant</th>
+                        <th scope="col" class="wcf-report-number">Previous</th><th scope="col" class="wcf-report-number">Current</th>
+                        <th scope="col" class="wcf-report-number">Consumption</th><th scope="col" class="wcf-report-number">Billed</th>
+                        <th scope="col" class="wcf-report-number">Paid</th><th scope="col" class="wcf-report-number">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><th scope="row">Fish F-01 <span>Fish Section</span></th><td>Juan Dela Cruz</td><td class="wcf-report-number">125.4 m³</td><td class="wcf-report-number">129.6 m³</td><td class="wcf-report-number">4.2 m³</td><td class="wcf-report-number">₱168.00</td><td class="wcf-report-number">₱168.00</td><td class="wcf-report-number">₱0.00</td></tr>
+                    <tr><th scope="row">Meat M-04 <span>Meat Section</span></th><td>Pedro Santos</td><td class="wcf-report-number">117.2 m³</td><td class="wcf-report-number">125.0 m³</td><td class="wcf-report-number">7.8 m³</td><td class="wcf-report-number">₱312.00</td><td class="wcf-report-number">₱200.00</td><td class="wcf-report-number">₱112.00</td></tr>
+                    <tr><th scope="row">Fish F-07 <span>Fish Section</span></th><td>Maria Flores</td><td class="wcf-report-number">72.0 m³</td><td class="wcf-report-number">75.75 m³</td><td class="wcf-report-number">3.75 m³</td><td class="wcf-report-number">₱150.00</td><td class="wcf-report-number">₱0.00</td><td class="wcf-report-number">₱150.00</td></tr>
+                    <tr><th scope="row">Cleaning Area <span>Common Area</span></th><td>Shared Area</td><td class="wcf-report-number">210.0 m³</td><td class="wcf-report-number">222.5 m³</td><td class="wcf-report-number">12.5 m³</td><td class="wcf-report-number">₱500.00</td><td class="wcf-report-number">₱500.00</td><td class="wcf-report-number">₱0.00</td></tr>
+                    <tr><th scope="row">Fish F-12 <span>Fish Section</span></th><td>Ramon Villanueva</td><td class="wcf-report-number">92.0 m³</td><td class="wcf-report-number">99.0 m³</td><td class="wcf-report-number">7.0 m³</td><td class="wcf-report-number">₱280.00</td><td class="wcf-report-number">₱180.00</td><td class="wcf-report-number">₱100.00</td></tr>
+                </tbody>
+                <tfoot>
+                    <tr><th scope="row" colspan="4">September total · 5 accounts</th><td class="wcf-report-number">35.25 m³</td><td class="wcf-report-number">₱1,410.00</td><td class="wcf-report-number">₱1,048.00</td><td class="wcf-report-number">₱362.00</td></tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-consumption-summary-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">METERED CONSUMPTION</p>
+                <h2 id="wcf-consumption-summary-title">Metered Consumption Summary</h2>
+            </div>
+        </header>
+        <div class="wcf-report-table-wrap" role="region" aria-label="Consumption totals by area" tabindex="0">
+            <table class="wcf-report-table">
+                <caption class="wcf-report-sr-only">September 2026 account count, consumption, billed amount, and collections by area</caption>
+                <thead><tr><th scope="col">Area</th><th scope="col" class="wcf-report-number">Accounts</th><th scope="col" class="wcf-report-number">Total Consumption</th><th scope="col" class="wcf-report-number">Total Billed</th><th scope="col" class="wcf-report-number">Total Collected</th></tr></thead>
+                <tbody>
+                    <tr><th scope="row">Fish Section</th><td class="wcf-report-number">3</td><td class="wcf-report-number">14.95 m³</td><td class="wcf-report-number">₱598.00</td><td class="wcf-report-number">₱348.00</td></tr>
+                    <tr><th scope="row">Meat Section</th><td class="wcf-report-number">1</td><td class="wcf-report-number">7.8 m³</td><td class="wcf-report-number">₱312.00</td><td class="wcf-report-number">₱200.00</td></tr>
+                    <tr><th scope="row">Common Area</th><td class="wcf-report-number">1</td><td class="wcf-report-number">12.5 m³</td><td class="wcf-report-number">₱500.00</td><td class="wcf-report-number">₱500.00</td></tr>
+                </tbody>
+                <tfoot><tr><th scope="row">Total</th><td class="wcf-report-number">5</td><td class="wcf-report-number">35.25 m³</td><td class="wcf-report-number">₱1,410.00</td><td class="wcf-report-number">₱1,048.00</td></tr></tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="wcf-report-section" aria-labelledby="wcf-balance-summary-title">
+        <header class="wcf-report-section-heading">
+            <div>
+                <p class="wcf-report-eyebrow">RECEIVABLE POSITION</p>
+                <h2 id="wcf-balance-summary-title">Accounts with Balance</h2>
+            </div>
+        </header>
+        <div class="wcf-report-table-wrap" role="region" aria-label="Accounts with outstanding WCF balances" tabindex="0">
+            <table class="wcf-report-table">
+                <caption class="wcf-report-sr-only">September 2026 water accounts with an outstanding balance</caption>
+                <thead><tr><th scope="col">Account</th><th scope="col">Occupant</th><th scope="col">Month</th><th scope="col" class="wcf-report-number">Billed</th><th scope="col" class="wcf-report-number">Paid</th><th scope="col" class="wcf-report-number">Balance</th></tr></thead>
+                <tbody>
+                    <tr><th scope="row">Meat M-04</th><td>Pedro Santos</td><td>Sep 2026</td><td class="wcf-report-number">₱312.00</td><td class="wcf-report-number">₱200.00</td><td class="wcf-report-number">₱112.00</td></tr>
+                    <tr><th scope="row">Fish F-07</th><td>Maria Flores</td><td>Sep 2026</td><td class="wcf-report-number">₱150.00</td><td class="wcf-report-number">₱0.00</td><td class="wcf-report-number">₱150.00</td></tr>
+                    <tr><th scope="row">Fish F-12</th><td>Ramon Villanueva</td><td>Sep 2026</td><td class="wcf-report-number">₱280.00</td><td class="wcf-report-number">₱180.00</td><td class="wcf-report-number">₱100.00</td></tr>
+                </tbody>
+                <tfoot><tr><th scope="row" colspan="3">Total outstanding · 3 accounts</th><td class="wcf-report-number">₱742.00</td><td class="wcf-report-number">₱380.00</td><td class="wcf-report-number">₱362.00</td></tr></tfoot>
+            </table>
+        </div>
+    </section>
+
+    <section class="wcf-report-basis" aria-labelledby="wcf-report-basis-title">
+        <div>
+            <p class="wcf-report-eyebrow">REPORT BASIS</p>
+            <h2 id="wcf-report-basis-title">Classification and source</h2>
+        </div>
+        <dl>
+            <div><dt>Revenue Classification</dt><dd>Water Consumption Fees / WCF</dd></div>
+            <div><dt>Instrument</dt><dd><span class="wcf-report-ct">CT</span> Cash Ticket</dd></div>
+            <div><dt>Calculation</dt><dd>Metered Consumption</dd></div>
+            <div><dt>Fiscal Year</dt><dd>2026</dd></div>
+            <div><dt>Billing Unit</dt><dd>Water Account</dd></div>
+            <div><dt>Collection Source</dt><dd>Recorded WCF payments</dd></div>
+            <div><dt>Last Updated</dt><dd>Sep 26, 2026 · 1:15 AM</dd></div>
+        </dl>
+    </section>
+</main>
+
+@code {
+    private async Task PrintReport() => await JS.InvokeVoidAsync("window.print");
+}
