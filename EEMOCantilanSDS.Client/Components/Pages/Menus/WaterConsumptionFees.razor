@@ -1,0 +1,464 @@
+@page "/operations/water-consumption-fees"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+
+<PageTitle>StallTrack — Water Consumption Fees</PageTitle>
+
+<main class="wcf-page">
+    <nav class="wcf-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Water Consumption Fees</span>
+    </nav>
+
+    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · WCF")"
+                  Title="Water Consumption Fees"
+                  Subtitle="Water billing and Cash Ticket collections for market accounts."
+                  Icon="@WaterIcon"
+                  Stats="HeroStats" />
+
+    <section class="wcf-desk" aria-labelledby="wcf-desk-title">
+        <div class="wcf-desk-copy">
+            <p class="wcf-eyebrow">CURRENT BILLING PERIOD</p>
+            <h2 id="wcf-desk-title">September 2026</h2>
+            <p>Review water assessments and collections for the current period.</p>
+        </div>
+
+        <div class="wcf-desk-actions">
+            <div class="wcf-instrument" aria-label="Collection instrument: Cash Ticket">
+                <span class="wcf-ct-chip">CT</span>
+                <strong>Cash Ticket</strong>
+            </div>
+            <div class="wcf-action-buttons">
+                <button class="wcf-button wcf-button-primary" type="button" @onclick="OpenAssessmentModal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    New WCF Assessment
+                </button>
+                <button class="wcf-button wcf-button-secondary" type="button" @onclick="() => OpenPaymentModal()">
+                    Record Payment
+                </button>
+                <a class="wcf-button wcf-button-report" href="/operations/water-consumption-fees/report">
+                    Report
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="wcf-main-grid">
+        <section class="wcf-panel wcf-assessments-panel" aria-labelledby="wcf-assessments-title">
+            <header class="wcf-panel-header">
+                <div>
+                    <p class="wcf-eyebrow">WATER ACCOUNTS</p>
+                    <h2 id="wcf-assessments-title">Current Assessments</h2>
+                    <p>Water charges and balances for configured stalls, spaces, and service areas.</p>
+                </div>
+                <div class="wcf-assessment-header-actions">
+                    <span class="wcf-period-tag">September 2026</span>
+                    <a class="wcf-button wcf-button-secondary wcf-view-all" href="/operations/water-consumption-fees/accounts">View All</a>
+                </div>
+            </header>
+
+            <div class="wcf-toolbar" aria-label="Assessment filters">
+                <label class="wcf-filter-control">
+                    <span class="wcf-sr-only">Filter by area</span>
+                    <select aria-label="Filter by area" @bind="_areaFilter">
+                        <option>All Areas</option>
+                        <option>Fish Section</option>
+                        <option>Meat Section</option>
+                        <option>Shared Areas</option>
+                    </select>
+                </label>
+                <label class="wcf-search-control">
+                    <span class="wcf-sr-only">Search stall, area, or account</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="10.8" cy="10.8" r="6.8" />
+                        <path d="m16 16 4.5 4.5" />
+                    </svg>
+                    <input type="search"
+                           placeholder="Search occupant, account, or area..."
+                           aria-label="Search occupant, account, or area"
+                           @bind="_searchText"
+                           @bind:event="oninput" />
+                </label>
+            </div>
+
+            <div class="wcf-table-wrap" role="region" aria-label="Current water assessments" tabindex="0">
+                <table class="wcf-table wcf-assessment-table">
+                    <caption class="wcf-sr-only">September 2026 water account assessments and balances</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Occupant</th>
+                            <th scope="col">Basis</th>
+                            <th scope="col" class="wcf-number">Due</th>
+                            <th scope="col" class="wcf-number">Paid</th>
+                            <th scope="col" class="wcf-number">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var account in FilteredAccounts)
+                        {
+                            <tr>
+                                <td class="wcf-occupant-cell">
+                                    <strong class="wcf-account-name">@account.ResponsibleParty</strong>
+                                    <span class="wcf-account-area">@account.Name · @account.AreaLabel</span>
+                                </td>
+                                <td>@account.Basis</td>
+                                <td class="wcf-number">₱@account.Due.ToString("N2")</td>
+                                <td class="wcf-number">₱@account.Paid.ToString("N2")</td>
+                                <td class="wcf-number wcf-balance">₱@account.Balance.ToString("N2")</td>
+                            </tr>
+                        }
+                        @if (!FilteredAccounts.Any())
+                        {
+                            <tr>
+                                <td class="wcf-empty-cell" colspan="5">No water accounts match the selected filters.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="wcf-table-footer">
+                <span>@FilteredAccounts.Count() water accounts</span>
+                <span>Billing period: September 2026</span>
+            </footer>
+        </section>
+
+        <aside class="wcf-panel wcf-summary-panel" aria-labelledby="wcf-summary-title">
+            <header class="wcf-panel-header">
+                <div>
+                    <p class="wcf-eyebrow">CURRENT PERIOD</p>
+                    <h2 id="wcf-summary-title">Water Collection Position</h2>
+                    <p>September 2026</p>
+                </div>
+            </header>
+
+            <dl class="wcf-summary-list">
+                <div class="wcf-summary-emphasis">
+                    <dt>Total billed</dt>
+                    <dd>₱1,410.00</dd>
+                </div>
+                <div>
+                    <dt>Collected</dt>
+                    <dd>₱1,048.00</dd>
+                </div>
+                <div class="wcf-summary-outstanding">
+                    <dt>Outstanding</dt>
+                    <dd>₱362.00</dd>
+                </div>
+                <div>
+                    <dt>Paid accounts</dt>
+                    <dd>2 of 5</dd>
+                </div>
+                <div>
+                    <dt>Accounts with balance</dt>
+                    <dd>3</dd>
+                </div>
+                <div>
+                    <dt>Instrument</dt>
+                    <dd><span class="wcf-inline-ct">CT</span> Cash Ticket</dd>
+                </div>
+            </dl>
+
+            <div class="wcf-collection-rate" aria-label="WCF collection rate 74.33 percent">
+                <p class="wcf-eyebrow">COLLECTION RATE</p>
+                <strong>74.33%</strong>
+                <p>₱1,048.00 collected<br />of ₱1,410.00 billed</p>
+            </div>
+        </aside>
+    </div>
+
+    <section class="wcf-panel wcf-activity-panel" aria-labelledby="wcf-activity-title">
+        <header class="wcf-panel-header wcf-activity-header">
+            <div>
+                <p class="wcf-eyebrow">BILLING &amp; COLLECTION</p>
+                <h2 id="wcf-activity-title">Billing &amp; Collection Activity</h2>
+                <p>Recent WCF assessment and payment activity.</p>
+            </div>
+        </header>
+
+        <div class="wcf-table-wrap" role="region" aria-label="Recent WCF billing and collection activity" tabindex="0">
+            <table class="wcf-table wcf-activity-table">
+                <caption class="wcf-sr-only">Recent water assessment and Cash Ticket payment activity</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Account</th>
+                        <th scope="col">Period</th>
+                        <th scope="col">Activity</th>
+                        <th scope="col" class="wcf-number">Amount</th>
+                        <th scope="col" class="wcf-number">Balance</th>
+                        <th scope="col">Recorded By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in _activities)
+                    {
+                        <tr>
+                            <td>@activity.Date</td>
+                            <td>@activity.Account</td>
+                            <td>@activity.Period</td>
+                            <td><span class="wcf-activity-kind">@activity.Type</span></td>
+                            <td class="wcf-number">₱@activity.Amount.ToString("N2")</td>
+                            <td class="wcf-number wcf-balance">₱@activity.Balance.ToString("N2")</td>
+                            <td>@activity.RecordedBy</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+@if (_assessmentModalOpen)
+{
+    <div class="wcf-modal-backdrop" role="presentation" @onclick="CloseAssessmentModal">
+        <section class="wcf-modal wcf-assessment-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-assessment-modal-title" tabindex="-1" @onclick:stopPropagation="true">
+            <button class="wcf-modal-close" type="button" aria-label="Close new water assessment" @onclick="CloseAssessmentModal">×</button>
+            <header class="wcf-modal-header">
+                <p class="wcf-eyebrow">WCF · NEW ASSESSMENT</p>
+                <h2 id="wcf-assessment-modal-title">New Water Assessment</h2>
+                <p>Create the water charge for the selected billing period.</p>
+            </header>
+
+            <div class="wcf-context-strip">
+                <div><span>Billing Period</span><strong>September 2026</strong></div>
+                <div><span>Revenue Source</span><strong>Water Consumption Fees</strong></div>
+                <div><span>Instrument</span><strong><span class="wcf-inline-ct">CT</span> Cash Ticket</strong></div>
+            </div>
+
+            <div class="wcf-form-grid">
+                <label class="wcf-field">
+                    <span>Account / Stall</span>
+                    <input @bind="_assessmentStall" />
+                </label>
+                <label class="wcf-field">
+                    <span>Occupant</span>
+                    <input @bind="_assessmentOccupant" />
+                </label>
+                <label class="wcf-field wcf-field-full">
+                    <span>Area</span>
+                    <input @bind="_assessmentArea" />
+                </label>
+
+                <div class="wcf-meter-reading-label">METERED CONSUMPTION</div>
+
+                <label class="wcf-field">
+                    <span>Previous Reading</span>
+                    <input value="@_previousReading.ToString("0.0") m³" readonly />
+                </label>
+                <label class="wcf-field">
+                    <span>Current Reading</span>
+                    <input type="number" min="@_previousReading" step="0.1" @bind="_currentReading" @bind:event="oninput" />
+                </label>
+                <label class="wcf-field">
+                    <span>Consumption</span>
+                    <input value="@AssessmentConsumption.ToString("0.0") m³" readonly />
+                </label>
+                <label class="wcf-field">
+                    <span>Rate</span>
+                    <input value="₱@_rate.ToString("N2") / m³" readonly />
+                </label>
+            </div>
+
+            <div class="wcf-amount-due">
+                <span>AMOUNT DUE</span>
+                <strong>₱@AssessmentAmountDue.ToString("N2")</strong>
+            </div>
+
+            <footer class="wcf-modal-footer">
+                <button class="wcf-button wcf-button-secondary" type="button" @onclick="CloseAssessmentModal">Cancel</button>
+                <button class="wcf-button wcf-button-primary" type="button" @onclick="SaveAssessment">Save Assessment</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_paymentModalOpen)
+{
+    <div class="wcf-modal-backdrop" role="presentation" @onclick="ClosePaymentModal">
+        <section class="wcf-modal wcf-payment-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-payment-modal-title" tabindex="-1" @onclick:stopPropagation="true">
+            <button class="wcf-modal-close" type="button" aria-label="Close WCF payment" @onclick="ClosePaymentModal">×</button>
+            <header class="wcf-modal-header">
+                <p class="wcf-eyebrow">WCF · CASH TICKET COLLECTION</p>
+                <h2 id="wcf-payment-modal-title">Record WCF Payment</h2>
+            </header>
+
+            <div class="wcf-payment-context">
+                <div class="wcf-payment-account">
+                    <span>ACCOUNT / OCCUPANT</span>
+                    <strong>@_paymentAccountName</strong>
+                </div>
+                <div class="wcf-payment-facts">
+                    <div><span>Billing Period</span><strong>September 2026</strong></div>
+                    <div><span>Amount Due</span><strong>₱@_paymentDue.ToString("N2")</strong></div>
+                    <div><span>Previously Paid</span><strong>₱@_paymentPreviouslyPaid.ToString("N2")</strong></div>
+                    <div><span>Outstanding</span><strong>₱@_paymentOutstanding.ToString("N2")</strong></div>
+                    <div><span>Instrument</span><strong><span class="wcf-inline-ct">CT</span> Cash Ticket</strong></div>
+                </div>
+            </div>
+
+            <div class="wcf-form-grid wcf-payment-form">
+                <label class="wcf-field wcf-field-full">
+                    <span>Payment Amount</span>
+                    <div class="wcf-currency-input">
+                        <span aria-hidden="true">₱</span>
+                        <input type="number" min="0" step="0.01" max="@_paymentOutstanding" value="@_paymentAmount" @oninput="OnPaymentAmountInput" />
+                    </div>
+                </label>
+            </div>
+
+            <div class="wcf-amount-due wcf-remaining-summary">
+                <span>REMAINING BALANCE</span>
+                <strong>₱@RemainingPaymentBalance.ToString("N2")</strong>
+            </div>
+
+            <footer class="wcf-modal-footer">
+                <button class="wcf-button wcf-button-secondary" type="button" @onclick="ClosePaymentModal">Cancel</button>
+                <button class="wcf-button wcf-button-primary" type="button" @onclick="SavePayment">Record Payment</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly List<WcfAccount> _accounts =
+    [
+        new() { Name = "Fish F-01", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", Due = 168m, Paid = 168m, Balance = 0m },
+        new() { Name = "Meat M-04", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", Due = 312m, Paid = 200m, Balance = 112m },
+        new() { Name = "Fish F-07", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", Due = 150m, Paid = 0m, Balance = 150m },
+        new() { Name = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Area", AreaGroup = "Shared Areas", Basis = "Metered", Due = 500m, Paid = 500m, Balance = 0m },
+        new() { Name = "Fish F-12", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", Due = 280m, Paid = 180m, Balance = 100m }
+    ];
+
+    private readonly List<WcfActivity> _activities =
+    [
+        new() { Date = "Sep 26, 2026", Account = "Fish F-12", Period = "Sep 2026", Type = "CT Payment", Amount = 180m, Balance = 100m, RecordedBy = "Collector A" },
+        new() { Date = "Sep 25, 2026", Account = "Meat M-04", Period = "Sep 2026", Type = "CT Payment", Amount = 112m, Balance = 112m, RecordedBy = "Collector A" },
+        new() { Date = "Sep 25, 2026", Account = "Fish F-07", Period = "Sep 2026", Type = "Assessment", Amount = 150m, Balance = 150m, RecordedBy = "Admin" },
+        new() { Date = "Sep 24, 2026", Account = "Fish F-01", Period = "Sep 2026", Type = "CT Payment", Amount = 168m, Balance = 0m, RecordedBy = "Collector B" }
+    ];
+
+    private bool _assessmentModalOpen;
+    private bool _paymentModalOpen;
+    private string _areaFilter = "All Areas";
+    private string _searchText = string.Empty;
+    private string _assessmentStall = "Fish F-01";
+    private string _assessmentOccupant = "Juan Dela Cruz";
+    private string _assessmentArea = "Fish Section";
+    private decimal _previousReading = 125.4m;
+    private decimal _currentReading = 129.6m;
+    private decimal _rate = 40m;
+    private string _paymentAccountName = "Fish F-01 · Juan Dela Cruz";
+    private decimal _paymentDue = 168m;
+    private decimal _paymentPreviouslyPaid;
+    private decimal _paymentOutstanding = 168m;
+    private decimal _paymentAmount = 168m;
+
+    private List<FacilityHero.HeroStat> HeroStats =>
+    [
+        new() { Value = "₱1,410.00", Label = "Billed" },
+        new() { Value = "₱1,048.00", Label = "Collected" },
+        new() { Value = "₱362.00", Label = "Outstanding" }
+    ];
+
+    private RenderFragment WaterIcon => builder =>
+    {
+        builder.OpenElement(0, "svg");
+        builder.AddAttribute(1, "viewBox", "0 0 24 24");
+        builder.AddAttribute(2, "fill", "none");
+        builder.AddAttribute(3, "stroke", "currentColor");
+        builder.AddAttribute(4, "stroke-width", "1.8");
+        builder.AddAttribute(5, "stroke-linecap", "round");
+        builder.AddAttribute(6, "stroke-linejoin", "round");
+        builder.AddAttribute(7, "aria-hidden", "true");
+        builder.AddMarkupContent(8, "<path d=\"M12 3.4s-6.4 7.1-6.4 11.2a6.4 6.4 0 0 0 12.8 0C18.4 10.5 12 3.4 12 3.4Z\"/><path d=\"M8.6 14.9a3.5 3.5 0 0 0 3.4 3\"/>");
+        builder.CloseElement();
+    };
+
+    private IEnumerable<WcfAccount> FilteredAccounts
+    {
+        get
+        {
+            var query = _accounts.AsEnumerable();
+
+            if (_areaFilter != "All Areas")
+                query = query.Where(account => account.AreaGroup == _areaFilter);
+
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                var term = _searchText.Trim();
+                query = query.Where(account =>
+                    account.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query;
+        }
+    }
+
+    private decimal AssessmentConsumption => Math.Max(0m, _currentReading - _previousReading);
+
+    private decimal AssessmentAmountDue => AssessmentConsumption * _rate;
+
+    private decimal RemainingPaymentBalance => Math.Max(0m, _paymentOutstanding - _paymentAmount);
+
+    private void OpenAssessmentModal()
+    {
+        _assessmentStall = "Fish F-01";
+        _assessmentOccupant = "Juan Dela Cruz";
+        _assessmentArea = "Fish Section";
+        _previousReading = 125.4m;
+        _currentReading = 129.6m;
+        _assessmentModalOpen = true;
+    }
+
+    private void CloseAssessmentModal() => _assessmentModalOpen = false;
+
+    private void SaveAssessment() => _assessmentModalOpen = false;
+
+    private void OpenPaymentModal()
+    {
+        _paymentAccountName = "Fish F-01 · Juan Dela Cruz";
+        _paymentDue = 168m;
+        _paymentPreviouslyPaid = 0m;
+        _paymentOutstanding = 168m;
+        _paymentAmount = _paymentOutstanding;
+        _paymentModalOpen = true;
+    }
+
+    private void OnPaymentAmountInput(ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var amount))
+            _paymentAmount = amount;
+    }
+
+    private void ClosePaymentModal() => _paymentModalOpen = false;
+
+    private void SavePayment() => _paymentModalOpen = false;
+
+    private sealed class WcfAccount
+    {
+        public string Name { get; init; } = string.Empty;
+        public string AreaLabel { get; init; } = string.Empty;
+        public string ResponsibleParty { get; init; } = string.Empty;
+        public string AreaGroup { get; init; } = string.Empty;
+        public string Basis { get; init; } = string.Empty;
+        public decimal Due { get; init; }
+        public decimal Paid { get; init; }
+        public decimal Balance { get; init; }
+    }
+
+    private sealed class WcfActivity
+    {
+        public string Date { get; init; } = string.Empty;
+        public string Account { get; init; } = string.Empty;
+        public string Period { get; init; } = string.Empty;
+        public string Type { get; init; } = string.Empty;
+        public decimal Amount { get; init; }
+        public decimal Balance { get; init; }
+        public string RecordedBy { get; init; } = string.Empty;
+    }
+}
