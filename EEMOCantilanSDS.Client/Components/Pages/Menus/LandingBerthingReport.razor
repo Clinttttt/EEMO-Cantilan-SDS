@@ -1,0 +1,305 @@
+@page "/operations/landing-berthing/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using System.Text
+@inject IJSRuntime JS
+
+<PageTitle>Landing / Berthing Collection Report — FY 2026</PageTitle>
+
+<main class="lb-report-page">
+    <nav class="lb-report-breadcrumb lb-report-screen-only" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <a href="/operations/landing-berthing">Landing / Berthing</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Report</span>
+    </nav>
+
+    <header class="lb-report-page-heading lb-report-screen-only">
+        <div>
+            <p class="lb-report-eyebrow">OPERATIONS · INCOME FROM MARKET</p>
+            <h1>LANDING / BERTHING COLLECTION REPORT</h1>
+            <p>Official monthly summary and StallTrack digital collection detail.</p>
+        </div>
+        <div class="lb-report-controls">
+            <label class="lb-report-year-control">
+                <span>Fiscal Year</span>
+                <span class="lb-report-select-shell">
+                    <select aria-label="Fiscal Year">
+                        <option value="2026" selected>2026</option>
+                    </select>
+                </span>
+            </label>
+            <button class="lb-report-print-button" type="button" @onclick="PrintReport">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM17 11h.01" /></svg>
+                Print Report
+            </button>
+            <a class="lb-report-export-button" href="@ExportHref" download="landing-berthing-collection-report-fy2026.csv">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></svg>
+                Export
+            </a>
+        </div>
+    </header>
+
+    <article class="lb-report-document" aria-label="Landing / Berthing Collection Report, Fiscal Year 2026">
+        <header class="lb-report-letterhead">
+            <div class="lb-report-government-heading">
+                <img class="lb-report-logo lb-report-seal"
+                     src="/images/LGU_CANTILAN_LOGO.jpg"
+                     alt="Municipality of Cantilan seal" />
+                <div class="lb-report-government-copy">
+                    <p>Republic of the Philippines</p>
+                    <p>Province of Surigao del Sur</p>
+                    <p class="lb-report-municipality">MUNICIPALITY OF CANTILAN</p>
+                </div>
+                <img class="lb-report-logo lb-report-bagong"
+                     src="/images/Bagong_Pilipinas_logo.png"
+                     alt="Bagong Pilipinas logo" />
+            </div>
+            <p class="lb-report-office">MUNICIPAL ECONOMIC ENTERPRISES DEVELOPMENT OFFICE</p>
+            <h2>LANDING / BERTHING COLLECTION REPORT</h2>
+            <p class="lb-report-year">Fiscal Year 2026</p>
+        </header>
+
+        <section class="lb-report-position lb-report-section" aria-labelledby="lb-report-position-title">
+            <h2 id="lb-report-position-title" class="lb-report-section-title">Financial Position</h2>
+            <dl class="lb-report-position-grid">
+                <div><dt>Annual Target</dt><dd>@Money(AnnualTarget)</dd></div>
+                <div><dt>YTD Collection</dt><dd>@Money(YtdCollection)</dd></div>
+                <div><dt>Remaining Target</dt><dd>@Money(RemainingTarget)</dd></div>
+                <div><dt>Target Attainment</dt><dd>@TargetAttainment.ToString("N2", CultureInfo.InvariantCulture)%</dd></div>
+            </dl>
+        </section>
+
+        <section class="lb-report-section lb-report-official-section" aria-labelledby="lb-official-monthly-title">
+            <header class="lb-report-section-heading">
+                <div>
+                    <p class="lb-report-eyebrow">OFFICIAL MONTHLY SUMMARY</p>
+                    <h2 id="lb-official-monthly-title">Monthly Income — Fiscal Year 2026</h2>
+                    <p>Figures follow the supplied EEMO Monthly Income reference.</p>
+                </div>
+            </header>
+            <div class="lb-report-table-scroll" role="region" aria-label="Official monthly Landing and Berthing summary" tabindex="0">
+                <table class="lb-report-table lb-report-monthly-table">
+                    <caption class="lb-report-sr-only">Official Landing / Berthing annual target, January through December collection, YTD total, and target attainment for fiscal year 2026.</caption>
+                    <colgroup>
+                        <col class="lb-report-col-revenue" />
+                        <col class="lb-report-col-target" />
+                        @foreach (var month in Months)
+                        {
+                            <col class="lb-report-col-month" />
+                        }
+                        <col class="lb-report-col-ytd" />
+                        <col class="lb-report-col-percent" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Revenue Classification</th>
+                            <th scope="col" class="lb-report-number">Annual Target</th>
+                            @foreach (var month in Months)
+                            {
+                                <th scope="col" class="lb-report-number">@month</th>
+                            }
+                            <th scope="col" class="lb-report-number">YTD Total</th>
+                            <th scope="col" class="lb-report-number">%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Landing / Berthing</th>
+                            <td class="lb-report-number">@Money(AnnualTarget)</td>
+                            @foreach (var actual in MonthlyActuals)
+                            {
+                                <td class="lb-report-number">@FormatOptionalMoney(actual)</td>
+                            }
+                            <td class="lb-report-number lb-report-total-cell">@Money(YtdCollection)</td>
+                            <td class="lb-report-number lb-report-total-cell">@TargetAttainment.ToString("N2", CultureInfo.InvariantCulture)%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="lb-report-data-note">— means the supplied official reference has no value for that month; it is not zero.</p>
+        </section>
+
+        <section class="lb-report-section" aria-labelledby="lb-digital-breakdown-title">
+            <header class="lb-report-section-heading">
+                <div>
+                    <p class="lb-report-eyebrow">STALLTRACK DIGITAL COLLECTION DETAIL · SAMPLE UI DATA</p>
+                    <h2 id="lb-digital-breakdown-title">Collection Breakdown</h2>
+                    <p>Preview entries are separate from the official Monthly Income figures above.</p>
+                </div>
+            </header>
+            <div class="lb-report-table-scroll" role="region" aria-label="Sample digital Landing and Berthing collection breakdown" tabindex="0">
+                <table class="lb-report-table lb-report-digital-table">
+                    <caption class="lb-report-sr-only">Sample UI collection breakdown for September 2026, not an official monthly-source detail.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Month</th>
+                            <th scope="col" class="lb-report-number">Landing</th>
+                            <th scope="col" class="lb-report-number">Berthing</th>
+                            <th scope="col" class="lb-report-number">Total</th>
+                            <th scope="col" class="lb-report-number">Transactions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row">September 2026 · sample</th>
+                            <td class="lb-report-number">@Money(SampleLandingTotal)</td>
+                            <td class="lb-report-number">@Money(SampleBerthingTotal)</td>
+                            <td class="lb-report-number">@Money(SampleTotal)</td>
+                            <td class="lb-report-number">@SampleCollections.Count</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="lb-report-data-note">These hardcoded preview examples are not official historical transactions and are not connected to the live collection source.</p>
+        </section>
+
+        <section class="lb-report-section" aria-labelledby="lb-transaction-detail-title">
+            <header class="lb-report-section-heading">
+                <div>
+                    <p class="lb-report-eyebrow">SAMPLE UI DATA</p>
+                    <h2 id="lb-transaction-detail-title">Transaction Detail</h2>
+                    <p>Demonstration entries only; no individual historical rows are inferred from monthly totals.</p>
+                </div>
+            </header>
+            <div class="lb-report-table-scroll" role="region" aria-label="Sample Landing and Berthing transaction detail" tabindex="0">
+                <table class="lb-report-table lb-report-transaction-table">
+                    <caption class="lb-report-sr-only">Hardcoded demonstration collection records. No Cash Ticket serials are included.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Payor / Reference</th>
+                            <th scope="col" class="lb-report-number">Amount</th>
+                            <th scope="col">Cash Ticket</th>
+                            <th scope="col">Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var collection in SampleCollections)
+                        {
+                            <tr>
+                                <td>@FormatDate(collection.Date)</td>
+                                <td>@collection.Activity</td>
+                                <td>@DisplayReference(collection.PayorReference)</td>
+                                <td class="lb-report-number">@Money(collection.Amount)</td>
+                                <td>—</td>
+                                <td>@collection.RecordedBy</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="lb-report-data-note">Cash Ticket numbers are not connected in this UI; no serial or inventory reference is shown.</p>
+        </section>
+
+        <section class="lb-report-section lb-report-basis-section" aria-labelledby="lb-report-basis-title">
+            <header class="lb-report-section-heading">
+                <div>
+                    <p class="lb-report-eyebrow">REPORT BASIS</p>
+                    <h2 id="lb-report-basis-title">Report Basis</h2>
+                </div>
+            </header>
+            <table class="lb-report-basis-table">
+                <tbody>
+                    <tr><th scope="row">Revenue Classification</th><td>Landing / Berthing</td></tr>
+                    <tr><th scope="row">Income Group</th><td>Income from Market</td></tr>
+                    <tr><th scope="row">Accountable Instrument</th><td><span class="lb-report-ct-chip">CT</span> Cash Ticket</td></tr>
+                    <tr><th scope="row">Annual Target</th><td>@Money(AnnualTarget)</td></tr>
+                    <tr><th scope="row">Charging Basis</th><td>Pending confirmed Cantilan configuration</td></tr>
+                    <tr><th scope="row">Digital Detail</th><td>Hardcoded StallTrack UI sample records; live source not connected</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </article>
+</main>
+
+@code {
+    private const decimal AnnualTarget = 300_000m;
+    private const decimal YtdCollection = 204_610m;
+    private const decimal SampleLandingTotal = 650m;
+    private const decimal SampleBerthingTotal = 300m;
+    private const decimal SampleTotal = SampleLandingTotal + SampleBerthingTotal;
+
+    private static readonly string[] Months =
+    [
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+    ];
+
+    private static readonly decimal?[] MonthlyActuals =
+    [
+        12_960m, 13_050m, 24_300m, 27_500m, 26_550m, 28_300m,
+        40_350m, 31_600m, null, null, null, null
+    ];
+
+    private static readonly IReadOnlyList<SampleCollection> SampleCollections =
+    [
+        new(new DateTime(2026, 9, 26), "Landing", "Fishing Vessel 12", 450m, "Collector A"),
+        new(new DateTime(2026, 9, 26), "Berthing", "Juan Dela Cruz", 300m, "Collector B"),
+        new(new DateTime(2026, 9, 25), "Landing", string.Empty, 200m, "Collector A")
+    ];
+
+    private static decimal RemainingTarget => AnnualTarget - YtdCollection;
+    private static decimal TargetAttainment => YtdCollection / AnnualTarget * 100m;
+    private static string ExportHref => $"data:text/csv;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildCsv()))}";
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+    private static string FormatOptionalMoney(decimal? amount) => amount is { } value ? Money(value) : "—";
+    private static string FormatDate(DateTime date) => date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string DisplayReference(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private async Task PrintReport() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
+
+    private static string BuildCsv()
+    {
+        var rows = new List<string>
+        {
+            CsvRow("Report", "Landing / Berthing Collection Report"),
+            CsvRow("Fiscal Year", "2026"),
+            CsvRow("Annual Target", Money(AnnualTarget)),
+            CsvRow("YTD Collection", Money(YtdCollection)),
+            CsvRow("Remaining Target", Money(RemainingTarget)),
+            CsvRow("Target Attainment", $"{TargetAttainment.ToString("N2", CultureInfo.InvariantCulture)}%"),
+            string.Empty,
+            CsvRow("Official Monthly Summary"),
+            CsvRow(new[] { "Revenue Classification", "Annual Target" }.Concat(Months).Concat(["YTD Total", "%"]).ToArray()),
+            CsvRow(new[] { "Landing / Berthing", Money(AnnualTarget) }
+                .Concat(MonthlyActuals.Select(FormatOptionalMoney))
+                .Concat([Money(YtdCollection), $"{TargetAttainment.ToString("N2", CultureInfo.InvariantCulture)}%"])
+                .ToArray()),
+            string.Empty,
+            CsvRow("StallTrack Digital Collection Detail", "Sample UI Data; not official historical source detail"),
+            CsvRow("Month", "Landing", "Berthing", "Total", "Transactions"),
+            CsvRow("September 2026 · sample", Money(SampleLandingTotal), Money(SampleBerthingTotal), Money(SampleTotal), SampleCollections.Count.ToString(CultureInfo.InvariantCulture)),
+            string.Empty,
+            CsvRow("Transaction Detail", "Sample UI Data; no historical rows inferred from monthly totals"),
+            CsvRow("Date", "Activity", "Payor / Reference", "Amount", "Cash Ticket", "Recorded By")
+        };
+
+        rows.AddRange(SampleCollections.Select(collection => CsvRow(
+            FormatDate(collection.Date), collection.Activity, DisplayReference(collection.PayorReference),
+            Money(collection.Amount), "—", collection.RecordedBy)));
+
+        rows.AddRange(
+        [
+            string.Empty,
+            CsvRow("Report Basis"),
+            CsvRow("Revenue Classification", "Landing / Berthing"),
+            CsvRow("Income Group", "Income from Market"),
+            CsvRow("Accountable Instrument", "Cash Ticket"),
+            CsvRow("Charging Basis", "Pending confirmed Cantilan configuration"),
+            CsvRow("Digital Detail", "Hardcoded StallTrack UI sample records; live source not connected"),
+            CsvRow("Missing monthly values", "— means not supplied, not zero")
+        ]);
+
+        return string.Join("\r\n", rows);
+    }
+
+    private static string CsvRow(params string[] values) =>
+        string.Join(",", values.Select(value => $"\"{value.Replace("\"", "\"\"")}\""));
+
+    private sealed record SampleCollection(DateTime Date, string Activity, string PayorReference, decimal Amount, string RecordedBy);
+}

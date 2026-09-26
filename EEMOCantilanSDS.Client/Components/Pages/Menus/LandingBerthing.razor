@@ -1,0 +1,439 @@
+@page "/operations/landing-berthing"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Client.Components.Shared
+
+<PageTitle>StallTrack — Landing / Berthing</PageTitle>
+
+<main class="lb-page">
+    <nav class="lb-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Landing / Berthing</span>
+    </nav>
+
+    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · Landing / Berthing")"
+                  Title="LANDING / BERTHING"
+                  Subtitle="Landing and berthing collections under Income from Market."
+                  Icon="@LandingIcon"
+                  Stats="HeroStats" />
+
+    <p class="lb-sample-note">
+        Current-period entries are sample UI rows for preview. They are not official historical transaction records.
+    </p>
+
+    <section class="lb-desk" aria-labelledby="lb-period-title">
+        <div class="lb-desk-copy">
+            <p class="lb-eyebrow">CURRENT COLLECTION PERIOD</p>
+            <h2 id="lb-period-title">@SelectedPeriodLabel</h2>
+            <p>Review Landing / Berthing collections for the selected period.</p>
+        </div>
+
+        <div class="lb-desk-actions">
+            <div class="lb-instrument" aria-label="Accountable instrument: Cash Ticket">
+                <span class="lb-ct-chip">CT</span>
+                <strong>Cash Ticket</strong>
+            </div>
+            <div class="lb-action-buttons">
+                <button class="lb-button lb-button-primary" type="button" @onclick="OpenRecordModal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Record Collection
+                </button>
+                <a class="lb-button lb-button-secondary" href="/operations/landing-berthing/report">Report</a>
+            </div>
+        </div>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(_notice))
+    {
+        <p class="lb-notice" role="status">@_notice</p>
+    }
+
+    <div class="lb-main-grid">
+        <section class="lb-panel lb-collections-panel" aria-labelledby="lb-collections-title">
+            <header class="lb-panel-header">
+                <div>
+                    <p class="lb-eyebrow">INCOME FROM MARKET</p>
+                    <h2 id="lb-collections-title">LANDING / BERTHING COLLECTIONS</h2>
+                    <p>Recorded collections for the selected period.</p>
+                </div>
+                <label class="lb-period-control">
+                    <span class="lb-sr-only">Collection period</span>
+                    <select aria-label="Collection period" @bind="_selectedPeriodKey">
+                        @foreach (var period in PeriodOptions)
+                        {
+                            <option value="@period.Key">@period.Label</option>
+                        }
+                    </select>
+                </label>
+            </header>
+
+            <div class="lb-toolbar" aria-label="Collection filters">
+                <label class="lb-filter-control">
+                    <span class="lb-sr-only">Filter by activity</span>
+                    <select aria-label="Filter by activity" @bind="_activityFilter">
+                        <option value="All activities">All Activities</option>
+                        <option value="Landing">Landing</option>
+                        <option value="Berthing">Berthing</option>
+                    </select>
+                </label>
+                <label class="lb-search-control">
+                    <span class="lb-sr-only">Search party or reference</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="10.8" cy="10.8" r="6.8" />
+                        <path d="m16 16 4.5 4.5" />
+                    </svg>
+                    <input type="search"
+                           placeholder="Search party or reference..."
+                           aria-label="Search party or reference"
+                           @bind="_searchText"
+                           @bind:event="oninput" />
+                </label>
+            </div>
+
+            <div class="lb-table-wrap" role="region" aria-label="Landing and Berthing collection list" tabindex="0">
+                <table class="lb-table lb-collection-table">
+                    <caption class="lb-sr-only">Sample Landing and Berthing collection rows for @SelectedPeriodLabel.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Payor / Reference</th>
+                            <th scope="col">Basis</th>
+                            <th scope="col" class="lb-number">Amount</th>
+                            <th scope="col">Collector</th>
+                            <th scope="col"><span class="lb-sr-only">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var collection in FilteredCollections)
+                        {
+                            <tr>
+                                <td>@FormatDate(collection.Date)</td>
+                                <td>@collection.Activity</td>
+                                <td>@DisplayReference(collection.PayorReference)</td>
+                                <td>Configured</td>
+                                <td class="lb-number">@Money(collection.Amount)</td>
+                                <td>@collection.Collector</td>
+                                <td class="lb-row-action-cell">
+                                    <button class="lb-row-link" type="button" @onclick="() => ViewCollection(collection)">View</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredCollections.Any())
+                        {
+                            <tr>
+                                <td class="lb-empty-cell" colspan="7">No sample collection rows match this period and search.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="lb-table-footer">
+                <span>@FilteredCollections.Count() sample collections</span>
+                <span>Period: @SelectedPeriodLabel</span>
+            </footer>
+        </section>
+
+        <aside class="lb-panel lb-summary-panel" aria-labelledby="lb-summary-title">
+            <header class="lb-panel-header">
+                <div>
+                    <p class="lb-eyebrow">CURRENT PERIOD</p>
+                    <h2 id="lb-summary-title">Landing / Berthing Position</h2>
+                    <p>@SelectedPeriodLabel · sample UI values</p>
+                </div>
+            </header>
+
+            <dl class="lb-summary-list">
+                <div class="lb-summary-emphasis">
+                    <dt>Total collected</dt>
+                    <dd>@Money(PeriodTotal)</dd>
+                </div>
+                <div>
+                    <dt>Transactions</dt>
+                    <dd>@PeriodCollections.Count()</dd>
+                </div>
+                <div>
+                    <dt>Landing collections</dt>
+                    <dd>@LandingCount</dd>
+                </div>
+                <div>
+                    <dt>Berthing collections</dt>
+                    <dd>@BerthingCount</dd>
+                </div>
+                <div>
+                    <dt>Average collection</dt>
+                    <dd>@Money(AverageCollection)</dd>
+                </div>
+                <div>
+                    <dt>Instrument</dt>
+                    <dd><span class="lb-inline-ct">CT</span> Cash Ticket</dd>
+                </div>
+            </dl>
+        </aside>
+    </div>
+
+    <section class="lb-panel lb-recent-panel" aria-labelledby="lb-recent-title">
+        <header class="lb-panel-header">
+            <div>
+                <p class="lb-eyebrow">RECENT ACTIVITY</p>
+                <h2 id="lb-recent-title">Latest Landing / Berthing Activity</h2>
+                <p>Most recent collection in the selected period.</p>
+            </div>
+        </header>
+        @if (LatestCollection is { } latest)
+        {
+            <div class="lb-table-wrap lb-recent-table-wrap">
+                <table class="lb-table lb-recent-table">
+                    <caption class="lb-sr-only">Most recent sample Landing or Berthing collection.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Party / Reference</th>
+                            <th scope="col" class="lb-number">Amount</th>
+                            <th scope="col">Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@FormatDate(latest.Date)</td>
+                            <td>@latest.Activity</td>
+                            <td>@DisplayReference(latest.PayorReference)</td>
+                            <td class="lb-number">@Money(latest.Amount)</td>
+                            <td>@latest.Collector</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="lb-recent-empty">No sample activity is available for this period.</p>
+        }
+    </section>
+</main>
+
+@if (_recordModalOpen)
+{
+    <div class="lb-modal-backdrop" role="presentation" @onclick="CloseRecordModal">
+        <section class="lb-modal" role="dialog" aria-modal="true" aria-labelledby="lb-record-title" tabindex="-1" @onclick:stopPropagation="true">
+            <button class="lb-modal-close" type="button" aria-label="Close record collection" @onclick="CloseRecordModal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <header class="lb-modal-header">
+                <p class="lb-eyebrow">LANDING / BERTHING · CASH TICKET</p>
+                <h2 id="lb-record-title">Record Collection</h2>
+                <p>Record a Landing / Berthing collection.</p>
+            </header>
+
+            <div class="lb-modal-instrument" aria-label="Cash Ticket instrument">
+                <span class="lb-ct-chip">CT</span>
+                <strong>Cash Ticket</strong>
+            </div>
+
+            <section class="lb-form-section" aria-labelledby="lb-collection-details-title">
+                <h3 id="lb-collection-details-title">COLLECTION DETAILS</h3>
+                <fieldset class="lb-activity-choice">
+                    <legend>Activity</legend>
+                    <label class="@(string.Equals(_newActivity, "Landing", StringComparison.Ordinal) ? "is-selected" : string.Empty)">
+                        <input type="radio" name="landing-berthing-activity" value="Landing" checked="@IsLandingSelected" @onchange="SelectLandingActivity" />
+                        <span>Landing</span>
+                    </label>
+                    <label class="@(string.Equals(_newActivity, "Berthing", StringComparison.Ordinal) ? "is-selected" : string.Empty)">
+                        <input type="radio" name="landing-berthing-activity" value="Berthing" checked="@IsBerthingSelected" @onchange="SelectBerthingActivity" />
+                        <span>Berthing</span>
+                    </label>
+                </fieldset>
+
+                <div class="lb-form-grid">
+                    <label class="lb-field">
+                        <span>Transaction Date</span>
+                        <input type="date" @bind="_newDate" />
+                    </label>
+                    <label class="lb-field">
+                        <span>Payor / Reference <small>(optional)</small></span>
+                        <input @bind="_newPayorReference" autocomplete="off" placeholder="Enter when known" />
+                    </label>
+                </div>
+            </section>
+
+            <section class="lb-form-section lb-charge-section" aria-labelledby="lb-charge-details-title">
+                <h3 id="lb-charge-details-title">CHARGE DETAILS</h3>
+                <div class="lb-form-grid lb-charge-grid">
+                    <div class="lb-field">
+                        <span>Charge Basis</span>
+                        <div class="lb-readonly-field">Configured</div>
+                    </div>
+                    <div class="lb-field">
+                        <span>Rate</span>
+                        <div class="lb-readonly-field lb-pending-rate">Pending configuration</div>
+                    </div>
+                    <label class="lb-field lb-amount-field">
+                        <span>Amount</span>
+                        <span class="lb-currency-input">
+                            <span aria-hidden="true">₱</span>
+                            <input type="number" min="0.01" step="0.01" @bind="_newAmount" @bind:event="oninput" aria-describedby="lb-amount-help" />
+                        </span>
+                        <small id="lb-amount-help">Enter the approved collection amount.</small>
+                    </label>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_amountError))
+                {
+                    <p class="lb-field-error" role="alert">@_amountError</p>
+                }
+            </section>
+
+            <p class="lb-preview-disclosure">This UI preview does not submit or persist collections.</p>
+
+            <footer class="lb-modal-footer">
+                <button class="lb-button lb-button-secondary" type="button" @onclick="CloseRecordModal">Cancel</button>
+                <button class="lb-button lb-button-primary" type="button" @onclick="SaveCollection">Record Collection</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_viewedCollection is { } viewed)
+{
+    <div class="lb-modal-backdrop" role="presentation" @onclick="CloseViewModal">
+        <section class="lb-modal lb-view-modal" role="dialog" aria-modal="true" aria-labelledby="lb-view-title" tabindex="-1" @onclick:stopPropagation="true">
+            <button class="lb-modal-close" type="button" aria-label="Close collection details" @onclick="CloseViewModal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+            <header class="lb-modal-header">
+                <p class="lb-eyebrow">LANDING / BERTHING · COLLECTION DETAIL</p>
+                <h2 id="lb-view-title">Collection Details</h2>
+            </header>
+            <dl class="lb-detail-list">
+                <div><dt>Date</dt><dd>@FormatDate(viewed.Date)</dd></div>
+                <div><dt>Activity</dt><dd>@viewed.Activity</dd></div>
+                <div><dt>Payor / Reference</dt><dd>@DisplayReference(viewed.PayorReference)</dd></div>
+                <div><dt>Charge Basis</dt><dd>Configured</dd></div>
+                <div class="lb-detail-amount"><dt>Amount</dt><dd>@Money(viewed.Amount)</dd></div>
+                <div><dt>Instrument</dt><dd><span class="lb-inline-ct">CT</span> Cash Ticket</dd></div>
+                <div><dt>Collector / Recorded By</dt><dd>@viewed.Collector</dd></div>
+            </dl>
+            <footer class="lb-modal-footer lb-view-footer">
+                <button class="lb-button lb-button-secondary" type="button" @onclick="CloseViewModal">Close</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private readonly List<LandingCollection> _collections =
+    [
+        new(new DateTime(2026, 9, 26), "Landing", "Fishing Vessel 12", 450m, "Collector A"),
+        new(new DateTime(2026, 9, 26), "Berthing", "Juan Dela Cruz", 300m, "Collector B"),
+        new(new DateTime(2026, 9, 25), "Landing", string.Empty, 200m, "Collector A")
+    ];
+
+    private string _selectedPeriodKey = "2026-09";
+    private string _activityFilter = "All activities";
+    private string _searchText = string.Empty;
+    private string _newActivity = "Landing";
+    private DateTime _newDate = new(2026, 9, 26);
+    private string _newPayorReference = string.Empty;
+    private decimal? _newAmount;
+    private string _amountError = string.Empty;
+    private string _notice = string.Empty;
+    private bool _recordModalOpen;
+    private LandingCollection? _viewedCollection;
+
+    private RenderFragment LandingIcon => @<svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 18.5h18M5 18.5l1.2-6h11.6l1.2 6M8 12.5V8.8h8v3.7M12 8.8V5.5M9.5 6.4h5" />
+    </svg>;
+
+    private string SelectedPeriodLabel =>
+        DateTime.TryParseExact($"{_selectedPeriodKey}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var period)
+            ? period.ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+            : "September 2026";
+
+    private IEnumerable<PeriodOption> PeriodOptions =>
+        Enumerable.Range(1, 9)
+            .Select(month => new DateTime(2026, month, 1))
+            .Concat(_collections.Select(collection => new DateTime(collection.Date.Year, collection.Date.Month, 1)))
+            .Distinct()
+            .OrderByDescending(period => period)
+            .Select(period => new PeriodOption(
+                period.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+                period.ToString("MMMM yyyy", CultureInfo.InvariantCulture)));
+
+    private IEnumerable<LandingCollection> PeriodCollections =>
+        _collections.Where(collection => collection.Date.ToString("yyyy-MM", CultureInfo.InvariantCulture) == _selectedPeriodKey);
+
+    private IEnumerable<LandingCollection> FilteredCollections =>
+        PeriodCollections
+            .Where(collection => _activityFilter == "All activities" || collection.Activity == _activityFilter)
+            .Where(collection => string.IsNullOrWhiteSpace(_searchText)
+                || collection.PayorReference.Contains(_searchText.Trim(), StringComparison.OrdinalIgnoreCase)
+                || collection.Activity.Contains(_searchText.Trim(), StringComparison.OrdinalIgnoreCase)
+                || collection.Collector.Contains(_searchText.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(collection => collection.Date);
+
+    private LandingCollection? LatestCollection => PeriodCollections.OrderByDescending(collection => collection.Date).FirstOrDefault();
+    private decimal PeriodTotal => PeriodCollections.Sum(collection => collection.Amount);
+    private int LandingCount => PeriodCollections.Count(collection => collection.Activity == "Landing");
+    private int BerthingCount => PeriodCollections.Count(collection => collection.Activity == "Berthing");
+    private decimal AverageCollection => PeriodCollections.Any() ? PeriodTotal / PeriodCollections.Count() : 0m;
+    private bool IsLandingSelected => _newActivity == "Landing";
+    private bool IsBerthingSelected => _newActivity == "Berthing";
+
+    private List<FacilityHero.HeroStat> HeroStats =>
+    [
+        new() { Value = Money(PeriodTotal), Label = "COLLECTED THIS MONTH · SAMPLE" },
+        new() { Value = PeriodCollections.Count().ToString(CultureInfo.InvariantCulture), Label = "TRANSACTIONS · SAMPLE" },
+        new() { Value = "Configured", Label = "CHARGE BASIS" }
+    ];
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string FormatDate(DateTime date) => date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string DisplayReference(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private void OpenRecordModal()
+    {
+        _newActivity = "Landing";
+        _newDate = new DateTime(2026, 9, 26);
+        _newPayorReference = string.Empty;
+        _newAmount = null;
+        _amountError = string.Empty;
+        _notice = string.Empty;
+        _recordModalOpen = true;
+    }
+
+    private void CloseRecordModal() => _recordModalOpen = false;
+    private void SelectLandingActivity() => _newActivity = "Landing";
+    private void SelectBerthingActivity() => _newActivity = "Berthing";
+
+    private void SaveCollection()
+    {
+        if (_newAmount is not > 0m)
+        {
+            _amountError = "Enter an amount greater than zero.";
+            return;
+        }
+
+        var collection = new LandingCollection(
+            _newDate,
+            _newActivity,
+            _newPayorReference.Trim(),
+            _newAmount.Value,
+            "Local preview");
+
+        _collections.Insert(0, collection);
+        _selectedPeriodKey = collection.Date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        _activityFilter = "All activities";
+        _searchText = string.Empty;
+        _recordModalOpen = false;
+        _notice = "Added to the local preview list only. No collection was submitted or saved.";
+    }
+
+    private void ViewCollection(LandingCollection collection) => _viewedCollection = collection;
+    private void CloseViewModal() => _viewedCollection = null;
+
+    private sealed record LandingCollection(DateTime Date, string Activity, string PayorReference, decimal Amount, string Collector);
+    private sealed record PeriodOption(string Key, string Label);
+}
