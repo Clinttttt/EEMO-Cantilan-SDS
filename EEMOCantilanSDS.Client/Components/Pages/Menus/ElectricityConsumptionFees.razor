@@ -224,7 +224,8 @@
                 <div><span>Instrument</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
             </div>
 
-            <div class="ecf-form-grid">
+            <div class="ecf-modal-section-label">ELECTRICITY ACCOUNT</div>
+            <div class="ecf-form-grid ecf-account-form">
                 <label class="ecf-field">
                     <span>Account / Stall</span>
                     <input @bind="_assessmentAccount" autocomplete="off" />
@@ -233,10 +234,13 @@
                     <span>Occupant</span>
                     <input @bind="_assessmentOccupant" autocomplete="off" />
                 </label>
-                <label class="ecf-field ecf-field-full">
+                <label class="ecf-field">
                     <span>Area</span>
                     <input @bind="_assessmentArea" autocomplete="off" />
                 </label>
+            </div>
+
+            <div class="ecf-form-grid ecf-basis-form">
                 <label class="ecf-field ecf-field-full">
                     <span>Charge Basis</span>
                     <select @bind="_chargeBasis">
@@ -355,15 +359,11 @@
             </div>
 
             <div class="ecf-form-grid ecf-payment-form">
-                <label class="ecf-field ecf-field-full">
+                <label class="ecf-field">
                     <span>Payment Amount</span>
                     <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" max="@_paymentAccount.Balance" inputmode="decimal" @bind="_paymentAmount" /></div>
                 </label>
-                <div class="ecf-field ecf-field-full">
-                    <span>Instrument</span>
-                    <div class="ecf-instrument-field"><span class="ecf-inline-or">OR</span> Official Receipt</div>
-                </div>
-                <label class="ecf-field ecf-field-full">
+                <label class="ecf-field">
                     <span>OR Number</span>
                     <input @bind="_orNumber" autocomplete="off" />
                 </label>

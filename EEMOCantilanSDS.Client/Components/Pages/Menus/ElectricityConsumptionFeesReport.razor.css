@@ -604,3 +604,556 @@
         break-inside: avoid;
     }
 }
+
+/* WCF-aligned report rhythm and controls */
+.ecfr-page {
+    width: 100%;
+    max-width: 1600px;
+    padding: 1.1rem clamp(1rem, 2.1vw, 2rem) 2.5rem;
+}
+
+.ecfr-breadcrumb {
+    gap: .55rem;
+    margin-bottom: .72rem;
+    font-size: .74rem;
+}
+
+.ecfr-breadcrumb a {
+    color: var(--navy-2);
+    font-weight: 650;
+}
+
+.ecfr-page-heading {
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: .82rem;
+}
+
+.ecfr-eyebrow {
+    margin-bottom: .22rem;
+    color: #8a7438;
+    font-size: .62rem;
+    font-weight: 760;
+    letter-spacing: .075em;
+}
+
+.ecfr-page-heading h1 {
+    font-size: 1.35rem;
+    font-weight: 760;
+}
+
+.ecfr-page-heading > div:first-child > p:last-child {
+    margin-top: .26rem;
+    font-size: .76rem;
+}
+
+.ecfr-controls {
+    align-items: flex-end;
+    gap: .42rem;
+}
+
+.ecfr-year-control,
+.ecfr-month-control {
+    gap: .2rem;
+    color: #667681;
+    font-size: .59rem;
+    font-weight: 650;
+}
+
+.ecfr-year-control select,
+.ecfr-month-control select {
+    height: 2.12rem;
+    min-width: 6.2rem;
+    padding: 0 1.7rem 0 .55rem;
+    appearance: none;
+    border-color: #cbd4da;
+    border-radius: 5px;
+    color: var(--navy);
+    font-size: .68rem;
+    background-image: linear-gradient(45deg, transparent 50%, #718392 50%), linear-gradient(135deg, #718392 50%, transparent 50%);
+    background-position: calc(100% - 13px) 14px, calc(100% - 8px) 14px;
+    background-repeat: no-repeat;
+    background-size: 5px 5px, 5px 5px;
+    cursor: pointer;
+}
+
+.ecfr-month-control select {
+    min-width: 9rem;
+}
+
+.ecfr-print-button,
+.ecfr-export-button {
+    height: 2.12rem;
+    padding: .45rem .68rem;
+    border-color: #c5cfd5;
+    border-radius: 5px;
+    font-size: .67rem;
+    font-weight: 700;
+}
+
+.ecfr-print-button {
+    border-color: var(--navy);
+    background: var(--navy);
+    color: #fff;
+}
+
+.ecfr-print-button:hover {
+    border-color: var(--navy-2);
+    background: var(--navy-2);
+}
+
+.ecfr-export-button:hover {
+    border-color: #9eacb6;
+    background: #f5f7f8;
+}
+
+.ecfr-print-button:focus-visible,
+.ecfr-export-button:focus-visible,
+.ecfr-year-control select:focus-visible,
+.ecfr-month-control select:focus-visible,
+.ecfr-table-scroll:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
+.ecfr-letterhead {
+    margin-bottom: .8rem;
+    padding: .62rem .8rem;
+    border-top: 2px solid var(--gold);
+    border-radius: 5px;
+    line-height: 1.35;
+}
+
+.ecfr-letterhead p {
+    color: #465863;
+    font-size: .61rem;
+}
+
+.ecfr-letterhead h2 {
+    margin: .25rem 0 .08rem;
+    font-size: .69rem;
+    letter-spacing: .035em;
+}
+
+.ecfr-letterhead h3 {
+    font-size: .67rem;
+    letter-spacing: .04em;
+}
+
+.ecfr-letterhead .ecfr-letterhead-period {
+    margin-top: .06rem;
+    color: #6d7b84;
+    font-size: .6rem;
+}
+
+.ecfr-report-section,
+.ecfr-position.ecfr-report-section,
+.ecfr-basis.ecfr-report-section {
+    margin: 0 0 .78rem;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .025);
+}
+
+.ecfr-section-heading {
+    align-items: flex-end;
+    gap: 1rem;
+    margin: 0;
+    padding: .72rem .85rem .58rem;
+    border-bottom: 1px solid #e8ecee;
+    background: #fcfbf8;
+}
+
+.ecfr-section-heading h2,
+.ecfr-section-title {
+    margin: 0;
+    color: var(--navy);
+    font-size: .87rem;
+    font-weight: 760;
+}
+
+.ecfr-section-heading > div > p:last-child {
+    margin: .25rem 0 0;
+    color: #667681;
+    font-size: .63rem;
+    line-height: 1.4;
+}
+
+.ecfr-section-title {
+    padding: .72rem .85rem .58rem;
+    border-bottom: 1px solid #e8ecee;
+    background: #fcfbf8;
+}
+
+.ecfr-position-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: .72rem .85rem .68rem;
+}
+
+.ecfr-position-grid > div {
+    min-width: 0;
+    padding: 0 .85rem;
+    border-left: 1px solid #e8ecee;
+}
+
+.ecfr-position-grid > div:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.ecfr-position-grid dt {
+    margin-bottom: .24rem;
+    color: #657581;
+    font-size: .6rem;
+    font-weight: 700;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+.ecfr-position-grid dd {
+    font-size: 1.12rem;
+    font-weight: 780;
+}
+
+.ecfr-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    border: 0;
+    border-radius: 0;
+    overscroll-behavior-inline: contain;
+}
+
+.ecfr-table {
+    color: #2f414e;
+    font-size: .65rem;
+}
+
+.ecfr-table thead {
+    background: #f5f7f8;
+}
+
+.ecfr-table th,
+.ecfr-table td {
+    padding: .52rem .55rem;
+    border-bottom-color: #e8edef;
+}
+
+.ecfr-table thead th {
+    color: #5e6e79;
+    font-size: .56rem;
+    font-weight: 750;
+    letter-spacing: .025em;
+    line-height: 1.25;
+}
+
+.ecfr-table tbody th,
+.ecfr-table tfoot th {
+    color: var(--navy);
+    font-weight: 720;
+}
+
+.ecfr-table tbody tr:hover {
+    background: #fbfcfc;
+}
+
+.ecfr-table tfoot th,
+.ecfr-table tfoot td,
+.ecfr-total-row th,
+.ecfr-total-row td {
+    border-top-color: #cbd4da;
+    background: #fafbfb;
+    font-weight: 770;
+}
+
+.ecfr-monthly-table {
+    min-width: 1180px;
+    font-size: .6rem;
+}
+
+.ecfr-monthly-table th,
+.ecfr-monthly-table td {
+    padding: .46rem .4rem;
+}
+
+.ecfr-monthly-table tbody th,
+.ecfr-monthly-table tbody td:nth-last-child(-n + 2) {
+    font-weight: 780;
+}
+
+.ecfr-monthly-table th:first-child,
+.ecfr-monthly-table tbody th {
+    min-width: 190px;
+}
+
+.ecfr-billing-table {
+    min-width: 760px;
+}
+
+.ecfr-account-table {
+    min-width: 1120px;
+}
+
+.ecfr-balance-table {
+    min-width: 700px;
+}
+
+.ecfr-secondary {
+    margin-top: .1rem;
+    color: #75838c;
+    font-size: .57rem;
+}
+
+.ecfr-account-table tfoot th,
+.ecfr-account-table tfoot td,
+.ecfr-total-row th,
+.ecfr-total-row td {
+    border-bottom: 0;
+    color: var(--navy);
+}
+
+.ecfr-data-note {
+    margin: 0;
+    padding: .42rem .85rem .52rem;
+    color: #697984;
+    font-size: .61rem;
+}
+
+.ecfr-basis-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .55rem 1rem;
+    margin: 0;
+    padding: .2rem .85rem .72rem;
+}
+
+.ecfr-basis-grid > div {
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    gap: .55rem;
+    padding: .55rem 0;
+    border-top-color: #e9edef;
+}
+
+.ecfr-basis-grid dt {
+    color: #71808a;
+    font-size: .57rem;
+}
+
+.ecfr-basis-grid dd {
+    font-size: .64rem;
+    font-weight: 690;
+}
+
+.ecfr-or-chip {
+    min-width: 1.5rem;
+    height: 1.12rem;
+    margin-right: .2rem;
+    border-color: #b9c7d1;
+    border-radius: 4px;
+    background: #eef3f6;
+    color: var(--navy);
+    font-size: .57rem;
+}
+
+@media (max-width: 980px) {
+    .ecfr-page-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ecfr-position-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ecfr-position-grid > div:nth-child(3) {
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .ecfr-position-grid > div:nth-child(n + 3) {
+        padding-top: .65rem;
+        border-top: 1px solid #e8ecee;
+    }
+
+    .ecfr-basis-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .ecfr-page {
+        padding: .8rem .75rem 1.6rem;
+    }
+
+    .ecfr-page-heading h1 {
+        font-size: 1.16rem;
+    }
+
+    .ecfr-controls {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .ecfr-year-control {
+        flex: 1 0 100%;
+    }
+
+    .ecfr-year-control select,
+    .ecfr-print-button,
+    .ecfr-export-button {
+        width: 100%;
+    }
+
+    .ecfr-report-section,
+    .ecfr-position.ecfr-report-section,
+    .ecfr-basis.ecfr-report-section {
+        padding: 0;
+    }
+
+    .ecfr-position-grid {
+        padding: .5rem .65rem .65rem;
+    }
+
+    .ecfr-position-grid > div {
+        padding-right: .6rem;
+        padding-left: .6rem;
+    }
+
+    .ecfr-position-grid > div:first-child,
+    .ecfr-position-grid > div:nth-child(3) {
+        padding-left: 0;
+    }
+
+    .ecfr-position-grid dd {
+        font-size: .98rem;
+    }
+
+    .ecfr-section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ecfr-month-detail-heading {
+        flex-direction: row;
+        align-items: flex-end;
+    }
+
+    .ecfr-basis-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media print {
+    :global(.sidebar),
+    :global(.sidebar-hamburger),
+    :global(.sidebar-backdrop),
+    :global(.global-loading-bar),
+    .ecfr-screen-only {
+        display: none !important;
+    }
+
+    :global(.admin-layout) {
+        display: block !important;
+        min-height: 0 !important;
+    }
+
+    :global(.admin-main) {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .ecfr-page {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        color: #111;
+        font-size: 9pt;
+    }
+
+    .ecfr-letterhead,
+    .ecfr-report-section,
+    .ecfr-position.ecfr-report-section,
+    .ecfr-basis.ecfr-report-section {
+        break-inside: avoid;
+        border: 1px solid #777;
+        border-radius: 0;
+        background: #fff !important;
+        box-shadow: none;
+    }
+
+    .ecfr-letterhead {
+        margin-bottom: 5mm;
+        padding: 8mm 5mm 6mm;
+    }
+
+    .ecfr-letterhead p,
+    .ecfr-letterhead h2,
+    .ecfr-letterhead h3,
+    .ecfr-position-grid dt,
+    .ecfr-position-grid dd,
+    .ecfr-section-heading h2,
+    .ecfr-section-title,
+    .ecfr-basis-grid dt,
+    .ecfr-basis-grid dd,
+    .ecfr-table,
+    .ecfr-data-note {
+        color: #111 !important;
+    }
+
+    .ecfr-report-section,
+    .ecfr-position.ecfr-report-section,
+    .ecfr-basis.ecfr-report-section {
+        margin-bottom: 4mm;
+    }
+
+    .ecfr-section-heading,
+    .ecfr-section-title {
+        padding: 2mm 2.5mm;
+        border-bottom-color: #777;
+        background: #fff !important;
+    }
+
+    .ecfr-table-scroll {
+        overflow: visible;
+        border-color: #888;
+    }
+
+    .ecfr-table {
+        font-size: 7pt;
+    }
+
+    .ecfr-table th,
+    .ecfr-table td {
+        padding: 2mm 1.5mm;
+        border-color: #999;
+    }
+
+    .ecfr-table thead th,
+    .ecfr-account-table tfoot th,
+    .ecfr-account-table tfoot td,
+    .ecfr-total-row th,
+    .ecfr-total-row td {
+        background: #eee !important;
+        color: #111 !important;
+    }
+
+    .ecfr-monthly-table {
+        min-width: 0;
+        font-size: 6.5pt;
+    }
+
+    .ecfr-monthly-table th:first-child,
+    .ecfr-monthly-table tbody th,
+    .ecfr-account-table,
+    .ecfr-balance-table,
+    .ecfr-billing-table {
+        min-width: 0;
+    }
+
+    .ecfr-secondary,
+    .ecfr-data-note {
+        color: #333 !important;
+    }
+}
