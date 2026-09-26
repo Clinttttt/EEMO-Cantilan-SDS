@@ -80,6 +80,7 @@ Before changing V2 code, read:
 ### Planning and evidence
 
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
+- `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
 - `planning/IMPLEMENTATION_HISTORY.md` — historical implementation/backlog record. It is evidence, not automatic current authority.
 - `evidence/` — office/reference evidence retained with the repository.
 - `../tools/diagnostics/` — diagnostic scripts; diagnostics are evidence tools, not application behavior.

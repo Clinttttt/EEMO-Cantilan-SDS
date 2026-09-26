@@ -136,11 +136,15 @@ public class ApplicationEfBoundaryTests
         "HandlePaymentWebhookCommandHandler.cs",
         "ConfirmOnlinePaymentCommandHandler.cs",
 
-        // The bounded ECF posting transaction revalidates and atomically writes its UtilityBill projection,
-        // Web draft, Collection/lines/allocations, accountable document, and durable operation through one
-        // IAppDbContext save. Splitting those tracked mutations across repository saves would weaken the
-        // reviewed transaction boundary this vertical path is proving.
-        "EcfCollectionWorkflow.cs",
+        // The rent adapter reads the existing PaymentRecord/occupancy authority in the same application scope;
+        // it never owns a mutable receivable balance or writes settlement. The shared Composer validates the
+        // source facts and persists only through its single posting save.
+        "MonthlyRentCollectionSourceAdapter.cs",
+
+        // The shared Composer posting transaction revalidates every participating source and atomically writes
+        // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
+        // operation through one IAppDbContext save.
+        "CollectionComposerWorkflow.cs",
     };
 
     private static List<string> FindApplicationFilesUsingEf()

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Testing;
@@ -70,5 +71,55 @@ public class PaymentRecordTests
         Assert.Equal(10m, payment.FishKilos);
         Assert.Equal(PaymentStatus.Paid, payment.Status);
         Assert.Equal(billBefore, payment.TotalBill);
+    }
+
+    [Fact]
+    public void LegacySettlementMutationsAdvanceTheRentSourceVersion()
+    {
+        var payment = NewPayment(900m);
+        var initial = payment.SettlementVersion;
+
+        payment.UpdateStatus(PaymentStatus.Partial, 200m);
+
+        Assert.Equal(initial + 1, payment.SettlementVersion);
+        Assert.Equal(200m, payment.AmountPaid);
+    }
+
+    [Fact]
+    public void CanonicalRentProjectionShowsNetCanonicalRentInLegacyReaders()
+    {
+        var tenant = Guid.NewGuid();
+        var payment = NewPayment(900m);
+        payment.UpdateStatus(PaymentStatus.Partial, 200m);
+        payment.MarkSettlementPendingCutover();
+        var at = DateTime.SpecifyKind(new DateTime(2026, 9, 26, 10, 0, 0), DateTimeKind.Utc);
+        var cutover = CollectionSettlementCutover.Freeze(tenant, CollectionSourceKind.PaymentRecord,
+            payment.Id, null, payment.SettlementVersion, at, 900m, 200m, 700m,
+            "{\"reconciled\":true}", Guid.NewGuid(), at.AddMinutes(1));
+        payment.ActivateCanonicalSettlement(cutover);
+
+        payment.ApplyCanonicalRentProjection(500m, at.AddMinutes(2), "admin");
+
+        Assert.Equal(PaymentStatus.Partial, payment.Status);
+        Assert.Equal(500m, payment.PartialAmount);
+        Assert.Equal(400m, payment.BalanceDue);
+        Assert.Equal(SettlementAuthority.Canonical, payment.SettlementAuthorityState);
+    }
+
+    [Fact]
+    public void CanonicalRentProjectionRejectsMixedLegacyChargeComponents()
+    {
+        var payment = NewPayment(900m);
+        payment.RecordPayment("LEGACY", Guid.NewGuid(), PaymentStatus.Unpaid,
+            elecAmount: 100m, fishKilos: 5m);
+        payment.MarkSettlementPendingCutover();
+        var at = DateTime.SpecifyKind(new DateTime(2026, 9, 26, 10, 0, 0), DateTimeKind.Utc);
+        var cutover = CollectionSettlementCutover.Freeze(Guid.NewGuid(), CollectionSourceKind.PaymentRecord,
+            payment.Id, null, payment.SettlementVersion, at, 900m, 0m, 900m,
+            "{\"reconciled\":true}", Guid.NewGuid(), at.AddMinutes(1));
+        payment.ActivateCanonicalSettlement(cutover);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            payment.ApplyCanonicalRentProjection(100m, at.AddMinutes(2), "admin"));
     }
 }

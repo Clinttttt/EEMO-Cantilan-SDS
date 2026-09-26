@@ -41,7 +41,65 @@ public sealed record EcfCollectionDraftLineDto(
     Guid UtilityBillId,
     CollectionSourcePart SourcePart,
     long SourceVersion,
-    decimal AllocationAmount);
+    decimal AllocationAmount,
+    CollectionSourceKind? SourceKind = null,
+    Guid? SourceId = null,
+    IReadOnlyList<CollectionDraftAllocationDto>? Allocations = null,
+    string? CalculationDetail = null);
+
+public sealed record CollectionDraftAllocationDto(
+    Guid AllocationId,
+    CollectionSourceKind SourceKind,
+    Guid SourceId,
+    CollectionSourcePart? SourcePart,
+    decimal Amount,
+    int? BillingYear,
+    int? BillingMonth,
+    string? SourceLabel,
+    SettlementAuthority? SourceAuthority = null);
+
+public sealed record RentObligationQuoteDto(
+    Guid MunicipalityId,
+    Guid? PaymentRecordId,
+    CollectionSourceKind SourceKind,
+    Guid StallId,
+    string StallNo,
+    string FacilityName,
+    int BillingYear,
+    int BillingMonth,
+    Guid ContractId,
+    Guid? PayorId,
+    string? PayerNameSnapshot,
+    decimal AssessedRentalAmount,
+    decimal CumulativeSettledEvidence,
+    decimal OutstandingAmount,
+    SettlementAuthority SettlementAuthority,
+    long SourceVersion,
+    Guid RevenueClassificationId,
+    Guid RevenueClassificationPolicyId,
+    string ClassificationName,
+    RevenueInstrumentType Instrument,
+    decimal ContractRate,
+    bool CanAddToDraft,
+    bool CanPostCanonical,
+    bool RequiresLegacyReconciliation);
+
+public sealed record CollectionCandidateDto(
+    CollectionSourceKind SourceKind,
+    Guid? SourceId,
+    CollectionSourcePart? SourcePart,
+    Guid StallId,
+    string StallNo,
+    string SourceLabel,
+    int BillingYear,
+    int BillingMonth,
+    Guid? PayorId,
+    string? PayerNameSnapshot,
+    decimal OutstandingAmount,
+    RevenueInstrumentType Instrument,
+    bool CanAddToDraft);
+
+public sealed record CollectionPayorDto(Guid PayorId, string DisplayName);
 
 public sealed record EcfCollectionDraftDto(
     Guid DraftId,
@@ -72,7 +130,15 @@ public sealed record EcfCollectionActivityLineDto(
     int BillingYear,
     int BillingMonth,
     string Allocation,
-    string? CalculationSnapshot);
+    string? CalculationSnapshot,
+    IReadOnlyList<CollectionActivityAllocationDto>? Allocations = null,
+    string? CalculationDetail = null);
+
+public sealed record CollectionActivityAllocationDto(
+    decimal Amount,
+    int? BillingYear,
+    int? BillingMonth,
+    string SourceLabel);
 
 public sealed record EcfCollectionActivityDto(
     Guid CollectionId,
@@ -90,6 +156,20 @@ public sealed record CreateEcfCollectionDraftRequest(
     decimal ProposedAmount,
     Guid? AccountableDocumentId = null,
     string? OneOffPayerName = null);
+
+public sealed record AddEcfDraftLineRequest(Guid UtilityBillId, decimal ProposedAmount, long? ExpectedRevision = null);
+public sealed record AddRentDraftAllocationRequest(
+    Guid StallId,
+    int BillingYear,
+    int BillingMonth,
+    decimal ProposedAmount,
+    long? ExpectedRevision = null,
+    string? OneOffPayerName = null);
+
+public sealed record UpdateCollectionDraftAllocationRequest(
+    Guid AllocationId,
+    long ExpectedRevision,
+    decimal ProposedAmount);
 
 public sealed record UpdateEcfDraftAllocationRequest(long ExpectedRevision, decimal ProposedAmount);
 public sealed record SelectEcfDraftDocumentRequest(long ExpectedRevision, Guid? AccountableDocumentId);

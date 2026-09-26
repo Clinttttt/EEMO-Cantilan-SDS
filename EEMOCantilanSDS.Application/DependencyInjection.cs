@@ -36,8 +36,8 @@ namespace EEMOCantilanSDS.Application
                 Common.Payments.INpmMonthSettlementService,
                 Common.Payments.NpmMonthSettlementService>();
 
-            services.AddScoped<
-                Common.Revenue.EcfCollectionWorkflow>();
+            services.AddScoped<Common.Revenue.CollectionComposerWorkflow>();
+            services.AddScoped<Common.Revenue.EcfCollectionWorkflow>();
 
             return services;
         }

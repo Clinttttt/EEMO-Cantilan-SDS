@@ -26,6 +26,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public Guid? ClientOperationId { get; private set; }
         public SettlementAuthority SettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
         public Guid? SettlementCutoverId { get; private set; }
+        public long SettlementVersion { get; private set; } = 1;
 
         // Fee breakdown
         public decimal BaseRentalAmount { get; private set; }
@@ -103,6 +104,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
         /// <summary>
         /// Clears the collector on a payment brought in from the office's own books. Nobody in the system collected
@@ -128,6 +130,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = receivedAt;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
 
         /// <summary>
@@ -159,6 +162,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
 
         /// <summary>
@@ -178,6 +182,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
 
         public void MarkUnpaid(string updatedBy = "System")
@@ -190,6 +195,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
@@ -206,6 +212,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (SettlementAuthorityState != SettlementAuthority.Legacy)
                 throw new InvalidOperationException("Only a Legacy source can enter Pending Cutover.");
             SettlementAuthorityState = SettlementAuthority.PendingCutover;
+            BumpSettlementVersion();
         }
 
         public void ActivateCanonicalSettlement(CollectionSettlementCutover cutover)
@@ -219,6 +226,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 throw new InvalidOperationException("The frozen cutover does not identify this tenant's PaymentRecord source.");
             SettlementCutoverId = cutover.Id;
             SettlementAuthorityState = SettlementAuthority.Canonical;
+            BumpSettlementVersion();
         }
 
         public void UpdateStatus(
@@ -246,6 +254,48 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 CollectorId = collectorId.Value;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            BumpSettlementVersion();
+        }
+
+        /// <summary>
+        /// Projects canonical net rent allocations into the legacy status fields. Mixed historical components
+        /// cannot be represented safely by the single legacy status and therefore require reconciliation.
+        /// </summary>
+        public void ApplyCanonicalRentProjection(decimal cumulativeRentSettled, DateTime recordedAtUtc, string updatedBy)
+        {
+            if (SettlementAuthorityState != SettlementAuthority.Canonical)
+                throw new InvalidOperationException("Canonical rent projection requires Canonical settlement authority.");
+            if (recordedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Projection timestamp must be UTC.", nameof(recordedAtUtc));
+            if (ElecAmount.GetValueOrDefault() != 0m || WaterAmount.GetValueOrDefault() != 0m
+                || FishFeeAmount.GetValueOrDefault() != 0m)
+                throw new InvalidOperationException("Mixed legacy components require reconciliation before rent projection.");
+            if (cumulativeRentSettled < 0m || cumulativeRentSettled > BaseRentalAmount
+                || decimal.Round(cumulativeRentSettled, 2, MidpointRounding.ToZero) != cumulativeRentSettled)
+                throw new ArgumentOutOfRangeException(nameof(cumulativeRentSettled));
+
+            if (cumulativeRentSettled >= BaseRentalAmount && BaseRentalAmount > 0m)
+            {
+                Status = PaymentStatus.Paid;
+                PartialAmount = 0m;
+                PaidAt = recordedAtUtc;
+            }
+            else if (cumulativeRentSettled > 0m)
+            {
+                Status = PaymentStatus.Partial;
+                PartialAmount = cumulativeRentSettled;
+                PaidAt = recordedAtUtc;
+            }
+            else
+            {
+                Status = PaymentStatus.Unpaid;
+                PartialAmount = 0m;
+                PaidAt = null;
+            }
+
+            UpdatedAt = recordedAtUtc;
+            UpdatedBy = updatedBy;
+            BumpSettlementVersion();
         }
 
         private void EnsureLegacySettlementAuthority()
@@ -253,5 +303,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (SettlementAuthorityState != SettlementAuthority.Legacy)
                 throw new InvalidOperationException("Legacy settlement writers are disabled once cutover begins.");
         }
+
+        private void BumpSettlementVersion() => SettlementVersion = checked(SettlementVersion + 1);
     }
 }

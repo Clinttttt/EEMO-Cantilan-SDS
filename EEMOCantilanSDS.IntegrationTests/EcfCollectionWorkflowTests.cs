@@ -18,8 +18,10 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
 {
-    private sealed record Seed(Guid TenantId, Guid UserId, Guid BillId, Guid OrDocumentId,
+    private sealed record Seed(Guid TenantId, Guid UserId, Guid BillId, Guid PayorId, Guid OrDocumentId,
         Guid OtherOrDocumentId, Guid CtDocumentId, DateOnly Period);
+    private sealed record RentSeed(Guid StallId, Guid ContractId, Guid PayorId, Guid ClassificationId,
+        IReadOnlyDictionary<DateOnly, Guid> PaymentRecordIds);
 
     private sealed class TestActor(Guid userId, Guid tenantId, string role = "Admin") : ICurrentUserService
     {
@@ -357,8 +359,350 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Empty(await context.Collections.ToListAsync());
     }
 
-    private EcfCollectionWorkflow Workflow(AppDbContext context, Seed seed) =>
+    [SkippableFact]
+    public async Task RentAdapterUsesRentalComponentAndMixedLegacyPartialRequiresReconciliation()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: false);
+        var period = seed.Period.AddMonths(-1);
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: false,
+            partialAmount: 100m, legacyElectricityAmount: 125m, legacyFishKilos: 5m);
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+        var result = await workflow.GetRentObligationAsync(rent.StallId, period.Year, period.Month);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(900m, result.Value!.AssessedRentalAmount);
+        Assert.Equal(1030m, await context.PaymentRecords.Where(x => x.Id == rent.PaymentRecordIds[period])
+            .Select(x => x.TotalBill).SingleAsync());
+        Assert.True(result.Value.RequiresLegacyReconciliation);
+        Assert.False(result.Value.CanAddToDraft);
+        Assert.Equal(SettlementAuthority.Legacy, result.Value.SettlementAuthority);
+        Assert.Empty(await context.CollectionSettlementCutovers.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task RentPeriodsAndEcfShareOneReviewedOrWithIndependentLinesAndAllocations()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var july = seed.Period.AddMonths(-2);
+        var august = seed.Period.AddMonths(-1);
+        var rent = await SeedRentSourcesAsync(seed, [july, august], canonical: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+
+        var candidates = await workflow.GetPayorObligationsAsync(seed.PayorId);
+        Assert.True(candidates.IsSuccess, candidates.Error);
+        var rentCandidates = candidates.Value!.Where(x => x.SourceKind == CollectionSourceKind.PaymentRecord).ToList();
+        Assert.Equal(new[] { july, august }, rentCandidates.Select(x => new DateOnly(x.BillingYear, x.BillingMonth, 1)));
+        Assert.All(rentCandidates, x => Assert.Equal(seed.PayorId, x.PayorId));
+
+        var over = await workflow.AddRentAllocationAsync(
+            new AddRentDraftAllocationRequest(rent.StallId, july.Year, july.Month, 900.01m));
+        Assert.False(over.IsSuccess);
+        Assert.Empty(await context.WebCollectionDrafts.ToListAsync());
+
+        var julyDraft = await workflow.AddRentAllocationAsync(
+            new AddRentDraftAllocationRequest(rent.StallId, july.Year, july.Month, 900m));
+        Assert.True(julyDraft.IsSuccess, julyDraft.Error);
+        var augustDraft = await workflow.AddRentAllocationAsync(
+            new AddRentDraftAllocationRequest(rent.StallId, august.Year, august.Month, 600m,
+                julyDraft.Value!.Revision));
+        Assert.True(augustDraft.IsSuccess, augustDraft.Error);
+        var ecfDraft = await workflow.AddEcfLineAsync(
+            new AddEcfDraftLineRequest(seed.BillId, 500m, augustDraft.Value!.Revision));
+        Assert.True(ecfDraft.IsSuccess, ecfDraft.Error);
+        Assert.Equal(seed.PayorId, ecfDraft.Value!.PayorId);
+        Assert.Equal(2000m, ecfDraft.Value.TotalAmount);
+        Assert.Equal(2, ecfDraft.Value.Lines.Count);
+        Assert.Contains("kWh", ecfDraft.Value.Lines.Single(x =>
+            x.ClassificationName == "Electricity Consumption Fee").CalculationDetail);
+
+        var selected = await workflow.SelectDocumentAsync(ecfDraft.Value.DraftId,
+            new SelectEcfDraftDocumentRequest(ecfDraft.Value.Revision, seed.OrDocumentId));
+        Assert.True(selected.IsSuccess, selected.Error);
+        var reviewed = await workflow.ReviewAsync(selected.Value!.DraftId,
+            new EcfDraftRevisionRequest(selected.Value.Revision));
+        Assert.True(reviewed.IsSuccess, reviewed.Error);
+        var operationId = Guid.NewGuid();
+        var posted = await workflow.PostAsync(reviewed.Value!.DraftId,
+            new PostEcfCollectionDraftRequest(reviewed.Value.Revision, operationId));
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(2000m, posted.Value!.Amount);
+        Assert.Equal(2, posted.Value.ItemCount);
+
+        var collection = await context.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
+        Assert.Equal(2000m, collection.TotalAmount);
+        Assert.Equal(seed.PayorId, collection.PayorId);
+        Assert.Equal(2, collection.Lines.Count);
+        var rentLine = Assert.Single(collection.Lines, x => x.RevenueClassificationId == rent.ClassificationId);
+        Assert.Equal(1500m, rentLine.Amount);
+        Assert.Equal(new[] { 900m, 600m }, rentLine.Allocations.OrderBy(x => x.SourceId)
+            .Select(x => x.Amount).OrderByDescending(x => x).ToArray());
+        Assert.Equal(2, rentLine.Allocations.Count);
+        Assert.All(rentLine.Allocations, x =>
+        {
+            Assert.Equal(CollectionSourceKind.PaymentRecord, x.SourceKind);
+            Assert.Null(x.SourcePart);
+        });
+        var ecfClassificationId = await context.RevenueClassifications.Where(x =>
+            x.SemanticCode == RevenueClassificationCodes.Ecf).Select(x => x.Id).SingleAsync();
+        var ecfLine = Assert.Single(collection.Lines, x => x.RevenueClassificationId == ecfClassificationId);
+        Assert.Equal(500m, ecfLine.Amount);
+        Assert.Equal(CollectionSourcePart.Electricity, ecfLine.SourcePart);
+        Assert.Equal(seed.BillId, Assert.Single(ecfLine.Allocations).SourceId);
+
+        var activity = await workflow.GetActivityAsync(seed.Period, seed.Period);
+        Assert.True(activity.IsSuccess, activity.Error);
+        var row = Assert.Single(activity.Value!);
+        Assert.Equal(collection.Id, row.CollectionId);
+        Assert.Equal(2, row.ItemCount);
+        Assert.Equal(2000m, row.TotalAmount);
+        Assert.Equal(2, row.Lines.Count);
+        Assert.Equal(2, row.Lines.Single(x => x.ClassificationName == "Permanent Stall Rent").Allocations!.Count);
+        Assert.Equal(500m, row.Lines.Single(x => x.ClassificationName == "Electricity Consumption Fee").Amount);
+        Assert.Contains("kWh", row.Lines.Single(x =>
+            x.ClassificationName == "Electricity Consumption Fee").CalculationDetail);
+        Assert.Equal(AccountableDocumentState.Consumed,
+            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+
+        var julyRecord = await context.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[july]);
+        var augustRecord = await context.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[august]);
+        Assert.Equal(PaymentStatus.Paid, julyRecord.Status);
+        Assert.Equal(PaymentStatus.Partial, augustRecord.Status);
+        Assert.Equal(600m, augustRecord.PartialAmount);
+        Assert.Equal(SettlementAuthority.Canonical, julyRecord.SettlementAuthorityState);
+        Assert.Equal(SettlementAuthority.Canonical, augustRecord.SettlementAuthorityState);
+        Assert.Equal(SettlementAuthority.Canonical,
+            (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElectricitySettlementAuthorityState);
+        Assert.Equal(SettlementAuthority.Legacy,
+            (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).WaterSettlementAuthorityState);
+    }
+
+    [SkippableFact]
+    public async Task SameDisplayNameDoesNotJoinRentToAnUnrelatedEcfPayor()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var period = seed.Period.AddMonths(-1);
+        var unrelatedPayor = Payor.Create(seed.TenantId, "Lisa ECF", BusinessPayorKind.Person, "test");
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true, payorId: unrelatedPayor.Id,
+            additionalPayor: unrelatedPayor);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+        var draft = await workflow.AddEcfLineAsync(new AddEcfDraftLineRequest(seed.BillId, 100m));
+        Assert.True(draft.IsSuccess, draft.Error);
+        var rejected = await workflow.AddRentAllocationAsync(new AddRentDraftAllocationRequest(
+            rent.StallId, period.Year, period.Month, 100m, draft.Value!.Revision));
+        Assert.False(rejected.IsSuccess);
+        Assert.Contains("Payor", rejected.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(seed.PayorId, draft.Value.PayorId);
+        Assert.Equal(1, await context.WebCollectionDraftLines.CountAsync());
+        Assert.Empty(await context.WebCollectionDraftAllocations
+            .Where(x => x.SourceKind == CollectionSourceKind.PaymentRecord).ToListAsync());
+        Assert.Empty(await context.Collections.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task PayorFirstComposerFindsOlderStillOwedEcfPeriod()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: false);
+        var olderPeriod = seed.Period.AddMonths(-4);
+        Guid stallId;
+        await using (var lookup = db.CreateContext(seed.TenantId))
+            stallId = await lookup.UtilityBills.Where(x => x.Id == seed.BillId).Select(x => x.StallId).SingleAsync();
+        var oldBill = UtilityBill.Create(stallId, olderPeriod.Year, olderPeriod.Month,
+            20m, 80m, 10m, 0m, 4m, 5m, "test");
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            setup.UtilityBills.Add(oldBill);
+            await setup.SaveChangesAsync();
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var candidates = await Workflow(context, seed).GetPayorObligationsAsync(seed.PayorId);
+        Assert.True(candidates.IsSuccess, candidates.Error);
+        var oldEcf = Assert.Single(candidates.Value!, x => x.SourceKind == CollectionSourceKind.UtilityBill
+            && x.SourcePart == CollectionSourcePart.Electricity && x.SourceId == oldBill.Id);
+        Assert.Equal(olderPeriod.Year, oldEcf.BillingYear);
+        Assert.Equal(olderPeriod.Month, oldEcf.BillingMonth);
+        Assert.Equal(600m, oldEcf.OutstandingAmount);
+        Assert.True(oldEcf.CanAddToDraft);
+    }
+
+    [SkippableFact]
+    public async Task StaleRentSourceRejectsTheWholeReviewedRentAndEcfCollection()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var period = seed.Period.AddMonths(-1);
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true);
+        var actor = new TestActor(seed.UserId, seed.TenantId);
+        Guid draftId;
+        long revision;
+        var operationId = Guid.NewGuid();
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var workflow = new CollectionComposerWorkflow(context, actor, new FixedTenant(seed.TenantId));
+            var rentDraft = await workflow.AddRentAllocationAsync(new AddRentDraftAllocationRequest(
+                rent.StallId, period.Year, period.Month, 300m));
+            Assert.True(rentDraft.IsSuccess, rentDraft.Error);
+            var ecfDraft = await workflow.AddEcfLineAsync(new AddEcfDraftLineRequest(
+                seed.BillId, 300m, rentDraft.Value!.Revision));
+            Assert.True(ecfDraft.IsSuccess, ecfDraft.Error);
+            var selected = await workflow.SelectDocumentAsync(ecfDraft.Value!.DraftId,
+                new SelectEcfDraftDocumentRequest(ecfDraft.Value.Revision, seed.OrDocumentId));
+            Assert.True(selected.IsSuccess, selected.Error);
+            var reviewed = await workflow.ReviewAsync(selected.Value!.DraftId,
+                new EcfDraftRevisionRequest(selected.Value.Revision));
+            Assert.True(reviewed.IsSuccess, reviewed.Error);
+            draftId = reviewed.Value!.DraftId;
+            revision = reviewed.Value.Revision;
+        }
+
+        await using (var mutation = db.CreateContext(seed.TenantId))
+            await mutation.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"PaymentRecords\" SET \"SettlementVersion\" = \"SettlementVersion\" + 1 WHERE \"MunicipalityId\" = {seed.TenantId} AND \"Id\" = {rent.PaymentRecordIds[period]}");
+
+        await using var postingContext = db.CreateContext(seed.TenantId);
+        var posting = new CollectionComposerWorkflow(postingContext, actor, new FixedTenant(seed.TenantId));
+        var rejected = await posting.PostAsync(draftId,
+            new PostEcfCollectionDraftRequest(revision, operationId));
+        Assert.False(rejected.IsSuccess);
+        Assert.Contains("Rent source facts changed", rejected.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await postingContext.Collections.ToListAsync());
+        Assert.Empty(await postingContext.CollectionAllocations.ToListAsync());
+        Assert.Equal(AccountableDocumentState.InOffice,
+            (await postingContext.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+        Assert.Equal(200m, (await postingContext.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
+        Assert.Equal(0m, (await postingContext.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period])).PartialAmount);
+        Assert.Equal(CollectionDraftStatus.Draft,
+            (await postingContext.WebCollectionDrafts.SingleAsync(x => x.Id == draftId)).Status);
+        Assert.Equal(PostingOperationStatus.Rejected,
+            (await postingContext.PostingOperations.SingleAsync(x => x.ClientOperationId == operationId)).Status);
+    }
+
+    [SkippableFact]
+    public async Task ConcurrentIdenticalCombinedRentAndEcfPostingHasOneFinancialEffect()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var period = seed.Period.AddMonths(-1);
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true);
+        var actor = new TestActor(seed.UserId, seed.TenantId);
+        Guid draftId;
+        long revision;
+        var operationId = Guid.NewGuid();
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var workflow = new CollectionComposerWorkflow(context, actor, new FixedTenant(seed.TenantId));
+            var rentDraft = await workflow.AddRentAllocationAsync(new AddRentDraftAllocationRequest(
+                rent.StallId, period.Year, period.Month, 100m));
+            Assert.True(rentDraft.IsSuccess, rentDraft.Error);
+            var ecfDraft = await workflow.AddEcfLineAsync(new AddEcfDraftLineRequest(
+                seed.BillId, 100m, rentDraft.Value!.Revision));
+            Assert.True(ecfDraft.IsSuccess, ecfDraft.Error);
+            var selected = await workflow.SelectDocumentAsync(ecfDraft.Value!.DraftId,
+                new SelectEcfDraftDocumentRequest(ecfDraft.Value.Revision, seed.OrDocumentId));
+            Assert.True(selected.IsSuccess, selected.Error);
+            var reviewed = await workflow.ReviewAsync(selected.Value!.DraftId,
+                new EcfDraftRevisionRequest(selected.Value.Revision));
+            Assert.True(reviewed.IsSuccess, reviewed.Error);
+            draftId = reviewed.Value!.DraftId;
+            revision = reviewed.Value.Revision;
+        }
+
+        async Task<Result<EcfPostOutcomeDto>> AttemptAsync()
+        {
+            await using var context = db.CreateContext(seed.TenantId);
+            var workflow = new CollectionComposerWorkflow(context, actor, new FixedTenant(seed.TenantId));
+            return await workflow.PostAsync(draftId,
+                new PostEcfCollectionDraftRequest(revision, operationId));
+        }
+
+        var outcomes = await Task.WhenAll(AttemptAsync(), AttemptAsync());
+        Assert.All(outcomes, x => Assert.True(x.IsSuccess, x.Error));
+        Assert.Single(outcomes.Select(x => x.Value!.CollectionId).Distinct());
+        await using var verify = db.CreateContext(seed.TenantId);
+        var collection = await verify.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
+        Assert.Equal(200m, collection.TotalAmount);
+        Assert.Equal(2, collection.Lines.Count);
+        Assert.Equal(2, collection.Lines.Sum(x => x.Allocations.Count));
+        Assert.Single(await verify.PostingOperations.ToListAsync(), x => x.ClientOperationId == operationId);
+        Assert.Equal(AccountableDocumentState.Consumed,
+            (await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+        Assert.Equal(100m, (await verify.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period])).PartialAmount);
+        Assert.Equal(300m, (await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
+    }
+
+    private CollectionComposerWorkflow Workflow(AppDbContext context, Seed seed) =>
         new(context, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId));
+
+    private async Task<RentSeed> SeedRentSourcesAsync(
+        Seed seed,
+        IReadOnlyList<DateOnly> periods,
+        bool canonical,
+        decimal partialAmount = 0m,
+        decimal legacyElectricityAmount = 0m,
+        decimal legacyFishKilos = 0m,
+        Guid? payorId = null,
+        Payor? additionalPayor = null)
+    {
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC",
+            municipalityId: seed.TenantId);
+        var stall = Stall.Create(facility.Id, "RENT-01", 900m, ApplicableFees.BaseRental,
+            municipalityId: seed.TenantId);
+        var contract = Contract.Create(stall.Id, "Lisa ECF", "Lisa ECF",
+            periods.Min().AddYears(-2), 5, 900m, createdBy: "test");
+        var linkedPayorId = payorId ?? seed.PayorId;
+        contract.AssociatePayor(linkedPayorId, "test");
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.PermanentStallRent,
+            seed.TenantId);
+        var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
+            "Permanent Stall Rent", RevenueInstrumentType.OfficialReceipt, seed.TenantId);
+        var records = new Dictionary<DateOnly, PaymentRecord>();
+        var cutovers = new List<CollectionSettlementCutover>();
+        foreach (var period in periods)
+        {
+            var record = PaymentRecord.Create(stall.Id, period.Year, period.Month, 900m, "test");
+            if (!canonical && (partialAmount > 0m || legacyElectricityAmount > 0m || legacyFishKilos > 0m))
+                record.RecordPayment("LEGACY-RENT", seed.UserId, PaymentStatus.Partial,
+                    partialAmount: partialAmount, elecAmount: legacyElectricityAmount,
+                    fishKilos: legacyFishKilos, updatedBy: "test");
+            if (canonical)
+            {
+                if (partialAmount > 0m) record.UpdateStatus(PaymentStatus.Partial, partialAmount, updatedBy: "test");
+                record.MarkSettlementPendingCutover();
+                var at = DateTime.UtcNow.AddMinutes(-3);
+                var cutover = CollectionSettlementCutover.Freeze(seed.TenantId,
+                    CollectionSourceKind.PaymentRecord, record.Id, null, record.SettlementVersion,
+                    at, record.BaseRentalAmount, partialAmount, record.BaseRentalAmount - partialAmount,
+                    "{\"pendingMobileOperations\":0,\"issuedDocuments\":0,\"legacyWritersQuiesced\":true}",
+                    seed.UserId, at.AddMinutes(1));
+                record.ActivateCanonicalSettlement(cutover);
+                cutovers.Add(cutover);
+            }
+            records.Add(period, record);
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        if (additionalPayor is not null) context.Payors.Add(additionalPayor);
+        context.AddRange(facility, stall, contract, classification, policy);
+        context.PaymentRecords.AddRange(records.Values);
+        context.CollectionSettlementCutovers.AddRange(cutovers);
+        await context.SaveChangesAsync();
+        return new RentSeed(stall.Id, contract.Id, linkedPayorId, classification.Id,
+            records.ToDictionary(x => x.Key, x => x.Value.Id));
+    }
 
     private async Task<Seed> SeedEcfAsync(bool canonical)
     {
@@ -423,6 +767,6 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             await context.SaveChangesAsync();
         }
 
-        return new Seed(tenant, user, bill.Id, orDocument.Id, secondOrDocument.Id, ctDocument.Id, periodStart);
+        return new Seed(tenant, user, bill.Id, payor.Id, orDocument.Id, secondOrDocument.Id, ctDocument.Id, periodStart);
     }
 }

@@ -17,4 +17,10 @@ public interface IEcfCollectionsApiClient
     Task<Result<EcfCollectionDraftDto>> DiscardAsync(Guid draftId, EcfDraftRevisionRequest request);
     Task<Result<EcfPostOutcomeDto>> PostAsync(Guid draftId, PostEcfCollectionDraftRequest request);
     Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(DateOnly from, DateOnly to);
+    Task<Result<RentObligationQuoteDto>> GetRentObligationAsync(Guid stallId, int year, int month);
+    Task<Result<IReadOnlyList<CollectionCandidateDto>>> GetPayorObligationsAsync(Guid payorId);
+    Task<Result<EcfCollectionDraftDto>> AddEcfLineAsync(AddEcfDraftLineRequest request);
+    Task<Result<EcfCollectionDraftDto>> AddRentAllocationAsync(AddRentDraftAllocationRequest request);
+    Task<Result<EcfCollectionDraftDto>> UpdateDraftAllocationAsync(Guid draftId, UpdateCollectionDraftAllocationRequest request);
+    Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionPayorsAsync(string search);
 }

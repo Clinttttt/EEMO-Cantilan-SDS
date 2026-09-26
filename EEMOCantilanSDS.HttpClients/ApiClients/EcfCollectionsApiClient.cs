@@ -43,4 +43,27 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(DateOnly from, DateOnly to) =>
         GetAsync<IReadOnlyList<EcfCollectionActivityDto>>(
             $"api/ecf-collections/activity?from={from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&to={to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+
+    public Task<Result<RentObligationQuoteDto>> GetRentObligationAsync(Guid stallId, int year, int month) =>
+        GetAsync<RentObligationQuoteDto>(
+            $"api/collections/composer/rent-obligation?stallId={stallId}&year={year}&month={month}");
+
+    public Task<Result<IReadOnlyList<CollectionCandidateDto>>> GetPayorObligationsAsync(Guid payorId) =>
+        GetAsync<IReadOnlyList<CollectionCandidateDto>>($"api/collections/composer/payors/{payorId}/obligations");
+
+    public Task<Result<EcfCollectionDraftDto>> AddEcfLineAsync(AddEcfDraftLineRequest request) =>
+        PostAsync<AddEcfDraftLineRequest, EcfCollectionDraftDto>("api/collections/composer/drafts/ecf-lines", request);
+
+    public Task<Result<EcfCollectionDraftDto>> AddRentAllocationAsync(AddRentDraftAllocationRequest request) =>
+        PostAsync<AddRentDraftAllocationRequest, EcfCollectionDraftDto>(
+            "api/collections/composer/drafts/rent-allocations", request);
+
+    public Task<Result<EcfCollectionDraftDto>> UpdateDraftAllocationAsync(
+        Guid draftId, UpdateCollectionDraftAllocationRequest request) =>
+        PutAsync<UpdateCollectionDraftAllocationRequest, EcfCollectionDraftDto>(
+            $"api/collections/composer/drafts/{draftId}/allocations", request);
+
+    public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionPayorsAsync(string search) =>
+        GetAsync<IReadOnlyList<CollectionPayorDto>>(
+            $"api/collections/composer/payors?search={Uri.EscapeDataString(search)}");
 }

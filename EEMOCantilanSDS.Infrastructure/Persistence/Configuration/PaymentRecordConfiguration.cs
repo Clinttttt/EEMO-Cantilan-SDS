@@ -45,6 +45,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasDefaultValue(SettlementAuthority.Legacy)
                 .IsRequired()
                 .IsConcurrencyToken();
+            builder.Property(x => x.SettlementVersion)
+                .HasDefaultValue(1L)
+                .IsRequired()
+                .IsConcurrencyToken();
             builder.Property(x => x.SettlementCutoverId);
             builder.HasOne<CollectionSettlementCutover>().WithMany()
                 .HasForeignKey(x => new { x.MunicipalityId, x.SettlementCutoverId })

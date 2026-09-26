@@ -272,6 +272,8 @@ Clint approved the sequence. MASTER executes one bounded phase at a time on `int
 
 This order refines the bounded OR-pilot direction. It does not promise ECF/rent share an occupancy or manufacture missing relationships. NPM is not routed through monthly PaymentRecord merely to satisfy the example. Every Web, specialized operation, Mobile/offline and online writer touching a source must use the canonical protocol before that source activates.
 
+For Phase 3's monthly PaymentRecord scope, see the [current settlement-writer inventory](../planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md). That inventory documents Phase 5 readiness work; it does not activate a source or authorize bypassing Q43 reconciliation.
+
 Integration path: documentation checkpoint -> Phase 1 shared foundation -> each bounded vertical phase -> integrated canonical validation -> per-source readiness/reconciliation -> activation. MASTER owns each change and integrates it directly into the canonical branch; N/O/P/Q worktrees are not resumed and there is no parallel lane merge graph.
 
 After each bounded phase passes its build and relevant tests, record a focused canonical commit before proceeding. Preserve all paused candidate worktrees unchanged; do not synchronize or merge them. Use the single `https://localhost:7167` preview for visual review when a UI phase requires it. No production deployment occurs without a separate authorization.

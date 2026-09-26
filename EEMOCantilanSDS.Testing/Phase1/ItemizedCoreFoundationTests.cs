@@ -89,6 +89,8 @@ public sealed class ItemizedCoreFoundationTests
             .FindProperty(nameof(AccountableDocument.State))!.IsConcurrencyToken);
         Assert.True(context.Model.FindEntityType(typeof(PaymentRecord))!
             .FindProperty(nameof(PaymentRecord.SettlementAuthorityState))!.IsConcurrencyToken);
+        Assert.True(context.Model.FindEntityType(typeof(PaymentRecord))!
+            .FindProperty(nameof(PaymentRecord.SettlementVersion))!.IsConcurrencyToken);
         Assert.True(context.Model.FindEntityType(typeof(UtilityBill))!
             .FindProperty(nameof(UtilityBill.ElectricitySettlementAuthorityState))!.IsConcurrencyToken);
         Assert.True(context.Model.FindEntityType(typeof(UtilityBill))!

@@ -117,11 +117,11 @@
                                 <td class="ecf-number ecf-balance">@Money(quote.OutstandingAmount)</td>
                                 <td><span class="ecf-period-tag">@quote.SettlementAuthority</span></td>
                                 <td>
-                                    @if (quote.CanAddToDraft && _draft is null)
+                                    @if (quote.CanAddToDraft && DraftRemaining(quote) > 0m)
                                     {
                                         <button class="ecf-button ecf-button-primary" type="button"
                                                 @onclick="() => AddToCollectionAsync(quote)" disabled="@_busy">
-                                            Add to Collection
+                                            @(DraftRemaining(quote) < quote.OutstandingAmount ? "Add remaining balance" : "Add to Collection")
                                         </button>
                                     }
                                     else if (quote.SettlementAuthority == SettlementAuthority.PendingCutover)
@@ -157,15 +157,16 @@
                 <div>
                     <p class="ecf-eyebrow">SERVER-PERSISTED · NON-FINANCIAL UNTIL POSTED</p>
                     <h2 id="ecf-composer-title">Current Collection</h2>
-                    <p>Review binds to this exact server draft revision.</p>
+                    <p>Rent and ECF entry converge on the same server collection draft.</p>
                 </div>
             </header>
 
             @if (_draft is null)
             {
                 <div class="ecf-composer-empty">
-                    <p>No open ECF draft is attached to this user.</p>
+                    <p>No open collection draft is attached to this user.</p>
                     <p>Choose an eligible Electricity obligation and add it to a draft.</p>
+                    <a class="ecf-button ecf-button-secondary" href="/collections/current">Open Payor-first Collection</a>
                 </div>
             }
             else
@@ -183,12 +184,12 @@
                     <div class="ecf-draft-line">
                         <div>
                             <strong>@line.ClassificationName</strong>
-                            <span>UtilityBill / Electricity · source version @line.SourceVersion</span>
+                            <span>@Money(line.Amount)</span>
                         </div>
-                        <label class="ecf-field">
-                            <span>Collection amount (PHP)</span>
-                            <input type="number" min="0.01" step="0.01" @bind="_proposedAmount" disabled="@_busy" />
-                        </label>
+                        @foreach (var allocation in line.Allocations ?? [])
+                        {
+                            <span>@allocation.SourceLabel · @Money(allocation.Amount)</span>
+                        }
                     </div>
                 }
 
@@ -209,36 +210,8 @@
                     <strong>@Money(_draft.TotalAmount)</strong>
                 </div>
 
-                @if (CurrentDraftQuote is { SettlementAuthority: SettlementAuthority.Legacy })
-                {
-                    <div class="ecf-notice">
-                        This ECF source remains Legacy. You may save and review the draft, but canonical posting is unavailable until its controlled cutover is complete.
-                    </div>
-                }
-                else if (CurrentDraftQuote is { SettlementAuthority: SettlementAuthority.PendingCutover })
-                {
-                    <div class="ecf-notice">
-                        This ECF source is quiesced for cutover reconciliation. Posting is unavailable.
-                    </div>
-                }
-
                 <footer class="ecf-modal-footer ecf-composer-actions">
-                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="RefreshDraftSourceAsync" disabled="@_busy">
-                        Refresh source
-                    </button>
-                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="UpdateAmountAsync" disabled="@_busy">
-                        Update amount
-                    </button>
-                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="ReviewAsync" disabled="@_busy">
-                        Review revision
-                    </button>
-                    <button class="ecf-button ecf-button-primary" type="button" @onclick="PostAsync"
-                            disabled="@(_busy || !_draft.IsReviewedForCurrentRevision || CurrentDraftQuote?.CanPostCanonical != true || !_draft.AccountableDocumentId.HasValue)">
-                        Post Collection
-                    </button>
-                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="DiscardAsync" disabled="@_busy">
-                        Discard draft
-                    </button>
+                    <a class="ecf-button ecf-button-primary" href="/collections/current">Open Current Collection</a>
                 </footer>
                 <p class="ecf-draft-footnote">Drafting and review do not create revenue, allocate settlement, or consume an OR.</p>
             }
@@ -328,6 +301,11 @@
     private decimal TotalSettled => _quotes.Sum(x => x.CumulativeSettledEvidence);
     private decimal TotalOutstanding => _quotes.Sum(x => x.OutstandingAmount);
     private EcfObligationQuoteDto? CurrentDraftQuote => _draftSourceQuote;
+    private decimal DraftRemaining(EcfObligationQuoteDto quote) => quote.OutstandingAmount
+        - (_draft?.Lines.SelectMany(x => x.Allocations ?? [])
+            .Where(x => x.SourceKind == CollectionSourceKind.UtilityBill
+                && x.SourceId == quote.UtilityBillId && x.SourcePart == CollectionSourcePart.Electricity)
+            .Sum(x => x.Amount) ?? 0m);
 
     private List<FacilityHero.HeroStat> HeroStats =>
     [
@@ -415,8 +393,8 @@
     {
         await RunAsync(async () =>
         {
-            var result = await EcfApi.CreateDraftAsync(new CreateEcfCollectionDraftRequest(
-                quote.UtilityBillId, quote.OutstandingAmount));
+            var result = await EcfApi.AddEcfLineAsync(new AddEcfDraftLineRequest(
+                quote.UtilityBillId, DraftRemaining(quote), _draft?.Revision));
             if (!SetDraftResult(result, "ECF source added to the server draft.")) return;
             await ReloadSupportingDataAsync();
         });
