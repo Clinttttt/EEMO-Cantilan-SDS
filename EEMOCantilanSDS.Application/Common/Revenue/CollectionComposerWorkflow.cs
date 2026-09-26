@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
@@ -23,11 +24,13 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 public sealed class CollectionComposerWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
-    ICurrentMunicipalityAccessor municipality)
+    ICurrentMunicipalityAccessor municipality,
+    IClock? clock = null)
 {
     private const string WebOrigin = "Web";
     private const int IntentVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private DateOnly BusinessToday => clock?.PhilippineToday ?? PhilippineTime.Today;
 
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(
         int year, int month, CancellationToken ct = default) => Run(async actor =>
@@ -35,7 +38,7 @@ public sealed class CollectionComposerWorkflow(
         if (year is < 2000 or > 2200 || month is < 1 or > 12)
             throw Problem("A valid billing year and month are required.", ResultStatus.Invalid);
 
-        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, PhilippineTime.Today, ct);
+        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, BusinessToday, ct);
         var bills = await UtilityBillQuery(actor.MunicipalityId, tracked: false)
             .Where(x => x.BillingYear == year && x.BillingMonth == month)
             .OrderBy(x => x.Stall!.StallNo)
@@ -44,7 +47,7 @@ public sealed class CollectionComposerWorkflow(
         var quotes = new List<EcfObligationQuoteDto>(bills.Count);
         foreach (var bill in bills)
         {
-            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct);
             if (facts.Quote.OutstandingAmount > 0m || facts.Quote.SettlementAuthority == SettlementAuthority.PendingCutover)
                 quotes.Add(facts.Quote);
         }
@@ -54,10 +57,10 @@ public sealed class CollectionComposerWorkflow(
 
     public Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId, CancellationToken ct = default) => Run(async actor =>
     {
-        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, PhilippineTime.Today, ct);
+        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, BusinessToday, ct);
         var bill = await UtilityBillQuery(actor.MunicipalityId, tracked: false).SingleOrDefaultAsync(x => x.Id == utilityBillId, ct);
         if (bill is null) return Result<EcfObligationQuoteDto>.NotFound();
-        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct);
         return Result<EcfObligationQuoteDto>.Success(facts.Quote);
     }, ct);
 
@@ -65,7 +68,7 @@ public sealed class CollectionComposerWorkflow(
         Guid stallId, int year, int month, CancellationToken ct = default) => Run(async actor =>
     {
         var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadAsync(
-            actor.MunicipalityId, stallId, year, month, PhilippineTime.Today,
+            actor.MunicipalityId, stallId, year, month, BusinessToday,
             tracked: false, materializeMissingSource: false, actor: actor.Username, ct: ct);
         return facts is null
             ? Result<RentObligationQuoteDto>.NotFound()
@@ -81,17 +84,17 @@ public sealed class CollectionComposerWorkflow(
 
         var candidates = new List<CollectionCandidateDto>();
         var rent = await new MonthlyRentCollectionSourceAdapter(db).GetPayorObligationsAsync(
-            actor.MunicipalityId, payorId, PhilippineTime.Today, ct);
+            actor.MunicipalityId, payorId, BusinessToday, ct);
         candidates.AddRange(rent.Select(x => new CollectionCandidateDto(
             x.SourceKind, x.PaymentRecordId, null, x.StallId, x.StallNo,
             $"{x.FacilityName} · Stall {x.StallNo}", x.BillingYear, x.BillingMonth,
             x.PayorId, x.PayerNameSnapshot, x.OutstandingAmount, x.Instrument, x.CanAddToDraft)));
 
-        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, PhilippineTime.Today, ct);
+        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, BusinessToday, ct);
         var bills = await UtilityBillQuery(actor.MunicipalityId, tracked: false).ToListAsync(ct);
         foreach (var bill in bills)
         {
-            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct);
             if (facts.Quote.PayorId == payorId && facts.Quote.OutstandingAmount > 0m)
                 candidates.Add(new CollectionCandidateDto(
                     CollectionSourceKind.UtilityBill, bill.Id, CollectionSourcePart.Electricity,
@@ -156,10 +159,10 @@ public sealed class CollectionComposerWorkflow(
     public Task<Result<EcfCollectionDraftDto>> CreateDraftAsync(
         CreateEcfCollectionDraftRequest request, CancellationToken ct = default) => Run(async actor =>
     {
-        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, PhilippineTime.Today, ct);
+        var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, BusinessToday, ct);
         var bill = await UtilityBillQuery(actor.MunicipalityId, tracked: false).SingleOrDefaultAsync(x => x.Id == request.UtilityBillId, ct);
         if (bill is null) return Result<EcfCollectionDraftDto>.NotFound();
-        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct);
         EnsureDraftEligible(facts);
         ValidateProposedAmount(request.ProposedAmount, facts.Quote.OutstandingAmount);
 
@@ -174,7 +177,7 @@ public sealed class CollectionComposerWorkflow(
             ? facts.Quote.PayerNameSnapshot
             : facts.Quote.PayerNameSnapshot ?? NormalizeOptional(request.OneOffPayerName);
         var draft = WebCollectionDraft.Create(
-            actor.MunicipalityId, actor.UserId, PhilippineTime.Today,
+            actor.MunicipalityId, actor.UserId, BusinessToday,
             facts.Quote.PayorId, payerName, RevenueInstrumentType.OfficialReceipt,
             request.AccountableDocumentId, actor.Username);
         var line = WebCollectionDraftLine.Create(
@@ -199,12 +202,13 @@ public sealed class CollectionComposerWorkflow(
         AddEcfDraftLineRequest request, CancellationToken ct = default) => Run(async actor =>
     {
         var draft = await CurrentDraftTrackedAsync(actor, ct);
-        var businessDate = draft?.BusinessDate ?? PhilippineTime.Today;
+        var businessDate = draft?.BusinessDate ?? BusinessToday;
+        if (draft is not null) EnsureDraftBusinessDateIsCurrent(draft);
         var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, businessDate, ct);
         var bill = await UtilityBillQuery(actor.MunicipalityId, tracked: false)
             .SingleOrDefaultAsync(x => x.Id == request.UtilityBillId, ct);
         if (bill is null) return Result<EcfCollectionDraftDto>.NotFound();
-        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, businessDate, ct);
         EnsureDraftEligible(facts);
         ValidateProposedAmount(request.ProposedAmount, facts.Quote.OutstandingAmount);
 
@@ -222,6 +226,7 @@ public sealed class CollectionComposerWorkflow(
             if (request.ExpectedRevision is not { } expected)
                 throw Problem("ExpectedRevision is required when adding to an existing draft.", ResultStatus.Conflict);
             EnsureExpectedRevision(draft, expected);
+            EnsureDraftBusinessDateIsCurrent(draft);
             var existingAllocations = await DraftAllocationsAsync(actor.MunicipalityId, draft.Id, ct);
             await EnsureDraftPayerContextAsync(draft, existingAllocations,
                 facts.Quote.PayorId, facts.Quote.PayerNameSnapshot, facts.Snapshot.ContractId, ct);
@@ -275,7 +280,8 @@ public sealed class CollectionComposerWorkflow(
         AddRentDraftAllocationRequest request, CancellationToken ct = default) => Run(async actor =>
     {
         var draft = await CurrentDraftTrackedAsync(actor, ct);
-        var businessDate = draft?.BusinessDate ?? PhilippineTime.Today;
+        var businessDate = draft?.BusinessDate ?? BusinessToday;
+        if (draft is not null) EnsureDraftBusinessDateIsCurrent(draft);
         var adapter = new MonthlyRentCollectionSourceAdapter(db);
         var facts = await adapter.LoadAsync(actor.MunicipalityId, request.StallId,
             request.BillingYear, request.BillingMonth, businessDate,
@@ -310,6 +316,7 @@ public sealed class CollectionComposerWorkflow(
             if (request.ExpectedRevision is not { } expected)
                 throw Problem("ExpectedRevision is required when adding to an existing draft.", ResultStatus.Conflict);
             EnsureExpectedRevision(draft, expected);
+            EnsureDraftBusinessDateIsCurrent(draft);
             await EnsureDraftPayerContextAsync(draft, existingAllocations,
                 facts.Quote.PayorId, facts.Quote.PayerNameSnapshot, facts.Snapshot.ContractId, ct);
             if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt
@@ -358,6 +365,7 @@ public sealed class CollectionComposerWorkflow(
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
         EnsureExpectedRevision(draft, request.ExpectedRevision);
+        EnsureDraftBusinessDateIsCurrent(draft);
         if (request.AllocationId == Guid.Empty)
             throw Problem("A valid draft allocation is required.", ResultStatus.Invalid);
         if (request.ProposedAmount < 0m || request.ProposedAmount > 9_999_999_999_999_999.99m
@@ -384,7 +392,7 @@ public sealed class CollectionComposerWorkflow(
             var bill = await UtilityBillQuery(actor.MunicipalityId, tracked: true)
                 .SingleOrDefaultAsync(x => x.Id == allocation.SourceId, ct);
             if (bill is null) return Result<EcfCollectionDraftDto>.NotFound();
-            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, draft.BusinessDate, ct);
             if (!string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
                 throw Problem("ECF source facts changed. Refresh the source and review the current draft before editing this allocation.", ResultStatus.Conflict);
             current = new ResolvedDraftSource(allocation, facts.Classification, facts.Policy,
@@ -422,8 +430,8 @@ public sealed class CollectionComposerWorkflow(
         var otherAllocations = allAllocations.Where(x => x.Id != allocation.Id).ToList();
         await EnsureDraftPayerContextAsync(draft, otherAllocations,
             current.PayorId, current.PayerName, current.ContractId, ct);
-        var newLineAmount = line.Amount - allocation.Amount + request.ProposedAmount;
         var otherLineAllocations = allAllocations.Where(x => x.DraftLineId == line.Id && x.Id != allocation.Id).ToList();
+        var newLineAmount = otherLineAllocations.Sum(x => x.Amount) + request.ProposedAmount;
         if (newLineAmount < 0m || newLineAmount > 9_999_999_999_999_999.99m
             || (request.ProposedAmount > 0m && newLineAmount <= 0m)
             || (request.ProposedAmount == 0m && otherLineAllocations.Count > 0 && newLineAmount <= 0m))
@@ -436,14 +444,12 @@ public sealed class CollectionComposerWorkflow(
         {
             allocation.UpdateAmountAndSnapshot(request.ProposedAmount, current.SourceSnapshot, actor.Username);
         }
-        if (otherLineAllocations.Count == 0)
+        if (request.ProposedAmount == 0m && otherLineAllocations.Count == 0)
         {
             db.WebCollectionDraftLines.Remove(line);
         }
         else
         {
-            if (request.ProposedAmount == 0m)
-                newLineAmount = otherLineAllocations.Sum(x => x.Amount);
             line.UpdateFinancialTerms(current.Classification.Id, current.Policy.Id,
                 newLineAmount, line.CalculationSnapshot ?? current.SourceSnapshot, actor.Username);
         }
@@ -457,12 +463,13 @@ public sealed class CollectionComposerWorkflow(
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
         EnsureExpectedRevision(draft, request.ExpectedRevision);
+        EnsureDraftBusinessDateIsCurrent(draft);
         var line = await SingleDraftLineAsync(actor.MunicipalityId, draft.Id, ct);
         var allocation = await SingleDraftAllocationAsync(actor.MunicipalityId, line.Id, ct);
         var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, draft.BusinessDate, ct);
         var bill = await UtilityBillQuery(actor.MunicipalityId, tracked: false).SingleOrDefaultAsync(x => x.Id == line.SourceId, ct);
         if (bill is null) return Result<EcfCollectionDraftDto>.NotFound();
-        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, ct);
+        var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, draft.BusinessDate, ct);
         EnsureDraftEligible(facts);
         ValidateProposedAmount(request.ProposedAmount, facts.Quote.OutstandingAmount);
         EnsureDraftPayorStillMatches(draft, facts.Quote);
@@ -481,6 +488,7 @@ public sealed class CollectionComposerWorkflow(
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
         EnsureExpectedRevision(draft, request.ExpectedRevision);
+        EnsureDraftBusinessDateIsCurrent(draft);
         if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
             throw Problem("This ECF draft is not an Official Receipt collection.", ResultStatus.Conflict);
         if (request.AccountableDocumentId.HasValue)
@@ -497,6 +505,7 @@ public sealed class CollectionComposerWorkflow(
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
         EnsureExpectedRevision(draft, request.ExpectedRevision);
+        EnsureDraftBusinessDateIsCurrent(draft);
         var lines = await DraftLinesAsync(actor.MunicipalityId, draft.Id, ct);
         if (lines.Count == 0)
             throw Problem("Add at least one approved source line before review.", ResultStatus.Invalid);
@@ -521,6 +530,45 @@ public sealed class CollectionComposerWorkflow(
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
         EnsureExpectedRevision(draft, request.ExpectedRevision);
         draft.Discard(request.ExpectedRevision, actor.Username);
+        await db.SaveChangesAsync(ct);
+        return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
+    }, ct);
+
+    public Task<Result<EcfCollectionDraftDto>> ResumeDraftAsync(
+        Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => Run(async actor =>
+    {
+        var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
+        if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
+        EnsureExpectedRevision(draft, request.ExpectedRevision);
+        if (draft.BusinessDate == BusinessToday)
+            return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
+
+        var lines = await DraftLinesAsync(actor.MunicipalityId, draft.Id, ct);
+        ResolvedDraft? resolved = null;
+        if (lines.Count > 0)
+        {
+            resolved = await ResolveDraftSourcesAsync(draft, lines, tracked: true, ct,
+                businessDate: BusinessToday, allowSnapshotRefresh: true);
+            foreach (var resolvedLine in resolved.Lines)
+            {
+                var source = resolvedLine.Sources[0];
+                var lineSnapshot = resolvedLine.Line.SourceKind == CollectionSourceKind.UtilityBill
+                    && resolvedLine.Line.SourcePart == CollectionSourcePart.Electricity
+                    ? source.SourceSnapshot
+                    : resolvedLine.Line.CalculationSnapshot ?? source.SourceSnapshot;
+                resolvedLine.Line.UpdateFinancialTerms(source.Classification.Id, source.Policy.Id,
+                    resolvedLine.Sources.Sum(x => x.Allocation.Amount), lineSnapshot, actor.Username,
+                    source.Policy.DisplayName);
+                foreach (var allocation in resolvedLine.Sources)
+                    allocation.Allocation.UpdateAmountAndSnapshot(
+                        allocation.Allocation.Amount, allocation.SourceSnapshot, actor.Username);
+            }
+        }
+
+        var refreshedPayerName = resolved?.Sources.FirstOrDefault()?.PayerName
+            ?? draft.PayerNameSnapshot;
+        draft.RefreshForBusinessDate(request.ExpectedRevision, BusinessToday,
+            refreshedPayerName, actor.Username);
         await db.SaveChangesAsync(ct);
         return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
     }, ct);
@@ -575,6 +623,11 @@ public sealed class CollectionComposerWorkflow(
             return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
                 draft.AccountableDocumentId, "SOURCE_REVIEW_REQUIRED", problem.Message, ct);
         }
+
+        if (draft.BusinessDate != BusinessToday)
+            return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
+                draft.AccountableDocumentId, "BUSINESS_DATE_REFRESH_REQUIRED",
+                "The draft belongs to an earlier Philippine business date. Resume and refresh it, then review the new revision before posting.", ct);
 
         if (resolved.Sources.Any(x => x.Authority != SettlementAuthority.Canonical))
         {
@@ -659,13 +712,31 @@ public sealed class CollectionComposerWorkflow(
     }, ct);
 
     public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(
-        DateOnly from, DateOnly to, CancellationToken ct = default) => Run(async actor =>
+        DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        GetActivityAsync(from, to, ecfOnly: false, ct);
+
+    public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetEcfActivityAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        GetActivityAsync(from, to, ecfOnly: true, ct);
+
+    private Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(
+        DateOnly from, DateOnly to, bool ecfOnly, CancellationToken ct) => Run(async actor =>
     {
         if (from > to || to.DayNumber - from.DayNumber > 366)
             throw Problem("Choose a valid collection period of no more than 367 days.", ResultStatus.Invalid);
-        var collections = await db.Collections.AsNoTracking()
+        var collectionsQuery = db.Collections.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.MunicipalityId
-                && x.BusinessDate >= from && x.BusinessDate <= to)
+                && x.BusinessDate >= from && x.BusinessDate <= to);
+        if (ecfOnly)
+        {
+            var ecfCollectionIds = db.CollectionLines.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.MunicipalityId
+                    && x.SourceKind == CollectionSourceKind.UtilityBill
+                    && x.SourcePart == CollectionSourcePart.Electricity)
+                .Select(x => x.CollectionId);
+            collectionsQuery = collectionsQuery.Where(x => ecfCollectionIds.Contains(x.Id));
+        }
+        var collections = await collectionsQuery
             .ToListAsync(ct);
         var collectionMap = collections.ToDictionary(x => x.Id);
         var ids = collectionMap.Keys.ToArray();
@@ -797,7 +868,7 @@ public sealed class CollectionComposerWorkflow(
     }
 
     private async Task<SourceFacts> BuildFactsAsync(
-        UtilityBill bill, PolicyFacts policy, Guid tenantId, CancellationToken ct)
+        UtilityBill bill, PolicyFacts policy, Guid tenantId, DateOnly businessDate, CancellationToken ct)
     {
         if (bill.MunicipalityId != tenantId || bill.Stall is null)
             throw Problem("The ECF source has no accessible stall context in this tenant.", ResultStatus.Conflict);
@@ -831,7 +902,7 @@ public sealed class CollectionComposerWorkflow(
 
         var outstanding = Math.Max(0m, bill.ElecCharge - settled);
         var occupancy = bill.Stall.OccupancyAnsweringForMonth(
-            bill.BillingYear, bill.BillingMonth, PhilippineTime.Today);
+            bill.BillingYear, bill.BillingMonth, businessDate);
         var contract = occupancy?.Contract;
         var linkedPayor = contract?.PayorId is not null ? contract.Payor : null;
         Guid? payorId = linkedPayor?.MunicipalityId == tenantId ? linkedPayor.Id : null;
@@ -948,8 +1019,10 @@ public sealed class CollectionComposerWorkflow(
     }
 
     private async Task<ResolvedDraft> ResolveDraftSourcesAsync(
-        WebCollectionDraft draft, IReadOnlyList<WebCollectionDraftLine> lines, bool tracked, CancellationToken ct)
+        WebCollectionDraft draft, IReadOnlyList<WebCollectionDraftLine> lines, bool tracked, CancellationToken ct,
+        DateOnly? businessDate = null, bool allowSnapshotRefresh = false)
     {
+        var resolvedBusinessDate = businessDate ?? draft.BusinessDate;
         var allocations = await DraftAllocationsAsync(draft.MunicipalityId, draft.Id, ct);
         var resolvedLines = new List<ResolvedDraftLine>();
         var allSources = new List<ResolvedDraftSource>();
@@ -966,13 +1039,15 @@ public sealed class CollectionComposerWorkflow(
                 if (allocation.SourceKind == CollectionSourceKind.UtilityBill
                     && allocation.SourcePart == CollectionSourcePart.Electricity)
                 {
-                    var policy = await ResolveEcfPolicyAsync(draft.MunicipalityId, draft.BusinessDate, ct);
+                    var policy = await ResolveEcfPolicyAsync(draft.MunicipalityId, resolvedBusinessDate, ct);
                     var bill = await UtilityBillQuery(draft.MunicipalityId, tracked)
                         .SingleOrDefaultAsync(x => x.Id == allocation.SourceId, ct);
                     if (bill is null)
                         throw Problem("The Electricity source was not found in this tenant.", ResultStatus.NotFound);
-                    var facts = await BuildFactsAsync(bill, policy, draft.MunicipalityId, ct);
-                    if (!string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
+                    var facts = await BuildFactsAsync(bill, policy, draft.MunicipalityId,
+                        resolvedBusinessDate, ct);
+                    if (!allowSnapshotRefresh
+                        && !string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
                         throw Problem("ECF source facts changed after this draft item was added. Refresh and review again.", ResultStatus.Conflict);
                     source = new ResolvedDraftSource(allocation, facts.Classification, facts.Policy,
                         facts.Quote.SettlementAuthority, facts.Quote.CumulativeSettledEvidence,
@@ -982,12 +1057,13 @@ public sealed class CollectionComposerWorkflow(
                 else if (allocation.SourceKind == CollectionSourceKind.PaymentRecord && allocation.SourcePart is null)
                 {
                     var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadByRecordIdAsync(
-                        draft.MunicipalityId, allocation.SourceId, PhilippineTime.Today, tracked, ct);
+                        draft.MunicipalityId, allocation.SourceId, resolvedBusinessDate, tracked, ct);
                     if (facts?.Record is null)
                         throw Problem("The rent source or its answerable occupancy is no longer available.", ResultStatus.Conflict);
                     if (facts.Quote.RequiresLegacyReconciliation)
                         throw Problem("A mixed legacy partial PaymentRecord requires reconciliation before rent allocation.", ResultStatus.Conflict);
-                    if (!string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
+                    if (!allowSnapshotRefresh
+                        && !string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
                         throw Problem("Rent source facts changed after this draft item was added. Refresh and review again.", ResultStatus.Conflict);
                     source = new ResolvedDraftSource(allocation, facts.Classification, facts.Policy,
                         facts.Quote.SettlementAuthority, facts.Quote.CumulativeSettledEvidence,
@@ -1004,8 +1080,9 @@ public sealed class CollectionComposerWorkflow(
                 if (source.Policy.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt
                     || draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
                     throw Problem("All lines in this draft must resolve to the same Official Receipt instrument.", ResultStatus.Conflict);
-                if (line.RevenueClassificationId != source.Classification.Id
+                if (!allowSnapshotRefresh && (line.RevenueClassificationId != source.Classification.Id
                     || line.RevenueClassificationPolicyId != source.Policy.Id)
+                   )
                     throw Problem("A line's classification or effective policy no longer matches its source.", ResultStatus.Conflict);
                 if (allocation.Amount <= 0m || allocation.Amount > source.Outstanding)
                     throw Problem("An explicit allocation exceeds the source's current outstanding amount.", ResultStatus.Conflict);
@@ -1018,6 +1095,9 @@ public sealed class CollectionComposerWorkflow(
                 && (lineAllocations.Any(x => x.SourceKind != lineSourceKind)
                     || lineAllocations.Any(x => x.SourceId != line.SourceId || x.SourcePart != line.SourcePart)))
                 throw Problem("A source-anchored line must match each of its explicit allocations.", ResultStatus.Conflict);
+            if (resolvedAllocations.Any(x => x.Classification.Id != resolvedAllocations[0].Classification.Id
+                || x.Policy.Id != resolvedAllocations[0].Policy.Id))
+                throw Problem("The source periods in this line no longer share one classification and effective policy.", ResultStatus.Conflict);
             resolvedLines.Add(new ResolvedDraftLine(line, resolvedAllocations));
         }
 
@@ -1041,17 +1121,20 @@ public sealed class CollectionComposerWorkflow(
             throw Problem("The draft's Payor context no longer matches its source relationships.", ResultStatus.Conflict);
         if (draft.PayorId.HasValue)
         {
-            if (allSources.Any(x => !string.Equals(x.PayerName, draft.PayerNameSnapshot, StringComparison.Ordinal)))
+            if (!allowSnapshotRefresh
+                && allSources.Any(x => !string.Equals(x.PayerName, draft.PayerNameSnapshot, StringComparison.Ordinal)))
                 throw Problem("The linked Payor name changed after this draft was prepared. Refresh and review again.", ResultStatus.Conflict);
         }
         else if (allSources.Count > 1)
         {
             var contractIds = allSources.Select(x => x.ContractId).Distinct().ToList();
             if (contractIds.Count != 1 || contractIds[0] is null
-                || allSources.Any(x => !string.Equals(x.PayerName, draft.PayerNameSnapshot, StringComparison.Ordinal)))
+                || (!allowSnapshotRefresh
+                    && allSources.Any(x => !string.Equals(x.PayerName, draft.PayerNameSnapshot, StringComparison.Ordinal))))
                 throw Problem("Unlinked sources may share a Collection only when they identify one authoritative contract payer context.", ResultStatus.Conflict);
         }
         else if (first.PayerName is not null
+            && !allowSnapshotRefresh
             && !string.Equals(first.PayerName, draft.PayerNameSnapshot, StringComparison.Ordinal))
         {
             throw Problem("The source payer evidence changed after this draft was prepared. Refresh and review again.", ResultStatus.Conflict);
@@ -1197,7 +1280,8 @@ public sealed class CollectionComposerWorkflow(
             draft.Status.ToString(), draft.IsReviewedForCurrentRevision,
             draft.ReviewedAtUtc, draft.PayerNameSnapshot, draft.PayorId,
             draft.AccountableDocumentId, document?.DocumentNumber,
-            dtoLines.Sum(x => x.Amount), draft.CollectionId, dtoLines);
+            dtoLines.Sum(x => x.Amount), draft.CollectionId, dtoLines,
+            draft.Status == CollectionDraftStatus.Draft && draft.BusinessDate != BusinessToday);
     }
 
     private static long ReadSourceVersion(string? snapshot)
@@ -1411,6 +1495,12 @@ public sealed class CollectionComposerWorkflow(
             throw Problem("Only an unposted, undiscarded draft can be changed.", ResultStatus.Conflict);
         if (draft.Revision != expected)
             throw Problem("STALE DRAFT: reload the latest revision before continuing.", ResultStatus.Conflict);
+    }
+
+    private void EnsureDraftBusinessDateIsCurrent(WebCollectionDraft draft)
+    {
+        if (draft.BusinessDate != BusinessToday)
+            throw Problem("The draft belongs to an earlier Philippine business date. Resume and refresh it before changing or reviewing it.", ResultStatus.Conflict);
     }
 
     private static void ValidateProposedAmount(decimal amount, decimal outstanding)

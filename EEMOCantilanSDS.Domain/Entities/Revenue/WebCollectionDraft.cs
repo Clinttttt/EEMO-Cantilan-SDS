@@ -72,6 +72,26 @@ public sealed class WebCollectionDraft : AuditableEntity, IMunicipalityOwned
         UpdatedBy = updatedBy;
     }
 
+    public bool RefreshForBusinessDate(
+        long expectedRevision, DateOnly businessDate, string? payerNameSnapshot, string updatedBy)
+    {
+        EnsureDraftAndRevision(expectedRevision);
+        if (businessDate == BusinessDate)
+            return false;
+        if (PayorId.HasValue && string.IsNullOrWhiteSpace(payerNameSnapshot))
+            throw new ArgumentException("A linked Payor requires a payer-name snapshot.", nameof(payerNameSnapshot));
+        if (payerNameSnapshot?.Length > 200)
+            throw new ArgumentException("Payer-name snapshot must not exceed 200 characters.", nameof(payerNameSnapshot));
+
+        BusinessDate = businessDate;
+        PayerNameSnapshot = string.IsNullOrWhiteSpace(payerNameSnapshot) ? null : payerNameSnapshot.Trim();
+        Revision = checked(Revision + 1);
+        InvalidateReview();
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+        return true;
+    }
+
     public void Review(long expectedRevision, string normalizedFinancialFingerprint, Guid reviewerUserId, DateTime reviewedAtUtc)
     {
         EnsureDraftAndRevision(expectedRevision);

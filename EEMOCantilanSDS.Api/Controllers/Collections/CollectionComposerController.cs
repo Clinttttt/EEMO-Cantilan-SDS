@@ -39,6 +39,11 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
     public async Task<ActionResult<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceipts(CancellationToken ct) =>
         HandleResponse(await composer.GetAvailableReceiptsAsync(ct));
 
+    [HttpGet("activity")]
+    public async Task<ActionResult<IReadOnlyList<EcfCollectionActivityDto>>> GetActivity(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await composer.GetActivityAsync(from, to, ct));
+
     [HttpPost("drafts/ecf-lines")]
     public async Task<ActionResult<EcfCollectionDraftDto>> AddEcfLine(
         [FromBody] AddEcfDraftLineRequest request, CancellationToken ct) =>
@@ -58,6 +63,11 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
     public async Task<ActionResult<EcfCollectionDraftDto>> SelectDocument(
         Guid draftId, [FromBody] SelectEcfDraftDocumentRequest request, CancellationToken ct) =>
         HandleResponse(await composer.SelectDocumentAsync(draftId, request, ct));
+
+    [HttpPost("drafts/{draftId:guid}/resume")]
+    public async Task<ActionResult<EcfCollectionDraftDto>> ResumeDraft(
+        Guid draftId, [FromBody] EcfDraftRevisionRequest request, CancellationToken ct) =>
+        HandleResponse(await composer.ResumeDraftAsync(draftId, request, ct));
 
     [HttpPost("drafts/{draftId:guid}/review")]
     public async Task<ActionResult<EcfCollectionDraftDto>> Review(

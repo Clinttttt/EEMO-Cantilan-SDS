@@ -120,7 +120,7 @@
                                     @if (quote.CanAddToDraft && DraftRemaining(quote) > 0m)
                                     {
                                         <button class="ecf-button ecf-button-primary" type="button"
-                                                @onclick="() => AddToCollectionAsync(quote)" disabled="@_busy">
+                                                @onclick="() => AddToCollectionAsync(quote)" disabled="@(_busy || (_draft?.RequiresBusinessDateRefresh ?? false))">
                                             @(DraftRemaining(quote) < quote.OutstandingAmount ? "Add remaining balance" : "Add to Collection")
                                         </button>
                                     }
@@ -179,6 +179,15 @@
                     <div><dt>Accountable document</dt><dd>@(_draft.DocumentNumber ?? "Select available OR")</dd></div>
                 </dl>
 
+                @if (_draft.RequiresBusinessDateRefresh)
+                {
+                    <div class="ecf-draft-footnote" role="alert">
+                        This draft belongs to an earlier Philippine business date. Refresh its source facts, then review the new revision.
+                        <button class="ecf-button ecf-button-secondary" type="button" disabled="@_busy"
+                                @onclick="ResumeDraftAsync">Refresh draft for today</button>
+                    </div>
+                }
+
                 @foreach (var line in _draft.Lines)
                 {
                     <div class="ecf-draft-line">
@@ -196,7 +205,7 @@
                 <label class="ecf-field ecf-document-select">
                     <span>Available Official Receipt</span>
                     <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                            @onchange="SelectDocumentAsync" disabled="@_busy">
+                            @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
                         <option value="">Select available OR</option>
                         @foreach (var document in _availableReceipts)
                         {
@@ -432,6 +441,17 @@
             var result = await EcfApi.SelectDocumentAsync(_draft.DraftId,
                 new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
             SetDraftResult(result, "Official Receipt selection updated. Review is required again.");
+        });
+    }
+
+    private async Task ResumeDraftAsync()
+    {
+        if (_draft is null || !_draft.RequiresBusinessDateRefresh) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.ResumeDraftAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            SetDraftResult(result, "Draft refreshed for the current Philippine business date. Review the new revision before posting.");
         });
     }
 

@@ -114,7 +114,8 @@ public sealed record EcfCollectionDraftDto(
     string? DocumentNumber,
     decimal TotalAmount,
     Guid? CollectionId,
-    IReadOnlyList<EcfCollectionDraftLineDto> Lines);
+    IReadOnlyList<EcfCollectionDraftLineDto> Lines,
+    bool RequiresBusinessDateRefresh = false);
 
 public sealed record EcfPostOutcomeDto(
     Guid CollectionId,

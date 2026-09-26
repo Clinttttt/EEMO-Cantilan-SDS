@@ -22,6 +22,10 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<EcfCollectionDraftDto>> GetDraftAsync(Guid draftId) =>
         GetAsync<EcfCollectionDraftDto>($"api/ecf-collections/drafts/{draftId}");
 
+    public Task<Result<EcfCollectionDraftDto>> ResumeDraftAsync(Guid draftId, EcfDraftRevisionRequest request) =>
+        PostAsync<EcfDraftRevisionRequest, EcfCollectionDraftDto>(
+            $"api/collections/composer/drafts/{draftId}/resume", request);
+
     public Task<Result<EcfCollectionDraftDto>> CreateDraftAsync(CreateEcfCollectionDraftRequest request) =>
         PostAsync<CreateEcfCollectionDraftRequest, EcfCollectionDraftDto>("api/ecf-collections/drafts", request);
 
@@ -43,6 +47,10 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(DateOnly from, DateOnly to) =>
         GetAsync<IReadOnlyList<EcfCollectionActivityDto>>(
             $"api/ecf-collections/activity?from={from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&to={to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+
+    public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetCollectionActivityAsync(DateOnly from, DateOnly to) =>
+        GetAsync<IReadOnlyList<EcfCollectionActivityDto>>(
+            $"api/collections/composer/activity?from={from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&to={to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
 
     public Task<Result<RentObligationQuoteDto>> GetRentObligationAsync(Guid stallId, int year, int month) =>
         GetAsync<RentObligationQuoteDto>(

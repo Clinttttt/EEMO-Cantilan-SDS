@@ -53,7 +53,7 @@ public sealed class WebCollectionDraftLine : AuditableEntity, IMunicipalityOwned
 
     public void UpdateFinancialTerms(
         Guid classificationId, Guid policyId, decimal amount,
-        string calculationSnapshot, string updatedBy)
+        string calculationSnapshot, string updatedBy, string? description = null)
     {
         if (classificationId == Guid.Empty || policyId == Guid.Empty)
             throw new ArgumentException("Classification and policy are required.");
@@ -66,6 +66,12 @@ public sealed class WebCollectionDraftLine : AuditableEntity, IMunicipalityOwned
         RevenueClassificationPolicyId = policyId;
         Amount = amount;
         CalculationSnapshot = calculationSnapshot;
+        if (description is not null)
+        {
+            if (description.Length > 300)
+                throw new ArgumentException("Line description must not exceed 300 characters.", nameof(description));
+            Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        }
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

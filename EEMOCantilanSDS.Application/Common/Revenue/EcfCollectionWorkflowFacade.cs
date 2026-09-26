@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
@@ -12,8 +13,9 @@ public sealed class EcfCollectionWorkflow
     private readonly CollectionComposerWorkflow _composer;
 
     public EcfCollectionWorkflow(
-        IAppDbContext db, ICurrentUserService currentUser, ICurrentMunicipalityAccessor municipality) =>
-        _composer = new CollectionComposerWorkflow(db, currentUser, municipality);
+        IAppDbContext db, ICurrentUserService currentUser, ICurrentMunicipalityAccessor municipality,
+        IClock? clock = null) =>
+        _composer = new CollectionComposerWorkflow(db, currentUser, municipality, clock);
 
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(int year, int month, CancellationToken ct = default) =>
         _composer.GetObligationsAsync(year, month, ct);
@@ -38,5 +40,5 @@ public sealed class EcfCollectionWorkflow
     public Task<Result<EcfPostOutcomeDto>> PostAsync(Guid draftId, PostEcfCollectionDraftRequest request, CancellationToken ct = default) =>
         _composer.PostAsync(draftId, request, ct);
     public Task<Result<IReadOnlyList<EcfCollectionActivityDto>>> GetActivityAsync(DateOnly from, DateOnly to, CancellationToken ct = default) =>
-        _composer.GetActivityAsync(from, to, ct);
+        _composer.GetEcfActivityAsync(from, to, ct);
 }

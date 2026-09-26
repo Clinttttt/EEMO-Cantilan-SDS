@@ -97,10 +97,10 @@
                                         <td class="cc-number">
                                             <input aria-label="Amount to add" type="number" min="0.01" step="0.01"
                                                    max="@remaining" @bind="_candidateAmounts[key]" @bind:event="oninput"
-                                                   disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft)" />
+                                                   disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft || (_draft?.RequiresBusinessDateRefresh ?? false))" />
                                         </td>
                                         <td>
-                                            <button type="button" class="cc-button cc-primary" disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft)"
+                                            <button type="button" class="cc-button cc-primary" disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft || (_draft?.RequiresBusinessDateRefresh ?? false))"
                                                     @onclick="() => AddCandidateAsync(candidate)">
                                                 Add
                                             </button>
@@ -141,6 +141,15 @@
                     <div><dt>Revision</dt><dd>@_draft.Revision</dd></div>
                 </dl>
 
+                @if (_draft.RequiresBusinessDateRefresh)
+                {
+                    <div class="cc-notice" role="alert">
+                        This draft belongs to an earlier Philippine business date. Refresh its source facts and review the new revision before continuing.
+                        <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                                @onclick="ResumeDraftAsync">Refresh draft for today</button>
+                    </div>
+                }
+
                 <div class="cc-lines">
                     @foreach (var line in _draft.Lines)
                     {
@@ -164,9 +173,9 @@
                                         <span class="cc-sr-only">Allocation amount</span>
                                         <input type="number" min="0" step="0.01"
                                                @bind="_draftAllocationAmounts[allocation.AllocationId]" @bind:event="oninput"
-                                               disabled="@_busy" />
+                                               disabled="@(_busy || _draft.RequiresBusinessDateRefresh)" />
                                     </label>
-                                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                                    <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
                                             @onclick="() => UpdateAllocationAsync(allocation)">Update</button>
                                 </div>
                             }
@@ -177,7 +186,7 @@
                 <label class="cc-field">
                     <span>Available Official Receipt</span>
                     <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                            @onchange="SelectDocumentAsync" disabled="@_busy">
+                            @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
                         <option value="">Select an available OR</option>
                         @foreach (var receipt in _receipts)
                         {
@@ -196,7 +205,7 @@
                 }
 
                 <div class="cc-actions">
-                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                    <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
                             @onclick="ReviewAsync">Review revision</button>
                     <button type="button" class="cc-button cc-primary" disabled="@(!CanPost || _busy)"
                             @onclick="PostAsync">Post Collection</button>
@@ -278,6 +287,7 @@
 
     private bool CanPost => _draft is { Status: "Draft", IsReviewedForCurrentRevision: true,
         AccountableDocumentId: not null }
+        && !_draft.RequiresBusinessDateRefresh
         && _draft.Lines.Count > 0
         && _draft.Lines.SelectMany(x => x.Allocations ?? []).All(x => x.SourceAuthority == SettlementAuthority.Canonical);
 
@@ -296,7 +306,7 @@
             var today = PhilippineTime.Today;
             var from = new DateOnly(today.Year, today.Month, 1);
             var to = from.AddMonths(1).AddDays(-1);
-            var activity = await CollectionsApi.GetActivityAsync(from, to);
+            var activity = await CollectionsApi.GetCollectionActivityAsync(from, to);
             _activity = activity.IsSuccess ? activity.Value?.ToList() ?? [] : [];
         }
         catch (Exception exception)
@@ -423,6 +433,24 @@
             _draft = result.Value;
             PopulateAllocationInputs();
             _message = "Allocation updated. Review is required again.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ResumeDraftAsync()
+    {
+        if (_draft is null || !_draft.RequiresBusinessDateRefresh) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.ResumeDraftAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Draft source facts could not be refreshed."); return; }
+            _draft = result.Value;
+            PopulateAllocationInputs();
+            _message = "Draft refreshed for the current Philippine business date. Review this new revision before posting.";
         }
         catch (Exception exception) { _error = exception.Message; }
         finally { _busy = false; }
