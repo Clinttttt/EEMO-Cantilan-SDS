@@ -112,7 +112,6 @@
                                 <th>Vendor</th>
                                 <th>Goods</th>
                                 <th>Fee</th>
-                                <th>OR No.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -123,7 +122,6 @@
                                     <td>@a.VendorName</td>
                                     <td>@a.Goods</td>
                                     <td>&#8369;@a.Fee.ToString("N2")</td>
-                                    <td class="text-muted-cell">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
                                 </tr>
                             }
                         </tbody>
@@ -400,7 +398,7 @@ else
                     else
                     {
                         <table class="rpt-compliance-table">
-                            <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Fee</th><th>OR Number</th></tr></thead>
+                            <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Fee</th></tr></thead>
                             <tbody>
                                 @foreach (var a in MonthAtt)
                                 {
@@ -409,12 +407,11 @@ else
                                         <td>@a.VendorName</td>
                                         <td>@a.Goods</td>
                                         <td class="tpm-fee">&#8369;@a.Fee.ToString("N0")</td>
-                                        <td class="text-muted">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
                                     </tr>
                                 }
                                 @if (!MonthAtt.Any())
                                 {
-                                    <tr><td colspan="5" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
+                                    <tr><td colspan="4" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
                                 }
                             </tbody>
                         </table>
