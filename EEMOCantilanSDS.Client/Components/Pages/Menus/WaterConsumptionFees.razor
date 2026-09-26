@@ -84,7 +84,7 @@
                 </label>
             </div>
 
-            <div class="wcf-table-wrap" role="region" aria-label="Current water assessments" tabindex="0">
+            <div class="wcf-table-wrap wcf-assessment-scroll" role="region" aria-label="Current water assessments, scroll for additional accounts" tabindex="0">
                 <table class="wcf-table wcf-assessment-table">
                     <caption class="wcf-sr-only">September 2026 water account assessments and balances</caption>
                     <thead>
@@ -102,7 +102,7 @@
                             <tr>
                                 <td class="wcf-occupant-cell">
                                     <strong class="wcf-account-name">@account.ResponsibleParty</strong>
-                                    <span class="wcf-account-area">@account.Name · @account.AreaLabel</span>
+                                    <span class="wcf-account-area">@account.IdentityLine</span>
                                 </td>
                                 <td>@account.Basis</td>
                                 <td class="wcf-number">₱@account.Due.ToString("N2")</td>
@@ -162,9 +162,10 @@
             </dl>
 
             <div class="wcf-collection-rate" aria-label="WCF collection rate 74.33 percent">
-                <p class="wcf-eyebrow">COLLECTION RATE</p>
-                <strong>74.33%</strong>
-                <p>₱1,048.00 collected<br />of ₱1,410.00 billed</p>
+                <span class="wcf-collection-rate-label">COLLECTION RATE</span>
+                <strong class="wcf-collection-rate-value">74.33%</strong>
+                <span class="wcf-collection-rate-detail">₱1,048.00 collected</span>
+                <span class="wcf-collection-rate-detail wcf-collection-rate-billed">of ₱1,410.00 billed</span>
             </div>
         </aside>
     </div>
@@ -229,32 +230,73 @@
             </div>
 
             <div class="wcf-form-grid">
-                <label class="wcf-field">
-                    <span>Account / Stall</span>
-                    <input @bind="_assessmentStall" />
-                </label>
-                <label class="wcf-field">
-                    <span>Occupant</span>
-                    <input @bind="_assessmentOccupant" />
-                </label>
-                <label class="wcf-field wcf-field-full">
-                    <span>Area</span>
-                    <input @bind="_assessmentArea" />
-                </label>
+                <div class="wcf-field wcf-field-full">
+                    <span>Assessment account assignment</span>
+                    <div class="wcf-assignment-toggle" role="group" aria-label="Assessment account assignment">
+                        <button type="button" aria-pressed="@(!_manualAssignment ? "true" : "false")" class="@(!_manualAssignment ? "is-selected" : string.Empty)" @onclick="() => SetAssignmentMode(false)">Existing Stall / Payor</button>
+                        <button type="button" aria-pressed="@(_manualAssignment ? "true" : "false")" class="@(_manualAssignment ? "is-selected" : string.Empty)" @onclick="() => SetAssignmentMode(true)">Manual / Standalone</button>
+                    </div>
+                </div>
+
+                @if (!_manualAssignment)
+                {
+                    <div class="wcf-field wcf-field-full">
+                        <span>Water account</span>
+                        @if (_assessmentAccount is null)
+                        {
+                            <button class="wcf-picker-trigger" type="button" @onclick="OpenAssessmentAccountPicker">Select an existing Stall / Payor</button>
+                            <small class="wcf-field-hint">Search by occupant / payor or Stall No.</small>
+                        }
+                        else
+                        {
+                            <div class="wcf-selected-account">
+                                <div><strong>@_assessmentAccount.ResponsibleParty</strong><span>@_assessmentAccount.IdentityLine</span></div>
+                                <button class="wcf-button wcf-button-secondary" type="button" @onclick="OpenAssessmentAccountPicker">Change</button>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <label class="wcf-field">
+                        <span>Stall No. <em>Optional</em></span>
+                        <input type="number" min="1" step="1" @bind="_manualStallNumber" />
+                        <small class="wcf-field-hint">Enter a known Stall No. This does not create a stall.</small>
+                    </label>
+                    <label class="wcf-field">
+                        <span>Occupant / responsible party</span>
+                        <input @bind="_manualResponsibleParty" />
+                    </label>
+                    <label class="wcf-field wcf-field-full">
+                        <span>Area / water account</span>
+                        <input @bind="_manualArea" />
+                    </label>
+                    <div class="wcf-assessment-number-preview wcf-field-full">
+                        <span>WCF account identity</span>
+                        <strong>@ManualWcfIdentity</strong>
+                    </div>
+                }
 
                 <div class="wcf-meter-reading-label">METERED CONSUMPTION</div>
 
                 <label class="wcf-field">
                     <span>Previous Reading</span>
-                    <input value="@_previousReading.ToString("0.0") m³" readonly />
+                    @if (_manualAssignment)
+                    {
+                        <input type="number" min="0" step="0.1" @bind="_previousReading" @bind:event="oninput" />
+                    }
+                    else
+                    {
+                        <input value="@(_assessmentAccount is null ? "—" : $"{_previousReading:0.0} m³")" readonly />
+                    }
                 </label>
                 <label class="wcf-field">
                     <span>Current Reading</span>
-                    <input type="number" min="@_previousReading" step="0.1" @bind="_currentReading" @bind:event="oninput" />
+                    <input type="number" min="@_previousReading" step="0.1" disabled="@(!_manualAssignment && _assessmentAccount is null)" @bind="_currentReading" @bind:event="oninput" />
                 </label>
                 <label class="wcf-field">
                     <span>Consumption</span>
-                    <input value="@AssessmentConsumption.ToString("0.0") m³" readonly />
+                    <input value="@(_assessmentAccount is null && !_manualAssignment ? "—" : $"{AssessmentConsumption:0.##} m³")" readonly />
                 </label>
                 <label class="wcf-field">
                     <span>Rate</span>
@@ -264,12 +306,12 @@
 
             <div class="wcf-amount-due">
                 <span>AMOUNT DUE</span>
-                <strong>₱@AssessmentAmountDue.ToString("N2")</strong>
+                <strong>₱@((_assessmentAccount is null && !_manualAssignment ? 0m : AssessmentAmountDue).ToString("N2"))</strong>
             </div>
 
             <footer class="wcf-modal-footer">
                 <button class="wcf-button wcf-button-secondary" type="button" @onclick="CloseAssessmentModal">Cancel</button>
-                <button class="wcf-button wcf-button-primary" type="button" @onclick="SaveAssessment">Save Assessment</button>
+                <button class="wcf-button wcf-button-primary" type="button" disabled="@(!CanSaveAssessment)" @onclick="SaveAssessment">Save Assessment</button>
             </footer>
         </section>
     </div>
@@ -288,13 +330,21 @@
             <div class="wcf-payment-context">
                 <div class="wcf-payment-account">
                     <span>ACCOUNT / OCCUPANT</span>
-                    <strong>@_paymentAccountName</strong>
+                    @if (_paymentAccount is null)
+                    {
+                        <button class="wcf-picker-trigger" type="button" @onclick="OpenPaymentAccountPicker">Select a WCF account with a balance</button>
+                    }
+                    else
+                    {
+                        <strong>@_paymentAccount.ResponsibleParty · @_paymentAccount.IdentityLine</strong>
+                        <button class="wcf-payment-change" type="button" @onclick="OpenPaymentAccountPicker">Change account</button>
+                    }
                 </div>
                 <div class="wcf-payment-facts">
                     <div><span>Billing Period</span><strong>September 2026</strong></div>
-                    <div><span>Amount Due</span><strong>₱@_paymentDue.ToString("N2")</strong></div>
-                    <div><span>Previously Paid</span><strong>₱@_paymentPreviouslyPaid.ToString("N2")</strong></div>
-                    <div><span>Outstanding</span><strong>₱@_paymentOutstanding.ToString("N2")</strong></div>
+                    <div><span>Amount Due</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentDue:N2}")</strong></div>
+                    <div><span>Previously Paid</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentPreviouslyPaid:N2}")</strong></div>
+                    <div><span>Outstanding</span><strong>@(_paymentAccount is null ? "—" : $"₱{_paymentOutstanding:N2}")</strong></div>
                     <div><span>Instrument</span><strong><span class="wcf-inline-ct">CT</span> Cash Ticket</strong></div>
                 </div>
             </div>
@@ -304,20 +354,82 @@
                     <span>Payment Amount</span>
                     <div class="wcf-currency-input">
                         <span aria-hidden="true">₱</span>
-                        <input type="number" min="0" step="0.01" max="@_paymentOutstanding" value="@_paymentAmount" @oninput="OnPaymentAmountInput" />
+                        <input type="number" min="0" step="0.01" max="@_paymentOutstanding" value="@_paymentAmount" disabled="@(_paymentAccount is null)" @oninput="OnPaymentAmountInput" />
                     </div>
                 </label>
             </div>
 
             <div class="wcf-amount-due wcf-remaining-summary">
                 <span>REMAINING BALANCE</span>
-                <strong>₱@RemainingPaymentBalance.ToString("N2")</strong>
+                <strong>@(_paymentAccount is null ? "—" : $"₱{RemainingPaymentBalance:N2}")</strong>
             </div>
 
             <footer class="wcf-modal-footer">
                 <button class="wcf-button wcf-button-secondary" type="button" @onclick="ClosePaymentModal">Cancel</button>
-                <button class="wcf-button wcf-button-primary" type="button" @onclick="SavePayment">Record Payment</button>
+                <button class="wcf-button wcf-button-primary" type="button" disabled="@(!CanSavePayment)" @onclick="SavePayment">Record Payment</button>
             </footer>
+        </section>
+    </div>
+}
+
+@if (_assessmentAccountPickerOpen)
+{
+    <div class="wcf-picker-backdrop" role="presentation" @onclick="CloseAccountPickers">
+        <section class="wcf-picker-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-assessment-picker-title" tabindex="-1" @onclick:stopPropagation="true" @onkeydown="HandlePickerKeyDown">
+            <button class="wcf-modal-close" type="button" aria-label="Close account selection" @onclick="CloseAccountPickers">×</button>
+            <header class="wcf-modal-header">
+                <p class="wcf-eyebrow">WCF · EXISTING ACCOUNT</p>
+                <h2 id="wcf-assessment-picker-title">Select Stall / Payor</h2>
+                <p>Search by occupant / payor or Stall No.</p>
+            </header>
+            <label class="wcf-picker-search">
+                <span class="wcf-sr-only">Search occupant or Stall No.</span>
+                <input type="search" placeholder="Search occupant, payor, or Stall No..." @bind="_assessmentAccountSearch" @bind:event="oninput" autofocus />
+            </label>
+            <div class="wcf-picker-results" role="listbox" aria-label="Existing water accounts">
+                @foreach (var account in FilteredAssessmentChoices)
+                {
+                    <button type="button" role="option" aria-selected="@ReferenceEquals(_assessmentAccount, account)" class="wcf-picker-option" @onclick="() => SelectAssessmentAccount(account)">
+                        <span><strong>@account.ResponsibleParty</strong><small>@account.IdentityLine</small></span>
+                        <span class="wcf-picker-area">@account.AccountLabel</span>
+                    </button>
+                }
+                @if (!FilteredAssessmentChoices.Any())
+                {
+                    <p class="wcf-picker-empty">No water accounts match that search.</p>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@if (_paymentAccountPickerOpen)
+{
+    <div class="wcf-picker-backdrop" role="presentation" @onclick="CloseAccountPickers">
+        <section class="wcf-picker-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-payment-picker-title" tabindex="-1" @onclick:stopPropagation="true" @onkeydown="HandlePickerKeyDown">
+            <button class="wcf-modal-close" type="button" aria-label="Close WCF account selection" @onclick="CloseAccountPickers">×</button>
+            <header class="wcf-modal-header">
+                <p class="wcf-eyebrow">WCF · CASH TICKET COLLECTION</p>
+                <h2 id="wcf-payment-picker-title">Select WCF Account</h2>
+                <p>Choose an account with an outstanding balance.</p>
+            </header>
+            <label class="wcf-picker-search">
+                <span class="wcf-sr-only">Search occupant or Stall No.</span>
+                <input type="search" placeholder="Search occupant, payor, or Stall No..." @bind="_paymentAccountSearch" @bind:event="oninput" autofocus />
+            </label>
+            <div class="wcf-picker-results" role="listbox" aria-label="Water accounts with a balance">
+                @foreach (var account in FilteredPaymentChoices)
+                {
+                    <button type="button" role="option" aria-selected="@ReferenceEquals(_paymentAccount, account)" class="wcf-picker-option" @onclick="() => SelectPaymentAccount(account)">
+                        <span><strong>@account.ResponsibleParty</strong><small>@account.IdentityLine</small></span>
+                        <span class="wcf-picker-balance">Balance <strong>₱@account.Balance.ToString("N2")</strong></span>
+                    </button>
+                }
+                @if (!FilteredPaymentChoices.Any())
+                {
+                    <p class="wcf-picker-empty">No outstanding WCF accounts match that search.</p>
+                }
+            </div>
         </section>
     </div>
 }
@@ -325,36 +437,42 @@
 @code {
     private readonly List<WcfAccount> _accounts =
     [
-        new() { Name = "Fish F-01", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", Due = 168m, Paid = 168m, Balance = 0m },
-        new() { Name = "Meat M-04", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", Due = 312m, Paid = 200m, Balance = 112m },
-        new() { Name = "Fish F-07", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", Due = 150m, Paid = 0m, Balance = 150m },
-        new() { Name = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Area", AreaGroup = "Shared Areas", Basis = "Metered", Due = 500m, Paid = 500m, Balance = 0m },
-        new() { Name = "Fish F-12", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", Due = 280m, Paid = 180m, Balance = 100m }
+        new() { WcfNumber = 1, StallNumber = 1, AccountLabel = "Stall No. 1", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Due = 168m, Paid = 168m, Balance = 0m },
+        new() { WcfNumber = 2, StallNumber = 2, AccountLabel = "Stall No. 2", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Due = 312m, Paid = 200m, Balance = 112m },
+        new() { WcfNumber = 3, StallNumber = 3, AccountLabel = "Stall No. 3", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Due = 150m, Paid = 0m, Balance = 150m },
+        new() { WcfNumber = 4, AccountLabel = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Cleaning Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Due = 500m, Paid = 500m, Balance = 0m },
+        new() { WcfNumber = 5, StallNumber = 4, AccountLabel = "Stall No. 4", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Due = 280m, Paid = 180m, Balance = 100m }
     ];
 
     private readonly List<WcfActivity> _activities =
     [
-        new() { Date = "Sep 26, 2026", Account = "Fish F-12", Period = "Sep 2026", Type = "CT Payment", Amount = 180m, Balance = 100m, RecordedBy = "Collector A" },
-        new() { Date = "Sep 25, 2026", Account = "Meat M-04", Period = "Sep 2026", Type = "CT Payment", Amount = 112m, Balance = 112m, RecordedBy = "Collector A" },
-        new() { Date = "Sep 25, 2026", Account = "Fish F-07", Period = "Sep 2026", Type = "Assessment", Amount = 150m, Balance = 150m, RecordedBy = "Admin" },
-        new() { Date = "Sep 24, 2026", Account = "Fish F-01", Period = "Sep 2026", Type = "CT Payment", Amount = 168m, Balance = 0m, RecordedBy = "Collector B" }
+        new() { Date = "Sep 26, 2026", Account = "WCF No. 5 · Stall No. 4 · Fish Section", Period = "Sep 2026", Type = "CT Payment", Amount = 180m, Balance = 100m, RecordedBy = "Collector A" },
+        new() { Date = "Sep 25, 2026", Account = "WCF No. 2 · Stall No. 2 · Meat Section", Period = "Sep 2026", Type = "CT Payment", Amount = 112m, Balance = 112m, RecordedBy = "Collector A" },
+        new() { Date = "Sep 25, 2026", Account = "WCF No. 3 · Stall No. 3 · Fish Section", Period = "Sep 2026", Type = "Assessment", Amount = 150m, Balance = 150m, RecordedBy = "Admin" },
+        new() { Date = "Sep 24, 2026", Account = "WCF No. 1 · Stall No. 1 · Fish Section", Period = "Sep 2026", Type = "CT Payment", Amount = 168m, Balance = 0m, RecordedBy = "Collector B" }
     ];
 
     private bool _assessmentModalOpen;
     private bool _paymentModalOpen;
+    private bool _assessmentAccountPickerOpen;
+    private bool _paymentAccountPickerOpen;
+    private bool _manualAssignment;
     private string _areaFilter = "All Areas";
     private string _searchText = string.Empty;
-    private string _assessmentStall = "Fish F-01";
-    private string _assessmentOccupant = "Juan Dela Cruz";
-    private string _assessmentArea = "Fish Section";
-    private decimal _previousReading = 125.4m;
-    private decimal _currentReading = 129.6m;
+    private string _assessmentAccountSearch = string.Empty;
+    private string _paymentAccountSearch = string.Empty;
+    private string _manualStallNumber = string.Empty;
+    private string _manualResponsibleParty = string.Empty;
+    private string _manualArea = string.Empty;
+    private WcfAccount? _assessmentAccount;
+    private WcfAccount? _paymentAccount;
+    private decimal _previousReading;
+    private decimal _currentReading;
     private decimal _rate = 40m;
-    private string _paymentAccountName = "Fish F-01 · Juan Dela Cruz";
-    private decimal _paymentDue = 168m;
+    private decimal _paymentDue;
     private decimal _paymentPreviouslyPaid;
-    private decimal _paymentOutstanding = 168m;
-    private decimal _paymentAmount = 168m;
+    private decimal _paymentOutstanding;
+    private decimal _paymentAmount;
 
     private List<FacilityHero.HeroStat> HeroStats =>
     [
@@ -390,7 +508,9 @@
             {
                 var term = _searchText.Trim();
                 query = query.Where(account =>
-                    account.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                     account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
             }
@@ -405,28 +525,123 @@
 
     private decimal RemainingPaymentBalance => Math.Max(0m, _paymentOutstanding - _paymentAmount);
 
+    private int NextWcfNumber => _accounts.Max(account => account.WcfNumber) + 1;
+
+    private string ManualWcfIdentity
+    {
+        get
+        {
+            var accountContext = string.IsNullOrWhiteSpace(_manualArea) ? "Standalone account" : _manualArea.Trim();
+            return int.TryParse(_manualStallNumber, out var stallNumber)
+                ? $"WCF No. {NextWcfNumber} · Stall No. {stallNumber} · {accountContext}"
+                : $"WCF No. {NextWcfNumber} · {accountContext}";
+        }
+    }
+
+    private bool CanSaveAssessment => _manualAssignment || _assessmentAccount is not null;
+    private bool CanSavePayment => _paymentAccount is not null && _paymentAmount > 0m && _paymentAmount <= _paymentOutstanding;
+
+    private IEnumerable<WcfAccount> FilteredAssessmentChoices => FilterAccountChoices(_assessmentAccountSearch, _accounts);
+
+    private IEnumerable<WcfAccount> FilteredPaymentChoices => FilterAccountChoices(_paymentAccountSearch, _accounts.Where(account => account.Balance > 0m));
+
+    private static IEnumerable<WcfAccount> FilterAccountChoices(string search, IEnumerable<WcfAccount> accounts)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return accounts;
+
+        var term = search.Trim();
+        return accounts.Where(account =>
+            account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
+            (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+    }
+
     private void OpenAssessmentModal()
     {
-        _assessmentStall = "Fish F-01";
-        _assessmentOccupant = "Juan Dela Cruz";
-        _assessmentArea = "Fish Section";
-        _previousReading = 125.4m;
-        _currentReading = 129.6m;
+        _manualAssignment = false;
+        _assessmentAccount = null;
+        _assessmentAccountSearch = string.Empty;
+        _manualStallNumber = string.Empty;
+        _manualResponsibleParty = string.Empty;
+        _manualArea = string.Empty;
+        _previousReading = 0m;
+        _currentReading = 0m;
         _assessmentModalOpen = true;
     }
 
     private void CloseAssessmentModal() => _assessmentModalOpen = false;
 
-    private void SaveAssessment() => _assessmentModalOpen = false;
+    private void SaveAssessment()
+    {
+        if (CanSaveAssessment)
+            _assessmentModalOpen = false;
+    }
+
+    private void SetAssignmentMode(bool manual)
+    {
+        _manualAssignment = manual;
+        if (manual)
+        {
+            _assessmentAccount = null;
+            _previousReading = 0m;
+            _currentReading = 0m;
+        }
+    }
+
+    private void OpenAssessmentAccountPicker()
+    {
+        _assessmentAccountSearch = string.Empty;
+        _assessmentAccountPickerOpen = true;
+    }
+
+    private void SelectAssessmentAccount(WcfAccount account)
+    {
+        _assessmentAccount = account;
+        _previousReading = account.CurrentReading;
+        _currentReading = account.CurrentReading;
+        _assessmentAccountPickerOpen = false;
+    }
 
     private void OpenPaymentModal()
     {
-        _paymentAccountName = "Fish F-01 · Juan Dela Cruz";
-        _paymentDue = 168m;
+        _paymentAccount = null;
+        _paymentAccountSearch = string.Empty;
+        _paymentDue = 0m;
         _paymentPreviouslyPaid = 0m;
-        _paymentOutstanding = 168m;
-        _paymentAmount = _paymentOutstanding;
+        _paymentOutstanding = 0m;
+        _paymentAmount = 0m;
         _paymentModalOpen = true;
+    }
+
+    private void OpenPaymentAccountPicker()
+    {
+        _paymentAccountSearch = string.Empty;
+        _paymentAccountPickerOpen = true;
+    }
+
+    private void SelectPaymentAccount(WcfAccount account)
+    {
+        _paymentAccount = account;
+        _paymentDue = account.Due;
+        _paymentPreviouslyPaid = account.Paid;
+        _paymentOutstanding = account.Balance;
+        _paymentAmount = account.Balance;
+        _paymentAccountPickerOpen = false;
+    }
+
+    private void CloseAccountPickers()
+    {
+        _assessmentAccountPickerOpen = false;
+        _paymentAccountPickerOpen = false;
+    }
+
+    private void HandlePickerKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+            CloseAccountPickers();
     }
 
     private void OnPaymentAmountInput(ChangeEventArgs args)
@@ -437,18 +652,30 @@
 
     private void ClosePaymentModal() => _paymentModalOpen = false;
 
-    private void SavePayment() => _paymentModalOpen = false;
+    private void SavePayment()
+    {
+        if (CanSavePayment)
+            _paymentModalOpen = false;
+    }
 
     private sealed class WcfAccount
     {
-        public string Name { get; init; } = string.Empty;
+        public int WcfNumber { get; init; }
+        public int? StallNumber { get; init; }
+        public string AccountLabel { get; init; } = string.Empty;
         public string AreaLabel { get; init; } = string.Empty;
         public string ResponsibleParty { get; init; } = string.Empty;
         public string AreaGroup { get; init; } = string.Empty;
         public string Basis { get; init; } = string.Empty;
+        public decimal PreviousReading { get; init; }
+        public decimal CurrentReading { get; init; }
         public decimal Due { get; init; }
         public decimal Paid { get; init; }
         public decimal Balance { get; init; }
+        public string WcfLabel => $"WCF No. {WcfNumber}";
+        public string IdentityLine => StallNumber is int number
+            ? $"{WcfLabel} · Stall No. {number} · {AreaLabel}"
+            : $"{WcfLabel} · {AreaLabel}";
     }
 
     private sealed class WcfActivity

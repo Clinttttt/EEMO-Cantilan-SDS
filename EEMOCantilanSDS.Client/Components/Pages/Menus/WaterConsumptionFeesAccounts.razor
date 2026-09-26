@@ -91,8 +91,8 @@
                     {
                         <tr>
                             <td>
-                                <strong class="wcf-accounts-primary">@account.Name</strong>
-                                <span class="wcf-accounts-secondary">@account.AreaLabel</span>
+                                <strong class="wcf-accounts-primary">@account.WcfLabel</strong>
+                                <span class="wcf-accounts-secondary">@account.AccountLabel · @account.AreaLabel</span>
                             </td>
                             <td>@account.ResponsibleParty</td>
                             <td>@account.Basis</td>
@@ -131,8 +131,8 @@
             <button class="wcf-accounts-modal-close" type="button" aria-label="Close water account details" @onclick="CloseAccount">×</button>
             <header class="wcf-accounts-modal-header">
                 <p class="wcf-accounts-eyebrow">WATER ACCOUNT · SEPTEMBER 2026</p>
-                <h2 id="wcf-account-detail-title">@_selectedAccount.Name</h2>
-                <p>@_selectedAccount.AreaLabel</p>
+                <h2 id="wcf-account-detail-title">@_selectedAccount.WcfLabel</h2>
+                <p>@_selectedAccount.AccountLabel · @_selectedAccount.AreaLabel</p>
             </header>
 
             <dl class="wcf-accounts-detail-grid">
@@ -158,11 +158,11 @@
 @code {
     private readonly List<WaterAccountRecord> _accounts =
     [
-        new() { Name = "Fish F-01", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Consumption = 4.2m, Due = 168m, Paid = 168m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 26, 10:12 AM" },
-        new() { Name = "Meat M-04", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Consumption = 7.8m, Due = 312m, Paid = 200m, Balance = 112m, Status = "Partial", LastUpdated = "Sep 25, 9:42 AM" },
-        new() { Name = "Fish F-07", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Consumption = 3.75m, Due = 150m, Paid = 0m, Balance = 150m, Status = "Unpaid", LastUpdated = "Sep 25, 8:55 AM" },
-        new() { Name = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Consumption = 12.5m, Due = 500m, Paid = 500m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 24, 3:18 PM" },
-        new() { Name = "Fish F-12", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Consumption = 7m, Due = 280m, Paid = 180m, Balance = 100m, Status = "Partial", LastUpdated = "Sep 26, 9:50 AM" }
+        new() { WcfNumber = 1, StallNumber = 1, AccountLabel = "Stall No. 1", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Consumption = 4.2m, Due = 168m, Paid = 168m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 26, 10:12 AM" },
+        new() { WcfNumber = 2, StallNumber = 2, AccountLabel = "Stall No. 2", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Consumption = 7.8m, Due = 312m, Paid = 200m, Balance = 112m, Status = "Partial", LastUpdated = "Sep 25, 9:42 AM" },
+        new() { WcfNumber = 3, StallNumber = 3, AccountLabel = "Stall No. 3", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Consumption = 3.75m, Due = 150m, Paid = 0m, Balance = 150m, Status = "Unpaid", LastUpdated = "Sep 25, 8:55 AM" },
+        new() { WcfNumber = 4, AccountLabel = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Cleaning Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Consumption = 12.5m, Due = 500m, Paid = 500m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 24, 3:18 PM" },
+        new() { WcfNumber = 5, StallNumber = 4, AccountLabel = "Stall No. 4", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Consumption = 7m, Due = 280m, Paid = 180m, Balance = 100m, Status = "Partial", LastUpdated = "Sep 26, 9:50 AM" }
     ];
 
     private string _areaFilter = "All Areas";
@@ -185,7 +185,9 @@
             {
                 var term = _searchText.Trim();
                 query = query.Where(account =>
-                    account.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
                     account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                     account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
             }
@@ -200,7 +202,9 @@
 
     private sealed class WaterAccountRecord
     {
-        public string Name { get; init; } = string.Empty;
+        public int WcfNumber { get; init; }
+        public int? StallNumber { get; init; }
+        public string AccountLabel { get; init; } = string.Empty;
         public string AreaLabel { get; init; } = string.Empty;
         public string ResponsibleParty { get; init; } = string.Empty;
         public string AreaGroup { get; init; } = string.Empty;
@@ -213,6 +217,7 @@
         public decimal Balance { get; init; }
         public string Status { get; init; } = string.Empty;
         public string LastUpdated { get; init; } = string.Empty;
+        public string WcfLabel => $"WCF No. {WcfNumber}";
         public string StatusClass => Status switch
         {
             "Unpaid" => "is-unpaid",
