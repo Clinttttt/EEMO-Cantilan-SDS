@@ -25,6 +25,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasConversion<int>().HasDefaultValue(SettlementAuthority.Legacy).IsRequired().IsConcurrencyToken();
             builder.Property(x => x.WaterSettlementAuthorityState)
                 .HasConversion<int>().HasDefaultValue(SettlementAuthority.Legacy).IsRequired().IsConcurrencyToken();
+            builder.Property(x => x.ElectricitySourceVersion).HasDefaultValue(1L).IsRequired().IsConcurrencyToken();
+            builder.Property(x => x.WaterSourceVersion).HasDefaultValue(1L).IsRequired().IsConcurrencyToken();
             builder.Property(x => x.ElectricitySettlementCutoverId);
             builder.Property(x => x.WaterSettlementCutoverId);
             builder.HasOne<CollectionSettlementCutover>().WithMany()

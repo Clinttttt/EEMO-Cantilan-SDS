@@ -1,7 +1,13 @@
 @page "/operations/ecf"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.JSInterop
+@inject IEcfCollectionsApiClient EcfApi
+@inject IJSRuntime JS
 
 <PageTitle>StallTrack — General Distribution / ECF</PageTitle>
 
@@ -14,191 +20,280 @@
 
     <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Operations · ECF")"
                   Title="General Distribution / ECF"
-                  Subtitle="Electricity assessments and Official Receipt collections for market accounts."
+                  Subtitle="Electricity assessments and Official Receipt collection preparation."
                   Icon="@ElectricityIcon"
                   Stats="HeroStats" />
 
     <section class="ecf-period-desk" aria-labelledby="ecf-period-title">
         <div class="ecf-period-copy">
-            <p class="ecf-eyebrow">CURRENT BILLING PERIOD</p>
-            <h2 id="ecf-period-title">September 2026</h2>
-            <p>Review electricity assessments and collections for the current period.</p>
+            <p class="ecf-eyebrow">BILLING PERIOD</p>
+            <h2 id="ecf-period-title">@BillingPeriodLabel</h2>
+            <p>Authoritative Electricity source facts from the current utility register.</p>
         </div>
         <div class="ecf-period-actions">
-            <div class="ecf-instrument" aria-label="Collection instrument: Official Receipt">
+            <div class="ecf-instrument" aria-label="ECF policy resolves to Official Receipt">
                 <span class="ecf-or-chip">OR</span>
                 <strong>Official Receipt</strong>
             </div>
-            <div class="ecf-action-buttons">
-                <button class="ecf-button ecf-button-primary" type="button" @onclick="OpenAssessmentModal">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                    New ECF Assessment
-                </button>
-                <button class="ecf-button ecf-button-secondary" type="button" @onclick="OpenPaymentModal">Record Payment</button>
-                <a class="ecf-button ecf-button-report" href="/operations/ecf/report">Report</a>
-            </div>
+                <div class="ecf-action-buttons">
+                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="ReloadAsync" disabled="@_busy">
+                        Refresh sources
+                    </button>
+                    <a class="ecf-button ecf-button-secondary ecf-view-all" href="/operations/ecf/accounts">View All</a>
+                    <a class="ecf-button ecf-button-report" href="/operations/ecf/report">Report</a>
+                </div>
         </div>
     </section>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="ecf-notice" role="status">@_message</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="ecf-notice ecf-notice-error" role="alert">@_error</div>
+    }
 
     <div class="ecf-main-grid">
         <section class="ecf-panel ecf-assessments-panel" aria-labelledby="ecf-assessments-title">
             <header class="ecf-panel-header">
                 <div>
-                    <p class="ecf-eyebrow">ELECTRICITY ACCOUNTS</p>
-                    <h2 id="ecf-assessments-title">Current Assessments</h2>
-                    <p>Electricity charges and balances for configured market accounts.</p>
+                    <p class="ecf-eyebrow">ELECTRICITY SOURCES</p>
+                    <h2 id="ecf-assessments-title">ECF Obligations</h2>
+                    <p>Amounts, readings, payer evidence, and outstanding balances come from UtilityBill Electricity.</p>
                 </div>
                 <div class="ecf-assessment-header-actions">
-                    <span class="ecf-period-tag">September 2026</span>
-                    <a class="ecf-button ecf-button-secondary ecf-view-all" href="/operations/ecf/accounts">View All</a>
+                    <span class="ecf-period-tag">@BillingPeriodLabel</span>
                 </div>
             </header>
 
-            <div class="ecf-toolbar" aria-label="Assessment filters">
+            <div class="ecf-toolbar" aria-label="ECF source filters">
                 <label class="ecf-filter-control">
                     <span class="ecf-sr-only">Filter by area</span>
                     <select aria-label="Filter by area" @bind="_areaFilter">
-                        <option value="All Areas">All Areas</option>
-                        <option value="Fish Section">Fish Section</option>
-                        <option value="Meat Section">Meat Section</option>
-                        <option value="Common Area">Common Area</option>
+                        <option value="">All Areas</option>
+                        @foreach (var section in Sections)
+                        {
+                            <option value="@section">@section</option>
+                        }
                     </select>
                 </label>
                 <label class="ecf-search-control">
-                    <span class="ecf-sr-only">Search occupant, account, or area</span>
+                    <span class="ecf-sr-only">Search stall, occupant, facility, or area</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <circle cx="10.8" cy="10.8" r="6.8" />
                         <path d="m16 16 4.5 4.5" />
                     </svg>
-                    <input type="search"
-                           placeholder="Search occupant, account, or area..."
-                           aria-label="Search occupant, account, or area"
-                           @bind="_searchText"
-                           @bind:event="oninput" />
+                    <input type="search" placeholder="Search stall, occupant, facility, or area..."
+                           aria-label="Search ECF sources" @bind="_searchText" @bind:event="oninput" />
                 </label>
             </div>
 
-            <div class="ecf-table-wrap ecf-assessment-scroll" role="region" aria-label="Current ECF assessments, scroll for additional accounts" tabindex="0">
+            <div class="ecf-table-wrap ecf-assessment-scroll" role="region" aria-label="ECF Electricity source obligations" tabindex="0">
                 <table class="ecf-table ecf-assessment-table">
-                    <caption class="ecf-sr-only">September 2026 electricity account assessments and balances</caption>
+                    <caption class="ecf-sr-only">@BillingPeriodLabel ECF Electricity source obligations</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Occupant</th>
-                            <th scope="col">Basis</th>
+                            <th scope="col">Payer / Source</th>
+                            <th scope="col">Meter</th>
                             <th scope="col" class="ecf-number">Due</th>
-                            <th scope="col" class="ecf-number">Paid</th>
-                            <th scope="col" class="ecf-number">Balance</th>
+                            <th scope="col" class="ecf-number">Settled</th>
+                            <th scope="col" class="ecf-number">Outstanding</th>
+                            <th scope="col">Authority</th>
+                            <th scope="col">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var account in FilteredAccounts)
+                        @foreach (var quote in FilteredQuotes)
                         {
                             <tr>
                                 <td class="ecf-occupant-cell">
-                                    <strong class="ecf-account-name">@account.Occupant</strong>
-                                    <span class="ecf-account-area">@AccountContext(account)</span>
+                                    <strong class="ecf-account-name">@PayerLabel(quote)</strong>
+                                    <span class="ecf-account-area">@SourceContext(quote)</span>
                                 </td>
-                                <td>@ShortBasis(account.Basis)</td>
-                                <td class="ecf-number">@Money(account.Due)</td>
-                                <td class="ecf-number">@Money(account.Paid)</td>
-                                <td class="ecf-number ecf-balance">@Money(account.Balance)</td>
+                                <td>@MeterBasis(quote)</td>
+                                <td class="ecf-number">@Money(quote.AssessedAmount)</td>
+                                <td class="ecf-number">@Money(quote.CumulativeSettledEvidence)</td>
+                                <td class="ecf-number ecf-balance">@Money(quote.OutstandingAmount)</td>
+                                <td><span class="ecf-period-tag">@quote.SettlementAuthority</span></td>
+                                <td>
+                                    @if (quote.CanAddToDraft && _draft is null)
+                                    {
+                                        <button class="ecf-button ecf-button-primary" type="button"
+                                                @onclick="() => AddToCollectionAsync(quote)" disabled="@_busy">
+                                            Add to Collection
+                                        </button>
+                                    }
+                                    else if (quote.SettlementAuthority == SettlementAuthority.PendingCutover)
+                                    {
+                                        <span>Cutover reconciliation in progress</span>
+                                    }
+                                    else if (_draft is not null)
+                                    {
+                                        <span>Current Collection in progress</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Settled</span>
+                                    }
+                                </td>
                             </tr>
                         }
-                        @if (!FilteredAccounts.Any())
+                        @if (!FilteredQuotes.Any())
                         {
-                            <tr><td class="ecf-empty-cell" colspan="5">No electricity accounts match the selected filters.</td></tr>
+                            <tr><td class="ecf-empty-cell" colspan="7">No ECF Electricity obligations were found for this billing period.</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
             <footer class="ecf-table-footer">
-                <span>@FilteredAccounts.Count() electricity accounts</span>
-                <span>Billing period: September 2026</span>
+                <span>@FilteredQuotes.Count() ECF obligations</span>
+                <span>Source: UtilityBill / Electricity</span>
             </footer>
         </section>
 
-        <aside class="ecf-panel ecf-summary-panel" aria-labelledby="ecf-summary-title">
+        <aside class="ecf-panel ecf-summary-panel" aria-labelledby="ecf-composer-title">
             <header class="ecf-panel-header">
                 <div>
-                    <p class="ecf-eyebrow">CURRENT PERIOD</p>
-                    <h2 id="ecf-summary-title">Electricity Collection Position</h2>
-                    <p>September 2026</p>
+                    <p class="ecf-eyebrow">SERVER-PERSISTED · NON-FINANCIAL UNTIL POSTED</p>
+                    <h2 id="ecf-composer-title">Current Collection</h2>
+                    <p>Review binds to this exact server draft revision.</p>
                 </div>
             </header>
 
-            <dl class="ecf-summary-list">
-                <div class="ecf-summary-emphasis">
-                    <dt>Total billed</dt>
-                    <dd>@Money(TotalBilled)</dd>
+            @if (_draft is null)
+            {
+                <div class="ecf-composer-empty">
+                    <p>No open ECF draft is attached to this user.</p>
+                    <p>Choose an eligible Electricity obligation and add it to a draft.</p>
                 </div>
-                <div>
-                    <dt>Collected</dt>
-                    <dd>@Money(TotalCollected)</dd>
-                </div>
-                <div>
-                    <dt>Outstanding</dt>
-                    <dd>@Money(TotalOutstanding)</dd>
-                </div>
-                <div>
-                    <dt>Paid accounts</dt>
-                    <dd>@PaidAccountCount of @Accounts.Count</dd>
-                </div>
-                <div>
-                    <dt>Accounts with balance</dt>
-                    <dd>@AccountsWithBalance</dd>
-                </div>
-                <div>
-                    <dt>Instrument</dt>
-                    <dd><span class="ecf-inline-or">OR</span> Official Receipt</dd>
-                </div>
-            </dl>
+            }
+            else
+            {
+                <dl class="ecf-summary-list">
+                    <div><dt>Draft</dt><dd>@ShortId(_draft.DraftId)</dd></div>
+                    <div><dt>Revision</dt><dd>@_draft.Revision</dd></div>
+                    <div><dt>Status</dt><dd>@_draft.Status</dd></div>
+                    <div><dt>Payer snapshot</dt><dd>@(_draft.PayerNameSnapshot ?? "Not recorded")</dd></div>
+                    <div><dt>Accountable document</dt><dd>@(_draft.DocumentNumber ?? "Select available OR")</dd></div>
+                </dl>
 
-            <div class="ecf-collection-rate" aria-label="Collection rate @CollectionRate.ToString("N1") percent">
-                <span class="ecf-collection-rate-label">COLLECTION RATE</span>
-                <strong class="ecf-collection-rate-value">@CollectionRate.ToString("N1")%</strong>
-                <span class="ecf-collection-rate-detail">@Money(TotalCollected) collected</span>
-                <span class="ecf-collection-rate-detail ecf-collection-rate-billed">of @Money(TotalBilled) billed</span>
-            </div>
+                @foreach (var line in _draft.Lines)
+                {
+                    <div class="ecf-draft-line">
+                        <div>
+                            <strong>@line.ClassificationName</strong>
+                            <span>UtilityBill / Electricity · source version @line.SourceVersion</span>
+                        </div>
+                        <label class="ecf-field">
+                            <span>Collection amount (PHP)</span>
+                            <input type="number" min="0.01" step="0.01" @bind="_proposedAmount" disabled="@_busy" />
+                        </label>
+                    </div>
+                }
+
+                <label class="ecf-field ecf-document-select">
+                    <span>Available Official Receipt</span>
+                    <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
+                            @onchange="SelectDocumentAsync" disabled="@_busy">
+                        <option value="">Select available OR</option>
+                        @foreach (var document in _availableReceipts)
+                        {
+                            <option value="@document.DocumentId">@document.DocumentNumber · @document.State</option>
+                        }
+                    </select>
+                </label>
+
+                <div class="ecf-amount-due">
+                    <span>DRAFT TOTAL</span>
+                    <strong>@Money(_draft.TotalAmount)</strong>
+                </div>
+
+                @if (CurrentDraftQuote is { SettlementAuthority: SettlementAuthority.Legacy })
+                {
+                    <div class="ecf-notice">
+                        This ECF source remains Legacy. You may save and review the draft, but canonical posting is unavailable until its controlled cutover is complete.
+                    </div>
+                }
+                else if (CurrentDraftQuote is { SettlementAuthority: SettlementAuthority.PendingCutover })
+                {
+                    <div class="ecf-notice">
+                        This ECF source is quiesced for cutover reconciliation. Posting is unavailable.
+                    </div>
+                }
+
+                <footer class="ecf-modal-footer ecf-composer-actions">
+                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="RefreshDraftSourceAsync" disabled="@_busy">
+                        Refresh source
+                    </button>
+                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="UpdateAmountAsync" disabled="@_busy">
+                        Update amount
+                    </button>
+                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="ReviewAsync" disabled="@_busy">
+                        Review revision
+                    </button>
+                    <button class="ecf-button ecf-button-primary" type="button" @onclick="PostAsync"
+                            disabled="@(_busy || !_draft.IsReviewedForCurrentRevision || CurrentDraftQuote?.CanPostCanonical != true || !_draft.AccountableDocumentId.HasValue)">
+                        Post Collection
+                    </button>
+                    <button class="ecf-button ecf-button-secondary" type="button" @onclick="DiscardAsync" disabled="@_busy">
+                        Discard draft
+                    </button>
+                </footer>
+                <p class="ecf-draft-footnote">Drafting and review do not create revenue, allocate settlement, or consume an OR.</p>
+            }
         </aside>
     </div>
 
     <section class="ecf-panel ecf-activity-panel" aria-labelledby="ecf-activity-title">
         <header class="ecf-panel-header ecf-activity-header">
             <div>
-                <p class="ecf-eyebrow">CURRENT PERIOD</p>
-                <h2 id="ecf-activity-title">Billing &amp; Collection Activity</h2>
-                <p>Recent ECF assessment and Official Receipt collection activity.</p>
+                <p class="ecf-eyebrow">CANONICAL COLLECTION EVENTS</p>
+                <h2 id="ecf-activity-title">Collection Activity</h2>
+                <p>One parent row per posted Collection. Legacy receipts are not reconstructed here.</p>
             </div>
         </header>
 
-        <div class="ecf-table-wrap" role="region" aria-label="ECF billing and collection activity" tabindex="0">
+        <div class="ecf-table-wrap" role="region" aria-label="Posted ECF Collection Activity" tabindex="0">
             <table class="ecf-table ecf-activity-table">
-                <caption class="ecf-sr-only">Recent September 2026 ECF billing and Official Receipt collection activity</caption>
+                <caption class="ecf-sr-only">Posted itemized ECF collections for @BillingPeriodLabel</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Account</th>
-                        <th scope="col">Period</th>
-                        <th scope="col">Activity</th>
-                        <th scope="col" class="ecf-number">Amount</th>
-                        <th scope="col" class="ecf-number">Balance</th>
-                        <th scope="col">OR</th>
-                        <th scope="col">Recorded by</th>
+                        <th scope="col">Business date</th>
+                        <th scope="col">Document / payer</th>
+                        <th scope="col">Disposition</th>
+                        <th scope="col" class="ecf-number">Total</th>
+                        <th scope="col">Items / detail</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var activity in Activities)
+                    @foreach (var activity in _activity)
                     {
                         <tr>
-                            <td>@activity.Date</td>
-                            <td><strong>@activity.Account</strong></td>
-                            <td>@activity.Period</td>
-                            <td>@activity.Type</td>
-                            <td class="ecf-number">@Money(activity.Amount)</td>
-                            <td class="ecf-number">@Money(activity.Balance)</td>
-                            <td>@activity.OrNumber</td>
-                            <td>@activity.RecordedBy</td>
+                            <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span class="ecf-account-area">Recorded @activity.RecordedAtUtc.ToLocalTime().ToString("HH:mm")</span></td>
+                            <td><strong>@activity.DocumentNumber</strong><span class="ecf-account-area">@(activity.PayerName ?? "No payer snapshot")</span></td>
+                            <td>@activity.CurrentDisposition</td>
+                            <td class="ecf-number">@Money(activity.TotalAmount)</td>
+                            <td>
+                                <details>
+                                    <summary>@activity.ItemCount item@(activity.ItemCount == 1 ? "" : "s")</summary>
+                                    <ul class="ecf-activity-detail">
+                                        @foreach (var line in activity.Lines)
+                                        {
+                                            <li>
+                                                <strong>@line.ClassificationName</strong> — @Money(line.Amount)
+                                                <span>@MonthName(line.BillingMonth) @line.BillingYear · @line.Allocation</span>
+                                                <span>@SnapshotSummary(line.CalculationSnapshot)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </details>
+                            </td>
                         </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr><td class="ecf-empty-cell" colspan="5">No canonical ECF Collections were posted during this billing period.</td></tr>
                     }
                 </tbody>
             </table>
@@ -206,340 +301,285 @@
     </section>
 </main>
 
-@if (_assessmentModalOpen)
-{
-    <div class="ecf-modal-overlay" role="presentation" @onclick="CloseAssessmentModal">
-        <section class="ecf-modal ecf-assessment-modal" role="dialog" aria-modal="true" aria-labelledby="ecf-assessment-title" @onclick:stopPropagation="true">
-            <button class="ecf-modal-close" type="button" aria-label="Close new ECF assessment" @onclick="CloseAssessmentModal">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
-            </button>
-            <header class="ecf-modal-header">
-                <p class="ecf-eyebrow">ECF · NEW ASSESSMENT</p>
-                <h2 id="ecf-assessment-title">New Electricity Assessment</h2>
-                <p>Create the electricity charge for the selected billing period.</p>
-            </header>
-
-            <div class="ecf-context-strip">
-                <div><span>Billing Period</span><strong>September 2026</strong></div>
-                <div><span>Revenue Source</span><strong>General Distribution / ECF</strong></div>
-                <div><span>Collection document</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
-            </div>
-
-            <div class="ecf-modal-section-label">ELECTRICITY ACCOUNT</div>
-            <div class="ecf-form-grid ecf-account-form">
-                <label class="ecf-field">
-                    <span>Account / Stall</span>
-                    <input @bind="_assessmentAccount" autocomplete="off" />
-                </label>
-                <label class="ecf-field">
-                    <span>Occupant</span>
-                    <input @bind="_assessmentOccupant" autocomplete="off" />
-                </label>
-                <label class="ecf-field">
-                    <span>Area</span>
-                    <input @bind="_assessmentArea" autocomplete="off" />
-                </label>
-            </div>
-
-            <div class="ecf-form-grid ecf-basis-form">
-                <div class="ecf-field ecf-field-full">
-                    <span>Charge Basis</span>
-                    <div class="ecf-basis-toggle" role="group" aria-label="Charge basis">
-                        <button type="button"
-                                aria-pressed="@(_chargeBasis == BasisKind.Metered ? "true" : "false")"
-                                class="@(_chargeBasis == BasisKind.Metered ? "is-selected" : string.Empty)"
-                                @onclick="() => _chargeBasis = BasisKind.Metered">Metered</button>
-                        <button type="button"
-                                aria-pressed="@(_chargeBasis == BasisKind.Manual ? "true" : "false")"
-                                class="@(_chargeBasis == BasisKind.Manual ? "is-selected" : string.Empty)"
-                                @onclick="() => _chargeBasis = BasisKind.Manual">Manual Approved</button>
-                    </div>
-                </div>
-            </div>
-
-            @if (_chargeBasis == BasisKind.Metered)
-            {
-                <section class="ecf-charge-fields" aria-labelledby="ecf-metered-title">
-                    <p class="ecf-charge-heading" id="ecf-metered-title">METERED CONSUMPTION</p>
-                    <div class="ecf-form-grid">
-                        <label class="ecf-field">
-                            <span>Previous Reading</span>
-                            <div class="ecf-unit-input"><input type="number" step="0.1" @bind="_previousReading" /><span>kWh</span></div>
-                        </label>
-                        <label class="ecf-field">
-                            <span>Current Reading</span>
-                            <div class="ecf-unit-input"><input type="number" step="0.1" @bind="_currentReading" /><span>kWh</span></div>
-                        </label>
-                        <label class="ecf-field">
-                            <span>Consumption</span>
-                            <input value="@MeteredConsumption.ToString("N1") kWh" readonly />
-                        </label>
-                        <label class="ecf-field">
-                            <span>Rate</span>
-                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_rate" /></div>
-                            <small>per kWh</small>
-                        </label>
-                    </div>
-                </section>
-            }
-            else
-            {
-                <section class="ecf-charge-fields" aria-labelledby="ecf-approved-title">
-                    <p class="ecf-charge-heading" id="ecf-approved-title">APPROVED CHARGE</p>
-                    <div class="ecf-form-grid">
-                        <label class="ecf-field ecf-field-full">
-                            <span>Approved Amount</span>
-                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_approvedAmount" /></div>
-                        </label>
-                    </div>
-                </section>
-            }
-
-            <div class="ecf-amount-due">
-                <span>AMOUNT DUE</span>
-                <strong>@Money(AssessmentAmountDue)</strong>
-            </div>
-
-            <footer class="ecf-modal-footer">
-                <button class="ecf-button ecf-button-secondary" type="button" @onclick="CloseAssessmentModal">Cancel</button>
-                <button class="ecf-button ecf-button-primary" type="button" @onclick="SaveAssessment">Save Assessment</button>
-            </footer>
-        </section>
-    </div>
-}
-
-@if (_paymentModalOpen && _paymentAccount is not null)
-{
-    <div class="ecf-modal-overlay" role="presentation" @onclick="ClosePaymentModal">
-        <section class="ecf-modal ecf-payment-modal" role="dialog" aria-modal="true" aria-labelledby="ecf-payment-title" @onclick:stopPropagation="true">
-            <button class="ecf-modal-close" type="button" aria-label="Close ECF payment" @onclick="ClosePaymentModal">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
-            </button>
-            <header class="ecf-modal-header">
-                <p class="ecf-eyebrow">ECF · OFFICIAL RECEIPT COLLECTION</p>
-                <h2 id="ecf-payment-title">Record ECF Payment</h2>
-            </header>
-
-            <div class="ecf-payment-context">
-                <div class="ecf-payment-account">
-                    <span>ACCOUNT / OCCUPANT</span>
-                    <strong>@PaymentContext(_paymentAccount)</strong>
-                </div>
-                <div class="ecf-payment-facts">
-                    <div><span>Billing Period</span><strong>September 2026</strong></div>
-                    <div><span>Amount Due</span><strong>@Money(_paymentAccount.Due)</strong></div>
-                    <div><span>Previously Paid</span><strong>@Money(_paymentAccount.Paid)</strong></div>
-                    <div><span>Outstanding</span><strong>@Money(_paymentAccount.Balance)</strong></div>
-                    <div><span>Collection document</span><strong><span class="ecf-inline-or">OR</span> Official Receipt</strong></div>
-                </div>
-            </div>
-
-            <div class="ecf-form-grid ecf-payment-form">
-                <label class="ecf-field">
-                    <span>Payment Amount</span>
-                    <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" max="@_paymentAccount.Balance" inputmode="decimal" @bind="_paymentAmount" /></div>
-                </label>
-                <label class="ecf-field">
-                    <span>OR Number</span>
-                    <input @bind="_orNumber" autocomplete="off" />
-                </label>
-            </div>
-
-            <div class="ecf-amount-due ecf-remaining-summary">
-                <span>REMAINING BALANCE</span>
-                <strong>@Money(RemainingPaymentBalance)</strong>
-            </div>
-
-            <footer class="ecf-modal-footer">
-                <button class="ecf-button ecf-button-secondary" type="button" @onclick="ClosePaymentModal">Cancel</button>
-                <button class="ecf-button ecf-button-primary" type="button" @onclick="SavePayment">Record Payment</button>
-            </footer>
-        </section>
-    </div>
-}
-
 @code {
-    private const string BillingPeriod = "September 2026";
-    private const string UpdatedOn = "Sep 26, 2026";
-
-    private string _areaFilter = "All Areas";
+    private DateTime _period = DateTime.Today;
+    private string _areaFilter = string.Empty;
     private string _searchText = string.Empty;
-    private bool _assessmentModalOpen;
-    private bool _paymentModalOpen;
-    private EcfAccount? _paymentAccount;
-    private string _assessmentAccount = "1";
-    private string _assessmentOccupant = "Juan Dela Cruz";
-    private string _assessmentArea = "Fish Section";
-    private BasisKind _chargeBasis = BasisKind.Metered;
-    private decimal _previousReading = 1245.6m;
-    private decimal _currentReading = 1256.1m;
-    private decimal _rate = 12m;
-    private decimal _approvedAmount = 500m;
-    private decimal _paymentAmount;
-    private string _orNumber = string.Empty;
+    private List<EcfObligationQuoteDto> _quotes = [];
+    private List<EcfAvailableDocumentDto> _availableReceipts = [];
+    private List<EcfCollectionActivityDto> _activity = [];
+    private EcfCollectionDraftDto? _draft;
+    private EcfObligationQuoteDto? _draftSourceQuote;
+    private decimal _proposedAmount;
+    private bool _busy;
+    private string? _message;
+    private string? _error;
 
-    private static readonly List<EcfAccount> Accounts = CreateAccounts();
-
-    private static readonly IReadOnlyList<EcfActivity> Activities = new[]
-    {
-        new EcfActivity(UpdatedOn, "Stall No. 1", BillingPeriod, "OR Payment", 420m, 0m, "001234567", "Collector A"),
-        new EcfActivity(UpdatedOn, "Stall No. 2", BillingPeriod, "Assessment", 680m, 280m, "—", "Admin"),
-        new EcfActivity(UpdatedOn, "Stall No. 3", BillingPeriod, "Assessment", 350m, 350m, "—", "Admin"),
-        new EcfActivity(UpdatedOn, "Shared Market Area", BillingPeriod, "OR Payment", 1200m, 0m, "001234569", "Admin")
-    };
-
-    private IEnumerable<EcfAccount> FilteredAccounts => Accounts.Where(account =>
-        (_areaFilter == "All Areas" || account.Area == _areaFilter)
+    private string BillingPeriodLabel => _period.ToString("MMMM yyyy");
+    private IEnumerable<string> Sections => _quotes.Select(x => x.Section).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+    private IEnumerable<EcfObligationQuoteDto> FilteredQuotes => _quotes.Where(quote =>
+        (string.IsNullOrEmpty(_areaFilter) || quote.Section == _areaFilter)
         && (string.IsNullOrWhiteSpace(_searchText)
-            || account.Code.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
-            || account.Occupant.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
-            || account.Area.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
+            || PayerLabel(quote).Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.StallNo.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.FacilityName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.Section.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
+    private decimal TotalBilled => _quotes.Sum(x => x.AssessedAmount);
+    private decimal TotalSettled => _quotes.Sum(x => x.CumulativeSettledEvidence);
+    private decimal TotalOutstanding => _quotes.Sum(x => x.OutstandingAmount);
+    private EcfObligationQuoteDto? CurrentDraftQuote => _draftSourceQuote;
 
-    private decimal TotalBilled => Accounts.Sum(account => account.Due);
-    private decimal TotalCollected => Accounts.Sum(account => account.Paid);
-    private decimal TotalOutstanding => Accounts.Sum(account => account.Balance);
-    private int PaidAccountCount => Accounts.Count(account => account.Balance == 0m);
-    private int AccountsWithBalance => Accounts.Count(account => account.Balance > 0m);
-    private decimal CollectionRate => TotalBilled == 0m ? 0m : TotalCollected / TotalBilled * 100m;
-    private decimal MeteredConsumption => Math.Max(_currentReading - _previousReading, 0m);
-    private decimal AssessmentAmountDue => _chargeBasis == BasisKind.Manual
-        ? _approvedAmount
-        : MeteredConsumption * _rate;
-    private decimal RemainingPaymentBalance => _paymentAccount is null
-        ? 0m
-        : Math.Max(_paymentAccount.Balance - _paymentAmount, 0m);
-
-    private List<FacilityHero.HeroStat> HeroStats => new()
-    {
-        new() { Value = Money(TotalBilled), Label = "Billed" },
-        new() { Value = Money(TotalCollected), Label = "Collected" },
+    private List<FacilityHero.HeroStat> HeroStats =>
+    [
+        new() { Value = Money(TotalBilled), Label = "Assessed" },
+        new() { Value = Money(TotalSettled), Label = "Settlement evidence" },
         new() { Value = Money(TotalOutstanding), Label = "Outstanding" }
-    };
+    ];
 
     private RenderFragment ElectricityIcon => @<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M13.2 2.5 5.8 13h5.4l-.6 8.5L18.2 11h-5.5l.5-8.5Z" />
     </svg>;
 
-    private static string Money(decimal amount) => $"₱{amount:N2}";
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private static string AccountContext(EcfAccount account) =>
-        account.Code.StartsWith("COMMON-", StringComparison.OrdinalIgnoreCase)
-        || account.Code.StartsWith("SHARED-", StringComparison.OrdinalIgnoreCase)
-            ? account.Area
-            : $"Stall No. {account.Code} · {account.Area}";
-
-    private static string PaymentContext(EcfAccount account) =>
-        $"{AccountContext(account)} · {account.Occupant}";
-
-    private static string ShortBasis(BasisKind basis) => basis switch
+    private async Task ReloadAsync()
     {
-        BasisKind.Metered => "Metered",
-        BasisKind.Submetered => "Submetered",
-        BasisKind.Fixed => "Fixed",
-        BasisKind.Allocation => "Bill allocation",
-        BasisKind.Manual => "Approved amount",
-        _ => "—"
-    };
-
-    private void OpenAssessmentModal() => _assessmentModalOpen = true;
-
-    private void CloseAssessmentModal() => _assessmentModalOpen = false;
-
-    private void SaveAssessment() => CloseAssessmentModal();
-
-    private void OpenPaymentModal()
-    {
-        _paymentAccount = Accounts.FirstOrDefault(account => account.Balance > 0m);
-        _paymentAmount = _paymentAccount?.Balance ?? 0m;
-        _orNumber = string.Empty;
-        _paymentModalOpen = _paymentAccount is not null;
+        _period = DateTime.Today;
+        await LoadAsync();
     }
 
-    private void ClosePaymentModal()
+    private async Task LoadAsync()
     {
-        _paymentModalOpen = false;
-        _paymentAccount = null;
-    }
-
-    private void SavePayment() => ClosePaymentModal();
-
-    private static List<EcfAccount> CreateAccounts()
-    {
-        var accounts = new List<EcfAccount>
+        _busy = true;
+        _error = null;
+        try
         {
-            Metered("1", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
-            Metered("2", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
-            Fixed("3", "Maria Flores", "Fish Section", 350m, 0m, null),
-            Allocated("COMMON-01", "Shared Market Area", "Common Area", 1200m, 1200m, "001234569"),
-            Metered("4", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
-            Metered("5", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
-            Metered("6", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
-            Metered("7", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
-            Metered("8", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
-            Metered("9", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
-            Metered("10", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
-            Metered("11", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
-            Metered("12", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
-            Metered("13", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
-            Metered("14", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
-            Metered("15", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
-            Metered("16", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
-            Metered("17", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
-            Metered("18", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
-            Metered("19", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
-            Fixed("20", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
-            Allocated("COMMON-02", "Market Lighting", "Common Area", 720m, 720m, "001234587"),
-            Manual("21", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
-            Metered("22", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
-            Allocated("SHARED-MEAT-01", "Meat Section Shared Connection", "Common Area", 2600m, 1440m, "001234590"),
-            Manual("23", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
-        };
+            var year = _period.Year;
+            var month = _period.Month;
+            var quotes = await EcfApi.GetObligationsAsync(year, month);
+            if (!quotes.IsSuccess)
+            {
+                _error = ErrorText(quotes, "Unable to load ECF source obligations.");
+                return;
+            }
+            _quotes = quotes.Value?.ToList() ?? [];
 
-        return accounts;
+            var receipts = await EcfApi.GetAvailableReceiptsAsync();
+            if (!receipts.IsSuccess)
+            {
+                _error = ErrorText(receipts, "Unable to load available Official Receipts.");
+                return;
+            }
+            _availableReceipts = receipts.Value?.ToList() ?? [];
+
+            var current = await EcfApi.GetCurrentDraftAsync();
+            if (current.IsSuccess)
+            {
+                _draft = current.Value;
+                _proposedAmount = _draft?.TotalAmount ?? 0m;
+                await LoadDraftSourceAsync();
+            }
+            else if (current.Status != ResultStatus.NotFound)
+            {
+                _error = ErrorText(current, "Unable to recover the current server draft.");
+                return;
+            }
+            else
+            {
+                _draft = null;
+                _draftSourceQuote = null;
+                _proposedAmount = 0m;
+            }
+
+            var from = new DateOnly(year, month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            var activity = await EcfApi.GetActivityAsync(from, to);
+            if (!activity.IsSuccess)
+            {
+                _error = ErrorText(activity, "Unable to load canonical ECF Collection Activity.");
+                return;
+            }
+            _activity = activity.Value?.ToList() ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
-    private static EcfAccount Metered(string code, string occupant, string area, decimal due, decimal paid, decimal previousReading, string? orNumber, BasisKind basis = BasisKind.Metered)
+    private async Task AddToCollectionAsync(EcfObligationQuoteDto quote)
     {
-        const decimal exampleRate = 12m;
-        var currentReading = previousReading + due / exampleRate;
-        return new EcfAccount(code, occupant, area, basis, due, paid, previousReading, currentReading, exampleRate, orNumber);
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.CreateDraftAsync(new CreateEcfCollectionDraftRequest(
+                quote.UtilityBillId, quote.OutstandingAmount));
+            if (!SetDraftResult(result, "ECF source added to the server draft.")) return;
+            await ReloadSupportingDataAsync();
+        });
     }
 
-    private static EcfAccount Fixed(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Fixed, due, paid, null, null, null, orNumber);
-
-    private static EcfAccount Allocated(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Allocation, due, paid, null, null, null, orNumber);
-
-    private static EcfAccount Manual(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Manual, due, paid, null, null, null, orNumber);
-
-    private enum BasisKind
+    private async Task UpdateAmountAsync()
     {
-        Metered,
-        Submetered,
-        Fixed,
-        Allocation,
-        Manual
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.UpdateAllocationAsync(_draft.DraftId,
+                new UpdateEcfDraftAllocationRequest(_draft.Revision, _proposedAmount));
+            SetDraftResult(result, "Draft amount updated. Review is required again.");
+        });
     }
 
-    private sealed record EcfAccount(
-        string Code,
-        string Occupant,
-        string Area,
-        BasisKind Basis,
-        decimal Due,
-        decimal Paid,
-        decimal? PreviousReading,
-        decimal? CurrentReading,
-        decimal? Rate,
-        string? OrNumber)
+    private async Task RefreshDraftSourceAsync()
     {
-        public decimal Balance => Math.Max(Due - Paid, 0m);
-        public decimal? Consumption => PreviousReading is { } previous && CurrentReading is { } current
-            ? Math.Max(current - previous, 0m)
-            : null;
+        if (_draft?.Lines.FirstOrDefault() is not { } line) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.UpdateAllocationAsync(_draft.DraftId,
+                new UpdateEcfDraftAllocationRequest(_draft.Revision, _proposedAmount));
+            if (SetDraftResult(result, "Source facts refreshed. Review the new revision before posting."))
+                await ReloadSupportingDataAsync();
+        });
     }
 
-    private sealed record EcfActivity(string Date, string Account, string Period, string Type, decimal Amount, decimal Balance, string OrNumber, string RecordedBy);
+    private async Task SelectDocumentAsync(ChangeEventArgs args)
+    {
+        if (_draft is null) return;
+        Guid? documentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.SelectDocumentAsync(_draft.DraftId,
+                new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
+            SetDraftResult(result, "Official Receipt selection updated. Review is required again.");
+        });
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.ReviewAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            SetDraftResult(result, "This exact draft revision was reviewed.");
+        });
+    }
+
+    private async Task PostAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var key = $"stalltrack.ecf.post-operation.{_draft.DraftId:N}.{_draft.Revision}";
+            string? stored = await JS.InvokeAsync<string?>("sessionStorage.getItem", key);
+            if (!Guid.TryParse(stored, out var operationId))
+            {
+                operationId = Guid.NewGuid();
+                await JS.InvokeVoidAsync("sessionStorage.setItem", key, operationId.ToString("D"));
+            }
+            var result = await EcfApi.PostAsync(_draft.DraftId,
+                new PostEcfCollectionDraftRequest(_draft.Revision, operationId));
+            if (!result.IsSuccess)
+            {
+                _error = ErrorText(result, "ECF Collection could not be posted.");
+                return;
+            }
+            _message = $"Collection {ShortId(result.Value!.CollectionId)} · {result.Value.DocumentNumber} · {Money(result.Value.Amount)} · {result.Value.CurrentDisposition}.";
+            await ReloadSupportingDataAsync();
+        });
+    }
+
+    private async Task DiscardAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.DiscardAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            if (SetDraftResult(result, "Draft discarded. No financial record or document was created."))
+            {
+                _draft = null;
+                _proposedAmount = 0m;
+            }
+        });
+    }
+
+    private async Task ReloadSupportingDataAsync()
+    {
+        var current = await EcfApi.GetCurrentDraftAsync();
+        _draft = current.IsSuccess ? current.Value : null;
+        _proposedAmount = _draft?.TotalAmount ?? 0m;
+        var quotes = await EcfApi.GetObligationsAsync(_period.Year, _period.Month);
+        if (quotes.IsSuccess) _quotes = quotes.Value?.ToList() ?? [];
+        await LoadDraftSourceAsync();
+        var receipts = await EcfApi.GetAvailableReceiptsAsync();
+        if (receipts.IsSuccess) _availableReceipts = receipts.Value?.ToList() ?? [];
+        var from = new DateOnly(_period.Year, _period.Month, 1);
+        var activity = await EcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
+        if (activity.IsSuccess) _activity = activity.Value?.ToList() ?? [];
+    }
+
+    private async Task LoadDraftSourceAsync()
+    {
+        if (_draft?.Lines.FirstOrDefault() is not { } line)
+        {
+            _draftSourceQuote = null;
+            return;
+        }
+        var quote = _quotes.FirstOrDefault(x => x.UtilityBillId == line.UtilityBillId);
+        if (quote is null)
+        {
+            var result = await EcfApi.GetObligationAsync(line.UtilityBillId);
+            quote = result.IsSuccess ? result.Value : null;
+        }
+        _draftSourceQuote = quote;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        _message = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private bool SetDraftResult(Result<EcfCollectionDraftDto> result, string successMessage)
+    {
+        if (!result.IsSuccess)
+        {
+            _error = ErrorText(result, "The server draft could not be updated.");
+            return false;
+        }
+        _draft = result.Value;
+        _proposedAmount = _draft?.TotalAmount ?? 0m;
+        _message = successMessage;
+        return true;
+    }
+
+    private static string ErrorText<T>(Result<T> result, string fallback) =>
+        string.IsNullOrWhiteSpace(result.Error) ? fallback : result.Error!;
+
+    private static string PayerLabel(EcfObligationQuoteDto quote) =>
+        quote.PayerNameSnapshot ?? "Payer snapshot unavailable";
+
+    private static string SourceContext(EcfObligationQuoteDto quote) =>
+        $"{quote.FacilityName} · Stall {quote.StallNo}{(string.IsNullOrWhiteSpace(quote.Section) ? string.Empty : $" · {quote.Section}")} · {MonthName(quote.BillingMonth)} {quote.BillingYear}";
+
+    private static string MeterBasis(EcfObligationQuoteDto quote) =>
+        $"{quote.Consumption:N2} kWh × PHP {quote.RatePerKwh:N2}";
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+    private static string MonthName(int month) => month is >= 1 and <= 12
+        ? new DateTime(2000, month, 1).ToString("MMM")
+        : "Unknown period";
+
+    private static string SnapshotSummary(string? snapshot)
+    {
+        if (string.IsNullOrWhiteSpace(snapshot)) return "Snapshot unavailable";
+        return "Frozen Electricity source, readings, rate, period, and calculation facts";
+    }
 }

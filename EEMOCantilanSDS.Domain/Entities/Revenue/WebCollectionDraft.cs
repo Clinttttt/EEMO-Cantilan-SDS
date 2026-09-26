@@ -91,6 +91,17 @@ public sealed class WebCollectionDraft : AuditableEntity, IMunicipalityOwned
         ReviewedByUserId = reviewerUserId;
     }
 
+    public void SelectAccountableDocument(long expectedRevision, Guid? documentId, string updatedBy)
+    {
+        EnsureDraftAndRevision(expectedRevision);
+        ValidateOptionalId(documentId, nameof(documentId));
+        AccountableDocumentId = documentId;
+        Revision = checked(Revision + 1);
+        InvalidateReview();
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
     public void MarkPosted(long expectedRevision, Guid collectionId, string updatedBy)
     {
         EnsureDraftAndRevision(expectedRevision);

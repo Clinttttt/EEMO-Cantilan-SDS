@@ -38,4 +38,17 @@ public sealed class WebCollectionDraftAllocation : AuditableEntity, IMunicipalit
             CreatedAt = DateTime.UtcNow, CreatedBy = createdBy
         };
     }
+
+    public void UpdateAmountAndSnapshot(decimal amount, string? sourceSnapshot, string updatedBy)
+    {
+        if (amount <= 0 || amount > Collection.MaximumMoneyAmount
+            || decimal.Round(amount, 2, MidpointRounding.ToZero) != amount)
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        if (sourceSnapshot?.Length > 16_384)
+            throw new ArgumentException("Source snapshot is too large.", nameof(sourceSnapshot));
+        Amount = amount;
+        SourceSnapshot = sourceSnapshot;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
 }

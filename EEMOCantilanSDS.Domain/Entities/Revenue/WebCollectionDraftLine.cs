@@ -50,4 +50,23 @@ public sealed class WebCollectionDraftLine : AuditableEntity, IMunicipalityOwned
             CreatedAt = DateTime.UtcNow, CreatedBy = createdBy
         };
     }
+
+    public void UpdateFinancialTerms(
+        Guid classificationId, Guid policyId, decimal amount,
+        string calculationSnapshot, string updatedBy)
+    {
+        if (classificationId == Guid.Empty || policyId == Guid.Empty)
+            throw new ArgumentException("Classification and policy are required.");
+        if (amount <= 0 || amount > Collection.MaximumMoneyAmount
+            || decimal.Round(amount, 2, MidpointRounding.ToZero) != amount)
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        if (string.IsNullOrWhiteSpace(calculationSnapshot) || calculationSnapshot.Length > 16_384)
+            throw new ArgumentException("A bounded, server-generated calculation snapshot is required.", nameof(calculationSnapshot));
+        RevenueClassificationId = classificationId;
+        RevenueClassificationPolicyId = policyId;
+        Amount = amount;
+        CalculationSnapshot = calculationSnapshot;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
 }

@@ -51,6 +51,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public Guid? ClientOperationId { get; private set; }
         public SettlementAuthority ElectricitySettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
         public SettlementAuthority WaterSettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public long ElectricitySourceVersion { get; private set; } = 1;
+        public long WaterSourceVersion { get; private set; } = 1;
         public Guid? ElectricitySettlementCutoverId { get; private set; }
         public Guid? WaterSettlementCutoverId { get; private set; }
 
@@ -153,8 +155,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 || waterCurrentReading != WaterCurrentReading
                 || waterRatePerCubicMeter != WaterRatePerCubicMeter;
 
-            return (elecChanged && ElecStatus != PaymentStatus.Unpaid)
-                || (waterChanged && WaterStatus != PaymentStatus.Unpaid);
+            return (elecChanged && (ElecStatus != PaymentStatus.Unpaid
+                    || ElectricitySettlementAuthorityState != SettlementAuthority.Legacy))
+                || (waterChanged && (WaterStatus != PaymentStatus.Unpaid
+                    || WaterSettlementAuthorityState != SettlementAuthority.Legacy));
         }
 
         /// <summary>Admin edits the readings/rates (charges recompute automatically; payment untouched).</summary>
@@ -168,6 +172,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string? remarks,
             string updatedBy = "System")
         {
+            var electricityChanged = elecPreviousReading != ElecPreviousReading
+                || elecCurrentReading != ElecCurrentReading
+                || elecRatePerKwh != ElecRatePerKwh;
+            var waterChanged = waterPreviousReading != WaterPreviousReading
+                || waterCurrentReading != WaterCurrentReading
+                || waterRatePerCubicMeter != WaterRatePerCubicMeter;
+
+            EnsureAssessmentWritable(ElectricitySettlementAuthorityState, electricityChanged, "electricity");
+            EnsureAssessmentWritable(WaterSettlementAuthorityState, waterChanged, "water");
+
             ElecPreviousReading = elecPreviousReading;
             ElecCurrentReading = elecCurrentReading;
             ElecRatePerKwh = elecRatePerKwh;
@@ -175,6 +189,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             WaterCurrentReading = waterCurrentReading;
             WaterRatePerCubicMeter = waterRatePerCubicMeter;
             Remarks = remarks;
+            if (electricityChanged) ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            if (waterChanged) WaterSourceVersion = checked(WaterSourceVersion + 1);
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -202,6 +218,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 : string.IsNullOrWhiteSpace(elecOrNumber) ? ElecORNumber : elecOrNumber;
             var nextWaterOr = nextWaterStatus == PaymentStatus.Unpaid ? null
                 : string.IsNullOrWhiteSpace(waterOrNumber) ? WaterORNumber : waterOrNumber;
+
+            var electricityChanged = nextElecStatus != ElecStatus
+                || elecPartial != ElecPartialAmount || nextElecOr != ElecORNumber;
+            var waterChanged = nextWaterStatus != WaterStatus
+                || waterPartial != WaterPartialAmount || nextWaterOr != WaterORNumber;
 
             EnsureLegacyUtilityWriter(ElectricitySettlementAuthorityState,
                 nextElecStatus == ElecStatus && elecPartial == ElecPartialAmount && nextElecOr == ElecORNumber,
@@ -240,6 +261,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             }
 
             if (remarks is not null) Remarks = remarks;
+            if (electricityChanged) ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            if (waterChanged) WaterSourceVersion = checked(WaterSourceVersion + 1);
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -258,9 +281,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline payment).</summary>
         public void SetClientOperationId(Guid clientOperationId)
         {
+            // The compatibility idempotency field belongs to the legacy UtilityBill row. A scoped
+            // cutover of one utility must not disable the still-Legacy part on that same row; the
+            // payment mutation itself already rejects changes to Pending/Canonical parts.
             if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
-                || WaterSettlementAuthorityState != SettlementAuthority.Legacy)
-                throw new InvalidOperationException("Legacy idempotency writers are disabled once cutover begins.");
+                && WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Legacy idempotency writers are disabled after both utility parts leave Legacy.");
             if (clientOperationId == Guid.Empty)
                 throw new ArgumentException("Client operation id must be valid.", nameof(clientOperationId));
             ClientOperationId = clientOperationId;
@@ -273,11 +299,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 throw new InvalidOperationException($"Legacy {utility} settlement writers are disabled once cutover begins.");
         }
 
+        private static void EnsureAssessmentWritable(SettlementAuthority authority, bool changed, string utility)
+        {
+            if (authority != SettlementAuthority.Legacy && changed)
+                throw new InvalidOperationException($"Legacy {utility} assessment edits are disabled once cutover begins.");
+        }
+
         public void MarkElectricityPendingCutover()
         {
             if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy)
                 throw new InvalidOperationException("Only Legacy electricity settlement can enter Pending Cutover.");
             ElectricitySettlementAuthorityState = SettlementAuthority.PendingCutover;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
         }
 
         public void ActivateCanonicalElectricitySettlement(CollectionSettlementCutover cutover)
@@ -291,6 +324,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 throw new InvalidOperationException("The frozen cutover does not identify this tenant's electricity source.");
             ElectricitySettlementCutoverId = cutover.Id;
             ElectricitySettlementAuthorityState = SettlementAuthority.Canonical;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
         }
 
         public void MarkWaterPendingCutover()
@@ -298,6 +332,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (WaterSettlementAuthorityState != SettlementAuthority.Legacy)
                 throw new InvalidOperationException("Only Legacy water settlement can enter Pending Cutover.");
             WaterSettlementAuthorityState = SettlementAuthority.PendingCutover;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
         }
 
         public void ActivateCanonicalWaterSettlement(CollectionSettlementCutover cutover)
@@ -311,6 +346,40 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 throw new InvalidOperationException("The frozen cutover does not identify this tenant's water source.");
             WaterSettlementCutoverId = cutover.Id;
             WaterSettlementAuthorityState = SettlementAuthority.Canonical;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+        }
+
+        /// <summary>
+        /// Updates the legacy Electricity status/amount/OR fields as a projection of canonical settlement.
+        /// It is deliberately independent of Water and cannot be used before the Electricity cutover.
+        /// </summary>
+        public void ApplyCanonicalElectricityProjection(
+            decimal cumulativeSettled,
+            string? latestOrNumber,
+            DateTime projectedAtUtc,
+            string updatedBy)
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Canonical
+                || ElectricitySettlementCutoverId is null)
+                throw new InvalidOperationException("Electricity compatibility projection requires Canonical settlement authority.");
+            if (cumulativeSettled < 0m || cumulativeSettled > ElecCharge
+                || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
+                throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
+            if (projectedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Projection time must be UTC.", nameof(projectedAtUtc));
+            if (latestOrNumber?.Length > 50)
+                throw new ArgumentException("Official Receipt number must not exceed 50 characters.", nameof(latestOrNumber));
+
+            ElecStatus = cumulativeSettled == 0m
+                ? PaymentStatus.Unpaid
+                : cumulativeSettled >= ElecCharge ? PaymentStatus.Paid : PaymentStatus.Partial;
+            ElecPartialAmount = ElecStatus == PaymentStatus.Partial ? cumulativeSettled : 0m;
+            ElecORNumber = cumulativeSettled == 0m ? null
+                : string.IsNullOrWhiteSpace(latestOrNumber) ? ElecORNumber : latestOrNumber.Trim();
+            ElecPaidAt = cumulativeSettled == 0m ? null : ElecPaidAt ?? projectedAtUtc;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            UpdatedAt = projectedAtUtc;
+            UpdatedBy = updatedBy;
         }
     }
 }

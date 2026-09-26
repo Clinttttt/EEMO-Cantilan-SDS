@@ -63,18 +63,7 @@ public sealed class PostingOperation : BaseEntity, IMunicipalityOwned
         if (outcomeCode?.Length > 80 || outcomeDetails?.Length > 16_384)
             throw new ArgumentException("Outcome detail exceeds its limit.");
 
-        // The application normalizes the business intent before it reaches this entity. Bind origin and
-        // actor into the durable fingerprint too, so the same payload cannot be replayed under a changed
-        // operation context while appearing to be the same attempted posting.
-        using var buffer = new MemoryStream();
-        using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
-        {
-            writer.Write(intentVersion);
-            writer.Write(origin.Trim());
-            writer.Write(actorId.Trim());
-            writer.Write(normalizedIntent);
-        }
-        var fingerprint = Convert.ToHexString(SHA256.HashData(buffer.ToArray()));
+        var fingerprint = ComputeIntentFingerprint(intentVersion, normalizedIntent, origin, actorId);
         return new PostingOperation
         {
             Id = Guid.NewGuid(), MunicipalityId = municipalityId, ClientOperationId = clientOperationId,
@@ -84,5 +73,25 @@ public sealed class PostingOperation : BaseEntity, IMunicipalityOwned
             CollectionId = collectionId, AccountableDocumentId = accountableDocumentId,
             RecordedAtUtc = recordedAtUtc
         };
+    }
+
+    public static string ComputeIntentFingerprint(int intentVersion, string normalizedIntent, string origin, string actorId)
+    {
+        if (intentVersion <= 0 || string.IsNullOrWhiteSpace(normalizedIntent)
+            || string.IsNullOrWhiteSpace(origin) || string.IsNullOrWhiteSpace(actorId))
+            throw new ArgumentException("A versioned intent, origin, and actor are required.");
+
+        // The application normalizes the business intent before it reaches this entity. Bind origin and
+        // actor into the durable fingerprint too, so the same intent cannot be replayed under a changed
+        // operation context while appearing to be the same attempted posting.
+        using var buffer = new MemoryStream();
+        using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(intentVersion);
+            writer.Write(origin.Trim());
+            writer.Write(actorId.Trim());
+            writer.Write(normalizedIntent);
+        }
+        return Convert.ToHexString(SHA256.HashData(buffer.ToArray()));
     }
 }

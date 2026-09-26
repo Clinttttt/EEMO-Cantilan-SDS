@@ -135,6 +135,12 @@ public class ApplicationEfBoundaryTests
         // Online payments: the gateway webhook and its confirmation.
         "HandlePaymentWebhookCommandHandler.cs",
         "ConfirmOnlinePaymentCommandHandler.cs",
+
+        // The bounded ECF posting transaction revalidates and atomically writes its UtilityBill projection,
+        // Web draft, Collection/lines/allocations, accountable document, and durable operation through one
+        // IAppDbContext save. Splitting those tracked mutations across repository saves would weaken the
+        // reviewed transaction boundary this vertical path is proving.
+        "EcfCollectionWorkflow.cs",
     };
 
     private static List<string> FindApplicationFilesUsingEf()

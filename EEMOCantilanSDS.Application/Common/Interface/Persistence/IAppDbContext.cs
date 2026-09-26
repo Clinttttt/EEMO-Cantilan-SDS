@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +20,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
 {
     public interface IAppDbContext
     {
+        ChangeTracker ChangeTracker { get; }
         DbSet<Facility> Facilities { get; }
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
@@ -51,6 +53,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
         DbSet<DailyCollection> DailyCollections { get; }
+        DbSet<UtilityBill> UtilityBills { get; }
         DbSet<StallMonthlyException> StallMonthlyExceptions { get; }
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
         DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }

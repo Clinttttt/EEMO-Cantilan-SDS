@@ -159,6 +159,74 @@ public sealed class ItemizedCoreFoundationTests
     }
 
     [Fact]
+    public void PendingElectricityDoesNotBlockLegacyWaterOfflineIdempotency()
+    {
+        var bill = UtilityBill.Create(Guid.NewGuid(), 2026, 9,
+            0m, 100m, 1m, 0m, 2m, 5m);
+        bill.MarkElectricityPendingCutover();
+
+        // The offline request is WCF only. Electricity is unchanged and remains quiesced;
+        // the Water settlement and its existing row-level idempotency evidence are still valid.
+        bill.RecordPayment(null, null, Guid.NewGuid(),
+            PaymentStatus.Unpaid, null,
+            PaymentStatus.Partial, 5m);
+        var operationId = Guid.NewGuid();
+        bill.SetClientOperationId(operationId);
+
+        Assert.Equal(SettlementAuthority.PendingCutover, bill.ElectricitySettlementAuthorityState);
+        Assert.Equal(SettlementAuthority.Legacy, bill.WaterSettlementAuthorityState);
+        Assert.Equal(PaymentStatus.Unpaid, bill.ElecStatus);
+        Assert.Equal(PaymentStatus.Partial, bill.WaterStatus);
+        Assert.Equal(5m, bill.WaterPartialAmount);
+        Assert.Equal(operationId, bill.ClientOperationId);
+    }
+
+    [Fact]
+    public void UtilityBillSourceVersionsAreIndependentAndCanonicalProjectionLeavesWaterUntouched()
+    {
+        var bill = UtilityBill.Create(Guid.NewGuid(), 2026, 9,
+            0m, 100m, 1m, 0m, 2m, 5m);
+        var electricityVersion = bill.ElectricitySourceVersion;
+        var waterVersion = bill.WaterSourceVersion;
+        bill.UpdateReadings(0m, 100m, 1m, 0m, 3m, 5m, null);
+        Assert.Equal(electricityVersion, bill.ElectricitySourceVersion);
+        Assert.Equal(waterVersion + 1, bill.WaterSourceVersion);
+        bill.RecordPayment(null, "W-0001", null,
+            PaymentStatus.Unpaid, null,
+            PaymentStatus.Partial, 5m);
+        var waterPaidAt = bill.WaterPaidAt;
+        waterVersion = bill.WaterSourceVersion;
+
+        var tenant = Guid.NewGuid();
+        bill.MarkElectricityPendingCutover();
+        var cutover = CollectionSettlementCutover.Freeze(tenant, CollectionSourceKind.UtilityBill,
+            bill.Id, CollectionSourcePart.Electricity, bill.ElectricitySourceVersion, EventTime,
+            bill.ElecCharge, 0m, bill.ElecCharge, "{\"pendingOperations\":0}", Guid.NewGuid(), EventTime.AddMinutes(1));
+        bill.ActivateCanonicalElectricitySettlement(cutover);
+        var versionAfterCutover = bill.ElectricitySourceVersion;
+
+        Assert.Equal(versionAfterCutover, bill.ElectricitySourceVersion);
+        Assert.Equal(waterVersion, bill.WaterSourceVersion);
+        Assert.Equal(PaymentStatus.Partial, bill.WaterStatus);
+        Assert.Equal("W-0001", bill.WaterORNumber);
+        Assert.Equal(waterPaidAt, bill.WaterPaidAt);
+
+        bill.ApplyCanonicalElectricityProjection(30m, "OR-001", EventTime.AddMinutes(2), "admin");
+        Assert.Equal(PaymentStatus.Partial, bill.ElecStatus);
+        Assert.Equal(30m, bill.ElecPartialAmount);
+        Assert.Equal("OR-001", bill.ElecORNumber);
+        Assert.Equal(PaymentStatus.Partial, bill.WaterStatus);
+        Assert.Equal("W-0001", bill.WaterORNumber);
+        Assert.Equal(waterPaidAt, bill.WaterPaidAt);
+        Assert.Equal(waterVersion, bill.WaterSourceVersion);
+        Assert.NotEqual(electricityVersion, bill.ElectricitySourceVersion);
+
+        Assert.True(bill.WouldChangeSettledReadings(0m, 101m, 1m, 0m, 3m, 5m));
+        Assert.Throws<InvalidOperationException>(() => bill.UpdateReadings(
+            0m, 101m, 1m, 0m, 3m, 5m, null));
+    }
+
+    [Fact]
     public void PostingOperationFingerprintUsesNormalizedIntentAndBindsOneOutcome()
     {
         var tenant = Guid.NewGuid();
