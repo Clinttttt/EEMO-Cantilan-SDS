@@ -66,9 +66,26 @@ Every active session can therefore inspect the latest accepted V2 work instead o
 | K | Large Cattle Transfer | `interface-v2/k-large-cattle` | `C:\dev\stalltrack-v2-worktrees\k-large-cattle` |
 | L | Ice Plant | `interface-v2/l-ice-plant` | `C:\dev\stalltrack-v2-worktrees\l-ice-plant` |
 | M | Integration / Visual QA | `interface-v2/m-integration` | `C:\dev\stalltrack-v2-worktrees\m-integration` |
+| N | Itemized Collections Core | `interface-v2/n-itemized-core` | `C:\dev\stalltrack-v2-worktrees\n-itemized-core` |
+| O | Collection Composer / Web | `interface-v2/o-collection-composer` | `C:\dev\stalltrack-v2-worktrees\o-collection-composer` |
+| P | Itemization Migration / Legacy Adapters | `interface-v2/p-itemization-migration` | `C:\dev\stalltrack-v2-worktrees\p-itemization-migration` |
+| Q | Collection Activity / RCD Reporting | `interface-v2/q-collection-reporting` | `C:\dev\stalltrack-v2-worktrees\q-collection-reporting` |
 | V2 | Planner / Reviewer | `interface-v2/v2-planner` | `C:\dev\stalltrack-v2-worktrees\v2-planner` |
 
 Session C remains attached to the canonical checkout so its existing Codex conversation/worktree continuity is preserved. It must avoid broad shared-file changes while another feature session is actively editing related files.
+
+## Itemized Collections parallel-lane discipline
+
+The N–Q sessions are one coordinated program, not four independent redesigns.
+
+- **N — Itemized Collections Core** owns shared financial domain/application/persistence/API work for Collection, CollectionLine, allocations, canonical posting, instrument-policy enforcement, concurrency, and the AccountableDocument bridge. N is the contract authority for this program.
+- **O — Collection Composer / Web** owns Client-side Current Collection / Collection Composer UX and payor/operation entry surfaces. O must not invent backend contracts or edit shared revenue/domain models; when N has not exposed a required contract, O records an integration request and continues only with isolated UI work.
+- **P — Itemization Migration / Legacy Adapters** owns historical compatibility, legacy-source mapping, cutover/reconciliation design, and source adapters that preserve existing financial truth. P must not fabricate historical receipt groupings or allocations.
+- **Q — Collection Activity / RCD Reporting** owns read models, Collection Activity presentation, derived RCD/category aggregation, and itemized reporting. Q derives from canonical posted collection lines and must not create a second write path for financial totals.
+
+N may proceed with implementation immediately after reviewing the canonical decisions. O/P/Q may work simultaneously only inside those boundaries. Shared model/API changes proposed by O/P/Q are requests to N, not independent edits.
+
+All N–Q sessions must read root `CONTEXT.md`, `docs/business/REVENUE_ARCHITECTURE.md`, `docs/decisions/DECISION_REGISTRY.md`, and the current code before acting.
 
 ## Baseline synchronization
 
