@@ -273,31 +273,59 @@
                     </div>
                 }
 
-                <div class="wcf-meter-reading-label">METERED CONSUMPTION</div>
+                <div class="wcf-field wcf-field-full">
+                    <span>Charge basis</span>
+                    <div class="wcf-basis-toggle" role="group" aria-label="Charge basis">
+                        <button type="button"
+                                aria-pressed="@(_chargeBasis == WcfChargeBasis.Metered ? "true" : "false")"
+                                class="@(_chargeBasis == WcfChargeBasis.Metered ? "is-selected" : string.Empty)"
+                                @onclick="() => _chargeBasis = WcfChargeBasis.Metered">Metered</button>
+                        <button type="button"
+                                aria-pressed="@(_chargeBasis == WcfChargeBasis.ManualApproved ? "true" : "false")"
+                                class="@(_chargeBasis == WcfChargeBasis.ManualApproved ? "is-selected" : string.Empty)"
+                                @onclick="() => _chargeBasis = WcfChargeBasis.ManualApproved">Manual Approved</button>
+                    </div>
+                </div>
 
-                <label class="wcf-field">
-                    <span>Previous Reading</span>
-                    @if (_manualAssignment)
-                    {
-                        <input type="number" min="0" step="0.1" @bind="_previousReading" @bind:event="oninput" />
-                    }
-                    else
-                    {
-                        <input value="@(_assessmentAccount is null ? "—" : $"{_previousReading:0.0} m³")" readonly />
-                    }
-                </label>
-                <label class="wcf-field">
-                    <span>Current Reading</span>
-                    <input type="number" min="@_previousReading" step="0.1" disabled="@(!_manualAssignment && _assessmentAccount is null)" @bind="_currentReading" @bind:event="oninput" />
-                </label>
-                <label class="wcf-field">
-                    <span>Consumption</span>
-                    <input value="@(_assessmentAccount is null && !_manualAssignment ? "—" : $"{AssessmentConsumption:0.##} m³")" readonly />
-                </label>
-                <label class="wcf-field">
-                    <span>Rate</span>
-                    <input value="₱@_rate.ToString("N2") / m³" readonly />
-                </label>
+                @if (_chargeBasis == WcfChargeBasis.Metered)
+                {
+                    <div class="wcf-meter-reading-label">METERED CONSUMPTION</div>
+
+                    <label class="wcf-field">
+                        <span>Previous Reading</span>
+                        @if (_manualAssignment)
+                        {
+                            <input type="number" min="0" step="0.1" @bind="_previousReading" @bind:event="oninput" />
+                        }
+                        else
+                        {
+                            <input value="@(_assessmentAccount is null ? "—" : $"{_previousReading:0.0} m³")" readonly />
+                        }
+                    </label>
+                    <label class="wcf-field">
+                        <span>Current Reading</span>
+                        <input type="number" min="@_previousReading" step="0.1" disabled="@(!_manualAssignment && _assessmentAccount is null)" @bind="_currentReading" @bind:event="oninput" />
+                    </label>
+                    <label class="wcf-field">
+                        <span>Consumption</span>
+                        <input value="@(_assessmentAccount is null && !_manualAssignment ? "—" : $"{AssessmentConsumption:0.##} m³")" readonly />
+                    </label>
+                    <label class="wcf-field">
+                        <span>Rate</span>
+                        <input value="₱@_rate.ToString("N2") / m³" readonly />
+                    </label>
+                }
+                else
+                {
+                    <div class="wcf-meter-reading-label">APPROVED CHARGE</div>
+                    <label class="wcf-field wcf-field-full">
+                        <span>Approved Amount</span>
+                        <div class="wcf-currency-input">
+                            <span aria-hidden="true">₱</span>
+                            <input type="number" min="0" step="0.01" inputmode="decimal" @bind="_approvedAmount" @bind:event="oninput" />
+                        </div>
+                    </label>
+                }
             </div>
 
             <div class="wcf-amount-due">
@@ -462,9 +490,11 @@
     private string _manualArea = string.Empty;
     private WcfAccount? _assessmentAccount;
     private WcfAccount? _paymentAccount;
+    private WcfChargeBasis _chargeBasis = WcfChargeBasis.Metered;
     private decimal _previousReading;
     private decimal _currentReading;
     private decimal _rate = 40m;
+    private decimal _approvedAmount;
     private decimal _paymentDue;
     private decimal _paymentPreviouslyPaid;
     private decimal _paymentOutstanding;
@@ -517,7 +547,12 @@
 
     private decimal AssessmentConsumption => Math.Max(0m, _currentReading - _previousReading);
 
-    private decimal AssessmentAmountDue => AssessmentConsumption * _rate;
+    private decimal AssessmentAmountDue => _chargeBasis switch
+    {
+        WcfChargeBasis.Metered => AssessmentConsumption * _rate,
+        WcfChargeBasis.ManualApproved => _approvedAmount,
+        _ => 0m
+    };
 
     private decimal RemainingPaymentBalance => Math.Max(0m, _paymentOutstanding - _paymentAmount);
 
@@ -563,8 +598,10 @@
         _manualStallNumber = string.Empty;
         _manualResponsibleParty = string.Empty;
         _manualArea = string.Empty;
+        _chargeBasis = WcfChargeBasis.Metered;
         _previousReading = 0m;
         _currentReading = 0m;
+        _approvedAmount = 0m;
         _assessmentModalOpen = true;
     }
 
@@ -672,6 +709,12 @@
         public string IdentityLine => StallNumber is int number
             ? $"{WcfLabel} · Stall No. {number} · {AreaLabel}"
             : $"{WcfLabel} · {AreaLabel}";
+    }
+
+    private enum WcfChargeBasis
+    {
+        Metered,
+        ManualApproved
     }
 
     private sealed class WcfActivity

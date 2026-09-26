@@ -1455,6 +1455,42 @@
     max-width: 25rem;
 }
 
+.ecf-basis-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .22rem;
+    min-height: 2.25rem;
+    padding: .2rem;
+    border: 1px solid #cbd5db;
+    border-radius: 6px;
+    background: #f4f6f7;
+}
+
+.ecf-basis-toggle button {
+    min-width: 0;
+    padding: .38rem .55rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #596b78;
+    background: transparent;
+    font: inherit;
+    font-size: .68rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ecf-basis-toggle button.is-selected {
+    border-color: #b9c4cc;
+    color: var(--navy);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(10, 22, 34, .08);
+}
+
+.ecf-basis-toggle button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+}
+
 .ecf-field {
     gap: .36rem;
     color: #435665;

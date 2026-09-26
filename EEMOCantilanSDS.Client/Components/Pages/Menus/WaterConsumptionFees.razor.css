@@ -231,7 +231,7 @@
 .wcf-main-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.62fr) minmax(17.5rem, .78fr);
-    align-items: start;
+    align-items: stretch;
     gap: 1rem;
     margin-bottom: 1rem;
 }
@@ -575,6 +575,9 @@
 }
 
 .wcf-summary-panel {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
     background: #fff;
 }
 
@@ -624,7 +627,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: .3rem .9rem;
-    margin: .22rem 1rem 1rem;
+    margin: auto 1rem 1rem;
     padding: .68rem .75rem;
     border: 1px solid #d9e0e4;
     border-radius: 6px;
@@ -1206,7 +1209,8 @@
 }
 }
 
-.wcf-assignment-toggle {
+.wcf-assignment-toggle,
+.wcf-basis-toggle {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .22rem;
@@ -1217,7 +1221,8 @@
     background: #f4f6f7;
 }
 
-.wcf-assignment-toggle button {
+.wcf-assignment-toggle button,
+.wcf-basis-toggle button {
     min-width: 0;
     padding: .38rem .55rem;
     border: 1px solid transparent;
@@ -1230,7 +1235,8 @@
     cursor: pointer;
 }
 
-.wcf-assignment-toggle button.is-selected {
+.wcf-assignment-toggle button.is-selected,
+.wcf-basis-toggle button.is-selected {
     border-color: #b9c4cc;
     color: var(--navy);
     background: #fff;
@@ -1238,6 +1244,7 @@
 }
 
 .wcf-assignment-toggle button:focus-visible,
+.wcf-basis-toggle button:focus-visible,
 .wcf-picker-trigger:focus-visible,
 .wcf-payment-change:focus-visible,
 .wcf-picker-option:focus-visible {

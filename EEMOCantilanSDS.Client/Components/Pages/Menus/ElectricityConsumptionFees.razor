@@ -242,22 +242,25 @@
             </div>
 
             <div class="ecf-form-grid ecf-basis-form">
-                <label class="ecf-field ecf-field-full">
+                <div class="ecf-field ecf-field-full">
                     <span>Charge Basis</span>
-                    <select @bind="_chargeBasis">
-                        <option value="@BasisKind.Metered">Metered Consumption</option>
-                        <option value="@BasisKind.Submetered">Submetered Consumption</option>
-                        <option value="@BasisKind.Fixed">Fixed Monthly Charge</option>
-                        <option value="@BasisKind.Allocation">Electric Bill Allocation</option>
-                        <option value="@BasisKind.Manual">Manual Approved Amount</option>
-                    </select>
-                </label>
+                    <div class="ecf-basis-toggle" role="group" aria-label="Charge basis">
+                        <button type="button"
+                                aria-pressed="@(_chargeBasis == BasisKind.Metered ? "true" : "false")"
+                                class="@(_chargeBasis == BasisKind.Metered ? "is-selected" : string.Empty)"
+                                @onclick="() => _chargeBasis = BasisKind.Metered">Metered</button>
+                        <button type="button"
+                                aria-pressed="@(_chargeBasis == BasisKind.Manual ? "true" : "false")"
+                                class="@(_chargeBasis == BasisKind.Manual ? "is-selected" : string.Empty)"
+                                @onclick="() => _chargeBasis = BasisKind.Manual">Manual Approved</button>
+                    </div>
+                </div>
             </div>
 
-            @if (_chargeBasis is BasisKind.Metered or BasisKind.Submetered)
+            @if (_chargeBasis == BasisKind.Metered)
             {
                 <section class="ecf-charge-fields" aria-labelledby="ecf-metered-title">
-                    <p class="ecf-charge-heading" id="ecf-metered-title">@(_chargeBasis == BasisKind.Submetered ? "SUBMETERED CONSUMPTION" : "METERED CONSUMPTION")</p>
+                    <p class="ecf-charge-heading" id="ecf-metered-title">METERED CONSUMPTION</p>
                     <div class="ecf-form-grid">
                         <label class="ecf-field">
                             <span>Previous Reading</span>
@@ -275,34 +278,6 @@
                             <span>Rate</span>
                             <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_rate" /></div>
                             <small>per kWh</small>
-                        </label>
-                    </div>
-                </section>
-            }
-            else if (_chargeBasis == BasisKind.Fixed)
-            {
-                <section class="ecf-charge-fields" aria-labelledby="ecf-fixed-title">
-                    <p class="ecf-charge-heading" id="ecf-fixed-title">FIXED MONTHLY CHARGE</p>
-                    <div class="ecf-form-grid">
-                        <label class="ecf-field ecf-field-full">
-                            <span>Monthly Charge</span>
-                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_monthlyCharge" /></div>
-                        </label>
-                    </div>
-                </section>
-            }
-            else if (_chargeBasis == BasisKind.Allocation)
-            {
-                <section class="ecf-charge-fields" aria-labelledby="ecf-allocation-title">
-                    <p class="ecf-charge-heading" id="ecf-allocation-title">ELECTRIC BILL ALLOCATION</p>
-                    <div class="ecf-form-grid">
-                        <label class="ecf-field">
-                            <span>Utility Bill Amount</span>
-                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_utilityBillAmount" /></div>
-                        </label>
-                        <label class="ecf-field">
-                            <span>Allocated Amount</span>
-                            <div class="ecf-money-control"><span aria-hidden="true">₱</span><input type="number" min="0" step="0.01" inputmode="decimal" @bind="_allocatedAmount" /></div>
                         </label>
                     </div>
                 </section>
@@ -399,9 +374,6 @@
     private decimal _previousReading = 1245.6m;
     private decimal _currentReading = 1256.1m;
     private decimal _rate = 12m;
-    private decimal _monthlyCharge = 350m;
-    private decimal _utilityBillAmount = 18500m;
-    private decimal _allocatedAmount = 1200m;
     private decimal _approvedAmount = 500m;
     private decimal _paymentAmount;
     private string _orNumber = string.Empty;
@@ -430,14 +402,9 @@
     private int AccountsWithBalance => Accounts.Count(account => account.Balance > 0m);
     private decimal CollectionRate => TotalBilled == 0m ? 0m : TotalCollected / TotalBilled * 100m;
     private decimal MeteredConsumption => Math.Max(_currentReading - _previousReading, 0m);
-    private decimal AssessmentAmountDue => _chargeBasis switch
-    {
-        BasisKind.Metered or BasisKind.Submetered => MeteredConsumption * _rate,
-        BasisKind.Fixed => _monthlyCharge,
-        BasisKind.Allocation => _allocatedAmount,
-        BasisKind.Manual => _approvedAmount,
-        _ => 0m
-    };
+    private decimal AssessmentAmountDue => _chargeBasis == BasisKind.Manual
+        ? _approvedAmount
+        : MeteredConsumption * _rate;
     private decimal RemainingPaymentBalance => _paymentAccount is null
         ? 0m
         : Math.Max(_paymentAccount.Balance - _paymentAmount, 0m);
