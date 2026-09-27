@@ -79,6 +79,11 @@ public class InitiateOnlinePaymentCommandHandler(
             isNewRecord = true;
         }
 
+        if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
+                ResultStatus.Conflict);
+
         // Only an outstanding balance is payable (full balance — no partial online payments in v1).
         if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);

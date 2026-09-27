@@ -215,6 +215,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             BumpSettlementVersion();
         }
 
+        /// <summary>Advances the rent concurrency boundary while the source remains quiesced in Pending Cutover.</summary>
+        public long AdvancePendingSettlementCutoverBoundary()
+        {
+            if (SettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Only a Pending Cutover rent source can freeze its opening position.");
+            BumpSettlementVersion();
+            return SettlementVersion;
+        }
+
         public void ActivateCanonicalSettlement(CollectionSettlementCutover cutover)
         {
             ArgumentNullException.ThrowIfNull(cutover);

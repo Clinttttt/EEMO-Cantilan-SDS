@@ -19,11 +19,13 @@ namespace EEMOCantilanSDS.Testing.Application.OnlinePayments;
 public class InitiateOnlinePaymentCommandHandlerTests
 {
     private static Stall StallInFacility(FacilityCode code, decimal monthlyRate = 2400m,
-        DateOnly? contractStart = null, int contractYears = 20)
+        DateOnly? contractStart = null, int contractYears = 20, Guid municipalityId = default)
     {
-        var stall = Stall.Create(Guid.NewGuid(), "4", monthlyRate, ApplicableFees.BaseRental);
+        var facility = Facility.Create(code, code.ToString(), code.ToString(), municipalityId: municipalityId);
+        var stall = Stall.Create(facility.Id, "4", monthlyRate, ApplicableFees.BaseRental,
+            createdBy: "test", municipalityId: municipalityId);
         typeof(Stall).GetProperty(nameof(Stall.Facility))!
-            .SetValue(stall, Facility.Create(code, code.ToString(), code.ToString()));
+            .SetValue(stall, facility);
         // A contract so the requested period is covered (wide by default; narrow it for the out-of-term test).
         stall.Contracts.Add(Contract.Create(
             stall.Id, "Occupant", "Occupant", contractStart ?? new DateOnly(2020, 1, 1), contractYears, monthlyRate));
@@ -92,6 +94,42 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
         Assert.Equal(ResultStatus.Forbidden, result.Status);
+    }
+
+    [Theory]
+    [InlineData(SettlementAuthority.PendingCutover)]
+    [InlineData(SettlementAuthority.Canonical)]
+    public async Task MonthlyRecord_DoesNotStartOnlineCheckoutAfterSettlementAuthorityChanges(
+        SettlementAuthority authority)
+    {
+        var tenantId = Guid.NewGuid();
+        var stall = StallInFacility(FacilityCode.TCC, municipalityId: tenantId);
+        var record = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "test");
+        if (authority == SettlementAuthority.PendingCutover)
+            record.MarkSettlementPendingCutover();
+        else
+        {
+            record.MarkSettlementPendingCutover();
+            var boundary = DateTime.UtcNow;
+            var cutover = CollectionSettlementCutover.Freeze(tenantId,
+                CollectionSourceKind.PaymentRecord, record.Id, null, record.SettlementVersion,
+                boundary, record.BaseRentalAmount, 0m, record.BaseRentalAmount,
+                "{\"legacyWritersQuiesced\":true}", Guid.NewGuid(), boundary);
+            record.ActivateCanonicalSettlement(cutover);
+        }
+
+        var gateway = new Mock<IPaymentGateway>();
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        var handler = Build(stall, record, Guid.NewGuid(), linked: true,
+            onlineRepoOut: onlineRepo, gatewayOut: gateway);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -461,14 +461,17 @@ public sealed class WcfCollectionWorkflow(
     {
         if (document.State is not (AccountableDocumentState.Assigned or AccountableDocumentState.InOffice))
             return false;
-        if (document.State == AccountableDocumentState.Assigned && document.AssignedUserId == actor.UserId)
-            return true;
         if (fromWeb && document.State == AccountableDocumentState.InOffice)
             return true;
+        // Historical assignments are audit evidence, not present custody. Even an Assigned document must
+        // agree with the current custodian and have an active assignment interval.
+        if (document.State != AccountableDocumentState.Assigned || document.AssignedUserId != actor.UserId)
+            return false;
         return await db.AccountableFormAssignments.AsNoTracking().AnyAsync(x =>
             x.MunicipalityId == actor.TenantId
             && x.AccountableDocumentId == document.Id
-            && x.AssignedUserId == actor.UserId, ct);
+            && x.AssignedUserId == actor.UserId
+            && x.ReturnedAtUtc == null, ct);
     }
 
     private async Task<Result<WcfCollectionOutcomeDto>> ResolvePriorAsync(

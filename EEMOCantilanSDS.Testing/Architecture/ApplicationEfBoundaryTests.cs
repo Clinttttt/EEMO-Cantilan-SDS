@@ -149,6 +149,11 @@ public class ApplicationEfBoundaryTests
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
+        // The scoped cutover coordinator reads one source part, its effective instrument policy,
+        // outstanding allocations, posting/document exceptions, online attempts, and affected
+        // collectors inside the same serializable transaction used to freeze or activate it.
+        // It has no independent settlement writer and persists only one atomic cutover boundary.
+        "SettlementCutoverWorkflow.cs",
     };
 
     private static List<string> FindApplicationFilesUsingEf()

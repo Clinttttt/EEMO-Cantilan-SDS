@@ -335,6 +335,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             WaterSourceVersion = checked(WaterSourceVersion + 1);
         }
 
+        /// <summary>Advances the Water concurrency boundary while the source remains quiesced in Pending Cutover.</summary>
+        public long AdvancePendingWaterCutoverBoundary()
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Only a Pending Cutover Water source can freeze its opening position.");
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+            return WaterSourceVersion;
+        }
+
+        /// <summary>Advances the Electricity concurrency boundary while the source remains quiesced in Pending Cutover.</summary>
+        public long AdvancePendingElectricityCutoverBoundary()
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Only a Pending Cutover Electricity source can freeze its opening position.");
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            return ElectricitySourceVersion;
+        }
+
         public void ActivateCanonicalWaterSettlement(CollectionSettlementCutover cutover)
         {
             ArgumentNullException.ThrowIfNull(cutover);

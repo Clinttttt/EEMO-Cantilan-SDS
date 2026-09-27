@@ -36,7 +36,7 @@ Before changing V2 code, read:
 ### V2 orientation
 
 - `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — canonical V2 orientation and change-control specification. Start here; follow its links to the detailed authoritative domain documents.
-- `v2/ITEMIZED_COLLECTIONS_CANONICAL_IMPLEMENTATION_BASELINE.md` — MASTER itemized collection implementation baseline prepared for Clint's approval; distinguishes accepted decisions, proposed implementation sequencing and remaining rollout gates. It does not authorize implementation while pending approval.
+- `v2/ITEMIZED_COLLECTIONS_CANONICAL_IMPLEMENTATION_BASELINE.md` — Clint-approved itemized collection architecture and sequential implementation baseline, including the remaining source-specific rollout gates.
 
 ### Architecture
 
@@ -82,6 +82,7 @@ Before changing V2 code, read:
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
 - `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
 - `planning/PHASE4_WCF_WRITER_READINESS.md` — current UtilityBill Water/WCF writers, compatibility readers, Cash Ticket custody, and scoped cutover prerequisites; inventory only, not activation authority.
+- `planning/PHASE5A_SETTLEMENT_CUTOVER_CONTROL_PLANE.md` — Phase 5A source-scoped readiness evidence, writer/device/payment/document/report gates, and the test-only freeze/activation boundary; not authority to convert a real source.
 - `planning/IMPLEMENTATION_HISTORY.md` — historical implementation/backlog record. It is evidence, not automatic current authority.
 - `evidence/` — office/reference evidence retained with the repository.
 - `../tools/diagnostics/` — diagnostic scripts; diagnostics are evidence tools, not application behavior.

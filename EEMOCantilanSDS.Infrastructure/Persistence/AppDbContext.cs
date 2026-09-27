@@ -12,6 +12,9 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
+using System.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,6 +46,28 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         /// no-op and nothing is hidden. Read live so the value resolved at startup is always current.
         /// </summary>
         public Guid CurrentMunicipalityId => _municipality?.MunicipalityId ?? Guid.Empty;
+
+        public async Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(
+            CancellationToken cancellationToken = default) =>
+            new AppDbContextTransaction(await Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+
+        private sealed class AppDbContextTransaction(IDbContextTransaction transaction) : IAppDbContextTransaction
+        {
+            public async Task CommitAsync(CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.SerializationFailure
+                    or PostgresErrorCodes.DeadlockDetected)
+                {
+                    throw new DbUpdateConcurrencyException(
+                        "A concurrent source or cutover change prevented the serializable transaction from committing.", ex);
+                }
+            }
+            public ValueTask DisposeAsync() => transaction.DisposeAsync();
+        }
 
         /// <summary>
         /// Whether this context was given a tenant accessor at all.

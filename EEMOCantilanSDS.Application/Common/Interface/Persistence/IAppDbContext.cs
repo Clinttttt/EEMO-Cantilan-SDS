@@ -21,6 +21,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
     public interface IAppDbContext
     {
         ChangeTracker ChangeTracker { get; }
+        Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(CancellationToken cancellationToken = default);
         DbSet<Facility> Facilities { get; }
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }

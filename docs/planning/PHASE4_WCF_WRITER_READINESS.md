@@ -4,6 +4,8 @@
 
 **Scope:** NPM `UtilityBill` Water source part, its legacy/canonical settlement writers, assigned Cash Ticket evidence, online settlement, and current compatibility readers. Electricity/ECF remains a separate source part with its own authority state.
 
+Phase 5A control-plane behavior, evidence limits, test-only mutation boundary, and rollout gates are documented in [PHASE5A_SETTLEMENT_CUTOVER_CONTROL_PLANE.md](PHASE5A_SETTLEMENT_CUTOVER_CONTROL_PLANE.md). The repository contains no trusted device-capability registry; WCF payload-v1 readiness is verified per assigned collector from explicit reconciliation evidence, not inferred from API support or the current APK version.
+
 ## Current state
 
 - `UtilityBill.WaterSettlementAuthorityState` defaults to `Legacy`. Its source version and settlement authority were added by earlier itemized-collection migrations. Phase 4 adds no startup activation and no data migration that changes authority state.
