@@ -131,7 +131,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Contains("not available", differentOperationForSameTicket.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Single(await context.Collections.ToListAsync());
 
-        var activity = await workflow.GetActivityAsync(seed.Period, seed.Period);
+        var activity = await workflow.GetActivityAsync(businessDate, businessDate);
         Assert.True(activity.IsSuccess, activity.Error);
         var row = Assert.Single(activity.Value!);
         Assert.Equal(collection.Id, row.CollectionId);
@@ -679,7 +679,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var seed = await SeedAsync(canonicalWater: false, assignTicket: true);
         await using var context = db.CreateContext(seed.TenantId);
         context.OnlinePaymentTransactions.Add(OnlinePaymentTransaction.CreateForNpmUtility(
-            "CUTOVER-ONLINE-" + Guid.NewGuid().ToString("N"), seed.CollectorId!.Value,
+            "CUTOVER-" + Guid.NewGuid().ToString("N"), seed.CollectorId!.Value,
             (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).StallId,
             seed.Period.Year, seed.Period.Month, 7m, "test-provider"));
         await context.SaveChangesAsync();
@@ -751,7 +751,8 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     {
         var today = PhilippineTime.Today;
         var period = new DateOnly(today.Year, today.Month, 1);
-        var municipality = Municipality.Create($"WCF-{Guid.NewGuid():N}", "WCF Test", "Surigao del Sur",
+        var municipalityCode = $"WCF-{Guid.NewGuid():N}"[..24];
+        var municipality = Municipality.Create(municipalityCode, "WCF Test", "Surigao del Sur",
             MunicipalityStatus.Active, tenantCode: $"wcf-{Guid.NewGuid():N}"[..32]);
         var tenantId = municipality.Id;
         await using (var setup = db.CreateContext(Guid.Empty))

@@ -347,8 +347,11 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Single(await verify.CollectionAllocations.ToListAsync());
         Assert.Equal(800m, (await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
         var documents = await verify.AccountableDocuments.OrderBy(x => x.SerialNumber).ToListAsync();
-        Assert.Single(documents, x => x.State == AccountableDocumentState.Consumed);
-        Assert.Single(documents, x => x.State == AccountableDocumentState.InOffice);
+        var orDocuments = documents.Where(x => x.InstrumentType == RevenueInstrumentType.OfficialReceipt).ToList();
+        Assert.Single(orDocuments, x => x.State == AccountableDocumentState.Consumed);
+        Assert.Single(orDocuments, x => x.State == AccountableDocumentState.InOffice);
+        Assert.Single(documents, x => x.InstrumentType == RevenueInstrumentType.CashTicket
+            && x.State == AccountableDocumentState.InOffice);
     }
 
     [SkippableFact]
@@ -407,7 +410,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var candidates = await workflow.GetPayorObligationsAsync(seed.PayorId);
         Assert.True(candidates.IsSuccess, candidates.Error);
         var rentCandidates = candidates.Value!.Where(x => x.SourceKind == CollectionSourceKind.PaymentRecord).ToList();
-        Assert.Equal(new[] { july, august }, rentCandidates.Select(x => new DateOnly(x.BillingYear, x.BillingMonth, 1)));
+        Assert.Equal(new[] { july, august, seed.Period },
+            rentCandidates.Select(x => new DateOnly(x.BillingYear, x.BillingMonth, 1)));
         Assert.All(rentCandidates, x => Assert.Equal(seed.PayorId, x.PayorId));
 
         var over = await workflow.AddRentAllocationAsync(
@@ -903,7 +907,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var stall = Stall.Create(facility.Id, "RENT-01", 900m, ApplicableFees.BaseRental,
             municipalityId: seed.TenantId);
         var contract = Contract.Create(stall.Id, "Lisa ECF", "Lisa ECF",
-            periods.Min().AddYears(-2), 5, 900m, createdBy: "test");
+            periods.Min(), 5, 900m, createdBy: "test");
         var linkedPayorId = payorId ?? seed.PayorId;
         contract.AssociatePayor(linkedPayorId, "test");
         var classification = RevenueClassification.Create(RevenueClassificationCodes.PermanentStallRent,
@@ -951,7 +955,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var user = Guid.NewGuid();
         var period = PhilippineTime.Today;
         var periodStart = new DateOnly(period.Year, period.Month, 1);
-        var municipality = Municipality.Create($"ECF-{Guid.NewGuid():N}", "ECF Test", "Surigao del Sur",
+        var municipalityCode = $"ECF-{Guid.NewGuid():N}"[..24];
+        var municipality = Municipality.Create(municipalityCode, "ECF Test", "Surigao del Sur",
             MunicipalityStatus.Active, tenantCode: $"ecf-{Guid.NewGuid():N}"[..32]);
         tenant = municipality.Id;
         await using (var setup = db.CreateContext(Guid.Empty))

@@ -118,7 +118,7 @@ public sealed class CollectionLedgerPersistenceTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task ClientOperationIdIsUniqueAcrossCollectionTableAndNullIsRepeatable()
+    public async Task ClientOperationIdIsUniqueWithinTenantAndNullIsRepeatable()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -129,12 +129,21 @@ public sealed class CollectionLedgerPersistenceTests(PostgresFixture db)
         var operationId = Guid.NewGuid();
         await CreateCollectionAsync(refA, clientOperationId: operationId);
 
-        await using (var duplicate = db.CreateContext(tenantB))
+        await using (var duplicate = db.CreateContext(tenantA))
         {
             var classification = await duplicate.RevenueClassifications.SingleAsync();
             var policy = await duplicate.RevenueClassificationPolicies.SingleAsync();
             duplicate.Collections.Add(NewCollection(classification, policy, clientOperationId: operationId));
             await Assert.ThrowsAsync<DbUpdateException>(() => duplicate.SaveChangesAsync());
+        }
+
+        await using (var otherTenant = db.CreateContext(tenantB))
+        {
+            var classification = await otherTenant.RevenueClassifications.SingleAsync();
+            var policy = await otherTenant.RevenueClassificationPolicies.SingleAsync();
+            otherTenant.Collections.Add(NewCollection(classification, policy, clientOperationId: operationId));
+            await otherTenant.SaveChangesAsync();
+            Assert.Single(await otherTenant.Collections.ToListAsync());
         }
 
         await using var nullableOperations = db.CreateContext(tenantA);

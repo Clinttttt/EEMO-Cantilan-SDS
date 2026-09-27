@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
@@ -30,6 +32,7 @@ public sealed class CollectionComposerWorkflow(
     private const string WebOrigin = "Web";
     private const int IntentVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions IntentJsonOptions = CreateIntentJsonOptions();
     private DateOnly BusinessToday => clock?.PhilippineToday ?? PhilippineTime.Today;
 
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(
@@ -635,7 +638,7 @@ public sealed class CollectionComposerWorkflow(
             return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
                 draft.AccountableDocumentId, legacy ? "SOURCE_LEGACY" : "SOURCE_CUTOVER_PENDING",
                 legacy
-                    ? "Every source in this Collection must complete controlled cutover before canonical posting."
+                    ? "Every source must leave Legacy settlement authority through controlled cutover before canonical posting."
                     : "A source is quiesced for cutover reconciliation and cannot be posted.", ct);
         }
 
@@ -647,7 +650,17 @@ public sealed class CollectionComposerWorkflow(
                 draft.AccountableDocumentId, "OR_UNAVAILABLE",
                 "The selected Official Receipt is unavailable, assigned elsewhere, or incompatible with the reviewed lines.", ct);
 
-        var document = await RequireSelectableReceiptAsync(draft.AccountableDocumentId.Value, actor, tracked: true, ct);
+        AccountableDocument document;
+        try
+        {
+            document = await RequireSelectableReceiptAsync(
+                draft.AccountableDocumentId.Value, actor, tracked: true, ct);
+        }
+        catch (WorkflowProblem problem)
+        {
+            return await RejectOrResolveExistingAsync(actor, request.ClientOperationId, normalizedIntent,
+                draft.AccountableDocumentId, "OR_UNAVAILABLE", problem.Message, ct);
+        }
         var collectionLineDrafts = resolved.Lines.Select(line => new CollectionLineDraft(
             line.Sources[0].Classification, line.Sources[0].Policy, line.Line.Amount,
             line.Line.SourceKind, line.Line.SourceId, line.Line.SourcePart,
@@ -976,7 +989,7 @@ public sealed class CollectionComposerWorkflow(
         CancellationToken ct)
     {
         if (draft.PayorId != sourcePayorId || draft.PayerNameSnapshot != sourcePayerName)
-            throw Problem("This source does not have the same authoritative payer context as the current Collection.", ResultStatus.Conflict);
+            throw Problem("This source does not have the same authoritative Payor context as the current Collection.", ResultStatus.Conflict);
         if (existingAllocations.Count == 0) return;
         if (draft.PayorId.HasValue) return;
         if (!sourceContractId.HasValue)
@@ -1174,7 +1187,23 @@ public sealed class CollectionComposerWorkflow(
         return JsonSerializer.Serialize(new NormalizedComposerIntent(
             IntentVersion, draft.MunicipalityId, draft.Id, draft.OwnerUserId, draft.BusinessDate,
             draft.PayorId, draft.PayerNameSnapshot, draft.InstrumentFamily,
-            draft.AccountableDocumentId, documentNumber, normalizedLines), JsonOptions);
+            draft.AccountableDocumentId, documentNumber, normalizedLines), IntentJsonOptions);
+    }
+
+    private static JsonSerializerOptions CreateIntentJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonOptions);
+        options.Converters.Add(new CanonicalDecimalJsonConverter());
+        return options;
+    }
+
+    private sealed class CanonicalDecimalJsonConverter : JsonConverter<decimal>
+    {
+        public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            reader.GetDecimal();
+
+        public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) =>
+            writer.WriteRawValue(value.ToString("G29", CultureInfo.InvariantCulture));
     }
 
     private sealed record SourceIdentity(
