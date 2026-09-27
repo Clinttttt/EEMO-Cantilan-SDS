@@ -132,11 +132,13 @@ public sealed class SettlementCutoverWorkflow(
                 "The frozen reconciliation evidence is incomplete.", ResultStatus.Conflict);
 
         var readiness = await EvaluateCoreAsync(actor, scope, envelope.Evidence, allowFrozen: true, ct);
-        if (!readiness.Ready || readiness.AssessmentAmount != cutover.OpeningAssessmentAmount
+        if (!readiness.Ready
+            || !string.Equals(readiness.ReadinessFingerprint, envelope.ReadinessFingerprint, StringComparison.Ordinal)
+            || readiness.AssessmentAmount != cutover.OpeningAssessmentAmount
             || readiness.LegacySettledEvidence != cutover.OpeningLegacySettledAmount
             || readiness.OutstandingAmount != cutover.OpeningOutstandingAmount)
             return Result<SettlementCutoverOutcomeDto>.Failure(
-                "Canonical activation is blocked because source, document, online-payment, or reconciliation evidence changed.",
+                "Canonical activation is blocked because reviewed readiness, source, document, online-payment, or reconciliation evidence changed.",
                 ResultStatus.Conflict);
 
         source.Activate(cutover);
@@ -243,7 +245,19 @@ public sealed class SettlementCutoverWorkflow(
                 && db.AccountableFormAssignments.Any(a => a.MunicipalityId == actor.TenantId
                     && a.AccountableDocumentId == x.Id && a.AssignedUserId == x.AssignedUserId
                     && a.ReturnedAtUtc == null))
-            .CountAsync(ct);
+            .OrderBy(x => x.Id)
+            .Select(x => new
+            {
+                x.Id,
+                x.FormBookId,
+                x.SerialNumber,
+                x.DocumentNumber,
+                x.InstrumentType,
+                x.State,
+                x.AssignedUserId
+            })
+            .ToArrayAsync(ct);
+        var activeAssignedDocumentCount = activeAssignedDocuments.Length;
         var inconsistentAssignedDocuments = await db.AccountableDocuments.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.TenantId && x.InstrumentType == source.RequiredInstrument
                 && x.State == AccountableDocumentState.Assigned && x.AssignedUserId.HasValue
@@ -265,7 +279,7 @@ public sealed class SettlementCutoverWorkflow(
             blockers.Add(source.MobileWriterStatus);
         AddEvidenceBlockers(evidence, affectedCollectors, blockers, requiresWcfPayload);
         var missingCollectorEvidence = GetMissingCollectorEvidence(evidence, affectedCollectors, requiresWcfPayload);
-        if (activeAssignedDocuments > 0 && evidence?.AccountableDocumentInventoryReconciled != true)
+        if (activeAssignedDocumentCount > 0 && evidence?.AccountableDocumentInventoryReconciled != true)
             blockers.Add("Active accountable-document custody assignments exist and have not been reconciled against physical inventory.");
 
         warnings.Add("The candidate opening position is historical balance evidence, never a Collection or cash report event.");
@@ -273,8 +287,8 @@ public sealed class SettlementCutoverWorkflow(
         warnings.Add("Official cross-period RCD treatment remains pending Office confirmation under IA-043.");
         if (!string.IsNullOrWhiteSpace(source.LegacyDocumentEvidence))
             warnings.Add("The legacy document field is preserved as source evidence and is not proof of an accountable OR/CT unit.");
-        if (activeAssignedDocuments > 0)
-            warnings.Add($"{activeAssignedDocuments} active {source.RequiredInstrument} unit(s) remain in collector custody and must be included in the inventory reconciliation evidence.");
+        if (activeAssignedDocumentCount > 0)
+            warnings.Add($"{activeAssignedDocumentCount} active {source.RequiredInstrument} unit(s) remain in collector custody and must be included in the inventory reconciliation evidence.");
         if (source.LegacyWriterStatus is { } writerStatus)
             warnings.Add(writerStatus);
 
@@ -283,12 +297,16 @@ public sealed class SettlementCutoverWorkflow(
             tenant = actor.TenantId,
             scope,
             source.Authority,
-            source.Version,
+            // Source version is independently bound by the freeze request and cutover boundary.
+            // Freeze advances that version itself, so including it here would make an unchanged
+            // reviewed readiness fingerprint differ immediately after a successful freeze.
             source.Assessment,
             source.LegacySettled,
             source.Outstanding,
             source.LegacyDocumentEvidence,
             policyId = policy?.Id,
+            policyEffectiveDate = policy?.EffectiveDate,
+            policyInstrument = policy?.PermittedInstrumentType,
             instrument = source.RequiredInstrument,
             online = unresolvedOnlinePayments,
             reconciliationOperations = sourceOperations.Length,
@@ -311,7 +329,7 @@ public sealed class SettlementCutoverWorkflow(
         return new SettlementCutoverReadinessDto(scope, source.Label, source.Authority, source.Version,
             source.Assessment ?? 0m, source.LegacySettled, source.Outstanding, source.RequiredInstrument,
             unresolvedOnlinePayments, sourceOperations.Length, reconciliationDocuments, reconciliationExceptions,
-            activeAssignedDocuments, affectedCollectors.Order().ToArray(), missingCollectorEvidence,
+            activeAssignedDocumentCount, affectedCollectors.Order().ToArray(), missingCollectorEvidence,
             requiresWcfPayload ? RequiredWcfPayloadVersion : 0,
             blockers.Distinct().ToArray(), warnings, blockers.Count == 0, fingerprint);
     }

@@ -16,7 +16,7 @@ Legacy -> exact source Pending Cutover -> reconcile and quiesce -> freeze openin
 - `SettlementCutoverWorkflow` provides the exact-scope Pending, freeze, and activation commands. Phase 5A exposes no HTTP mutation route for these commands. Freeze and activation are exercised only with isolated integration-test rows.
 - Each UtilityBill transition changes only the selected Electricity or Water part. A source cannot jump directly from Legacy to Canonical, and activation requires its unique `CollectionSettlementCutover` record.
 - Freeze stores assessment, legacy settled evidence, outstanding, source boundary version, UTC time, tenant/source identity, actor, reconciliation evidence, and reconciliation actor/time in the existing cutover entity. It does not create a Collection or cash event.
-- Source optimistic-concurrency tokens and a serializable database transaction protect Pending, freeze, and activation. Activation reloads the immutable evidence, re-evaluates the exact source and blockers, and requires its source version and all three opening amounts to match the frozen boundary.
+- Source optimistic-concurrency tokens and a serializable database transaction protect Pending, freeze, and activation. Activation reloads the immutable evidence, re-evaluates the exact source and blockers, and requires the current readiness fingerprint to equal the fingerprint frozen at review, in addition to matching the source version and all three opening amounts. The fingerprint covers effective policy and the identities/custodians of active assigned documents; source version is checked separately because freeze itself advances that boundary token.
 
 ## Readiness evidence and blockers
 

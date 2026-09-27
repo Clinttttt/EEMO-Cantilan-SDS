@@ -500,6 +500,73 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ReadinessChangeAfterFreezeBlocksActivationWithoutCreatingRevenue()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: false, assignTicket: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = new SettlementCutoverWorkflow(context,
+            new TestActor(seed.AdminId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
+        var scope = new SettlementCutoverScope(CollectionSourceKind.UtilityBill, seed.BillId, CollectionSourcePart.Water);
+        var evidence = new SettlementCutoverReconciliationEvidence(
+            LegacyWritersQuiesced: true,
+            MobileQueuesDrained: true,
+            NoUnregisteredFieldDevices: true,
+            OnlinePaymentsDrained: true,
+            AccountableDocumentInventoryReconciled: true,
+            ReportingPathVerified: true,
+            EvidenceReference: "isolated-integration-test:readiness-change-after-freeze",
+            CollectorEvidence:
+            [
+                new CutoverCollectorEvidence(seed.CollectorId!.Value, "1.1.11", 1, true,
+                    DateTime.UtcNow, "device-a"),
+                new CutoverCollectorEvidence(seed.OtherCollectorId!.Value, "1.1.11", 1, true,
+                    DateTime.UtcNow, "device-b")
+            ]);
+
+        Assert.True((await workflow.BeginPendingCutoverAsync(scope)).IsSuccess);
+        var readiness = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
+        Assert.True(readiness.IsSuccess, readiness.Error);
+        Assert.True(readiness.Value!.Ready, string.Join(" | ", readiness.Value.BlockingReasons));
+        Assert.Equal(1, readiness.Value.ActiveAssignedDocuments);
+
+        var frozen = await workflow.FreezeOpeningPositionAsync(new SettlementCutoverFreezeRequest(
+            scope, readiness.Value.SourceVersion, readiness.Value.ReadinessFingerprint, evidence));
+        Assert.True(frozen.IsSuccess, frozen.Error);
+
+        var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
+        var assignment = await context.AccountableFormAssignments.SingleAsync(x => x.AccountableDocumentId == seed.CtDocumentId);
+        var beforeCustodyChange = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
+        assignment.RecordReturn("test-office-admin", DateTime.UtcNow);
+        document.ReturnToOffice("test-office-admin");
+        await context.SaveChangesAsync();
+
+        var reevaluated = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
+        Assert.True(reevaluated.IsSuccess, reevaluated.Error);
+        Assert.Equal(0, reevaluated.Value!.ActiveAssignedDocuments);
+        Assert.NotEqual(readiness.Value.ReadinessFingerprint, reevaluated.Value.ReadinessFingerprint);
+        var afterCustodyChange = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
+        Assert.Equal(beforeCustodyChange.WaterSourceVersion, afterCustodyChange.WaterSourceVersion);
+        Assert.Equal(beforeCustodyChange.WaterCharge, afterCustodyChange.WaterCharge);
+        Assert.Equal(beforeCustodyChange.WaterAmountPaid, afterCustodyChange.WaterAmountPaid);
+
+        var activation = await workflow.ActivateCanonicalAsync(scope, frozen.Value!.SourceVersion);
+
+        Assert.False(activation.IsSuccess);
+        context.ChangeTracker.Clear();
+        var final = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
+        Assert.Equal(SettlementAuthority.PendingCutover, final.WaterSettlementAuthorityState);
+        Assert.Equal(SettlementAuthority.Legacy, final.ElectricitySettlementAuthorityState);
+        Assert.Equal(beforeCustodyChange.WaterSourceVersion, final.WaterSourceVersion);
+        Assert.Equal(beforeCustodyChange.WaterCharge, final.WaterCharge);
+        Assert.Equal(beforeCustodyChange.WaterAmountPaid, final.WaterAmountPaid);
+        Assert.Empty(await context.Collections.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.CollectionLines.AsNoTracking().ToListAsync());
+        Assert.Empty(await context.CollectionAllocations.AsNoTracking().ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task CutoverSourceLookupCannotCrossTenantBoundary()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
