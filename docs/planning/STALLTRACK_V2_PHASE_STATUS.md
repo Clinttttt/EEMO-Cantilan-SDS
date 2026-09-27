@@ -1,6 +1,6 @@
 # StallTrack V2 Phase Status
 
-**Last updated:** 2026-09-27
+**Last updated:** 2026-09-28
 **Canonical branch:** `interface-v2/clean-adoption`
 **Purpose:** One concise status record for the approved StallTrack V2 itemized-collections/cutover phases and the presentation-safe UI completion track.
 
@@ -30,7 +30,7 @@ A phase being implemented does **not** mean a real EEMO source has been converte
 | Phase 5A — Cutover control plane | `fdd3010208264c63c09d0762012abe0a6553d7d4` | Implemented as tooling/test boundary | Exact tenant/source readiness, Pending Cutover gate, opening-position freeze, controlled activation service, Mobile/online/document/report readiness evidence |
 | Phase 5A closeout | `5a5d2a7934669a9c48349afc1c7ac1de87b8e86c` | Implemented | Activation now requires the current readiness fingerprint to match the fingerprint frozen at review |
 | Business-rule checkpoint | `586bca2c` | Implemented documentation checkpoint | Latest EEMO Head rulings, Market grouping, Vegetable OR/CT resolver, ECF/WCF direction, Utility/NPM boundary, Transfer Large Cattle direction |
-| Phase 5B — Real source activation | — | **BLOCKED / NOT STARTED** | May begin only after required PostgreSQL/Testcontainers concurrency/transaction tests actually run successfully and all scoped writer/reconciliation gates are satisfied |
+| Phase 5B — Canary review / source activation | `67d5d235379db30b47d9ca079c86f04690f4aec7` | **READY FOR EXPLICIT CANARY REVIEW** | Required PostgreSQL/Testcontainers suite ran successfully; source-specific writer, device, document, online-payment, reporting, and reconciliation gates still apply. No source is activated. |
 
 ## 3. Phase 1 — Dormant shared financial foundation
 
@@ -195,35 +195,42 @@ This is the correct fail-closed behavior.
 
 ## 9. Phase 5B gate
 
-**Phase 5B is not approved.**
+**Status: READY FOR EXPLICIT CANARY REVIEW. No real source activation is approved by this status.**
 
-Before any real source activation review:
+The prior database-concurrency blocker is resolved. These Release-mode runs executed against PostgreSQL through Testcontainers:
 
-1. PostgreSQL/Testcontainers integration tests must actually run successfully in a Docker-enabled environment.
-2. Required uniqueness, concurrency, race, rollback, freeze/activation, and late-submission paths must be exercised against PostgreSQL.
-3. The selected source scope must pass the reconciliation/readiness gate.
-4. Legacy writers must be quiesced or canonically routed for that exact scope.
-5. Collector/device evidence and pending queues must be reconciled.
-6. Physical accountable-document custody/exceptions must be reconciled.
-7. In-flight online/provider money must be drained/reconciled.
-8. The reporting path for the selected source must be verified.
-9. No unresolved policy gate may be invented away.
+- readiness-after-freeze regression: 1 passed, 0 failed, 0 skipped;
+- `WcfCollectionWorkflowTests`: 17 passed, 0 failed, 0 skipped;
+- `EcfCollectionWorkflowTests`: 16 passed, 0 failed, 0 skipped;
+- full integration project: 101 passed, 0 failed, 7 skipped (108 total);
+- Release solution build: succeeded, 0 errors, 179 warnings;
+- `git diff --check`: passed.
 
-Current blocker:
+The seven skips are the existing opt-in historical snapshot tests requiring `STALLTRACK_SNAPSHOT_DB` (five `OccupancyHistorySnapshotTests` and two `RegisterAndFollowUpAgreementTests`). No Docker-unavailable skips occurred. The tested integration commit is `67d5d235379db30b47d9ca079c86f04690f4aec7`.
 
-> **PHASE 5B BLOCKED — DATABASE CONCURRENCY / TRANSACTION VALIDATION HAS NOT RUN.**
+Before any activation, the separately selected source must still satisfy every applicable gate:
 
-The relevant tests compile, but Docker/Testcontainers remains unavailable in the current environment.
+1. identify the exact tenant and source identity (for UtilityBill, exact bill ID and Electricity or Water part);
+2. obtain a fresh readiness result and complete source-scoped reconciliation, then quiesce or canonically route every writer for that source;
+3. verify every affected collector/device's actual compatible application and payload capability, and drain old queued operations;
+4. drain/reconcile in-flight online/provider transactions, including requests not yet durably represented by a transaction row;
+5. reconcile accountable-document custody and all issued, consumed, voided, or reconciliation-required units without returning a physical document to inventory;
+6. verify Collection Activity, classification totals, and the applicable report path do not count compatibility projections as receipts;
+7. preserve unresolved Office policy, including IA-043 cross-period RCD treatment, without inventing a reporting rule;
+8. obtain Clint's separate, explicit approval for the named canary source and activation action.
+
+No activation command was run against real data. Readiness status is not activation authority.
+
+The PostgreSQL fixture review also confirmed that `Municipality.Code` is mapped with a 30-character maximum while `Municipality.Create` does not fail fast on longer values. The production onboarding path calls this factory, and its command validator currently checks only that the code is non-empty. A separate small fail-fast domain/onboarding validation change is warranted; this integration did not change domain behavior or widen the schema.
 
 ## 10. Validation history and current interpretation
 
-Each phase recorded successful Release builds and focused tests. The recurring full-suite failures reported during these phases were existing UI/architecture assertions outside the phase's changed files. Database-focused tests repeatedly compiled but were skipped when Docker was unavailable.
+Earlier phase checkpoints recorded their own build/test results. The current Phase 5B integration now has successful PostgreSQL runtime evidence; the seven snapshot tests remain opt-in because they require a separate historical snapshot database.
 
 The important current interpretation is:
 
-- compile success is not PostgreSQL concurrency proof;
-- skipped integration tests are not a pass;
-- no skipped database gate may be waived merely to finish the presentation;
+- the required PostgreSQL concurrency and transaction suite passed in this canonical checkout;
+- the seven `STALLTRACK_SNAPSHOT_DB` skips are unrelated to the cutover database gate and are not reported as passes;
 - implementation readiness and production cutover readiness are separate states.
 
 ## 11. Production/release status
@@ -296,7 +303,7 @@ These UI slices must not silently activate a Legacy financial source.
 
 ```text
 ITEMIZED / CUTOVER TRACK
-Phase 1 -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5A -> [Phase 5B BLOCKED]
+Phase 1 -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5A -> [Phase 5B READY FOR EXPLICIT CANARY REVIEW]
 
 UI COMPLETION TRACK
 U0 docs -> U1 shell/nav -> U2 Operations -> U3+ bounded UI slices -> visual QA

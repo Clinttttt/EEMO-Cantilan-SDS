@@ -1,6 +1,6 @@
 # Phase 5A: Settlement Cutover Control Plane
 
-**Status:** Implemented as controlled tooling and test evidence only. No real UtilityBill or PaymentRecord source was moved to Pending Cutover or Canonical. This document does not authorize Phase 5B activation.
+**Status:** Implemented as controlled tooling and test evidence only. PostgreSQL/Testcontainers validation has now run successfully, so Phase 5B is **READY FOR EXPLICIT CANARY REVIEW**. No real UtilityBill or PaymentRecord source was moved to Pending Cutover or Canonical. This document does not authorize activation.
 
 **Scope:** Exact tenant-owned UtilityBill Electricity/Water source parts and monthly-rent PaymentRecord identities. Names, phone numbers, document numbers, and other display text are not source selectors.
 
@@ -45,6 +45,31 @@ Compatibility fields are projections after Canonical activation and must not be 
 
 ## Validation boundary
 
-Phase 5A adds isolated database tests for source-part scope, non-mutating dry-run, source version changes, opening freeze without revenue, activation, and current custody after return. The existing WCF integration suite also covers posting idempotency, CT custody, offline rejection, rollback, and Web/Mobile settlement races. Docker/Testcontainers is unavailable in the current environment, so PostgreSQL runtime concurrency and transaction behavior remains unverified. **Phase 5B is blocked until the required PostgreSQL tests actually run successfully.**
+The required Release-mode PostgreSQL/Testcontainers validation ran successfully on canonical commit `67d5d235379db30b47d9ca079c86f04690f4aec7`:
+
+- readiness-after-freeze regression: 1 passed, 0 failed, 0 skipped;
+- `WcfCollectionWorkflowTests`: 17 passed, 0 failed, 0 skipped;
+- `EcfCollectionWorkflowTests`: 16 passed, 0 failed, 0 skipped;
+- full `EEMOCantilanSDS.IntegrationTests` project: 101 passed, 0 failed, 7 skipped (108 total);
+- Release solution build: succeeded, 0 errors, 179 warnings;
+- `git diff --check`: passed.
+
+The seven skips are existing opt-in historical snapshot tests that require `STALLTRACK_SNAPSHOT_DB`: five `OccupancyHistorySnapshotTests` and two `RegisterAndFollowUpAgreementTests`. The focused WCF/ECF and readiness suites had no skips. Docker was available; there were no Docker-unavailable skips. The PostgreSQL concurrency/transaction blocker is resolved, and Phase 5B is **READY FOR EXPLICIT CANARY REVIEW**, not activated, complete, or deployed.
+
+### Remaining activation gates
+
+Passing database tests do not clear source-specific rollout gates. Before any named source is activated, complete and record:
+
+- exact tenant and source identity, followed by a fresh source-scoped readiness evaluation;
+- reconciliation of legacy settlement, source writers, queued Mobile operations, and all issued physical documents;
+- verified capability/version evidence for every collector device assigned to the affected source/facility; backend support alone is not device readiness;
+- drain/reconciliation of in-flight online/provider activity, including calls not yet represented by persisted transaction rows;
+- accountable-document custody and exception review, with no issued or reconciliation-required CT returned to available inventory;
+- report-path verification for canonical Collection events and classification totals, confirming compatibility projections are not counted again;
+- separate explicit Clint approval for the exact canary source and activation command.
+
+Existing report readers including `GetReportOfCollections`, `FacilityReportsRepository`, `DashboardRepository`, `TransactionFeedRepository`, and utility registers/follow-up views still consume legacy source rows or compatibility values. The selected source's report path must be checked before freeze; this status does not claim global report migration. IA-043 cross-period RCD treatment remains an unresolved Office policy and must not be inferred here.
+
+The PostgreSQL fixture review also confirmed a separate domain-validation gap: EF maps `Municipality.Code` to at most 30 characters, but `Municipality.Create` currently trims/uppercases without rejecting a longer code. The production onboarding command reaches this factory, and its validator only requires a non-empty code. A small fail-fast domain/onboarding validation change is warranted separately; this change did not widen the schema or alter domain behavior.
 
 No source activation, production deployment, APK release, or evidence-image change occurred in Phase 5A.
