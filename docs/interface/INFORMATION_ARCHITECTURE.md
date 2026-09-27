@@ -268,7 +268,7 @@ The shell standardizes context and placement. It does not own billing or collect
 
 | Operation | Shared context | Domain-owned work |
 |---|---|---|
-| NPM / daily stall | Overview, Spaces & Occupancies, Activity, Reports | Daily round, sections, catch-up days, closures/absence, utilities, fish-kilo fee, RentGoal/PureDays settlement |
+| NPM / daily stall | Overview, Spaces & Occupancies, Activity, Reports | Daily round, sections, catch-up days, closures/absence, contextual links to applicable utilities, fish-kilo fee, RentGoal/PureDays settlement. ECF/WCF remain separate EEMO Utility Operations rather than NPM-owned revenue types. |
 | TCC/NCC/BBQ/ICE/custom monthly rental | Overview, Spaces & Occupancies, Activity, Reports | Monthly status, installment/full/partial collection under current production rules, OR evidence, history |
 | TPM / weekly market | Overview, Participants, Activity, Reports | Market-day calendar, vendor attendance, goods |
 | TRM / per trip | Overview, Transporters, Activity, Reports | Quick trip, registered transporter trip, route context |
@@ -435,6 +435,8 @@ Recent EEMO reference material provides business-structure evidence for future r
 - **Monthly Rental of Stall Occupants:** occupant, monthly rental, January–December collections, total payment, total yearly rental, balance, totals/subtotals, Prepared by, and Verified by.
 - **Lessee / Stall Monitoring:** actual occupant/lessee, stall or space number, actual monthly rental, whole-year rental, yearly collection, and balance.
 - **Monthly Income / Market Operations:** Annual Target, monthly actual columns, Total/YTD, Percentage, and revenue lines such as Market Fees, ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Ice Plant, NPM/NCC/TCC rent, Arrears, Vegetable/Fruit Space Rental, Kanmanggay, Lot Rental, and Fines.
+  - 2026-09-27 Head clarification: these Market Income rows are sibling report lines; do not nest the listed rows inside Market Fees. Tabo uses OR. Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate. ECF/WCF are broader EEMO Utility Operations, not globally owned by NPM.
+  - IA-047 is now reference-only where direct Head clarification exists. Use the confirmed full-payment OR / daily-transaction CT Vegetable rule and current ECF/WCF office direction. Transfer Large Cattle may still use the Philippine regulatory reference for optional transfer/certificate details while its exact Cantilan fee/form policy remains configurable. See [EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 - **Accountable-form reporting:** includes collection/accountability and remittance/deposit sections; its existence does not make digital remittance a current StallTrack capability.
 
 **TARGET ARCHITECTURE:** preserve required business information and configurable report date/signatories while allowing a cleaner StallTrack-owned layout. Office evidence does not by itself prove that every referenced sheet is an official statutory output or that every revenue line already has a final production `RevenueClassification`.

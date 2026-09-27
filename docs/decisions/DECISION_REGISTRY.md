@@ -565,8 +565,56 @@ Two cross-document distinctions are explicit at this baseline:
 - **DECISION / QUESTION:** Adopt [ADR-006](ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md). A structurally simple local EEMO service may be represented by governed tenant configuration for classification, effective-dated instrument/rate/calculation policy, Payor requirement, operational fields, setup state and allowed collection channels. Incomplete setup cannot produce a financial Collection. Collectors record transaction facts only and never invent charge identity, rate, classification, or OR/CT policy.
 - **RATIONALE:** StallTrack needs to accommodate local services such as Transfer Large Cattle and future EEMO revenue lines without hard-coding guessed rules or stopping the entire V2 design while office policy is being confirmed.
 - **EVIDENCE / SOURCE:** Clint's explicit V2 architecture discussion and approval on 2026-09-27; existing Malinawa/configurable-service direction in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md); canonical no-arbitrary-line, instrument-policy, Mobile-authority and collection rules.
-- **IMPACT:** Operations may show **Setup Required** for incomplete services. Active services may feed the same canonical Collection infrastructure through Web and, only when explicitly enabled/authorized, focused Collector Mobile. Transfer Large Cattle's exact Cantilan trigger, fee/calculation basis, instrument and required regulatory details remain pending EEMO confirmation; IA-044 resolves system handling, not those business facts. A configurable service may later be promoted to a specialized source domain without rewriting posted history.
+- **IMPACT:** Operations may show **Setup Required** for incomplete services. Active services may feed the same canonical Collection infrastructure through Web and, only when explicitly enabled/authorized, focused Collector Mobile. IA-048 later confirms Transfer Large Cattle as an occasional transfer transaction with a corresponding direct approved amount; its exact Cantilan fee schedule/accountable-form and mandatory local regulatory detail remain configurable. A configurable service may later be promoted to a specialized source domain without rewriting posted history.
 - **REVISIT CONDITION:** A service requires materially specialized approval, regulatory, assessment, lifecycle or reconciliation behavior beyond the governed configuration model; promote that source rather than stretching the generic model.
+### IA-045 — EEMO Head correction: Tabo, Vegetable/Fruit, and Market grouping
+
+- **ID:** IA-045
+- **SUBJECT:** Latest Cantilan instrument and report-grouping clarification
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS DECISION
+- **DECISION / QUESTION:** The EEMO Head confirmed **Tabo = Official Receipt (OR)**, superseding the earlier CT assumption. **Vegetable/Fruit Space Rental may use OR or CT, with CT the predominant practice.** For Market Fees/report grouping, use the office Monthly Income 2026 sheet: Market Fees is one sibling income row, while ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Transfer Large Cattle, and Ice Plant are separate sibling rows.
+- **RATIONALE:** The Head explicitly directed StallTrack to follow the office itemized Monthly Income sheet instead of inventing nested Market Fees subcategories.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification on 2026-09-27 plus the photographed Municipal Economic Enterprises Development Office Monthly Income 2026 sheet; recorded in [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthly_income_clarification.md).
+- **IMPACT:** Operations/UI and tenant instrument policy must stop presenting Tabo as CT. Vegetable/Fruit cannot remain CT-only in target design; IA-046 subsequently resolves full/whole payment = OR and daily transaction = CT. Tabo shadow/configuration must be re-verified before cutover. Market Fees remains one official report line rather than a container for the other listed market income rows.
+- **REVISIT CONDITION:** Revisit only if EEMO supplies a newer official policy/report or clarifies a superseding instrument rule.
+
+### IA-046 - Vegetable/Fruit OR-versus-CT selection condition
+
+- **ID:** IA-046
+- **SUBJECT:** Deterministic instrument resolution for dual-instrument Vegetable/Fruit Space Rental
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS DECISION
+- **DECISION / QUESTION:** The EEMO Head confirmed the resolver on 2026-09-27: **full/whole ("buo") payment uses Official Receipt (OR); daily transactions/collections use Cash Tickets (CT).**
+- **RATIONALE:** Vegetable/Fruit legitimately supports both instruments, but the choice is not arbitrary collector discretion. The collection cadence/context resolves the accountable document.
+- **EVIDENCE / SOURCE:** Direct EEMO Head chat clarification recorded in [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **IMPACT:** Target policy must support contextual instrument resolution. Remove CT-only presentation and remove the former unresolved decision gate. IA-047's regular/fixed-versus-transient/temporary inference is superseded for Cantilan.
+- **REVISIT CONDITION:** Only if EEMO supplies a newer local rule that supersedes the full-payment/daily-transaction distinction.
+
+### IA-047 - Interim Philippine-reference basis for presentation and UI audit
+
+- **ID:** IA-047
+- **SUBJECT:** Temporary evidence-based handling of unresolved Vegetable/Fruit instrument selection, utility assessment basis, and Transfer Large Cattle workflow
+- **STATUS:** PARTIALLY SUPERSEDED / REFERENCE ONLY
+- **TYPE:** PRESENTATION / UI-AUDIT REFERENCE - NOT PRODUCTION CUTOVER AUTHORITY
+- **DECISION / QUESTION:** External Philippine references remain useful only where direct Cantilan policy is still absent. They no longer govern Vegetable/Fruit OR-versus-CT selection or the current ECF/WCF presentation because the EEMO Head has now directly clarified those items.
+- **RATIONALE:** Direct Cantilan office clarification outranks comparative external-LGU precedent.
+- **EVIDENCE / SOURCE:** [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md) supersedes the applicable portions of [2026-09-27 Interim Philippine Reference Basis](../evidence/2026-09-27_interim_philippine_reference_basis.md).
+- **IMPACT:** Keep IA-047 only as supporting reference for unresolved regulatory structure, especially optional Transfer Large Cattle ownership/animal/certificate details and other future comparative research. Do not use it to override current Head instructions.
+- **REVISIT CONDITION:** Retire additional portions whenever Cantilan supplies direct local policy.
+
+### IA-048 - EEMO utility operations are not NPM-owned; latest utility and transfer working rules
+
+- **ID:** IA-048
+- **SUBJECT:** Utility operation scope, current ECF/WCF basis, and latest Transfer Large Cattle office direction
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS + TARGET ARCHITECTURE CLARIFICATION
+- **DECISION / QUESTION:** ECF and WCF are broader **EEMO Utility Operations**, not globally owned by the NPM facility. An NPM stall may be one service subject/context, but NPM must not be the architectural parent of every utility assessment. Current Head direction is **ECF = OR with direct approved amount entry** and **WCF = CT at the currently stated PHP 10 rate**. Transfer Large Cattle is an occasional transfer transaction with a corresponding **direct approved amount**.
+- **RATIONALE:** The office Monthly Income/board material presents ECF and WCF as separate revenue lines, and earlier Head clarification already distinguished the broader EEMO/Public Market operation from NPM. The current code's UtilityBill is explicitly stall/NPM-bound and should therefore be treated as a legacy/current specialized source, not as proof that all future utilities are NPM-owned.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification on 2026-09-27, office Monthly Income/board evidence, and earlier confirmed Public Market-versus-NPM scope. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **IMPACT:** Operations keeps a separate Utility Operations section. NPM may expose contextual utility links for its occupants but must not own global ECF/WCF navigation or reporting. Existing UtilityBill rows remain valid and must not be destructively rewritten; future non-NPM utility subjects should be handled additively through an appropriate generalized source/context model or adapter. Do not hard-code PHP 10 or direct ECF amounts into UI markup; resolve approved effective configuration/policy.
+- **REVISIT CONDITION:** Revisit only if EEMO later restricts utilities to a specific facility or supplies a superseding utility-assessment/rate policy.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:

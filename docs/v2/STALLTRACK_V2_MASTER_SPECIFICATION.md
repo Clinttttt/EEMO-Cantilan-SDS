@@ -155,7 +155,11 @@ The Facilities landing uses the tenant-scoped configured facility catalog. Selec
 
 Operations may also list non-facility source operations and governed configurable services. A known but incomplete operation may appear as **Setup Required** for authorized Web users; that state is informational/configurational and cannot create money until all required approved policy is complete.
 
-Transfer Large Cattle currently follows this rule: its operation shell may exist, but Cantilan's exact trigger, rate/calculation basis, accountable instrument, and required regulatory fields remain pending EEMO confirmation. Do not guess them in UI or code.
+Transfer Large Cattle is now understood as an occasional transfer transaction with a corresponding fee/amount. The Head prefers direct approved amount input. Keep the amount policy configurable and preserve the governed-service boundary; Philippine regulatory references may guide optional transfer/ownership/certificate details and OR-oriented presentation until Cantilan supplies a different local instrument/form rule.
+
+Latest EEMO Head correction (2026-09-27): **Tabo uses OR**. **Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions.** **ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate.** ECF/WCF are broader EEMO Utility Operations rather than NPM-owned revenue types. The office Monthly Income sheet remains the report-grouping authority: Market Fees is one sibling income row, not a container for ECF/WCF/Tabo/Fish-Meat/Landing/Transportation/Weight & Measure/Transfer Large Cattle/Ice Plant.
+
+**Latest clarification precedence:** direct Head guidance now supersedes IA-047 for Vegetable/Fruit and current ECF/WCF presentation. IA-047 remains reference-only for unresolved regulatory detail, especially Transfer Large Cattle. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 Do not fabricate Cash Ticket, OR, Accountable Forms, classification, or export workflows on the landing page merely because future architecture reserves them.
 ### Collections
 
@@ -338,13 +342,13 @@ No AccountableDocument, Cash Ticket custody, remittance, WCF, vehicle-class, or 
 | Context-owned export placement | TARGET V2 |
 | Accountable Forms global workspace | FUTURE / HIDDEN |
 | AccountableDocument authority | FUTURE / HIDDEN |
-| Cash Ticket inventory/custody | FUTURE / HIDDEN |
+| Cash Ticket inventory/custody | TARGET V2 backend foundation implemented in Phase 4; UI/release remains gated |
 | Revenue classification cutover | FUTURE / gated |
 | Revenue target setup/attainment | FUTURE / gated |
 | Remittance & Reconciliation | FUTURE; renewed approval required |
-| WCF dual-entry Web/Mobile | FUTURE / gated |
+| WCF dual-entry Web/Mobile | TARGET V2 implemented in Phase 4; production source remains Legacy / gated |
 | Governed configurable service operations | TARGET V2; IA-044. Setup Required is non-financial; Active services use approved policy and explicitly enabled channels. |
-| Transfer Large Cattle financial setup | BUSINESS POLICY PENDING; operation shell/configuration boundary may proceed, but collection remains blocked until trigger, calculation/rate, instrument, and required regulatory details are approved. |
+| Transfer Large Cattle financial setup | TARGET V2; Head confirms transfer + corresponding direct approved amount. Exact Cantilan fee schedule/accountable form and mandatory local regulatory details remain configurable/gated. |
 | Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
 | Arrears qualification and recovered-cash mapping | CONFIRMED; old/lapsed debt and paid Arrears use the dedicated Arrears classification with source traceability |

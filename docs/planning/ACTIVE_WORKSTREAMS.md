@@ -248,7 +248,9 @@ Preserve these distinctions:
 - Delinquency != Arrears
 - WCF = CT
 - ECF = OR
-- Tabo = CT
+- Tabo = OR
+- Vegetable/Fruit full/whole payment = OR; daily transaction = CT
+- ECF/WCF are broader EEMO Utility Operations, not globally NPM-owned
 
 Do not invent unresolved Cantilan rules merely to finish a page.
 

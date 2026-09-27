@@ -82,10 +82,10 @@ The following Cantilan mappings are confirmed for the current V2 design:
 | Market Fees | CT |
 | ECF | OR |
 | WCF | CT |
-| Tabo | CT |
+| Tabo | OR |
 | Fish / Meat Vendor Fee | OR |
 | Transportation / Parking | CT |
-| Vegetable / Fruit Space Rental | CT |
+| Vegetable / Fruit Space Rental | OR or CT (CT predominant) |
 | Landing / Berthing | CT |
 | Weight & Measure / Registration | OR |
 | Penalties / Fines | OR |
@@ -158,6 +158,8 @@ Charges such as Market Fees, ECF, WCF, Fish/Meat Vendor Fees, Landing/Berthing, 
 
 NPM remains a specialized permanent-stall/rental workspace.
 
+**ECF and WCF are broader EEMO utility operations, not NPM-owned revenue types.** An NPM stall may be a utility service subject/context, but the target architecture must not require every ECF/WCF assessment to belong to NPM. NPM may surface contextual utility links for its occupants without becoming the global parent of Utility Operations. Existing NPM-bound `UtilityBill` records remain valid legacy/current source evidence and must not be destructively rewritten merely to generalize the future model.
+
 Vegetable/Fruit Space Rental is separate from permanent NPM Vegetable stalls.
 
 Do not put all market-related revenue inside the NPM stall page merely because the charge occurs around the market.
@@ -209,7 +211,7 @@ The office board shows **Income from Slaughterhouse** as its own visible income 
 
 Confirmed:
 
-- Vegetable/Fruit Space Rental is temporary/open-space revenue and uses CT.
+- Vegetable/Fruit Space Rental is temporary/open-space revenue and may use OR or CT. Full/whole payment uses OR; daily transactions use CT, which remains the common day-to-day instrument.
 - It is not permanent NPM stall tenancy.
 - Fiesta is Aug 15.
 - Araw is Oct 16.
@@ -323,23 +325,57 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 
 Only ask questions that still materially change the domain model, rate calculation, instrument policy, or report mapping.
 
-### Q1 — What exactly belongs to Market Fees?
+### Q1 — Market Fees grouping — RESOLVED FOR REPORT CLASSIFICATION
 
-The office references show Market Fees alongside other Cash Ticket activity.
+The EEMO Head directed StallTrack to use the office Monthly Income 2026 sheet as the grouping reference because the market/terminal income is already itemized there.
 
-**Question:** What specific transactions are included under **Market Fees**? Is **Comfort Room** part of Market Fees or a separate revenue line? Please list the common items.
+Under **Income from Market**, Market Fees is a sibling row alongside General Distribution/ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Transfer Large Cattle, and Ice Plant. These must not be treated as sub-items hidden inside Market Fees.
 
+This resolves the report-classification question. Do not invent additional official Market Fees sub-classifications from UI assumptions. A specific item such as Comfort Room needs separate office evidence before becoming its own official line.
+
+See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthly_income_clarification.md).
 ### Q2 — How are ECF and WCF amounts calculated?
 
-The instrument policy is already confirmed: ECF = OR, WCF = CT.
+**Confirmed latest Head direction (2026-09-27):**
 
-**Question:** For **ECF** and **WCF**, is the amount based on actual meter/consumption, a fixed rate, or an amount taken from a bill/reading? For Fiesta/Araw temporary electricity use, is the same ECF calculation used?
+- **ECF = OR**.
+- For the current Cantilan workflow, the Head prefers **direct approved amount entry** for ECF rather than requiring meter computation in the collection screen.
+- **WCF = Cash Ticket**.
+- The Head stated **WCF = PHP 10** for the current office workflow.
+- "Direct amount" never means arbitrary collector authority: the amount/rate must come from approved office policy/configuration and should remain effective/configurable rather than hard-coded into UI markup.
+- ECF/WCF remain separate revenue/utility operations from stall rent.
+- Fiesta/Araw temporary electricity may still carry its own event/context detail; do not silently assume it is an NPM stall utility.
+
+This direct Cantilan clarification supersedes the earlier IA-047 interim metered/shared/fixed presentation hypothesis for the current demo/target workflow. Keep the underlying architecture flexible enough to preserve approved source/basis evidence if EEMO later supplies a meter/bill/rate schedule.
+
+See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+
+### Q2B — Vegetable/Fruit OR-versus-CT selection rule
+
+**Confirmed latest Head rule (2026-09-27):**
+
+- when the Vegetable/Fruit Space Rental is paid **in full / whole ("buo")**, use **Official Receipt (OR)**;
+- **daily transactions/collections** use **Cash Tickets (CT)**;
+- CT therefore remains the common day-to-day instrument;
+- the collector must not arbitrarily choose OR or CT outside that business context.
+
+This closes the former IA-046 decision gate and supersedes the IA-047 presentation-only regular/fixed-versus-transient/temporary inference.
+
+See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 
 ### Q3 — Transfer Large Cattle
 
-**Question:** What activity triggers **Transfer Large Cattle**, how is the fee calculated, and does it use **OR or Cash Ticket**? Confirm any mandatory certificate, ownership, animal/reference, approval, or regulatory fields that must be captured.
+**Latest Head direction (2026-09-27):** the operation is a **transfer** with a corresponding amount/fee, it is only occasionally used by the office, and the practical StallTrack workflow may use **direct approved amount input**.
 
-**System-handling rule already resolved:** StallTrack uses the governed configurable-service boundary in IA-044 / ADR-006 while these Cantilan-specific facts are pending. The Operations directory and transaction-shell UX may proceed with **Setup Required**, but no financial Collection may be posted until the required approved configuration is complete. Do not guess an amount or receipt instrument.
+System handling remains governed by IA-044 / ADR-006:
+
+- the operation may be exposed as a specialized/configurable transfer workflow;
+- the amount must come from approved/configured office policy, never arbitrary collector input;
+- Philippine regulatory references may guide optional ownership, animal, certificate, transferor/transferee and verification fields;
+- OR-oriented presentation from Philippine regulatory precedent may be retained until Cantilan supplies a different accountable-instrument rule;
+- exact Cantilan fee schedule, accountable form/reference, and mandatory local attestations remain configurable rather than hard-coded.
+
+See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md) and [Interim Philippine Reference Basis](../evidence/2026-09-27_interim_philippine_reference_basis.md).
 
 ## 17. Deferred questions that do not block current V2 work
 
@@ -353,4 +389,4 @@ Do not distract staff with these during the presentation sprint unless they beco
 
 ---
 
-This rulebook should be updated immediately whenever EEMO answers one of the three open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+This rulebook should be updated immediately whenever EEMO answers one of the remaining open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.

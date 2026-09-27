@@ -83,19 +83,28 @@ NPM retains DailyCollection, RentGoal/PureDays, closures, absences, month-end ad
 
 This is the confirmed Cantilan tenant policy, not a universal rule for every municipality:
 
-| Official Receipt | Cash Ticket |
-|---|---|
-| Permanent stall and applicable permanent-rental charges | Market Fees |
-| ECF | Tabo |
-| Fish/Meat Vendor Fee | Transportation/Parking |
-| Weight & Measure | Vegetable/Fruit Space Rental |
-| Penalties/Fines | WCF |
-| Kanmanggay / Space Rental | Landing/Berthing |
-| Lot Rental (Fiesta / Araw) |  |
-| Current approved slaughterhouse OR charges |  |
+| Revenue / service | Confirmed allowed instrument | Notes |
+|---|---|---|
+| Permanent stall and applicable permanent-rental charges | OR | |
+| Market Fees | CT | |
+| ECF | OR | |
+| WCF | CT | |
+| Tabo | OR | Supersedes the earlier CT working assumption. |
+| Fish/Meat Vendor Fee | OR | |
+| Transportation/Parking | CT | |
+| Vegetable/Fruit Space Rental | OR or CT | Full/whole payment uses OR; daily transactions use CT. CT remains the common day-to-day instrument. |
+| Landing/Berthing | CT | |
+| Weight & Measure / Registration | OR | |
+| Penalties/Fines | OR | |
+| Kanmanggay / Space Rental | OR | |
+| Lot Rental (Fiesta / Araw) | OR | |
+| Current approved slaughterhouse charges | OR | |
 
-**Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket.** One OR may contain multiple compatible itemized lines for the same collection/document context, such as stall rent, ECF and a penalty. OR and Cash Ticket lines cannot be mixed on one accountable document. This is the confirmed Cantilan mapping, not a universal LGU rule; additional Cash Ticket categories require explicit approval and tenant policy remains effective-dated.
+**Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket. Tabo uses Official Receipt. Vegetable/Fruit Space Rental is dual-instrument: full/whole payment uses OR and daily transactions use CT.** One OR may contain multiple compatible itemized lines for the same collection/document context, such as stall rent, ECF and a penalty. OR and Cash Ticket lines cannot be mixed on one accountable document. When a classification permits more than one instrument, one instrument must still be resolved explicitly for the posted collection/document; the system must not mix OR and CT lines in one accountable document.
 
+The existing singular-instrument implementation is therefore insufficient as the final target for every classification. Vegetable/Fruit policy must support contextual instrument resolution while preserving effective dating and immutable posted-document meaning: full/whole payment resolves to OR; daily transaction resolves to CT.
+
+**IA-047 precedence note:** direct 2026-09-27 Head clarification supersedes the interim Vegetable/Fruit and ECF/WCF presentation assumptions. IA-047 remains reference-only for unresolved regulatory detail such as Transfer Large Cattle.
 ### Other confirmed distinctions
 
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
@@ -103,7 +112,7 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 - Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is the current Cantilan V2 planning basis: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively. Revisit only if EEMO supplies a superseding schedule.
 - BBQ Stand may roll up under the broader Market operation for operational hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**, charged monthly per space, and uses OR. Lot Rental is charged per lot and uses OR. Market hierarchy does not by itself determine BBQ's final semantic revenue code; BBQ is not thereby `MARKET_FEES`.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
-- The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications, may be collected separately from rent, and retain their respective Cantilan OR/CT policy.
+- The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications and broader EEMO Utility Operations, may be collected separately from rent, and retain their respective Cantilan OR/CT policy. They are not globally owned by NPM merely because legacy UtilityBill currently points to a Stall.
 - Payor identity may be optional for appropriate transactional Cash Ticket collections.
 - Accountable-form inventory and annual revenue targets are part of the target system. EEMO Monthly Income reference material already shows Annual Target, monthly actuals, Total/YTD and Percentage, establishing office precedent for target reporting; target source, approval/governance, revision policy, period and classification/facility scope remain unresolved.
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
@@ -134,9 +143,9 @@ These are conceptual responsibilities, not an EF schema prescription. Tenant-own
 | PenaltyDefinition | Approved penalty type, applicability, rate/amount rule and effective dates. Collectors select an approved charge; they do not invent financial meaning or price. |
 | SlaughterApprovedAddon | Approved configurable add-on and effective rate, selected in addition to the standard package. Whether each component is a separate official classification remains a decision gate. |
 | RevenueTarget | Tenant target amount and period linked to an approved classification/group, with optional facility scope where policy requires it. Office Monthly Income material establishes Annual Target/monthly actual/YTD/% precedent. Revisions must be attributable and historically explainable; authoritative source, target calendar/fiscal year, approval and revision governance remain unresolved. |
-| Temporary/Event Rental | Separate activity for event/lot/open-space rental with date/event, location/lot, renter, optional area/supporting details and configured charges. It is not a permanent Stall/Contract. Cantilan Lot Rental uses OR; Kanmanggay Space Rental uses OR, while Vegetable/Fruit Space Rental remains CT. |
+| Temporary/Event Rental | Separate activity for event/lot/open-space rental with date/event, location/lot, renter, optional area/supporting details and configured charges. It is not a permanent Stall/Contract. Cantilan Lot Rental uses OR; Kanmanggay Space Rental uses OR; Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. |
 
-**Governed configurable-source rule:** when an LGU service is structurally simple, prefer controlled tenant configuration over guessed hard-coded rules. This flexibility never authorizes collectors to create arbitrary financial lines, set ad hoc rates, or choose OR/CT during collection. Incomplete services remain Setup Required and non-collectible. Collector Mobile exposes only Active, Mobile-enabled, authorized operations and records transaction facts against approved policy. If a service later requires specialized approval, regulatory, assessment, lifecycle, or reconciliation behavior, promote it to a specialized source adapter/domain without rewriting historical Collections. Transfer Large Cattle currently follows this boundary while its Cantilan-specific trigger, fee basis and instrument remain pending EEMO confirmation. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
+**Governed configurable-source rule:** when an LGU service is structurally simple, prefer controlled tenant configuration over guessed hard-coded rules. This flexibility never authorizes collectors to create arbitrary financial lines, set ad hoc rates, or choose OR/CT during collection. Incomplete services remain Setup Required and non-collectible. Collector Mobile exposes only Active, Mobile-enabled, authorized operations and records transaction facts against approved policy. If a service later requires specialized approval, regulatory, assessment, lifecycle, or reconciliation behavior, promote it to a specialized source adapter/domain without rewriting historical Collections. Transfer Large Cattle now has direct Head guidance for an occasional transfer transaction with a corresponding direct approved amount; exact Cantilan fee schedule/form/instrument detail remains configurable. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 Common lifecycle rules: every tenant-owned catalog, policy and transaction is tenant-scoped and included in backup/restore. Tenant-scoped uniqueness is enforced for identities and accountable numbers. Rates and allowed instruments are effective-dated where stated; posted money and issued-document meaning remain reproducible after later configuration changes. Posted collections, lines, allocations and issued documents are retained as audit evidence; corrections append reversal/replacement history. Mutable setup is audited and deactivated or versioned rather than deleted when referenced. Exact soft-delete mechanics remain an implementation choice, but soft deletion must not release an issued number or erase financial history.
 
 ## 6. Pass 2.5 hardened rules
@@ -166,8 +175,8 @@ Existing specialized module rows remain historical evidence. Additive adapters l
 |---|---|
 | PaymentRecord | Remains the monthly obligation/status projection during transition. It is not one receipt. Existing rows and OR values remain historical evidence. After cutover, new money-received history comes from Collection and allocations; do not destructively reconstruct installments that were never stored. |
 | DailyCollection | Remains authoritative for NPM daily marks, amount, business date, absence and RentGoal month-end adjustment. A later adapter may link its captured money to Collection/classified lines without moving month calculation into the generic ledger. |
-| UtilityBill | Remains authoritative for utility assessment/balance. New payment events can link to it. Existing utility totals or receipt fields do not justify invented installment detail. |
-| TpmAttendance | Remains the Tabo-an market-day activity/source. Future collections classify the resulting revenue and use the tenant's configured Cash Ticket policy. |
+| UtilityBill | Remains authoritative for the existing NPM/stall-bound utility assessment/balance records. New payment events can link to it. Treat it as a legacy/current specialized source adapter, not proof that all future ECF/WCF must belong to NPM. Future utility subjects may require an additive generalized source/context model. Existing utility totals or receipt fields do not justify invented installment detail. |
+| TpmAttendance | Remains the Tabo-an market-day activity/source. Future collections classify the resulting revenue and use the tenant's configured Official Receipt policy. |
 | TrmTrip | Remains historical trip activity. Future transport/parking design moves toward vehicle-class, effective-rate and Cash Ticket semantics. Do not infer a historical vehicle class or turn an old OR value into a CT serial. |
 | SlaughterTransaction | Remains the per-animal activity and preserves known package breakdown. Future collection/document links expose approved classifications/add-ons without replacing the activity model. |
 | OnlinePaymentTransaction | Remains the payment-provider lifecycle and idempotency record. A settled provider payment can produce/link to Collection; official document issuance may follow asynchronously. The provider record is not itself an OR/CT. |
@@ -202,7 +211,7 @@ Production migration is additive. Do not invent history or destructively replace
 | PaymentRecord | Keep as historical obligation/state evidence. A cumulative amount and one OR cannot reconstruct multiple installment events. Mark imported aggregate detail as unknown. |
 | DailyCollection | Preserve date, paid/absent and known adjustment fields. Create classified detail only where mapping is deterministic; do not fabricate OR lines or move NPM arithmetic. |
 | UtilityBill | Preserve the bill and known totals. Repeated partial collections cannot be recreated unless separately recorded in trustworthy evidence. |
-| TpmAttendance | Preserve market-day activity and any known legacy number. Do not invent a Cash Ticket serial where no such inventory existed. |
+| TpmAttendance | Preserve market-day activity and any known legacy number. Do not invent an accountable-document serial where no such trustworthy historical inventory/evidence existed. |
 | TrmTrip | Preserve trip, amount and known fields. Vehicle class is unknown unless explicitly stored in reliable source data. |
 | SlaughterTransaction | Preserve activity and recorded component breakdown. Do not assume historical breakdown equals the effective tenant-resolved amount or decide unapproved classification detail. |
 | OnlinePaymentTransaction | Preserve provider identifiers, settlement state and existing links. Reconcile to collections only through deterministic relations; do not infer an absent OR. |
@@ -223,7 +232,7 @@ The approved top-level workspaces are:
 7. Reports
 8. Administration
 
-Operations groups work by operation (Public Market, rental facilities, slaughterhouse, transportation/parking and other enterprises). Public Market keeps permanent stalls distinct from market collections, temporary space, Tabo, utilities and vendor charges.
+Operations groups work by operation (configured facilities, market services, space operations, Utility Operations, slaughterhouse, transportation/parking and other enterprises). Public Market/NPM permanent stalls remain distinct from market collections, temporary space, Tabo, utilities and vendor charges. ECF/WCF may be linked contextually to an NPM stall, another facility/space, or an event/service context without making NPM their global parent.
 
 Collections provides Today, History, a general Record Collection entry, Awaiting Document and Corrections/Reversals. Specialized collection should normally begin from its operation/account/activity and open a context-aware capture flow; the general entry progressively asks for context and is not a form containing every possible field.
 

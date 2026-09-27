@@ -42,7 +42,7 @@ An Accountable Document for CT-compatible revenue lines. Cash Ticket issue/accou
 The sum of the Collection Lines represented by the active accountable document.
 
 ## Instrument Compatibility
-The rule that determines whether a Revenue Classification belongs to OR or Cash Ticket for the applicable tenant/date. Weight & Measure is OR for the confirmed Cantilan policy; WCF is CT.
+The rule that determines whether a Revenue Classification belongs to OR or Cash Ticket for the applicable tenant/date. Latest Cantilan clarification: Weight & Measure = OR, WCF = CT, Tabo = OR, and Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. IA-046 is therefore resolved. A posted Collection still resolves to exactly one instrument family and never mixes OR and CT lines on one accountable document.
 
 ## Fish/Meat Vendor Fee
 A reportable revenue classification distinct from Weight & Measure when the office records them separately.
@@ -64,6 +64,9 @@ A user-facing visit/work session that may result in more than one Collection whe
 
 ## Explicit Allocation
 A visible user-confirmed allocation of a payment amount to specific obligations or periods. StallTrack may suggest an allocation, but it must not silently decide the final allocation without confirmed policy.
+
+## Utility Operation Scope
+ECF and WCF are broader EEMO Utility Operations, not globally owned by the NPM facility. An NPM stall may be one utility service subject/context, but NPM must not be the architectural parent of every ECF/WCF assessment. Existing NPM-bound UtilityBill rows remain valid legacy/current source evidence. Target generalization must be additive and preserve those records rather than rewriting them.
 
 ## Partial Utility Payment
 A valid partial settlement of an ECF or WCF obligation that leaves the exact remaining balance outstanding.
@@ -93,7 +96,7 @@ A Collection Line must map to an approved Revenue Classification/charge definiti
 A tenant-owned operational service whose structurally simple financial policy is defined through approved configuration rather than hard-coded guesswork. Required configuration may include stable service identity, Revenue Classification, effective-dated OR/CT policy, calculation basis/rate, Payor requirement, operational fields, active state, and allowed channels. It does not allow free-form collector-created charges. See [ADR-006](docs/decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 
 ## Setup Required Operation
-A known operation that may appear in authorized Web directory/setup surfaces while required financial policy is incomplete. It cannot create a financial Collection until the required configuration is valid and active. Transfer Large Cattle currently uses this handling while Cantilan's exact trigger, fee basis and instrument remain pending.
+A known operation that may appear in authorized Web directory/setup surfaces while required financial policy is incomplete. It cannot create a financial Collection until the required configuration is valid and active. Transfer Large Cattle may use this state until its Cantilan fee/accountable-form configuration is complete; the Head has already confirmed the operation is a transfer with a corresponding direct approved amount.
 
 ## Mobile Configured Operation
 A focused Collector Mobile workflow exposed only when the operation is Active, Mobile-enabled, authorized/assigned to the collector, and compatible with accountable-document custody. The collector supplies transaction facts; the specialized source or approved configuration supplies classification, instrument, rate/calculation policy, and document requirements.
