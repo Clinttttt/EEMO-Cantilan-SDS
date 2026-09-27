@@ -325,6 +325,8 @@ Do not expose Setup Required services as collectible actions to ordinary collect
 No AccountableDocument, Cash Ticket custody, remittance, WCF, vehicle-class, or configurable-service collection workflow is implied merely by a navigation change. Activation still requires its approved backend authority and rollout gate. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 ## 16. Capability status matrix
 
+Current implementation-phase status is tracked in [`docs/planning/STALLTRACK_V2_PHASE_STATUS.md`](../planning/STALLTRACK_V2_PHASE_STATUS.md). That phase record distinguishes implemented-but-not-activated capability from production cutover authority.
+
 | Capability | Status |
 |---|---|
 | Existing specialized facility collection flows | CURRENT |
@@ -450,3 +452,5 @@ If those answers are unclear, stop and resolve the ambiguity before implementati
 ---
 
 This file is the orientation layer for StallTrack V2. Detailed domain rules continue to live in their canonical documents; do not duplicate or silently fork them here.
+
+[executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]
