@@ -81,6 +81,7 @@ Before changing V2 code, read:
 
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
 - `planning/STALLTRACK_V2_PHASE_STATUS.md` — current Phase 1–5A implementation history, Phase 5B release gate, and presentation-safe UI completion track. Use this for phase status; it does not override business/decision authority.
+- `planning/SOL_HIGH_UI_AUDIT_BASELINE.md` — preserved read-only Sol High Web/Mobile audit findings plus the later Head-rule deltas that supersede stale audit assumptions. Use this as the UI completion handoff, not as business authority.
 - `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
 - `planning/PHASE4_WCF_WRITER_READINESS.md` — current UtilityBill Water/WCF writers, compatibility readers, Cash Ticket custody, and scoped cutover prerequisites; inventory only, not activation authority.
 - `planning/PHASE5A_SETTLEMENT_CUTOVER_CONTROL_PLANE.md` — Phase 5A source-scoped readiness evidence, writer/device/payment/document/report gates, and the test-only freeze/activation boundary; not authority to convert a real source.
@@ -121,5 +122,7 @@ The documentation must preserve these distinctions:
 A skill answers **how to perform a class of work**. A canonical document answers **what StallTrack is, what a rule means, or what constraints apply**.
 
 Skills never override this documentation hierarchy.
+
+[executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]
 
 [executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]
