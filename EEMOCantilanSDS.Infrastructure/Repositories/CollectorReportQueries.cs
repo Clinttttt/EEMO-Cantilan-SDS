@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -156,19 +157,71 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             .Select(b => new
             {
                 b.ElecPreviousReading, b.ElecCurrentReading, b.ElecRatePerKwh, b.ElecStatus, b.ElecPartialAmount,
-                b.WaterPreviousReading, b.WaterCurrentReading, b.WaterRatePerCubicMeter, b.WaterStatus, b.WaterPartialAmount
+                b.WaterPreviousReading, b.WaterCurrentReading, b.WaterRatePerCubicMeter, b.WaterStatus, b.WaterPartialAmount,
+                b.WaterSettlementAuthorityState
             })
             .ToListAsync(ct);
 
-        decimal utilityBilled = 0m, utilityCollected = 0m;
+        decimal utilityBilled = 0m, utilityCollected = 0m, utilityOutstanding = 0m;
         foreach (var b in bills)
         {
             var elecCharge = Math.Max(0m, b.ElecCurrentReading - b.ElecPreviousReading) * b.ElecRatePerKwh;
             var waterCharge = Math.Max(0m, b.WaterCurrentReading - b.WaterPreviousReading) * b.WaterRatePerCubicMeter;
+            var elecPaid = Collected(b.ElecStatus, elecCharge, b.ElecPartialAmount);
+            var waterPaid = Collected(b.WaterStatus, waterCharge, b.WaterPartialAmount);
             utilityBilled += elecCharge + waterCharge;
-            utilityCollected += Collected(b.ElecStatus, elecCharge, b.ElecPartialAmount)
-                             + Collected(b.WaterStatus, waterCharge, b.WaterPartialAmount);
+            utilityCollected += elecPaid;
+            utilityOutstanding += Math.Max(0m, elecCharge - elecPaid) + Math.Max(0m, waterCharge - waterPaid);
+            // Legacy cumulative fields remain a compatibility projection after source cutover.
+            // Canonical WCF receipts are represented in the receipt lines below, once per CT.
+            if (b.WaterSettlementAuthorityState != SettlementAuthority.Canonical)
+                utilityCollected += waterPaid;
         }
+
+        // Canonical WCF is a real collector receipt, selected by its business date. Its UtilityBill projection above is
+        // used only to describe outstanding position and is excluded from utility cash so it cannot duplicate the CT.
+        var businessDateFrom = from;
+        var businessDateTo = to;
+        var canonicalWcf = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join bill in context.UtilityBills.AsNoTracking() on line.SourceId equals bill.Id
+            join stall in context.Stalls.AsNoTracking() on bill.StallId equals stall.Id
+            join facility in context.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
+            join classification in context.RevenueClassifications.AsNoTracking() on line.RevenueClassificationId equals classification.Id
+            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            where (collection.CollectorId == collectorId
+                && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
+                && line.SourceKind == CollectionSourceKind.UtilityBill
+                && line.SourcePart == CollectionSourcePart.Water
+                && classification.SemanticCode == RevenueClassificationCodes.Wcf
+                && bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical
+                && document.InstrumentType == RevenueInstrumentType.CashTicket)
+            select new
+            {
+                DocumentNumber = document.DocumentNumber,
+                collection.RecordedAtUtc,
+                collection.BusinessDate,
+                PayorName = collection.PayerName,
+                stall.StallNo,
+                FacilityCode = facility.Code,
+                bill.BillingYear,
+                bill.BillingMonth,
+                line.Amount
+            })
+            .ToListAsync(ct);
+
+        lines.AddRange(canonicalWcf.Select(x => new CollectorCollectionLine(
+            x.DocumentNumber,
+            x.RecordedAtUtc,
+            string.IsNullOrWhiteSpace(x.PayorName) ? "Unidentified payor" : x.PayorName,
+            x.StallNo,
+            x.FacilityCode,
+            $"Water Consumption Fee / WCF · {new DateOnly(x.BillingYear, x.BillingMonth, 1):MMM yyyy}",
+            x.Amount,
+            null,
+            new DateOnly(x.BillingYear, x.BillingMonth, 1),
+            x.BusinessDate)));
 
         return new CollectorCollectionsData(
             lines.OrderBy(l => l.TakenAtUtc).ToList(),
@@ -176,7 +229,8 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             officeRecorded,
             officeReceipts,
             utilityBilled,
-            utilityCollected);
+            utilityCollected,
+            utilityOutstanding);
 
         static decimal Collected(PaymentStatus status, decimal charge, decimal partial) => status switch
         {

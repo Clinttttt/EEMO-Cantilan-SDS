@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,8 @@ public partial class FacilityReportsRepository
                 b.WaterCurrentReading,
                 b.WaterRatePerCubicMeter,
                 b.WaterStatus,
-                b.WaterPartialAmount
+                b.WaterPartialAmount,
+                b.WaterSettlementAuthorityState
             })
             .ToListAsync(ct);
 
@@ -41,9 +43,34 @@ public partial class FacilityReportsRepository
             var (waterCharge, waterPaid) = UtilityPosition(b.WaterCurrentReading, b.WaterPreviousReading, b.WaterRatePerCubicMeter, b.WaterStatus, b.WaterPartialAmount);
 
             elecCollected += elecPaid;
-            waterCollected += waterPaid;
+            // Once Water is Canonical, these fields are a source-position projection, not a second cash event.
+            if (b.WaterSettlementAuthorityState != SettlementAuthority.Canonical)
+                waterCollected += waterPaid;
             outstanding += Math.Max(0m, elecCharge - elecPaid) + Math.Max(0m, waterCharge - waterPaid);
         }
+
+        // Canonical WCF cash follows Collection.BusinessDate, independently of the UtilityBill billing period.
+        // This NPM facility metric counts only NPM water sources; the operation report reads the full Water stream.
+        var start = month is int selectedMonth
+            ? new DateOnly(year, selectedMonth, 1)
+            : new DateOnly(year, 1, 1);
+        var end = month is int selected
+            ? new DateOnly(year, selected, DateTime.DaysInMonth(year, selected))
+            : new DateOnly(year, 12, 31);
+        var canonicalWaterCollected = await (
+            from line in context.CollectionLines.AsNoTracking()
+            join collection in context.Collections.AsNoTracking() on line.CollectionId equals collection.Id
+            join bill in context.UtilityBills.AsNoTracking() on line.SourceId equals bill.Id
+            join classification in context.RevenueClassifications.AsNoTracking() on line.RevenueClassificationId equals classification.Id
+            where collection.BusinessDate >= start && collection.BusinessDate <= end
+                && line.SourceKind == CollectionSourceKind.UtilityBill
+                && line.SourcePart == CollectionSourcePart.Water
+                && classification.SemanticCode == RevenueClassificationCodes.Wcf
+                && bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical
+                && bill.Stall!.Facility!.Code == FacilityCode.NPM
+            select (decimal?)line.Amount
+        ).SumAsync(ct) ?? 0m;
+        waterCollected += canonicalWaterCollected;
 
         return (elecCollected, waterCollected, outstanding);
     }

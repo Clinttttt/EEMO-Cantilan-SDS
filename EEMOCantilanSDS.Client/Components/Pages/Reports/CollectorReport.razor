@@ -221,7 +221,7 @@
                         <thead>
                             <tr class="cr-gap-row"><td colspan="7"></td></tr>
                             <tr>
-                                <th>OR No.</th>
+                                <th>Document No.</th>
                                 <th>Date &amp; Time</th>
                                 <th>Payor</th>
                                 <th>Stall / Unit</th>
@@ -238,8 +238,18 @@
                             @foreach (var t in r.Receipts)
                             {
                                 <tr>
-                                    <td>@(t.OrNumber == "—" ? "—" : "#" + t.OrNumber)</td>
-                                    <td>@t.TakenAt.ToString("MMM d, yyyy · hh:mm tt")</td>
+                                    <td>@(t.DocumentNumber == "—" ? "—" : "#" + t.DocumentNumber)</td>
+                                    <td>
+                                        @if (t.BusinessDate is { } businessDate)
+                                        {
+                                            <span>@businessDate.ToString("MMM d, yyyy")</span>
+                                            <small class="d-block text-muted">Recorded @t.TakenAt.ToString("MMM d, yyyy · hh:mm tt")</small>
+                                        }
+                                        else
+                                        {
+                                            @t.TakenAt.ToString("MMM d, yyyy · hh:mm tt")
+                                        }
+                                    </td>
                                     <td>@t.PayorName</td>
                                     <td>@(string.IsNullOrWhiteSpace(t.StallNo) ? "—" : t.StallNo)</td>
                                     <td>@FacilityCatalog.ShortNameOf(t.Facility)</td>
@@ -293,11 +303,11 @@
                 </div>
             }
 
-            @if (r.UtilityBilled > 0m || r.UtilityCollected > 0m)
+            @if (r.UtilityBilled > 0m || r.UtilityCollected > 0m || r.UtilityOutstanding > 0m)
             {
                 <!-- ══ A meter charge is not a stall or daily fee, and the office banks it separately ══ -->
                 <div class="print-section-block">
-                    <div class="print-section-heading">Electricity and Water Collected</div>
+                <div class="print-section-heading">Electricity and Water Source Position</div>
                     <div class="print-table-wrap">
                         <table class="print-status-table">
                             <thead>
@@ -305,8 +315,8 @@
                                 <tr>
                                     <th>Charge</th>
                                     <th class="cr-num">Billed</th>
-                                    <th class="cr-num">Collected</th>
-                                    <th class="cr-num">Balance</th>
+                                    <th class="cr-num">Legacy Collected</th>
+                                    <th class="cr-num">Outstanding</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -314,14 +324,15 @@
                                     <td>Electricity and water</td>
                                     <td class="cr-num">&#8369;@r.UtilityBilled.ToString("N2")</td>
                                     <td class="cr-num">&#8369;@r.UtilityCollected.ToString("N2")</td>
-                                    <td class="cr-num">&#8369;@((r.UtilityBilled - r.UtilityCollected).ToString("N2"))</td>
+                                    <td class="cr-num">&#8369;@r.UtilityOutstanding.ToString("N2")</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <p class="cr-note">
-                        Banked separately as additional income. These utility figures are outside the collections recorded
-                        for this collector above.
+                        Legacy utility projection figures are outside the collections recorded for this collector above.
+                        Canonical WCF Cash Ticket receipts appear in the receipt listing above; their Water compatibility
+                        projection is excluded here.
                     </p>
                 </div>
             }

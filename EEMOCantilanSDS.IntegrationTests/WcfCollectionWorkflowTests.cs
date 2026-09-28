@@ -13,6 +13,7 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.IntegrationTests;
@@ -138,6 +139,78 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal("Posted", row.Disposition);
         Assert.Equal(seed.CtNumber, row.DocumentNumber);
         Assert.Equal(1, row.ItemCount);
+    }
+
+    [SkippableFact]
+    public async Task CanonicalWcfReportsOnceByBusinessDateWithoutCountingWaterProjectionAsCash()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
+        Assert.NotNull(seed.CollectorId);
+        await using var context = db.CreateContext(seed.TenantId);
+
+        var bill = await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
+        // The source row keeps its compatibility projection, but the collector report must count its CT from Collection.
+        // Retain collector attribution on the source row to prove that it cannot duplicate the canonical receipt.
+        bill.RecordPayment(bill.ElecORNumber, bill.WaterORNumber, seed.CollectorId,
+            bill.ElecStatus, bill.ElecPartialAmount, bill.WaterStatus, bill.WaterPartialAmount,
+            updatedBy: "report-test");
+
+        // A separate Legacy Water source remains on the existing projection path in the same report.
+        var legacyBill = UtilityBill.Create(
+            (await context.UtilityBills.Where(x => x.Id == seed.BillId).Select(x => x.StallId).SingleAsync()),
+            seed.Period.AddMonths(-1).Year, seed.Period.AddMonths(-1).Month,
+            0m, 0m, 10m, 0m, 4m, 5m, "report-test");
+        legacyBill.RecordPayment(null, "LEGACY-AUG-W-001", seed.CollectorId,
+            PaymentStatus.Unpaid, null, PaymentStatus.Partial, 3m, updatedBy: "report-test");
+        context.UtilityBills.Add(legacyBill);
+        await context.SaveChangesAsync();
+
+        var businessDate = seed.Period.AddDays(-1);
+        var workflow = Workflow(context, seed, "Collector");
+        var quote = Assert.Single((await workflow.GetObligationsAsync(seed.Period.Year, seed.Period.Month)).Value!,
+            x => x.UtilityBillId == seed.BillId);
+        var posted = await workflow.PostMobileAsync(new WcfCollectionPostRequest(
+            1, Guid.NewGuid(), businessDate, seed.BillId, 5m, quote.WaterSourceVersion,
+            seed.CtDocumentId, seed.CtNumber, DateTime.UtcNow.AddMinutes(-1)));
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(businessDate, posted.Value!.BusinessDate);
+
+        var reportQuery = new CollectorReportQueries(context);
+        var report = await reportQuery.GetCollectionsAsync(seed.CollectorId.Value, businessDate, PhilippineTime.Today);
+        var receipt = Assert.Single(report.Lines);
+        Assert.Equal(seed.CtNumber, receipt.DocumentNumber);
+        Assert.Equal(5m, receipt.Amount);
+        Assert.Equal(businessDate, receipt.BusinessDate);
+        Assert.Equal(seed.Period, receipt.BilledMonth);
+        Assert.Contains("WCF", receipt.Nature, StringComparison.Ordinal);
+        Assert.Equal(13m, report.UtilityCollected); // ECF legacy 10 + separate Legacy Water 3; canonical Water 12 excluded.
+        Assert.Equal(120m, report.UtilityBilled);
+        Assert.Equal(95m, report.UtilityOutstanding);
+
+        var laterOnly = await reportQuery.GetCollectionsAsync(seed.CollectorId.Value,
+            seed.Period, PhilippineTime.Today);
+        Assert.Empty(laterOnly.Lines); // posting timestamp and billing month do not move an Aug 31 cash event into September.
+
+        var facilityReports = new FacilityReportsRepository(context);
+        var augustTotals = await facilityReports.GetNpmUtilityTotalsAsync(businessDate.Year, businessDate.Month);
+        Assert.Equal(8m, augustTotals.WaterCollected); // Legacy Water 3 + canonical WCF line 5, exactly once.
+        Assert.Equal(17m, augustTotals.Outstanding);
+        var septemberTotals = await facilityReports.GetNpmUtilityTotalsAsync(seed.Period.Year, seed.Period.Month);
+        Assert.Equal(10m, septemberTotals.ElecCollected); // unrelated Electricity projection remains on its existing path.
+        Assert.Equal(0m, septemberTotals.WaterCollected); // WCF cash belongs to its Collection.BusinessDate in August.
+        Assert.Equal(78m, septemberTotals.Outstanding); // source position still includes the canonical Water balance.
+
+        Assert.Single(await context.Collections.ToListAsync());
+        Assert.Single(await context.CollectionLines.ToListAsync());
+        var activity = Assert.Single((await workflow.GetActivityAsync(businessDate, businessDate)).Value!);
+        Assert.Equal(posted.Value.CollectionId, activity.CollectionId);
+        Assert.Equal(5m, activity.Lines.Sum(x => x.Amount));
+        Assert.Contains(activity.Lines, x => x.ClassificationName == "Water Consumption Fee");
+        var canonicalBill = await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
+        Assert.Equal(12m, canonicalBill.WaterAmountPaid); // balance projection remains correct, but is not another receipt.
+        Assert.Equal(8m, canonicalBill.WaterBalanceDue);
     }
 
     [SkippableFact]

@@ -114,6 +114,26 @@ public class GetReportOfCollectionsQueryHandlerTests
     }
 
     [Fact]
+    public async Task CanonicalReceiptUsesBusinessDateAndGenericDocumentNumber()
+    {
+        var businessDate = Aug31;
+        var recordedAt = PhilippineTime.DayUtcRange(new DateOnly(2026, 9, 1)).StartUtc.AddHours(11);
+        var line = new CollectorCollectionLine(
+            "CT-004126", recordedAt, "Maria Santos", "WCF-01", FacilityCode.NPM,
+            "Water Consumption Fee / WCF · Sep 2026", 54m, null, null, businessDate);
+
+        var report = await Run(new[] { line });
+
+        Assert.Equal(1, report.ReceiptsIssued);
+        Assert.Equal(54m, report.TotalCollected);
+        Assert.Equal(businessDate, Assert.Single(report.Days).Day);
+        var receipt = Assert.Single(report.Receipts);
+        Assert.Equal("CT-004126", receipt.DocumentNumber);
+        Assert.Equal(businessDate, receipt.BusinessDate);
+        Assert.Equal(PhilippineTime.ToPhilippineTime(recordedAt), receipt.TakenAt);
+    }
+
+    [Fact]
     public async Task APeriodThatEndsBeforeItBeginsIsRefused()
     {
         var handler = Handler(Array.Empty<CollectorCollectionLine>());

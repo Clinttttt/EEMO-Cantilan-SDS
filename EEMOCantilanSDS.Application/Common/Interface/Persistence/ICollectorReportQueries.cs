@@ -6,10 +6,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 /// The receipt-level record behind the Report of Collections: what one collector took, day by day, in the period.
 ///
 /// <para>
-/// Every line is selected on WHEN THE MONEY WAS TAKEN, the same basis as the collector's own feed and as a remittance, so
-/// the document, the app and the cash reconciliation all describe the same event. Amounts are fee money only, the office
-/// banking electricity and water separately; those are returned as their own totals so the sheet can state them without
-/// mixing them into a collector's fee accountability.
+/// Every line is selected on the collection's business date when that canonical date exists; legacy rows retain their
+/// established source-date fallback. Canonical WCF Cash Tickets are receipt lines. Legacy utility source projections remain
+/// separate, while canonical Water projections contribute only to outstanding position.
 /// </para>
 /// </summary>
 public interface ICollectorReportQueries
@@ -28,15 +27,16 @@ public sealed record CollectorCollectionsData(
     decimal OfficeRecorded,
     int OfficeReceipts,
     decimal UtilityBilled,
-    decimal UtilityCollected);
+    decimal UtilityCollected,
+    decimal UtilityOutstanding = 0m);
 
 /// <param name="FeeDay">The day an NPM daily fee answers for, which is not the day it was taken when arrears are settled.</param>
 /// <param name="BilledMonth">
-/// The first day of the month a rental answers for. Null for anything not billed monthly. Held as a date rather than a
-/// label so the sheet can tell a rental paid within its own month from one paid after it, which a label could not.
+/// The first day of the billing month answered for by a monthly source. Null for non-monthly sources. Held as a date rather
+/// than a label so the sheet can compare the obligation period with the cash business date.
 /// </param>
 public sealed record CollectorCollectionLine(
-    string? OrNumber,
+    string? DocumentNumber,
     DateTime TakenAtUtc,
     string PayorName,
     string? StallNo,
@@ -44,7 +44,8 @@ public sealed record CollectorCollectionLine(
     string Nature,
     decimal Amount,
     DateOnly? FeeDay,
-    DateOnly? BilledMonth);
+    DateOnly? BilledMonth,
+    DateOnly? BusinessDate = null);
 
 public sealed record CollectorAbsenceLine(
     DateOnly Day,
