@@ -102,6 +102,10 @@ public class ApplicationEfBoundaryTests
         "GetTpmCollectionShadowReconciliationQueryHandler.cs",
         // Phase 2B.2 applies the same bounded, read-only reconciliation boundary to historical TRM trip money.
         "GetTrmCollectionShadowReconciliationQueryHandler.cs",
+        // The canonical Monthly Income foundation is the same bounded, read-only shape: one tenant-scoped read over
+        // posted Collection lines and their linked corrections, grouped by stable classification identity. It writes
+        // nothing and no production report consumes it yet.
+        "GetCanonicalMonthlyIncomeQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",

@@ -227,3 +227,41 @@ source model at all.
 - **Validation:** API Release build 0 errors; `git diff --check` clean; no model change (no migration).
 - **Frontend follow-up:** the Web "Collect with CT" button now receives a conflict; Claude UI is removing it.
 - No push, merge, deployment, migration, data change, activation or APK.
+
+### Baseline test fix — Application EF boundary allow-list (`test(architecture)`)
+
+The accepted operation-assignment slice (`1b43f1de`) added `CollectorOperationAssignmentWorkflow.cs` using
+`IAppDbContext` without registering it in `ApplicationEfBoundaryTests.Allowed`, so that unit test failed on the
+baseline. The file is now registered with its reason. Test-only change.
+
+### CB-04 — Canonical Monthly Income reader foundation (`feat(reports)`)
+
+- **Scope:** read-only `GetCanonicalMonthlyIncomeQuery` (+ validator/handler) and Head/Admin
+  `GET api/canonical-reports/monthly-income?year=&month=&basis=AsOf|LatestCorrected&asOf=`. One year (Jan–Dec cells) or
+  one month, grouped by stable `RevenueClassificationId` (semantic code + Default policy display name effective at the
+  period end).
+- **Money basis:** `CollectionLine.Amount` of Collections whose `BusinessDate` is in the period — never allocations
+  (they restate line money), assessments, drafts, opening settlement, projections or provider rows. Each cell reports
+  gross original, signed correction effect (correction lines linked to the original line), net = gross + effect,
+  the part of the effect whose `CorrectionEffectiveDate` lies outside the cell's month/period, and line/correction
+  counts. A document-only correction adds nothing; a Replacement's new Collection counts as its own posted event.
+- **Reporting bases (ADR-005):** `AsOf` requires an explicit, non-future cutoff and counts only Collections and
+  corrections with `RecordedAtUtc` ≤ cutoff (a backdated correction recorded later is excluded). `LatestCorrected`
+  takes no cutoff; the server captures its own instant and returns it as `KnowledgeCutoffUtc`. Both attribute a
+  correction to the original line's period; no later-period adjustment is invented and the official cross-period RCD
+  treatment (IA-043) is **not** decided.
+- **Coverage:** `SourceCoverage = CanonicalCollectionsOnly`, `LegacySourcesIncluded = false`, plus per source-kind/part
+  contributions. Only classifications with canonical evidence produce rows (no fabricated zero rows). Legacy money is
+  not merged; no report or page is switched to this reader; no backfill.
+- **Tenancy/auth:** explicit tenant predicates on every join plus the global filter; caller must be Head/Admin with a
+  token tenant matching the resolved tenant; Collector callers are forbidden.
+- **Tests:** 9 unit tests (classified line vs whole-event totals and allocation non-duplication, ADR-005 26/27 Sep
+  example under both bases, backdated and cross-period corrections, document-only vs replacement, late-recorded
+  Collection vs AsOf, year view, tenant isolation, authorization/future cutoff, validator) — all pass; regression proof:
+  removing the correction recorded-knowledge cutoff failed both AsOf tests, then restored. PostgreSQL/Testcontainers:
+  1 passed (two tenants, reversal with allocation effect, AsOf vs LatestCorrected, nothing written).
+- **Validation:** API Release build 0 errors; no model change (no migration); `git diff --check` clean.
+- **Remaining gates:** a correction writer (CB-07), source-by-source legacy coverage/cutover before any production
+  Monthly Income switch (CB-06), official cross-period treatment (CB-05), Arrears presentation gate, revenue targets.
+- **Frontend follow-up:** none required; a future Reports page may consume the endpoint after Core Brain approves.
+- No push, merge, deployment, migration, data change, activation or APK.
