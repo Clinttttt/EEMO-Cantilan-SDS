@@ -190,3 +190,40 @@ This checkpoint corrects stale seeded instrument assumptions under confirmed dec
 | Generic/default revenue policies | Existing Default stream and API behavior preserved | Existing source-specific readiness unchanged |
 
 The existing earlier readiness matrix remains valid for all other sources. In particular, WCF retains its separately assigned UtilityBill/NPM CT workflow; Market Fees, Landing/Berthing, Transfer Large Cattle, and Vegetable/Fruit do not gain collection writers from this policy model; Weight & Measure remains NPM-derived and unassigned as a standalone operation.
+
+## Claude Backend checkpoints (2026-09-30)
+
+Lane: Claude Backend, branch `backend/claude-gap-completion-v3` from `2d42a39a`. Gap ledger:
+[CLAUDE_BACKEND_GAP_AUDIT_20260930.md](CLAUDE_BACKEND_GAP_AUDIT_20260930.md). Luna's checkpoints above are unchanged.
+
+**Correction to the readiness matrices above:** `LandingBerthingActivity`, a Market Fees collection-point model and the
+governed configurable-service assessment model are not present on this accepted baseline (nor on
+`interface-v2/clean-adoption`); they exist only on the unaccepted `interface-v2/ui-completion` candidate. On the
+accepted baseline, Landing/Berthing, Market Fees, Vegetable/Fruit, Transfer Large Cattle and Fiesta/Araw have no
+source model at all.
+
+### CB-01 — WCF Web channel enforcement (`fix(wcf)`)
+
+- **Scope:** `WcfCollectionWorkflow.PostCoreAsync`. `POST api/wcf-collections/collections` (Head/Admin Web "Collect with
+  CT") now durably rejects a *new* Web intent with `WEB_CHANNEL_RETIRED` before any source, custody or posting work.
+  The route and the `WebWcf` origin string are retained so history stays readable.
+- **Invariants:** an operation already bound under the `WebWcf` origin is resolved first, so an equivalent retry
+  returns its original Collection and a changed intent still returns `IDEMPOTENCY CONFLICT`. The rejected Web request
+  never issued the office ticket, so the ticket stays `InOffice` (no reconciliation marking, no consumption). The
+  rejection itself is a durable `Rejected` PostingOperation, so a retry of the same key cannot post later. Historical
+  Web Collections, their operations, documents and projections are untouched and are not relabelled Mobile. Mobile
+  posting, legacy Water reconciliation and Head/Admin monitoring reads (obligations, activity, reconciliation) are
+  unchanged.
+- **Not changed:** the legacy cumulative Web Water writer (`UtilitiesController.RecordPayment`) remains the live
+  Legacy-authority path and is quiesced only through the scoped Water transition (gap CB-02, BLOCKED CUTOVER).
+  IA-029 still describes Web+Mobile WCF entry as the future target; Core Brain should reconcile it with the current
+  Mobile-only direction (gap CB-03).
+- **Tests (PostgreSQL/Testcontainers):** WCF + settlement + operation-assignment filter: 23 passed, 0 failed. New:
+  retired Web posting rejected while a concurrent Mobile post succeeds exactly once (office ticket stays in stock,
+  durable rejection, retry does not post); a historical `WebWcf` Collection recreated with the pre-retirement intent
+  shape still replays and still conflicts on changed intent; Mobile over-outstanding rejection after issue keeps the
+  ticket out of stock. Tests that previously used Web as the posting vehicle now post through Mobile. Regression proof:
+  disabling the guard made the retirement test fail; restored.
+- **Validation:** API Release build 0 errors; `git diff --check` clean; no model change (no migration).
+- **Frontend follow-up:** the Web "Collect with CT" button now receives a conflict; Claude UI is removing it.
+- No push, merge, deployment, migration, data change, activation or APK.

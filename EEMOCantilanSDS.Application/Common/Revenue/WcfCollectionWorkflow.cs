@@ -299,6 +299,13 @@ public sealed class WcfCollectionWorkflow(
         var document = request.AccountableDocumentId == Guid.Empty ? null
             : await db.AccountableDocuments.SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
+        // Routine WCF field collection belongs to the assigned collector on Collector Mobile; Head/Admin Web is
+        // monitoring and reconciliation only. A Web intent already bound to an operation still replays above, but a
+        // new one is durably rejected. The office ticket was never issued by this request, so it stays in stock.
+        if (!mobile)
+            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                "WEB_CHANNEL_RETIRED",
+                "Routine WCF collection is recorded by the assigned collector on Collector Mobile. Web WCF posting is retired; no Collection was created.", ct);
         if (mobile && (!await CollectorHasOperationAssignmentAsync(
                 actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct)
             || !await CollectorHasNpmAuthorityAsync(actor.UserId, actor.TenantId, ct)))

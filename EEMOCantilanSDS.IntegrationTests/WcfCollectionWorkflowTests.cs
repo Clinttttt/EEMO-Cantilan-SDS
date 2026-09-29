@@ -48,10 +48,12 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
-        var seed = await SeedAsync(canonicalWater: true);
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
         await using var context = db.CreateContext(seed.TenantId);
-        var workflow = Workflow(context, seed, "Admin");
+        var workflow = Workflow(context, seed, "Collector");
 
+        var adminQuotes = await Workflow(context, seed, "Admin").GetObligationsAsync(seed.Period.Year, seed.Period.Month);
+        Assert.True(adminQuotes.IsSuccess, adminQuotes.Error); // Head/Admin monitoring reads remain available.
         var quotes = await workflow.GetObligationsAsync(seed.Period.Year, seed.Period.Month);
         Assert.True(quotes.IsSuccess, quotes.Error);
         var quote = Assert.Single(quotes.Value!);
@@ -67,25 +69,10 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
 
         var operationId = Guid.NewGuid();
         var businessDate = PhilippineTime.Today;
-        var overOutstanding = await workflow.PostWebAsync(new WcfCollectionPostRequest(
-            1, Guid.NewGuid(), businessDate, seed.BillId, quote.OutstandingAmount + 1m,
-            quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, null));
-        Assert.False(overOutstanding.IsSuccess);
-        Assert.Contains("exceeds", overOutstanding.Error, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(await context.Collections.ToListAsync());
-        Assert.Equal(AccountableDocumentState.InOffice,
-            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
-
-        var stale = await workflow.PostWebAsync(new WcfCollectionPostRequest(
-            1, Guid.NewGuid(), businessDate, seed.BillId, 1m,
-            quote.WaterSourceVersion - 1, seed.CtDocumentId, seed.CtNumber, null));
-        Assert.False(stale.IsSuccess);
-        Assert.Contains("changed after it was quoted", stale.Error, StringComparison.OrdinalIgnoreCase);
-        Assert.Empty(await context.Collections.ToListAsync());
-
         var request = new WcfCollectionPostRequest(1, operationId, businessDate,
-            seed.BillId, 5m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, null);
-        var posted = await workflow.PostWebAsync(request);
+            seed.BillId, 5m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber,
+            DateTime.UtcNow.AddMinutes(-1));
+        var posted = await workflow.PostMobileAsync(request);
         Assert.True(posted.IsSuccess, posted.Error);
         Assert.Equal(5m, posted.Value!.Amount);
         Assert.Equal(seed.CtNumber, posted.Value.DocumentNumber);
@@ -120,19 +107,21 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(AccountableDocumentState.Consumed, document.State);
         Assert.Equal(operationId, document.ClientOperationId);
         Assert.Equal(collection.Id, document.CollectionId);
-        var retry = await workflow.PostWebAsync(request);
+        var retry = await workflow.PostMobileAsync(request);
         Assert.True(retry.IsSuccess, retry.Error);
         Assert.True(retry.Value!.ExistingOutcome);
         Assert.Equal(collection.Id, retry.Value.CollectionId);
-        var changedIntent = await workflow.PostWebAsync(request with { ReceivedAmount = 6m });
+        var changedIntent = await workflow.PostMobileAsync(request with { ReceivedAmount = 6m });
         Assert.False(changedIntent.IsSuccess);
         Assert.Contains("IDEMPOTENCY CONFLICT", changedIntent.Error, StringComparison.OrdinalIgnoreCase);
-        var differentOperationForSameTicket = await workflow.PostWebAsync(request with { ClientOperationId = Guid.NewGuid() });
+        var differentOperationForSameTicket = await workflow.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid() });
         Assert.False(differentOperationForSameTicket.IsSuccess);
         Assert.Contains("not available", differentOperationForSameTicket.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Single(await context.Collections.ToListAsync());
+        Assert.Equal(AccountableDocumentState.Consumed,
+            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
 
-        var activity = await workflow.GetActivityAsync(businessDate, businessDate);
+        var activity = await Workflow(context, seed, "Admin").GetActivityAsync(businessDate, businessDate);
         Assert.True(activity.IsSuccess, activity.Error);
         var row = Assert.Single(activity.Value!);
         Assert.Equal(collection.Id, row.CollectionId);
@@ -345,20 +334,21 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
-        var seed = await SeedAsync(canonicalWater: true);
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
         await using var quoteContext = db.CreateContext(seed.TenantId);
-        var quoteResult = await Workflow(quoteContext, seed, "Admin")
+        var quoteResult = await Workflow(quoteContext, seed, "Collector")
             .GetObligationsAsync(seed.Period.Year, seed.Period.Month);
         Assert.True(quoteResult.IsSuccess, quoteResult.Error);
         var quote = Assert.Single(quoteResult.Value!);
         var request = new WcfCollectionPostRequest(1, Guid.NewGuid(), seed.Period,
-            seed.BillId, 5m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, null);
+            seed.BillId, 5m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber,
+            DateTime.UtcNow.AddMinutes(-1));
 
         await using var contextA = db.CreateContext(seed.TenantId);
         await using var contextB = db.CreateContext(seed.TenantId);
         var attempts = await Task.WhenAll(
-            Workflow(contextA, seed, "Admin").PostWebAsync(request),
-            Workflow(contextB, seed, "Admin").PostWebAsync(request));
+            Workflow(contextA, seed, "Collector").PostMobileAsync(request),
+            Workflow(contextB, seed, "Collector").PostMobileAsync(request));
 
         Assert.All(attempts, result => Assert.True(result.IsSuccess, result.Error));
         Assert.Single(attempts.Select(x => x.Value!.CollectionId).Distinct());
@@ -370,7 +360,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task WebAndMobileRaceCannotDoubleSettleWater()
+    public async Task RetiredWebChannelRejectsNewWcfPostingWhileMobileCollectsExactlyOnce()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -392,17 +382,118 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var attempts = await Task.WhenAll(
             Workflow(webContext, seed, "Admin").PostWebAsync(webRequest),
             Workflow(mobileContext, seed, "Collector").PostMobileAsync(mobileRequest));
-        Assert.Single(attempts, x => x.IsSuccess);
+        Assert.False(attempts[0].IsSuccess);
+        Assert.Contains("Collector Mobile", attempts[0].Error, StringComparison.Ordinal);
+        Assert.True(attempts[1].IsSuccess, attempts[1].Error);
 
         await using var verify = db.CreateContext(seed.TenantId);
         var collection = Assert.Single(await verify.Collections.ToListAsync());
+        Assert.Equal(attempts[1].Value!.CollectionId, collection.Id);
         Assert.Equal(5m, collection.TotalAmount);
         var bill = await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
         Assert.Equal(12m, bill.WaterAmountPaid);
-        var mobileTicket = await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
-        Assert.Contains(mobileTicket.State, new[] { AccountableDocumentState.Consumed, AccountableDocumentState.ReconciliationRequired });
+        Assert.Equal(AccountableDocumentState.Consumed,
+            (await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
         var officeTicket = await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.OfficeCtDocumentId);
-        Assert.Contains(officeTicket.State, new[] { AccountableDocumentState.InOffice, AccountableDocumentState.Consumed });
+        Assert.Equal(AccountableDocumentState.InOffice, officeTicket.State); // never issued by the retired path
+        Assert.Null(officeTicket.ClientOperationId);
+        var webOperation = await verify.PostingOperations.SingleAsync(x => x.ClientOperationId == webRequest.ClientOperationId);
+        Assert.Equal(PostingOperationStatus.Rejected, webOperation.Status);
+        Assert.Equal("WEB_CHANNEL_RETIRED", webOperation.OutcomeCode);
+        Assert.Null(webOperation.CollectionId);
+
+        // Retrying the same retired Web intent returns the durable rejection; it never posts later.
+        var webRetry = await Workflow(verify, seed, "Admin").PostWebAsync(webRequest);
+        Assert.False(webRetry.IsSuccess);
+        Assert.Single(await verify.Collections.ToListAsync());
+        Assert.Single(await verify.PostingOperations.Where(x => x.ClientOperationId == webRequest.ClientOperationId).ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task HistoricalWebWcfOutcomeStillReplaysAfterWebChannelRetirement()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true);
+        var operationId = Guid.NewGuid();
+        var businessDate = PhilippineTime.Today;
+        Guid historicalCollectionId;
+        long waterVersion;
+
+        // Recreate a Web-origin Collection exactly as the pre-retirement Web path recorded it: same origin, actor
+        // and normalized intent shape. Durable intents must stay replayable across later channel decisions.
+        await using (var history = db.CreateContext(seed.TenantId))
+        {
+            var bill = await history.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
+            waterVersion = bill.WaterSourceVersion;
+            var classification = await history.RevenueClassifications.SingleAsync();
+            var policy = await history.RevenueClassificationPolicies.SingleAsync();
+            var document = await history.AccountableDocuments.SingleAsync(x => x.Id == seed.OfficeCtDocumentId);
+            var actorId = seed.AdminId.ToString("N");
+            var normalized = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                SchemaVersion = 1,
+                OperationType = "WcfWaterCollection",
+                TenantId = seed.TenantId,
+                ActorId = actorId,
+                BusinessDate = businessDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                SourceKind = CollectionSourceKind.UtilityBill.ToString(),
+                SourceId = seed.BillId,
+                SourcePart = CollectionSourcePart.Water.ToString(),
+                ReceivedAmount = "5.00",
+                WaterSourceVersion = waterVersion,
+                Instrument = RevenueInstrumentType.CashTicket.ToString(),
+                AccountableDocumentId = seed.OfficeCtDocumentId,
+                DocumentNumber = seed.OfficeCtNumber,
+                IssuedAtUtc = (string?)null
+            }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            var line = new CollectionLineDraft(classification, policy, 5m,
+                CollectionSourceKind.UtilityBill, seed.BillId, CollectionSourcePart.Water, "{}",
+                [new CollectionAllocationDraft(CollectionSourceKind.UtilityBill, seed.BillId, 5m, CollectionSourcePart.Water, "{}")]);
+            var collection = await new CanonicalCollectionPostingCoordinator(history).PostAsync(
+                seed.TenantId, operationId, 1, normalized, "WebWcf", actorId, "historical-office", "Admin",
+                businessDate, "historical-office", [line], document,
+                sourceProjections: [now => bill.ApplyCanonicalWaterProjection(12m, document.DocumentNumber, now, "historical-office")]);
+            historicalCollectionId = collection.Id;
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var request = new WcfCollectionPostRequest(1, operationId, businessDate, seed.BillId, 5m,
+            waterVersion, seed.OfficeCtDocumentId, seed.OfficeCtNumber, null);
+        var replay = await Workflow(context, seed, "Admin").PostWebAsync(request);
+
+        Assert.True(replay.IsSuccess, replay.Error);
+        Assert.True(replay.Value!.ExistingOutcome);
+        Assert.Equal(historicalCollectionId, replay.Value.CollectionId);
+        var changed = await Workflow(context, seed, "Admin").PostWebAsync(request with { ReceivedAmount = 6m });
+        Assert.False(changed.IsSuccess);
+        Assert.Contains("IDEMPOTENCY CONFLICT", changed.Error, StringComparison.Ordinal);
+        var historical = Assert.Single(await context.PostingOperations.ToListAsync());
+        Assert.Equal("WebWcf", historical.Origin); // Web-origin evidence is preserved, never relabelled Mobile.
+        Assert.Single(await context.Collections.ToListAsync());
+        Assert.Equal(12m, (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).WaterAmountPaid);
+    }
+
+    [SkippableFact]
+    public async Task MobileRejectionAfterPhysicalIssueKeepsTicketOutOfStock()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed, "Collector");
+        var quote = Assert.Single((await workflow.GetObligationsAsync(seed.Period.Year, seed.Period.Month)).Value!);
+
+        var overOutstanding = await workflow.PostMobileAsync(new WcfCollectionPostRequest(
+            1, Guid.NewGuid(), PhilippineTime.Today, seed.BillId, quote.OutstandingAmount + 1m,
+            quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, DateTime.UtcNow.AddMinutes(-1)));
+
+        Assert.False(overOutstanding.IsSuccess);
+        Assert.Contains("exceeds", overOutstanding.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await context.Collections.ToListAsync());
+        Assert.Equal(AccountableDocumentState.ReconciliationRequired,
+            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
+        Assert.Equal(7m, (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).WaterAmountPaid);
     }
 
     [SkippableFact]
