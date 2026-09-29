@@ -22,6 +22,14 @@ public class UpdateCollectorCommandHandler(
         var collector = await collectorRepo.GetByIdAsync(request.CollectorId, cancellationToken);
         if (collector is null) return Result<bool>.NotFound();
 
+        // A collector keeps legitimate work: a facility, or an explicit non-facility operation (never a placeholder
+        // facility). With no operation list supplied, the existing operation permissions are what remains.
+        var keepsOperation = request.OperationCodes is { } requestedOperations
+            ? requestedOperations.Count > 0
+            : await collectorRepo.HasOperationAssignmentsAsync(request.CollectorId, cancellationToken);
+        if (request.AssignedFacilities.Count == 0 && !keepsOperation)
+            return Result<bool>.Failure("At least one facility or collection operation must be assigned.", ResultStatus.Invalid);
+
         // Optional username change (Head-initiated). Only when it actually changed — and it must be unique
         // WITHIN this LGU (IsUsernameUniqueAsync is municipality-scoped), so a value used by another LGU is
         // still allowed. Case-sensitive compare so a case-only correction still applies.
@@ -45,6 +53,9 @@ public class UpdateCollectorCommandHandler(
         var contactNumber = string.IsNullOrWhiteSpace(request.ContactNumber) ? null : request.ContactNumber.Trim();
         collector.UpdateProfile(request.FullName, contactNumber, email, currentUser.Username ?? "Admin");
         await collectorRepo.ReplaceFacilityAssignmentsAsync(request.CollectorId, request.AssignedFacilities, cancellationToken);
+        if (request.OperationCodes is { } operationCodes)
+            await collectorRepo.ReplaceOperationAssignmentsAsync(request.CollectorId, operationCodes,
+                CreateCollector.CreateCollectorCommandHandler.AssignedBy(currentUser), cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 

@@ -185,6 +185,31 @@ public partial class CollectorRepository(AppDbContext context, IFeeRateResolver 
         await AddFacilityAssignmentsAsync(collectorId, toAdd, cancellationToken);
     }
 
+    public Task AddOperationAssignmentsAsync(Guid collectorId, IReadOnlyCollection<string> operationCodes, string assignedBy, CancellationToken cancellationToken = default)
+    {
+        // The tenant comes from the resolved request context, never from the caller; Assign rejects an empty tenant, so a
+        // request without one fails closed. The composite (tenant, collector) FK rejects a collector of another tenant.
+        var tenantId = _context.CurrentMunicipalityId;
+        foreach (var code in operationCodes.Distinct(StringComparer.Ordinal))
+            _context.CollectorOperationAssignments.Add(
+                CollectorOperationAssignment.Assign(tenantId, collectorId, code, assignedBy));
+        return Task.CompletedTask;
+    }
+
+    public async Task ReplaceOperationAssignmentsAsync(Guid collectorId, IReadOnlyCollection<string> operationCodes, string assignedBy, CancellationToken cancellationToken = default)
+    {
+        var existing = await _context.CollectorOperationAssignments
+            .Where(a => a.CollectorId == collectorId)
+            .ToListAsync(cancellationToken);
+        var desired = operationCodes.ToHashSet(StringComparer.Ordinal);
+        _context.CollectorOperationAssignments.RemoveRange(existing.Where(a => !desired.Contains(a.OperationCode)));
+        var current = existing.Select(a => a.OperationCode).ToHashSet(StringComparer.Ordinal);
+        await AddOperationAssignmentsAsync(collectorId, desired.Where(c => !current.Contains(c)).ToList(), assignedBy, cancellationToken);
+    }
+
+    public Task<bool> HasOperationAssignmentsAsync(Guid collectorId, CancellationToken cancellationToken = default) =>
+        _context.CollectorOperationAssignments.AnyAsync(a => a.CollectorId == collectorId, cancellationToken);
+
     public async Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default)
     {
         var currentYear = _clock.PhilippineNow.Year;

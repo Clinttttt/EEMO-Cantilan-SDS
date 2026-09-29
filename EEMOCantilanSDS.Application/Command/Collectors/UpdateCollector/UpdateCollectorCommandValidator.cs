@@ -10,7 +10,9 @@ public class UpdateCollectorCommandValidator : AbstractValidator<UpdateCollector
         RuleFor(x => x.FullName).NotEmpty();
         // Email is optional (blank = no email on file); validate format only when supplied.
         RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email));
-        RuleFor(x => x.AssignedFacilities).NotEmpty();
+        // May be empty for an operation-only collector; the handler confirms some facility or operation remains.
+        RuleFor(x => x.AssignedFacilities).NotNull();
+        CollectorOperationCodeRules.Apply(this, x => x.OperationCodes);
 
         // Username is optional on update (blank = keep current); when supplied it must be a valid login.
         RuleFor(x => x.Username)

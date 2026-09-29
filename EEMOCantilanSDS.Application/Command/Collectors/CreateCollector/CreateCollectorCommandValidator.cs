@@ -45,8 +45,14 @@ public class CreateCollectorCommandValidator : AbstractValidator<CreateCollector
             .NotEmpty().WithMessage("Password is required")
             .MinimumLength(8).WithMessage("Password must be at least 8 characters");
 
+        // A collector must have legitimate work: a facility, or an explicit non-facility operation. An operation-only
+        // collector (WCF, Landing/Berthing, ...) is never given a placeholder facility to satisfy this rule.
         RuleFor(x => x.AssignedFacilities)
-            .NotEmpty().WithMessage("At least one facility must be assigned");
+            .NotNull().WithMessage("At least one facility or collection operation must be assigned")
+            .Must((command, facilities) => facilities is { Count: > 0 } || command.OperationCodes is { Count: > 0 })
+            .WithMessage("At least one facility or collection operation must be assigned");
+
+        CollectorOperationCodeRules.Apply(this, x => x.OperationCodes);
     }
 
     private async Task<bool> BeUniqueEmployeeId(string employeeId, CancellationToken cancellationToken)

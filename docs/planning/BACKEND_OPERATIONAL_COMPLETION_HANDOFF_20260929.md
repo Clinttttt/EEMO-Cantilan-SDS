@@ -265,3 +265,40 @@ baseline. The file is now registered with its reason. Test-only change.
   Monthly Income switch (CB-06), official cross-period treatment (CB-05), Arrears presentation gate, revenue targets.
 - **Frontend follow-up:** none required; a future Reports page may consume the endpoint after Core Brain approves.
 - No push, merge, deployment, migration, data change, activation or APK.
+
+### CB-13 — Operation-only collector accounts (`feat(collectors)`)
+
+- **Scope:** `CreateCollectorCommand` and `UpdateCollectorCommand` gain an optional trailing `OperationCodes` list
+  (older clients omit it). Create stages the operation permissions against the new account in the same unit of work
+  as the account and facilities. Update replaces the permission set in the same commit when a list is supplied and
+  leaves it untouched when omitted. `ICollectorRepository` gains `AddOperationAssignmentsAsync`,
+  `ReplaceOperationAssignmentsAsync` (keeps unchanged rows so their original `AssignedAtUtc`/`AssignedBy` evidence
+  survives) and `HasOperationAssignmentsAsync`. One shared validator rule (`CollectorOperationCodeRules`) accepts only
+  exact catalog codes, once each.
+- **Rule:** a collector must have legitimate work — at least one facility **or** one explicit operation. Facilities may
+  now be empty for an operation-only collector (Landing/Berthing, WCF, Transfer Large Cattle, Vegetable/Fruit, Market
+  Fees); no placeholder/pseudo facility is ever assigned. An update that would leave neither is rejected as Invalid
+  before anything is changed. `WEIGHT_AND_MEASURE`, `FISH_MEAT_VENDOR_FEE`, deferred ECF/Kanmanggay/Fiesta codes and
+  non-normalized codes are rejected.
+- **Authority/tenancy:** collector administration stays Head-only (`SuperAdmin`) — the same authority as the existing
+  replace endpoint. The tenant for permission rows comes from the resolved request context (fails closed when absent);
+  the composite `(MunicipalityId, CollectorId)` FK and the global filter keep another tenant's collector unreachable
+  (update from another tenant answers NotFound). An assignment remains a permission only: it creates no collectible
+  action, writer, document, policy or activation.
+- **Tests:** unit — 13 new (operation-only create accepted, no-work create rejected, excluded/deferred/lowercase/blank
+  codes rejected, duplicates rejected, permissions staged before the single commit with Head actor evidence, no
+  permission writes when omitted, update refuses to leave no work, update may drop all facilities when an operation
+  remains, supplied list replaced before commit, validator); the wider collector filter: 155 passed. Regression proof:
+  removing the update "must keep some work" guard failed its test; restored. PostgreSQL/Testcontainers: 2 passed
+  (operation-only create persists no facility and tenant-stamped permission rows; tenant B update answers NotFound;
+  swap succeeds; emptying rejected; plus the existing assignment persistence test).
+- **Validation:** API and Client Release builds 0 errors (the Client compiles unchanged; no UI file edited); no model
+  change (no migration); `git diff --check` clean.
+- **Finding for Core Brain:** the current WCF writer (Luna `1b43f1de`) requires the explicit WCF operation **and** NPM
+  facility authorization because today's Water source is the NPM-bound `UtilityBill`. A WCF-only collector created
+  through this path therefore cannot yet post WCF. IA-048 says WCF is not NPM-owned; whether the WCF operation alone
+  should authorize NPM-bound Water sources is a Core Brain decision (gap CB-26), not changed here.
+- **Frontend/Mobile follow-ups:** the Collectors page can send `OperationCodes` on create/update and allow an empty
+  facility list when operations are chosen (Claude UI). Collector Mobile shows only facilities today, so an
+  operation-only collector sees nothing collectible until a Mobile operation surface and signed APK exist (CB-15).
+- No push, merge, deployment, migration, data change, activation or APK.
