@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.Collectors.ResetCollectorPassword;
 using EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Requests.Collectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetAllCollectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorById;
@@ -19,9 +20,22 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 public class CollectorsController : ApiBaseController
 {
-    public CollectorsController(ISender sender) : base(sender)
+    private readonly CollectorOperationAssignmentWorkflow _operationAssignments;
+
+    public CollectorsController(ISender sender, CollectorOperationAssignmentWorkflow operationAssignments) : base(sender)
     {
+        _operationAssignments = operationAssignments;
     }
+
+    [HttpGet("{id:guid}/collection-operations")]
+    public async Task<ActionResult<IReadOnlyList<CollectorOperationAssignmentDto>>> GetCollectionOperationsAsync(
+        Guid id, CancellationToken ct) =>
+        HandleResponse(await _operationAssignments.ListAsync(id, ct));
+
+    [HttpPut("{id:guid}/collection-operations")]
+    public async Task<ActionResult<bool>> ReplaceCollectionOperationsAsync(
+        Guid id, [FromBody] ReplaceCollectorOperationAssignmentsRequest request, CancellationToken ct) =>
+        HandleResponse(await _operationAssignments.ReplaceAsync(id, request, ct));
  
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CollectorListDto>>> GetAllCollectorsAsync()

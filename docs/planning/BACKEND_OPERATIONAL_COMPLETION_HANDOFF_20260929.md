@@ -120,3 +120,41 @@ The Weight & Measure path remains blocked before canonical cash recognition: rec
 - API Release build: passed, 0 warnings, 0 errors.
 - `git diff --check`: passed; Git reports expected LF-to-CRLF normalization warnings for edited text files.
 - No Web Razor/CSS, Mobile UI, source writer, production data, deployment, or APK release was changed.
+
+## Follow-up: collector non-facility operation assignment foundation (2026-09-29)
+
+This checkpoint adds a tenant-scoped authorization record for future collector workflows. The record contains only the collector, stable operation code, assigning actor, and UTC assignment time; it contains no amount, policy, instrument, source, document, classification snapshot, or payment state.
+
+- Added the fixed stable operation catalog: `WCF`, `VEGETABLE_FRUIT_SPACE_RENTAL`, `LANDING_BERTHING`, `TRANSFER_LARGE_CATTLE`, and `MARKET_FEES`. These are permission identities, not revenue-classification or source identities.
+- `WEIGHT_AND_MEASURE` is explicitly excluded because NPM Fish/Meat weighing remains the operational source. `FISH_MEAT_VENDOR_FEE` is explicitly excluded as a standalone operation because new Fish/Meat vendor activity belongs to NPM. ECF, Kanmanggay, and Fiesta/Araw are deferred pending authoritative future Mobile roles.
+- Added tenant-scoped Head-only collector GET/list and PUT/replace API under `api/Collectors/{id}/collection-operations`. Target collector lookup is tenant-bound; unknown/duplicate operation codes fail; an empty replacement clears operation assignments; facility assignments are untouched. Mutation rows are audit-interceptor tracked, with `AssignedAtUtc` and `AssignedBy` preserved as explicit evidence.
+- Read-only review of the candidate on `ui-completion` confirmed the entity/table, Head endpoint and export-registration approach were useful evidence. Its operation catalog was not adopted: it derived permissions from revenue classifications/configurable services and preserved the stale standalone Fish/Meat assignment. This checkpoint uses a fixed permission catalog independent of those classifications and does not retain that stale assignment behavior.
+- Added an additive table with tenant and collector foreign keys, a same-tenant composite collector FK, normalized-code check, and unique `(MunicipalityId, CollectorId, OperationCode)` constraint. The table is registered for tenant export, restore coverage, backup manifest labels, and system-health inventory.
+- WCF obligation and ticket reads now require explicit `WCF` assignment for collectors. New canonical Mobile WCF posting requires both explicit WCF permission and the existing NPM facility authorization because the current WCF source is still an NPM UtilityBill. A prior idempotent `ClientOperationId` outcome is resolved before the new assignment check. An unauthorized physically issued CT is recorded through the existing reconciliation path and is not returned to stock. This does not add the future WCF walk-up source.
+- No shared generic Mobile collection menu/capability contract was added. An assignment by itself does not surface a collectible action, issue a document, create a Collection, or activate a source. Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit, and Market Fees remain assignment-ready only; all their posting gates remain outstanding.
+- Collector creation still requires facility assignment in its existing workflow. A collector who works only a non-facility operation needs a future atomic account-plus-operation-assignment creation path; no fake facility was introduced.
+
+### Current assignment and writer readiness
+
+| Operation identity | Assignment available | Source-specific Mobile writer / collectible action | Activation |
+| --- | --- | --- | --- |
+| WCF | Yes | Existing UtilityBill/NPM WCF writer remains; reads and new canonical Mobile posts require WCF assignment plus NPM facility authorization, CT custody and existing settlement gates | No new source activated; in-flight idempotent outcomes remain replayable |
+| Market Fees | Yes | No operation-specific writer or collectibility menu; collection point, effective policy, CT custody, offline replay, allocation, correction and reporting gates remain | Inactive |
+| Vegetable/Fruit Space Rental | Yes | No mode-aware writer; Whole/OR versus Daily/CT enforcement and document/offline/source gates remain | Inactive |
+| Landing/Berthing | Yes | No direct-field writer; CT custody, offline replay, exact classification/allocation and correction gates remain | Inactive |
+| Transfer Large Cattle | Yes | No direct-field writer; OR custody, offline replay, exact classification/allocation and correction gates remain | Inactive |
+| Weight & Measure | No; explicitly excluded | NPM Fish/Meat weighing remains the source; canonical adapter and reporting are still pending | Legacy NPM authority |
+| Fish/Meat Vendor Fees | No; standalone code explicitly excluded | New Fish/Meat operations remain in NPM; no second standalone collector workflow | No duplicate source |
+| ECF, Kanmanggay, Fiesta/Araw | Deferred | No new assignment or writer was introduced for these operations | Existing authority unchanged |
+
+### Migration and validation
+
+Additive migration: `20260929154642_AddCollectorOperationAssignments`. No prior or applied migration was edited or deleted.
+
+- Focused assignment application tests: 5 passed, 0 failed.
+- Focused PostgreSQL/Testcontainers subset: 21 passed, 0 failed; Docker Linux engine was available. The subset applied the full migration chain and exercised assignment uniqueness/tenant visibility/composite tenant-collector FK plus WCF authorization, issued-ticket reconciliation, and idempotent retry behavior.
+- API Release build: passed, 0 warnings, 0 errors.
+- `dotnet ef migrations has-pending-model-changes`: no model changes pending.
+- `git diff --check`: passed; Git emitted only expected LF-to-CRLF normalization notices.
+- Full unit and integration suites were not run. Component tests were not run; no Web UI was changed.
+- No historical assignment backfill, financial cutover, source activation, production-data rewrite, deployment, or APK release occurred.

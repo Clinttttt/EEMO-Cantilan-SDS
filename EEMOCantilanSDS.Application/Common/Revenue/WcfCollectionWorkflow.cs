@@ -30,6 +30,9 @@ public sealed class WcfCollectionWorkflow(
     public Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetObligationsAsync(
         int throughYear, int throughMonth, CancellationToken ct = default) => Run(async actor =>
     {
+        if (actor.Role == "Collector"
+            && !await CollectorHasOperationAssignmentAsync(actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
+            return Result<IReadOnlyList<WcfObligationQuoteDto>>.Forbidden();
         if (throughYear is < 2000 or > 2200 || throughMonth is < 1 or > 12)
             return Result<IReadOnlyList<WcfObligationQuoteDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
         var policy = await ResolvePolicyAsync(actor.TenantId, BusinessToday, ct);
@@ -53,6 +56,9 @@ public sealed class WcfCollectionWorkflow(
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync(
         CancellationToken ct = default) => Run(async actor =>
     {
+        if (actor.Role == "Collector"
+            && !await CollectorHasOperationAssignmentAsync(actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
+            return Result<IReadOnlyList<CashTicketDocumentDto>>.Forbidden();
         var documents = await db.AccountableDocuments.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.TenantId
                 && x.InstrumentType == RevenueInstrumentType.CashTicket
@@ -97,7 +103,8 @@ public sealed class WcfCollectionWorkflow(
 
     public Task<Result<WcfCollectionOutcomeDto>> PostMobileAsync(
         WcfCollectionPostRequest request, CancellationToken ct = default) =>
-        Run(actor => PostCoreAsync(actor, request, mobile: true, ct), ct);
+        Run(actor => PostCoreAsync(actor, request, mobile: true, ct), ct,
+            requireNpmAuthorityForCollector: false);
 
     /// <summary>
     /// Stops old cumulative UtilityBill payloads from mutating a Water source once its scoped cutover
@@ -292,6 +299,12 @@ public sealed class WcfCollectionWorkflow(
         var document = request.AccountableDocumentId == Guid.Empty ? null
             : await db.AccountableDocuments.SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
+        if (mobile && (!await CollectorHasOperationAssignmentAsync(
+                actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct)
+            || !await CollectorHasNpmAuthorityAsync(actor.UserId, actor.TenantId, ct)))
+            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                "COLLECTOR_OPERATION_NOT_ASSIGNED",
+                "An explicit WCF operation assignment and NPM facility authorization are required. Any physically issued Cash Ticket is retained for office reconciliation.", ct);
         var collectorOwnsDocument = mobile && document?.State == AccountableDocumentState.Assigned
             && document.AssignedUserId == actor.UserId;
         var validCustody = mobile
@@ -580,23 +593,31 @@ public sealed class WcfCollectionWorkflow(
         return new WaterFacts(bill, policy.Classification, policy.Policy, quote, snapshot);
     }
 
-    private async Task<bool> CollectorHasNpmAuthorityAsync(Guid userId, CancellationToken ct)
+    private async Task<bool> CollectorHasNpmAuthorityAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
         var collector = await db.CollectorUsers.AsNoTracking()
             .Include(x => x.FacilityAssignments)
-            .SingleOrDefaultAsync(x => x.Id == userId, ct);
+            .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == userId, ct);
         return collector?.FacilityAssignments.Any(x => x.FacilityCode == FacilityCode.NPM) == true;
     }
+
+    private Task<bool> CollectorHasOperationAssignmentAsync(
+        Guid tenantId, Guid collectorId, string operationCode, CancellationToken ct) =>
+        db.CollectorOperationAssignments.AsNoTracking().AnyAsync(x =>
+            x.MunicipalityId == tenantId && x.CollectorId == collectorId && x.OperationCode == operationCode, ct);
 
     private Task<PostingOperation?> FindOperationAsync(Guid tenantId, Guid operationId, CancellationToken ct) =>
         db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
 
-    private async Task<Result<T>> Run<T>(Func<Actor, Task<Result<T>>> action, CancellationToken ct)
+    private async Task<Result<T>> Run<T>(
+        Func<Actor, Task<Result<T>>> action, CancellationToken ct,
+        bool requireNpmAuthorityForCollector = true)
     {
         if (!TryGetActor(out var actor, out var failure))
             return failure == ResultStatus.Unauthorized ? Result<T>.Unauthorized() : Result<T>.Forbidden();
-        if (actor.Role == "Collector" && !await CollectorHasNpmAuthorityAsync(actor.UserId, ct))
+        if (actor.Role == "Collector" && requireNpmAuthorityForCollector
+            && !await CollectorHasNpmAuthorityAsync(actor.UserId, actor.TenantId, ct))
             return Result<T>.Forbidden();
         try { return await action(actor); }
         catch (WorkflowProblem problem) { return Result<T>.Failure(problem.Message, problem.Status); }

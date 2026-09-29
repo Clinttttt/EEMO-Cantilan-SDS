@@ -73,6 +73,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorActivationCode> PayorActivationCodes { get; }
         DbSet<PayorStallLink> PayorStallLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
+        DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

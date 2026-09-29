@@ -50,6 +50,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["PayorStallLinks"] = "Payor–stall links",
         ["AuditLogs"] = "Audit log",
         ["CollectorFacilityAssignments"] = "Collector assignments",
+        ["CollectorOperationAssignments"] = "Collector operation assignments",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)

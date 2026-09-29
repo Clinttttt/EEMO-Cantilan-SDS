@@ -31,7 +31,7 @@ public static class TenantDataTables
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable
         // because it decides which dates were market days: restoring the attendances without it would leave the
         // office's own collections falling on days its schedule says were not market days.
-        "TpmMarketDaySchedules",
+        "TpmMarketDaySchedules", "CollectorOperationAssignments",
     };
 
     /// <summary>

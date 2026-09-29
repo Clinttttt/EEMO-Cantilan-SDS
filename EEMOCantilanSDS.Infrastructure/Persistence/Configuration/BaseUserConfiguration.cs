@@ -17,6 +17,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.ToTable("Users");
 
             builder.HasKey(s => s.Id);
+            // Stable tenant pair used by municipality-scoped collector relationships.
+            builder.HasAlternateKey(s => new { s.MunicipalityId, s.Id })
+                .HasName("AK_Users_MunicipalityId_Id");
 
             builder.HasDiscriminator<string>("UserType")
                   .HasValue<AdminUser>("Admin")

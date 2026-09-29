@@ -139,6 +139,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }
+        public DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

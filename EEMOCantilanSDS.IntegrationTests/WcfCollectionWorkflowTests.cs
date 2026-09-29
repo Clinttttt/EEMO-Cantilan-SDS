@@ -820,7 +820,61 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         new(context, new TestActor(role == "Collector" ? seed.CollectorId!.Value : seed.AdminId,
             seed.TenantId, role), new FixedTenant(seed.TenantId));
 
-    private async Task<Seed> SeedAsync(bool canonicalWater, bool assignTicket = false)
+    [SkippableFact]
+    public async Task MobileWcfPostingNeedsExplicitOperationAssignmentAndHoldsIssuedTicketForReconciliation()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true, assignWcfOperation: false);
+        await using var context = db.CreateContext(seed.TenantId);
+        var bill = await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
+        var workflow = Workflow(context, seed, "Collector");
+        var request = new WcfCollectionPostRequest(1, Guid.NewGuid(), PhilippineTime.Today,
+            seed.BillId, 1m, bill.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber,
+            DateTime.UtcNow.AddSeconds(-1));
+
+        var result = await workflow.PostMobileAsync(request);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("explicit WCF operation assignment", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await context.Collections.ToListAsync());
+        var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
+        Assert.Equal(AccountableDocumentState.ReconciliationRequired, document.State);
+        Assert.Equal(request.ClientOperationId, document.ClientOperationId);
+        Assert.Equal(PostingOperationStatus.ReconciliationRequired,
+            (await context.PostingOperations.SingleAsync()).Status);
+    }
+
+    [SkippableFact]
+    public async Task MobileWcfRetryReturnsOriginalCollectionAfterOperationAssignmentIsRemoved()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed, "Collector");
+        var quotes = await workflow.GetObligationsAsync(seed.Period.Year, seed.Period.Month);
+        Assert.True(quotes.IsSuccess, quotes.Error);
+        var quote = Assert.Single(quotes.Value!);
+        var request = new WcfCollectionPostRequest(1, Guid.NewGuid(), PhilippineTime.Today,
+            seed.BillId, 1m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber,
+            DateTime.UtcNow.AddSeconds(-1));
+
+        var posted = await workflow.PostMobileAsync(request);
+        Assert.True(posted.IsSuccess, posted.Error);
+        var assignments = await context.CollectorOperationAssignments
+            .Where(x => x.CollectorId == seed.CollectorId).ToListAsync();
+        context.CollectorOperationAssignments.RemoveRange(assignments);
+        await context.SaveChangesAsync();
+
+        var retried = await workflow.PostMobileAsync(request);
+
+        Assert.True(retried.IsSuccess, retried.Error);
+        Assert.Equal(posted.Value!.CollectionId, retried.Value!.CollectionId);
+        Assert.Single(await context.Collections.ToListAsync());
+    }
+
+    private async Task<Seed> SeedAsync(bool canonicalWater, bool assignTicket = false, bool assignWcfOperation = true)
     {
         var today = PhilippineTime.Today;
         var period = new DateOnly(today.Year, today.Month, 1);
@@ -881,6 +935,9 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
             collector = CollectorUser.Create("Test Collector", "WCF-01", "wcf-" + Guid.NewGuid().ToString("N")[..8],
                 null, null, new HashedPassword("test-hash"), tenantId);
             collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
+            if (assignWcfOperation)
+                collector.OperationAssignments.Add(CollectorOperationAssignment.Assign(
+                    tenantId, collector.Id, CollectorOperationCodes.Wcf, "test-admin"));
             ct.AssignTo(collector.Id, "test-admin");
             assignment = AccountableFormAssignment.Assign(ct, collector.Id, adminId.ToString("N"),
                 DateTime.UtcNow, "test");
@@ -888,6 +945,9 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
                 null, null, new HashedPassword("test-hash"), tenantId);
             otherCollector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(
                 otherCollector.Id, facility.Id, FacilityCode.NPM));
+            if (assignWcfOperation)
+                otherCollector.OperationAssignments.Add(CollectorOperationAssignment.Assign(
+                    tenantId, otherCollector.Id, CollectorOperationCodes.Wcf, "test-admin"));
         }
 
         await using (var setup = db.CreateContext(tenantId))
