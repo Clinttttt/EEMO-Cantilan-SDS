@@ -91,7 +91,7 @@ public partial class StallRepository
             .Where(p => stallIds.Contains(p.StallId)).ToListAsync(ct);
         var paidDailies = await _context.DailyCollections.AsNoTracking()
             .Where(d => stallIds.Contains(d.StallId) && d.IsPaid)
-            .Select(d => new { d.StallId, d.CollectionDate, d.DailyFee, d.FishKilos }).ToListAsync(ct);
+            .Select(d => new { d.StallId, d.CollectionDate, d.DailyFee, d.FishKilos, d.MeatFeeAmount }).ToListAsync(ct);
         var absentDailies = await _context.DailyCollections.AsNoTracking()
             .Where(d => stallIds.Contains(d.StallId) && d.IsAbsent)
             .Select(d => new { d.StallId, d.CollectionDate }).ToListAsync(ct);
@@ -177,7 +177,7 @@ public partial class StallRepository
             // Lifetime collected = every peso actually received (status-independent). A period-scoped read states
             // what was received FOR that period.
             var lifetimeCollected = isNpm
-                ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFishRate : 0m))
+                ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFishRate : 0m) + d.MeatFeeAmount)
                 : stallPayments.Sum(p => p.AmountPaid);
 
             // The rent this occupancy was let at. The stall's own MonthlyRate is the CURRENT figure and is rewritten

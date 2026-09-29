@@ -76,7 +76,7 @@ public partial class CollectorRepository
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish),
+                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish + d.MeatFeeAmount),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -242,7 +242,7 @@ public partial class CollectorRepository
                         && d.IsPaid
                         && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
                         && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate), cancellationToken) +
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate) + d.MeatFeeAmount, cancellationToken) +
             await _context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id
                         && p.Status != PaymentStatus.Unpaid
@@ -313,7 +313,7 @@ public partial class CollectorRepository
                 d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 d.Stall.Facility!.Code,
                 "Daily Fee",
-                d.DailyFee + ((d.FishKilos ?? 0) * fishRate),
+                d.DailyFee + ((d.FishKilos ?? 0) * fishRate) + d.MeatFeeAmount,
                 "Paid",
                 d.UpdatedAt ?? d.CreatedAt))
             .ToListAsync(cancellationToken);

@@ -183,6 +183,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 Code = d.Stall.Facility!.Code,
                 d.DailyFee,
                 d.FishKilos,
+                d.MeatFeeAmount,
                 d.CollectorId,
                 d.CreatedBy,
                 At = d.UpdatedAt ?? d.CreatedAt
@@ -200,7 +201,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                     first.ORNumber ?? "",
                     first.Occupant ?? "",
                     first.Code,
-                    g.Sum(x => x.DailyFee + (x.FishKilos ?? 0) * npmFish),
+                    g.Sum(x => x.DailyFee + (x.FishKilos ?? 0) * npmFish + x.MeatFeeAmount),
                     first.CollectorId,
                     first.CreatedBy,
                     g.Max(x => x.At));

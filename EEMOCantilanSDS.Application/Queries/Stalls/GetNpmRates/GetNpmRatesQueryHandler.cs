@@ -28,6 +28,7 @@ public class GetNpmRatesQueryHandler(
         var asOf = DateOnly.FromDateTime(clock.PhilippineNow);
         var daily = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var fish = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var meatWeighing = snapshot.Resolve(FeeRateKey.NpmMeatPerKilo, asOf);
 
         // The rent a market space is let for. 0 means the LGU has not stated one, so the system charges thirty of
         // its daily fee — correct where the ordinance follows that convention, and a figure the office should be
@@ -70,6 +71,7 @@ public class GetNpmRatesQueryHandler(
             // The rule in force, from the same snapshot every billing path reads, so a screen cannot state one
             // basis while the ledger applies another.
             MonthBasis: snapshot.MonthRule.Basis,
-            NeedsMonthRuleConfirmation: !basisStated && !isReferenceTenant));
+            NeedsMonthRuleConfirmation: !basisStated && !isReferenceTenant,
+            MeatWeighingRate: meatWeighing));
     }
 }

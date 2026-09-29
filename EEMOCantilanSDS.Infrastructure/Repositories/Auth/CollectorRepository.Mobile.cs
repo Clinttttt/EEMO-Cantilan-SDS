@@ -123,6 +123,7 @@ public partial class CollectorRepository
                     d.Stall.CustomSectionName,
                     d.DailyFee,
                     d.FishKilos,
+                    d.MeatFeeAmount,
                     d.IsAbsent,
                     IsAdmin = d.CollectorId == null,
                     When = d.UpdatedAt ?? d.CreatedAt
@@ -138,7 +139,7 @@ public partial class CollectorRepository
             // the detail can name them; the rows here stay per day for that reason.
             results.AddRange(rows.Select(d =>
             {
-                var amount = d.DailyFee + ((d.FishKilos ?? 0) * npmFish);
+                var amount = d.DailyFee + ((d.FishKilos ?? 0) * npmFish) + d.MeatFeeAmount;
                 var util = billMap.GetValueOrDefault((d.StallId, d.CollectionDate.Year, d.CollectionDate.Month));
                 var payor = PeriodOccupant(d.Contracts, d.CollectionDate, d.CollectionDate);
                 return d.IsAbsent
@@ -396,6 +397,7 @@ public partial class CollectorRepository
                     d.CollectionDate,
                     d.DailyFee,
                     d.FishKilos,
+                    d.MeatFeeAmount,
                     IsAdmin = d.CollectorId == null,
                     When = d.UpdatedAt ?? d.CreatedAt
                 })
@@ -407,7 +409,7 @@ public partial class CollectorRepository
                 d.StallNo,
                 d.Payor ?? "No active occupant",
                 d.CollectionDate,
-                d.DailyFee + d.FishKilos.GetValueOrDefault() * npmFish,
+                d.DailyFee + d.FishKilos.GetValueOrDefault() * npmFish + d.MeatFeeAmount,
                 false,
                 d.When,
                 d.ORNumber,
@@ -935,7 +937,7 @@ public partial class CollectorRepository
                 : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken);
         var dailyTotal = await _context.DailyCollections
             .Where(d => d.CollectorId == collectorId && d.IsPaid)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * npmFish), cancellationToken);
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * npmFish) + d.MeatFeeAmount, cancellationToken);
         var slaughterTotal = await _context.SlaughterTransactions
             .Where(s => s.CollectorId == collectorId)
             .SumAsync(s => s.RatePerHead * s.NumberOfHeads, cancellationToken);

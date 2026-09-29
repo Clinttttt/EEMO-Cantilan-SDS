@@ -40,5 +40,9 @@ public sealed record MobileNpmStallCollectionDto(
     // for. DaysMissed above is a plain subtraction that knows nothing about market closures, so it can be larger than this
     // list; these days are the ones actually owed - within a term that covers them, not closed, and neither collected nor
     // excused already.
-    IReadOnlyList<DateOnly>? UncollectedDays = null);
+    IReadOnlyList<DateOnly>? UncollectedDays = null,
+    decimal? MeatKilosToday = null,
+    decimal MeatFeeToday = 0m,
+    decimal? MeatFeeRatePerKiloToday = null,
+    DateOnly? MeatFeeRateEffectiveDateToday = null);
 

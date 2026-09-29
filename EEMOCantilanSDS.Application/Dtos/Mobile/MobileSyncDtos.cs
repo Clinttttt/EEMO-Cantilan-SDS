@@ -75,7 +75,8 @@ public sealed record SyncOfflineOperationDto(
     long? WaterSourceVersion = null,
     Guid? AccountableDocumentId = null,
     string? DocumentNumber = null,
-    DateTime? IssuedAtUtc = null);
+    DateTime? IssuedAtUtc = null,
+    decimal? MeatKilos = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

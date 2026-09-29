@@ -32,6 +32,13 @@ public class RecordDailyCollectionCommandValidator : AbstractValidator<RecordDai
         RuleFor(x => x.FishKilos)
             .GreaterThanOrEqualTo(0)
             .When(x => x.FishKilos.HasValue);
+        RuleFor(x => x.MeatKilos)
+            .GreaterThanOrEqualTo(0)
+            .When(x => x.MeatKilos.HasValue);
+        RuleFor(x => x.IsPaid)
+            .Equal(true)
+            .When(x => x.MeatKilos.HasValue)
+            .WithMessage("Meat kilos can only be recorded with a paid daily collection.");
 
         // Absent is mutually exclusive with a paid collection.
         RuleFor(x => x.IsPaid)

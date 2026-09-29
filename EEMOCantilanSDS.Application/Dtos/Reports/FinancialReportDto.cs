@@ -241,7 +241,8 @@ public record NpmFacilityDetailDto(
     // Zero on a Weekly report, where a bill billed for a month carries no week of its own. 0 = none.
     decimal ElecCollected = 0m,
     decimal WaterCollected = 0m,
-    decimal UtilityOutstanding = 0m
+    decimal UtilityOutstanding = 0m,
+    decimal WeightMeasureCollected = 0m
 );
 
 public record FinancialRecordDto(

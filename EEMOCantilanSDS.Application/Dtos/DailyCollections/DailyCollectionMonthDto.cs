@@ -13,7 +13,9 @@ public sealed record DailyCollectionMonthDto(
     bool IsFullyPaid,
     Dictionary<string, DailyCollectionDayDto> Collections,
     int DaysAbsent = 0,
-    int DaysClosed = 0
+    int DaysClosed = 0,
+    decimal TotalMeatKilos = 0m,
+    decimal TotalMeatFee = 0m
 );
 
 public sealed record DailyCollectionDayDto(
@@ -28,5 +30,8 @@ public sealed record DailyCollectionDayDto(
     /// adjustment carried on it. Stated so a receipt written against the day shows the money the office received,
     /// rather than a figure re-derived from today's rate. Zero for a day that was never collected.
     /// </summary>
-    decimal AmountCollected = 0m
+    decimal AmountCollected = 0m,
+    decimal? MeatKilos = null,
+    decimal? MeatFeeRatePerKilo = null,
+    decimal MeatFeeAmount = 0m
 );

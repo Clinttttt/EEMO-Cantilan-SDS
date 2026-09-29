@@ -225,6 +225,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                     .Select(c => c.ActualOccupant).FirstOrDefault(),
                 d.DailyFee,
                 d.FishKilos,
+                d.MeatFeeAmount,
                 d.ORNumber,
                 d.CollectorId,
                 d.CreatedBy,
@@ -244,7 +245,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .Select(g =>
             {
                 var first = g.First();
-                var amount = g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * _npmFishRate : 0));
+                var amount = g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * _npmFishRate : 0) + x.MeatFeeAmount);
                 var days = g.Count();
                 var party = string.IsNullOrWhiteSpace(first.Occupant) ? "Stall " + first.StallNo : first.Occupant!;
 

@@ -68,6 +68,7 @@ public partial class FacilityReportsRepository
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
             ? dc.FishKilos.Value * _npmFishRate
             : 0m);
+        var weightMeasureFromCollections = collectableDailyCollections.Sum(dc => dc.MeatFeeAmount);
 
         // Daily fee from monthly payments (BaseRentalAmount = daily fee equivalent)
         var dailyFeeFromMonthly = periodPaymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -139,7 +140,8 @@ public partial class FacilityReportsRepository
             FishFeeAmount: fishFeeFromCollections + fishFeeFromMonthly,
             FishKiloComparison: fishComparison,
             PaidDayRecords: paidDayRecords,
-            ExpectedDayRecords: expectedDayRecords
+            ExpectedDayRecords: expectedDayRecords,
+            WeightMeasureAmount: weightMeasureFromCollections
         );
     }
 

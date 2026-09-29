@@ -33,6 +33,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 d.CollectionDate,
                 d.DailyFee,
                 d.FishKilos,
+                d.MeatFeeAmount,
                 d.IsAbsent,
                 d.Stall!.StallNo,
                 Code = d.Stall.Facility!.Code,
@@ -56,8 +57,8 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
 
             lines.Add(new CollectorCollectionLine(
                 d.ORNumber, d.When, payor!, d.StallNo, d.Code, "Daily Fee",
-                // DailyFee already includes the month-end difference carried on this installment. Fish is separate.
-                d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate),
+                // DailyFee already includes the month-end difference. Weighed charges remain distinct source facts.
+                d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount,
                 d.CollectionDate, null));
         }
 
@@ -143,10 +144,10 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             .Where(d => d.CollectorId == null && d.IsPaid
                      && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                      && assigned.Contains(d.Stall!.Facility!.Code))
-            .Select(d => new { d.DailyFee, d.FishKilos })
+            .Select(d => new { d.DailyFee, d.FishKilos, d.MeatFeeAmount })
             .ToListAsync(ct);
 
-        var officeRecorded = officeDaily.Sum(d => d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate));
+        var officeRecorded = officeDaily.Sum(d => d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount);
         var officeReceipts = officeDaily.Count;
 
         // ── Electricity and water this collector took, kept in their own totals ──

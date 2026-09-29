@@ -9,5 +9,6 @@ public enum CollectionSourcePart
     Electricity = 1,
     Water = 2,
     DailyFee = 3,
-    FishFee = 4
+    FishFee = 4,
+    MeatWeighing = 5
 }

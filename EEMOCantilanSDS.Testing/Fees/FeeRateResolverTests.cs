@@ -45,6 +45,7 @@ namespace EEMOCantilanSDS.Testing.Fees
             {
                 seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 25m, Effective, carmen));
                 seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmFishPerKilo, 2m, Effective, carmen));
+                seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMeatPerKilo, 77m, Effective, carmen));
                 await seed.SaveChangesAsync();
             }
 
@@ -53,6 +54,7 @@ namespace EEMOCantilanSDS.Testing.Fees
 
             Assert.Equal(25m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
             Assert.Equal(2m, snapshot.Resolve(FeeRateKey.NpmFishPerKilo, AsOf));
+            Assert.Equal(77m, snapshot.Resolve(FeeRateKey.NpmMeatPerKilo, AsOf));
         }
 
         [Fact]
@@ -66,6 +68,7 @@ namespace EEMOCantilanSDS.Testing.Fees
             using (var seed = new AppDbContext(options, new FixedMunicipality(carmen)))
             {
                 seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 25m, Effective, carmen));
+                seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMeatPerKilo, 77m, Effective, carmen));
                 await seed.SaveChangesAsync();
             }
 
@@ -77,6 +80,7 @@ namespace EEMOCantilanSDS.Testing.Fees
             Assert.Null(snapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, AsOf));
             Assert.Equal(0m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
             Assert.NotEqual(25m, snapshot.Resolve(FeeRateKey.NpmDailyStall, AsOf));
+            Assert.Equal(0m, snapshot.Resolve(FeeRateKey.NpmMeatPerKilo, AsOf));
         }
     }
 }

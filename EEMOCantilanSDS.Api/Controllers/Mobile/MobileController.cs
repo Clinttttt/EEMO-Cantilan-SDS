@@ -129,6 +129,7 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
             request.FishKilos,
             request.ORNumber,
             IsAbsent: request.IsAbsent);
+        command = command with { MeatKilos = request.MeatKilos };
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

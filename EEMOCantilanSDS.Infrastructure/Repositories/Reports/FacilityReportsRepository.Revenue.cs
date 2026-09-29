@@ -366,7 +366,7 @@ public partial class FacilityReportsRepository
 
         var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
             && IsUnderContractOn(stall, dc.CollectionDate)
-                ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
+                ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
                 : 0m);
 
         return dailyRevenue + monthlyRevenue;

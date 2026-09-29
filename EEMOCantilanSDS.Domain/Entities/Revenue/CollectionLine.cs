@@ -79,7 +79,7 @@ public sealed class CollectionLine : BaseEntity, IMunicipalityOwned
         var valid = sourceKind.Value switch
         {
             CollectionSourceKind.UtilityBill => sourcePart is CollectionSourcePart.Electricity or CollectionSourcePart.Water,
-            CollectionSourceKind.DailyCollection => sourcePart is CollectionSourcePart.DailyFee or CollectionSourcePart.FishFee,
+            CollectionSourceKind.DailyCollection => sourcePart is CollectionSourcePart.DailyFee or CollectionSourcePart.FishFee or CollectionSourcePart.MeatWeighing,
             _ => sourcePart is null
         };
 
