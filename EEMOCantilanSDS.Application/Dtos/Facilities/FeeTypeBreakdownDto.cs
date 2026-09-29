@@ -13,6 +13,10 @@ public record FeeTypeBreakdownDto(
     int PaidDayRecords = 0,
     /// <summary>The collectable stall-days the same period expected, counted on the same basis.</summary>
     int ExpectedDayRecords = 0,
-    /// <summary>Distinct NPM Meat weighing amount; reported separately from stall rent and Fish kilos.</summary>
-    decimal WeightMeasureAmount = 0m
+    /// <summary>Legacy NPM Meat weighing amount; retained for existing report consumers.</summary>
+    decimal WeightMeasureAmount = 0m,
+    /// <summary>Meat kilos recorded on paid daily NPM collections for the selected period.</summary>
+    decimal MeatKilos = 0m,
+    /// <summary>Explicit Meat weighing amount; separate from daily stall rent and Fish weighing.</summary>
+    decimal MeatWeightMeasureAmount = 0m
 );

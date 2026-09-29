@@ -23,6 +23,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetNpmMeatWeighingRateQuote;
 using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
@@ -98,6 +99,15 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
     public async Task<ActionResult<MobileNpmCollectionDto>> GetNpmCollectionsAsync([FromQuery] int year, [FromQuery] int month)
     {
         var result = await Sender.Send(new GetMobileNpmCollectionQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    /// <summary>Display-only effective Meat weighing rate for a selected Philippine collection date.</summary>
+    [HttpGet("npm/meat-weighing-rate")]
+    public async Task<ActionResult<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateAsync(
+        [FromQuery] DateOnly businessDate)
+    {
+        var result = await Sender.Send(new GetNpmMeatWeighingRateQuoteQuery(businessDate));
         return HandleResponse(result);
     }
 

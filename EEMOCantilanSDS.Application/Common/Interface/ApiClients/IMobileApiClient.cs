@@ -22,6 +22,7 @@ public interface IMobileApiClient
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
+    Task<Result<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateQuoteAsync(DateOnly businessDate);
 
     /// <summary>
     /// What the market is behind on: months that closed owing, and the days of this month gone by.

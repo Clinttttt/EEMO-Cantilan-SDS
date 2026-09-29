@@ -44,3 +44,44 @@ Market Fees, Kanmanggay, and Fiesta/Araw were not changed. Existing historical F
 2. Add a proper operation-assignment model for non-facility collection operations, then implement Landing/Berthing CT and Transfer Large Cattle OR as distinct source types with offline queue replay, custody, idempotency, and rejected-issued-document reconciliation.
 3. Add source-authoritative complete-period/report aggregation only after canonical recognition is defined; exclude assessments, compatibility projections, and already-counted legacy/canonical evidence from cash totals.
 4. CORE BRAIN may wire presentation to the existing NPM rate and report DTOs after integrating this branch. This branch intentionally contains no Web Razor/CSS edits.
+
+## Follow-up: collector rate quote and NPM report facts (2026-09-29)
+
+This follow-up adds a display-only, tenant-scoped Meat rate quote and explicit report facts. It does not complete the canonical Weight & Measure adapter or any of the direct field-operation writers below.
+
+- Added authenticated Mobile GET `api/Mobile/npm/meat-weighing-rate?businessDate=yyyy-MM-dd`. It resolves `NpmMeatPerKilo` through the tenant-scoped fee-rate snapshot for the requested Philippine business date and returns rate/effective-date or an explicit unavailable state. Future dates are rejected. The quote is informational; the existing collection command still resolves and freezes its own server-side rate and amount. The Mobile caching client does not serve stale cached quotes offline.
+- NPM report DTOs now expose Fish weighing amount separately from Fish/vendor presentation, and expose Meat kilos and the frozen Meat weighing amount separately from Meat-area daily rent. The repository report breakdown preserves Meat weighing evidence even when a monthly rent payment exists for the same stall; rent and Fish continue using their established monthly-payment deduplication. No client-side rate multiplication is used for report totals.
+- Existing legacy report totals and `CollectionSourcePart.MeatWeighing` are not a canonical `CollectionLine`. The new fields are source/report facts only. No canonical Monthly Income cash recognition, source cutover, OR/CT issuance, or production activation was added.
+- No schema change was needed; there is no migration in this follow-up.
+
+### Official-row readiness audit on this backend branch
+
+The repository has revenue classification identities, but no `MonthlyIncomeCanonical` report reader was found. A classification seed or assessment row is not evidence of posted cash.
+
+| Classification | Current source / canonical writer | Included by a canonical Monthly Income reader? | Remaining gate |
+| --- | --- | --- | --- |
+| `WEIGHT_AND_MEASURE` | NPM Fish and Meat weighing facts remain on legacy NPM sources; no NPM-to-`CollectionLine` writer | No | Reconcile NPM source history, add source-part adapter and exact-once cutover/correction rules |
+| `LANDING_BERTHING` | Historical `LandingBerthingActivity` only; no direct collector source/writer | No | Assigned CT Mobile source, custody, offline replay and canonical posting |
+| `TRANSFER_LARGE_CATTLE` | Existing governed-service assessment evidence; no direct collector source/writer | No | Assigned OR Mobile source, custody, offline replay and canonical posting |
+| `VEGETABLE_FRUIT_SPACE_RENTAL` | Governed-service assessment source; no direct mode-aware Mobile writer | No | Assigned writer and server-enforced Whole/OR versus Daily/CT instrument/custody path |
+| `MARKET_FEES` | Configurable-service setup/assessment patterns; no collection-point canonical Mobile writer on this branch | No | Authorized operation assignment, point identity, CT custody and exact allocation |
+| Kanmanggay space rental | Not integrated into this backend checkpoint as a specialized account-month canonical writer | No | Integrate the specialized source, then OR custody, Mobile settlement and allocation |
+| WCF | WCF canonical Mobile workflow exists in this branch | No canonical Monthly Income reader found | Connect canonical posted lines to the official-row reader and reconcile compatibility projections |
+| ECF | Approved assessment/legacy utility evidence; no active canonical collection writer | No | Resolve legacy overlap, OR lifecycle and cutover before recognizing cash |
+| Fiesta/Araw lot rental | Generic governed-service assessment facts; assessment is not cash | No | Complete-period source/report query and later approved assigned OR writer/cutover |
+
+The classification seeder currently supplies one instrument value per classification. Vegetable/Fruit business policy has two modes (Whole Payment = OR, Daily Transaction = CT); the eventual writer must enforce mode-specific instrument semantics and must not treat a single seed value as sufficient authorization to post both modes.
+
+### Follow-up validation
+
+- Focused unit tests: 6 passed, 0 failed (dated quote, unavailable/tenant-isolated quote, future-date rejection, quantity-only request, NPM Meat report mapping, and preservation of Meat weighing evidence alongside monthly rent).
+- Client Release build: passed, 0 errors (28 existing warnings).
+- Mobile Android Release build: passed, 0 errors (50 existing package/platform warnings). No MacCatalyst target was built.
+- Full solution and full unit suites were not run in this bounded follow-up. Component tests were not run.
+- PostgreSQL/Testcontainers tests: skipped; Docker Desktop Linux engine was unavailable (`dockerDesktopLinuxEngine` pipe absent).
+- `git diff --check`: passed before commit.
+- No Web UI files were changed. No deployment, APK release, source activation, or cutover occurred.
+
+### Not implemented in this follow-up
+
+The following sprint phases remain open and must not be inferred complete from the quote/report contract: canonical NPM Fish/Meat `CollectionLine` recognition and reconciliation; accepted collector-operation assignment integration; direct offline-safe Landing/Berthing CT, Transfer Large Cattle OR, and Vegetable/Fruit CT/OR writers; a canonical Monthly Income reader; and end-to-end canonical inclusion/correction tests. A candidate operation-assignment workflow was found only on the separate UI branch (commit `5f88f4de`); it was not copied or adopted here because that branch has an additional stale Fish/Meat operation identity which needs reconciliation first.

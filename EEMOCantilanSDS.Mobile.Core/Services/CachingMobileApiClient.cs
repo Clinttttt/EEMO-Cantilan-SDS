@@ -59,6 +59,11 @@ public sealed class CachingMobileApiClient(
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         ReadThroughAsync($"npm|{year}|{month}|{Today}", () => inner.GetNpmCollectionAsync(year, month));
 
+    // A rate quote is display-only and must stay tied to the server's current effective-dated answer.
+    // Do not serve a stale cached rate while offline; the posting handler resolves it again on sync.
+    public Task<Result<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateQuoteAsync(DateOnly businessDate) =>
+        inner.GetNpmMeatWeighingRateQuoteAsync(businessDate);
+
     // Cached on the same terms as the round, so a collector who loses the signal after opening the arrears screen keeps the list
     // he was working from instead of an empty one.
     public Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month) =>

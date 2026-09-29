@@ -242,7 +242,13 @@ public record NpmFacilityDetailDto(
     decimal ElecCollected = 0m,
     decimal WaterCollected = 0m,
     decimal UtilityOutstanding = 0m,
-    decimal WeightMeasureCollected = 0m
+    decimal WeightMeasureCollected = 0m,
+    /// <summary>Fish kilo-based amount, exposed separately for Weight &amp; Measure reporting.</summary>
+    decimal FishWeightMeasureCollected = 0m,
+    /// <summary>Paid daily-collection Meat kilos, kept distinct from Meat stall rent.</summary>
+    decimal MeatKilos = 0m,
+    /// <summary>Frozen Meat weighing amount; not derived in the report from kilos.</summary>
+    decimal MeatWeightMeasureCollected = 0m
 );
 
 public record FinancialRecordDto(

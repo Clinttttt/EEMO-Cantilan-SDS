@@ -204,7 +204,10 @@ public class GetFinancialReportQueryHandler(
                     ElecCollected: utilElec,
                     WaterCollected: utilWater,
                     UtilityOutstanding: utilOutstanding,
-                    WeightMeasureCollected: weightMeasure);
+                    WeightMeasureCollected: weightMeasure,
+                    FishWeightMeasureCollected: fishFee,
+                    MeatKilos: report.FeeTypeBreakdown?.MeatKilos ?? 0m,
+                    MeatWeightMeasureCollected: report.FeeTypeBreakdown?.MeatWeightMeasureAmount ?? weightMeasure);
             }
 
             // The row's own two figures decide its rate whenever utilities are part of them, so the percentage cannot

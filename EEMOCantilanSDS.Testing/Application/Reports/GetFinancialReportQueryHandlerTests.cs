@@ -101,7 +101,8 @@ public class GetFinancialReportQueryHandlerTests
             Payor("12", "Rosa Magbanua", 0m, 12_000m, 3),   // delinquent
             Payor("07", "Maria Velasco", 500m, 3_000m, 1),  // delinquent: one fully elapsed month
             Payor("01", "Pedro Santos", 900m, 0m, 0),       // fully paid (occupied, no balance)
-        }, feeBreakdown: new FeeTypeBreakdownDto(810m, 346m, null, PaidDayRecords: 27, ExpectedDayRecords: 30));
+        }, feeBreakdown: new FeeTypeBreakdownDto(810m, 346m, null, PaidDayRecords: 27, ExpectedDayRecords: 30,
+            WeightMeasureAmount: 132m, MeatKilos: 2m, MeatWeightMeasureAmount: 132m));
 
         reports.Setup(r => r.GetFacilityReportsAsync(
                 It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
@@ -826,6 +827,9 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(810m, d.DailyFeeCollected);
         Assert.Equal(346m, d.FishCollected);
         Assert.Equal(346m, d.FishKilos);                 // ₱1/kg → kilos == fish amount
+        Assert.Equal(346m, d.FishWeightMeasureCollected);
+        Assert.Equal(2m, d.MeatKilos);
+        Assert.Equal(132m, d.MeatWeightMeasureCollected);
         Assert.Equal(20_000m, d.PeriodBalance);          // selected-period assessed − collected
         Assert.Equal(2_700m, d.FullMonthCoverage);       // 3 occupied stalls × ₱900 (no absent days)
         Assert.Equal(1_300m, d.FullMonthCoverageBalance);// per stall: max(0,900-0)+max(0,900-500)+max(0,900-900)=1,300
