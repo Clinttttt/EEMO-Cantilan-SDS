@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,7 +41,9 @@ public sealed class GetRevenueClassificationsQueryHandler(
         var ids = classifications.Select(x => x.Id).ToArray();
         var policies = await context.RevenueClassificationPolicies
             .AsNoTracking()
-            .Where(x => x.MunicipalityId == municipalityId && ids.Contains(x.RevenueClassificationId))
+            .Where(x => x.MunicipalityId == municipalityId
+                && ids.Contains(x.RevenueClassificationId)
+                && x.BusinessContext == RevenuePolicyContext.Default)
             .ToListAsync(cancellationToken);
 
         var byClassification = policies

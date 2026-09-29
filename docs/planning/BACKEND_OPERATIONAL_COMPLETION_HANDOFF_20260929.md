@@ -158,3 +158,35 @@ Additive migration: `20260929154642_AddCollectorOperationAssignments`. No prior 
 - `git diff --check`: passed; Git emitted only expected LF-to-CRLF normalization notices.
 - Full unit and integration suites were not run. Component tests were not run; no Web UI was changed.
 - No historical assignment backfill, financial cutover, source activation, production-data rewrite, deployment, or APK release occurred.
+
+## Follow-up: Cantilan instrument policy context and effective-date reconciliation (2026-09-30)
+
+This checkpoint corrects stale seeded instrument assumptions under confirmed decisions IA-045 and IA-046, effective 2026-09-27. The earlier default-context policy history remains intact as evidence; the new context dimension is policy scope only and does not create a source, collection, or classification.
+
+- Added `RevenuePolicyContext` with `Default`, `VegetableWholePayment`, and `VegetableDailyTransaction`. Existing generic policy commands, list/history queries, and instrument resolvers stay on `Default`; a contextual row cannot satisfy a default, Whole Payment, or Daily Transaction lookup unless that exact context is requested.
+- Added `BusinessContext` to effective-dated revenue instrument policies and changed uniqueness to `(MunicipalityId, RevenueClassificationId, EffectiveDate, BusinessContext)`. The additive migration adds the column with database default `Default`, preserving existing policy IDs, instruments, effective dates, and evidence. It adds a supported-context check and updates the unique index without editing prior migrations.
+- Tabo on fresh Cantilan setup before 2026-09-27 retains the earlier CT working assumption. On/after 2026-09-27 it resolves to OR. Existing pre-clarification Tabo CT policies are preserved; the seeder appends one OR Default policy effective 2026-09-27 when needed and is idempotent. TPM shadow reconciliation explicitly resolves only `Default`, remains shadow-only, and creates no Collection/CollectionLine.
+- Fresh Cantilan setup on/after 2026-09-27 seeds Vegetable/Fruit `VegetableWholePayment` as OR and `VegetableDailyTransaction` as CT. Existing default-context Vegetable CT rows are retained unchanged as historical/compatibility evidence; generic policy readers do not present the two contextual rows as duplicate default policies. No new generic Default row is claimed as authority for Whole Payment. A future source writer must request its exact transaction context; collector preference cannot select the instrument.
+- Cantilan mappings remain tenant-specific. Other municipalities receive no Tabo or Vegetable instrument mapping from this correction. Contextual policies require a valid context and explicit instrument; currently supported Default classifications with a null instrument remain valid.
+- Policy-history display for a canonical line that references a specific immutable policy ID remains able to look up that policy's display name. Ordinary classification list/history and all generic business-date resolvers filter to `Default`, including WCF, rent, collection composition/cutover, TPM and TRM shadow queries.
+
+### Policy checkpoint validation
+
+- Focused domain/application/seeder/TPM tests: 30 passed, 0 failed.
+- Focused PostgreSQL/Testcontainers tests: 2 passed, 0 failed. Applied the full migration chain; verified preserved Tabo CT plus appended OR, both Vegetable contexts at the same date, old default Vegetable evidence, tenant isolation, different-context coexistence, and same-context uniqueness rejection.
+- API Release build: passed, 0 errors. Three pre-existing warnings remain in `VendorsController`, `SlaughterController`, and `MunicipalitiesController`.
+- `dotnet ef migrations has-pending-model-changes`: no model changes pending after scaffolding.
+- `git diff --check`: passed before commit (re-run at final review).
+- Full unit/integration suites and component tests were not run; this was a focused policy checkpoint. Docker/Testcontainers was available for the focused PostgreSQL run.
+- No source writer, Tabo cutover, Vegetable assessment/mobile writer, OR/CT issuance, canonical settlement, report cash recognition, backfill, production activation, deployment, or APK release was implemented.
+
+### Current policy and source readiness notes
+
+| Operation / policy | Policy authority after this checkpoint | Writer / canonical cash status |
+| --- | --- | --- |
+| Tabo | Cantilan Default OR from 2026-09-27; earlier Default CT policy evidence remains effective for its historical period | Existing TPM shadow reconciliation only; no canonical collection/cutover |
+| Vegetable/Fruit whole payment | `VegetableWholePayment` context -> OR from 2026-09-27 | No assessment/mobile writer, OR custody, canonical line, or activation |
+| Vegetable/Fruit daily transaction | `VegetableDailyTransaction` context -> CT from 2026-09-27 | No assessment/mobile writer, CT custody, canonical line, or activation |
+| Generic/default revenue policies | Existing Default stream and API behavior preserved | Existing source-specific readiness unchanged |
+
+The existing earlier readiness matrix remains valid for all other sources. In particular, WCF retains its separately assigned UtilityBill/NPM CT workflow; Market Fees, Landing/Berthing, Transfer Large Cattle, and Vegetable/Fruit do not gain collection writers from this policy model; Weight & Measure remains NPM-derived and unassigned as a standalone operation.

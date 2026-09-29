@@ -136,7 +136,9 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
             && x.IsActive, ct);
         var policy = classification is null ? null : await db.RevenueClassificationPolicies.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId
-                && x.RevenueClassificationId == classification.Id && x.EffectiveDate <= businessDate)
+                && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default
+                && x.EffectiveDate <= businessDate)
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
             throw new InvalidOperationException("Permanent Stall Rent has no effective Official Receipt policy for this tenant.");
@@ -190,7 +192,9 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
             && x.IsActive, ct);
         var policy = policyFacts?.Policy ?? (classification is null ? null : await db.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == tenantId
-                && x.RevenueClassificationId == classification.Id && x.EffectiveDate <= businessDate)
+                && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default
+                && x.EffectiveDate <= businessDate)
             .OrderByDescending(x => x.EffectiveDate)
             .FirstOrDefaultAsync(ct));
         if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)

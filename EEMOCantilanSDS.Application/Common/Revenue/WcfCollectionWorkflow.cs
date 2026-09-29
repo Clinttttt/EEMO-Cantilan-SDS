@@ -519,6 +519,7 @@ public sealed class WcfCollectionWorkflow(
             throw new WorkflowProblem("WCF has no active revenue classification for this tenant.", ResultStatus.Conflict);
         var policy = await db.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == tenantId && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default
                 && x.EffectiveDate <= asOf)
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (policy?.PermittedInstrumentType != RevenueInstrumentType.CashTicket)

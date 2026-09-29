@@ -49,14 +49,16 @@ public sealed class GetTpmCollectionShadowReconciliationQueryHandlerTests
     private static RevenueClassificationPolicy Policy(
         Guid classificationId,
         Guid tenantId,
-        DateOnly effectiveDate) =>
+        DateOnly effectiveDate,
+        RevenuePolicyContext businessContext = RevenuePolicyContext.Default) =>
         RevenueClassificationPolicy.Create(
             classificationId,
             effectiveDate,
             $"TABO policy {effectiveDate:yyyy-MM-dd}",
             RevenueInstrumentType.CashTicket,
             tenantId,
-            createdBy: "seed");
+            createdBy: "seed",
+            businessContext: businessContext);
 
     private static TpmAttendance AddAttendance(
         AppDbContext context,
@@ -142,6 +144,10 @@ public sealed class GetTpmCollectionShadowReconciliationQueryHandlerTests
             var exactPolicy = Policy(tabo.Id, tenant, new DateOnly(2026, 9, 18));
             var latestPastPolicy = Policy(tabo.Id, tenant, new DateOnly(2026, 9, 20));
             var futurePolicy = Policy(tabo.Id, tenant, new DateOnly(2026, 10, 2));
+            // Even if a non-default context row exists for the same classification, TPM reconciliation
+            // must continue to resolve only the classification's generic Default policy stream.
+            var contextualPolicy = Policy(tabo.Id, tenant, new DateOnly(2026, 9, 24),
+                RevenuePolicyContext.VegetableWholePayment);
             exactPolicyId = exactPolicy.Id;
             latestPastPolicyId = latestPastPolicy.Id;
 
@@ -161,6 +167,7 @@ public sealed class GetTpmCollectionShadowReconciliationQueryHandlerTests
                 exactPolicy,
                 latestPastPolicy,
                 futurePolicy,
+                contextualPolicy,
                 Policy(nonTabo.Id, tenant, new DateOnly(2026, 9, 1)));
             await seed.SaveChangesAsync();
         }

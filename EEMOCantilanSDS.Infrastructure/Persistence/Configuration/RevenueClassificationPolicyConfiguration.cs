@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -8,7 +9,9 @@ public sealed class RevenueClassificationPolicyConfiguration : IEntityTypeConfig
 {
     public void Configure(EntityTypeBuilder<RevenueClassificationPolicy> builder)
     {
-        builder.ToTable("RevenueClassificationPolicies");
+        builder.ToTable("RevenueClassificationPolicies", table => table.HasCheckConstraint(
+            "CK_RevenueClassificationPolicies_BusinessContext",
+            "\"BusinessContext\" IN (0, 1, 2)"));
 
         builder.HasKey(x => x.Id);
         // CollectionLine needs to prove that the selected policy belongs to the same municipality
@@ -17,6 +20,7 @@ public sealed class RevenueClassificationPolicyConfiguration : IEntityTypeConfig
         builder.Property(x => x.MunicipalityId).IsRequired();
         builder.Property(x => x.RevenueClassificationId).IsRequired();
         builder.Property(x => x.EffectiveDate).IsRequired();
+        builder.Property(x => x.BusinessContext).HasConversion<int>().HasDefaultValue(RevenuePolicyContext.Default).IsRequired();
         builder.Property(x => x.DisplayName).HasMaxLength(160).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.PermittedInstrumentType).HasConversion<int?>();
@@ -25,7 +29,7 @@ public sealed class RevenueClassificationPolicyConfiguration : IEntityTypeConfig
 
         // A policy version is immutable and deliberately has no soft-delete lifecycle: hiding an old
         // version would make the policy in effect on a historical date unreproducible.
-        builder.HasIndex(x => new { x.MunicipalityId, x.RevenueClassificationId, x.EffectiveDate })
+        builder.HasIndex(x => new { x.MunicipalityId, x.RevenueClassificationId, x.EffectiveDate, x.BusinessContext })
             .IsUnique();
 
         // Including MunicipalityId in the FK makes cross-tenant classification references impossible

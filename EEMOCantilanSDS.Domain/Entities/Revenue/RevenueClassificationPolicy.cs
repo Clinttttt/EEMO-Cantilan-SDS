@@ -12,6 +12,7 @@ public sealed class RevenueClassificationPolicy : BaseEntity, IMunicipalityOwned
     public Guid MunicipalityId { get; private set; }
     public Guid RevenueClassificationId { get; private set; }
     public DateOnly EffectiveDate { get; private set; }
+    public RevenuePolicyContext BusinessContext { get; private set; } = RevenuePolicyContext.Default;
     public string DisplayName { get; private set; } = string.Empty;
     public string? Description { get; private set; }
 
@@ -33,7 +34,8 @@ public sealed class RevenueClassificationPolicy : BaseEntity, IMunicipalityOwned
         RevenueInstrumentType? permittedInstrumentType,
         Guid municipalityId = default,
         string? description = null,
-        string createdBy = "System")
+        string createdBy = "System",
+        RevenuePolicyContext businessContext = RevenuePolicyContext.Default)
     {
         if (revenueClassificationId == Guid.Empty)
             throw new ArgumentException("A classification is required.", nameof(revenueClassificationId));
@@ -45,6 +47,12 @@ public sealed class RevenueClassificationPolicy : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Created by is required and must not exceed 100 characters.", nameof(createdBy));
         if (permittedInstrumentType is { } instrument && !Enum.IsDefined(instrument))
             throw new ArgumentOutOfRangeException(nameof(permittedInstrumentType));
+        if (!Enum.IsDefined(businessContext))
+            throw new ArgumentOutOfRangeException(nameof(businessContext));
+        if (businessContext != RevenuePolicyContext.Default && permittedInstrumentType is null)
+            throw new ArgumentException(
+                "A contextual instrument policy must name its permitted instrument.",
+                nameof(permittedInstrumentType));
 
         return new RevenueClassificationPolicy
         {
@@ -52,6 +60,7 @@ public sealed class RevenueClassificationPolicy : BaseEntity, IMunicipalityOwned
             MunicipalityId = municipalityId,
             RevenueClassificationId = revenueClassificationId,
             EffectiveDate = effectiveDate,
+            BusinessContext = businessContext,
             DisplayName = displayName.Trim(),
             Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(),
             PermittedInstrumentType = permittedInstrumentType,

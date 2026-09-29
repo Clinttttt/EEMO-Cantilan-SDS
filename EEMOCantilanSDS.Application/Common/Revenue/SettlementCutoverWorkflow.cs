@@ -400,6 +400,7 @@ public sealed class SettlementCutoverWorkflow(
         if (classification is null) return null;
         return await db.RevenueClassificationPolicies.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default
                 && x.EffectiveDate <= BusinessToday)
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
     }

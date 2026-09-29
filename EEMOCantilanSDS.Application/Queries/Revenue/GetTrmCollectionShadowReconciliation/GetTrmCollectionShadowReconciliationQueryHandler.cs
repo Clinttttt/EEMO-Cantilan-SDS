@@ -89,6 +89,7 @@ public sealed class GetTrmCollectionShadowReconciliationQueryHandler(
                 .AsNoTracking()
                 .Where(x => x.MunicipalityId == municipalityId
                     && x.RevenueClassificationId == classification.Id
+                    && x.BusinessContext == RevenuePolicyContext.Default
                     && x.EffectiveDate <= request.To)
                 .OrderByDescending(x => x.EffectiveDate)
                 .ThenByDescending(x => x.Id)
