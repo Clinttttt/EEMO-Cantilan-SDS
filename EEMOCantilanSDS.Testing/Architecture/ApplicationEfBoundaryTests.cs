@@ -149,6 +149,9 @@ public class ApplicationEfBoundaryTests
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
+        // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
+        // permission rows. It carries no money, source, document or policy state.
+        "CollectorOperationAssignmentWorkflow.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.
