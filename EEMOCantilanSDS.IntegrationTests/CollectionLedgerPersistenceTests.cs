@@ -99,6 +99,60 @@ public sealed class CollectionLedgerPersistenceTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task PostgreSqlAcceptsNpmMeatWeighingAsLineAndAllocationSourcePart()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = await CreateMunicipalityAsync("LEDGER-MEAT-SOURCE-PART");
+        var sourceId = Guid.NewGuid();
+
+        await using (var context = db.CreateContext(tenant))
+        {
+            var classification = RevenueClassification.Create("WEIGHT_AND_MEASURE", tenant);
+            var policy = RevenueClassificationPolicy.Create(
+                classification.Id,
+                new DateOnly(2026, 9, 1),
+                "Weight & Measure",
+                RevenueInstrumentType.OfficialReceipt,
+                tenant);
+            var allocation = new CollectionAllocationDraft(
+                CollectionSourceKind.DailyCollection,
+                sourceId,
+                66m,
+                CollectionSourcePart.MeatWeighing,
+                "Frozen Meat weighing source facts");
+            var collection = Collection.Post(
+                new DateOnly(2026, 9, 29),
+                DateTime.SpecifyKind(new DateTime(2026, 9, 29, 8, 30, 0), DateTimeKind.Utc),
+                "collector-17",
+                "Field Collector",
+                "Collector",
+                [new CollectionLineDraft(
+                    classification,
+                    policy,
+                    66m,
+                    CollectionSourceKind.DailyCollection,
+                    sourceId,
+                    CollectionSourcePart.MeatWeighing,
+                    "Meat kilos and frozen rate evidence",
+                    [allocation])],
+                collectorId: Guid.NewGuid(),
+                clientOperationId: Guid.NewGuid());
+
+            context.AddRange(classification, policy, collection);
+            await context.SaveChangesAsync();
+        }
+
+        await using var verify = db.CreateContext(tenant);
+        var savedLine = await verify.CollectionLines.Include(x => x.Allocations).SingleAsync();
+        Assert.Equal(CollectionSourceKind.DailyCollection, savedLine.SourceKind);
+        Assert.Equal(CollectionSourcePart.MeatWeighing, savedLine.SourcePart);
+        var savedAllocation = Assert.Single(savedLine.Allocations);
+        Assert.Equal(CollectionSourcePart.MeatWeighing, savedAllocation.SourcePart);
+        Assert.Equal(sourceId, savedAllocation.SourceId);
+    }
+
+    [SkippableFact]
     public async Task PostgreSqlRejectsCrossTenantParentsAndClassificationOrPolicyMismatch()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

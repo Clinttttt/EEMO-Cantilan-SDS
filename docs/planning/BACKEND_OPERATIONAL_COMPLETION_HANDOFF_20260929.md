@@ -85,3 +85,38 @@ The classification seeder currently supplies one instrument value per classifica
 ### Not implemented in this follow-up
 
 The following sprint phases remain open and must not be inferred complete from the quote/report contract: canonical NPM Fish/Meat `CollectionLine` recognition and reconciliation; accepted collector-operation assignment integration; direct offline-safe Landing/Berthing CT, Transfer Large Cattle OR, and Vegetable/Fruit CT/OR writers; a canonical Monthly Income reader; and end-to-end canonical inclusion/correction tests. A candidate operation-assignment workflow was found only on the separate UI branch (commit `5f88f4de`); it was not copied or adopted here because that branch has an additional stale Fish/Meat operation identity which needs reconciliation first.
+
+## Follow-up: NPM MeatWeighing relational source-part alignment (2026-09-29)
+
+The domain already recognizes `DailyCollection + MeatWeighing` as a valid stable source identity, but the relational source-shape checks for posted lines, allocations, Web draft lines, and Web draft allocations still allowed only parts 3 and 4. This meant the future Meat weighing line could pass domain validation but fail at the database boundary.
+
+- Updated the four EF model constraints to allow `DailyCollection` source part 5 (`MeatWeighing`) alongside existing daily and Fish parts.
+- Added the additive migration `20260929095118_AllowNpmMeatWeighingCollectionPart`; no old migration or financial row was rewritten.
+- Added a domain regression case and a relational-model test covering all four constraints.
+- This is schema representability only. It does not add a Collection writer, allocation, accountable-document path, exact-once source guard, Monthly Income reader, or source activation.
+
+### Current backend readiness matrix
+
+| Source | Source facts / assessment | Mobile writer | Offline-safe | Instrument custody | Canonical CollectionLine | Reports | Activation state |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| NPM Weight & Measure | Fish and Meat weighing facts exist on legacy NPM daily rows; Meat amount/rate/date are frozen server-side | Existing NPM daily collection writer captures the facts | Existing NPM queue/replay carries the source facts | Legacy OR string only; no AccountableDocument consumption for these NPM rows | No adapter or posted line; source-part 5 is now representable only | Operational NPM facts exist; no canonical Monthly Income reader | NPM remains legacy authority; Weight & Measure cutover not activated |
+| Market Fees | Tenant collection-point policy/setup exists | No operation-specific Mobile writer | No | No Market Fees CT custody path | No | No canonical Monthly Income reader | Inactive |
+| WCF | UtilityBill source plus WCF obligation workflow | Web and Mobile API posting workflow exists | Server operation retry support exists; a durable device queue was not confirmed in this audit | Accountable CT workflow exists | WCF workflow creates classified source lines | Collector/source reports read WCF canonical evidence; canonical Monthly Income reader absent | No WCF change/cutover in this checkpoint; scope authority remains separately gated |
+| Landing / Berthing | Historical `LandingBerthingActivity` only | No direct field writer | No | No operation-specific CT custody | No | Activity evidence only; no canonical cash reader | Inactive |
+| Transfer Large Cattle | Historical governed-service assessment evidence | No direct field writer | No | No operation-specific OR custody | No | Assessment evidence is not cash; no canonical reader | Inactive |
+| Vegetable / Fruit Space Rental | Governed-service assessment evidence | No mode-aware Mobile writer | No | No combined Whole/OR and Daily/CT custody path | No | Assessment evidence is not cash; no canonical reader | Inactive |
+| ECF | Approved assessment and legacy utility evidence | No canonical collection writer confirmed | No | OR lifecycle/custody gate remains | No | Legacy/source evidence only; no canonical Monthly Income reader | Inactive pending OR and reconciliation gates |
+| Kanmanggay | The specialized account-month source is not present in this backend checkpoint; generic assessments remain historical | No canonical Mobile settlement writer | No | OR custody path not integrated here | No | No canonical Monthly Income reader | Pending integration/cutover |
+| Fiesta / Araw | Generic governed-service assessment facts | No assigned Mobile writer | No | No source-specific OR custody writer | No | Complete-period assessment/report query is not present here | Inactive |
+
+The Weight & Measure path remains blocked before canonical cash recognition: reconcile the NPM source scope; define an exact-once adapter and correction relationship; bring Fish row-level rate/amount evidence to a safe frozen basis before projecting any historical Fish rows; use accountable-document custody rather than the legacy free-text OR value; and add a canonical report reader with an explicit correction/reporting basis. No historical backfill is approved or performed.
+
+### Validation for this follow-up
+
+- Focused unit/model tests: 17 passed, 0 failed (`CollectionDomainTests` and `CollectionSourceShapeModelTests`).
+- Regression proof: temporarily restoring the old `CollectionLines` constraint made the new model test fail on the missing Meat source part; the corrected constraint was then restored and the focused tests passed.
+- Focused PostgreSQL/Testcontainers integration test: 1 passed, 0 failed. It applied the full migration chain to a throwaway PostgreSQL 16 database and persisted a MeatWeighing source part on both a line and allocation.
+- `dotnet ef migrations has-pending-model-changes`: no pending model changes after scaffolding.
+- API Release build: passed, 0 warnings, 0 errors.
+- `git diff --check`: passed; Git reports expected LF-to-CRLF normalization warnings for edited text files.
+- No Web Razor/CSS, Mobile UI, source writer, production data, deployment, or APK release was changed.

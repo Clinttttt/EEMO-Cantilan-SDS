@@ -15,7 +15,7 @@ public sealed class WebCollectionDraftLineConfiguration : IEntityTypeConfigurati
                 "CK_WebCollectionDraftLines_SourceShape",
                 "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) " +
                 "OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) " +
-                "OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4)) " +
+                "OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) " +
                 "OR (\"SourceKind\" IN (1, 4, 5, 6, 7) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
         });
         builder.HasKey(x => x.Id);
