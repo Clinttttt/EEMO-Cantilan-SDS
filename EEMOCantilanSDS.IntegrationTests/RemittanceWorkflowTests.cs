@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -106,6 +107,67 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         await PostAsync(w, 0, CollectorOperationCodes.MarketFees, 30m);
         await PostAsync(w, 1, CollectorOperationCodes.MarketFees, 30m);
         await PostAsync(w, 2, CollectorOperationCodes.LandingBerthing, 50m);
+    }
+
+    [SkippableFact]
+    public async Task ACollectorReadsOnlyTheirOwnPosition_FromTheTokenIdentity_WithFormCountsAndNoOfficeData()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("mine");
+        var other = await SeedAsync("other");
+        await PostThreeAsync(w);
+        await PostThreeAsync(other);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        RemittanceWorkflow AsCollector(Guid id, Guid tenant, AppDbContext c) =>
+            new(c, new Caller(id, tenant, "Collector"), new FixedTenant(tenant));
+
+        var mine = (await AsCollector(w.Collector.Id, w.Tenant.Id, ctx).GetMyPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal(w.Collector.Id, mine.CollectorId);
+        Assert.Equal(110m, mine.Collected);                 // server-derived, the same figure the office position uses
+        Assert.Equal(0m, mine.Remitted);
+        Assert.Equal(110m, mine.Unremitted);
+        var tickets = Assert.Single(mine.Forms);
+        Assert.Equal((10, 3, 7), (tickets.Assigned, tickets.Issued, tickets.OnHand));
+
+        // The office position for the same period agrees with the collector's own row.
+        var office = (await Remit(ctx, w).GetPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal(mine.Collected, office.Collectors.Single(x => x.CollectorId == w.Collector.Id).Collected);
+
+        // Once the Head records the remittance, the collector's own position moves; nothing was typed by the collector.
+        Assert.True((await Remit(ctx, w).RecordAsync(Request(w, 110m))).IsSuccess);
+        var after = (await AsCollector(w.Collector.Id, w.Tenant.Id, ctx).GetMyPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal((110m, 110m, 0m), (after.Collected, after.Remitted, after.Unremitted));
+
+        // Another tenant's collector never sees this tenant's money, and this tenant's collector sees none of theirs.
+        await using var otherCtx = db.CreateContext(other.Tenant.Id);
+        var theirs = (await AsCollector(other.Collector.Id, other.Tenant.Id, otherCtx).GetMyPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal(other.Collector.Id, theirs.CollectorId);
+        Assert.Equal(110m, theirs.Collected);
+        Assert.DoesNotContain(theirs.Forms, f => f.Assigned > 10);
+        var crossTenant = await AsCollector(w.Collector.Id, other.Tenant.Id, otherCtx).GetMyPositionAsync(Today.AddDays(-1), Today);
+        Assert.Equal(0m, crossTenant.Value!.Collected);     // wrong tenant scope finds nothing of the collector's
+    }
+
+    [SkippableFact]
+    public async Task TheCollectorPositionRefusesAdministratorsAndUnauthenticatedCallers_AndAdminRemittanceStaysAdminOnly()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("auth");
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+
+        var admin = new RemittanceWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id));
+        Assert.Equal(ResultStatus.Forbidden, (await admin.GetMyPositionAsync(Today, Today)).Status);
+
+        // A collector still cannot use the office position, scope or record.
+        var collector = new RemittanceWorkflow(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id));
+        Assert.Equal(ResultStatus.Forbidden, (await collector.GetPositionAsync(Today, Today)).Status);
+        Assert.Equal(ResultStatus.Forbidden, (await collector.RecordAsync(Request(w, 1m))).Status);
+
+        // An invalid period is refused rather than silently widened.
+        Assert.Equal(ResultStatus.Invalid, (await collector.GetMyPositionAsync(Today, Today.AddDays(-1))).Status);
     }
 
     [SkippableFact]

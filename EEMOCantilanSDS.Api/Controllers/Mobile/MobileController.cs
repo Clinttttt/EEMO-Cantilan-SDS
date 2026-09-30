@@ -13,6 +13,7 @@ using EEMOCantilanSDS.Application.Command.Suggestions.HideSuggestion;
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
@@ -42,7 +43,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "Collector")]
 [Route("api/[controller]")]
 [ApiController]
-public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow) : ApiBaseController(sender)
+public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow, RemittanceWorkflow remittances) : ApiBaseController(sender)
 {
     [HttpGet("menu")]
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
@@ -58,6 +59,15 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
     [HttpGet("operations/capabilities")]
     public async Task<ActionResult<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync(CancellationToken ct) =>
         HandleResponse(await Sender.Send(new GetCollectorOperationCapabilitiesQuery(), ct));
+
+    /// <summary>
+    /// Read-only: the signed-in collector's own collected / remitted / unremitted pesos and form counts for a period. The collector
+    /// comes from the token; there is no collector id parameter and no office-wide data.
+    /// </summary>
+    [HttpGet("position")]
+    public async Task<ActionResult<CollectorPositionDto>> GetMyPositionAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await remittances.GetMyPositionAsync(from, to, ct));
 
     [HttpGet("profile")]
     public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()

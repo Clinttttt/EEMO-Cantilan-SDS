@@ -17,6 +17,9 @@ public interface IMobileApiClient
     /// <summary>Read-only: which assigned non-facility operations are collectible now (GET api/Mobile/operations/capabilities).</summary>
     Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync();
 
+    /// <summary>Read-only: the signed-in collector's own money and form position for a period (GET api/Mobile/position).</summary>
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to);
+
     /// <summary>Documents of the instrument this governed operation (and mode) resolves to that this collector holds (GET api/governed-services/{code}/documents).</summary>
     Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode);
 

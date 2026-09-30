@@ -166,19 +166,47 @@ public sealed class RemittanceWorkflow(
     /// apart, and remaining tickets are a count of forms, never a peso amount.
     /// </summary>
     public Task<Result<AccountabilityPositionDto>> GetPositionAsync(DateOnly from, DateOnly to, CancellationToken ct = default) =>
-        Run<AccountabilityPositionDto>(async actor =>
+        Run<AccountabilityPositionDto>(actor => BuildPositionAsync(actor.TenantId, null, from, to, ct), ct);
+
+    /// <summary>
+    /// The signed-in collector's own position, read-only. The collector is taken from the authenticated identity, never from
+    /// a request value, and the same derivation as the office position is used so the figures cannot disagree. Nothing about
+    /// another collector or the office-wide books is returned.
+    /// </summary>
+    public async Task<Result<CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId
+            || collectorId == Guid.Empty)
+            return Result<CollectorPositionDto>.Forbidden();
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
+            return Result<CollectorPositionDto>.Forbidden();
+        var result = await BuildPositionAsync(tenantId, collectorId, from, to, ct);
+        if (!result.IsSuccess || result.Value is null)
+            return Result<CollectorPositionDto>.Failure(result.Error ?? "The position could not be loaded.", result.Status);
+        var mine = result.Value.Collectors.FirstOrDefault(x => x.CollectorId == collectorId)
+            ?? new CollectorPositionDto(collectorId, currentUser.Username ?? "Collector", 0m, 0m, 0m, 0, 0m, []);
+        return Result<CollectorPositionDto>.Success(mine);
+    }
+
+    private async Task<Result<AccountabilityPositionDto>> BuildPositionAsync(
+        Guid tenantId, Guid? onlyCollector, DateOnly from, DateOnly to, CancellationToken ct)
+    {
         {
             if (Validate(from, to) is { } problem) return Result<AccountabilityPositionDto>.Failure(problem, ResultStatus.Invalid);
-            var facts = await LoadCollectionFactsAsync(actor.TenantId, null, from, to, null, ct);
+            var facts = await LoadCollectionFactsAsync(tenantId, onlyCollector, from, to, null, ct);
             var covered = facts.Where(x => x.Covered).ToList();
-            var remittances = await db.CollectionRemittances.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.Status == RemittanceStatus.Recorded
-                && x.DifferenceAmount != 0m && x.RemittanceDate >= from && x.RemittanceDate <= to).ToListAsync(ct);
+            var remitQuery = db.CollectionRemittances.AsNoTracking().Where(x =>
+                x.MunicipalityId == tenantId && x.Status == RemittanceStatus.Recorded
+                && x.DifferenceAmount != 0m && x.RemittanceDate >= from && x.RemittanceDate <= to);
+            if (onlyCollector is { } only) remitQuery = remitQuery.Where(x => x.CollectorId == only);
+            var remittances = await remitQuery.ToListAsync(ct);
 
-            var forms = await FormPositionsAsync(actor.TenantId, ct);
+            var forms = (await FormPositionsAsync(tenantId, ct))
+                .Where(k => onlyCollector is null || k.Key.CollectorId == onlyCollector).ToDictionary(k => k.Key, k => k.Value);
             var collectorIds = facts.Select(x => x.CollectorId!.Value).Concat(forms.Keys.Select(k => k.CollectorId))
                 .Concat(remittances.Select(x => x.CollectorId)).Distinct().ToArray();
-            var names = await CollectorNamesAsync(actor.TenantId, collectorIds, ct);
+            var names = await CollectorNamesAsync(tenantId, collectorIds, ct);
 
             var rows = new List<CollectorPositionDto>();
             foreach (var collectorId in collectorIds)
@@ -203,7 +231,8 @@ public sealed class RemittanceWorkflow(
             return Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(from, to,
                 rows.Sum(x => x.Collected), rows.Sum(x => x.Remitted), rows.Sum(x => x.Unremitted),
                 rows.Sum(x => x.NeedsReviewCount), rows.Sum(x => x.LegacyCollectionsOutsideRemittance), rows));
-        }, ct);
+        }
+    }
 
     // ── Internals ──────────────────────────────────────────────────────────────────────────────────────
 
