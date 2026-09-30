@@ -439,3 +439,52 @@
 .btn-cancel {
     background: var(--bg-card);
 }
+
+/* ── Brand band: the identity sits on civic blue; the form lifts over it on a light sheet ── */
+.login-top {
+    background: var(--mobile-blue-deep);
+    border-bottom: 0;
+    padding-bottom: 36px;
+}
+
+.login-seal {
+    padding: 6px;
+    border-radius: 50%;
+    background: #ffffff;
+}
+
+.login-gov,
+.login-tagline,
+.login-access {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.login-org {
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.login-access {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.login-card {
+    position: relative;
+    margin-top: -18px;
+    border-radius: 20px 20px 0 0;
+    background: var(--mobile-canvas);
+}
+
+.login-card-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}

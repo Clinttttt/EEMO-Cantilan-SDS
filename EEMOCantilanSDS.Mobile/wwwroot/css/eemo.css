@@ -18,21 +18,39 @@
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url('DMSans-Regular.ttf') format('truetype');
+    src: url('../fonts/DMSans-Regular.ttf') format('truetype');
 }
 @font-face {
     font-family: 'DM Sans';
     font-style: normal;
     font-weight: 500;
     font-display: swap;
-    src: url('DMSans-Medium.ttf') format('truetype');
+    src: url('../fonts/DMSans-Medium.ttf') format('truetype');
 }
 @font-face {
     font-family: 'DM Sans';
     font-style: normal;
     font-weight: 600;
     font-display: swap;
-    src: url('DMSans-SemiBold.ttf') format('truetype');
+    src: url('../fonts/DMSans-SemiBold.ttf') format('truetype');
+}
+/* No bold file is bundled: 700 maps to SemiBold so the WebView never synthesizes a smeared faux-bold. */
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/DMSans-SemiBold.ttf') format('truetype');
+}
+
+/* One typeface for the whole app. app.css still names Helvetica; this file loads after it. */
+html,
+body,
+button,
+input,
+select,
+textarea {
+    font-family: 'DM Sans', system-ui, sans-serif;
 }
 
 
@@ -99,7 +117,7 @@
     --gold-primary: #c8a84b; /* accents, icons, divider line */
     --gold-light: #e8cc76; /* text on dark navy */
     /* Surfaces */
-    --bg-page: #f4f6f9; /* page / app background */
+    --bg-page: #eef3f9; /* page / app background */
     --bg-card: #ffffff; /* cards, nav, sheets */
     --bg-icon: #eef2f6; /* icon containers, stall number bg */
     --border: #dde4ea; /* card borders, dividers */
@@ -116,7 +134,8 @@
     --error-red-bg: #fdf0f0; /* form error background */
     /* Mobile V3 semantic tokens. New and restyled surfaces use these; the legacy palette above remains for
        pages not yet migrated and is removed only once unused. */
-    --mobile-canvas: #f4f6f9;
+    --mobile-canvas: #eef3f9;
+    --mobile-blue-deep: #174a86;
     --mobile-surface: #ffffff;
     --mobile-surface-subtle: #f8fafc;
     --mobile-border: #dfe5ec;
@@ -2518,4 +2537,81 @@ input[type="date"],
 select,
 textarea {
     font-size: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE V3 — BRAND BAND
+   A flat civic-blue header across every screen so the app is not an all-white
+   field: white title and identity on the band, a light-blue context strip under it.
+   No gradient, no glow. Loaded last so it overrides the earlier header rules.
+═══════════════════════════════════════════════════════════════ */
+.eemo-header,
+.header {
+    background: var(--mobile-blue-deep);
+    border-bottom: 0;
+}
+
+.eemo-header .header-org-name,
+.eemo-header .header-page-title,
+.header .header-title {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.eemo-header .header-org-sub,
+.eemo-header .header-page-sub,
+.eemo-header .header-eyebrow,
+.header .header-sub,
+.header .header-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.eemo-header .header-seal {
+    background: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.eemo-header .header-back-btn svg,
+.header .back-btn svg {
+    stroke: #ffffff;
+}
+
+.eemo-header .header-back-btn:active,
+.header .back-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.header .header-logo {
+    border-color: rgba(255, 255, 255, 0.9);
+    background: #ffffff;
+}
+
+/* Context strip under the band */
+.date-strip,
+.greeting-bar {
+    background: var(--mobile-blue-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--mobile-blue) 14%, var(--mobile-border));
+}
+
+.date-strip-left span,
+.greeting-text span {
+    color: var(--mobile-blue-deep);
+}
+
+.date-pill,
+.date-badge {
+    border-color: color-mix(in srgb, var(--mobile-blue) 22%, var(--mobile-border));
+    color: var(--mobile-blue-deep);
+}
+
+/* Page headers that also carry a pill on the band (collection month) */
+.header .collection-month-pill {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.header .collection-month-pill svg {
+    stroke: #ffffff;
 }

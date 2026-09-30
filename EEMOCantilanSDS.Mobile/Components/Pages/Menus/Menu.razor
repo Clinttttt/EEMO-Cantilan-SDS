@@ -38,6 +38,11 @@
         else
         {
             <h1 class="menu-title">Today's work</h1>
+            <div class="menu-summary" aria-label="Today at a glance">
+                <div class="menu-summary-item ready"><span class="menu-summary-num">@Work.Available.Count</span><span class="menu-summary-key">Ready</span></div>
+                <div class="menu-summary-item attention"><span class="menu-summary-num">@Work.Attention.Count</span><span class="menu-summary-key">Attention</span></div>
+                <div class="menu-summary-item idle"><span class="menu-summary-num">@Work.AssignedUnavailable.Count</span><span class="menu-summary-key">Not available</span></div>
+            </div>
 
             @if (Work.Attention.Count > 0)
             {
@@ -48,6 +53,7 @@
                         {
                             <li>
                                 <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/records", forceLoad: false)'>
+                                    <span class="menu-tile attention" aria-hidden="true">!</span>
                                     <span class="menu-row-main">
                                         <span class="menu-row-name">@(item.Count > 1 ? $"{item.Count} " : "")@item.Text</span>
                                     </span>
@@ -74,9 +80,10 @@
                                 @if (item.CanOpen)
                                 {
                                     <button class="menu-row" type="button" @onclick="() => Open(item)">
+                                        <span class="menu-tile ready" aria-hidden="true">@Initials(item.Name)</span>
                                         <span class="menu-row-main">
                                             <span class="menu-row-name">@item.Name</span>
-                                            <span class="menu-row-status ready">@item.Status</span>
+                                            <span class="menu-chip ready">@item.Status</span>
                                         </span>
                                         <span class="menu-row-chevron" aria-hidden="true">›</span>
                                     </button>
@@ -85,9 +92,11 @@
                                 {
                                     @* Ready, but collected from inside another screen (for example WCF from a market stall). *@
                                     <div class="menu-row plain">
+                                        <span class="menu-tile ready" aria-hidden="true">@Initials(item.Name)</span>
                                         <span class="menu-row-main">
                                             <span class="menu-row-name">@item.Name</span>
-                                            <span class="menu-row-status ready">@item.Status · collected from the stall sheet</span>
+                                            <span class="menu-chip ready">@item.Status</span>
+                                            <span class="menu-row-status">Collected from the stall sheet</span>
                                         </span>
                                     </div>
                                 }
@@ -107,9 +116,10 @@
                         {
                             <li>
                                 <div class="menu-row plain">
+                                    <span class="menu-tile idle" aria-hidden="true">@Initials(item.Name)</span>
                                     <span class="menu-row-main">
                                         <span class="menu-row-name">@item.Name</span>
-                                        <span class="menu-row-status">@item.Status</span>
+                                        <span class="menu-chip idle">@item.Status</span>
                                     </span>
                                 </div>
                             </li>
@@ -207,6 +217,13 @@
             OperationsUnavailable = true;
         }
     }
+
+    // Two-letter mark for the row tile, from the operation's own name.
+    static string Initials(string name) => string.Concat(name
+        .Split(new[] { ' ', '/', '-', '|' }, StringSplitOptions.RemoveEmptyEntries)
+        .Where(w => char.IsLetter(w[0]))
+        .Take(2)
+        .Select(w => char.ToUpperInvariant(w[0])));
 
     void Open(WorkItem item)
     {

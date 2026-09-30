@@ -224,3 +224,132 @@
     font-size: 15px;
     font-weight: 600;
 }
+
+/* ── Today at a glance: one blue summary card ── */
+.menu-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.menu-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 20px;
+    border-radius: 14px;
+    background: var(--mobile-blue-deep);
+    color: #ffffff;
+    overflow: hidden;
+}
+
+.menu-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px 14px 12px;
+}
+
+.menu-summary-item + .menu-summary-item {
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.menu-summary-num {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.menu-summary-key {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+/* ── Rows: icon tile, name, status chip ── */
+.menu-list {
+    border-radius: 14px;
+    border-color: color-mix(in srgb, var(--mobile-blue) 10%, var(--mobile-border));
+}
+
+.menu-row {
+    min-height: 64px;
+    gap: 12px;
+}
+
+.menu-tile {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.menu-tile.ready {
+    background: var(--mobile-blue-subtle);
+    color: var(--mobile-blue-deep);
+}
+
+.menu-tile.idle {
+    background: var(--mobile-surface-subtle);
+    border: 1px solid var(--mobile-border);
+    color: var(--mobile-text-secondary);
+}
+
+.menu-tile.attention {
+    background: var(--mobile-warning-subtle);
+    color: var(--mobile-warning);
+    font-size: 18px;
+}
+
+.menu-row-main {
+    gap: 4px;
+}
+
+.menu-chip {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.menu-chip.ready {
+    background: var(--mobile-success-subtle);
+    color: var(--mobile-success);
+}
+
+.menu-chip.idle {
+    background: var(--mobile-surface-subtle);
+    border: 1px solid var(--mobile-border);
+    color: var(--mobile-text-secondary);
+}
+
+.menu-row-chevron {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--mobile-blue-subtle);
+    font-size: 18px;
+}
+
+.menu-group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.menu-group.attention .menu-list {
+    border-color: color-mix(in srgb, var(--mobile-warning) 30%, var(--mobile-border));
+}

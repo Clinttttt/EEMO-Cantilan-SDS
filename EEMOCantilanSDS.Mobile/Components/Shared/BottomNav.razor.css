@@ -64,3 +64,14 @@
     justify-content: center;
     height: 24px;
 }
+
+/* Active tab: a soft blue pill behind the icon, so the current place reads at a glance. */
+.nav-icon {
+    width: 56px;
+    height: 28px;
+    border-radius: 14px;
+}
+
+.nav-item.active .nav-icon {
+    background: var(--mobile-blue-subtle);
+}
