@@ -11,6 +11,7 @@
    historical; the capability is generic accountable-form custody. *@
 @inject IWcfCollectionsApiClient FormsApi
 @inject ICollectorsApiClient CollectorsApi
+@inject IRemittancesApiClient RemittancesApi
 
 <PageTitle>StallTrack — Accountable Forms</PageTitle>
 
@@ -35,6 +36,9 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
                 Assign @Nouns
             </button>
+            <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">Return unused</button>
+            <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">Record spoiled form</button>
+            <a class="v3-btn" href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>
         </Actions>
     </WorkspaceHeader>
 
@@ -65,7 +69,7 @@
                         <th scope="col" class="v3-num">Assigned</th>
                         <th scope="col" class="v3-num">Consumed</th>
                         <th scope="col" class="v3-num">Needs review</th>
-                        <th scope="col" class="v3-num">Voided</th>
+                        <th scope="col" class="v3-num">Spoiled</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -184,7 +188,7 @@
         </div>
     </section>
 
-    <p class="af-scope">This workspace covers Official Receipt and Cash Ticket inventory and collector custody. Remittance, void/replacement and signed RCD processes are not managed here yet.</p>
+    <p class="af-scope">This workspace covers Official Receipt and Cash Ticket inventory and collector custody, including returning unused forms and recording spoiled blank forms. Money remittance is recorded separately in <a href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>, and a form's custody never decides what has been remitted. Void/replacement of an issued document and signed RCD certification are not managed here.</p>
 </div>
 
 @if (_dialog == Dialog.Register)
@@ -308,8 +312,83 @@
     </div>
 }
 
+@if (_dialog == Dialog.Return)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-return-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-return-title">Return unused @Nouns</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-return-form" @onsubmit="ReturnAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">Returns assigned, unused @Nouns.ToLowerInvariant() to office custody. Returned forms are not consumed, not revenue and not remitted. A @Unit.ToLowerInvariant() that has been issued, or spoiled, can never return.</p>
+                <label class="v3-field">
+                    <span>@Noun book</span>
+                    <select @ref="_firstField" @bind="_returnBookId">
+                        <option value="">Select book</option>
+                        @foreach (var book in Books)
+                        {
+                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
+                        }
+                    </select>
+                </label>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_returnFirst" /></label>
+                    <label class="v3-field"><span>Last serial</span><input type="number" min="0" @bind="_returnLast" /></label>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-return-form" disabled="@(_busy || _returnBookId is null || _returnLast < _returnFirst)">Return to office</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_dialog == Dialog.Spoil)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-spoil-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-spoil-title">Record a spoiled or cancelled blank @Unit.ToLowerInvariant()</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-spoil-form" @onsubmit="SpoilAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">For a blank form spoiled before any payer was served. It uses up the form but records no money, is never revenue, and never returns to stock.</p>
+                <label class="v3-field">
+                    <span>@Noun book</span>
+                    <select @ref="_firstField" @bind="_spoilBookId">
+                        <option value="">Select book</option>
+                        @foreach (var book in Books)
+                        {
+                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
+                        }
+                    </select>
+                </label>
+                <label class="v3-field"><span>Serial number</span><input type="number" min="0" @bind="_spoilSerial" /></label>
+                <label class="v3-field"><span>Reason</span><input required maxlength="200" @bind="_spoilReason" /></label>
+                <label class="v3-field"><span>Note (optional)</span><input maxlength="500" @bind="_spoilNote" /></label>
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-spoil-form" disabled="@(_busy || _spoilBookId is null || string.IsNullOrWhiteSpace(_spoilReason))">Record as spoiled</button>
+            </footer>
+        </section>
+    </div>
+}
+
 @code {
-    private enum Dialog { None, Register, Assign }
+    private enum Dialog { None, Register, Assign, Return, Spoil }
 
     private List<AccountableFormBookDto> _books = [];
     private List<CollectorListDto> _collectors = [];
@@ -377,7 +456,7 @@
         new("Assigned", StateTotal(AccountableDocumentState.Assigned).ToString(), Emphasis: true),
         new("Consumed", StateTotal(AccountableDocumentState.Consumed).ToString()),
         new("Needs review", StateTotal(AccountableDocumentState.ReconciliationRequired).ToString()),
-        new("Voided", StateTotal(AccountableDocumentState.Voided).ToString()),
+        new("Spoiled", StateTotal(AccountableDocumentState.Voided).ToString()),
     ];
 
     /// <summary>Assigned, unused tickets grouped by collector and book, shown as runs of consecutive serials.</summary>
@@ -572,6 +651,68 @@
             var collector = CollectorName(collectorId);
             _dialog = Dialog.None;
             _message = $"Assigned {result.Value:N0} {Noun}{(result.Value == 1 ? "" : "s")} to {collector} (serials {_assignFirst}–{_assignLast}).";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private Guid? _returnBookId;
+    private long _returnFirst;
+    private long _returnLast;
+    private Guid? _spoilBookId;
+    private long _spoilSerial;
+    private string _spoilReason = string.Empty;
+    private string _spoilNote = string.Empty;
+
+    private void OpenReturn()
+    {
+        _returnBookId = null;
+        _returnFirst = 0;
+        _returnLast = 0;
+        OpenDialog(Dialog.Return);
+    }
+
+    private void OpenSpoil()
+    {
+        _spoilBookId = null;
+        _spoilSerial = 0;
+        _spoilReason = string.Empty;
+        _spoilNote = string.Empty;
+        OpenDialog(Dialog.Spoil);
+    }
+
+    private async Task ReturnAsync()
+    {
+        if (_busy || _returnBookId is not { } bookId || _returnLast < _returnFirst) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await RemittancesApi.ReturnUnusedAsync(new ReturnUnusedFormsRequest(bookId, _returnFirst, _returnLast));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? "The forms could not be returned."; return; }
+            _dialog = Dialog.None;
+            _message = $"Returned {result.Value:N0} unused {Noun}{(result.Value == 1 ? "" : "s")} to office custody.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SpoilAsync()
+    {
+        if (_busy || _spoilBookId is not { } bookId || string.IsNullOrWhiteSpace(_spoilReason)) return;
+        var document = Books.FirstOrDefault(b => b.BookId == bookId)?.Documents.FirstOrDefault(d => d.SerialNumber == _spoilSerial);
+        if (document is null) { _dialogError = "That serial is not in the selected book."; return; }
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await RemittancesApi.SpoilAsync(new SpoilFormRequest(document.DocumentId, _spoilReason.Trim(),
+                string.IsNullOrWhiteSpace(_spoilNote) ? null : _spoilNote.Trim()));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? "The form could not be recorded as spoiled."; return; }
+            _dialog = Dialog.None;
+            _message = $"{result.Value!.DocumentNumber} recorded as spoiled. It is not revenue and cannot return to stock.";
             await LoadAsync();
         }
         catch (Exception ex) { _dialogError = ex.Message; }

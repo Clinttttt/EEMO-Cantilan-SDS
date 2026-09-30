@@ -1,0 +1,86 @@
+/* Remittance & Liquidation — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.rm-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.rm-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.rm-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px 20px;
+}
+
+.rm-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.rm-breakdown h3 {
+    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.rm-note,
+.rm-scope {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.rm-forms {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+}
+
+.rm-legacy {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.rm-diff {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rm-diff-flag {
+    color: var(--danger, #b42318);
+    font-weight: 600;
+}
+
+.rm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rm-print-head {
+    display: none;
+}
+
+@media print {
+    .rm-print-head {
+        display: block;
+    }
+
+    .rm-filters,
+    .rm-actions,
+    .rm-form {
+        display: none;
+    }
+}
