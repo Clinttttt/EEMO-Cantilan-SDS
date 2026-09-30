@@ -37,7 +37,11 @@
             }
         </div>
 
-        @if (IsLoading)
+        @if (ActiveReportType == PositionTab)
+        {
+            <CollectorPositionPanel From="PositionFrom" To="PositionTo" />
+        }
+        else if (IsLoading)
         {
             <LoadingState Text="Loading your reports…" />
         }
@@ -585,9 +589,16 @@
     bool WeeklyReportMode =>
         AssignedFacilities.Count > 0 && AssignedFacilities.All(code => code == FacilityCode.TPM);
 
-    IReadOnlyList<string> ReportTypes => new[] { PrimaryReportTab, "Per Payee", "Summary" };
+    const string PositionTab = "Position";
 
-    DateTime PeriodDate => DateTime.Now.AddMonths(PeriodOffset);
+    IReadOnlyList<string> ReportTypes => new[] { PositionTab, PrimaryReportTab, "Per Payee", "Summary" };
+
+    // The position is the collector's own server-derived figure for the month on screen.
+    DateOnly PositionFrom => new(PeriodDate.Year, PeriodDate.Month, 1);
+    DateOnly PositionTo => new(PeriodDate.Year, PeriodDate.Month, DateTime.DaysInMonth(PeriodDate.Year, PeriodDate.Month));
+
+    // The server's business date decides which month is "this month"; the device clock is only the fallback.
+    DateTime PeriodDate => (Session.Menu?.Today.ToDateTime(TimeOnly.MinValue) ?? DateTime.Now).AddMonths(PeriodOffset);
     bool CanGoNext => PeriodOffset < 0;
 
     string PeriodTitle => PeriodOffset == 0
@@ -619,7 +630,7 @@
                 return;
             }
 
-            ActiveReportType = PrimaryReportTab;
+            ActiveReportType = PositionTab;
             await LoadOrRefreshReportAsync();
             Connectivity.ConnectivityRestored += OnConnectivityRestored;
         }

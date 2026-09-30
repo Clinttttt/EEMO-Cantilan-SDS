@@ -11,7 +11,7 @@
 }
 
 .back-btn {
-    background: rgba(200, 168, 75, 0.14);
+    background: var(--mobile-blue-subtle);
 }
 
 .collection-month-pill {
@@ -20,9 +20,9 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 700;
-    color: #e8cc76;
-    background: rgba(200, 168, 75, 0.14);
-    border: 1px solid rgba(200, 168, 75, 0.34);
+    color: var(--mobile-navy);
+    background: var(--mobile-blue-subtle);
+    border: 1px solid var(--mobile-border);
     padding: 7px 12px;
     border-radius: 999px;
     letter-spacing: 0.2px;
@@ -31,7 +31,7 @@
 .collection-month-pill svg {
     width: 13px;
     height: 13px;
-    stroke: #e8cc76;
+    stroke: var(--mobile-blue);
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
@@ -43,7 +43,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 18px;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.06);
+    box-shadow: none;
 }
 
 .state-card.error {
@@ -70,12 +70,13 @@
     min-height: 44px;
     border-radius: 12px;
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-weight: 800;
 }
 
 .month-banner {
-    background: #0d2137;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
     border-radius: 14px;
     padding: 16px;
     margin-bottom: 14px;
@@ -85,7 +86,7 @@
     gap: 16px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 10px 28px rgba(13, 33, 55, 0.16);
+    box-shadow: none;
 }
 
 .month-banner::after {
@@ -93,29 +94,29 @@
     position: absolute;
     inset: auto 0 0;
     height: 2px;
-    background: #c8a84b;
+    background: var(--mobile-blue);
 }
 
 .month-banner-label {
     font-size: 9px;
     letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.52);
+    color: var(--mobile-text-secondary);
     text-transform: uppercase;
     font-weight: 700;
     margin-bottom: 5px;
 }
 
 .month-banner-month {
-    font-family: "EB Garamond", serif;
+    
     font-size: 21px;
     font-weight: 700;
-    color: #fff;
+    color: var(--mobile-navy);
     line-height: 1;
 }
 
 .month-banner-date {
     margin-top: 7px;
-    color: rgba(255, 255, 255, 0.62);
+    color: var(--mobile-text-secondary);
     font-size: 11px;
 }
 
@@ -129,21 +130,21 @@
 }
 
 .month-banner-val {
-    font-family: "EB Garamond", serif;
+    
     font-size: 22px;
     font-weight: 700;
-    color: #e8cc76;
+    color: var(--mobile-navy);
     margin-right: 4px;
 }
 
 .month-banner-key {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.58);
+    color: var(--mobile-text-secondary);
 }
 
 .month-progress-wrap {
     height: 6px;
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--mobile-border);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -151,7 +152,7 @@
 .month-progress-fill {
     height: 100%;
     min-width: 6px;
-    background: #c8a84b;
+    background: var(--mobile-blue);
     border-radius: 999px;
     transition: width 0.25s ease;
 }
@@ -191,7 +192,7 @@
 .seg-filter-btn.active {
     background: #fff;
     color: var(--navy-primary);
-    box-shadow: 0 1px 3px rgba(13, 33, 55, 0.12);
+    box-shadow: none;
 }
 
 .section-label {
@@ -208,7 +209,7 @@
     width: 100%;
     display: flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--mobile-surface);
     border: 1px solid #d7e0ea;
     border-radius: 14px;
     margin-bottom: 11px;
@@ -340,13 +341,13 @@
 }
 
 .tx-badge.queued {
-    color: var(--gold-light);
-    background: var(--navy-primary);
+    color: #ffffff;
+    background: var(--mobile-blue);
 }
 
 .tx-amount {
     color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 15px;
     font-weight: 700;
     line-height: 1;
@@ -558,7 +559,7 @@
 
 .btn-confirm {
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
 }
 
 .btn-cancel:disabled,
@@ -694,7 +695,7 @@
 
 .misc-util-on .misc-util-check {
     border-color: var(--navy-primary, #1e3a5f);
-    background: var(--navy-primary, #1e3a5f);
+    background: var(--mobile-blue);
 }
 
 .misc-util-check svg {
@@ -825,7 +826,7 @@
     margin-top: 14px;
     padding: 16px;
     border-radius: 14px;
-    background: #0d2137;
+    background: var(--mobile-blue);
     text-align: center;
 }
 
@@ -842,13 +843,13 @@
     font-size: 30px;
     font-weight: 600;
     letter-spacing: 0.18em;
-    color: #e8cc76;
+    color: #ffffff;
 }
 
 .btn-copy {
     border: 1px solid rgba(232, 204, 118, 0.5);
     background: transparent;
-    color: #e8cc76;
+    color: #ffffff;
     padding: 7px 18px;
     border-radius: 999px;
     font: inherit;

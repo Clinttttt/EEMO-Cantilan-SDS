@@ -1,5 +1,5 @@
 .header {
-    background: var(--navy-primary);
+    background: var(--mobile-surface);
     padding: 54px 24px 16px;
     position: relative;
     flex-shrink: 0;
@@ -12,7 +12,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    background: var(--mobile-border);
 }
 
 .header-row {
@@ -22,10 +22,10 @@
 }
 
 .header-org-name {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--mobile-navy);
     line-height: 1.2;
     letter-spacing: 0.2px;
 }

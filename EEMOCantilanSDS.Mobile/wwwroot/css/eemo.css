@@ -464,7 +464,7 @@ html, body, #app {
     }
 
 .summary-value {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -739,9 +739,9 @@ html, body, #app {
     }
 
     .filter-tab.active {
-        background: var(--navy-primary);
-        color: var(--gold-light);
-        border-color: var(--navy-primary);
+        background: var(--mobile-blue);
+        color: #ffffff;
+        border-color: var(--mobile-blue);
         font-weight: 700;
         /* Keep the right border on active so the next chip doesn't bleed into it */
         border-right-width: 1px;
@@ -832,7 +832,7 @@ html, body, #app {
     align-items: center;
     gap: 12px;
     padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     border-bottom: 2px solid var(--gold-primary);
 }
 
@@ -842,7 +842,7 @@ html, body, #app {
     height: 34px;
     border-radius: 9px;
     border: 1px solid var(--navy-accent);
-    background: var(--navy-secondary);
+    background: rgba(255, 255, 255, 0.16);
     color: var(--gold-primary);
     display: flex;
     align-items: center;
@@ -1027,7 +1027,7 @@ html, body, #app {
 }
 
 .sheet-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
@@ -1072,11 +1072,11 @@ html, body, #app {
     padding: 13px;
     border-radius: 12px;
     border: none;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
-    color: var(--gold-light);
+    color: #ffffff;
     cursor: pointer;
     text-align: center;
     transition: opacity 0.15s;
@@ -1186,7 +1186,7 @@ html, body, #app {
     }
 
 .empty-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
@@ -1240,8 +1240,8 @@ html, body, #app {
     display: block;
     border: none;
     border-radius: 10px;
-    background: var(--navy-primary);
-    color: var(--gold-light);
+    background: var(--mobile-blue);
+    color: #ffffff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13.5px;
     font-weight: 600;
@@ -1506,7 +1506,7 @@ html, body, #app {
 }
 
 .record-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 700;
     color: var(--text-primary);
@@ -1569,7 +1569,7 @@ html, body, #app {
 
     /* amount row — larger green value */
     .detail-val.amount-val {
-        font-family: 'EB Garamond', serif;
+        font-family: 'DM Sans', sans-serif;
         font-size: 16px;
         font-weight: 600;
         color: var(--paid-green);
@@ -1635,7 +1635,7 @@ html, body, #app {
 }
 
 .period-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1678,9 +1678,10 @@ html, body, #app {
         box-shadow: 0 1px 4px rgba(13,33,55,0.08);
     }
 
-/* Grand total navy banner */
+/* Grand total banner (light V3) */
 .total-banner {
-    background: var(--navy-primary);
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
     border-radius: 12px;
     padding: 16px 18px;
     margin-bottom: 14px;
@@ -1699,23 +1700,23 @@ html, body, #app {
         left: 0;
         right: 0;
         height: 2px;
-        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+        background: var(--mobile-blue);
     }
 
 .total-banner-label {
     font-size: 9px;
     letter-spacing: 2px;
-    color: rgba(255,255,255,0.45);
+    color: var(--mobile-text-secondary);
     text-transform: uppercase;
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .total-banner-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 28px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--mobile-navy);
     line-height: 1;
 }
 
@@ -1732,15 +1733,15 @@ html, body, #app {
     }
 
 .stat-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
-    color: var(--gold-light);
+    color: var(--mobile-navy);
 }
 
 .stat-key {
     font-size: 8.5px;
-    color: rgba(255,255,255,0.4);
+    color: var(--mobile-text-secondary);
     letter-spacing: 0.5px;
     display: block;
     text-transform: uppercase;
@@ -1748,7 +1749,7 @@ html, body, #app {
 
 /* right-side section total (gold text) */
 .section-total {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1850,7 +1851,7 @@ html, body, #app {
 }
 
 .facility-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 17px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1868,7 +1869,7 @@ html, body, #app {
 
 .facility-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--gold-primary), var(--gold-light));
+    background: var(--mobile-blue);
     border-radius: 2px;
     transition: width 0.4s ease;
 }
@@ -1894,7 +1895,7 @@ html, body, #app {
         top: 0;
         bottom: 0;
         width: 3px;
-        background: var(--navy-primary);
+        background: var(--mobile-blue);
     }
 
 .day-date-block {
@@ -1911,7 +1912,7 @@ html, body, #app {
 }
 
 .day-date-num {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1949,7 +1950,7 @@ html, body, #app {
 }
 
 .day-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1977,7 +1978,7 @@ html, body, #app {
 }
 
 .sheet-stat-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 17px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2013,38 +2014,30 @@ html, body, #app {
      .add-temp-row .add-temp-icon
 ───────────────────────────────────────────── */
 
-/* ── Market header (direct markup, not AppHeader) ── */
+/* ── Sub-page header (direct markup, not AppHeader) — Mobile V3: light, compact ── */
 .header {
-    background: var(--navy-primary);
-    padding: calc(env(safe-area-inset-top, 20px) + 16px) 24px 16px;
+    background: var(--mobile-surface);
+    border-bottom: 1px solid var(--mobile-border);
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
     position: relative;
     flex-shrink: 0;
 }
 
-    .header::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
-    }
-
 .header-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-right: 66px; /* reserve room for the absolutely-positioned .header-logo seal */
+    gap: 8px;
+    padding-right: 48px; /* reserve room for the absolutely-positioned .header-logo seal */
 }
 
-/* back chevron button */
+/* back chevron button: 44px touch target, no chrome */
 .back-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: rgba(200,168,75,0.12);
-    border: 1px solid rgba(200,168,75,0.28);
+    width: 44px;
+    height: 44px;
+    margin-left: -10px;
+    border-radius: 10px;
+    background: transparent;
+    border: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2052,10 +2045,14 @@ html, body, #app {
     flex-shrink: 0;
 }
 
+    .back-btn:active {
+        background: var(--mobile-blue-subtle);
+    }
+
     .back-btn svg {
-        width: 16px;
-        height: 16px;
-        stroke: var(--gold-primary);
+        width: 20px;
+        height: 20px;
+        stroke: var(--mobile-blue);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -2063,35 +2060,31 @@ html, body, #app {
     }
 
 .header-title {
-    font-family: 'EB Garamond', serif;
     font-size: 17px;
     font-weight: 600;
-    color: #ffffff;
-    line-height: 1.15;
+    color: var(--mobile-navy);
+    line-height: 1.2;
 }
 
 .header-sub {
-    font-size: 10px;
-    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
     margin-top: 2px;
 }
 
-/* Municipality seal — right-aligned in the header (letterhead style). Absolutely positioned so it NEVER
-   affects header height/spacing. It is centred within the CONTENT box (eyebrow + title row) by pinning to
-   the header's exact padding edges and letting auto margins centre a fixed-height box — this excludes the
-   safe-area top padding from the centring, so it sits neither high (on the eyebrow) nor low (on the title).
-   Anchored to .header (which is position:relative); .header-row must NOT be positioned. */
+/* Tenant seal, right-aligned. Absolutely positioned so it never affects header height. */
 .header-logo {
     position: absolute;
-    top: calc(env(safe-area-inset-top, 20px) + 16px); /* = .header padding-top */
-    bottom: 16px;                                      /* = .header padding-bottom */
-    right: 24px;                                       /* = .header padding-right */
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    bottom: 10px;
+    right: 16px;
     margin: auto 0;
-    width: 54px;
-    height: 54px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     object-fit: contain;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--mobile-border);
+    background: var(--mobile-surface-subtle);
 }
 
 /* ── Confirm sheet stall preview card ── */
@@ -2107,7 +2100,7 @@ html, body, #app {
 
 /* large stall number in the preview card */
 .preview-num {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2231,7 +2224,7 @@ html, body, #app {
 }
 
 .stall-num-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2292,7 +2285,7 @@ html, body, #app {
 }
 
 .stall-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);

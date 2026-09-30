@@ -1,0 +1,110 @@
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
+@using global::EEMOCantilanSDS.Domain.Enums
+@inject global::EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+
+@* The collector's own position for a period. Every figure is the server's (the same derivation the office uses);
+   nothing is added up on the device. Money (Collected / Remitted / Unremitted) and physical forms are kept apart: a count
+   of tickets is never an amount, and Unremitted is money already collected that has not yet been turned over. The
+   collector cannot record or void a remittance here; the office does. *@
+<section class="cpp" aria-busy="@(_loading ? "true" : "false")">
+    @if (_loading)
+    {
+        <div class="cpp-note" role="status">Loading your position…</div>
+    }
+    else if (_failed)
+    {
+        <div class="cpp-note error" role="alert">Could not load your position. Check the connection and try again.</div>
+        <button class="cpp-retry" type="button" @onclick="LoadAsync">Try again</button>
+    }
+    else if (_data is not null)
+    {
+        <h2 class="cpp-title">Your position</h2>
+        <dl class="cpp-rows">
+            <div class="cpp-row"><dt>Collected</dt><dd>@Peso(_data.Collected)</dd></div>
+            <div class="cpp-row"><dt>Remitted</dt><dd>@Peso(_data.Remitted)</dd></div>
+            <div class="cpp-row strong"><dt>Unremitted</dt><dd>@Peso(_data.Unremitted)</dd></div>
+        </dl>
+        <p class="cpp-note">Collected money not yet turned over to the office. Remittance is recorded by the office.</p>
+
+        @if (_data.LegacyCollectionsOutsideRemittance > 0m)
+        {
+            <dl class="cpp-rows">
+                <div class="cpp-row"><dt>Recorded before activation</dt><dd>@Peso(_data.LegacyCollectionsOutsideRemittance)</dd></div>
+            </dl>
+            <p class="cpp-note">Not yet tracked for remittance.</p>
+        }
+
+        @if (_data.NeedsReviewCount > 0)
+        {
+            <p class="cpp-note warn" role="status">@_data.NeedsReviewCount need@(_data.NeedsReviewCount == 1 ? "s" : "") office review.</p>
+        }
+
+        <h2 class="cpp-title">Forms on hand</h2>
+        @if (_data.Forms.Count == 0)
+        {
+            <p class="cpp-note">No accountable forms are assigned to you.</p>
+        }
+        else
+        {
+            <dl class="cpp-rows">
+                @foreach (var form in _data.Forms)
+                {
+                    <div class="cpp-row"><dt>@InstrumentName(form.Instrument) available</dt><dd>@form.OnHand</dd></div>
+                    @if (form.Issued + form.Spoiled + form.Returned + form.NeedsReview > 0)
+                    {
+                        <div class="cpp-row sub">
+                            <dt>Used @form.Issued · Spoiled @form.Spoiled · Returned @form.Returned@(form.NeedsReview > 0 ? $" · Review {form.NeedsReview}" : "")</dt>
+                            <dd></dd>
+                        </div>
+                    }
+                }
+            </dl>
+            <p class="cpp-note">Forms are counts of paper, never pesos. Remaining tickets are not money owed.</p>
+        }
+
+        @if (Sync.PendingCount > 0)
+        {
+            <p class="cpp-note warn" role="status">@Sync.PendingCount waiting to sync on this device. They are not included above until they sync.</p>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+
+    private CollectorPositionDto? _data;
+    private bool _loading = true;
+    private bool _failed;
+    private DateOnly _loadedFrom;
+    private DateOnly _loadedTo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && _loadedTo == To && (_data is not null || _failed)) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _failed = false;
+        try
+        {
+            var result = await Api.GetMyPositionAsync(From, To);
+            if (result.IsSuccess && result.Value is not null) _data = result.Value;
+            else { _data = null; _failed = true; }
+        }
+        catch { _data = null; _failed = true; }
+        finally { _loading = false; }
+    }
+
+    private static string InstrumentName(RevenueInstrumentType instrument) =>
+        instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipts" : "Cash Tickets";
+
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

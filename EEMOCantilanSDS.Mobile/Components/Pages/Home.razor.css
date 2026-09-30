@@ -96,7 +96,7 @@
 }
 
 .header-org-name {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
     color: #ffffff;
@@ -244,7 +244,7 @@
     }
 
 .summary-value {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);

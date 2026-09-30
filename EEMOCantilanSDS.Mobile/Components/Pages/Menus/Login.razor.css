@@ -3,7 +3,7 @@
 }
 
 .login-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -23,8 +23,8 @@
 }
 
 .btn-primary {
-    background: var(--navy-primary);
-    color: var(--gold-light);
+    background: var(--mobile-blue);
+    color: #ffffff;
 }
 
 .btn-cancel {

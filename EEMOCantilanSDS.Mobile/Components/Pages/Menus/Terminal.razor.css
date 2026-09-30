@@ -10,7 +10,7 @@
 }
 
 .back-btn {
-    background: rgba(200, 168, 75, 0.14);
+    background: var(--mobile-blue-subtle);
 }
 
 .collection-month-pill {
@@ -19,9 +19,9 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 700;
-    color: #e8cc76;
-    background: rgba(200, 168, 75, 0.14);
-    border: 1px solid rgba(200, 168, 75, 0.34);
+    color: var(--mobile-navy);
+    background: var(--mobile-blue-subtle);
+    border: 1px solid var(--mobile-border);
     padding: 7px 12px;
     border-radius: 999px;
 }
@@ -29,7 +29,7 @@
 .collection-month-pill svg {
     width: 13px;
     height: 13px;
-    stroke: #e8cc76;
+    stroke: var(--mobile-blue);
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
@@ -41,7 +41,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 18px;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.06);
+    box-shadow: none;
     margin-bottom: 24px;
 }
 
@@ -69,7 +69,7 @@
     min-height: 44px;
     border-radius: 12px;
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-weight: 800;
 }
 
@@ -87,7 +87,7 @@
     min-height: 46px;
     margin: 0 0 14px;
     border-radius: 12px;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     color: #fff;
     font-size: 13px;
     font-weight: 700;
@@ -131,7 +131,7 @@
 }
 
 .trip-choice-btn.primary {
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     border-color: var(--navy-primary);
 }
 
@@ -335,16 +335,16 @@
     padding: 12px 14px;
     margin-bottom: 12px;
     border-radius: 12px;
-    background: #0d2137;
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--mobile-blue-subtle);
+    color: var(--mobile-navy);
     font-size: 12px;
     font-weight: 700;
 }
 
 .fee-preview strong {
-    font-family: "EB Garamond", serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 22px;
-    color: #e8cc76;
+    color: var(--mobile-navy);
 }
 
 .form-error {
@@ -380,7 +380,7 @@
 
 .btn-confirm {
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
 }
 
 .btn-cancel:disabled,
@@ -405,7 +405,7 @@
     width: 100%;
     display: flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--mobile-surface);
     border-radius: 14px;
     border: 1px solid #d7e0ea;
     margin-bottom: 11px;
@@ -423,7 +423,7 @@
                 0 3px 7px rgba(13, 33, 55, 0.06);
 }
 
-.tx-left-bar { width: 4px; flex-shrink: 0; background: var(--navy-primary); }
+.tx-left-bar { width: 4px; flex-shrink: 0; background: var(--mobile-blue); }
 
 .tx-body { flex: 1; padding: 9px 10px; min-width: 0; }
 
@@ -459,8 +459,8 @@
 }
 
 .tx-badge.badge-queued {
-    color: #e8cc76;
-    background: var(--navy-primary);
+    color: #ffffff;
+    background: var(--mobile-blue);
 }
 
 .tx-card-queued {
