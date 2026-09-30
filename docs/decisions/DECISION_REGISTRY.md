@@ -640,6 +640,29 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Supersedes the "collection disabled until the instrument is confirmed" statements for Transfer Large Cattle. Does **not** activate any source, cut over any report, backfill history or publish an APK. Where a rule above would create double billing or invent an amount (for example the Fish/Meat Vendor Fee versus the existing NPM Fish/Meat daily fee, or a collector-typed Slaughterhouse custom rate) the affected slice stays blocked pending an explicit answer, recorded in [OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md](../planning/OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md).
 - **REVISIT CONDITION:** Any newer EEMO staff ruling on the operations above.
 
+### IA-050 - Grill-me rulings for the operational functionalization pass (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-050
+- **SUBJECT:** Resolution of the ten open policy questions left by IA-049
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "blocked pending an answer" wording in IA-049 IMPACT)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Fish/Meat Vendor Fee** is an additional, separate obligation from NPM Stall Rental and from Weight & Measure; one vendor may owe all three. Classification Fish/Meat Vendor Fees, OR, monthly goal, flexible cadence (PHP 30/day installments supported), effective-configured amount (not eternal constants), not part of BaseRentalAmount. **The existing NPM `DailyFee`/`DailyCollection` history is never reclassified as Vendor Fee**, and rows are not rewritten because amounts resemble PHP 30; a distinct Vendor Fee obligation/source is introduced prospectively.
+  - **Ice Plant** = OR, own classification (ICE_PLANT), monthly obligation with effective-configured amount (about PHP 1,000 working figure), partial/daily installments and remaining balance allowed. Not Stall Rental. No ice inventory, bag/kg sales or manufacturing workflow.
+  - **WCF** is not meter x rate. It is Cash Ticket + direct approved amount on Collector Mobile, the approved office amount (PHP 10 working figure) coming from effective policy, never hard-coded in Razor/Mobile. If the policy allows DirectApproved the collector may state the amount; classification and instrument stay server-controlled. No cubic-meter assumption. Historical UtilityBill/WCF evidence is preserved.
+  - **ECF** = OR + direct approved amount; no meter or kWh x rate. It reuses the existing authoritative ECF/utility source (payor/source identity, period, approved amount, collected, balance, status, calculation basis, optional reference). It may share an itemized OR. Web and Mobile capture must converge on one source and never create duplicate assessments; collectors do not enter arbitrary ECF rates.
+  - **Transportation / TRM**: target policy CT at approved vehicle-class effective-dated rates is confirmed, but **no cutover effective date is authorized**. Nothing may invent or backdate one; legacy TRM evidence stays intact; new CT architecture may exist inactive/shadow-ready. Status: TARGET CONFIRMED, CUTOVER DATE NOT AUTHORIZED.
+  - **Kanmanggay** = Space Rental, monthly per space, OR, Business Payor identity, lightweight Space Rental account (payor, space identifier, active period, effective monthly approved rate, monthly obligations, settlement history). Not BBQ, not a permanent NPM stall/contract. Partial and installment settlement supported.
+  - **Slaughterhouse**: collector-entered arbitrary CustomRate is not the target. Head/Admin manage approved definitions, packages and add-ons (effective-dated); the collector selects approved definitions only; receipt/detail stays itemized; Monthly Income still aggregates under Slaughterhouse. Historical CustomRate evidence is preserved.
+  - **Fiesta / Araw** = Space Rental group, operation Lot Rental - Fiesta/Araw, OR, temporary event lot rental (event dates Aug 15 / Oct 16 are event dates, not billing dates). Head/Admin approve event, lot, amount, payor, period and availability; the collector never invents the lot amount; never a permanent stall tenancy.
+  - **Collector totals** cover all real collections attributable to the collector from legacy or canonical sources, **counted exactly once** through explicit source coverage / cutover authority: legacy is authoritative before a source cutover, canonical after it, shadow/reconciled representations are comparison only. Applies to Collector Records, Collector Report of Collections, Collection Activity and Monthly Income.
+  - **CB-06 Monthly Income cutover is NOT authorized.** The canonical reader remains shadow/readiness only until every line has coverage mapping, reconciliation is understood, no double counting remains, corrections are right, opening settlement is not current cash, unresolved history is safely handled, totals reconcile with the office's Monthly Income, and Core Brain/Clint explicitly authorize it.
+  - Locked reminders: Market Fees/Landing/Transfer Large Cattle/Vegetable-Fruit/Fines as in IA-049; monthly sources (NPM, TCC, NCC, BBQ, Ice Plant, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly billing basis regardless of installment cadence.
+- **RATIONALE:** Removes the remaining policy gates so the sources can be built on server-resolved configuration without inventing amounts, instruments or classifications.
+- **EVIDENCE / SOURCE:** Clint / Core Brain GRILL-ME ANSWERS of 2026-09-30.
+- **IMPACT:** Only two gates remain: TRM cutover date and CB-06. A NEW contradiction that could change money, document identity, classification or historical meaning must be grilled again.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling; the TRM cutover date or CB-06 authorization.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:

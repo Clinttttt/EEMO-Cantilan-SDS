@@ -20,4 +20,7 @@ public static class RevenueClassificationCodes
     public const string LandingBerthing = "LANDING_BERTHING";
     public const string Arrears = "ARREARS";
     public const string TransferLargeCattle = "TRANSFER_LARGE_CATTLE";
+    public const string IcePlant = "ICE_PLANT";
+    public const string KanmanggaySpaceRental = "KANMANGGAY_SPACE_RENTAL";
+    public const string FiestaArawLotRental = "FIESTA_ARAW_LOT_RENTAL";
 }

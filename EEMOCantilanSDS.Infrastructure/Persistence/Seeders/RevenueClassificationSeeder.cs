@@ -36,7 +36,11 @@ public static class RevenueClassificationSeeder
         new(RevenueClassificationCodes.LandingBerthing, "Landing/Berthing", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.Arrears, "Arrears", null),
         // IA-049 (Clint / Core Brain, 2026-09-30): Transfer Large Cattle is an Official Receipt operation.
-        new(RevenueClassificationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueInstrumentType.OfficialReceipt)
+        new(RevenueClassificationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueInstrumentType.OfficialReceipt),
+        // IA-050: own report lines; Ice Plant is not Stall Rent, Kanmanggay is not BBQ.
+        new(RevenueClassificationCodes.IcePlant, "Ice Plant", RevenueInstrumentType.OfficialReceipt),
+        new(RevenueClassificationCodes.KanmanggaySpaceRental, "Kanmanggay Space Rental", RevenueInstrumentType.OfficialReceipt),
+        new(RevenueClassificationCodes.FiestaArawLotRental, "Fiesta/Araw Lot Rental", RevenueInstrumentType.OfficialReceipt)
     ];
 
     public static async Task SeedAsync(IAppDbContext context, DateOnly? effectiveDate = null)
