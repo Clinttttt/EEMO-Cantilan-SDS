@@ -7,6 +7,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 public interface ISlaughterRepository
 {
     Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    /// <summary>The Head/Admin-approved custom animals and their approved per-head rates (IA-050). A collector selects from these only.</summary>
+    Task<IReadOnlyList<SlaughterAnimalRateDto>> GetApprovedCustomAnimalsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     /// <summary>Whole-year variant of <see cref="GetTransactionsByMonthAsync"/> (Follow-up History year view).</summary>
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default);

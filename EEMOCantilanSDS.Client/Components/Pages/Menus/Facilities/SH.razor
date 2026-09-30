@@ -99,15 +99,19 @@
         <SlaughterRecordModal ShowModal="ShowRecordModal"
                               HogRate="@Overview?.HogRatePerHead"
                               LargeRate="@Overview?.LargeRatePerHead"
+                              ApprovedAnimals="@Overview?.ApprovedAnimals"
                               Labels="@AnimalLabels"
                               OnClose="CloseRecordModal"
                               OnSubmit="SubmitSlaughterRecord"
                               ErrorMessage="@ErrorMessage" />
 
+        <SlaughterApprovedAnimals OnChanged="LoadData" />
+
         <!-- ADD TRANSACTION MODAL -->
         <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
                                       HogRate="@Overview?.HogRatePerHead"
                                       LargeRate="@Overview?.LargeRatePerHead"
+                                      ApprovedAnimals="@Overview?.ApprovedAnimals"
                                       Labels="@AnimalLabels"
                                       OwnerName="@SelectedOwnerName"
                                       TransactionDate="@SelectedTransactionDate"

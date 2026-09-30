@@ -24,6 +24,10 @@ public class SlaughterRepository(
     /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock and this office's rates.</summary>
     public SlaughterRepository(AppDbContext context) : this(
         context, new FeeRateResolver(context), new SystemClock(), new SlaughterAnimalLabelProvider(context)) { }
+    public async Task<IReadOnlyList<SlaughterAnimalRateDto>> GetApprovedCustomAnimalsAsync(CancellationToken ct = default) =>
+        await context.SlaughterAnimalRates.AsNoTracking().Where(x => x.IsActive)
+            .Select(x => new SlaughterAnimalRateDto(x.Id, x.AnimalName, x.RatePerHead, x.IsActive)).ToListAsync(ct);
+
     public async Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => await context.SlaughterTransactions.FirstOrDefaultAsync(x => x.Id == id, ct);
 

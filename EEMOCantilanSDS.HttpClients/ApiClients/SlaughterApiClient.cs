@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SetSlaughterAnimalLabels;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -42,4 +43,13 @@ public class SlaughterApiClient(HttpClient http) : HandleResponse(http), ISlaugh
 
     public async Task<Result<bool>> SetAnimalLabelsAsync(SetSlaughterAnimalLabelsCommand command) =>
         await PutAsync<SetSlaughterAnimalLabelsCommand, bool>("api/slaughter/animal-labels", command);
+
+    public async Task<Result<IReadOnlyList<SlaughterAnimalRateDto>>> GetAnimalRatesAsync(bool activeOnly) =>
+        await GetAsync<IReadOnlyList<SlaughterAnimalRateDto>>($"api/slaughter/animal-rates?activeOnly={(activeOnly ? "true" : "false")}");
+
+    public async Task<Result<SlaughterAnimalRateDto>> SaveApprovedAnimalAsync(SaveApprovedSlaughterAnimalRequest request) =>
+        await PostAsync<SaveApprovedSlaughterAnimalRequest, SlaughterAnimalRateDto>("api/slaughter/animal-rates", request);
+
+    public async Task<Result<SlaughterAnimalRateDto>> SetApprovedAnimalActiveAsync(Guid id, bool isActive) =>
+        await PostAsync<bool, SlaughterAnimalRateDto>($"api/slaughter/animal-rates/{id}/active", isActive);
 }

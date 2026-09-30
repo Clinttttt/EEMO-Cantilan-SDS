@@ -169,6 +169,7 @@ public class ApplicationEfBoundaryTests
         // a fine is collected only through the Composer, which revalidates the definition version at review and post.
         "PenaltyDefinitionWorkflow.cs",
         "ObligationWorkflow.cs",
+        "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected

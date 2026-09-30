@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Api.Controllers;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
@@ -19,7 +20,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 [Authorize(Roles = "SuperAdmin,Admin,Collector")]
-public class SlaughterController(ISender sender) : ApiBaseController(sender)
+public class SlaughterController(ISender sender, ApprovedSlaughterAnimalWorkflow approvedAnimals) : ApiBaseController(sender)
 {
     [HttpGet("overview")]
     public async Task<ActionResult<SlaughterOverviewDto>> GetOverview([FromQuery] int year, [FromQuery] int month)
@@ -98,6 +99,19 @@ public class SlaughterController(ISender sender) : ApiBaseController(sender)
         var result = await sender.Send(query);
         return HandleResponse(result);
     }
+
+    /// <summary>Head/Admin approve a custom animal and its per-head rate (IA-050); collectors can only select approved ones.</summary>
+    [HttpPost("animal-rates")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<SlaughterAnimalRateDto>> SaveApprovedAnimal(
+        [FromBody] SaveApprovedSlaughterAnimalRequest request, CancellationToken ct) =>
+        HandleResponse(await approvedAnimals.SaveAsync(request, ct));
+
+    [HttpPost("animal-rates/{id:guid}/active")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<SlaughterAnimalRateDto>> SetApprovedAnimalActive(
+        Guid id, [FromBody] bool isActive, CancellationToken ct) =>
+        HandleResponse(await approvedAnimals.SetActiveAsync(id, isActive, ct));
 
     [HttpGet("animal-labels")]
     public async Task<ActionResult<SlaughterAnimalLabelsDto>> GetAnimalLabels()

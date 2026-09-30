@@ -1,0 +1,102 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Slaughterhouse
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@inject ISlaughterApiClient SlaughterApi
+
+@* Head/Admin approval of the custom animals a collector may record, each with its per-head rate (IA-050). A change
+   applies to new transactions only; recorded transactions keep the rate they were charged. *@
+<details class="saa" @ontoggle="OnToggleAsync">
+    <summary>Approved animals and rates</summary>
+    <div class="saa-body">
+        @if (_error is not null)
+        {
+            <p class="saa-error" role="alert">@_error</p>
+        }
+        <table class="saa-table" aria-label="Approved animals">
+            <thead>
+                <tr><th scope="col">Animal</th><th scope="col">Rate per head</th><th scope="col">Status</th><th scope="col"><span class="saa-sr">Action</span></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var animal in _animals)
+                {
+                    <tr>
+                        <td>@animal.AnimalName</td>
+                        <td>₱@animal.RatePerHead.ToString("N2")</td>
+                        <td>@(animal.IsActive ? "Approved" : "Retired")</td>
+                        <td><button type="button" @onclick="() => ToggleAsync(animal)">@(animal.IsActive ? "Retire" : "Re-approve")</button></td>
+                    </tr>
+                }
+                @if (_animals.Count == 0)
+                {
+                    <tr><td colspan="4">@(_loading ? "Loading…" : "No other animal has been approved yet.")</td></tr>
+                }
+            </tbody>
+        </table>
+        <form class="saa-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" aria-label="Approve an animal">
+            <label>Animal <input type="text" maxlength="60" required @bind="_name" /></label>
+            <label>Rate per head (₱) <input type="number" min="0.01" step="0.01" required @bind="_rate" /></label>
+            <button type="submit" disabled="@_saving">Approve or update</button>
+        </form>
+    </div>
+</details>
+
+@code {
+    private List<SlaughterAnimalRateDto> _animals = [];
+    private bool _loading;
+    private bool _saving;
+    private bool _loaded;
+    private string? _error;
+    private string _name = string.Empty;
+    private decimal? _rate;
+
+    /// <summary>Raised after an approval changes so the parent can refresh what a collector is offered.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private async Task OnToggleAsync()
+    {
+        if (_loaded) return;
+        _loaded = true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await SlaughterApi.GetAnimalRatesAsync(activeOnly: false);
+            if (result.IsSuccess) _animals = result.Value?.OrderBy(x => x.AnimalName, StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+            else _error = "The approved animals couldn't be loaded.";
+        }
+        catch { _error = "The approved animals couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _rate is not > 0m) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            var result = await SlaughterApi.SaveApprovedAnimalAsync(new SaveApprovedSlaughterAnimalRequest(_name, _rate.Value));
+            if (!result.IsSuccess) { _error = result.Error ?? "The animal could not be saved."; return; }
+            _name = string.Empty;
+            _rate = null;
+            await LoadAsync();
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ToggleAsync(SlaughterAnimalRateDto animal)
+    {
+        _error = null;
+        var result = await SlaughterApi.SetApprovedAnimalActiveAsync(animal.Id, !animal.IsActive);
+        if (!result.IsSuccess) { _error = result.Error ?? "The change could not be saved."; return; }
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+}

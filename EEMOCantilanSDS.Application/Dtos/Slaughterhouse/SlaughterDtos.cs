@@ -49,7 +49,9 @@ public record SlaughterOverviewDto(
     // been configured at all was quoted Cantilan's ordinance. An animal an office does not price is not offered.
     decimal? HogRatePerHead = null,
     decimal? LargeRatePerHead = null,
-    SlaughterAnimalLabelsDto? Labels = null
+    SlaughterAnimalLabelsDto? Labels = null,
+    // The Head/Admin-approved custom animals a collector may select (IA-050). A collector never types a rate.
+    IReadOnlyList<SlaughterAnimalRateDto>? ApprovedAnimals = null
 );
 
 public record OwnerTransactionGroupDto(

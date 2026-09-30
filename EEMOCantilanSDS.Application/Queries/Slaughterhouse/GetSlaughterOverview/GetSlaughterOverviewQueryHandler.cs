@@ -38,7 +38,8 @@ public class GetSlaughterOverviewQueryHandler(
         {
             HogRatePerHead = snapshot.ResolveOrNull(FeeRateKey.SlhHogPerHead, asOf),
             LargeRatePerHead = snapshot.ResolveOrNull(FeeRateKey.SlhLargePerHead, asOf),
-            Labels = new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow)
+            Labels = new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow),
+            ApprovedAnimals = await slaughterRepository.GetApprovedCustomAnimalsAsync(ct)
         });
     }
 }
