@@ -33,36 +33,6 @@ public sealed class LandingBerthingTests : TestContext
     }
 
     [Fact]
-    public void Workspace_ShowsTheLandingBerthingPolicy_AndHoldsNoSampleRowsOrEntryForms()
-    {
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(x => x.GetClassificationsAsync(It.IsAny<DateOnly?>())).ReturnsAsync(
-            Result<IReadOnlyList<RevenueClassificationDto>>.Success(new[]
-            {
-                Classification(RevenueClassificationCodes.MarketFees, "Market Fees"),
-                Classification(RevenueClassificationCodes.LandingBerthing, "Landing / Berthing"),
-            }));
-        Services.AddSingleton(api.Object);
-
-        var cut = RenderComponent<LandingBerthing>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Empty(cut.FindAll("main"));
-            var policy = cut.Find("aside").TextContent;
-            Assert.Contains("Landing / Berthing", policy);
-            Assert.DoesNotContain("Market Fees", policy);
-            Assert.Contains("Cash Ticket", policy);
-            Assert.Contains("aren't recorded in StallTrack yet", cut.Markup);
-
-            Assert.Empty(cut.FindAll("form"));
-            Assert.Empty(cut.FindAll("input"));
-            Assert.Empty(cut.FindAll("[role='dialog']"));
-            AssertNoRetiredContent(cut);
-        }, Timeout);
-    }
-
-    [Fact]
     public void Report_PrintsUnavailableFigures_WithoutSampleExport()
     {
         var cut = RenderComponent<LandingBerthingReport>();

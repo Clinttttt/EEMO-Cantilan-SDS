@@ -13,8 +13,9 @@ using Moq;
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
 /// <summary>
-/// Monthly Income lines with no StallTrack writer (Vegetable / Fruits, Transfer Large Cattle, Kanmanggay, Fiesta / Araw,
-/// Fines) get a focused workspace that states the line is not recorded yet. They hold no entry form, sample rows or
+/// Monthly Income lines with no StallTrack writer yet (Kanmanggay, Fiesta / Araw and Fines;
+/// Vegetable/Fruits, Transfer Large Cattle, Market Fees and Landing/Berthing now have real writers) get a focused
+/// workspace that states the line is not recorded yet. They hold no entry form, sample rows or
 /// collector / payor / accountable-form management.
 /// </summary>
 public sealed class UnrecordedOperationWorkspacesTests : TestContext
@@ -41,8 +42,6 @@ public sealed class UnrecordedOperationWorkspacesTests : TestContext
     }
 
     [Theory]
-    [InlineData(typeof(VegetableFruit), "/operations/vegetable-fruit", "Vegetable / Fruits")]
-    [InlineData(typeof(TransferLargeCattle), "/operations/transfer-large-cattle", "Transfer Large Cattle")]
     [InlineData(typeof(Kanmanggay), "/operations/kanmanggay", "Kanmanggay")]
     [InlineData(typeof(FiestaAraw), "/operations/fiesta-araw", "Lot Rental — Fiesta / Araw")]
     [InlineData(typeof(Fines), "/operations/fines", "Fines")]
@@ -69,38 +68,6 @@ public sealed class UnrecordedOperationWorkspacesTests : TestContext
             Assert.Empty(cut.FindAll("table"));
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record") || b.TextContent.Contains("Collect"));
             Assert.DoesNotContain("₱", cut.Markup);
-        }, Timeout);
-    }
-
-    [Fact]
-    public void VegetableFruit_ShowsBothReceiptModes_WithoutASinglePolicyRow()
-    {
-        var cut = RenderComponent<VegetableFruit>();
-
-        cut.WaitForAssertion(() =>
-        {
-            var facts = cut.Find("dl.v3-facts").TextContent;
-            Assert.Contains("Whole payment", facts);
-            Assert.Contains("Official Receipt", facts);
-            Assert.Contains("Daily transaction", facts);
-            Assert.Contains("Cash Ticket", facts);
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collectors");
-        }, Timeout);
-
-        // The classification reader returns one default policy; it would show a single instrument for a two-mode line.
-        _classifications.Verify(x => x.GetClassificationsAsync(It.IsAny<DateOnly?>()), Times.Never);
-    }
-
-    [Fact]
-    public void TransferLargeCattle_ClaimsNoInstrument()
-    {
-        var cut = RenderComponent<TransferLargeCattle>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("No revenue classification, fee schedule or receipt type is set", cut.Markup);
-            Assert.DoesNotContain("Official Receipt", cut.Markup);
-            Assert.DoesNotContain("Cash Ticket", cut.Markup);
         }, Timeout);
     }
 

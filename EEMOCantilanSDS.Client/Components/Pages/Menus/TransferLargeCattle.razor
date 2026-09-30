@@ -2,27 +2,17 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Transfer Large Cattle</PageTitle>
 
-@* Transfer Large Cattle is an Income from Market line. It is assignable to collectors, but StallTrack has no revenue
-   classification, fee schedule or receipt type for it yet, so no instrument is shown and nothing is recorded here.
-   The layout owns the <main> landmark. *@
+@* Transfer Large Cattle (IA-049): an occasional Official Receipt transaction with a direct approved amount, recorded
+   by an assigned collector on Collector Mobile. It is a governed configurable service, kept deliberately simple: no
+   livestock registry or certificate system. Nothing on this page records money. The layout owns the <main> landmark. *@
 <div class="v3-page">
-    <WorkspaceHeader Parent="Operations" Title="Transfer Large Cattle" />
+    <WorkspaceHeader Parent="Operations" Title="Transfer Large Cattle">
+        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+    </WorkspaceHeader>
 
-    <UnrecordedOperation Name="Transfer Large Cattle"
-                         Detail="Transfers will appear here once the fee schedule, receipt type and collection are approved and activated."
-                         Assignable="true">
-        <Policy>
-            <aside class="v3-panel" aria-labelledby="tlc-policy-title">
-                <header class="v3-panel-header">
-                    <h2 id="tlc-policy-title">Effective policy</h2>
-                </header>
-                <div class="v3-panel-body">
-                    <p class="v3-panel-note">No revenue classification, fee schedule or receipt type is set for this line yet.</p>
-                </div>
-            </aside>
-        </Policy>
-    </UnrecordedOperation>
+    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" />
 </div>

@@ -33,54 +33,6 @@ public sealed class MarketFeesTests : TestContext
     }
 
     [Fact]
-    public void Workspace_ForTheHead_ShowsTheRealPolicy_AndRecordsNothing()
-    {
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(x => x.GetClassificationsAsync(It.IsAny<DateOnly?>())).ReturnsAsync(
-            Result<IReadOnlyList<RevenueClassificationDto>>.Success(new[]
-            {
-                new RevenueClassificationDto(Guid.NewGuid(), RevenueClassificationCodes.MarketFees, true, true,
-                    new RevenueClassificationPolicyDto(Guid.NewGuid(), new DateOnly(2026, 1, 1), "Market Fees", null,
-                        RevenueInstrumentType.CashTicket, DateTime.UtcNow, "head")),
-            }));
-        Services.AddSingleton(api.Object);
-
-        var cut = RenderComponent<MarketFees>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Empty(cut.FindAll("main"));
-            var policy = cut.Find("aside").TextContent;
-            Assert.Contains("Cash Ticket", policy);
-            Assert.Contains("Jan 1, 2026", policy);
-            Assert.Contains("aren't recorded in StallTrack yet", cut.Markup);
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/settings/revenue");
-
-            Assert.Empty(cut.FindAll("form"));
-            Assert.Empty(cut.FindAll("input"));
-            Assert.Empty(cut.FindAll("[role='dialog']"));
-            AssertNoRetiredContent(cut);
-        }, Timeout);
-    }
-
-    [Fact]
-    public void Workspace_ForAnAdmin_SaysPolicyIsHeadOnly_WithoutSetupLink()
-    {
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(x => x.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Failure("Forbidden", ResultStatus.Forbidden));
-        Services.AddSingleton(api.Object);
-
-        var cut = RenderComponent<MarketFees>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("available to the Head", cut.Find("aside").TextContent);
-            Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href") == "/settings/revenue");
-        }, Timeout);
-    }
-
-    [Fact]
     public void Report_PrintsUnavailableFigures_NotTypedInOnes()
     {
         var cut = RenderComponent<MarketFeesReport>();

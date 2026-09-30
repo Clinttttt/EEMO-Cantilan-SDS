@@ -158,7 +158,8 @@
             Links: [new("Report", "/operations/landing-berthing/report")]),
         new("Transportation Fees", CashTicket, FacilityCode.TRM),
         new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
-        new("Transfer Large Cattle", NoReceipt, Route: "/operations/transfer-large-cattle"),
+        // Official Receipt, Collector Mobile, direct approved amount (IA-049).
+        new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle"),
         new("Ice Plant", NoReceipt, FacilityCode.ICE),
     ];
 

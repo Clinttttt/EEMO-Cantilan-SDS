@@ -235,6 +235,8 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
             Assert.Contains("Cash Ticket", Row(cut, "Market Fees").TextContent);
             Assert.Contains("Official Receipt", Row(cut, "Kanmanggay").TextContent);
+            Assert.Contains("Official Receipt", Row(cut, "Transfer Large Cattle").TextContent); // IA-049
+            Assert.DoesNotContain("Cash Ticket", Row(cut, "Transfer Large Cattle").TextContent);
         }, Timeout);
     }
 

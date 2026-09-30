@@ -1,0 +1,96 @@
+/* Governed service workspace — V3. Panels, tables, facts and buttons come from the v3- layer in app.css. */
+
+.gsw-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    align-items: start;
+    gap: 20px;
+}
+
+.gsw-period {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.gsw-notice {
+    margin: 12px 20px 0;
+}
+
+.gsw-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.gsw-state {
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--surface-muted);
+}
+
+.gsw-state-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.gsw-issues {
+    margin: 14px 0 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.gsw-edit {
+    margin-top: 16px;
+}
+
+.gsw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.gsw-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--text);
+}
+
+.gsw-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.gsw-retry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.v3-panel-note a {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+    .gsw-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
