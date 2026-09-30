@@ -697,6 +697,23 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Supersedes IA-024's exhaustion trigger. Remittance is buildable; no Treasury workflow is.
 - **REVISIT CONDITION:** Any newer EEMO staff ruling on remittance or Treasury handoff.
 
+### IA-053 - ECF and WCF are utility operations settled against a direct approved amount (Clint / Core Brain, 2026-10-01)
+
+- **ID:** IA-053
+- **SUBJECT:** NPM / utility ownership and the utility financial basis in the active V3 UI
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; applies the 2026-09-27 Head direction recorded in Rulebook Q2)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - ECF (Official Receipt) and WCF (Cash Ticket) are broader utility operations with their own revenue classifications. They are not components of NPM stall rent, vendor registration or the base rental; NPM is only the subject/context of a utility obligation.
+  - The current Cantilan financial basis is a **direct approved amount** set by an authorized office workflow. Meter readings, consumption and per-unit rates are not required financial evidence for new workflows, and a collector never chooses the amount.
+  - A stall's Electricity / Water service flags are non-financial context (they list the space in the utility register); they never enter the base rental or whole-year figure.
+  - Historical UtilityBill readings and reading-based amounts are preserved unchanged as legacy evidence; they are never used to reprice a recorded charge. No backfill, conversion or source activation follows from this.
+  - One authoritative financial path per source: NPM screens show related utilities read-only and link to the ECF / WCF workspaces; they are not a second utility writer.
+- **RATIONALE:** The office settles utilities at approved amounts; showing meter billing as the active workflow contradicted that and made utilities look like part of rent.
+- **EVIDENCE / SOURCE:** Clint / Core Brain NPM UTILITY DECOUPLING brief of 2026-10-01; Rulebook Q2 (2026-09-27 Head direction).
+- **IMPACT:** Add Vendor, NPM Reports, ECF / WCF pages and the utility bill dialog present the approved-amount model; a new utility bill defaults to the direct approved basis.
+- **REVISIT CONDITION:** A tenant that genuinely bills by meter (the basis remains configurable per bill).
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:

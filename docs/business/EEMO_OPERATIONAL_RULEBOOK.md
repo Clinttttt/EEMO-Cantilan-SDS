@@ -344,6 +344,7 @@ See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthl
 - The Head stated **WCF = PHP 10** for the current office workflow.
 - "Direct amount" never means arbitrary collector authority: the amount/rate must come from approved office policy/configuration and should remain effective/configurable rather than hard-coded into UI markup.
 - ECF/WCF remain separate revenue/utility operations from stall rent.
+- IA-053 (2026-10-01): ECF/WCF are broader utility operations; NPM may be the source/context subject but never owns them. Meter readings are not required financial evidence for new current workflows; historical reading fields are preserved only as legacy evidence and never reprice a recorded charge.
 - Fiesta/Araw temporary electricity may still carry its own event/context detail; do not silently assume it is an NPM stall utility.
 
 This direct Cantilan clarification supersedes the earlier IA-047 interim metered/shared/fixed presentation hypothesis for the current demo/target workflow. Keep the underlying architecture flexible enough to preserve approved source/basis evidence if EEMO later supplies a meter/bill/rate schedule.
