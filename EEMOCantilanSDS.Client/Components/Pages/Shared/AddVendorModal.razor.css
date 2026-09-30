@@ -1019,3 +1019,12 @@
     background: var(--accent);
     color: var(--surface);
 }
+
+/* The title and note set their own dark colours, which beat the tile's white — lift both on the blue fill. */
+.avm-choice-item.is-selected .avm-choice-title {
+    color: #fff;
+}
+
+.avm-choice-item.is-selected .avm-choice-note {
+    color: rgba(255, 255, 255, .82);
+}

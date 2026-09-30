@@ -134,7 +134,7 @@
     width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--accent);
-    color: var(--navy);
+    color: #fff;
 }
 .txn-datebox.is-today .txn-datebox-icon { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
 .txn-datebox-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

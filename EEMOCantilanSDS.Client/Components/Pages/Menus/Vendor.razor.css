@@ -628,8 +628,8 @@ TABLE
 /* Daily-collection marker (NPM has no monthly payment status) */
 .pill-daily {
     background: var(--accent);
-    color: var(--navy);
-    border: 1px solid var(--border);
+    color: #fff;
+    border: 1px solid var(--accent);
 }
 
 /* Contract / expiry cell */
