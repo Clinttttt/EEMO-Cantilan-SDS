@@ -36,9 +36,21 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
                 Assign @Nouns
             </button>
-            <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">Return unused</button>
-            <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">Record spoiled form</button>
-            <a class="v3-btn" href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>
+            @* Custody follow-ups and the money-side page, joined like the form-type switch. *@
+            <div class="v3-btn-group af-followups" role="group" aria-label="Custody and remittance">
+                <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+                    Return unused
+                </button>
+                <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9.5" y1="12.5" x2="14.5" y2="17.5" /><line x1="14.5" y1="12.5" x2="9.5" y2="17.5" /></svg>
+                    Record spoiled form
+                </button>
+                <a class="v3-btn" href="/accountable-forms/remittances">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
+                    Remittance &amp; Liquidation
+                </a>
+            </div>
         </Actions>
     </WorkspaceHeader>
 
@@ -481,7 +493,13 @@
         : _firstSerial < 0 ? "First serial cannot be negative."
         : _lastSerial < _firstSerial ? "Last serial must be at or after the first serial."
         : _serialWidth is < 1 or > 12 ? "Digits must be between 1 and 12."
+        : _lastSerial - _firstSerial >= MaxFormsPerRegistration
+            ? $"One registration can hold at most {MaxFormsPerRegistration:N0} {Unit.ToLowerInvariant()}s. " +
+              $"Register this range in parts, e.g. {_firstSerial:N0}–{_firstSerial + MaxFormsPerRegistration - 1:N0} first, then {_firstSerial + MaxFormsPerRegistration:N0}–{_lastSerial:N0}."
         : null;
+
+    // Mirrors the server's per-request limit so the office is told before submitting; the server still enforces it.
+    private const int MaxFormsPerRegistration = 5000;
 
     private string RegisterPreview
     {

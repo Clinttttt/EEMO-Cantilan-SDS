@@ -187,7 +187,10 @@
                 </AuthorizeView>
                 @if (!string.IsNullOrWhiteSpace(_saved))
                 {
-                    <p class="v3-notice" role="status">@_saved</p>
+                    <p class="gsw-saved" role="status">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span>@_saved</span>
+                    </p>
                 }
             }
         </div>

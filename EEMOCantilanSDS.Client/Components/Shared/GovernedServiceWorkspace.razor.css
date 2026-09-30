@@ -50,17 +50,86 @@
     line-height: 1.5;
 }
 
-.gsw-edit {
-    margin-top: 16px;
+/* Setup facts read as a compact register: hairline dividers, aligned values. */
+.v3-facts {
+    gap: 0;
 }
 
+.v3-facts > div {
+    padding: 9px 0;
+}
+
+.v3-facts > div + div {
+    border-top: 1px solid var(--border);
+}
+
+.v3-facts > div:first-child {
+    padding-top: 0;
+}
+
+.gsw-edit {
+    width: 100%;
+    justify-content: center;
+    margin-top: 14px;
+}
+
+/* Edit form: tight vertical rhythm, full-width fields, actions on one line. */
 .gsw-form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 16px;
-    padding-top: 16px;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
     border-top: 1px solid var(--border);
+}
+
+.gsw-form .v3-field {
+    width: 100%;
+}
+
+.gsw-form .v3-field input,
+.gsw-form .v3-field select {
+    width: 100%;
+}
+
+.gsw-form .gsw-note {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.gsw-form .gsw-actions {
+    margin-top: 2px;
+}
+
+.gsw-form .gsw-actions .v3-btn {
+    flex: 1 1 0;
+    justify-content: center;
+}
+
+/* Saved confirmation: a quiet success line under the button, not a boxed notice. */
+.gsw-saved {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.gsw-saved svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .gsw-check {

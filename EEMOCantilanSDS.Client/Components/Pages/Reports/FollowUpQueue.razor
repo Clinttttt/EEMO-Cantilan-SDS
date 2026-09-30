@@ -97,12 +97,6 @@
         </div>
     </div>
 
-    <div class="fq-context-note" role="note" aria-label="Queue period and date context">
-        <strong>Period and date context</strong>
-        <span>Collection period: @PeriodLabel · queue as of @AsOf.ToString("MMMM d, yyyy").</span>
-        <span>Rows retain their source period. Delinquency uses fully elapsed months in a rolling window; current-period unpaid or partial balances stay separate. Online payments awaiting an OR may come from any period.</span>
-    </div>
-
     <!-- Filter choices + search -->
     <div class="fq-filterbar">
         <div class="fq-filters" role="group" aria-label="Filter by reason">
@@ -245,10 +239,11 @@
                                                 <td>
                                                     <div class="fq-row-signals">
                                                         <span class="fq-reason">@it.Reason</span>
-                                                        <span class="fq-priority fq-rb-@PriClass(it.Priority)">
-                                                            <span class="fq-priority-caption">Priority</span>
-                                                            <span>@it.Priority</span>
-                                                        </span>
+                                                        @* Only an urgent row is tagged; Normal needs no label. *@
+                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            <span class="fq-priority fq-rb-@PriClass(it.Priority)">@it.Priority</span>
+                                                        }
                                                     </div>
                                                 </td>
                                                 break;
@@ -313,9 +308,6 @@
         }
     }
 
-    <div class="fq-foot-note">
-        Priority describes urgency; reason and status describe what needs attention. For active Delinquent accounts, 1–2 fully elapsed unpaid months are Normal and 3+ are Critical. Current-period unpaid or partial balances are shown separately and are not Delinquent until a month fully elapses.
-    </div>
 </div>
 
 @if (_orItem is not null)

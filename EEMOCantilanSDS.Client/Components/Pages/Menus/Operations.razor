@@ -153,12 +153,12 @@
             Links: [new("Accounts", "/operations/water-consumption-fees/accounts"), new("Report", "/operations/water-consumption-fees/report")]),
         // Tabo = OR per IA-045 (EEMO Head, 2026-09-27).
         new("Tabo", OfficialReceipt, FacilityCode.TPM, Links: [new("Report", "/facility/tpm/report")]),
-        new("Fish / Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees"),
-        new("Landing / Berthing", CashTicket, Route: "/operations/landing-berthing",
+        new("Fish | Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees"),
+        new("Landing | Berthing", CashTicket, Route: "/operations/landing-berthing",
             Links: [new("Report", "/operations/landing-berthing/report")]),
         // Cash Ticket on Collector Mobile at the approved vehicle-class rate (IA-030, IA-050); legacy trips stay under the TRM facility.
         new("Transportation Fees", CashTicket, FacilityCode.TRM, Route: "/operations/transportation"),
-        new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
+        new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
         new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle"),
         // Official Receipt, own ICE_PLANT classification (IA-050); monthly obligation, installments allowed.
@@ -168,9 +168,9 @@
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =
     [
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
-        new("Vegetable / Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit"),
+        new("Vegetable | Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit"),
         new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay"),
-        new("Lot Rental — Fiesta / Araw", OfficialReceipt, Route: "/operations/fiesta-araw"),
+        new("Fiesta | Araw", OfficialReceipt, Route: "/operations/fiesta-araw"),
         new("Fines", OfficialReceipt, Route: "/operations/fines"),
     ];
 

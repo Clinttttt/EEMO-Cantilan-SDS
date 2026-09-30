@@ -6,11 +6,21 @@
     gap: 20px;
 }
 
+/* Filters sit on one quiet surface, like the other V3 toolbars, with Apply aligned to the inputs. */
 .rm-filters {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.rm-filters .v3-btn[type="submit"] {
+    margin-left: auto;
 }
 
 .rm-form {

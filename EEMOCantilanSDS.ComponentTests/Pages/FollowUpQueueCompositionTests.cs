@@ -28,8 +28,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         {
             var lowerAge = RowFor(cut, "Lower-age delinquent");
             Assert.Equal("Delinquent", lowerAge.QuerySelector(".fq-reason")?.TextContent.Trim());
-            Assert.Contains("Priority", lowerAge.QuerySelector(".fq-priority")?.TextContent);
-            Assert.Contains("Normal", lowerAge.QuerySelector(".fq-priority")?.TextContent);
+            // A Normal row carries no priority tag; only urgent rows are tagged.
+            Assert.Null(lowerAge.QuerySelector(".fq-priority"));
             Assert.Contains("Unpaid · 2 months", lowerAge.TextContent);
 
             var higherAge = RowFor(cut, "Higher-age delinquent");

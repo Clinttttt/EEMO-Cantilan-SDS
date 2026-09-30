@@ -3358,3 +3358,176 @@ a.topbar-admin.account-chip {
         transition: none;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   AUTH SHELL — Mobile/Web V3 (Login, Account setup, Activate, Forgot/Reset password, Verify email)
+   The six sign-in pages share the setup-* shell but each carries a scoped copy of the old dark styles.
+   This one layer brings them all to V3: light canvas, white identity panel, navy text, civic-blue
+   primary action, gold only as a hairline accent. `body .setup-root …` outranks the scoped copies
+   (0,2,1 > 0,2,0) without !important. Markup and behavior are unchanged.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+body .setup-root {
+    background: var(--canvas);
+}
+
+/* Identity panel: a flat, light civic-blue field — no photograph, no overlay pattern. */
+body .setup-root .setup-left,
+body .setup-root .setup-left--neutral {
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    background-image: none;
+    border-right: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+}
+
+/* The secure-access mark and footer rule read against the blue field. */
+body .setup-root .setup-left .login-secure-icon {
+    background: var(--surface);
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
+body .setup-root .setup-left .setup-left-footer {
+    border-top-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+body .setup-root .setup-left::before,
+body .setup-root .setup-left::after {
+    display: none;
+}
+
+body .setup-root .government-logo-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--elevation-1);
+}
+
+body .setup-root .setup-brand-label,
+body .setup-root .setup-brand-city,
+body .setup-root .setup-brand-sub {
+    color: var(--text-secondary);
+}
+
+body .setup-root .setup-brand-title {
+    color: var(--navy);
+    text-shadow: none;
+}
+
+body .setup-root .setup-brand-title::after {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 2px;
+    margin: 10px auto 0;
+    background: var(--gold);
+}
+
+body .setup-root .login-secure-icon {
+    color: var(--accent);
+    border-color: var(--border);
+    background: var(--accent-soft);
+}
+
+body .setup-root .login-secure-title {
+    color: var(--navy);
+}
+
+body .setup-root .login-secure-access p,
+body .setup-root .setup-left-footer,
+body .setup-root .setup-system-name,
+body .setup-root .setup-version {
+    color: var(--text-tertiary);
+}
+
+body .setup-root .setup-left-footer {
+    border-top-color: var(--border);
+}
+
+/* Form side */
+body .setup-root .setup-right {
+    background: var(--canvas);
+}
+
+body .setup-root .login-card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .04), 0 12px 32px rgba(13, 33, 55, .06);
+}
+
+body .setup-root .login-header-icon {
+    color: var(--accent);
+    border-color: var(--border);
+    background: var(--accent-soft);
+}
+
+body .setup-root .setup-form-title {
+    color: var(--navy);
+}
+
+body .setup-root .setup-form-desc,
+body .setup-root .form-hint {
+    color: var(--text-secondary);
+}
+
+body .setup-root .form-input-wrap {
+    border-color: var(--border-strong);
+    background: var(--surface);
+}
+
+body .setup-root .form-input-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+body .setup-root .form-input-wrap:focus-within .form-input-icon {
+    color: var(--accent);
+}
+
+/* Primary action: flat civic blue. */
+body .setup-root .setup-submit {
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent);
+    box-shadow: none;
+    color: var(--surface);
+}
+
+body .setup-root .setup-submit:hover:not(:disabled) {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    box-shadow: none;
+}
+
+body .setup-root .setup-submit:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+body .setup-root .login-forgot {
+    color: var(--accent);
+}
+
+body .setup-root .setup-step.completed .step-dot,
+body .setup-root .setup-step.active .step-dot {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+/* Municipal network link: a plain secondary row. */
+body .setup-root .login-network-link {
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+
+body .setup-root .login-network-link:hover {
+    border-color: var(--accent);
+    background: var(--surface-hover);
+    box-shadow: none;
+    transform: none;
+}
+
+body .setup-root .login-network-icon {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+body .setup-root .login-network-arrow {
+    color: var(--accent);
+}

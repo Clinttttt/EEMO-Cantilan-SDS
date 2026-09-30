@@ -47,7 +47,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
     [Theory]
     [InlineData(typeof(Kanmanggay), "/operations/kanmanggay", "Kanmanggay")]
-    [InlineData(typeof(FiestaAraw), "/operations/fiesta-araw", "Lot Rental — Fiesta / Araw")]
+    [InlineData(typeof(FiestaAraw), "/operations/fiesta-araw", "Fiesta / Araw")]
     public void Workspace_IsOfficeOnly_AndNoLongerSaysItIsNotRecorded(Type page, string route, string title)
     {
         Assert.Equal(route, Assert.Single(page.GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
