@@ -474,3 +474,52 @@
 
 /* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
 /* Seal is an in-flow flex child of .header-row (eemo.css .header-logo); no right-reserve needed. */
+
+/* ── Mobile V3 register rows: flat divider rows instead of elevated cards ── */
+.tx-card {
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    transition: none;
+    min-height: 56px;
+}
+
+.tx-card:active {
+    transform: none;
+    box-shadow: none;
+    background: var(--mobile-blue-subtle);
+}
+
+.tx-card:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
+}
+
+.section-label {
+    margin: 16px 4px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-owner {
+    font-size: 15px;
+}
+
+.tx-tag,
+.tx-or {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-badge {
+    font-size: 12px;
+}
+
+.tx-amount {
+    font-variant-numeric: tabular-nums;
+}

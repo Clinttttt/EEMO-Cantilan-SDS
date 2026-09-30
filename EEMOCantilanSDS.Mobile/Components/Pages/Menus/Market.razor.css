@@ -874,3 +874,135 @@
 .activation-meta-row strong {
     color: #0d2137;
 }
+
+/* ── Mobile V3 register rows: flat divider rows instead of elevated cards ── */
+.tx-card {
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    transition: none;
+    min-height: 56px;
+}
+
+.tx-card:active {
+    transform: none;
+    box-shadow: none;
+    background: var(--mobile-blue-subtle);
+}
+
+.tx-card:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
+}
+
+.section-label {
+    margin: 16px 4px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-owner {
+    font-size: 15px;
+}
+
+.tx-tag,
+.tx-or {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-badge {
+    font-size: 12px;
+}
+
+.tx-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── NPM context strip and sticky tools ── */
+.npm-context {
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    padding: 10px 14px 12px;
+    margin-bottom: 10px;
+}
+
+.npm-context-figures {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.npm-figure {
+    min-width: 0;
+}
+
+.npm-figure-value {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.npm-figure-key {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.npm-context .month-progress-wrap {
+    margin-top: 10px;
+}
+
+.npm-tools {
+    position: sticky;
+    top: -14px;
+    z-index: 5;
+    margin: 0 -14px 6px;
+    padding: 8px 14px 4px;
+    background: var(--mobile-canvas);
+}
+
+.form-hint-weighing {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    margin-top: 4px;
+}
+
+/* ── Mobile V3 collection sheet: compact options, reliable touch heights ── */
+.status-option {
+    padding: 12px;
+    border-radius: 10px;
+    border-width: 1px;
+    margin-bottom: 8px;
+    min-height: 56px;
+}
+
+.status-option-label {
+    font-size: 15px;
+}
+
+.status-option-sub {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.form-input {
+    min-height: 48px;
+    font-size: 16px;
+}
+
+.btn-confirm,
+.btn-cancel {
+    min-height: 48px;
+    font-size: 15px;
+}
+
+.btn-confirm:disabled {
+    opacity: 0.5;
+}
