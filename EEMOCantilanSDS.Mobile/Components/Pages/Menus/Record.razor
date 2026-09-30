@@ -518,7 +518,7 @@
         }
         catch (HttpRequestException)
         {
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
             IsLoading = false;
         }
     }
@@ -627,7 +627,7 @@
         {
             // The HTTP layer throws on a connection failure/timeout (it doesn't return a Result). Catch it
             // here so the retry path (which calls this directly) can never throw or get stuck loading.
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
         }
         finally
         {

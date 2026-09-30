@@ -631,7 +631,6 @@
                                     </select>
                                 </label>
                                 <div class="misc-util-state">@SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00") · @FormatPeso(SelectedWcfQuote.OutstandingAmount) outstanding</div>
-                                <div class="misc-util-state">@SelectedWcfQuote.PreviousReading m³ → @SelectedWcfQuote.CurrentReading m³ · @SelectedWcfQuote.Consumption m³ × @FormatPeso(SelectedWcfQuote.RatePerCubicMeter)/m³</div>
                                 @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
                                 {
                                     <div class="misc-empty">Canonical WCF settlement is not active for this source. Do not issue a Cash Ticket through the canonical workflow.</div>
@@ -1084,7 +1083,7 @@
         catch
         {
             // The HTTP layer throws on a connection failure/timeout; keep the retry path safe and unstuck.
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
         }
         finally
         {

@@ -210,6 +210,23 @@ public class PendingOperationStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Transportation_issue_needs_a_vehicle_class_and_carries_it_to_the_wire_without_a_rate()
+    {
+        var store = new PendingOperationStore(_dir);
+        var missing = IssuedGovernedOp("TRANSPORTATION");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(missing));
+        Assert.Empty(await store.GetAllAsync());
+
+        var op = IssuedGovernedOp("TRANSPORTATION");
+        op.VehicleClassCode = "TRICYCLE";
+        await store.AddIssuedDocumentOperationAsync(op);
+
+        var persisted = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+        Assert.Equal("TRICYCLE", persisted.VehicleClassCode);
+        Assert.Equal("TRICYCLE", persisted.ToDto().VehicleClassCode);
+    }
+
+    [Fact]
     public async Task Governed_issue_without_an_operation_or_a_second_use_of_the_same_document_is_refused()
     {
         var store = new PendingOperationStore(_dir);
