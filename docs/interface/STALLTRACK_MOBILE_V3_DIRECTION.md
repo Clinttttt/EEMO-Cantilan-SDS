@@ -20,4 +20,6 @@ The Collector Mobile is a client of server-owned rules. It shares the V3 identit
 ## Status of this direction
 Implemented: `--mobile-*` tokens, light compact header (server business date), quiet bottom nav, light Login and splash, task-first Menu (Available now / Assigned, not available / Needs attention), Reports Position tab, Records with canonical operation collections, Profile with assigned operations and sync status, Transportation vehicle-class CT, approved-animal Slaughterhouse, WCF without meter or rate lines.
 
-Not done: a per-screen hierarchy redesign of NPM, the monthly family and TPM (they take the new tokens, but their layouts are unchanged), removal of the legacy palette variables, and any Android runtime or visual review. See the functional audit and backend gaps.
+NPM, the monthly rental family (TCC, NCC, BBQ, Ice Plant) and Tabo now share one field layout: compact header with the server facility name and period or market-day state, one context strip, sticky search and filter, flat divider rows with aligned amounts, 48px inputs and actions, and an on-device acknowledgement that states it does not replace the pre-numbered Official Receipt. The monthly sheet shows the server's obligation, paid and remaining. Tabo names its fee "Tabo vendor fee". Their `@code` blocks are unchanged apart from the display-name helper.
+
+Not done: removal of the legacy palette variables (unmigrated rules still use them), and any Android runtime or visual review (to be done by the product owner on a Windows machine). See the functional audit and backend gaps.
