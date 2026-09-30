@@ -45,20 +45,14 @@
     outline-offset: 2px;
 }
 
-.wm-unavailable {
-    padding: 28px 20px;
-    background: var(--surface-muted);
-    border-radius: 0 0 10px 10px;
-}
 
-.wm-unavailable strong {
-    color: var(--text);
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.wm-unavailable p {
-    margin: 0;
+/* Historical Fish weighing: kilos only, no frozen rate/amount — shown as unresolved, never as money. */
+.wm-unresolved {
+    color: var(--text-tertiary);
     font-size: 0.8125rem;
-    line-height: 1.45;
+    white-space: nowrap;
+}
+
+.wm-meat-facts {
+    padding: 14px 20px 4px;
 }

@@ -120,7 +120,8 @@ public sealed class UtilityWorkspaceTests : TestContext
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Cash Ticket exceptions");
-            Assert.Contains("1 Cash Ticket is available for field collection.", cut.Markup);
+            Assert.Contains("1 of 1 outstanding obligation open for field collection", cut.Markup);
+            Assert.Contains("1 Cash Ticket in office stock awaiting assignment", cut.Markup);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms");
         }, Timeout);
 
@@ -136,7 +137,23 @@ public sealed class UtilityWorkspaceTests : TestContext
         var cut = RenderComponent<WaterConsumptionFees>();
 
         cut.WaitForAssertion(() =>
-            Assert.Contains("No Cash Tickets are available for field collection.", cut.Markup), Timeout);
+            Assert.Contains("no Cash Tickets in office stock", cut.Markup), Timeout);
+    }
+
+    [Fact]
+    public void Wcf_WhenNoSourceIsCanonical_ReadinessSaysMobileCannotIssueYet()
+    {
+        // In-office stock is not "available for field collection": a collector issues only tickets assigned to them,
+        // and only against a source the server has opened for canonical settlement.
+        Services.AddSingleton(WcfApi([WcfQuote(outstanding: 10m, canCollect: false)], [Ticket()]).Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Canonical settlement is not active for any listed obligation", cut.Markup);
+            Assert.DoesNotContain("available for field collection", cut.Markup);
+        }, Timeout);
     }
 
     private static Mock<IEcfCollectionsApiClient> EcfApi(params EcfObligationQuoteDto[] quotes)

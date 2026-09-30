@@ -83,7 +83,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
     public void WeightAndMeasure_ListsNpmFishWeighing_WithSourceLinks_AndServerTotalsOnly()
     {
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
-            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 37m,
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 37m, meatKilos: 4m, meatAmount: 120m,
                 Stall(FishStallId, "F-12", "Juan Dela Cruz", "Fish Area", fishKilos: 25m),
                 Stall(Guid.NewGuid(), "V-01", "Rosa Lim", "Vegetable Area", fishKilos: 0m))));
 
@@ -101,15 +101,36 @@ public sealed class FishMeatWorkspaceTests : TestContext
             Assert.Equal($"/profile/npm/{FishStallId}", row.QuerySelector("a")!.GetAttribute("href"));
             Assert.DoesNotContain("Rosa Lim", cut.Markup);
 
-            // The collected amount is the server's figure — not 25 kg × the rate.
+            // Fish weighing kept kilos only. The report's fish amount is kilos × the rate in force when it is read, so it
+            // is never presented as collected money: the amount is unresolved.
+            Assert.Contains("Rate evidence unavailable", row.TextContent);
             var summary = cut.Find("dl[aria-label='Weighing position']").TextContent;
-            Assert.Contains("₱37.00", summary);
-            Assert.Contains("₱1.00 / kg", summary);
+            Assert.DoesNotContain("₱37.00", cut.Markup);
+            Assert.Contains("Rate evidence unavailable", summary);
 
-            Assert.Contains("Meat weighing records aren't available here yet", cut.Markup);
+            // Meat weighing money is the amount frozen on each collection, as the server totals it.
+            Assert.Contains("₱120.00", summary);
+            var meat = cut.Find("dl.wm-meat-facts").TextContent;
+            Assert.Contains("4.00 kg", meat);
+            Assert.Contains("₱120.00", meat);
             Assert.Empty(cut.FindAll("form"));
             Assert.DoesNotContain(cut.FindAll("input"), i => i.GetAttribute("type") == "number");
             AssertNoManagementActions(cut);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void WeightAndMeasure_WithNoMeatWeighing_SaysSo()
+    {
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
+
+        var cut = RenderComponent<WeightAndMeasure>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No Meat weighing was recorded", cut.Markup);
+            Assert.Empty(cut.FindAll("dl.wm-meat-facts"));
         }, Timeout);
     }
 
@@ -142,8 +163,15 @@ public sealed class FishMeatWorkspaceTests : TestContext
         id, stallNo, occupant, occupant, section, "Daily", 900m, 30m, "Paid", 0m, 0m, null, 0, 0d, null, 1, 0m,
         FishKilos: fishKilos);
 
-    private static FacilityReportsDto Report(decimal fishFeeAmount, params StallComplianceDto[] stalls) => new(
+    private static FacilityReportsDto Report(decimal fishFeeAmount, params StallComplianceDto[] stalls) =>
+        Report(fishFeeAmount, 0m, 0m, stalls);
+
+    private static FacilityReportsDto Report(
+        decimal fishFeeAmount, decimal meatKilos, decimal meatAmount, params StallComplianceDto[] stalls) => new(
         0m, 0m, 0m, 0m, stalls.Length, stalls.Length, 0, 0m,
         Array.Empty<RevenueTrendDto>(), null!, Array.Empty<SectionBreakdownDto>(), Array.Empty<TopStallDto>(),
-        null!, null, new FeeTypeBreakdownDto(0m, fishFeeAmount, null), Array.Empty<FishKiloTrendDto>(), stalls);
+        null!, null,
+        new FeeTypeBreakdownDto(0m, fishFeeAmount, null,
+            WeightMeasureAmount: meatAmount, MeatKilos: meatKilos, MeatWeightMeasureAmount: meatAmount),
+        Array.Empty<FishKiloTrendDto>(), stalls);
 }

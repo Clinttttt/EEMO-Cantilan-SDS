@@ -6,7 +6,6 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IFacilitiesApiClient FacilitiesApi
-@inject IStallsApiClient StallsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — Weight & Measure</PageTitle>
@@ -67,6 +66,7 @@
                         <th scope="col">Occupant</th>
                         <th scope="col">Category</th>
                         <th scope="col" class="v3-num">Kilos weighed</th>
+                        <th scope="col">Amount</th>
                         <th scope="col"><span class="v3-sr-only">Source</span></th>
                     </tr>
                 </thead>
@@ -80,6 +80,7 @@
                             </td>
                             <td>Fish</td>
                             <td class="v3-num v3-strong">@Kilos(row.FishKilos)</td>
+                            <td class="wm-unresolved">@FishRateUnavailable</td>
                             <td class="wm-source">
                                 <a class="wm-source-link" href="/profile/npm/@row.StallId">Open NPM source</a>
                             </td>
@@ -88,7 +89,7 @@
                     @if (!FilteredFishRows.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="4">
+                            <td class="v3-empty" colspan="5">
                                 @if (_loading)
                                 {
                                     <span role="status">Loading weighing records…</span>
@@ -111,21 +112,41 @@
                 </tbody>
             </table>
         </div>
-        <p class="v3-panel-note">Kilos are recorded on each NPM daily collection. Per-stall amounts and OR numbers stay with those collections in NPM.</p>
+        <p class="v3-panel-note">Fish weighing recorded kilos only. No rate or amount was frozen with those collections, so the amount stays unresolved — it is not re-priced from today's rate. OR numbers stay with the collections in NPM.</p>
     </section>
 
-    <section class="v3-panel" aria-labelledby="wm-meat-title">
+    <section class="v3-panel" aria-labelledby="wm-meat-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
             <h2 id="wm-meat-title">Meat weighing</h2>
-            <span class="v3-panel-meta">Not yet available</span>
+            <span class="v3-panel-meta">@PeriodLabel · source @NpmName</span>
         </header>
-        <div class="v3-panel-body wm-unavailable">
-            <div class="v3-empty-block">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                <strong>Meat weighing records aren't available here yet</strong>
-                <p>They will appear once NPM records Meat weighing. Nothing is estimated in the meantime.</p>
+        @if (_report?.FeeTypeBreakdown is { } meat && (meat.MeatKilos > 0m || meat.MeatWeightMeasureAmount > 0m))
+        {
+            <dl class="v3-facts wm-meat-facts" aria-label="Meat weighing for @PeriodLabel">
+                <div><dt>Kilos weighed</dt><dd>@Kilos(meat.MeatKilos)</dd></div>
+                <div><dt>Weighing amount</dt><dd class="v3-strong">@Money(meat.MeatWeightMeasureAmount)</dd></div>
+            </dl>
+            <p class="v3-panel-note">Each Meat weighing froze its kilos, rate and amount on the NPM daily collection; this total adds those frozen amounts and re-prices nothing. Per-stall Meat detail stays in NPM.</p>
+        }
+        else
+        {
+            <div class="v3-panel-body">
+                <p class="v3-empty">
+                    @if (_loading)
+                    {
+                        <span role="status">Loading weighing records…</span>
+                    }
+                    else if (_report is null)
+                    {
+                        <span>Weighing records are unavailable.</span>
+                    }
+                    else
+                    {
+                        <span>No Meat weighing was recorded in @PeriodLabel.</span>
+                    }
+                </p>
             </div>
-        </div>
+        }
     </section>
 </div>
 
@@ -134,7 +155,6 @@
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private string _search = string.Empty;
     private FacilityReportsDto? _report;
-    private decimal? _fishRate;
     private bool _loading = true;
     private string? _error;
 
@@ -150,15 +170,18 @@
         || Occupant(x).Contains(_search, StringComparison.OrdinalIgnoreCase)
         || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
-    // Server figures only: the month's fish weighing fees come from NPM's fee breakdown; kilos are the listed stalls'
-    // recorded kilos. No amount is derived from kilos × rate here.
+    // Server evidence only. Meat weighing money is the amount frozen on each collection (MeatWeightMeasureAmount).
+    // Fish weighing kept kilos only: the report's FishFeeAmount is kilos × the rate in force when the report is read,
+    // not money frozen with the collection, so it is not shown as collected — the amount is unresolved.
+    private const string FishRateUnavailable = "Rate evidence unavailable";
+
     private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
     [
         new("Month", PeriodLabel),
+        new("Meat weighing (frozen)", _report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.MeatWeightMeasureAmount) : "—", Emphasis: true),
+        new("Meat kilos weighed", _report?.FeeTypeBreakdown is { } meat ? Kilos(meat.MeatKilos) : "—"),
         new("Fish kilos weighed", _report is null ? "—" : Kilos(FishRows.Sum(x => x.FishKilos))),
-        new("Fish weighing collected", _report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.FishFeeAmount) : "—", Emphasis: true),
-        new("Current fish rate", _fishRate is { } rate ? $"{Money(rate)} / kg" : "—"),
-        new("Meat weighing", "Not available"),
+        new("Fish weighing amount", _report is null ? "—" : FishRows.Any() ? FishRateUnavailable : Money(0m)),
     ];
 
     protected override async Task OnInitializedAsync()
@@ -190,9 +213,6 @@
                 _report = null;
                 _error = "NPM weighing records couldn't be loaded.";
             }
-
-            var rates = await StallsApi.GetNpmRatesAsync();
-            _fishRate = rates.IsSuccess ? rates.Value?.FishRate : null;
         }
         catch
         {

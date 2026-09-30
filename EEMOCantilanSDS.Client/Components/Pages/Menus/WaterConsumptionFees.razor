@@ -49,7 +49,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
         <p>
             <strong>Collected on Collector Mobile</strong>
-            <span>@(_tickets.Count == 0 ? "No Cash Tickets are available for field collection." : $"{_tickets.Count} Cash Ticket{(_tickets.Count == 1 ? " is" : "s are")} available for field collection.")</span>
+            <span>@SettlementReadiness · @StockReadiness</span>
         </p>
         <a class="v3-btn v3-btn-sm" href="/accountable-forms">Manage Accountable Forms</a>
     </div>
@@ -264,6 +264,26 @@
         catch (Exception ex) { _error = ex.Message; }
         finally { _busy = false; }
     }
+
+    // Mobile readiness from server truth only: settlement authority on the returned obligations, and the office's
+    // in-office Cash Ticket stock (for Head/Admin, "available" tickets are unassigned office stock — a collector can
+    // issue only tickets assigned to them in Accountable Forms). Per-collector capability is decided by the server
+    // on Collector Mobile.
+    private string SettlementReadiness
+    {
+        get
+        {
+            var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
+            var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
+            if (owing == 0) return "No outstanding obligation returned";
+            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet";
+            return $"{open} of {owing} outstanding obligation{(owing == 1 ? "" : "s")} open for field collection";
+        }
+    }
+
+    private string StockReadiness => _tickets.Count == 0
+        ? "no Cash Tickets in office stock"
+        : $"{_tickets.Count} Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock awaiting assignment";
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
     private static string CollectionState(WcfObligationQuoteDto quote) => quote switch
