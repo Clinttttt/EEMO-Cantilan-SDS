@@ -2628,3 +2628,215 @@
     border-top: 1px solid var(--border);
     margin-top: 6px;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   V3 DOCUMENT-FIRST CHROME (2026-10-01)
+   One section strip, one period toolbar, then the report. Replaces the
+   large filter panel; later rules win over the older ones above.
+   ══════════════════════════════════════════════════════════════ */
+.rpt-nav {
+    margin: 0 0 12px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.rpt-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.rpt-nav .rpt-sec-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.rpt-nav .rpt-sec-tab {
+    position: relative;
+    min-height: 42px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.rpt-nav .rpt-sec-tab:hover:not(.on) {
+    color: var(--navy);
+    background: var(--surface-hover);
+}
+
+.rpt-nav .rpt-sec-tab.on {
+    background: transparent;
+    box-shadow: none;
+    color: var(--navy);
+}
+
+.rpt-nav .rpt-sec-tab.on::after {
+    content: '';
+    position: absolute;
+    right: 10px;
+    bottom: -1px;
+    left: 10px;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: var(--accent);
+}
+
+.rpt-nav .rpt-sec-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Period toolbar: one line, controls left, contextual action right. */
+.rpt-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    margin: 0 0 16px;
+}
+
+.rpt-seg {
+    display: inline-flex;
+    align-self: flex-end;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.rpt-seg .rpp {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.rpt-seg .rpp + .rpp {
+    border-left: 1px solid var(--border);
+}
+
+.rpt-seg .rpp.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.rpt-seg .rpp:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.rpt-tool {
+    min-width: 140px;
+}
+
+.rpt-tool-source {
+    min-width: 220px;
+}
+
+.rpt-toolbar-end {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    align-self: flex-end;
+}
+
+.rpt-btn-export {
+    min-height: 36px;
+}
+
+.rpt-scope-line {
+    margin: -8px 0 14px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.rpt-scope-line strong {
+    color: var(--navy);
+}
+
+/* Reports use the full main column: no narrow centred sheet. */
+.content-area {
+    max-width: none;
+}
+
+/* Summary: the four headline figures as one statement strip — no icon tiles, hairline dividers, tabular figures. */
+.kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.kpi-row .kpi-card {
+    padding: 14px 18px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.kpi-row .kpi-card + .kpi-card {
+    border-left: 1px solid var(--border);
+}
+
+.kpi-row .kpi-icon-wrap {
+    display: none;
+}
+
+.kpi-row .kpi-value {
+    color: var(--navy);
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi-row .kpi-label {
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.kpi-row .kpi-sub {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+@media (max-width: 1100px) {
+    .kpi-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kpi-row .kpi-card:nth-child(3) {
+        border-left: 0;
+    }
+
+    .kpi-row .kpi-card:nth-child(n + 3) {
+        border-top: 1px solid var(--border);
+    }
+}
+
+.rpt-legacy-note {
+    margin-top: 2px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
