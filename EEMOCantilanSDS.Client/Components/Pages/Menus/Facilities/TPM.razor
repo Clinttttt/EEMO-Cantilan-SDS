@@ -1,808 +1,273 @@
 @page "/tpm"
 @page "/facility/tpm"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
-@using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
-@using EEMOCantilanSDS.Application.Requests.TaboanMarket
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITpmApiClient TpmApi
-@inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.TPM)</PageTitle>
 
-<!-- ── Topbar ── -->
 <header class="tpm-topbar">
     <div class="tpm-topbar-left">
-        <a href="/menu" class="tpm-back-btn">
-            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        <a href="/operations" class="tpm-back-btn" aria-label="Back to Operations">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
             <div class="tpm-topbar-title">@FacilityCatalog.NameOf(FacilityCode.TPM)</div>
             <div class="tpm-topbar-breadcrumb">
-                <a href="/menu" class="tpm-breadcrumb-link">Dashboard</a>
+                <a href="/operations" class="tpm-breadcrumb-link">Operations</a>
                 <span class="tpm-breadcrumb-sep">/</span>
-                <span class="tpm-breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TPM) — @CalendarMonth.ToString("MMMM yyyy")</span>
+                <span class="tpm-breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TPM)</span>
             </div>
         </div>
     </div>
-    <div class="tpm-topbar-right">
-        <div class="tpm-topbar-date">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @PhilippineTime.Now.ToString("MMMM d, yyyy")
-        </div>
+    <div class="tpm-topbar-date">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+        @PhilippineTime.Now.ToString("MMMM d, yyyy")
     </div>
 </header>
 
 <div class="tpm-content-area">
+    <FacilityHero Code="FacilityCode.TPM"
+                  Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.TPM)}")'
+                  Title="@FacilityCatalog.NameOf(FacilityCode.TPM)"
+                  Icon="@TpmIcon"
+                  Stats="@HeroStats" />
 
-    <!-- ── Hero Banner ── -->
-    <FacilityHero
-        Code="FacilityCode.TPM"
-        Eyebrow='@($"FACILITY · {FacilityCatalog.ShortNameOf(FacilityCode.TPM)}")'
-        Title="@FacilityCatalog.NameOf(FacilityCode.TPM)"
-        Icon="@TpmIcon"
-        Stats="@HeroStats"
-        ShowProgress="true"
-        ProgressPercentage="@(Overview?.CollectionRate ?? 0)" />
-
-    <!-- ── Two-column layout ── -->
-    <div class="tpm-columns">
-
-        <!-- ── LEFT: Friday Calendar ── -->
-        <div class="tpm-panel">
-            <div class="tpm-panel-header">
-                <div class="tpm-panel-title">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    Market Days
-                </div>
-                <div class="tpm-cal-nav">
-                    <button class="tpm-cal-nav-btn" @onclick="PrevMonth" aria-label="Previous month">
-                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                    </button>
-                    <span class="tpm-cal-month">@CalendarMonth.ToString("MMMM yyyy")</span>
-                    <button class="tpm-cal-nav-btn" disabled="@(CalendarMonth >= CurrentMonthStart)" @onclick="NextMonth">
-                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                    </button>
-                </div>
-            </div>
-
-            <div class="tpm-cal-desc">@MarketDayDescription@VendorFeeNote</div>
-
-            <div class="tpm-friday-list">
-                @foreach (var friday in MarketDatesInView)
-                {
-                    var isFuture = friday > PhilippineTime.Now.Date;
-                    var record = MarketDays.FirstOrDefault(m => m.MarketDate.ToDateTime(TimeOnly.MinValue).Date == friday.Date);
-                    var isSelected = SelectedFriday.HasValue && SelectedFriday.Value.Date == friday.Date;
-
-                    <div class="tpm-friday-item @(isSelected ? "friday-selected" : "") @(isFuture ? "friday-future" : "")"
-                         @onclick="async () => { if (!isFuture) await SelectFriday(friday); }">
-                        <div class="tpm-friday-date-block">
-                            <div class="tpm-friday-day">@friday.ToString("dd")</div>
-                            <div class="tpm-friday-label">@friday.DayOfWeek</div>
-                        </div>
-                        <div class="tpm-friday-info">
-                            <div class="tpm-friday-full">@friday.ToString("MMMM d, yyyy")</div>
-                            @if (!isFuture && record != null)
-                            {
-                                <div class="tpm-friday-meta">@record.VendorsPaid vendor@(record.VendorsPaid == 1 ? "" : "s") · ₱@(record.TotalCollected.ToString("N0")) collected</div>
-                            }
-                            else if (!isFuture)
-                            {
-                                <div class="tpm-friday-meta tpm-meta-none">No records yet</div>
-                            }
-                            else
-                            {
-                                <div class="tpm-friday-meta tpm-meta-future">Upcoming</div>
-                            }
-                        </div>
-                        @if (!isFuture && record != null)
-                        {
-                            <div class="tpm-friday-badge tpm-badge-done">
-                               
-                                @record.VendorsPaid
-                            </div>
-                        }
-                        else if (isFuture)
-                        {
-                            <div class="tpm-friday-badge tpm-badge-future">—</div>
-                        }
-                        else
-                        {
-                            <div class="tpm-friday-badge tpm-badge-empty">0</div>
-                        }
-                    </div>
-                }
-            </div>
-
-            <div class="tpm-cal-footer">
-                <div class="tpm-cal-sum-item">
-                    <span class="tpm-cal-sum-val tpm-sum-green">@MarketDays.Count</span>
-                    <span class="tpm-cal-sum-key">Days Recorded</span>
-                </div>
-                <div class="tpm-cal-sum-item">
-                    <span class="tpm-cal-sum-val">@MarketDays.Sum(m => m.VendorsPaid)</span>
-                    <span class="tpm-cal-sum-key">Total Vendors</span>
-                </div>
-                <div class="tpm-cal-sum-item">
-                    <span class="tpm-cal-sum-val tpm-sum-gold">₱@MarketDays.Sum(m => m.TotalCollected).ToString("N0")</span>
-                    <span class="tpm-cal-sum-key">Total Collected</span>
-                </div>
-            </div>
+    @if (_isLoadingMonth)
+    {
+        <div class="tpm-page-state" aria-busy="true">Loading Tabo market days…</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tpm-load-error" role="alert">
+            <span>@_loadError</span>
+            <button type="button" @onclick="LoadOverviewAndMarketDaysAsync">Try again</button>
         </div>
-
-        <!-- ── RIGHT: Vendor Attendance ── -->
-        <div class="tpm-panel">
-            <div class="tpm-panel-header">
-                <div class="tpm-panel-title">
-                    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
-                    Vendor Attendance
-                </div>
-                @if (SelectedFriday.HasValue)
-                {
-                    <div class="tpm-selected-date">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        @SelectedFriday.Value.ToString("MMMM d, yyyy")
+    }
+    else
+    {
+        <div class="tpm-columns">
+            <section class="tpm-panel" aria-labelledby="tpm-market-days-title">
+                <div class="tpm-panel-header">
+                    <div id="tpm-market-days-title" class="tpm-panel-title">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                        Market Days
                     </div>
-                }
-                <button class="btn-outline" @onclick='() => Navigation.NavigateTo("/tpm/reports")' title="View Tabo-an Public Market Reports">
-                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
-                        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
-                    </svg>
-                    Reports
-                </button>
-            </div>
-
-            @if (!SelectedFriday.HasValue)
-            {
-                <div class="tpm-empty">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    <span>Select a Friday to view vendor attendance</span>
-                </div>
-            }
-            else if (isLoadingAttendance)
-            {
-                <div class="tpm-attendance-info tpm-loading-attendance" aria-busy="true" aria-label="Loading vendor attendance">
-                    <div class="tpm-attend-stat">
-                        <Skeleton Width="34px" Height="18px" Radius="6px" />
-                        <Skeleton Width="62px" Height="10px" Radius="6px" />
+                    <div class="tpm-cal-nav" aria-label="Market day month">
+                        <button type="button" class="tpm-cal-nav-btn" @onclick="PrevMonth" aria-label="Previous month">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                        </button>
+                        <span class="tpm-cal-month">@CalendarMonth.ToString("MMMM yyyy")</span>
+                        <button type="button" class="tpm-cal-nav-btn" disabled="@(CalendarMonth >= CurrentMonthStart)" @onclick="NextMonth" aria-label="Next month">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                        </button>
                     </div>
-                    <div class="tpm-attend-stat">
-                        <Skeleton Width="68px" Height="18px" Radius="6px" />
-                        <Skeleton Width="70px" Height="10px" Radius="6px" />
-                    </div>
-                    <Skeleton Width="124px" Height="34px" Radius="8px" />
                 </div>
 
-                <div class="tpm-search-wrap tpm-loading-search">
-                    <Skeleton Width="100%" Height="32px" Radius="8px" />
-                </div>
+                <div class="tpm-cal-desc">@MarketDayDescription</div>
 
-                <div class="tpm-vendor-table-wrap tpm-loading-table">
-                    <table class="tpm-vendor-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Vendor Name</th>
-                                <th>Goods / Product</th>
-                                <th>OR No.</th>
-                                <th>Fee</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (var _i = 0; _i < 8; _i++)
+                <div class="tpm-friday-list">
+                    @foreach (var marketDate in MarketDatesInView)
+                    {
+                        var isFuture = marketDate > PhilippineTime.Now.Date;
+                        var dateOnly = DateOnly.FromDateTime(marketDate);
+                        var dayEntries = MonthAttendance.Where(a => a.MarketDate == dateOnly).ToList();
+                        var record = MarketDays.FirstOrDefault(m => m.MarketDate == dateOnly);
+                        var isSelected = SelectedMarketDate?.Date == marketDate.Date;
+
+                        <button type="button"
+                                class="tpm-friday-item @(isSelected ? "friday-selected" : "") @(isFuture ? "friday-future" : "")"
+                                disabled="@isFuture"
+                                aria-pressed="@isSelected"
+                                @onclick="() => SelectMarketDate(marketDate)">
+                            <span class="tpm-friday-date-block">
+                                <span class="tpm-friday-day">@marketDate.ToString("dd")</span>
+                                <span class="tpm-friday-label">@marketDate.DayOfWeek</span>
+                            </span>
+                            <span class="tpm-friday-info">
+                                <span class="tpm-friday-full">@marketDate.ToString("MMMM d, yyyy")</span>
+                                @if (!isFuture && dayEntries.Count > 0)
+                                {
+                                    <span class="tpm-friday-meta">@dayEntries.Count vendor entries · ₱@(record?.TotalCollected.ToString("N2") ?? "0.00") collected</span>
+                                }
+                                else if (!isFuture)
+                                {
+                                    <span class="tpm-friday-meta tpm-meta-none">No entries</span>
+                                }
+                                else
+                                {
+                                    <span class="tpm-friday-meta tpm-meta-future">Upcoming</span>
+                                }
+                            </span>
+                            @if (!isFuture && dayEntries.Count > 0)
                             {
-                                <tr>
-                                    <td><Skeleton Width="18px" Height="12px" Radius="6px" /></td>
-                                    <td><Skeleton Width="115px" Height="12px" Radius="6px" /></td>
-                                    <td><Skeleton Width="96px" Height="12px" Radius="6px" /></td>
-                                    <td><Skeleton Width="76px" Height="20px" Radius="999px" /></td>
-                                    <td><Skeleton Width="52px" Height="12px" Radius="6px" /></td>
-                                    <td><Skeleton Width="58px" Height="28px" Radius="7px" /></td>
-                                </tr>
+                                <span class="tpm-entry-count" aria-label="@($"{dayEntries.Count} vendor entries")">@dayEntries.Count</span>
                             }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-                <div class="tpm-attendance-info">
-                    <div class="tpm-attend-stat">
-                        <span class="tpm-attend-val tpm-sum-green">@FilteredVendors.Count()</span>
-                        <span class="tpm-attend-key">Vendors</span>
-                    </div>
-                    <div class="tpm-attend-stat">
-                        <span class="tpm-attend-val tpm-sum-gold">₱@(FilteredVendors.Sum(v => v.Fee).ToString("N0"))</span>
-                        <span class="tpm-attend-key">Collected</span>
-                    </div>
-                    <button class="tpm-add-vendor-btn" @onclick="OpenAddVendorModal">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Add Vendor
-                    </button>
+                        </button>
+                    }
                 </div>
 
-                <div class="tpm-search-wrap">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                    <input class="tpm-search-input" placeholder="Search vendor name…" @bind="VendorSearch" @bind:event="oninput" />
+                <div class="tpm-cal-footer">
+                    <div class="tpm-cal-sum-item">
+                        <span class="tpm-cal-sum-val">@MarketDays.Count</span>
+                        <span class="tpm-cal-sum-key">Market Days With Entries</span>
+                    </div>
+                    <div class="tpm-cal-sum-item">
+                        <span class="tpm-cal-sum-val">@(Overview?.VendorEntriesThisMonth ?? 0)</span>
+                        <span class="tpm-cal-sum-key">Vendor Entries</span>
+                    </div>
+                    <div class="tpm-cal-sum-item">
+                        <span class="tpm-cal-sum-val">₱@(Overview?.CollectedThisMonth.ToString("N2") ?? "0.00")</span>
+                        <span class="tpm-cal-sum-key">Month Collection</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tpm-panel" aria-labelledby="tpm-vendor-entries-title">
+                <div class="tpm-panel-header tpm-entries-header">
+                    <div class="tpm-entries-heading">
+                        <span class="tpm-selected-eyebrow">Selected Market Day</span>
+                        <span id="tpm-vendor-entries-title" class="tpm-entries-title">Vendor Entries</span>
+                        @if (SelectedMarketDate.HasValue)
+                        {
+                            <span class="tpm-selected-date">@SelectedMarketDate.Value.ToString("MMMM d, yyyy")</span>
+                        }
+                    </div>
+                    <a class="tpm-report-btn" href="/facility/tpm/report">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h7" /></svg>
+                        Report
+                    </a>
                 </div>
 
-                @if (!FilteredVendors.Any())
+                @if (!SelectedMarketDate.HasValue)
                 {
                     <div class="tpm-empty">
-                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-                        <span>No vendors found</span>
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                        <span>Select a market day to view its entries</span>
                     </div>
                 }
-                else
+                else if (_isLoadingAttendance)
                 {
-                    <div class="tpm-vendor-table-wrap">
-                        <table class="tpm-vendor-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Vendor Name</th>
-                                    <th>Goods / Product</th>
-                                    <th>OR No.</th>
-                                    <th>Fee</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
+                    <div class="tpm-attendance-info" aria-busy="true" aria-label="Loading vendor entries">
+                        <div class="tpm-attend-stat"><Skeleton Width="34px" Height="18px" Radius="6px" /><Skeleton Width="88px" Height="10px" Radius="6px" /></div>
+                        <div class="tpm-attend-stat"><Skeleton Width="68px" Height="18px" Radius="6px" /><Skeleton Width="70px" Height="10px" Radius="6px" /></div>
+                    </div>
+                    <div class="tpm-search-wrap"><Skeleton Width="100%" Height="32px" Radius="8px" /></div>
+                    <div class="tpm-vendor-table-wrap tpm-loading-table">
+                        <table class="tpm-vendor-table" aria-hidden="true">
+                            <thead><tr><th>#</th><th>Vendor</th><th>Goods / Product</th><th>Fee</th></tr></thead>
                             <tbody>
-                                @foreach (var (vendor, index) in FilteredVendors.Select((v, i) => (v, i + 1)))
+                                @for (var row = 0; row < 4; row++)
                                 {
-                                    <tr>
-                                        <td class="tpm-row-num">@index</td>
-                                        <td class="tpm-vendor-name-cell">@vendor.VendorName</td>
-                                        <td class="tpm-goods-cell">@vendor.Goods</td>
-                                        <td class="tpm-or-cell">
-                                            @if (!string.IsNullOrEmpty(vendor.ORNumber))
-                                            {
-                                                <span class="tpm-or-badge">@vendor.ORNumber</span>
-                                            }
-                                            else if (vendor.IsPaid)
-                                            {
-                                                <button class="tpm-or-btn" @onclick="() => OpenOrModal(vendor)">
-                                                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                                    OR No.
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <span class="tpm-or-none">—</span>
-                                            }
-                                        </td>
-                                        <td class="tpm-fee-cell">₱@vendor.Fee.ToString("N0")</td>
-                                        <td class="tpm-actions-cell">
-                                            <button class="tpm-edit-btn" @onclick="() => OpenEditModal(vendor)" title="Edit vendor">
-                                                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                                                Edit
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    <tr><td><Skeleton Width="18px" Height="12px" Radius="6px" /></td><td><Skeleton Width="115px" Height="12px" Radius="6px" /></td><td><Skeleton Width="96px" Height="12px" Radius="6px" /></td><td><Skeleton Width="52px" Height="12px" Radius="6px" /></td></tr>
                                 }
                             </tbody>
                         </table>
                     </div>
                 }
-            }
-        </div>
+                else if (_attendanceError is not null)
+                {
+                    <div class="tpm-load-error" role="alert">
+                        <span>@_attendanceError</span>
+                        <button type="button" @onclick="() => SelectMarketDate(SelectedMarketDate.Value)">Try again</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="tpm-attendance-info">
+                        <div class="tpm-attend-stat">
+                            <span class="tpm-attend-val">@Attendance.Count</span>
+                            <span class="tpm-attend-key">Vendor Entries</span>
+                        </div>
+                        <div class="tpm-attend-stat">
+                            <span class="tpm-attend-val">₱@SelectedMarketDayCollection.ToString("N2")</span>
+                            <span class="tpm-attend-key">Collected</span>
+                        </div>
+                        <div class="tpm-instrument-context"><span class="tpm-instrument-mark">OR</span><span>Official Receipt policy</span></div>
+                    </div>
 
-    </div>
+                    <div class="tpm-search-wrap">
+                        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input @key="SelectedMarketDate" class="tpm-search-input" placeholder="Search vendor or goods..." @oninput="OnVendorSearchChanged" aria-label="Search vendor or goods" />
+                    </div>
+
+                    @if (Attendance.Count == 0)
+                    {
+                        <div class="tpm-empty">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                            <span>No entries</span>
+                        </div>
+                    }
+                    else if (!FilteredVendors.Any())
+                    {
+                        <div class="tpm-empty"><span>No matching entries</span></div>
+                    }
+                    else
+                    {
+                        <div class="tpm-entry-context">
+                            <span class="tpm-source-label">Source</span>
+                            <span>TPM attendance records · collected totals include entries marked paid</span>
+                        </div>
+                        <div class="tpm-vendor-table-wrap">
+                            <table class="tpm-vendor-table">
+                                <thead><tr><th>#</th><th>Vendor</th><th>Goods / Product</th><th>Fee</th></tr></thead>
+                                <tbody>
+                                    @foreach (var (vendor, index) in FilteredVendors.Select((v, i) => (v, i + 1)))
+                                    {
+                                        <tr>
+                                            <td class="tpm-row-num">@index</td>
+                                            <td class="tpm-vendor-name-cell">@vendor.VendorName</td>
+                                            <td class="tpm-goods-cell">@vendor.Goods</td>
+                                            <td class="tpm-fee-cell">@(vendor.IsPaid ? $"₱{vendor.Fee:N2}" : "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </section>
+        </div>
+    }
 </div>
 
-<!-- ── Add Vendor Modal ── -->
-
-
-@if (ShowAddVendorModal)
-{
-    <div class="tpm-modal-overlay" @onclick="CloseAddVendorModal">
-        <div class="tpm-modal" @onclick:stopPropagation="true">
-            <div class="tpm-modal-header">
-                <div class="tpm-modal-title">Add Vendor</div>
-                <button class="tpm-modal-close" @onclick="CloseAddVendorModal" aria-label="Close">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="tpm-modal-body">
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">Vendor Name</label>
-                    <input class="tpm-form-input" placeholder="e.g. Maria Dela Cruz" @bind="NewVendorName" />
-                    @if (VendorFieldErrors.ContainsKey("VendorName"))
-                    {
-                        <div class="tpm-form-error">@VendorFieldErrors["VendorName"]</div>
-                    }
-                </div>
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">Goods / Product</label>
-                    <input class="tpm-form-input" placeholder="e.g. Vegetables, Cooked Food" @bind="NewGoods" />
-                    @if (VendorFieldErrors.ContainsKey("Goods"))
-                    {
-                        <div class="tpm-form-error">@VendorFieldErrors["Goods"]</div>
-                    }
-                </div>
-                @if (!string.IsNullOrEmpty(AddVendorError))
-                {
-                    <div class="tpm-form-error-banner">@AddVendorError</div>
-                }
-            </div>
-            <div class="tpm-modal-footer">
-                <button class="tpm-btn-ghost" @onclick="CloseAddVendorModal">Cancel</button>
-                <button class="tpm-btn-primary" @onclick="SubmitAddVendor" disabled="@isSaving">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    @(isSaving ? "Saving..." : "Add Vendor")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- ── OR Number Modal ── -->
-@if (ShowOrModal && OrVendor != null)
-{
-    <div class="tpm-modal-overlay" @onclick="CloseOrModal">
-        <div class="tpm-modal" @onclick:stopPropagation="true">
-            <div class="tpm-modal-header">
-                <div class="tpm-modal-title">Enter OR Number</div>
-                <button class="tpm-modal-close" @onclick="CloseOrModal" aria-label="Close">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="tpm-modal-body">
-                <div class="tpm-or-info-block">
-                    <div class="tpm-or-info-row">
-                        <span class="tpm-or-info-key">Vendor</span>
-                        <span class="tpm-or-info-val">@OrVendor.VendorName</span>
-                    </div>
-                    <div class="tpm-or-info-row">
-                        <span class="tpm-or-info-key">Market Day</span>
-                        <span class="tpm-or-info-val">@SelectedFriday?.ToString("MMMM d, yyyy")</span>
-                    </div>
-                    <div class="tpm-or-info-row">
-                        <span class="tpm-or-info-key">Fee</span>
-                        <span class="tpm-or-info-val tpm-or-fee">₱@OrVendor.Fee.ToString("N0")</span>
-                    </div>
-                </div>
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">OR Number</label>
-                    <input class="tpm-form-input" placeholder="e.g. OR-2026-0501" @bind="OrNumberInput" />
-                    @if (!string.IsNullOrEmpty(OrErrorMessage))
-                    {
-                        <div class="tpm-form-error">@OrErrorMessage</div>
-                    }
-                </div>
-            </div>
-            <div class="tpm-modal-footer">
-                <button class="tpm-btn-ghost" @onclick="CloseOrModal">Cancel</button>
-                <button class="tpm-btn-primary" @onclick="SaveOrNumber" disabled="@isSaving">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                    @(isSaving ? "Saving..." : "Save OR Number")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- ── Edit Vendor Modal ── -->
-@if (ShowEditModal && EditVendor != null)
-{
-    <div class="tpm-modal-overlay" @onclick="CloseEditModal">
-        <div class="tpm-modal" @onclick:stopPropagation="true">
-            <div class="tpm-modal-header">
-                <div class="tpm-modal-title">Edit Vendor</div>
-                <button class="tpm-modal-close" @onclick="CloseEditModal" aria-label="Close">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="tpm-modal-body">
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">Vendor Name</label>
-                    <input class="tpm-form-input" placeholder="e.g. Maria Dela Cruz" @bind="EditVendorName" />
-                    @if (EditFieldErrors.ContainsKey("VendorName"))
-                    {
-                        <div class="tpm-form-error">@EditFieldErrors["VendorName"]</div>
-                    }
-                </div>
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">Goods / Product</label>
-                    <input class="tpm-form-input" list="tpm-goods-options" placeholder="e.g. Vegetables, Cooked Food" @bind="EditGoods" />
-                    <datalist id="tpm-goods-options">
-                        @foreach (var g in KnownGoods)
-                        {
-                            <option value="@g" />
-                        }
-                    </datalist>
-                    @if (EditFieldErrors.ContainsKey("Goods"))
-                    {
-                        <div class="tpm-form-error">@EditFieldErrors["Goods"]</div>
-                    }
-                </div>
-                <div class="tpm-form-group">
-                    <label class="tpm-form-label">OR Number <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
-                    <input class="tpm-form-input" placeholder="e.g. 000001" @bind="EditORNumber" />
-                </div>
-                @if (!string.IsNullOrEmpty(EditError))
-                {
-                    <div class="tpm-form-error-banner">@EditError</div>
-                }
-            </div>
-            <div class="tpm-modal-footer">
-                <button class="tpm-btn-ghost" @onclick="CloseEditModal">Cancel</button>
-                <button class="tpm-btn-primary" @onclick="SubmitEditVendor" disabled="@isSaving">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                    @(isSaving ? "Saving..." : "Save Changes")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
-    private RenderFragment TpmIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
+    private RenderFragment TpmIcon => @<svg class="tpm-hero-glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
 
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
-        new() { Value = $"₱{Overview?.CollectedThisMonth ?? 0:N0}", Label = "Collected This Month" },
-        new() { Value = $"{Overview?.FridaysThisMonth ?? 0}", Label = $"{MarketDay}s This Month" },
-        new() { Value = $"{Overview?.VendorEntriesThisMonth ?? 0}", Label = "Vendor Entries" }
+        new() { Value = Overview is null ? "—" : $"₱{Overview.CollectedThisMonth:N2}", Label = "Collected This Month" },
+        new() { Value = Overview is null ? "—" : Overview.MarketDates.Count.ToString(), Label = "Market Days This Month" },
+        new() { Value = Overview is null ? "—" : Overview.VendorEntriesThisMonth.ToString(), Label = "Vendor Entries" }
     };
 
-    // ── State ─────────────────────────────────────
     private TpmOverviewDto? Overview;
     private List<TpmMarketDayDto> MarketDays = new();
+    private List<TpmVendorAttendanceDto> MonthAttendance = new();
     private List<TpmVendorAttendanceDto> Attendance = new();
-
-    // The LGU's configured weekly market weekday (from the overview DTO; Cantilan default = Friday).
-    // Drives the calendar + labels so a tenant like Madrid shows Saturdays instead of hardcoded Fridays.
-    private DayOfWeek MarketDay => Overview?.MarketDay ?? DayOfWeek.Friday;
-
-    [PersistentState(AllowUpdates = true)]
-    public TpmPageState? CachedTpmPage { get; set; }
-
     private DateTime CalendarMonth = new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
     private DateTime CurrentMonthStart => new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
-    private DateTime? SelectedFriday;
+    private DateTime? SelectedMarketDate;
     private string VendorSearch = string.Empty;
-    private bool isLoadingAttendance;
-    private bool isSaving;
+    private string? _loadError;
+    private string? _attendanceError;
+    private bool _isLoadingMonth = true;
+    private bool _isLoadingAttendance;
 
-    // ── Computed ──────────────────────────────────
-    private IEnumerable<TpmVendorAttendanceDto> FilteredVendors => Attendance
-        .Where(a => string.IsNullOrWhiteSpace(VendorSearch)
-                 || a.VendorName.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase))
-        .OrderBy(a => a.VendorName);
-    private int TpmPaidCount => Attendance.Count(v => v.IsPaid);
-    private int TpmUnpaidCount => Attendance.Count(v => !v.IsPaid);
-    private int TpmActiveVendorCount => Attendance.Any() ? Attendance.Count : Overview?.VendorEntriesThisMonth ?? 0;
-    private int TpmVendorEntryCount => Math.Max(Overview?.VendorEntriesThisMonth ?? 0, TpmActiveVendorCount);
-    private decimal TpmCollectedAmount => Attendance.Any()
-        ? Attendance.Where(v => v.IsPaid).Sum(v => v.Fee)
-        : Overview?.CollectedThisMonth ?? 0m;
-    private decimal TpmUncollectedAmount => Attendance.Any()
-        ? Attendance.Where(v => !v.IsPaid).Sum(v => v.Fee)
-        : TpmUnpaidCount * (Overview?.VendorFee ?? 0m);
+    private List<DateTime> MarketDatesInView => Overview?.MarketDates
+        .Select(d => d.ToDateTime(TimeOnly.MinValue))
+        .OrderBy(d => d)
+        .ToList() ?? new();
 
-    // The office's own vendor fee, stated only once its answer has arrived. This line read "?? 100m" and the amount
-    // above multiplied by FeeRates.TpmVendorFee — the reference municipality's fee — so another office's market was
-    // described, and its uncollected total struck, at ₱100 a vendor whatever its own ordinance says.
-    private string VendorFeeNote => Overview?.VendorFee is { } fee && fee > 0m
-        ? $" · ₱{fee:0} per vendor"
-        : string.Empty;
-    private decimal TpmCollectionRate => Attendance.Any()
-        ? (TpmPaidCount * 100m) / Attendance.Count
-        : Overview?.CollectionRate ?? 0m;
-    private IReadOnlyList<FacilityReportsModal.ReportTrendPoint> TpmTrendPoints => MarketDays
-        .OrderBy(m => m.MarketDate)
-        .Select(m => new FacilityReportsModal.ReportTrendPoint(m.MarketDate.ToString("MMM d"), m.TotalCollected))
-        .ToList();
-
-    // ── Lifecycle ─────────────────────────────────
-    protected override async Task OnInitializedAsync()
-    {
-        await FacilityCatalog.EnsureLoadedAsync();
-        if (CachedTpmPage is { } state
-            && state.Year == CalendarMonth.Year
-            && state.Month == CalendarMonth.Month)
-        {
-            Overview = state.Overview;
-            MarketDays = state.MarketDays.ToList();
-            return;
-        }
-
-        await PaintLoadingStateAsync();
-        await LoadOverviewAndMarketDaysAsync();
-    }
-
-    private async Task LoadOverviewAndMarketDaysAsync()
-    {
-        var overviewTask = TpmApi.GetOverviewAsync(CalendarMonth.Year, CalendarMonth.Month);
-        var marketDaysTask = TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
-
-        await Task.WhenAll(overviewTask, marketDaysTask);
-
-        var overviewResult = await overviewTask;
-        if (overviewResult.IsSuccess) Overview = overviewResult.Value;
-
-        var marketDaysResult = await marketDaysTask;
-        MarketDays = marketDaysResult.IsSuccess && marketDaysResult.Value != null
-            ? marketDaysResult.Value.ToList()
-            : new();
-
-        CachedTpmPage = new TpmPageState(
-            CalendarMonth.Year,
-            CalendarMonth.Month,
-            Overview,
-            MarketDays.ToList());
-    }
-
-    public sealed record TpmPageState(
-        int Year,
-        int Month,
-        TpmOverviewDto? Overview,
-        List<TpmMarketDayDto> MarketDays);
-
-    // ── Navigation ────────────────────────────────
-    private async Task PrevMonth()
-    {
-        CalendarMonth = CalendarMonth.AddMonths(-1);
-        SelectedFriday = null;
-        Attendance.Clear();
-        await LoadOverviewAndMarketDaysAsync();
-    }
-
-    private async Task NextMonth()
-    {
-        if (CalendarMonth >= CurrentMonthStart) return;
-        CalendarMonth = CalendarMonth.AddMonths(1);
-        SelectedFriday = null;
-        Attendance.Clear();
-        await LoadOverviewAndMarketDaysAsync();
-    }
-
-    private async Task SelectFriday(DateTime friday)
-    {
-        SelectedFriday = friday;
-        VendorSearch = string.Empty;
-        isLoadingAttendance = true;
-        await PaintLoadingStateAsync();
-
-        var result = await TpmApi.GetVendorAttendanceAsync(DateOnly.FromDateTime(friday));
-        Attendance = result.IsSuccess && result.Value != null ? result.Value.ToList() : new();
-
-        isLoadingAttendance = false;
-    }
-
-    // ── Payment status is now edited via the Edit modal (SubmitEditVendor). ──
-
-    // ── Add Vendor Modal ──────────────────────────
-    private async Task PaintLoadingStateAsync()
-    {
-        await InvokeAsync(StateHasChanged);
-        await Task.Yield();
-    }
-
-    private bool ShowAddVendorModal;
-    private string NewVendorName = string.Empty;
-    private string NewGoods = string.Empty;
-    private string AddVendorError = string.Empty;
-    private Dictionary<string, string> VendorFieldErrors = new();
-
-    private void OpenAddVendorModal()
-    {
-        NewVendorName = string.Empty;
-        NewGoods = string.Empty;
-        AddVendorError = string.Empty;
-        VendorFieldErrors.Clear();
-        ShowAddVendorModal = true;
-    }
-
-    private void CloseAddVendorModal()
-    {
-        ShowAddVendorModal = false;
-        VendorFieldErrors.Clear();
-        AddVendorError = string.Empty;
-    }
-
-    private async Task SubmitAddVendor()
-    {
-        VendorFieldErrors.Clear();
-        AddVendorError = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(NewVendorName))
-            VendorFieldErrors["VendorName"] = "Vendor name is required.";
-        if (string.IsNullOrWhiteSpace(NewGoods))
-            VendorFieldErrors["Goods"] = "Goods / product is required.";
-        if (VendorFieldErrors.Any()) return;
-
-        if (!SelectedFriday.HasValue) return;
-        isSaving = true;
-
-        var command = new AddVendorToMarketDayCommand(
-            NewVendorName.Trim(),
-            NewGoods.Trim(),
-            DateOnly.FromDateTime(SelectedFriday.Value));
-        var result = await TpmApi.AddVendorAsync(command);
-        isSaving = false;
-
-        if (result.IsSuccess)
-        {
-            await SelectFriday(SelectedFriday.Value);
-            await LoadOverviewAndMarketDaysAsync();
-            CloseAddVendorModal();
-        }
-        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
-        {
-            foreach (var error in result.ValidationErrors)
-                VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
-        }
-        else
-        {
-            AddVendorError = result.Error ?? "Failed to add vendor.";
-        }
-    }
-
-    // ── OR Number Modal ───────────────────────────
-    private bool ShowOrModal;
-    private TpmVendorAttendanceDto? OrVendor;
-    private string OrNumberInput = string.Empty;
-    private string OrErrorMessage = string.Empty;
-
-    private void OpenOrModal(TpmVendorAttendanceDto vendor)
-    {
-        OrVendor = vendor;
-        OrNumberInput = string.Empty;
-        OrErrorMessage = string.Empty;
-        ShowOrModal = true;
-    }
-
-    private void CloseOrModal()
-    {
-        ShowOrModal = false;
-        OrVendor = null;
-        OrErrorMessage = string.Empty;
-    }
-
-    private async Task SaveOrNumber()
-    {
-        OrErrorMessage = string.Empty;
-        if (string.IsNullOrWhiteSpace(OrNumberInput))
-        {
-            OrErrorMessage = "OR number is required.";
-            return;
-        }
-        if (OrVendor == null) return;
-
-        isSaving = true;
-        var result = await TpmApi.SaveOrNumberAsync(OrVendor.Id, new SaveOrNumberRequest(OrNumberInput.Trim()));
-        isSaving = false;
-
-        if (result.IsSuccess)
-        {
-            if (SelectedFriday.HasValue) await SelectFriday(SelectedFriday.Value);
-            CloseOrModal();
-        }
-        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
-        {
-            OrErrorMessage = result.ValidationErrors.First().Value.FirstOrDefault() ?? "Invalid OR number.";
-        }
-        else
-        {
-            OrErrorMessage = result.Error ?? "Failed to save OR number.";
-        }
-    }
-
-    // ── Edit Vendor Modal ─────────────────────────
-    private bool ShowEditModal;
-    private TpmVendorAttendanceDto? EditVendor;
-    private string EditVendorName = string.Empty;
-    private string EditGoods = string.Empty;
-    private string EditORNumber = string.Empty;
-    private string EditError = string.Empty;
-    private Dictionary<string, string> EditFieldErrors = new();
-
-    // Existing goods on the selected day — feeds the edit modal's goods suggestions.
-    private IReadOnlyList<string> KnownGoods => Attendance
-        .Select(a => a.Goods)
-        .Where(g => !string.IsNullOrWhiteSpace(g))
-        .Select(g => g.Trim())
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    private void OpenEditModal(TpmVendorAttendanceDto vendor)
-    {
-        EditVendor = vendor;
-        EditVendorName = vendor.VendorName;
-        EditGoods = vendor.Goods;
-        EditORNumber = vendor.ORNumber ?? string.Empty;
-        EditError = string.Empty;
-        EditFieldErrors.Clear();
-        ShowEditModal = true;
-    }
-
-    private void CloseEditModal()
-    {
-        ShowEditModal = false;
-        EditVendor = null;
-        EditFieldErrors.Clear();
-        EditError = string.Empty;
-    }
-
-    private async Task SubmitEditVendor()
-    {
-        EditFieldErrors.Clear();
-        EditError = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(EditVendorName))
-            EditFieldErrors["VendorName"] = "Vendor name is required.";
-        if (string.IsNullOrWhiteSpace(EditGoods))
-            EditFieldErrors["Goods"] = "Goods / product is required.";
-        if (EditFieldErrors.Any()) return;
-        if (EditVendor == null) return;
-
-        isSaving = true;
-        var request = new UpdateTpmVendorRequest(
-            EditVendorName.Trim(),
-            EditGoods.Trim(),
-            true,
-            !string.IsNullOrWhiteSpace(EditORNumber) ? EditORNumber.Trim() : null);
-        var result = await TpmApi.UpdateVendorAsync(EditVendor.Id, request);
-        isSaving = false;
-
-        if (result.IsSuccess)
-        {
-            if (SelectedFriday.HasValue) await SelectFriday(SelectedFriday.Value);
-            await LoadOverviewAndMarketDaysAsync();
-            CloseEditModal();
-        }
-        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
-        {
-            foreach (var error in result.ValidationErrors)
-                EditFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
-        }
-        else
-        {
-            EditError = result.Error ?? "Failed to update vendor.";
-        }
-    }
-
-    // ── Helpers ───────────────────────────────────
-
-    /// <summary>
-    /// The month's market dates as the OFFICE's schedule states them, not as one weekday multiplied out.
-    ///
-    /// <para>
-    /// This used to expand <c>MarketDay</c> across the month, which silently re-answered the past: an office that
-    /// moved its market from Friday to Thursday partway through a month had its earlier weeks relabelled Thursday,
-    /// dates the market never opened on, while the Fridays that were actually collected disappeared from the list.
-    /// The dates now come from the schedule, which holds when each arrangement began.
-    /// </para>
-    ///
-    /// <para>
-    /// The weekday expansion survives only as a fallback for the moment before the overview has loaded, where the
-    /// alternative is an empty calendar. It is right whenever the month contains no move, which is every month bar
-    /// the one a change starts in.
-    /// </para>
-    /// </summary>
-    private List<DateTime> MarketDatesInView =>
-        Overview?.MarketDates is { Count: > 0 } dates
-            ? dates.Select(d => d.ToDateTime(TimeOnly.MinValue)).ToList()
-            : MarketDaysInMonth(CalendarMonth, MarketDay);
-
-    /// <summary>
-    /// States the arrangement the month is under. A month the office moved its day in names both, because "Every
-    /// Thursday" over a list that opens with three Fridays reads as an error in the record.
-    /// </summary>
     private string MarketDayDescription
     {
         get
         {
             var dates = MarketDatesInView;
-            if (dates.Count == 0) return $"Every {MarketDay}";
+            if (dates.Count == 0) return "No configured market dates for this month.";
 
             var first = dates[0].DayOfWeek;
             var moved = dates.FirstOrDefault(d => d.DayOfWeek != first);
@@ -812,12 +277,142 @@
         }
     }
 
-    private static List<DateTime> MarketDaysInMonth(DateTime month, DayOfWeek marketDay)
+    private decimal SelectedMarketDayCollection => SelectedMarketDate is { } selectedDate
+        ? MarketDays.FirstOrDefault(day => day.MarketDate == DateOnly.FromDateTime(selectedDate))?.TotalCollected ?? 0m
+        : 0m;
+
+    private IEnumerable<TpmVendorAttendanceDto> FilteredVendors => Attendance
+        .Where(a => string.IsNullOrWhiteSpace(VendorSearch)
+                 || a.VendorName.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase)
+                 || a.Goods.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(a => a.VendorName);
+
+    [PersistentState(AllowUpdates = true)]
+    public TpmPageState? CachedTpmPage { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
-        var days = new List<DateTime>();
-        var d = new DateTime(month.Year, month.Month, 1);
-        while (d.DayOfWeek != marketDay) d = d.AddDays(1);
-        while (d.Month == month.Month) { days.Add(d); d = d.AddDays(7); }
-        return days;
+        await FacilityCatalog.EnsureLoadedAsync();
+        if (CachedTpmPage is { } state
+            && state.Year == CalendarMonth.Year
+            && state.Month == CalendarMonth.Month)
+        {
+            Overview = state.Overview;
+            MarketDays = state.MarketDays.ToList();
+            MonthAttendance = state.MonthAttendance.ToList();
+            _isLoadingMonth = false;
+            return;
+        }
+
+        await LoadOverviewAndMarketDaysAsync();
     }
+
+    private async Task LoadOverviewAndMarketDaysAsync()
+    {
+        _isLoadingMonth = true;
+        _loadError = null;
+        Overview = null;
+        MarketDays.Clear();
+        MonthAttendance.Clear();
+        await PaintLoadingStateAsync();
+
+        try
+        {
+            var overviewTask = TpmApi.GetOverviewAsync(CalendarMonth.Year, CalendarMonth.Month);
+            var marketDaysTask = TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
+            var attendanceTask = TpmApi.GetMonthAttendanceAsync(CalendarMonth.Year, CalendarMonth.Month);
+            await Task.WhenAll(overviewTask, marketDaysTask, attendanceTask);
+
+            var overviewResult = await overviewTask;
+            var marketDaysResult = await marketDaysTask;
+            var attendanceResult = await attendanceTask;
+            if (!overviewResult.IsSuccess || overviewResult.Value is null
+                || !marketDaysResult.IsSuccess || marketDaysResult.Value is null
+                || !attendanceResult.IsSuccess || attendanceResult.Value is null)
+            {
+                _loadError = "Tabo market-day records could not be loaded.";
+                return;
+            }
+
+            Overview = overviewResult.Value;
+            MarketDays = marketDaysResult.Value.ToList();
+            MonthAttendance = attendanceResult.Value.ToList();
+            CachedTpmPage = new TpmPageState(
+                CalendarMonth.Year,
+                CalendarMonth.Month,
+                Overview,
+                MarketDays.ToList(),
+                MonthAttendance.ToList());
+        }
+        catch
+        {
+            _loadError = "Tabo market-day records could not be loaded.";
+        }
+        finally
+        {
+            _isLoadingMonth = false;
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        CalendarMonth = CalendarMonth.AddMonths(-1);
+        SelectedMarketDate = null;
+        Attendance.Clear();
+        await LoadOverviewAndMarketDaysAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        if (CalendarMonth >= CurrentMonthStart) return;
+        CalendarMonth = CalendarMonth.AddMonths(1);
+        SelectedMarketDate = null;
+        Attendance.Clear();
+        await LoadOverviewAndMarketDaysAsync();
+    }
+
+    private async Task SelectMarketDate(DateTime marketDate)
+    {
+        if (marketDate.Date > PhilippineTime.Now.Date) return;
+
+        SelectedMarketDate = marketDate.Date;
+        VendorSearch = string.Empty;
+        _attendanceError = null;
+        Attendance.Clear();
+        _isLoadingAttendance = true;
+        await PaintLoadingStateAsync();
+
+        try
+        {
+            var result = await TpmApi.GetVendorAttendanceAsync(DateOnly.FromDateTime(marketDate));
+            if (!result.IsSuccess || result.Value is null)
+                _attendanceError = "Vendor entries for this market day could not be loaded.";
+            else
+                Attendance = result.Value.ToList();
+        }
+        catch
+        {
+            _attendanceError = "Vendor entries for this market day could not be loaded.";
+        }
+        finally
+        {
+            _isLoadingAttendance = false;
+        }
+    }
+
+    private void OnVendorSearchChanged(ChangeEventArgs args) =>
+        VendorSearch = args.Value?.ToString() ?? string.Empty;
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
+    public sealed record TpmPageState(
+        int Year,
+        int Month,
+        TpmOverviewDto? Overview,
+        List<TpmMarketDayDto> MarketDays,
+        List<TpmVendorAttendanceDto> MonthAttendance);
 }

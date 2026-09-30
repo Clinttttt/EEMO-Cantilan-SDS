@@ -1,0 +1,47 @@
+.ic {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    vertical-align: middle;
+}
+
+.ic-code {
+    display: inline-flex;
+    min-width: 30px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface-muted);
+    color: var(--navy);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ic-or .ic-code {
+    border-color: color-mix(in srgb, var(--gold) 55%, var(--border));
+    background: color-mix(in srgb, var(--gold) 9%, var(--surface));
+}
+
+.ic-name {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.ic-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}

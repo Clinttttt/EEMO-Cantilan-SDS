@@ -224,7 +224,7 @@
     height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--bg-card); font: inherit; font-size: 0.85rem; color: var(--text);
 }
-.tu-restore-field input:focus { outline: none; border-color: var(--gold); }
+.tu-restore-field input:focus { outline: none; border-color: var(--accent); }
 .tu-restore-file { font-size: 0.76rem; color: var(--text-subtle); }
 .tu-restore-err { font-size: 0.78rem; color: var(--red); font-weight: 600; }
 .tu-restore-ok { font-size: 0.78rem; color: var(--green); font-weight: 700; }

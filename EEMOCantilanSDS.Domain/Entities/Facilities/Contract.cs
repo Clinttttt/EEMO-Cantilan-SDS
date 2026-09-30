@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// <inheritdoc />
         public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
+        /// <summary>Explicit business identity for this occupancy; never inferred from occupant text.</summary>
+        public Guid? PayorId { get; private set; }
+        public Payor? Payor { get; private set; }
         public string? ORNumber { get; private set; }
         public string ActualOccupant { get; private set; } = string.Empty;
         public string? NameOnContract { get; private set; }
@@ -35,6 +39,22 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public string? Remarks { get; private set; }
         public Stall? Stall { get; private set; }
         private Contract() { }
+
+        public void AssociatePayor(Guid payorId, string updatedBy)
+        {
+            if (payorId == Guid.Empty)
+                throw new ArgumentException("Payor is required.", nameof(payorId));
+            PayorId = payorId;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        public void ClearPayorAssociation(string updatedBy)
+        {
+            PayorId = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
 
         public DateOnly ExpiryDate => ComputeExpiry(EffectivityDate, DurationYears);
 

@@ -1,0 +1,596 @@
+@page "/accountable-forms"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@* The custody endpoints are exposed through the WCF-named client today (api/accountable-forms/*). The name is
+   historical; the capability is generic accountable-form custody. *@
+@inject IWcfCollectionsApiClient FormsApi
+@inject ICollectorsApiClient CollectorsApi
+
+<PageTitle>StallTrack — Accountable Forms</PageTitle>
+
+@* Head / Admin office custody of physical accountable forms. Recording money happens elsewhere (Collector Mobile);
+   nothing on this page creates a collection. The layout owns the <main> landmark. *@
+<div class="v3-page af-page">
+    <WorkspaceHeader Title="Accountable Forms" Subtitle="Physical inventory and collector custody">
+        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Actions>
+            <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                Register received book
+            </button>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !CashTicketBooks.Any())">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
+                Assign Cash Tickets
+            </button>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="v3-notice" role="status">@_message</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+
+    <SummaryStrip Label="Cash Ticket custody" Items="SummaryItems" />
+
+    <section class="v3-panel" aria-labelledby="af-books-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="af-books-title">Cash Ticket books</h2>
+            <span class="v3-panel-meta">@CashTicketBooks.Count() registered</span>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="Registered Cash Ticket books" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Book</th>
+                        <th scope="col">Serial range</th>
+                        <th scope="col" class="v3-num">Tickets</th>
+                        <th scope="col" class="v3-num">In office</th>
+                        <th scope="col" class="v3-num">Assigned</th>
+                        <th scope="col" class="v3-num">Consumed</th>
+                        <th scope="col" class="v3-num">Needs review</th>
+                        <th scope="col" class="v3-num">Voided</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var book in CashTicketBooks)
+                    {
+                        <tr>
+                            <td class="v3-strong">@book.SeriesName</td>
+                            <td>@RangeLabel(book)</td>
+                            <td class="v3-num">@book.Documents.Count</td>
+                            <td class="v3-num">@Count(book, AccountableDocumentState.InOffice)</td>
+                            <td class="v3-num">@Count(book, AccountableDocumentState.Assigned)</td>
+                            <td class="v3-num">@Count(book, AccountableDocumentState.Consumed)</td>
+                            <td class="v3-num @(Count(book, AccountableDocumentState.ReconciliationRequired) > 0 ? "af-attention" : null)">@Count(book, AccountableDocumentState.ReconciliationRequired)</td>
+                            <td class="v3-num">@Count(book, AccountableDocumentState.Voided)</td>
+                        </tr>
+                    }
+                    @if (!CashTicketBooks.Any())
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="8">
+                                @if (_loading)
+                                {
+                                    <span role="status">Loading books…</span>
+                                }
+                                else
+                                {
+                                    <span>No Cash Ticket books are registered yet. Use <strong>Register received book</strong> when the office receives one.</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel" aria-labelledby="af-custody-title">
+        <header class="v3-panel-header">
+            <h2 id="af-custody-title">Collector custody</h2>
+            <span class="v3-panel-meta">Tickets currently assigned and not yet used</span>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="Cash Tickets held by collectors" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Collector</th>
+                        <th scope="col">Book</th>
+                        <th scope="col">Ticket ranges</th>
+                        <th scope="col" class="v3-num">Tickets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var holding in Holdings)
+                    {
+                        <tr>
+                            <td class="v3-strong">@holding.Collector</td>
+                            <td>@holding.Book</td>
+                            <td>@string.Join(", ", holding.Ranges)</td>
+                            <td class="v3-num">@holding.Count</td>
+                        </tr>
+                    }
+                    @if (!Holdings.Any())
+                    {
+                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading custody…" : "No Cash Tickets are currently assigned to collectors.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel" aria-labelledby="af-tickets-title">
+        <header class="v3-panel-header">
+            <h2 id="af-tickets-title">Tickets</h2>
+            <span class="v3-panel-meta">@FilteredTickets.Count() of @AllTickets.Count()</span>
+        </header>
+        <div class="v3-toolbar" aria-label="Ticket filters">
+            <label class="v3-search">
+                <span class="v3-sr-only">Search ticket number</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                <input type="search" placeholder="Search ticket number or collector" aria-label="Search ticket number or collector" @bind="_ticketSearch" @bind:event="oninput" />
+            </label>
+            <select class="v3-select" aria-label="Filter by book" @bind="_bookFilter">
+                <option value="">All books</option>
+                @foreach (var book in CashTicketBooks)
+                {
+                    <option value="@book.BookId">@book.SeriesName</option>
+                }
+            </select>
+            <select class="v3-select" aria-label="Filter by state" @bind="_stateFilter">
+                <option value="">All states</option>
+                @foreach (var state in Enum.GetValues<AccountableDocumentState>())
+                {
+                    <option value="@state">@StateLabel(state)</option>
+                }
+            </select>
+        </div>
+        <div class="v3-table-wrap v3-table-wrap-tall" role="region" aria-label="Cash Ticket units" tabindex="0">
+            <table class="v3-table">
+                <thead><tr><th scope="col">Ticket</th><th scope="col">Book</th><th scope="col">State</th><th scope="col">Custody</th></tr></thead>
+                <tbody>
+                    @foreach (var ticket in FilteredTickets)
+                    {
+                        <tr>
+                            <td class="v3-strong">@ticket.Document.DocumentNumber</td>
+                            <td>@ticket.Book.SeriesName</td>
+                            <td><span class="@(ticket.Document.State == AccountableDocumentState.ReconciliationRequired ? "af-attention" : "v3-state")">@StateLabel(ticket.Document.State)</span></td>
+                            <td>@Custodian(ticket.Document)</td>
+                        </tr>
+                    }
+                    @if (!FilteredTickets.Any())
+                    {
+                        <tr><td class="v3-empty" colspan="4">@(AllTickets.Any() ? "No tickets match these filters." : "No tickets yet.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <p class="af-scope">This workspace covers Cash Ticket inventory and collector custody. Official Receipt custody, remittance, void/replacement and signed RCD processes are not managed here yet.</p>
+</div>
+
+@if (_dialog == Dialog.Register)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-register-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-register-title">Register received book</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-register-form" @onsubmit="RegisterAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">Record a pre-numbered Cash Ticket book the office has physically received. StallTrack does not generate ticket numbers.</p>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>Book reference</span><input @ref="_firstField" required maxlength="80" @bind="_seriesName" /></label>
+                    <label class="v3-field"><span>Number prefix</span><input required maxlength="20" @bind="_numberPrefix" /></label>
+                </div>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_firstSerial" /></label>
+                    <label class="v3-field"><span>Last serial</span><input type="number" min="0" @bind="_lastSerial" /></label>
+                    <label class="v3-field"><span>Digits</span><input type="number" min="1" max="12" @bind="_serialWidth" /></label>
+                </div>
+                @if (RegisterProblem is { } problem)
+                {
+                    <p class="af-field-error" role="alert">@problem</p>
+                }
+                else
+                {
+                    <div class="af-preview" aria-live="polite">
+                        <span>Preview</span>
+                        <strong>@RegisterPreview</strong>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-register-form" disabled="@(_busy || RegisterProblem is not null)">Register book</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_dialog == Dialog.Assign)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-assign-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-assign-title">Assign Cash Tickets</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-assign-form" @onsubmit="AssignAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">Transfers custody of physical tickets to a collector. No money is recorded.</p>
+                <label class="v3-field">
+                    <span>Cash Ticket book</span>
+                    <select @ref="_firstField" @bind="_assignBookId" @bind:after="SuggestRange">
+                        <option value="">Select book</option>
+                        @foreach (var book in CashTicketBooks)
+                        {
+                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
+                        }
+                    </select>
+                </label>
+                @if (SelectedBook is { } selected)
+                {
+                    <p class="af-book-facts">Received range @RangeLabel(selected) · @Count(selected, AccountableDocumentState.InOffice) in office</p>
+                }
+                <label class="v3-field">
+                    <span>Collector</span>
+                    @if (_collectorsUnavailable is { } reason)
+                    {
+                        <span class="af-field-error" role="alert">@reason</span>
+                    }
+                    else
+                    {
+                        <select @bind="_assignCollectorId">
+                            <option value="">Select active collector</option>
+                            @foreach (var collector in _collectors.Where(x => x.IsActive))
+                            {
+                                <option value="@collector.Id">@collector.FullName · @collector.EmployeeId</option>
+                            }
+                        </select>
+                    }
+                </label>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_assignFirst" /></label>
+                    <label class="v3-field"><span>Last serial</span><input type="number" min="0" @bind="_assignLast" /></label>
+                </div>
+                @if (AssignProblem is { } problem)
+                {
+                    <p class="af-field-error" role="alert">@problem</p>
+                }
+                else
+                {
+                    <div class="af-preview" aria-live="polite">
+                        <span>Preview</span>
+                        <strong>@AssignPreview</strong>
+                        @if (NotInOfficeInRange > 0)
+                        {
+                            <span class="af-attention">@NotInOfficeInRange of these ticket@(NotInOfficeInRange == 1 ? " is" : "s are") not currently in office.</span>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-assign-form" disabled="@(_busy || AssignProblem is not null)">Assign Cash Tickets</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    private enum Dialog { None, Register, Assign }
+
+    private List<AccountableFormBookDto> _books = [];
+    private List<CollectorListDto> _collectors = [];
+    private string? _collectorsUnavailable;
+    private bool _loading = true;
+    private bool _busy;
+    private string? _message;
+    private string? _error;
+
+    private Dialog _dialog;
+    private string? _dialogError;
+    private bool _focusDialog;
+    private ElementReference _firstField;
+
+    private string _ticketSearch = string.Empty;
+    private string _bookFilter = string.Empty;
+    private string _stateFilter = string.Empty;
+
+    private string _seriesName = string.Empty;
+    private string _numberPrefix = "CT";
+    private long _firstSerial;
+    private long _lastSerial;
+    private int _serialWidth = 6;
+
+    private Guid? _assignBookId;
+    private Guid? _assignCollectorId;
+    private long _assignFirst;
+    private long _assignLast;
+
+    private IEnumerable<AccountableFormBookDto> CashTicketBooks =>
+        _books.Where(x => x.InstrumentType == RevenueInstrumentType.CashTicket);
+
+    private IEnumerable<(AccountableFormBookDto Book, CashTicketDocumentDto Document)> AllTickets =>
+        CashTicketBooks.SelectMany(book => book.Documents.OrderBy(d => d.SerialNumber).Select(d => (book, d)));
+
+    private IEnumerable<(AccountableFormBookDto Book, CashTicketDocumentDto Document)> FilteredTickets => AllTickets.Where(t =>
+        (string.IsNullOrEmpty(_bookFilter) || t.Book.BookId.ToString() == _bookFilter)
+        && (string.IsNullOrEmpty(_stateFilter) || t.Document.State.ToString() == _stateFilter)
+        && (string.IsNullOrWhiteSpace(_ticketSearch)
+            || t.Document.DocumentNumber.Contains(_ticketSearch, StringComparison.OrdinalIgnoreCase)
+            || Custodian(t.Document).Contains(_ticketSearch, StringComparison.OrdinalIgnoreCase)));
+
+    // Counts of the document states the server reports — custody facts, not money.
+    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
+    [
+        new("In office", StateTotal(AccountableDocumentState.InOffice).ToString()),
+        new("Assigned", StateTotal(AccountableDocumentState.Assigned).ToString(), Emphasis: true),
+        new("Consumed", StateTotal(AccountableDocumentState.Consumed).ToString()),
+        new("Needs review", StateTotal(AccountableDocumentState.ReconciliationRequired).ToString()),
+        new("Voided", StateTotal(AccountableDocumentState.Voided).ToString()),
+    ];
+
+    /// <summary>Assigned, unused tickets grouped by collector and book, shown as runs of consecutive serials.</summary>
+    private IEnumerable<(string Collector, string Book, IReadOnlyList<string> Ranges, int Count)> Holdings =>
+        CashTicketBooks
+            .SelectMany(book => book.Documents
+                .Where(d => d.State == AccountableDocumentState.Assigned && d.AssignedUserId is not null)
+                .Select(d => (Book: book, Document: d)))
+            .GroupBy(x => (x.Document.AssignedUserId, x.Book.BookId))
+            .Select(g => (
+                Collector: CollectorName(g.Key.AssignedUserId),
+                Book: g.First().Book.SeriesName,
+                Ranges: Runs(g.Select(x => x.Document)),
+                Count: g.Count()))
+            .OrderBy(x => x.Collector).ThenBy(x => x.Book);
+
+    private AccountableFormBookDto? SelectedBook => CashTicketBooks.FirstOrDefault(b => b.BookId == _assignBookId);
+
+    private string? RegisterProblem =>
+        string.IsNullOrWhiteSpace(_seriesName) ? "Enter the book reference."
+        : string.IsNullOrWhiteSpace(_numberPrefix) ? "Enter the number prefix."
+        : _firstSerial < 0 ? "First serial cannot be negative."
+        : _lastSerial < _firstSerial ? "Last serial must be at or after the first serial."
+        : _serialWidth is < 1 or > 12 ? "Digits must be between 1 and 12."
+        : null;
+
+    private string RegisterPreview
+    {
+        get
+        {
+            var count = _lastSerial - _firstSerial + 1;
+            var format = new string('0', _serialWidth);
+            var prefix = _numberPrefix.Trim();
+            return $"{prefix}{_firstSerial.ToString(format)} – {prefix}{_lastSerial.ToString(format)} · {count:N0} ticket{(count == 1 ? "" : "s")}";
+        }
+    }
+
+    private string? AssignProblem =>
+        _assignBookId is null ? "Select a Cash Ticket book."
+        : _collectorsUnavailable is not null ? "A collector cannot be selected from this account."
+        : _assignCollectorId is null ? "Select a collector."
+        : _assignFirst < 0 ? "First serial cannot be negative."
+        : _assignLast < _assignFirst ? "Last serial must be at or after the first serial."
+        : SelectedBook is { } book && (_assignFirst < book.FirstSerialNumber || _assignLast > book.LastSerialNumber)
+            ? $"This book was received as serials {book.FirstSerialNumber}–{book.LastSerialNumber}."
+        : null;
+
+    private string AssignPreview
+    {
+        get
+        {
+            var count = _assignLast - _assignFirst + 1;
+            var collector = _collectors.FirstOrDefault(c => c.Id == _assignCollectorId)?.FullName ?? "the collector";
+            return $"{count:N0} Cash Ticket{(count == 1 ? "" : "s")} will be assigned to {collector}.";
+        }
+    }
+
+    // Uses the loaded document states only to warn; the server decides what can actually be assigned.
+    private int NotInOfficeInRange => SelectedBook?.Documents.Count(d =>
+        d.SerialNumber >= _assignFirst && d.SerialNumber <= _assignLast && d.State != AccountableDocumentState.InOffice) ?? 0;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusDialog)
+        {
+            _focusDialog = false;
+            try { await _firstField.FocusAsync(); }
+            catch { /* the dialog closed before focus could move */ }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var books = await FormsApi.GetBooksAsync();
+            if (!books.IsSuccess) _error = books.Error ?? "Accountable-form books could not be loaded.";
+            else _books = books.Value?.ToList() ?? [];
+
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            if (collectors.IsSuccess)
+            {
+                _collectors = collectors.Value?.ToList() ?? [];
+                _collectorsUnavailable = null;
+            }
+            else
+            {
+                _collectors = [];
+                _collectorsUnavailable = collectors.Status == ResultStatus.Forbidden
+                    ? "The collector list isn't available to this account, so tickets can't be assigned here."
+                    : "The collector list couldn't be loaded, so tickets can't be assigned right now.";
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void OpenRegister()
+    {
+        _seriesName = string.Empty;
+        _numberPrefix = "CT";
+        _firstSerial = 0;
+        _lastSerial = 0;
+        _serialWidth = 6;
+        OpenDialog(Dialog.Register);
+    }
+
+    private void OpenAssign()
+    {
+        _assignBookId = null;
+        _assignCollectorId = null;
+        _assignFirst = 0;
+        _assignLast = 0;
+        OpenDialog(Dialog.Assign);
+    }
+
+    private void OpenDialog(Dialog dialog)
+    {
+        _dialog = dialog;
+        _dialogError = null;
+        _message = null;
+        _focusDialog = true;
+    }
+
+    private void CloseDialog()
+    {
+        _dialog = Dialog.None;
+        _dialogError = null;
+    }
+
+    private void OnDialogKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape" && !_busy) CloseDialog();
+    }
+
+    /// <summary>Starts the range at the book's first ticket still in office — a convenience the user can change.</summary>
+    private void SuggestRange()
+    {
+        if (SelectedBook is not { } book) return;
+        var next = book.Documents.Where(d => d.State == AccountableDocumentState.InOffice)
+            .OrderBy(d => d.SerialNumber).FirstOrDefault();
+        _assignFirst = next?.SerialNumber ?? book.FirstSerialNumber;
+        _assignLast = _assignFirst;
+    }
+
+    private async Task RegisterAsync()
+    {
+        if (RegisterProblem is not null || _busy) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await FormsApi.ReceiveBookAsync(new ReceiveAccountableFormBookRequest(
+                RevenueInstrumentType.CashTicket, _seriesName.Trim(), _numberPrefix.Trim(),
+                _firstSerial, _lastSerial, _serialWidth));
+            if (!result.IsSuccess)
+            {
+                _dialogError = result.Error ?? "The Cash Ticket book could not be registered.";
+                return;
+            }
+            var registered = result.Value!;
+            _dialog = Dialog.None;
+            _message = $"Registered {registered.Documents.Count:N0} Cash Tickets in {registered.SeriesName}.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task AssignAsync()
+    {
+        if (AssignProblem is not null || _busy || _assignBookId is not { } bookId || _assignCollectorId is not { } collectorId) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await FormsApi.AssignCashTicketsAsync(new AssignAccountableFormRangeRequest(
+                bookId, collectorId, _assignFirst, _assignLast));
+            if (!result.IsSuccess)
+            {
+                _dialogError = result.Error ?? "The Cash Tickets could not be assigned.";
+                return;
+            }
+            var collector = CollectorName(collectorId);
+            _dialog = Dialog.None;
+            _message = $"Assigned {result.Value:N0} Cash Ticket{(result.Value == 1 ? "" : "s")} to {collector} (serials {_assignFirst}–{_assignLast}).";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private int Count(AccountableFormBookDto book, AccountableDocumentState state) =>
+        book.Documents.Count(d => d.State == state);
+
+    private int StateTotal(AccountableDocumentState state) => CashTicketBooks.Sum(book => Count(book, state));
+
+    private string Custodian(CashTicketDocumentDto document) => document.AssignedUserId is { } userId
+        ? CollectorName(userId)
+        : document.State == AccountableDocumentState.InOffice ? "Office" : "—";
+
+    private string CollectorName(Guid? userId) =>
+        _collectors.FirstOrDefault(c => c.Id == userId)?.FullName ?? "Assigned collector";
+
+    private static string RangeLabel(AccountableFormBookDto book)
+    {
+        var ordered = book.Documents.OrderBy(d => d.SerialNumber).ToList();
+        return ordered.Count > 0
+            ? $"{ordered[0].DocumentNumber} – {ordered[^1].DocumentNumber}"
+            : $"{book.NumberPrefix}{book.FirstSerialNumber} – {book.NumberPrefix}{book.LastSerialNumber}";
+    }
+
+    private static IReadOnlyList<string> Runs(IEnumerable<CashTicketDocumentDto> documents)
+    {
+        var runs = new List<string>();
+        CashTicketDocumentDto? start = null, previous = null;
+        foreach (var document in documents.OrderBy(d => d.SerialNumber))
+        {
+            if (start is null) { start = previous = document; continue; }
+            if (document.SerialNumber == previous!.SerialNumber + 1) { previous = document; continue; }
+            runs.Add(RunLabel(start, previous));
+            start = previous = document;
+        }
+        if (start is not null) runs.Add(RunLabel(start, previous!));
+        return runs;
+    }
+
+    private static string RunLabel(CashTicketDocumentDto first, CashTicketDocumentDto last) =>
+        first.SerialNumber == last.SerialNumber ? first.DocumentNumber : $"{first.DocumentNumber} – {last.DocumentNumber}";
+
+    private static string StateLabel(AccountableDocumentState state) => state switch
+    {
+        AccountableDocumentState.InOffice => "In office",
+        AccountableDocumentState.Assigned => "Assigned",
+        AccountableDocumentState.Consumed => "Consumed",
+        AccountableDocumentState.ReconciliationRequired => "Needs review",
+        AccountableDocumentState.Voided => "Voided",
+        _ => state.ToString(),
+    };
+}

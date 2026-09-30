@@ -19,4 +19,5 @@ public record RecordUtilityPaymentCommand(
     string? ElecORNumber,
     string? WaterORNumber,
     string? Remarks,
-    Guid? ClientOperationId = null) : IRequest<Result<UtilityBillDto>>;
+    Guid? ClientOperationId = null,
+    bool PreserveWaterSource = false) : IRequest<Result<UtilityBillDto>>;

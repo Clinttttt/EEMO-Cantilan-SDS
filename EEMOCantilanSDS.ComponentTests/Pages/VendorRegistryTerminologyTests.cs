@@ -110,14 +110,16 @@ public sealed class VendorRegistryTerminologyTests : TestContext
     }
 
     [Fact]
-    public void TpmPageRetainsTemporaryVendorTerminology()
+    public void TpmPageUsesVendorTerminologyAndConfirmedOrPolicy()
     {
         var source = ReadWorkspaceFile("EEMOCantilanSDS.Client", "Components", "Pages", "Menus", "Facilities", "TPM.razor");
 
         Assert.Contains("@page \"/tpm\"", source);
-        Assert.Contains("Vendor Attendance", source);
-        Assert.Contains("Vendor Name", source);
-        Assert.Contains("Add Vendor", source);
+        // IA-010 keeps Vendor for temporary/TPM sellers; IA-045 confirms Tabo uses OR.
+        Assert.Contains("Vendor Entries", source);
+        Assert.Contains("<th>Vendor</th>", source);
+        Assert.Contains("Official Receipt policy", source);
+        Assert.DoesNotContain("Cash Ticket", source);
     }
 
     private IRenderedComponent<AddVendorModal> RenderModal(bool useOccupantTerminology, bool isEditing)

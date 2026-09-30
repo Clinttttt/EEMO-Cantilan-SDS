@@ -133,6 +133,54 @@ public sealed class RevenueClassificationManagementTests
     }
 
     [Fact]
+    public async Task GenericListAndHistoryStayDefaultOnlyWhileVegetableContextsResolveSeparately()
+    {
+        var options = Options();
+        var tenant = Guid.NewGuid();
+        var asOf = new DateOnly(2026, 9, 30);
+        Guid classificationId;
+        await using (var seed = Context(options, tenant))
+        {
+            var classification = RevenueClassification.Create("VEGETABLE_FRUIT_SPACE_RENTAL", tenant, "seed");
+            classificationId = classification.Id;
+            seed.AddRange(
+                classification,
+                Policy(classification.Id, tenant, new DateOnly(2026, 9, 1), "Legacy default CT", RevenueInstrumentType.CashTicket),
+                RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2026, 9, 27), "Whole payment",
+                    RevenueInstrumentType.OfficialReceipt, tenant,
+                    businessContext: RevenuePolicyContext.VegetableWholePayment),
+                RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2026, 9, 27), "Daily transaction",
+                    RevenueInstrumentType.CashTicket, tenant,
+                    businessContext: RevenuePolicyContext.VegetableDailyTransaction));
+            await seed.SaveChangesAsync();
+        }
+
+        await using var context = Context(options, tenant);
+        var listed = await new GetRevenueClassificationsQueryHandler(context, new Caller(tenant), Clock)
+            .Handle(new(asOf), default);
+        var row = Assert.Single(listed.Value!, x => x.Id == classificationId);
+        Assert.Equal("Legacy default CT", row.EffectivePolicy!.DisplayName);
+        Assert.Equal(RevenueInstrumentType.CashTicket, row.EffectivePolicy.PermittedInstrumentType);
+
+        var history = await new GetRevenueClassificationPolicyHistoryQueryHandler(context, new Caller(tenant))
+            .Handle(new(classificationId), default);
+        Assert.Equal(new[] { "Legacy default CT" }, history.Value!.Select(x => x.DisplayName));
+
+        var classificationRow = await context.RevenueClassifications.SingleAsync(x => x.Id == classificationId);
+        var allVersions = await context.RevenueClassificationPolicies
+            .Where(x => x.RevenueClassificationId == classificationId).ToListAsync();
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt,
+            classificationRow.ResolvePolicyAsOf(allVersions, asOf, RevenuePolicyContext.VegetableWholePayment)!
+                .PermittedInstrumentType);
+        Assert.Equal(RevenueInstrumentType.CashTicket,
+            classificationRow.ResolvePolicyAsOf(allVersions, asOf, RevenuePolicyContext.VegetableDailyTransaction)!
+                .PermittedInstrumentType);
+        Assert.Equal(RevenueInstrumentType.CashTicket,
+            classificationRow.ResolvePolicyAsOf(allVersions, asOf, RevenuePolicyContext.Default)!
+                .PermittedInstrumentType);
+    }
+
+    [Fact]
     public async Task CreateUsesCallerTenantAndActor_AllowsNullInstrument_ButRejectsSameTenantDuplicate()
     {
         var options = Options();

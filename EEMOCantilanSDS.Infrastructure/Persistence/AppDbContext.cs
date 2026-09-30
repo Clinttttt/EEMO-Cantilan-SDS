@@ -12,6 +12,9 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
+using System.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -44,6 +47,28 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         /// </summary>
         public Guid CurrentMunicipalityId => _municipality?.MunicipalityId ?? Guid.Empty;
 
+        public async Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(
+            CancellationToken cancellationToken = default) =>
+            new AppDbContextTransaction(await Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
+
+        private sealed class AppDbContextTransaction(IDbContextTransaction transaction) : IAppDbContextTransaction
+        {
+            public async Task CommitAsync(CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                }
+                catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.SerializationFailure
+                    or PostgresErrorCodes.DeadlockDetected)
+                {
+                    throw new DbUpdateConcurrencyException(
+                        "A concurrent source or cutover change prevented the serializable transaction from committing.", ex);
+                }
+            }
+            public ValueTask DisposeAsync() => transaction.DisposeAsync();
+        }
+
         /// <summary>
         /// Whether this context was given a tenant accessor at all.
         ///
@@ -65,6 +90,19 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }
         public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; set; }
         public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; set; }
+        public DbSet<Payor> Payors { get; set; }
+        public DbSet<CollectionAllocation> CollectionAllocations { get; set; }
+        public DbSet<WebCollectionDraft> WebCollectionDrafts { get; set; }
+        public DbSet<WebCollectionDraftLine> WebCollectionDraftLines { get; set; }
+        public DbSet<WebCollectionDraftAllocation> WebCollectionDraftAllocations { get; set; }
+        public DbSet<PostingOperation> PostingOperations { get; set; }
+        public DbSet<CollectionSettlementCutover> CollectionSettlementCutovers { get; set; }
+        public DbSet<AccountableFormBook> AccountableFormBooks { get; set; }
+        public DbSet<AccountableDocument> AccountableDocuments { get; set; }
+        public DbSet<AccountableFormAssignment> AccountableFormAssignments { get; set; }
+        public DbSet<CollectionCorrection> CollectionCorrections { get; set; }
+        public DbSet<CollectionCorrectionLine> CollectionCorrectionLines { get; set; }
+        public DbSet<CollectionCorrectionAllocation> CollectionCorrectionAllocations { get; set; }
         public DbSet<FacilitySectionRate> FacilitySectionRates { get; set; }
         public DbSet<FacilitySectionUtilities> FacilitySectionUtilities { get; set; }
         public DbSet<FacilitySectionClosure> FacilitySectionClosures { get; set; }
@@ -101,6 +139,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }
+        public DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

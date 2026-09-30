@@ -73,6 +73,7 @@ namespace EEMOCantilanSDS.Domain.Enums
         NpmDailyStallVegetable = 10,
         NpmDailyStallFish = 11,
         NpmDailyStallMeat = 12,
+        NpmMeatPerKilo = 13, // NPM Meat weighing — ₱ per kilo, separate from the daily stall rate
     }
     public enum MarketSection
     {

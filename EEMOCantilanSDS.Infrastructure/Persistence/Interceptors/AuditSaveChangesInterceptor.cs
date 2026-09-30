@@ -29,10 +29,17 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         typeof(StallMonthlyException), typeof(NpmMarketClosure),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),
-        typeof(Collection), typeof(CollectionLine),
+        typeof(Collection), typeof(CollectionLine), typeof(CollectionAllocation),
+        typeof(Payor), typeof(WebCollectionDraft), typeof(WebCollectionDraftLine),
+        typeof(WebCollectionDraftAllocation), typeof(PostingOperation),
+        typeof(CollectionSettlementCutover), typeof(AccountableFormBook),
+        typeof(AccountableDocument), typeof(AccountableFormAssignment),
+        typeof(CollectionCorrection), typeof(CollectionCorrectionLine),
+        typeof(CollectionCorrectionAllocation),
         // Account / payor / stall management
         typeof(AdminUser), typeof(CollectorUser), typeof(PayorUser),
         typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink),
+        typeof(CollectorOperationAssignment),
         // The occupancy itself. Stall was audited but Contract was not, so the facts that DECIDE what a payor
         // owes - who the lessee is, the rent, the term, the effectivity date, whether it was terminated - could
         // be changed with nothing recorded. A register whose figures can move without a trace is not a record

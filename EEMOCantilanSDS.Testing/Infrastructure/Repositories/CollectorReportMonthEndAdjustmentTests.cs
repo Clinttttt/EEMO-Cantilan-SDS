@@ -54,7 +54,7 @@ public class CollectorReportMonthEndAdjustmentTests : RepositoryTestBase
         Assert.Equal(135m, Assert.Single(report.Facilities).Amount);
         Assert.Equal(135m, Assert.Single(report.Days).Amount);
         Assert.Equal(2, report.ReceiptsIssued);
-        Assert.Equal(32m, Assert.Single(report.Receipts, receipt => receipt.OrNumber == "OR-NORMAL").Amount);
-        Assert.Equal(103m, Assert.Single(report.Receipts, receipt => receipt.OrNumber == "OR-ADJUSTED").Amount);
+        Assert.Equal(32m, Assert.Single(report.Receipts, receipt => receipt.DocumentNumber == "OR-NORMAL").Amount);
+        Assert.Equal(103m, Assert.Single(report.Receipts, receipt => receipt.DocumentNumber == "OR-ADJUSTED").Amount);
     }
 }

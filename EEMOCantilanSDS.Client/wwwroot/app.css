@@ -18,8 +18,10 @@
     --bg-icon: #eef2f6;
     --border: #dde4ea;
     --text: #0d2137;
-    --text-muted: #8faabf;
-    --text-subtle: #6a8aa0;
+    /* V3: both legacy grey text tokens now meet WCAG AA on white (they were #8faabf and #6a8aa0, which did not).
+       They equal --text-tertiary and --text-secondary below, so every page still using the old names reads. */
+    --text-muted: #5b6d82;
+    --text-subtle: #4a5d73;
     --green: #2d7a5f;
     --green-bg: #e6f4ef;
     --red: #8b3a3a;
@@ -27,12 +29,37 @@
     --sidebar-w: 240px;
     --sidebar-w-col: 64px;
     --topbar-h: 60px;
+
+    /* ── V3 semantic tokens (docs/interface/STALLTRACK_UI_V3_DIRECTION.md §3) ──
+       Additive: the older tokens above stay for pages not yet on V3. Tune the civic
+       blue here, never per page. Text tokens meet WCAG AA on --surface and --canvas. */
+    --canvas: #f5f7fa;
+    --surface: #ffffff;
+    --surface-muted: #f8fafc;
+    --surface-hover: #f1f5fa;
+    --border-strong: #cfd7e2;
+    --text-secondary: #4a5d73;
+    --text-tertiary: #5b6d82;
+    --text-disabled: #9aa7b6;
+    --accent: #1f5fbf;
+    --accent-hover: #194f9f;
+    --accent-soft: #eaf1fb;
+    --accent-ring: rgba(31, 95, 191, .35);
+    --elevation-1: 0 1px 2px rgba(13, 33, 55, .04);
 }
 
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+/* The portal is a light interface. The bundled site.min.css (DaisyUI) switches the root to a dark
+   color-scheme when the OS prefers dark, which painted a dark canvas below any page shorter than the
+   window. Pin the canvas and form-control scheme to the light design. */
+html {
+    background: var(--bg);
+    color-scheme: light;
 }
 
 body {
@@ -2140,4 +2167,1194 @@ a.topbar-admin.account-chip {
     box-sizing: border-box;
     color: var(--text-muted, #6a8aa0);
     opacity: 0.45;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   V3 WORKSPACE LAYER — docs/interface/STALLTRACK_UI_V3_DIRECTION.md
+   Small shared vocabulary for V3 workspaces (first used by ECF / WCF).
+   Global on purpose: every V3 page renders the same panels, registers,
+   buttons, fields, notices and dialogs, so they are defined once here
+   instead of being copied into each scoped stylesheet.
+══════════════════════════════════════════════════════════════════════ */
+.v3-page {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px 32px 48px;
+    background: var(--canvas);
+    color: var(--text);
+    font-size: 0.875rem;
+}
+
+.v3-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.v3-muted {
+    color: var(--text-tertiary);
+}
+
+.v3-block {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+/* ── Panel: one white working surface ── */
+.v3-panel {
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.v3-panel-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.v3-panel-header h2 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.v3-panel-meta {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.v3-panel-body {
+    padding: 16px 20px;
+}
+
+.v3-panel-note {
+    margin: 0;
+    padding: 10px 20px 14px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+/* ── Toolbar: search, then filters ── */
+.v3-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+.v3-search {
+    position: relative;
+    display: flex;
+    flex: 1 1 260px;
+    max-width: 420px;
+    align-items: center;
+}
+
+.v3-search svg {
+    position: absolute;
+    left: 10px;
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: var(--text-tertiary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    pointer-events: none;
+}
+
+.v3-input,
+.v3-search input,
+.v3-select,
+.v3-field input,
+.v3-field select {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.v3-search input {
+    padding-left: 34px;
+}
+
+.v3-select {
+    width: auto;
+    min-width: 160px;
+}
+
+/* Selects: one chevron, one padding rule. The chevron colour is --text-tertiary written out, because a
+   custom property cannot reach inside a data URI. */
+.v3-select,
+.v3-field select {
+    padding-right: 34px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6d82' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-position: right 10px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    cursor: pointer;
+    appearance: none;
+}
+
+/* Where the browser supports customizable selects (Edge/Chrome), the open list becomes a V3 surface instead of
+   the grey OS popup. Other browsers keep their native list — nothing else depends on this. */
+@supports (appearance: base-select) {
+    .v3-select,
+    .v3-field select,
+    .v3-select::picker(select),
+    .v3-field select::picker(select) {
+        appearance: base-select;
+    }
+
+    .v3-select::picker-icon,
+    .v3-field select::picker-icon {
+        display: none;
+    }
+
+    .v3-select::picker(select),
+    .v3-field select::picker(select) {
+        margin-top: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: 0 12px 32px -8px rgba(13, 33, 55, .22), var(--elevation-1);
+    }
+
+    .v3-select option,
+    .v3-field select option {
+        padding: 8px 10px;
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 0.8125rem;
+    }
+
+    .v3-select option:hover,
+    .v3-select option:focus-visible,
+    .v3-field select option:hover,
+    .v3-field select option:focus-visible {
+        background: var(--surface-hover);
+        color: var(--accent);
+        outline: none;
+    }
+
+    .v3-select option:checked,
+    .v3-field select option:checked {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+    .v3-select option::checkmark,
+    .v3-field select option::checkmark {
+        color: var(--accent);
+    }
+}
+
+.v3-input:focus,
+.v3-search input:focus,
+.v3-select:focus,
+.v3-field input:focus,
+.v3-field select:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.v3-input:disabled,
+.v3-select:disabled,
+.v3-field input:disabled,
+.v3-field select:disabled {
+    background: var(--surface-muted);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+/* ── Field: label above control ── */
+.v3-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.v3-field > span:first-child {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.v3-field input[type="number"] {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.v3-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+/* ── Buttons: one primary per task, the rest quiet ── */
+.v3-btn {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.v3-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.v3-btn-primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.v3-btn-primary:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    color: var(--surface);
+}
+
+.v3-btn-sm {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
+
+.v3-btn svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Related secondary actions joined into one control (e.g. Refresh · Accounts · Report). */
+.v3-btn-group {
+    display: inline-flex;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.v3-btn-group > .v3-btn {
+    border: 0;
+    border-radius: 0;
+    color: var(--text-secondary);
+}
+
+.v3-btn-group > .v3-btn + .v3-btn {
+    border-left: 1px solid var(--border);
+}
+
+.v3-btn-group > .v3-btn:hover {
+    background: var(--surface-hover);
+    color: var(--accent);
+}
+
+.v3-btn-group > .v3-btn:focus-visible {
+    outline-offset: -3px;
+}
+
+.v3-btn:disabled,
+.v3-btn:disabled:hover {
+    border-color: var(--border);
+    background: var(--surface-muted);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+.v3-btn:focus-visible,
+.v3-table-wrap:focus-visible,
+.v3-details summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ── Notices ── */
+.v3-notice {
+    margin: 0;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.v3-notice-error {
+    border-left-color: var(--red);
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+/* ── Register table: horizontal structure only ── */
+.v3-table-wrap {
+    overflow-x: auto;
+}
+
+.v3-table-wrap-tall {
+    max-height: 26rem;
+    overflow-y: auto;
+}
+
+.v3-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.v3-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.v3-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    color: var(--text);
+    line-height: 1.4;
+    vertical-align: top;
+}
+
+.v3-table th:first-child,
+.v3-table td:first-child {
+    padding-left: 20px;
+}
+
+.v3-table th:last-child,
+.v3-table td:last-child {
+    padding-right: 20px;
+}
+
+.v3-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.v3-table tbody tr:hover td {
+    background: var(--surface-hover);
+}
+
+.v3-table .v3-num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.v3-table .v3-strong {
+    font-weight: 600;
+}
+
+.v3-table .v3-empty,
+.v3-table tbody tr:hover .v3-empty {
+    padding: 28px 20px;
+    background: var(--surface);
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+/* Empty/loading message block used inside panels and table cells. */
+.v3-empty-block {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+.v3-empty-block svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: var(--border-strong);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.v3-state {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* ── Expandable detail inside a register row ── */
+.v3-details summary {
+    color: var(--accent);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.v3-details ul {
+    display: grid;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.v3-details li {
+    display: grid;
+    gap: 2px;
+}
+
+/* ── Label / value list ── */
+.v3-facts {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+}
+
+.v3-facts > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.v3-facts dt {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.v3-facts dd {
+    margin: 0;
+    color: var(--text);
+    font-weight: 600;
+    text-align: right;
+}
+
+/* ── Dialog ── */
+.v3-modal-backdrop {
+    position: fixed;
+    z-index: 900;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(13, 33, 55, .38);
+}
+
+.v3-modal {
+    display: flex;
+    width: min(100%, 32rem);
+    max-height: calc(100vh - 32px);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 24px 48px -12px rgba(13, 33, 55, .32);
+}
+
+.v3-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.v3-modal-header h2 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.v3-modal-body {
+    display: grid;
+    gap: 16px;
+    padding: 18px 20px;
+    overflow-y: auto;
+}
+
+.v3-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+/* ── Period picker (label + month input) used in workspace headers ── */
+.v3-period {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.v3-period input {
+    width: auto;
+    min-height: 36px;
+    padding: 6px 8px;
+}
+
+/* ── Error notice with a retry action ── */
+.v3-notice-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+/* ── Report sheet: the printable document inside a V3 report page ── */
+.v3-report-sheet {
+    display: grid;
+    gap: 22px;
+    padding: 28px 32px 32px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.v3-report-section {
+    display: grid;
+    gap: 8px;
+    break-inside: avoid;
+}
+
+.v3-report-section h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.v3-report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-report-table th,
+.v3-report-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+
+.v3-report-table thead th {
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.v3-report-table tfoot th,
+.v3-report-table tfoot td {
+    border-top: 1px solid var(--border-strong);
+    border-bottom: 2px solid var(--border-strong);
+    font-weight: 700;
+}
+
+.v3-report-table .v3-num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.v3-report-note {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+@media print {
+    .v3-page {
+        min-height: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    .v3-report-sheet {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .v3-report-table thead {
+        display: table-header-group;
+    }
+
+    .v3-report-table thead th {
+        background: #f3f5f8 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .v3-report-table tr {
+        break-inside: avoid;
+    }
+}
+
+@media (max-width: 768px) {
+    .v3-report-sheet {
+        padding: 20px 16px;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Clear the fixed drawer button the sidebar places at the top-left on narrow screens. */
+    .v3-page {
+        padding: 64px 16px 40px;
+    }
+
+    .v3-panel-header,
+    .v3-toolbar {
+        padding-right: 14px;
+        padding-left: 14px;
+    }
+
+    .v3-table th:first-child,
+    .v3-table td:first-child {
+        padding-left: 14px;
+    }
+
+    .v3-table th:last-child,
+    .v3-table td:last-child {
+        padding-right: 14px;
+    }
+
+    .v3-search {
+        max-width: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .v3-btn,
+    .v3-input,
+    .v3-search input,
+    .v3-select,
+    .v3-field input,
+    .v3-field select {
+        transition: none;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   V3 ALIGNMENT FOR SHARED LEGACY CLASSES
+   The facility workspaces (NPM, TCC, NCC, BBQ, ICE, SLH, TRM, TPM), their dialogs and several older pages are built
+   on the shared classes defined earlier in this file (topbar, data-table, btn-*, eemo-modal-*, form-*, search-box,
+   filter-tab, ...). These rules bring those classes onto the V3 tokens — DM Sans throughout, readable secondary text,
+   civic-blue interaction, quiet surfaces — without touching any page's markup or logic. Same selectors, declared
+   later, so they win; delete this block to restore the previous look.
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Topbar ── */
+.topbar {
+    padding: 0 32px;
+    background: var(--surface);
+}
+
+.topbar-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+}
+
+.topbar-breadcrumb {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+    .topbar-breadcrumb a,
+    .breadcrumb-link {
+        color: var(--text-secondary);
+        text-decoration: none;
+    }
+
+        .topbar-breadcrumb a:hover,
+        .breadcrumb-link:hover {
+            color: var(--accent);
+        }
+
+.breadcrumb-active {
+    color: var(--text-tertiary);
+}
+
+.topbar-date,
+.topbar-period {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+    .topbar-date svg,
+    .topbar-period svg {
+        stroke: var(--text-tertiary);
+    }
+
+.topbar-admin:hover {
+    background: var(--surface-hover);
+}
+
+.admin-avatar {
+    background: var(--navy);
+    color: var(--surface);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-role {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+.content-area {
+    padding: 24px 32px 48px;
+}
+
+/* ── Figures, panels ── */
+.kpi-card {
+    border-radius: 10px;
+    box-shadow: var(--elevation-1);
+}
+
+    .kpi-card:hover {
+        box-shadow: var(--elevation-1);
+    }
+
+.kpi-value {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi-label {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.kpi-sub {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+.panel {
+    border-radius: 10px;
+    box-shadow: var(--elevation-1);
+}
+
+.panel-header {
+    background: var(--surface);
+}
+
+.panel-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.panel-count {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+.panel-link {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ── Register tables ── */
+.data-table {
+    font-size: 13px;
+}
+
+    .data-table thead th {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-muted);
+        color: var(--text-tertiary);
+        font-size: 11px;
+        letter-spacing: .06em;
+    }
+
+    .data-table tbody tr {
+        border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    }
+
+        .data-table tbody tr:hover {
+            background: var(--surface-hover);
+        }
+
+    .data-table tbody td {
+        color: var(--text);
+    }
+
+.code-badge {
+    padding: 2px 7px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+
+.status-pill {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.pill-unpaid,
+.pill-inactive {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+}
+
+.mono {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.amount-val {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.td-contact,
+.td-nature,
+.td-date,
+.td-collector,
+.td-time {
+    color: var(--text-secondary);
+}
+
+/* ── Buttons: civic blue primary, quiet secondary ── */
+.btn-primary {
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+    font-size: 13px;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+    .btn-primary:hover {
+        border-color: var(--accent-hover);
+        background: var(--accent-hover);
+        opacity: 1;
+    }
+
+    .btn-primary svg {
+        stroke: var(--surface);
+    }
+
+.btn-ghost,
+.btn-outline {
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+    .btn-ghost:hover,
+    .btn-outline:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+.btn-danger {
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible,
+.btn-outline:focus-visible,
+.btn-danger:focus-visible,
+.action-btn:focus-visible,
+.filter-tab:focus-visible,
+.eemo-modal-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.btn-primary:disabled,
+.btn-ghost:disabled,
+.btn-outline:disabled {
+    border-color: var(--border);
+    background: var(--surface-muted);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+.action-btn {
+    border-color: var(--border);
+    background: var(--surface);
+}
+
+    .action-btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+
+    .action-btn svg {
+        stroke: var(--text-secondary);
+    }
+
+    .action-btn:hover svg {
+        stroke: var(--accent);
+    }
+
+/* ── Dialogs ── */
+.eemo-modal-overlay {
+    background: rgba(13, 33, 55, .38);
+}
+
+.eemo-modal {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 24px 48px -12px rgba(13, 33, 55, .32);
+}
+
+.eemo-modal-header {
+    padding: 16px 20px;
+}
+
+.eemo-modal-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.eemo-modal-sub {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+.eemo-modal-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .eemo-modal-close:hover {
+        background: var(--surface-hover);
+    }
+
+    .eemo-modal-close svg {
+        stroke: var(--text-secondary);
+    }
+
+.eemo-modal-body {
+    padding: 18px 20px;
+}
+
+.eemo-modal-footer {
+    padding: 12px 20px;
+    background: var(--surface-muted);
+}
+
+/* ── Forms ── */
+.form-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.form-input {
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+    .form-input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+
+    .form-input::placeholder {
+        color: var(--text-tertiary);
+    }
+
+.form-error {
+    border-radius: 6px;
+}
+
+/* ── Empty states, section headings ── */
+.empty-state svg {
+    stroke: var(--border-strong);
+    opacity: 1;
+}
+
+.empty-title {
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+}
+
+.empty-sub {
+    color: var(--text-tertiary);
+    font-size: 13px;
+}
+
+.section-eyebrow {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    letter-spacing: .08em;
+}
+
+.section-heading {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+/* ── Search and filters ── */
+.search-box {
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+}
+
+    .search-box:focus-within {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+
+    .search-box svg {
+        stroke: var(--text-tertiary);
+    }
+
+    .search-box input {
+        font-size: 13px;
+    }
+
+        .search-box input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+.filter-tab {
+    border-color: var(--border-strong);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+    .filter-tab:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+    .filter-tab.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+/* Gold text fails contrast on white; the severity meaning is kept in the readable amber used for partial states. */
+.text-gold {
+    color: #8a6d1b;
+}
+
+/* NPM section tabs: the active icon follows the civic-blue active state. */
+.npm-sec-tab.active .npm-sec-icon svg,
+.npm-sec-tab.active .npm-sec-icon svg * {
+    stroke: var(--accent) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-primary,
+    .btn-ghost,
+    .btn-outline {
+        transition: none;
+    }
 }

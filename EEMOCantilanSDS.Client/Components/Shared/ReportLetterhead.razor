@@ -1,0 +1,33 @@
+@using EEMOCantilanSDS.Domain.Common
+@* Government letterhead for a printable V3 report sheet. Every identity line comes from the tenant's branding (the
+   same fields the established facility reports print), never a hard-coded municipality. *@
+<header class="lh">
+    <img class="lh-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+    <p class="lh-republic">Republic of the Philippines</p>
+    <p class="lh-place">Municipality of @Branding.Municipality, @Branding.Province</p>
+    <p class="lh-office">@Branding.OfficeName</p>
+    <h2 class="lh-title">@Title</h2>
+    @if (!string.IsNullOrWhiteSpace(Period))
+    {
+        <p class="lh-period">@Period</p>
+    }
+</header>
+<dl class="lh-meta">
+    @if (Facts is not null)
+    {
+        @Facts
+    }
+    <div><dt>Prepared by</dt><dd>@Branding.OfficeAcronym Office</dd></div>
+    <div><dt>Date prepared</dt><dd>@PhilippineTime.Now.ToString("MMM d, yyyy")</dd></div>
+</dl>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Period { get; set; }
+
+    /// <summary>Extra <c>&lt;div&gt;&lt;dt/&gt;&lt;dd/&gt;&lt;/div&gt;</c> facts shown before "Prepared by".</summary>
+    [Parameter] public RenderFragment? Facts { get; set; }
+
+    protected override Task OnInitializedAsync() => Branding.EnsureLoadedAsync();
+}

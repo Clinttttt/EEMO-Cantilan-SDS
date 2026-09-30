@@ -27,6 +27,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasForeignKey(s => s.CollectorId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            builder.HasMany(s => s.OperationAssignments)
+                .WithOne(s => s.Collector)
+                .HasForeignKey(s => new { s.MunicipalityId, s.CollectorId })
+                .HasPrincipalKey(s => new { s.MunicipalityId, s.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+
 
 
         }

@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Requests.Mobile;
@@ -44,6 +45,13 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 
+    public async Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
+        await GetAsync<CollectorOperationCapabilitiesDto>("api/Mobile/operations/capabilities");
+
+    public async Task<Result<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateQuoteAsync(DateOnly businessDate) =>
+        await GetAsync<NpmMeatWeighingRateQuoteDto>(
+            $"api/Mobile/npm/meat-weighing-rate?businessDate={businessDate:yyyy-MM-dd}");
+
     public async Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month) =>
         await GetAsync<MobileNpmArrearsDto>($"api/Mobile/npm/arrears?year={year}&month={month}");
 
@@ -60,6 +68,15 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
         await PostAsync<RecordMobileUtilityPaymentRequest, bool>("api/Mobile/npm-utility/pay", request);
+
+    public async Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
+        await GetAsync<IReadOnlyList<WcfObligationQuoteDto>>($"api/wcf-collections/obligations?throughYear={throughYear}&throughMonth={throughMonth}");
+
+    public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
+        await GetAsync<IReadOnlyList<CashTicketDocumentDto>>("api/wcf-collections/cash-tickets/available");
+
+    public async Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request) =>
+        await PostAsync<WcfCollectionPostRequest, WcfCollectionOutcomeDto>("api/wcf-collections/mobile-collections", request);
 
     public async Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month) =>
         await GetAsync<MobileMonthlyCollectionDto>($"api/Mobile/monthly/collections?facility={facility}&year={year}&month={month}");

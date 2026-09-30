@@ -21,16 +21,22 @@ Do not silently choose whichever source is easiest to implement. Surface the con
 
 ## Core reading order
 
-Before changing code, read:
+Before changing V2 code, read:
 
-- `architecture/ARCHITECTURE_RULES.md` — non-negotiable implementation boundaries.
-- `architecture/APPLICATION_PATTERNS.md` — established code shapes to copy.
-- `architecture/SYSTEM_ARCHITECTURE.md` — rationale and trade-offs.
-- `business/EEMO_BUSINESS_RULES.md` — accepted current business semantics.
-- `business/REVENUE_ARCHITECTURE.md` — approved target revenue architecture and phased migration.
-- The relevant domain-specific documents below.
+- `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of current production, target V2, future/hidden capability, decision gates, sidebar direction, migration strategy, and UI-preservation rules.
+- when concurrent V2 sessions are active, `planning/ACTIVE_WORKSTREAMS.md` — temporary worktree/file ownership and shared-file locks. This is coordination guidance, not business authority.
+- this `README.md` — authority order and canonical documentation map.
+- the relevant authoritative business/architecture source for the task, especially `architecture/ARCHITECTURE_RULES.md`, `architecture/APPLICATION_PATTERNS.md`, `business/EEMO_BUSINESS_RULES.md`, and `business/REVENUE_ARCHITECTURE.md`.
+- `decisions/DECISION_REGISTRY.md` before assuming a business, accountability, report, route-identity, target, remittance, or classification decision.
+- current code, migrations, tests, CI/workflows, and verified production behavior as implementation evidence.
+- the relevant specialized interface, security, testing, operations, or evidence documents below.
 
 ## Documentation map
+
+### V2 orientation
+
+- `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — canonical V2 orientation and change-control specification. Start here; follow its links to the detailed authoritative domain documents.
+- `v2/ITEMIZED_COLLECTIONS_CANONICAL_IMPLEMENTATION_BASELINE.md` — Clint-approved itemized collection architecture and sequential implementation baseline, including the remaining source-specific rollout gates.
 
 ### Architecture
 
@@ -43,6 +49,7 @@ Before changing code, read:
 
 ### Business
 
+- `business/EEMO_OPERATIONAL_RULEBOOK.md` — direct EEMO Head/staff rulings, office-evidence reconciliations, confirmed operational rules, and the short list of genuinely unresolved business questions. Read this before asking EEMO to re-confirm workflow details.
 - `business/EEMO_BUSINESS_RULES.md` — current specialized facility behavior and accepted office semantics.
 - `business/REVENUE_ARCHITECTURE.md` — target collections, classifications, accountable documents, reporting, and migration phases.
 
@@ -51,6 +58,7 @@ Before changing code, read:
 - `interface/INFORMATION_ARCHITECTURE.md` — target Web/Mobile information architecture and vocabulary.
 - `interface/MIGRATION_PLAN.md` — incremental interface migration.
 - `interface/DESIGN_SYSTEM.md` — reusable UI hierarchy, tokens, states, accessibility, and consistency rules.
+- `interface/STALLTRACK_UI_V3_DIRECTION.md` — Clint-approved V3 Web visual direction. Presentation authority only; supersedes older visual-preservation rules for Web presentation, never business rules.
 ### Security
 
 - `security/SECURITY_ARCHITECTURE.md` — authentication, authorization, token, MFA, secrets, audit, and security invariants.
@@ -72,6 +80,12 @@ Before changing code, read:
 
 ### Planning and evidence
 
+- `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
+- `planning/STALLTRACK_V2_PHASE_STATUS.md` — current Phase 1–5A implementation history, Phase 5B release gate, and presentation-safe UI completion track. Use this for phase status; it does not override business/decision authority.
+- `planning/SOL_HIGH_UI_AUDIT_BASELINE.md` — preserved read-only Sol High Web/Mobile audit findings plus the later Head-rule deltas that supersede stale audit assumptions. Use this as the UI completion handoff, not as business authority.
+- `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
+- `planning/PHASE4_WCF_WRITER_READINESS.md` — current UtilityBill Water/WCF writers, compatibility readers, Cash Ticket custody, and scoped cutover prerequisites; inventory only, not activation authority.
+- `planning/PHASE5A_SETTLEMENT_CUTOVER_CONTROL_PLANE.md` — Phase 5A source-scoped readiness evidence, writer/device/payment/document/report gates, and the test-only freeze/activation boundary; not authority to convert a real source.
 - `planning/IMPLEMENTATION_HISTORY.md` — historical implementation/backlog record. It is evidence, not automatic current authority.
 - `evidence/` — office/reference evidence retained with the repository.
 - `../tools/diagnostics/` — diagnostic scripts; diagnostics are evidence tools, not application behavior.
@@ -109,3 +123,7 @@ The documentation must preserve these distinctions:
 A skill answers **how to perform a class of work**. A canonical document answers **what StallTrack is, what a rule means, or what constraints apply**.
 
 Skills never override this documentation hierarchy.
+
+[executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]
+
+[executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]

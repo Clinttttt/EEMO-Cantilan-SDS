@@ -64,6 +64,7 @@ public static class FacilityDisplay
         FeeRateKey.NpmDailyStallMeat => "Meat section",
         FeeRateKey.NpmMonthlyStall => "Monthly stall rent",
         FeeRateKey.NpmFishPerKilo => "Fish fee (per kilo)",
+        FeeRateKey.NpmMeatPerKilo => "Meat weighing (per kilo)",
         FeeRateKey.SlhHogPerHead => "Hog (per head)",
         FeeRateKey.SlhLargePerHead => "Large animal (per head)",
         FeeRateKey.TpmVendorDay => "Vendor (per market day)",

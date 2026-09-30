@@ -134,9 +134,15 @@ namespace EEMOCantilanSDS.Application.Common.Fees
         /// </summary>
         public decimal? ResolveOrNull(FeeRateKey key, DateOnly asOf)
         {
+            return ResolveEntryOrNull(key, asOf)?.Amount;
+        }
+
+        /// <summary>The effective tenant-owned rate row, including its effective date, or null if unstated.</summary>
+        public FeeRateEntry? ResolveEntryOrNull(FeeRateKey key, DateOnly asOf)
+        {
             var owner = FacilityRateKeys.OwnerOf(key);
 
-            decimal? match = null;
+            FeeRateEntry? match = null;
             DateOnly bestDate = DateOnly.MinValue;
             foreach (var e in _entries)
             {
@@ -147,7 +153,7 @@ namespace EEMOCantilanSDS.Application.Common.Fees
                 if (e.Facility != owner || e.Key != key || e.EffectiveDate > asOf) continue;
                 if (match is null || e.EffectiveDate >= bestDate)
                 {
-                    match = e.Amount;
+                    match = e;
                     bestDate = e.EffectiveDate;
                 }
             }

@@ -1,0 +1,20 @@
+@page "/operations/fines"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Fines</PageTitle>
+
+@* Fines is one Monthly Income line with its own revenue classification (Penalties/Fines, Official Receipt). StallTrack
+   has no writer for it yet, so this page shows the policy and records nothing. Where Fines belongs on the sheet is an
+   open question for Core Brain (see the integration gaps doc). The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <WorkspaceHeader Parent="Operations" Title="Fines">
+        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+    </WorkspaceHeader>
+
+    <UnrecordedOperation Name="Fines"
+                         Detail="Fines will appear here once their collection is activated."
+                         SemanticCode="@RevenueClassificationCodes.PenaltiesAndFines" />
+</div>

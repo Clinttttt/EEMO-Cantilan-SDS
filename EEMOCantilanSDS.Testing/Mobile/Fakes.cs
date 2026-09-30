@@ -24,6 +24,17 @@ public sealed class FakePendingOperationStore : IPendingOperationStore
         return Task.CompletedTask;
     }
 
+    public Task AddIssuedDocumentOperationAsync(PendingOperation operation)
+    {
+        if (HasStorageFault) throw new IOException("storage fault");
+        if (_items.Any(x => x.ClientOperationId == operation.ClientOperationId
+            || x.AccountableDocumentId == operation.AccountableDocumentId))
+            throw new InvalidOperationException("duplicate issued document");
+        operation.IssuedDocumentState = IssuedDocumentLocalState.IssuedLocallyPendingSync;
+        _items.Add(operation);
+        return Task.CompletedTask;
+    }
+
     public Task UpdateAsync(PendingOperation operation)
     {
         var index = _items.FindIndex(o => o.ClientOperationId == operation.ClientOperationId);

@@ -1,0 +1,575 @@
+@page "/operations/ecf"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.JSInterop
+@inject IEcfCollectionsApiClient EcfApi
+@inject IJSRuntime JS
+
+<PageTitle>StallTrack — Electricity Consumption Fees</PageTitle>
+
+@* The layout owns the <main> landmark; this page is a region inside it. *@
+<div class="v3-page ecf-page">
+    <WorkspaceHeader Parent="Operations" Title="Electricity Consumption Fees" Code="ECF">
+        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+        <Actions>
+            <div class="v3-btn-group" role="group" aria-label="ECF actions">
+                <button class="v3-btn" type="button" @onclick="ReloadAsync" disabled="@_busy">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
+                    Refresh
+                </button>
+                <a class="v3-btn" href="/operations/ecf/accounts">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
+                    Accounts
+                </a>
+                <a class="v3-btn" href="/operations/ecf/report">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                    Report
+                </a>
+            </div>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="v3-notice" role="status">@_message</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+
+    <SummaryStrip Label="ECF position" Items="SummaryItems" />
+
+    <div class="ecf-layout">
+        <section class="v3-panel" aria-labelledby="ecf-obligations-title">
+            <header class="v3-panel-header">
+                <h2 id="ecf-obligations-title">Obligations</h2>
+                <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count · @BillingPeriodLabel</span>
+            </header>
+
+            <div class="v3-toolbar" aria-label="Obligation filters">
+                <label class="v3-search">
+                    <span class="v3-sr-only">Search ECF sources</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search payer, stall, facility or area"
+                           aria-label="Search ECF sources" @bind="_searchText" @bind:event="oninput" />
+                </label>
+                <select class="v3-select" aria-label="Filter by area" @bind="_areaFilter">
+                    <option value="">All areas</option>
+                    @foreach (var section in Sections)
+                    {
+                        <option value="@section">@section</option>
+                    }
+                </select>
+            </div>
+
+            <div class="v3-table-wrap" role="region" aria-label="ECF obligations" tabindex="0">
+                <table class="v3-table">
+                    <caption class="v3-sr-only">@BillingPeriodLabel ECF Electricity source obligations</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Payer</th>
+                            <th scope="col">Meter</th>
+                            <th scope="col" class="v3-num">Due</th>
+                            <th scope="col" class="v3-num">Settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                            <th scope="col"><span class="v3-sr-only">Collection</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var quote in FilteredQuotes)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="v3-strong">@PayerLabel(quote)</span>
+                                    <span class="v3-block">@SourceContext(quote)</span>
+                                </td>
+                                <td class="ecf-meter">@MeterBasis(quote)</td>
+                                <td class="v3-num">@Money(quote.AssessedAmount)</td>
+                                <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
+                                <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
+                                <td class="ecf-action">
+                                    @if (quote.CanAddToDraft && DraftRemaining(quote) > 0m)
+                                    {
+                                        <button class="v3-btn v3-btn-primary v3-btn-sm" type="button"
+                                                @onclick="() => AddToCollectionAsync(quote)" disabled="@(_busy || (_draft?.RequiresBusinessDateRefresh ?? false))">
+                                            @(DraftRemaining(quote) < quote.OutstandingAmount ? "Add remaining" : "Add to collection")
+                                        </button>
+                                    }
+                                    else if (quote.SettlementAuthority == SettlementAuthority.PendingCutover)
+                                    {
+                                        <span class="v3-state">Reconciliation in progress</span>
+                                    }
+                                    else if (_draft is not null)
+                                    {
+                                        <span class="v3-state">Collection in progress</span>
+                                    }
+                                    else if (quote.OutstandingAmount <= 0m)
+                                    {
+                                        <span class="v3-state">Settled</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="v3-state">Not open for collection</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredQuotes.Any())
+                        {
+                            <tr>
+                                <td class="v3-empty" colspan="6">
+                                    @if (_busy && _quotes.Count == 0)
+                                    {
+                                        <span role="status">Loading obligations…</span>
+                                    }
+                                    else if (_quotes.Count > 0)
+                                    {
+                                        <span>No obligations match this search.</span>
+                                    }
+                                    else
+                                    {
+                                        <span>No ECF obligations for @BillingPeriodLabel.</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="v3-panel ecf-collection" aria-labelledby="ecf-collection-title">
+            <header class="v3-panel-header">
+                <h2 id="ecf-collection-title">Current collection</h2>
+                @if (_draft is not null)
+                {
+                    <span class="v3-panel-meta">Draft @ShortId(_draft.DraftId) · rev @_draft.Revision</span>
+                }
+            </header>
+
+            @if (_draft is null)
+            {
+                <div class="v3-panel-body ecf-collection-empty">
+                    <div class="v3-empty-block">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="7" y1="15" x2="11" y2="15" /></svg>
+                        <strong>No collection in progress</strong>
+                        <p>Add an obligation, or start from a Payor.</p>
+                    </div>
+                    <a class="v3-btn" href="/collections/current">Start from a Payor</a>
+                </div>
+            }
+            else
+            {
+                <div class="v3-panel-body ecf-collection-body">
+                    <dl class="v3-facts">
+                        <div><dt>Status</dt><dd>@_draft.Status</dd></div>
+                        <div><dt>Payer</dt><dd>@(_draft.PayerNameSnapshot ?? "Not recorded")</dd></div>
+                        <div><dt>Official Receipt</dt><dd>@(_draft.DocumentNumber ?? "Not selected")</dd></div>
+                    </dl>
+
+                    @if (_draft.RequiresBusinessDateRefresh)
+                    {
+                        <div class="v3-notice v3-notice-error ecf-refresh" role="alert">
+                            <span>This draft is from an earlier business date. Refresh it, then review the new revision.</span>
+                            <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy"
+                                    @onclick="ResumeDraftAsync">Refresh for today</button>
+                        </div>
+                    }
+
+                    @if (_draft.Lines.Any())
+                    {
+                        <ul class="ecf-lines">
+                            @foreach (var line in _draft.Lines)
+                            {
+                                <li>
+                                    <div class="ecf-line-head">
+                                        <span>@line.ClassificationName</span>
+                                        <span class="ecf-line-amount">@Money(line.Amount)</span>
+                                    </div>
+                                    @foreach (var allocation in line.Allocations ?? [])
+                                    {
+                                        <span class="v3-block">@allocation.SourceLabel · @Money(allocation.Amount)</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    <label class="v3-field">
+                        <span>Official Receipt</span>
+                        <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
+                                @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
+                            <option value="">Select available OR</option>
+                            @foreach (var document in _availableReceipts)
+                            {
+                                <option value="@document.DocumentId">@document.DocumentNumber · @document.State</option>
+                            }
+                        </select>
+                    </label>
+
+                    <div class="ecf-total">
+                        <span>Draft total</span>
+                        <strong>@Money(_draft.TotalAmount)</strong>
+                    </div>
+
+                    <a class="v3-btn v3-btn-primary" href="/collections/current">Review and post</a>
+                    <p class="ecf-footnote">Nothing is recorded as revenue and no OR is used until the collection is posted.</p>
+                </div>
+            }
+        </aside>
+    </div>
+
+    <section class="v3-panel" aria-labelledby="ecf-activity-title">
+        <header class="v3-panel-header">
+            <h2 id="ecf-activity-title">Collection activity</h2>
+            <span class="v3-panel-meta">Posted collections · @BillingPeriodLabel</span>
+        </header>
+
+        <div class="v3-table-wrap" role="region" aria-label="Posted ECF collections" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Posted itemized ECF collections for @BillingPeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Business date</th>
+                        <th scope="col">Official Receipt · payer</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Total</th>
+                        <th scope="col">Items</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var activity in _activity)
+                    {
+                        <tr>
+                            <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm")</span></td>
+                            <td><span class="v3-strong">@activity.DocumentNumber</span><span class="v3-block">@(activity.PayerName ?? "No payer recorded")</span></td>
+                            <td>@activity.CurrentDisposition</td>
+                            <td class="v3-num v3-strong">@Money(activity.TotalAmount)</td>
+                            <td>
+                                <details class="v3-details">
+                                    <summary>@activity.ItemCount item@(activity.ItemCount == 1 ? "" : "s")</summary>
+                                    <ul>
+                                        @foreach (var line in activity.Lines)
+                                        {
+                                            <li>
+                                                <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
+                                                <span class="v3-muted">@MonthName(line.BillingMonth) @line.BillingYear · @line.Allocation</span>
+                                                <span class="v3-muted">@SnapshotSummary(line.CalculationSnapshot)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">No ECF collections were posted in @BillingPeriodLabel.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private DateTime _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
+    private string _areaFilter = string.Empty;
+    private string _searchText = string.Empty;
+    private List<EcfObligationQuoteDto> _quotes = [];
+    private List<EcfAvailableDocumentDto> _availableReceipts = [];
+    private List<EcfCollectionActivityDto> _activity = [];
+    private EcfCollectionDraftDto? _draft;
+    private EcfObligationQuoteDto? _draftSourceQuote;
+    private decimal _proposedAmount;
+    private bool _busy;
+    private string? _message;
+    private string? _error;
+
+    private string BillingPeriodLabel => _period.ToString("MMMM yyyy");
+    private IEnumerable<string> Sections => _quotes.Select(x => x.Section).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+    private IEnumerable<EcfObligationQuoteDto> FilteredQuotes => _quotes.Where(quote =>
+        (string.IsNullOrEmpty(_areaFilter) || quote.Section == _areaFilter)
+        && (string.IsNullOrWhiteSpace(_searchText)
+            || PayerLabel(quote).Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.StallNo.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.FacilityName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+            || quote.Section.Contains(_searchText, StringComparison.OrdinalIgnoreCase)));
+    private decimal TotalBilled => _quotes.Sum(x => x.AssessedAmount);
+    private decimal TotalSettled => _quotes.Sum(x => x.CumulativeSettledEvidence);
+    private decimal TotalOutstanding => _quotes.Sum(x => x.OutstandingAmount);
+    private EcfObligationQuoteDto? CurrentDraftQuote => _draftSourceQuote;
+    private decimal DraftRemaining(EcfObligationQuoteDto quote) => quote.OutstandingAmount
+        - (_draft?.Lines.SelectMany(x => x.Allocations ?? [])
+            .Where(x => x.SourceKind == CollectionSourceKind.UtilityBill
+                && x.SourceId == quote.UtilityBillId && x.SourcePart == CollectionSourcePart.Electricity)
+            .Sum(x => x.Amount) ?? 0m);
+
+    // The same three server-supplied totals the page has always shown, now in the V3 summary strip.
+    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
+    [
+        new("Billing period", BillingPeriodLabel),
+        new("Assessed", Money(TotalBilled)),
+        new("Settled", Money(TotalSettled)),
+        new("Outstanding", Money(TotalOutstanding), Emphasis: true),
+    ];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var year = _period.Year;
+            var month = _period.Month;
+            var quotes = await EcfApi.GetObligationsAsync(year, month);
+            if (!quotes.IsSuccess)
+            {
+                _error = ErrorText(quotes, "Unable to load ECF source obligations.");
+                return;
+            }
+            _quotes = quotes.Value?.ToList() ?? [];
+
+            var receipts = await EcfApi.GetAvailableReceiptsAsync();
+            if (!receipts.IsSuccess)
+            {
+                _error = ErrorText(receipts, "Unable to load available Official Receipts.");
+                return;
+            }
+            _availableReceipts = receipts.Value?.ToList() ?? [];
+
+            var current = await EcfApi.GetCurrentDraftAsync();
+            if (current.IsSuccess)
+            {
+                _draft = current.Value;
+                _proposedAmount = _draft?.TotalAmount ?? 0m;
+                await LoadDraftSourceAsync();
+            }
+            else if (current.Status != ResultStatus.NotFound)
+            {
+                _error = ErrorText(current, "Unable to recover the current server draft.");
+                return;
+            }
+            else
+            {
+                _draft = null;
+                _draftSourceQuote = null;
+                _proposedAmount = 0m;
+            }
+
+            var from = new DateOnly(year, month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            var activity = await EcfApi.GetActivityAsync(from, to);
+            if (!activity.IsSuccess)
+            {
+                _error = ErrorText(activity, "Unable to load canonical ECF Collection Activity.");
+                return;
+            }
+            _activity = activity.Value?.ToList() ?? [];
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AddToCollectionAsync(EcfObligationQuoteDto quote)
+    {
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.AddEcfLineAsync(new AddEcfDraftLineRequest(
+                quote.UtilityBillId, DraftRemaining(quote), _draft?.Revision));
+            if (!SetDraftResult(result, "ECF source added to the server draft.")) return;
+            await ReloadSupportingDataAsync();
+        });
+    }
+
+    private async Task UpdateAmountAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.UpdateAllocationAsync(_draft.DraftId,
+                new UpdateEcfDraftAllocationRequest(_draft.Revision, _proposedAmount));
+            SetDraftResult(result, "Draft amount updated. Review is required again.");
+        });
+    }
+
+    private async Task RefreshDraftSourceAsync()
+    {
+        if (_draft?.Lines.FirstOrDefault() is not { } line) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.UpdateAllocationAsync(_draft.DraftId,
+                new UpdateEcfDraftAllocationRequest(_draft.Revision, _proposedAmount));
+            if (SetDraftResult(result, "Source facts refreshed. Review the new revision before posting."))
+                await ReloadSupportingDataAsync();
+        });
+    }
+
+    private async Task SelectDocumentAsync(ChangeEventArgs args)
+    {
+        if (_draft is null) return;
+        Guid? documentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.SelectDocumentAsync(_draft.DraftId,
+                new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
+            SetDraftResult(result, "Official Receipt selection updated. Review is required again.");
+        });
+    }
+
+    private async Task ResumeDraftAsync()
+    {
+        if (_draft is null || !_draft.RequiresBusinessDateRefresh) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.ResumeDraftAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            SetDraftResult(result, "Draft refreshed for the current Philippine business date. Review the new revision before posting.");
+        });
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.ReviewAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            SetDraftResult(result, "This exact draft revision was reviewed.");
+        });
+    }
+
+    private async Task PostAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var key = $"stalltrack.ecf.post-operation.{_draft.DraftId:N}.{_draft.Revision}";
+            string? stored = await JS.InvokeAsync<string?>("sessionStorage.getItem", key);
+            if (!Guid.TryParse(stored, out var operationId))
+            {
+                operationId = Guid.NewGuid();
+                await JS.InvokeVoidAsync("sessionStorage.setItem", key, operationId.ToString("D"));
+            }
+            var result = await EcfApi.PostAsync(_draft.DraftId,
+                new PostEcfCollectionDraftRequest(_draft.Revision, operationId));
+            if (!result.IsSuccess)
+            {
+                _error = ErrorText(result, "ECF Collection could not be posted.");
+                return;
+            }
+            _message = $"Collection {ShortId(result.Value!.CollectionId)} · {result.Value.DocumentNumber} · {Money(result.Value.Amount)} · {result.Value.CurrentDisposition}.";
+            await ReloadSupportingDataAsync();
+        });
+    }
+
+    private async Task DiscardAsync()
+    {
+        if (_draft is null) return;
+        await RunAsync(async () =>
+        {
+            var result = await EcfApi.DiscardAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            if (SetDraftResult(result, "Draft discarded. No financial record or document was created."))
+            {
+                _draft = null;
+                _proposedAmount = 0m;
+            }
+        });
+    }
+
+    private async Task ReloadSupportingDataAsync()
+    {
+        var current = await EcfApi.GetCurrentDraftAsync();
+        _draft = current.IsSuccess ? current.Value : null;
+        _proposedAmount = _draft?.TotalAmount ?? 0m;
+        var quotes = await EcfApi.GetObligationsAsync(_period.Year, _period.Month);
+        if (quotes.IsSuccess) _quotes = quotes.Value?.ToList() ?? [];
+        await LoadDraftSourceAsync();
+        var receipts = await EcfApi.GetAvailableReceiptsAsync();
+        if (receipts.IsSuccess) _availableReceipts = receipts.Value?.ToList() ?? [];
+        var from = new DateOnly(_period.Year, _period.Month, 1);
+        var activity = await EcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
+        if (activity.IsSuccess) _activity = activity.Value?.ToList() ?? [];
+    }
+
+    private async Task LoadDraftSourceAsync()
+    {
+        if (_draft?.Lines.FirstOrDefault() is not { } line)
+        {
+            _draftSourceQuote = null;
+            return;
+        }
+        var quote = _quotes.FirstOrDefault(x => x.UtilityBillId == line.UtilityBillId);
+        if (quote is null)
+        {
+            var result = await EcfApi.GetObligationAsync(line.UtilityBillId);
+            quote = result.IsSuccess ? result.Value : null;
+        }
+        _draftSourceQuote = quote;
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        _message = null;
+        try { await action(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private bool SetDraftResult(Result<EcfCollectionDraftDto> result, string successMessage)
+    {
+        if (!result.IsSuccess)
+        {
+            _error = ErrorText(result, "The server draft could not be updated.");
+            return false;
+        }
+        _draft = result.Value;
+        _proposedAmount = _draft?.TotalAmount ?? 0m;
+        _message = successMessage;
+        return true;
+    }
+
+    private static string ErrorText<T>(Result<T> result, string fallback) =>
+        string.IsNullOrWhiteSpace(result.Error) ? fallback : result.Error!;
+
+    private static string PayerLabel(EcfObligationQuoteDto quote) =>
+        quote.PayerNameSnapshot ?? "Payer snapshot unavailable";
+
+    private static string SourceContext(EcfObligationQuoteDto quote) =>
+        $"{quote.FacilityName} · Stall {quote.StallNo}{(string.IsNullOrWhiteSpace(quote.Section) ? string.Empty : $" · {quote.Section}")} · {MonthName(quote.BillingMonth)} {quote.BillingYear}";
+
+    private static string MeterBasis(EcfObligationQuoteDto quote) =>
+        $"{quote.Consumption:N2} kWh × PHP {quote.RatePerKwh:N2}";
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+    private static string MonthName(int month) => month is >= 1 and <= 12
+        ? new DateTime(2000, month, 1).ToString("MMM")
+        : "Unknown period";
+
+    private static string SnapshotSummary(string? snapshot)
+    {
+        if (string.IsNullOrWhiteSpace(snapshot)) return "Snapshot unavailable";
+        return "Meter reading, rate and period recorded with this collection";
+    }
+}

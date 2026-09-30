@@ -16,6 +16,7 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
@@ -23,7 +24,9 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetNpmMeatWeighingRateQuote;
 using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTrmCollection;
@@ -39,7 +42,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "Collector")]
 [Route("api/[controller]")]
 [ApiController]
-public class MobileController(ISender sender) : ApiBaseController(sender)
+public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow) : ApiBaseController(sender)
 {
     [HttpGet("menu")]
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
@@ -47,6 +50,14 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(new GetCollectorMobileMenuQuery());
         return HandleResponse(result);
     }
+
+    /// <summary>
+    /// Read-only: which assigned non-facility operations are collectible now. Assignment alone is never collectible;
+    /// posting endpoints still revalidate every gate.
+    /// </summary>
+    [HttpGet("operations/capabilities")]
+    public async Task<ActionResult<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync(CancellationToken ct) =>
+        HandleResponse(await Sender.Send(new GetCollectorOperationCapabilitiesQuery(), ct));
 
     [HttpGet("profile")]
     public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()
@@ -100,6 +111,15 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    /// <summary>Display-only effective Meat weighing rate for a selected Philippine collection date.</summary>
+    [HttpGet("npm/meat-weighing-rate")]
+    public async Task<ActionResult<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateAsync(
+        [FromQuery] DateOnly businessDate)
+    {
+        var result = await Sender.Send(new GetNpmMeatWeighingRateQuoteQuery(businessDate));
+        return HandleResponse(result);
+    }
+
     /// <summary>
     /// What the market is behind on: months that closed owing, and the days of this month gone by.
     /// </summary>
@@ -128,6 +148,7 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             request.FishKilos,
             request.ORNumber,
             IsAbsent: request.IsAbsent);
+        command = command with { MeatKilos = request.MeatKilos };
 
         var result = await Sender.Send(command);
         return HandleResponse(result);
@@ -199,6 +220,24 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     [HttpPost("npm-utility/pay")]
     public async Task<ActionResult<bool>> RecordNpmUtilityPaymentAsync([FromBody] RecordMobileUtilityPaymentRequest request)
     {
+        var legacyWater = await wcfWorkflow.ReconcileLegacyMobileWaterAsync(new SyncOfflineOperationDto(
+            request.ClientOperationId ?? Guid.Empty,
+            OfflineOperationKind.NpmUtility,
+            PhilippineTime.Today,
+            UtilityBillId: request.BillId,
+            ElecStatus: request.ElecStatus,
+            ElecPartialAmount: request.ElecPartialAmount,
+            WaterStatus: request.WaterStatus,
+            WaterPartialAmount: request.WaterPartialAmount,
+            ElecORNumber: request.ElecORNumber,
+            WaterORNumber: request.WaterORNumber));
+        if (!legacyWater.IsSuccess)
+            return HandleResponse(Result<bool>.Failure(
+                legacyWater.Error ?? "The legacy Water operation requires reconciliation.", legacyWater.StatusCode ?? 409));
+        if (legacyWater.Value?.RequiresReconciliation == true)
+            return HandleResponse(Result<bool>.Failure(
+                "RECONCILIATION_REQUIRED: " + legacyWater.Value.Message, 409));
+
         var result = await Sender.Send(new RecordUtilityPaymentCommand(
             request.BillId,
             request.ElecStatus, request.ElecPartialAmount,

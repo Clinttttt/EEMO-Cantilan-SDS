@@ -1,0 +1,122 @@
+/* ECF workspace — V3. Panels, tables, buttons, fields and notices come from the shared v3- layer in app.css;
+   this file holds only the ECF-specific layout. */
+
+/* Both columns share one height, so the Current collection panel lines up with the Obligations register. */
+.ecf-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    align-items: stretch;
+    gap: 20px;
+}
+
+.ecf-meter {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.ecf-action {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ── Current collection side panel ── */
+.ecf-collection {
+    display: flex;
+    flex-direction: column;
+}
+
+.ecf-collection-empty {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 12rem;
+    background: var(--surface-muted);
+    border-radius: 0 0 10px 10px;
+}
+
+.ecf-collection-empty strong {
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.ecf-collection-empty p {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.ecf-collection-body {
+    display: grid;
+    gap: 16px;
+}
+
+.ecf-refresh {
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+}
+
+.ecf-lines {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+}
+
+.ecf-line-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.ecf-line-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+.ecf-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.ecf-total span {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.ecf-total strong {
+    color: var(--navy);
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.ecf-footnote {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+    .ecf-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ecf-collection-empty {
+        min-height: 0;
+    }
+}

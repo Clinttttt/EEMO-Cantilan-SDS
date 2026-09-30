@@ -31,7 +31,7 @@
 }
 .ce-seg-btn:last-child { border-right: none; }
 .ce-seg-btn:hover { background: var(--bg-icon); color: var(--navy); }
-.ce-seg-on, .ce-seg-on:hover { background: var(--navy); color: #fff; }
+.ce-seg-on, .ce-seg-on:hover { background: var(--accent); color: #fff; }
 
 /* Period */
 .ce-period { display: flex; align-items: center; gap: 8px; }
@@ -52,7 +52,7 @@
 /* Filter dropdowns */
 .ce-filter-row { display: flex; gap: 10px; }
 .ce-select-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.ce-select-wrap label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.ce-select-wrap label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
 .ce-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--navy); background: var(--bg-card); font-family: inherit; cursor: pointer; }
 .ce-select:focus { outline: none; border-color: var(--navy-3); }
 
@@ -66,7 +66,7 @@
 .ce-dd-menu { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 30; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 28px rgba(13,33,55,.16); padding: 5px; }
 .ce-dd-opt { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: none; background: transparent; border-radius: 7px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--navy); cursor: pointer; text-align: left; font-family: inherit; }
 .ce-dd-opt:hover { background: var(--bg-icon); }
-.ce-dd-sel, .ce-dd-sel:hover { background: var(--navy); color: #fff; }
+.ce-dd-sel, .ce-dd-sel:hover { background: var(--accent); color: #fff; }
 .ce-dd-opt svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .ce-dd-backdrop { position: fixed; inset: 0; z-index: 20; background: transparent; }
 
@@ -99,7 +99,7 @@
 .ce-stall-meta .ce-muted { color: var(--text-muted); }
 .ce-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
 
-.ce-stall-badge { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 3px 8px; border-radius: 999px; }
+.ce-stall-badge { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 3px 8px; border-radius: 999px; }
 .ce-badge-green { background: var(--green-bg); color: var(--green); }
 .ce-badge-gold { background: rgba(200,168,75,.16); color: #b5872a; }
 .ce-badge-red { background: var(--red-bg); color: var(--red); }
@@ -124,7 +124,7 @@
 .ce-main-title { font-size: 18px; font-weight: 800; color: var(--navy); }
 .ce-main-sub { font-size: 12.5px; color: var(--text-subtle); margin-top: 3px; }
 .ce-main-period { font-size: 13px; font-weight: 700; color: var(--navy); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
-.ce-tag { display: inline-block; background: var(--navy); color: var(--gold-light); font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 2px 7px; border-radius: 5px; margin-right: 6px; }
+.ce-tag { display: inline-block; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .5px; padding: 2px 7px; border-radius: 5px; margin-right: 6px; }
 
 /* ── Stat strip ── */
 .ce-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0 20px; }
@@ -138,7 +138,7 @@
 /* ── NPM day calendar ── */
 .ce-cal-wrap { margin-bottom: 14px; }
 .ce-cal { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 64px; gap: 5px; }
-.ce-cal-hdr { height: auto; text-align: center; font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; padding: 4px 0; }
+.ce-cal-hdr { height: auto; text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; padding: 4px 0; }
 .ce-cell {
     position: relative; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card);
     display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
@@ -146,7 +146,7 @@
 }
 .ce-cell:hover:not(.ce-cell-empty) { border-color: var(--navy-2); box-shadow: 0 3px 10px rgba(13,33,55,.12); transform: translateY(-1px); z-index: 1; }
 .ce-cell-num { font-size: 13px; font-weight: 800; color: var(--navy); line-height: 1; }
-.ce-cell-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.ce-cell-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
 .ce-cell-empty { background: transparent; border: none; cursor: default; box-shadow: none; }
 .ce-cell-today { outline: 2px solid var(--gold); outline-offset: -2px; }
 .ce-cell-sel { box-shadow: 0 0 0 2px var(--navy); border-color: var(--navy); }
@@ -160,15 +160,15 @@
 }
 .ce-month:hover { border-color: var(--navy-2); box-shadow: 0 3px 10px rgba(13,33,55,.12); transform: translateY(-1px); }
 .ce-month-name { font-size: 14px; font-weight: 800; color: var(--navy); }
-.ce-month-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.ce-month-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
 
 /* ── Status colours (shared by cells & months) — tags rendered as clean pill badges ── */
 .ce-cell-tag, .ce-month-tag {
-    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
     padding: 2px 8px; border-radius: 999px; line-height: 1.5;
 }
 .ce-cell-tag { align-self: flex-start; }
-.ce-month-tag { font-size: 9.5px; }
+.ce-month-tag { font-size: 11px; }
 
 /* Paid / Collected — clean card, green pill */
 .ce-collected.ce-cell, .ce-collected.ce-month { background: var(--bg-card); border-color: var(--border); }
@@ -191,7 +191,7 @@
 /* Market "Open" day — neutral, clearly clickable */
 .ce-mkt-open.ce-cell { background: var(--bg-card); border-color: var(--border); }
 .ce-mkt-open .ce-cell-tag { background: var(--green-bg); color: var(--green); }
-.ce-mkt-open:hover { border-color: var(--gold); }
+.ce-mkt-open:hover { border-color: var(--accent); }
 
 /* Out of scope — before the contract existed: greyed, non-interactive, shown as "—" */
 .ce-na.ce-cell, .ce-na.ce-month { background: var(--bg); opacity: .5; cursor: default; box-shadow: none; }
@@ -216,7 +216,7 @@
 .ce-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
 .ce-drawer-title { font-size: 14px; font-weight: 800; color: var(--navy); }
 .ce-drawer-status { font-size: 12px; color: var(--text-subtle); margin-top: 3px; }
-.ce-sched { display: inline-block; margin-left: 8px; background: rgba(168,184,200,.18); color: var(--text-subtle); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.ce-sched { display: inline-block; margin-left: 8px; background: rgba(168,184,200,.18); color: var(--text-subtle); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
 .ce-x { border: none; background: transparent; cursor: pointer; padding: 2px; }
 .ce-x svg { width: 18px; height: 18px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; }
 .ce-x:hover svg { stroke: var(--navy); }
@@ -234,14 +234,14 @@
 .ce-set-opt:hover { border-color: var(--navy-3); }
 .ce-set-dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 4px; }
 .ce-set-name { font-size: 12.5px; font-weight: 800; color: var(--navy); }
-.ce-set-sub { font-size: 10px; color: var(--text-subtle); }
+.ce-set-sub { font-size: 11px; color: var(--text-subtle); }
 .ce-set-paid .ce-set-dot { background: var(--green); }
 .ce-set-unpaid .ce-set-dot { background: var(--red); }
 .ce-set-excused .ce-set-dot { background: var(--gold); }
 .ce-set-partial .ce-set-dot { background: #9a5a1f; }
 .ce-set-paid.ce-set-on { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); background: var(--green-bg); }
 .ce-set-unpaid.ce-set-on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); background: var(--red-bg); }
-.ce-set-excused.ce-set-on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: rgba(200,168,75,.14); }
+.ce-set-excused.ce-set-on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--gold); background: rgba(200,168,75,.14); }
 .ce-set-partial.ce-set-on { border-color: #9a5a1f; box-shadow: 0 0 0 1px #9a5a1f; background: rgba(184,115,51,.10); }
 
 /* Where the month stands before anything is changed: billed, collected, and what is still owed. A quiet strip, not a
@@ -258,7 +258,7 @@
 }
 
 .ce-standing-item { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ce-standing-lbl { font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--text-muted); }
+.ce-standing-lbl { font-size: 11px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: var(--text-muted); }
 .ce-standing-val { font-size: 14px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
 .ce-standing-owed { color: var(--red); }
 
@@ -295,7 +295,7 @@
 .ce-or-input:focus { outline: none; border-color: var(--navy-3); }
 
 /* Lock badge (drawer header) + lock glyph on recorded cells */
-.ce-lock-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; background: var(--bg-icon); color: var(--text-subtle); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.ce-lock-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; background: var(--bg-icon); color: var(--text-subtle); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
 .ce-lock-badge svg { width: 11px; height: 11px; stroke: var(--text-muted); fill: none; stroke-width: 2; }
 .ce-lock { position: absolute; top: 6px; right: 7px; display: inline-flex; opacity: .32; pointer-events: none; }
 .ce-lock svg { width: 10px; height: 10px; stroke: var(--navy); fill: none; stroke-width: 2; }
@@ -311,10 +311,10 @@
 .ce-cbtn { border: 1px solid var(--border); background: var(--bg-card); color: var(--navy); border-radius: 8px; padding: 7px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background .12s, border-color .12s; }
 .ce-cbtn-ghost { color: var(--text-subtle); }
 .ce-cbtn-ghost:hover { background: var(--bg-icon); }
-.ce-cbtn-primary { background: var(--navy); border-color: var(--navy); color: #fff; }
-.ce-cbtn-primary:hover { background: var(--navy-2); }
+.ce-cbtn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ce-cbtn-primary:hover { background: var(--accent-hover); }
 .ce-cbtn:disabled { opacity: .45; cursor: not-allowed; }
-.ce-cbtn-primary:disabled:hover { background: var(--navy); }
+.ce-cbtn-primary:disabled:hover { background: var(--accent-hover); }
 
 /* Double-confirmation acknowledgment (locked / past edits) */
 .ce-ack { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--navy); margin-bottom: 12px; cursor: pointer; font-weight: 600; }
@@ -325,7 +325,7 @@
 .ce-mode-btn { border: none; background: var(--bg); padding: 8px 18px; font-size: 12.5px; font-weight: 700; color: var(--text-subtle); cursor: pointer; border-right: 1px solid var(--border); transition: background .12s, color .12s; }
 .ce-mode-btn:last-child { border-right: none; }
 .ce-mode-btn:hover { background: var(--bg-icon); color: var(--navy); }
-.ce-mode-on, .ce-mode-on:hover { background: var(--navy); color: #fff; }
+.ce-mode-on, .ce-mode-on:hover { background: var(--accent); color: #fff; }
 
 /* ── Market closure summary ── */
 .ce-mkt-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; color: var(--navy); }

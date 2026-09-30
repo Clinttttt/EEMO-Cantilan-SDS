@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject global::EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient MobileApi
 
 <style>
     /* ── In-app update prompt (Menu.razor) ── */
@@ -152,7 +153,30 @@
                 }
             }
 
-            @if (!Facilities.Any())
+            @if (AssignedOperations.Any())
+            {
+                @* Server-derived capability per assigned non-facility operation. Assignment alone is never
+                   collectibility, so these cards are status only: no collect action is offered from here. *@
+                <div class="group-spacer"></div>
+                <div class="section-label">Assigned Operations</div>
+                @foreach (var op in AssignedOperations)
+                {
+                    <div class="menu-card @(op.IsCollectible ? "" : "soon")">
+                        <div class="card-info">
+                            <div class="card-title">@op.Name</div>
+                            <div class="card-sub">@OperationStatusText(op)</div>
+                        </div>
+                        <div class="card-status @(op.IsCollectible ? "open" : "soon")">@(op.IsCollectible ? "Ready" : "Not yet")</div>
+                    </div>
+                }
+            }
+            else if (OperationsUnavailable)
+            {
+                <div class="group-spacer"></div>
+                <div class="menu-state-card">Assigned operations could not be checked. Retry while online.</div>
+            }
+
+            @if (!Facilities.Any() && !AssignedOperations.Any())
             {
                 <div class="menu-state-card">
                     No collection facility is configured for this account yet.
@@ -212,6 +236,8 @@
                 return;
             }
 
+            await LoadOperationCapabilitiesAsync();
+
             // Best-effort update check (once per session; internally fail-open → no prompt on any failure).
             Update = await Session.GetUpdateInfoAsync();
         }
@@ -224,6 +250,40 @@
             IsLoading = false;
         }
     }
+
+    // Non-facility operations (WCF, Landing/Berthing, …) come from GET api/Mobile/operations/capabilities. A failed read
+    // is shown as "could not be checked", never as "none assigned"; it does not block the facility menu.
+    IReadOnlyList<CollectorOperationCapabilityDto> AssignedOperations = Array.Empty<CollectorOperationCapabilityDto>();
+    bool OperationsUnavailable;
+
+    async Task LoadOperationCapabilitiesAsync()
+    {
+        try
+        {
+            var result = await MobileApi.GetOperationCapabilitiesAsync();
+            OperationsUnavailable = !result.IsSuccess || result.Value is null;
+            AssignedOperations = OperationsUnavailable
+                ? Array.Empty<CollectorOperationCapabilityDto>()
+                : result.Value!.Operations.Where(x => x.IsAssigned).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            OperationsUnavailable = true;
+        }
+    }
+
+    static string OperationStatusText(CollectorOperationCapabilityDto op) => op.Status switch
+    {
+        CollectorOperationCapabilityStatus.Ready when op.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf
+            => "Collect from the market sheet with an assigned Cash Ticket",
+        CollectorOperationCapabilityStatus.Ready => "Collectible today",
+        CollectorOperationCapabilityStatus.Unsupported => "Not available on Collector Mobile yet",
+        CollectorOperationCapabilityStatus.AssignedButInactive => "Authorization not active — contact the office",
+        CollectorOperationCapabilityStatus.PendingCutover => "Awaiting office cutover",
+        CollectorOperationCapabilityStatus.NeedsPolicy => "No approved policy in effect today",
+        CollectorOperationCapabilityStatus.NeedsDocument => "No assigned accountable form — request from the office",
+        _ => "Not collectible"
+    };
 
     async Task DownloadUpdate()
     {

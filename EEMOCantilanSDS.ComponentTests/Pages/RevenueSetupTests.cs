@@ -74,12 +74,14 @@ public sealed class RevenueSetupTests : TestContext
     {
         var (cut, api) = RenderPage([]);
         cut.WaitForAssertion(() => Assert.NotEmpty(api.Invocations), RenderTimeout);
-        var date = new DateOnly(2026, 9, 30);
+        // Never today: the initial load already asks for today, which made this test fail on that calendar day.
+        var date = PhilippineTime.Today.AddDays(-2);
+        var iso = date.ToString("yyyy-MM-dd");
 
-        cut.Find("input[aria-label='View revenue policies as of date']").Change("2026-09-30");
+        cut.Find("input[aria-label='View revenue policies as of date']").Change(iso);
 
         cut.WaitForAssertion(() => api.Verify(client => client.GetClassificationsAsync(date), Times.Once), RenderTimeout);
-        Assert.Contains("value=\"2026-09-30\"", cut.Markup);
+        Assert.Contains($"value=\"{iso}\"", cut.Markup);
     }
 
     [Fact]

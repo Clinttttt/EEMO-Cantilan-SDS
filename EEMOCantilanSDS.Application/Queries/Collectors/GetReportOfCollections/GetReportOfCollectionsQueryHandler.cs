@@ -37,8 +37,8 @@ public class GetReportOfCollectionsQueryHandler(
         // A receipt is the unit the office answers for. Lines without a number are counted individually, since each is
         // still a collection, but they cannot be presented as a receipt.
         var receiptsIssued = lines
-            .Where(l => !string.IsNullOrWhiteSpace(l.OrNumber))
-            .Select(l => l.OrNumber!)
+            .Where(l => !string.IsNullOrWhiteSpace(l.DocumentNumber))
+            .Select(l => l.DocumentNumber!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
@@ -47,17 +47,17 @@ public class GetReportOfCollectionsQueryHandler(
             .OrderBy(g => g.Key)
             .Select(g => new ReportFacilityLineDto(
                 g.Key,
-                g.Where(l => !string.IsNullOrWhiteSpace(l.OrNumber)).Select(l => l.OrNumber!).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                g.Where(l => !string.IsNullOrWhiteSpace(l.DocumentNumber)).Select(l => l.DocumentNumber!).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
                 PayorCount(g),
                 g.Sum(l => l.Amount)))
             .ToList();
 
         var days = lines
-            .GroupBy(l => DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(l.TakenAtUtc)))
+            .GroupBy(l => l.BusinessDate ?? DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(l.TakenAtUtc)))
             .OrderBy(g => g.Key)
             .Select(g => new ReportDayLineDto(
                 g.Key,
-                ReceiptSpan(g.Where(l => !string.IsNullOrWhiteSpace(l.OrNumber)).Select(l => l.OrNumber!)),
+                ReceiptSpan(g.Where(l => !string.IsNullOrWhiteSpace(l.DocumentNumber)).Select(l => l.DocumentNumber!)),
                 PayorCount(g),
                 // Money that answered for a period before the one it was taken in: an owed market day, or a rental paid
                 // after its month. Without it a day appears to collect more than it could possibly owe.
@@ -67,20 +67,21 @@ public class GetReportOfCollectionsQueryHandler(
 
         // One row per receipt, the days it covered folded into its "for" so the listing reads as the office's copy does.
         var receipts = lines
-            .GroupBy(l => string.IsNullOrWhiteSpace(l.OrNumber)
+            .GroupBy(l => string.IsNullOrWhiteSpace(l.DocumentNumber)
                 ? $"none:{l.Facility}:{l.StallNo}:{l.PayorName}:{l.TakenAtUtc:O}"
-                : $"or:{l.Facility}:{l.PayorName}:{l.OrNumber!.ToUpperInvariant()}")
+                : $"document:{l.Facility}:{l.PayorName}:{l.DocumentNumber!.ToUpperInvariant()}")
             .Select(g =>
             {
                 var first = g.OrderBy(l => l.TakenAtUtc).First();
                 return new ReportReceiptLineDto(
-                    string.IsNullOrWhiteSpace(first.OrNumber) ? "—" : first.OrNumber!,
+                    string.IsNullOrWhiteSpace(first.DocumentNumber) ? "—" : first.DocumentNumber!,
                     PhilippineTime.ToPhilippineTime(g.Max(l => l.TakenAtUtc)),
                     first.PayorName,
                     first.StallNo,
                     first.Facility,
                     FeeFor(g),
-                    g.Sum(l => l.Amount));
+                    g.Sum(l => l.Amount),
+                    first.BusinessDate);
             })
             .OrderBy(r => r.TakenAt)
             .ToList();
@@ -106,6 +107,7 @@ public class GetReportOfCollectionsQueryHandler(
                 .ToList(),
             data.UtilityBilled,
             data.UtilityCollected,
+            data.UtilityOutstanding,
             lines.Where(l => AnswersForAPeriodBefore(l, request.From)).Sum(l => l.Amount)));
     }
 

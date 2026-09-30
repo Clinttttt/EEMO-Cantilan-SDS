@@ -139,7 +139,7 @@ public class CollectorReportTests : TestContext
             var summary = Figures(cut, ".print-report-summary")["Facility Fees Collected"];
 
             var listing = cut.FindAll("table.print-status-table")
-                .First(t => (t.QuerySelector("thead")?.TextContent ?? string.Empty).Contains("OR No.", StringComparison.Ordinal));
+                .First(t => (t.QuerySelector("thead")?.TextContent ?? string.Empty).Contains("Document No.", StringComparison.Ordinal));
             var rows = listing.QuerySelectorAll("tbody tr")
                 .Select(r => Money(r.QuerySelectorAll("td").Last().TextContent))
                 .Sum();

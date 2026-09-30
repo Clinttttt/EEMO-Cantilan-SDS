@@ -22,6 +22,7 @@ public sealed class CollectionConfiguration : IEntityTypeConfiguration<Collectio
         builder.Property(x => x.ActorName).HasMaxLength(150).IsRequired();
         builder.Property(x => x.ActorRole).HasMaxLength(50).IsRequired();
         builder.Property(x => x.CollectorId);
+        builder.Property(x => x.PayorId);
         builder.Property(x => x.PayorUserId);
         builder.Property(x => x.PayerName).HasMaxLength(200);
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
@@ -29,9 +30,14 @@ public sealed class CollectionConfiguration : IEntityTypeConfiguration<Collectio
 
         builder.HasIndex(x => new { x.MunicipalityId, x.BusinessDate });
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectorId, x.BusinessDate });
-        builder.HasIndex(x => x.ClientOperationId)
+        builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId })
             .IsUnique()
             .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
+        builder.HasOne<Payor>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.PayorId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(x => x.Lines)
             .WithOne()

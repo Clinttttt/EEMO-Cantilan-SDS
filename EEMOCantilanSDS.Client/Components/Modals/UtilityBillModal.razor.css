@@ -300,3 +300,25 @@ span.ub-locked { cursor: default; }
     font-size: 13px;
     line-height: 1.55;
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.ub-overlay {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.ub-save {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.ub-save:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    color: var(--surface);
+}

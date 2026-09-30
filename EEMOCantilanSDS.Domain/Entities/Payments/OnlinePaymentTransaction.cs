@@ -230,10 +230,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public bool IsTerminal => Status is OnlinePaymentStatus.Completed
             or OnlinePaymentStatus.Failed
             or OnlinePaymentStatus.Cancelled
-            or OnlinePaymentStatus.Expired;
+            or OnlinePaymentStatus.Expired
+            or OnlinePaymentStatus.ReconciliationRequired;
 
         /// <summary>True once money has been received (Paid or OR-completed) — used for idempotent webhook handling.</summary>
-        public bool IsSettled => Status is OnlinePaymentStatus.Paid or OnlinePaymentStatus.Completed;
+        public bool IsSettled => Status is OnlinePaymentStatus.Paid or OnlinePaymentStatus.Completed
+            or OnlinePaymentStatus.ReconciliationRequired;
 
         /// <summary>Records the gateway hand-off (checkout session created) and moves to Pending.</summary>
         public void SetPending(string gatewayReference, string checkoutUrl)
@@ -271,6 +273,28 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             Status = OnlinePaymentStatus.Paid;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = "Online";
+        }
+
+        /// <summary>
+        /// Preserves a captured NPM utility payment as a durable exception when its legacy combined
+        /// Electricity/Water writer reaches a source part that has entered cutover. No UtilityBill
+        /// settlement is changed; the gateway payment and any already-issued legacy OR remain traceable.
+        /// </summary>
+        public void MarkSettlementReconciliationRequired(string reason, string? issuedDocumentNumber = null)
+        {
+            if (Status != OnlinePaymentStatus.Paid)
+                throw new InvalidOperationException("Only a captured online payment can require settlement reconciliation.");
+            if (string.IsNullOrWhiteSpace(reason))
+                throw new ArgumentException("A reconciliation reason is required.", nameof(reason));
+            if (issuedDocumentNumber is { Length: > 50 })
+                throw new ArgumentOutOfRangeException(nameof(issuedDocumentNumber));
+
+            if (!string.IsNullOrWhiteSpace(issuedDocumentNumber))
+                ORNumber = issuedDocumentNumber.Trim();
+            Status = OnlinePaymentStatus.ReconciliationRequired;
+            UpdatedAt = DateTime.UtcNow;
+            var note = "Reconciliation required: " + reason.Trim();
+            UpdatedBy = note[..Math.Min(100, note.Length)];
         }
 
         public void MarkFailed(string rawPayload) => SetTerminal(OnlinePaymentStatus.Failed, rawPayload);

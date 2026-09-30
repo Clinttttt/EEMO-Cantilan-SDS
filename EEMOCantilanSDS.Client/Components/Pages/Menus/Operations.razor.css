@@ -1,150 +1,472 @@
-.operations-page {
-    max-width: 980px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem 3rem;
+/* Operations directory — StallTrack V3 pilot (docs/interface/STALLTRACK_UI_V3_DIRECTION.md).
+   One sheet-like register mirroring the office Monthly Income grouping; row details appear in a
+   CSS-only card on hover/focus (no server round-trip). Tokens only. */
+
+.ops-page {
+    min-height: 100vh;
+    padding: 28px 32px 48px;
+    background: var(--canvas);
     color: var(--text);
 }
 
-.operations-header {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.15rem;
-    border-bottom: 1px solid var(--border);
+/* ── Page header ── */
+.ops-header {
+    margin-bottom: 20px;
 }
 
-.operations-eyebrow {
-    margin: 0 0 0.35rem;
-    color: var(--text-subtle);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
-
-.operations-header h1 {
+.ops-title {
     margin: 0;
     color: var(--navy);
-    font-size: 1.75rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
     line-height: 1.25;
 }
 
-.operations-intro {
-    margin: 0.45rem 0 0;
-    color: var(--text-subtle);
-    line-height: 1.5;
-}
-
-.operations-list {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    list-style: none;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-}
-
-.operations-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.15rem;
-}
-
-.operations-row + .operations-row {
-    border-top: 1px solid var(--border);
-}
-
-.operations-facility-identity {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    min-width: 0;
-}
-
-.operations-facility-code {
-    display: inline-flex;
-    min-width: 3.5rem;
-    min-height: 2rem;
-    align-items: center;
-    justify-content: center;
-    padding: 0.25rem 0.45rem;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    color: var(--navy);
-    background: var(--bg-icon);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-align: center;
-}
-
-.operations-facility-identity h2 {
-    margin: 0;
-    color: var(--text);
-    font-size: 1rem;
-    font-weight: 650;
+.ops-subtitle {
+    margin: 4px 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
     line-height: 1.4;
 }
 
-.operations-open {
-    flex: 0 0 auto;
-    padding: 0.55rem 0.8rem;
-    border: 1px solid var(--navy);
-    border-radius: 5px;
+/* ── Load / failure / empty notices ── */
+.ops-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.ops-notice p {
+    margin: 0;
+}
+
+.ops-notice-error {
+    color: var(--red);
+    font-weight: 500;
+}
+
+.ops-retry {
+    min-height: 32px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.ops-retry:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* ── Sheet surface: one register, like the office report ── */
+.ops-sheet {
+    --ops-cols: minmax(0, 1fr) 8rem minmax(9rem, 18rem) 1.25rem;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--navy);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1), 0 8px 24px -16px rgba(13, 33, 55, .18);
+}
+
+.ops-sheet-other {
+    margin-top: 20px;
+}
+
+.ops-columns {
+    display: grid;
+    grid-template-columns: var(--ops-cols);
+    column-gap: 16px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ops-columns,
+.ops-sheet-other .ops-group-title {
+    border-radius: 7px 7px 0 0;
+}
+
+/* ── Group band ── */
+.ops-group + .ops-group {
+    border-top: 1px solid var(--border);
+}
+
+.ops-group-title {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 12px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--navy) 3%, var(--surface));
     color: var(--navy);
-    background: transparent;
-    font-size: 0.875rem;
-    font-weight: 650;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+}
+
+.ops-group-count {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+/* Restrained municipal accent marking each official grouping. */
+.ops-group-title::before {
+    position: absolute;
+    top: 12px;
+    bottom: 10px;
+    left: 0;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--gold);
+    content: "";
+}
+
+/* ── Register rows ── */
+.ops-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ops-item {
+    position: relative;
+    min-width: 0;
+}
+
+.ops-item + .ops-item {
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.ops-row {
+    display: grid;
+    grid-template-columns: var(--ops-cols);
+    align-items: center;
+    column-gap: 16px;
+    min-height: 44px;
+    padding: 10px 20px 10px 32px;
+    color: var(--text);
     text-decoration: none;
 }
 
-.operations-open:hover {
-    color: var(--bg-card);
-    background: var(--navy);
+.ops-row-name {
+    min-width: 0;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
-.operations-open:focus-visible,
-.operations-message button:focus-visible {
-    outline: 3px solid var(--gold);
-    outline-offset: 2px;
+.ops-row-code {
+    margin-left: 8px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.03em;
 }
 
-.operations-message {
-    margin: 0;
-    padding: 1rem 1.15rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-subtle);
-    background: var(--bg-card);
+.ops-row-receipts {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
-.operations-error p {
-    margin: 0 0 0.8rem;
+.ops-row-pages {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.35;
 }
 
-.operations-message button {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--navy);
-    border-radius: 5px;
+.ops-row:not(.ops-row-link) .ops-row-pages {
+    color: var(--text-disabled);
+}
+
+.ops-row-go {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    color: var(--text-tertiary);
+}
+
+.ops-row-go svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform .15s ease;
+}
+
+.ops-row-link {
+    transition: background-color .15s ease;
+}
+
+.ops-row-link:hover {
+    background: var(--surface-hover);
+}
+
+.ops-row-link:hover .ops-row-name,
+.ops-row-link:hover .ops-row-go {
+    color: var(--accent);
+}
+
+.ops-row-link:hover .ops-row-go svg {
+    transform: translateX(2px);
+}
+
+.ops-group:last-child .ops-item:last-child .ops-row {
+    border-radius: 0 0 9px 9px;
+}
+
+.ops-item-placeholder .ops-row {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.ops-item-note {
+    padding: 12px 20px 12px 32px;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+/* ── OR / CT markers: the letters carry the meaning, the tint only groups them ── */
+.ops-instrument {
+    display: inline-flex;
+    min-width: 30px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface-muted);
     color: var(--navy);
-    background: transparent;
-    font: inherit;
-    font-weight: 650;
-    cursor: pointer;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.ops-instrument-or {
+    border-color: color-mix(in srgb, var(--gold) 55%, var(--border));
+    background: color-mix(in srgb, var(--gold) 9%, var(--surface));
+}
+
+/* ── Detail card: revealed on hover (after a short intent delay) or keyboard focus ── */
+.ops-card {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% - 6px);
+    right: 2.5rem;   /* under the Pages column, next to the links it expands */
+    width: 19rem;
+    padding-top: 6px;   /* transparent bridge so the pointer can travel from row to card */
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s;
+}
+
+.ops-item:hover .ops-card {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition: opacity .15s ease .25s, transform .15s ease .25s, visibility 0s linear .25s;
+}
+
+.ops-item:focus-within .ops-card {
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    transition: none;
+}
+
+.ops-card-body {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 12px 32px -8px rgba(13, 33, 55, .22), var(--elevation-1);
+}
+
+.ops-card-title {
+    margin: 0 0 10px;
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.ops-card-facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px 12px;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.ops-card-facts dt {
+    color: var(--text-tertiary);
+}
+
+.ops-card-facts dd {
+    margin: 0;
+    color: var(--text);
+    font-weight: 500;
+}
+
+.ops-card-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.ops-card-links a {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.ops-card-links a:first-child {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.ops-card-links a:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.ops-card-links a:first-child:hover {
+    background: var(--accent-hover);
+}
+
+/* ── Focus ── */
+.ops-row-link:focus-visible,
+.ops-card-links a:focus-visible,
+.ops-retry:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    box-shadow: 0 0 0 4px var(--accent-ring);
+}
+
+.ops-card-links a:focus-visible {
+    outline-offset: 1px;
+}
+
+.ops-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── Responsive ── */
+/* Narrow screens have no hover and little room: the row itself remains the link; the card stays out. */
+@media (max-width: 900px) {
+    .ops-card {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Clear the fixed drawer button the sidebar places at the top-left on narrow screens. */
+    .ops-page {
+        padding: 64px 20px 40px;
+    }
 }
 
 @media (max-width: 560px) {
-    .operations-page {
-        padding: 1.35rem 1rem 2rem;
+    .ops-page {
+        padding-right: 16px;
+        padding-left: 16px;
     }
 
-    .operations-row {
-        align-items: flex-start;
-        flex-direction: column;
+    .ops-sheet {
+        --ops-cols: minmax(0, 1fr) auto 1rem;
     }
 
-    .operations-open {
-        align-self: flex-end;
+    .ops-row-pages,
+    .ops-columns > :nth-child(3) {
+        display: none;
+    }
+
+    .ops-columns {
+        display: none;
+    }
+
+    .ops-group-title {
+        padding-right: 14px;
+        padding-left: 14px;
+    }
+
+    .ops-row,
+    .ops-item-note {
+        padding-right: 14px;
+        padding-left: 20px;
+    }
+
+    .ops-row {
+        column-gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ops-retry,
+    .ops-row-link,
+    .ops-row-go svg,
+    .ops-card,
+    .ops-item:hover .ops-card,
+    .ops-card-links a {
+        transition: none;
+    }
+
+    .ops-row-link:hover .ops-row-go svg,
+    .ops-card {
+        transform: none;
     }
 }

@@ -169,6 +169,7 @@ public class GetFinancialReportQueryHandler(
             {
                 var dailyFee = report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m;
                 var fishFee = report.FeeTypeBreakdown?.FishFeeAmount ?? 0m;
+                var weightMeasure = report.FeeTypeBreakdown?.WeightMeasureAmount ?? 0m;
                 var fishKilos = npmFish > 0m ? fishFee / npmFish : 0m;
                 // Mirror the Month-End report exactly: full-month coverage and its balance are summed
                 // PER STALL — each NPM stall's fixed 30-day ₱900 reference, and max(0, ₱900 − that stall's
@@ -202,7 +203,11 @@ public class GetFinancialReportQueryHandler(
                     ExcusedAmount: excusedAmount,
                     ElecCollected: utilElec,
                     WaterCollected: utilWater,
-                    UtilityOutstanding: utilOutstanding);
+                    UtilityOutstanding: utilOutstanding,
+                    WeightMeasureCollected: weightMeasure,
+                    FishWeightMeasureCollected: fishFee,
+                    MeatKilos: report.FeeTypeBreakdown?.MeatKilos ?? 0m,
+                    MeatWeightMeasureCollected: report.FeeTypeBreakdown?.MeatWeightMeasureAmount ?? weightMeasure);
             }
 
             // The row's own two figures decide its rate whenever utilities are part of them, so the percentage cannot

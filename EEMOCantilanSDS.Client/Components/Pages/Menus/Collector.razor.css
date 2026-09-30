@@ -52,7 +52,7 @@
     }
 
     .applink-modal .eemo-modal-close {
-        color: var(--gold-light);
+        color: var(--accent);
         background: rgba(255, 255, 255, 0.10);
         border: 1px solid rgba(255, 255, 255, 0.18);
     }
@@ -114,7 +114,7 @@
 }
 
     .search-box:focus-within {
-        border-color: var(--gold);
+        border-color: var(--accent);
     }
 
     .search-box svg {
@@ -186,7 +186,7 @@
     }
 
     .filter-tab.active {
-        background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+        background: var(--accent);
         border-color: color-mix(in srgb, var(--navy) 76%, #fff);
         color: #fff;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
@@ -200,7 +200,7 @@
 }
 
 .data-table th {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -220,9 +220,9 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: var(--navy);
-    color: var(--gold-light);
-    font-family: 'EB Garamond', serif;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 700;
     display: flex;
@@ -239,7 +239,7 @@
 }
 
 .collector-email {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 1px;
 }
@@ -251,7 +251,7 @@
 }
 
 .facility-tags span {
-    font-size: 10px;
+    font-size: 11px;
     padding: 2px 6px;
     border-radius: 4px;
     background: var(--bg-icon);
@@ -366,12 +366,12 @@
 }
 
     .fac-checkbox:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         background: rgba(200,168,75,0.05);
     }
 
     .fac-checkbox.checked {
-        border-color: var(--gold);
+        border-color: var(--accent);
         background: rgba(200,168,75,0.08);
     }
 
@@ -428,14 +428,14 @@
 }
 
 .act-stat-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 20px;
     font-weight: 700;
     color: var(--navy);
 }
 
 .act-stat-key {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -443,7 +443,7 @@
 }
 
 .act-section-label {
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -526,7 +526,7 @@
     font-weight: 600;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
     margin-bottom: 4px;
 }
 
@@ -562,7 +562,7 @@
 }
 
 .vs-hero-key {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(255,255,255,.5);
     margin-top: 2px;
     text-transform: uppercase;
@@ -571,7 +571,7 @@
 }
 
 .vs-hero-sub2 {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(255,255,255,.35);
     margin-top: 1px;
     line-height: 1.2;
@@ -828,7 +828,7 @@
    FORM HINT
 ══════════════════════════════════════════ */
 .form-hint {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 4px;
 }
@@ -867,7 +867,7 @@
     background: rgba(255, 255, 255, .10);
     border: 1px solid rgba(255, 255, 255, .18);
     /* Gold, matching the close button and the hero accents across the portal. */
-    color: var(--gold-light);
+    color: var(--accent);
 }
 
 .applink-head-icon svg { width: 22px; height: 22px; }
@@ -1001,3 +1001,167 @@
         padding-right: 40px;
         box-sizing: border-box;
     }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
+}
+
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.eemo-drawer-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.eemo-drawer-header-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .eemo-drawer-header-icon svg {
+        stroke: var(--navy);
+    }
+
+.eemo-drawer-header-title {
+    color: var(--navy);
+}
+
+.eemo-drawer-header-sub {
+    color: var(--text-tertiary);
+}
+
+.eemo-drawer-header-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .eemo-drawer-header-close:hover {
+        border-color: transparent;
+        background: var(--surface-hover);
+    }
+
+    .eemo-drawer-header-close svg {
+        stroke: var(--text-secondary);
+    }
+
+    .eemo-drawer-header-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.applink-modal .eemo-modal-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+}
+
+.applink-modal .eemo-modal-title {
+    color: var(--navy);
+}
+
+.applink-modal .eemo-modal-sub {
+    color: var(--text-tertiary);
+}
+
+/* Operation assignments: a separate group from facilities (an operation is not a facility). */
+.op-group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.op-group legend {
+    padding: 0;
+}
+
+.op-input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+
+.fac-checkbox:has(.op-input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.op-unavailable {
+    color: var(--text-secondary);
+}
+
+.facility-tags .no-facility {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--text-tertiary);
+    font-weight: 500;
+}

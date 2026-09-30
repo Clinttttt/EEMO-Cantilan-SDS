@@ -1,7 +1,9 @@
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Utilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -16,7 +18,8 @@ public class RecordUtilityPaymentCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<RecordUtilityPaymentCommand, Result<UtilityBillDto>>
+    ITenantContext tenantContext,
+    WcfCollectionWorkflow? wcfWorkflow = null) : IRequestHandler<RecordUtilityPaymentCommand, Result<UtilityBillDto>>
 {
     public async Task<Result<UtilityBillDto>> Handle(RecordUtilityPaymentCommand request, CancellationToken ct)
     {
@@ -37,7 +40,31 @@ public class RecordUtilityPaymentCommandHandler(
 
         var actor = currentUser.Username ?? "Admin";
         var elecOr = request.ElecORNumber?.Trim();
-        var waterOr = request.WaterORNumber?.Trim();
+        var effectiveWaterStatus = request.PreserveWaterSource ? bill.WaterStatus : request.WaterStatus;
+        var effectiveWaterPartialAmount = request.PreserveWaterSource ? bill.WaterPartialAmount : request.WaterPartialAmount;
+        var effectiveWaterOr = request.PreserveWaterSource ? bill.WaterORNumber : request.WaterORNumber;
+        var waterOr = effectiveWaterOr?.Trim();
+
+        if (wcfWorkflow is not null)
+        {
+            var legacyWater = await wcfWorkflow.ReconcileLegacyMobileWaterAsync(new SyncOfflineOperationDto(
+                request.ClientOperationId ?? Guid.Empty,
+                OfflineOperationKind.NpmUtility,
+                PhilippineTime.Today,
+                UtilityBillId: request.BillId,
+                ElecStatus: request.ElecStatus,
+                ElecPartialAmount: request.ElecPartialAmount,
+                WaterStatus: request.PreserveWaterSource ? null : request.WaterStatus,
+                WaterPartialAmount: request.PreserveWaterSource ? null : request.WaterPartialAmount,
+                ElecORNumber: request.ElecORNumber,
+                WaterORNumber: request.PreserveWaterSource ? null : request.WaterORNumber), ct, fromWeb: true);
+            if (!legacyWater.IsSuccess)
+                return Result<UtilityBillDto>.Failure(
+                    legacyWater.Error ?? "The legacy Water operation requires reconciliation.", legacyWater.StatusCode ?? 409);
+            if (legacyWater.Value?.RequiresReconciliation == true)
+                return Result<UtilityBillDto>.Failure(
+                    "RECONCILIATION_REQUIRED: " + legacyWater.Value.Message, 409);
+        }
 
         // OR uniqueness — per utility, excluding this bill so re-marking (or one receipt covering both
         // utilities of this bill) is allowed; reject an OR already used on another bill.
@@ -45,14 +72,14 @@ public class RecordUtilityPaymentCommandHandler(
             && !await orNumbers.IsAvailableForUtilityBillAsync(elecOr, bill.Id, ct))
             return Result<UtilityBillDto>.Failure("Electricity OR number already exists.", ResultStatus.Conflict);
 
-        if (request.WaterStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(waterOr)
+        if (effectiveWaterStatus != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(waterOr)
             && !await orNumbers.IsAvailableForUtilityBillAsync(waterOr, bill.Id, ct))
             return Result<UtilityBillDto>.Failure("Water OR number already exists.", ResultStatus.Conflict);
 
         bill.RecordPayment(
             elecOr, waterOr, currentUser.CollectorId,
             request.ElecStatus, request.ElecPartialAmount,
-            request.WaterStatus, request.WaterPartialAmount,
+            effectiveWaterStatus, effectiveWaterPartialAmount,
             request.Remarks, actor);
 
         // Offline replay idempotency: stamp the client operation id on every recorded op (not just the

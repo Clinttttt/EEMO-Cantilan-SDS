@@ -1,7 +1,10 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @inject IPaymentsApiClient PaymentsApi
+@inject IEcfCollectionsApiClient CollectionsApi
+@inject NavigationManager Navigation
 
 <div class="detail-section monthly-cal-section">
     <div class="detail-section-title">
@@ -185,6 +188,12 @@
 
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="ClosePaymentModal">Cancel</button>
+                @if (!ReadOnly)
+                {
+                    <button class="btn-ghost" @onclick="AddRentToCollectionAsync" disabled="@IsSaving">
+                        Add to Collection
+                    </button>
+                }
                 <button class="btn-primary" @onclick="SavePayment" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Save Payment")
                 </button>
@@ -249,6 +258,51 @@
     private string PaymentRemarks = string.Empty;
     private string PaymentError = string.Empty;
     private bool IsSaving = false;
+
+    private async Task AddRentToCollectionAsync()
+    {
+        if (SelectedMonth is not { } month || ReadOnly) return;
+        PaymentError = string.Empty;
+        IsSaving = true;
+        try
+        {
+            var quote = await CollectionsApi.GetRentObligationAsync(StallId, month.Year, month.Month);
+            if (!quote.IsSuccess || quote.Value is null)
+            {
+                PaymentError = quote.Error ?? "This month is not an eligible monthly rent obligation.";
+                return;
+            }
+            if (!quote.Value.CanAddToDraft || quote.Value.OutstandingAmount <= 0m)
+            {
+                PaymentError = quote.Value.RequiresLegacyReconciliation
+                    ? "This legacy mixed settlement requires reconciliation before rent can be added."
+                    : "This month has no collectible rent balance or is pending cutover reconciliation.";
+                return;
+            }
+
+            var current = await CollectionsApi.GetCurrentDraftAsync();
+            long? expectedRevision = current.IsSuccess ? current.Value?.Revision : null;
+            if (!current.IsSuccess && current.Status != ResultStatus.NotFound)
+            {
+                PaymentError = current.Error ?? "The current Collection could not be recovered.";
+                return;
+            }
+
+            var added = await CollectionsApi.AddRentAllocationAsync(new AddRentDraftAllocationRequest(
+                StallId, month.Year, month.Month, quote.Value.OutstandingAmount, expectedRevision));
+            if (!added.IsSuccess)
+            {
+                PaymentError = added.Error ?? "Rent could not be added to the Collection draft.";
+                return;
+            }
+            Navigation.NavigateTo("/collections/current");
+        }
+        catch (Exception exception)
+        {
+            PaymentError = exception.Message;
+        }
+        finally { IsSaving = false; }
+    }
 
     private void OpenPaymentModal(DateTime month, PaymentHistoryDto? payment)
     {

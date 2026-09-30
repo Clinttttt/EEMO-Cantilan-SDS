@@ -189,12 +189,12 @@
 
 .op-input:focus {
     outline: none;
-    border-color: var(--gold);
+    border-color: var(--accent);
 }
 
 .op-btn {
     border: 0;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     padding: 0.55rem 1rem;
     border-radius: 8px;
@@ -211,7 +211,7 @@
 }
 
 .op-btn:not(:disabled):hover {
-    background: var(--navy-2);
+    background: var(--accent-hover);
 }
 
 @media (max-width: 720px) {
@@ -262,7 +262,7 @@
         left: 0;
         right: 0;
         height: 3px;
-        background: linear-gradient(90deg, var(--navy), var(--gold), var(--navy));
+        background: var(--accent);
     }
 
 .op-setup-head {
@@ -280,8 +280,8 @@
     height: 44px;
     border-radius: 12px;
     flex-shrink: 0;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--accent);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -330,8 +330,8 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-    .op-help-btn:hover { color: var(--navy); border-color: var(--gold); }
-    .op-help-btn.active { background: var(--navy); color: var(--gold-light); border-color: var(--navy); }
+    .op-help-btn:hover { color: var(--navy); border-color: var(--accent); }
+    .op-help-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
     .op-help-btn svg {
         width: 16px;
@@ -375,8 +375,8 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--accent);
+    color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
     display: flex;
@@ -454,7 +454,7 @@
         left: 0;
         width: 3px;
         height: 100%;
-        background: linear-gradient(180deg, var(--navy), var(--gold));
+        background: var(--accent);
     }
 
 .op-kpi-label {
@@ -537,7 +537,7 @@
 }
 
     .op-config-btn:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         color: var(--navy);
     }
 
@@ -594,7 +594,7 @@
     }
 
     .op-confirm .eemo-modal-close {
-        color: var(--gold-light);
+        color: var(--accent);
         background: rgba(255, 255, 255, 0.10);
         border: 1px solid rgba(255, 255, 255, 0.18);
     }
@@ -765,4 +765,23 @@
 .op-advanced[open] > summary {
     border-bottom: 1px solid var(--border);
     margin-bottom: 12px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.op-confirm .eemo-modal-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+}
+
+.op-setup-card::before {
+    background: var(--accent);
+}
+
+.op-confirm .eemo-modal-title {
+    color: var(--navy);
 }

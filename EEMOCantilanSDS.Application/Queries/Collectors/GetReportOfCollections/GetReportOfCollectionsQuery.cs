@@ -39,6 +39,7 @@ public sealed record ReportOfCollectionsDto(
     IReadOnlyList<ReportAbsenceLineDto> Absences,
     decimal UtilityBilled,
     decimal UtilityCollected,
+    decimal UtilityOutstanding = 0m,
 
     // Of TotalCollected, the part that answered for a period BEFORE this one — an owed market day, or a rental paid after
     // its month. The office ruled on 2026-09-10 that a month must not appear to have earned what it merely caught up on:
@@ -69,13 +70,14 @@ public sealed record ReportDayLineDto(
     decimal Amount);
 
 public sealed record ReportReceiptLineDto(
-    string OrNumber,
+    string DocumentNumber,
     DateTime TakenAt,
     string PayorName,
     string? StallNo,
     FacilityCode Facility,
     string FeeFor,
-    decimal Amount);
+    decimal Amount,
+    DateOnly? BusinessDate = null);
 
 public sealed record ReportAbsenceLineDto(
     DateOnly Day,

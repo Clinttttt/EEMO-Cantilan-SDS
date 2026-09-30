@@ -1,0 +1,94 @@
+/* Accountable Forms — V3. Panels, tables, buttons, fields, notices and dialogs come from the shared v3- layer in
+   app.css; this file holds only what is specific to custody. */
+
+.af-attention {
+    color: var(--red);
+    font-weight: 600;
+}
+
+.af-scope {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+/* ── Dialog details ── */
+.af-close {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.af-close:hover {
+    background: var(--surface-hover);
+    color: var(--navy);
+}
+
+.af-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.af-hint {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.af-book-facts {
+    margin: -8px 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.af-field-error {
+    margin: 0;
+    color: var(--red);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+.af-preview {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    background: var(--surface-muted);
+    font-size: 0.8125rem;
+}
+
+.af-preview > span:first-child {
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.af-preview strong {
+    color: var(--navy);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .af-close {
+        transition: none;
+    }
+}

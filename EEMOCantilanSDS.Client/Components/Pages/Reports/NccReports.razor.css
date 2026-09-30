@@ -45,7 +45,7 @@
     flex-shrink: 0;
 }
 .rpt-topbar-icon svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.rpt-eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
+.rpt-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
 .rpt-title { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2; }
 .rpt-subtitle { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }
 .rpt-header-progress {
@@ -115,7 +115,7 @@
     transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
 }
 .rpt-period-tab.active {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    background: var(--accent);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff);
     color: #fff;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 6px 13px rgba(9,31,52,.14);
@@ -123,7 +123,7 @@
 .rpt-document-tab { gap: 7px; padding: 0 16px; min-width: 0; }
 .rpt-document-tab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .rpt-date-nav { display: flex; align-items: center; gap: 10px; }
-.rpt-date-nav.utility-mode .rpt-current-period { color: var(--gold); }
+.rpt-date-nav.utility-mode .rpt-current-period { color: var(--accent); }
 .rpt-nav-btn {
     width: 30px; height: 30px;
     border-radius: 7px;
@@ -247,7 +247,7 @@
 .rpt-donut-container { position: relative; }
 .rpt-donut-svg { width: 160px; height: 160px; display: block; }
 .donut-center-val { text-anchor: middle; font-size: 22px; font-weight: 800; fill: var(--navy); font-family: inherit; }
-.donut-center-lbl { text-anchor: middle; font-size: 9.5px; font-weight: 700; fill: var(--text-muted); letter-spacing: .08em; font-family: inherit; }
+.donut-center-lbl { text-anchor: middle; font-size: 11px; font-weight: 700; fill: var(--text-muted); letter-spacing: .08em; font-family: inherit; }
 .donut-segment { transition: stroke-dasharray .4s; }
 .rpt-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 10px; }
 .donut-leg-item { display: flex; align-items: center; justify-content: space-between; }
@@ -288,7 +288,7 @@
 .ncc-area-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ncc-area-stats div { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
 .ncc-area-stats strong { display: block; font-size: 18px; font-weight: 800; color: var(--navy); line-height: 1; }
-.ncc-area-stats span { display: block; margin-top: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.ncc-area-stats span { display: block; margin-top: 3px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
 
 /* ── Status badges ── */
 .status-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
@@ -382,7 +382,7 @@
 .print-report-btn {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 8px 18px;
-    background: var(--navy); color: #fff;
+    background: var(--accent); color: #fff;
     border: none; border-radius: 7px;
     font-size: 13px; font-weight: 600;
     cursor: pointer;
@@ -390,7 +390,7 @@
 .print-report-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .print-report-header { text-align: center; padding-bottom: 18px; border-bottom: 2px solid #111827; }
 .print-report-logo { display: block; width: 58px; height: 58px; object-fit: contain; margin: 0 auto 10px; }
-.print-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
+.print-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: #374151; }
 .print-report-header h2 { margin: 7px 0 3px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; line-height: 1.15; color: #111827; }
 .print-report-header p { margin: 0; font-size: 12px; color: #4b5563; }
 .print-report-title { margin-top: 18px; text-transform: uppercase; letter-spacing: .08em; font-size: 13px; font-weight: 800; color: #111827; }
@@ -400,7 +400,7 @@
 }
 .print-report-meta div { padding: 10px 12px; border-right: 1px solid #cfd6de; }
 .print-report-meta div:last-child { border-right: none; }
-.print-report-meta span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
+.print-report-meta span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; color: #6b7280; }
 .print-report-meta strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
 .print-report-summary {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -408,14 +408,14 @@
 }
 .print-report-summary div { padding: 10px 12px; border-right: 1px solid #cfd6de; }
 .print-report-summary div:last-child { border-right: none; }
-.print-report-summary span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
+.print-report-summary span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; color: #6b7280; }
 .print-report-summary strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
 .print-report-signatures {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 28px; margin-top: 58px;
 }
 .print-report-signatures div { border-top: 1px solid #111827; padding-top: 8px; text-align: center; }
-.print-report-signatures span { display: block; font-size: 10px; color: #6b7280; }
+.print-report-signatures span { display: block; font-size: 11px; color: #6b7280; }
 .print-report-signatures strong { display: block; margin-top: 3px; font-size: 11px; color: #111827; }
 .print-empty { margin: 22px 0; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border: 1px dashed #cfd6de; background: #f8fafc; }
 
@@ -423,7 +423,7 @@
 .print-table-wrap { margin-top: 12px; width: 100%; overflow-x: hidden; }
 .print-status-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; color: #111827; }
 .print-status-table th, .print-status-table td { border: 1px solid #cfd6de; padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.print-status-table th { background: #f3f6f9; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; color: #374151; }
+.print-status-table th { background: #f3f6f9; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; color: #374151; }
 .status-sheet .print-status-table { font-size: 13px !important; }
 .status-sheet .print-status-table th { font-size: 11px !important; }
 .status-sheet .print-status-table td { padding: 9px 10px; }
@@ -548,4 +548,103 @@
        scoped stylesheet does not reach the print engine, and a NAMED page is not honoured at all - print.css assigns a landscape
        named page to .print-report-sheet and this document still printed portrait, which is the proof. Left and right padding is
        injected with it, so nothing about the paper margin is stated in CSS any more. */
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.rpt-topbar {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+    .rpt-topbar::before,
+    .rpt-topbar::after {
+        display: none;
+    }
+
+.rpt-back-btn {
+    border-color: var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+}
+
+    .rpt-back-btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+.rpt-topbar-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .rpt-topbar-icon svg {
+        stroke: var(--navy);
+    }
+
+.rpt-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.rpt-title {
+    color: var(--navy);
+}
+
+.rpt-subtitle {
+    color: var(--text-tertiary);
+}
+
+.rpt-header-progress {
+    background: var(--surface-muted);
+}
+
+.rpt-header-progress-fill {
+    background: var(--accent);
+}
+
+.rpt-action-btn {
+    border-color: var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+}
+
+    .rpt-action-btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+.rpt-period-tabs {
+    background: var(--surface-muted);
+    box-shadow: none;
+}
+
+.rpt-period-tab.active,
+.rpt-document-tab.active,
+.utility-section-tab.active {
+    border-color: var(--border);
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: var(--elevation-1);
+}
+
+.rpt-period-tab:hover:not(.active),
+.rpt-document-tab:hover:not(.active),
+.utility-section-tab:hover:not(.active) {
+    background: var(--surface);
+    color: var(--navy);
+}
+
+.rpt-back-btn:focus-visible,
+.rpt-action-btn:focus-visible,
+.rpt-period-tab:focus-visible,
+.rpt-document-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }

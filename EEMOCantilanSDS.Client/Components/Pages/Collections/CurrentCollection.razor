@@ -1,0 +1,576 @@
+@page "/collections/current"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IEcfCollectionsApiClient CollectionsApi
+@inject IJSRuntime JS
+
+<PageTitle>StallTrack — Current Collection</PageTitle>
+
+<main class="cc-page">
+    <nav class="cc-breadcrumb" aria-label="Breadcrumb">
+        <a href="/operations">Operations</a><span aria-hidden="true">/</span>
+        <span aria-current="page">Current Collection</span>
+    </nav>
+
+    <header class="cc-hero">
+        <p>REVENUE COLLECTIONS</p>
+        <h1>Current Collection</h1>
+        <span>Prepare one payer's compatible itemized charges for an Official Receipt.</span>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="cc-notice" role="status">@_message</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="cc-notice cc-error" role="alert">@_error</div>
+    }
+
+    <div class="cc-grid">
+        <section class="cc-panel" aria-labelledby="cc-discovery-title">
+            <header>
+                <p class="cc-eyebrow">PAYOR-FIRST</p>
+                <h2 id="cc-discovery-title">Find a business Payor</h2>
+                <p>Only obligations explicitly associated with the selected Payor are shown.</p>
+            </header>
+
+            <div class="cc-search">
+                <label for="cc-payor-search">Payor name</label>
+                <div>
+                    <input id="cc-payor-search" @bind="_payorSearch" @bind:event="oninput"
+                           @onkeydown="HandleSearchKeyAsync" placeholder="Search at least two characters" />
+                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                            @onclick="SearchPayorsAsync">Search</button>
+                </div>
+            </div>
+
+            @if (_payors.Count > 0)
+            {
+                <label class="cc-field">
+                    <span>Select Payor</span>
+                    <select value="@(_selectedPayorId?.ToString() ?? string.Empty)" @onchange="SelectPayorAsync" disabled="@_busy">
+                        <option value="">Choose a Payor</option>
+                        @foreach (var payor in _payors)
+                        {
+                            <option value="@payor.PayorId">@payor.DisplayName</option>
+                        }
+                    </select>
+                </label>
+            }
+
+            @if (_selectedPayorId.HasValue)
+            {
+                <div class="cc-candidate-title">
+                    <div>
+                        <strong>@_selectedPayorName</strong>
+                        <span>Outstanding rent and ECF items, oldest period first</span>
+                    </div>
+                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                            @onclick="LoadCandidatesAsync">Refresh</button>
+                </div>
+
+                @if (_candidates.Count == 0)
+                {
+                    <div class="cc-empty">No supported outstanding rent or Electricity obligations are linked to this Payor.</div>
+                }
+                else
+                {
+                    <div class="cc-table-wrap">
+                        <table class="cc-table">
+                            <thead>
+                                <tr><th>Source</th><th>Period</th><th class="cc-number">Outstanding</th><th class="cc-number">Add amount</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var candidate in _candidates)
+                                {
+                                    var remaining = CandidateRemaining(candidate);
+                                    var key = CandidateKey(candidate);
+                                    <tr>
+                                        <td><strong>@candidate.SourceLabel</strong><span>@candidate.SourceKind@(candidate.SourcePart is { } sourcePart ? $" / {sourcePart}" : "")</span></td>
+                                        <td>@Month(candidate.BillingYear, candidate.BillingMonth)</td>
+                                        <td class="cc-number">@Money(remaining)</td>
+                                        <td class="cc-number">
+                                            <input aria-label="Amount to add" type="number" min="0.01" step="0.01"
+                                                   max="@remaining" @bind="_candidateAmounts[key]" @bind:event="oninput"
+                                                   disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft || (_draft?.RequiresBusinessDateRefresh ?? false))" />
+                                        </td>
+                                        <td>
+                                            <button type="button" class="cc-button cc-primary" disabled="@(_busy || remaining <= 0m || !candidate.CanAddToDraft || (_draft?.RequiresBusinessDateRefresh ?? false))"
+                                                    @onclick="() => AddCandidateAsync(candidate)">
+                                                Add
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="cc-empty">Search for a Payor, then select the business identity whose linked obligations you intend to collect.</div>
+            }
+
+            <p class="cc-footnote">Display names do not link people or merge accounts. Unlinked obligations are available from their operation page.</p>
+        </section>
+
+        <section class="cc-panel cc-draft" aria-labelledby="cc-draft-title">
+            <header>
+                <p class="cc-eyebrow">SERVER-PERSISTED · NON-FINANCIAL UNTIL POSTED</p>
+                <h2 id="cc-draft-title">Review Collection</h2>
+                <p>One draft, one payer context, one Official Receipt, multiple classified lines.</p>
+            </header>
+
+            @if (_draft is null)
+            {
+                <div class="cc-empty">Add an eligible operation item or use Payor-first discovery to start a draft.</div>
+            }
+            else
+            {
+                <dl class="cc-summary">
+                    <div><dt>Payer</dt><dd>@(_draft.PayerNameSnapshot ?? "Name snapshot unavailable")</dd></div>
+                    <div><dt>Business date</dt><dd>@_draft.BusinessDate.ToString("dd MMM yyyy")</dd></div>
+                    <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
+                    <div><dt>Document</dt><dd>@(_draft.DocumentNumber ?? "Choose an available OR")</dd></div>
+                    <div><dt>Revision</dt><dd>@_draft.Revision</dd></div>
+                </dl>
+
+                @if (_draft.RequiresBusinessDateRefresh)
+                {
+                    <div class="cc-notice" role="alert">
+                        This draft belongs to an earlier Philippine business date. Refresh its source facts and review the new revision before continuing.
+                        <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                                @onclick="ResumeDraftAsync">Refresh draft for today</button>
+                    </div>
+                }
+
+                <div class="cc-lines">
+                    @foreach (var line in _draft.Lines)
+                    {
+                        <article class="cc-line">
+                        <div class="cc-line-head">
+                            <strong>@line.ClassificationName</strong>
+                            <b>@Money(line.Amount)</b>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(line.CalculationDetail))
+                        {
+                            <small class="cc-line-detail">@line.CalculationDetail</small>
+                        }
+                        @foreach (var allocation in line.Allocations ?? [])
+                            {
+                                <div class="cc-allocation">
+                                    <div>
+                                        <span>@AllocationLabel(allocation)</span>
+                                        <small>@allocation.SourceKind@(allocation.SourcePart is { } part ? $" / {part}" : "")</small>
+                                    </div>
+                                    <label>
+                                        <span class="cc-sr-only">Allocation amount</span>
+                                        <input type="number" min="0" step="0.01"
+                                               @bind="_draftAllocationAmounts[allocation.AllocationId]" @bind:event="oninput"
+                                               disabled="@(_busy || _draft.RequiresBusinessDateRefresh)" />
+                                    </label>
+                                    <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
+                                            @onclick="() => UpdateAllocationAsync(allocation)">Update</button>
+                                </div>
+                            }
+                        </article>
+                    }
+                </div>
+
+                <label class="cc-field">
+                    <span>Available Official Receipt</span>
+                    <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
+                            @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
+                        <option value="">Select an available OR</option>
+                        @foreach (var receipt in _receipts)
+                        {
+                            <option value="@receipt.DocumentId">@receipt.DocumentNumber · @receipt.State</option>
+                        }
+                    </select>
+                </label>
+
+                <div class="cc-total"><span>Total</span><strong>@Money(_draft.TotalAmount)</strong></div>
+
+                @if (_draft.Lines.SelectMany(x => x.Allocations ?? []).Any(x => x.SourceAuthority != SettlementAuthority.Canonical))
+                {
+                    <div class="cc-notice">
+                        This draft is saved and reviewable. One or more sources remain Legacy or pending cutover, so posting is unavailable until controlled source cutover.
+                    </div>
+                }
+
+                <div class="cc-actions">
+                    <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
+                            @onclick="ReviewAsync">Review revision</button>
+                    <button type="button" class="cc-button cc-primary" disabled="@(!CanPost || _busy)"
+                            @onclick="PostAsync">Post Collection</button>
+                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                            @onclick="DiscardAsync">Discard draft</button>
+                </div>
+                <p class="cc-footnote">Review is bound to this exact revision. Posting revalidates all sources and allocations together. Drafts do not allocate money, consume ORs, or appear in Collection Activity.</p>
+                <p class="cc-footnote">Set an allocation to PHP 0.00 to remove that source period from its line.</p>
+            }
+        </section>
+    </div>
+
+    <section class="cc-panel cc-activity" aria-labelledby="cc-activity-title">
+        <header>
+            <p class="cc-eyebrow">POSTED EVENTS</p>
+            <h2 id="cc-activity-title">Collection Activity</h2>
+            <p>Each row represents one posted Collection. Expand it to see the classified lines and source allocations.</p>
+        </header>
+        @if (_activity.Count == 0)
+        {
+            <div class="cc-empty">No canonical collections were recorded this month.</div>
+        }
+        else
+        {
+            <div class="cc-table-wrap">
+                <table class="cc-table">
+                    <thead><tr><th>Business date / recorded time</th><th>Document / payer</th><th>State</th><th class="cc-number">Total</th><th>Detail</th></tr></thead>
+                    <tbody>
+                        @foreach (var activity in _activity)
+                        {
+                            <tr>
+                                <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span>@PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
+                                <td><strong>@activity.DocumentNumber</strong><span>@(activity.PayerName ?? "No payer snapshot")</span></td>
+                                <td>@activity.CurrentDisposition</td>
+                                <td class="cc-number">@Money(activity.TotalAmount)</td>
+                                <td>
+                                    <details>
+                                        <summary>@activity.ItemCount item@(activity.ItemCount == 1 ? "" : "s")</summary>
+                                        <ul>
+                                            @foreach (var line in activity.Lines)
+                                            {
+                                                <li><strong>@line.ClassificationName</strong> · @Money(line.Amount)
+                                                    @if (!string.IsNullOrWhiteSpace(line.CalculationDetail))
+                                                    {
+                                                        <small class="cc-activity-detail">@line.CalculationDetail</small>
+                                                    }
+                                                    @foreach (var allocation in line.Allocations ?? [])
+                                                    {
+                                                        <span>@ActivityAllocationLabel(allocation)</span>
+                                                    }
+                                                </li>
+                                            }
+                                        </ul>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</main>
+
+@code {
+    private EcfCollectionDraftDto? _draft;
+    private List<EcfAvailableDocumentDto> _receipts = [];
+    private List<EcfCollectionActivityDto> _activity = [];
+    private List<CollectionPayorDto> _payors = [];
+    private IReadOnlyList<CollectionCandidateDto> _candidates = [];
+    private readonly Dictionary<string, decimal> _candidateAmounts = [];
+    private readonly Dictionary<Guid, decimal> _draftAllocationAmounts = [];
+    private string _payorSearch = "";
+    private Guid? _selectedPayorId;
+    private string? _selectedPayorName;
+    private bool _busy;
+    private string? _error;
+    private string? _message;
+
+    private bool CanPost => _draft is { Status: "Draft", IsReviewedForCurrentRevision: true,
+        AccountableDocumentId: not null }
+        && !_draft.RequiresBusinessDateRefresh
+        && _draft.Lines.Count > 0
+        && _draft.Lines.SelectMany(x => x.Allocations ?? []).All(x => x.SourceAuthority == SettlementAuthority.Canonical);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try
+        {
+            var draft = await CollectionsApi.GetCurrentDraftAsync();
+            _draft = draft.IsSuccess ? draft.Value : null;
+            if (_draft is not null) PopulateAllocationInputs();
+            var receipts = await CollectionsApi.GetAvailableReceiptsAsync();
+            _receipts = receipts.IsSuccess ? receipts.Value?.ToList() ?? [] : [];
+            var today = PhilippineTime.Today;
+            var from = new DateOnly(today.Year, today.Month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            var activity = await CollectionsApi.GetCollectionActivityAsync(from, to);
+            _activity = activity.IsSuccess ? activity.Value?.ToList() ?? [] : [];
+        }
+        catch (Exception exception)
+        {
+            _error = exception.Message;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task HandleSearchKeyAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter") await SearchPayorsAsync();
+    }
+
+    private async Task SearchPayorsAsync()
+    {
+        if (_payorSearch.Trim().Length < 2)
+        {
+            _payors = [];
+            _selectedPayorId = null;
+            _candidates = [];
+            return;
+        }
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.SearchCollectionPayorsAsync(_payorSearch.Trim());
+            if (!result.IsSuccess) { _error = ErrorText(result, "Payors could not be searched."); return; }
+            _payors = result.Value?.ToList() ?? [];
+            _selectedPayorId = null;
+            _selectedPayorName = null;
+            _candidates = [];
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SelectPayorAsync(ChangeEventArgs args)
+    {
+        _selectedPayorId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
+        _selectedPayorName = _payors.FirstOrDefault(x => x.PayorId == _selectedPayorId)?.DisplayName;
+        await LoadCandidatesAsync();
+    }
+
+    private async Task LoadCandidatesAsync()
+    {
+        if (_selectedPayorId is not { } payorId) { _candidates = []; return; }
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.GetPayorObligationsAsync(payorId);
+            if (!result.IsSuccess) { _error = ErrorText(result, "Linked obligations could not be loaded."); return; }
+            _candidates = result.Value ?? [];
+            foreach (var candidate in _candidates)
+            {
+                var key = CandidateKey(candidate);
+                if (!_candidateAmounts.ContainsKey(key))
+                    _candidateAmounts[key] = CandidateRemaining(candidate);
+            }
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task AddCandidateAsync(CollectionCandidateDto candidate)
+    {
+        var remaining = CandidateRemaining(candidate);
+        var amount = _candidateAmounts.GetValueOrDefault(CandidateKey(candidate), remaining);
+        if (amount <= 0m || amount > remaining)
+        {
+            _error = "Enter a positive amount no greater than the remaining obligation.";
+            return;
+        }
+        _busy = true;
+        _error = null;
+        try
+        {
+            EcfCollectionDraftDto? updated = null;
+            if (candidate.SourceKind == CollectionSourceKind.PaymentRecord)
+            {
+                var result = await CollectionsApi.AddRentAllocationAsync(new AddRentDraftAllocationRequest(
+                    candidate.StallId, candidate.BillingYear, candidate.BillingMonth,
+                    amount, _draft?.Revision));
+                if (!result.IsSuccess) { _error = ErrorText(result, "Rent could not be added."); return; }
+                updated = result.Value;
+            }
+            else if (candidate.SourceKind == CollectionSourceKind.UtilityBill
+                && candidate.SourcePart == CollectionSourcePart.Electricity
+                && candidate.SourceId is { } billId)
+            {
+                var result = await CollectionsApi.AddEcfLineAsync(new AddEcfDraftLineRequest(
+                    billId, amount, _draft?.Revision));
+                if (!result.IsSuccess) { _error = ErrorText(result, "ECF could not be added."); return; }
+                updated = result.Value;
+            }
+            else
+            {
+                _error = "This Composer supports Permanent Stall Rent and ECF Electricity sources.";
+                return;
+            }
+            _draft = updated;
+            PopulateAllocationInputs();
+            _candidateAmounts[CandidateKey(candidate)] = CandidateRemaining(candidate);
+            _message = "Source added to the shared server draft. Review is required again.";
+            await LoadCandidatesAsync();
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task UpdateAllocationAsync(CollectionDraftAllocationDto allocation)
+    {
+        if (_draft is null) return;
+        var amount = _draftAllocationAmounts.GetValueOrDefault(allocation.AllocationId);
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.UpdateDraftAllocationAsync(_draft.DraftId,
+                new UpdateCollectionDraftAllocationRequest(allocation.AllocationId, _draft.Revision, amount));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Allocation could not be updated."); return; }
+            _draft = result.Value;
+            PopulateAllocationInputs();
+            _message = "Allocation updated. Review is required again.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ResumeDraftAsync()
+    {
+        if (_draft is null || !_draft.RequiresBusinessDateRefresh) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.ResumeDraftAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Draft source facts could not be refreshed."); return; }
+            _draft = result.Value;
+            PopulateAllocationInputs();
+            _message = "Draft refreshed for the current Philippine business date. Review this new revision before posting.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SelectDocumentAsync(ChangeEventArgs args)
+    {
+        if (_draft is null) return;
+        var documentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.SelectDocumentAsync(_draft.DraftId,
+                new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Official Receipt could not be selected."); return; }
+            _draft = result.Value;
+            _message = "Official Receipt selection changed. Review this revision again.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (_draft is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.ReviewAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            if (!result.IsSuccess) { _error = ErrorText(result, "This revision could not be reviewed."); return; }
+            _draft = result.Value;
+            _message = "This exact Collection revision is reviewed.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task PostAsync()
+    {
+        if (_draft is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var key = $"stalltrack.collection.post-operation.{_draft.DraftId:N}.{_draft.Revision}";
+            var stored = await JS.InvokeAsync<string?>("sessionStorage.getItem", key);
+            if (!Guid.TryParse(stored, out var operationId))
+            {
+                operationId = Guid.NewGuid();
+                await JS.InvokeVoidAsync("sessionStorage.setItem", key, operationId.ToString("D"));
+            }
+            var result = await CollectionsApi.PostAsync(_draft.DraftId,
+                new PostEcfCollectionDraftRequest(_draft.Revision, operationId));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Collection could not be posted."); return; }
+            _message = $"Posted {result.Value!.DocumentNumber} · {Money(result.Value.Amount)}.";
+            _draft = null;
+            await LoadAsync();
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task DiscardAsync()
+    {
+        if (_draft is null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.DiscardAsync(_draft.DraftId,
+                new EcfDraftRevisionRequest(_draft.Revision));
+            if (!result.IsSuccess) { _error = ErrorText(result, "Draft could not be discarded."); return; }
+            _draft = null;
+            _message = "Draft discarded. No financial event or accountable document was created.";
+            await LoadAsync();
+        }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _busy = false; }
+    }
+
+    private void PopulateAllocationInputs()
+    {
+        _draftAllocationAmounts.Clear();
+        foreach (var allocation in _draft!.Lines.SelectMany(x => x.Allocations ?? []))
+            _draftAllocationAmounts[allocation.AllocationId] = allocation.Amount;
+    }
+
+    private decimal CandidateRemaining(CollectionCandidateDto candidate)
+    {
+        if (_draft is null || candidate.SourceId is not { } sourceId) return candidate.OutstandingAmount;
+        return candidate.OutstandingAmount - _draft.Lines.SelectMany(x => x.Allocations ?? [])
+            .Where(x => x.SourceKind == candidate.SourceKind && x.SourceId == sourceId
+                && x.SourcePart == candidate.SourcePart).Sum(x => x.Amount);
+    }
+
+    private static string CandidateKey(CollectionCandidateDto candidate) =>
+        $"{candidate.SourceKind}:{candidate.SourceId}:{candidate.StallId}:{candidate.BillingYear:D4}-{candidate.BillingMonth:D2}:{candidate.SourcePart}";
+
+    private static string AllocationLabel(CollectionDraftAllocationDto allocation)
+    {
+        var period = allocation.BillingYear is { } year && allocation.BillingMonth is { } month
+            ? Month(year, month) : "Source";
+        return string.IsNullOrWhiteSpace(allocation.SourceLabel) ? period : $"{period} · {allocation.SourceLabel}";
+    }
+
+    private static string ActivityAllocationLabel(CollectionActivityAllocationDto allocation)
+    {
+        var period = allocation.BillingYear is { } year && allocation.BillingMonth is { } month
+            ? Month(year, month) : "";
+        return string.IsNullOrWhiteSpace(period) ? $"{allocation.SourceLabel} · {Money(allocation.Amount)}"
+            : $"{period} · {allocation.SourceLabel} · {Money(allocation.Amount)}";
+    }
+
+    private static string Month(int year, int month) =>
+        month is >= 1 and <= 12 ? new DateOnly(year, month, 1).ToString("MMM yyyy") : "Period unavailable";
+    private static string Money(decimal amount) => $"PHP {amount:N2}";
+
+    private static string ErrorText<T>(Result<T> result, string fallback) =>
+        string.IsNullOrWhiteSpace(result.Error) ? fallback : result.Error!;
+}

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Mobile.Abstractions;
 using EEMOCantilanSDS.Mobile.Models;
 
@@ -63,6 +64,37 @@ public sealed class PendingOperationStore : IPendingOperationStore
         }
     }
 
+    public async Task AddIssuedDocumentOperationAsync(PendingOperation operation)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (HasStorageFault)
+                throw new IOException("Issued Cash Ticket state is unavailable because the local queue has a storage fault.");
+            if (operation.Kind != OfflineOperationKind.WcfCollection
+                || operation.AccountableDocumentId is not { } id || id == Guid.Empty
+                || string.IsNullOrWhiteSpace(operation.DocumentNumber)
+                || operation.ReceivedAmount is null or <= 0m
+                || operation.WaterSourceVersion is null or <= 0
+                || operation.IssuedAtUtc is null)
+                throw new InvalidOperationException("A physically issued WCF operation must include its document and source evidence.");
+            var items = new List<PendingOperation>(await LoadUnsafeAsync());
+            if (HasStorageFault)
+                throw new IOException("Issued Cash Ticket state is unavailable because the local queue could not be read.");
+            if (items.Any(x => x.ClientOperationId == operation.ClientOperationId
+                || x.AccountableDocumentId == operation.AccountableDocumentId))
+                throw new InvalidOperationException("This operation or Cash Ticket is already present in the local queue.");
+            operation.IssuedDocumentState = IssuedDocumentLocalState.IssuedLocallyPendingSync;
+            items.Add(operation);
+            if (!await SaveUnsafeAsync(items))
+                throw new IOException("The issued Cash Ticket and its queued operation could not be durably saved.");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task UpdateAsync(PendingOperation operation)
     {
         await _gate.WaitAsync();
@@ -111,10 +143,12 @@ public sealed class PendingOperationStore : IPendingOperationStore
                 await using var stream = File.OpenRead(_filePath);
                 _cache = await JsonSerializer.DeserializeAsync<List<PendingOperation>>(stream, JsonOptions)
                          ?? new List<PendingOperation>();
+                HasStorageFault = HasUnresolvedStorageEvidence();
             }
             else
             {
                 _cache = new List<PendingOperation>();
+                HasStorageFault = HasUnresolvedStorageEvidence();
             }
         }
         catch
@@ -135,14 +169,20 @@ public sealed class PendingOperationStore : IPendingOperationStore
     /// </summary>
     public bool HasStorageFault { get; private set; }
 
+    private bool HasUnresolvedStorageEvidence() =>
+        File.Exists(_filePath + ".storage-fault")
+        || Directory.EnumerateFiles(Path.GetDirectoryName(_filePath)!, FileName + ".unreadable-*").Any();
+
     private void PreserveUnreadableFile()
     {
         HasStorageFault = true;
         try
         {
-            if (!File.Exists(_filePath)) return;
-            var kept = _filePath + ".unreadable-" + DateTime.Now.ToString("yyyyMMddHHmmss");
-            File.Move(_filePath, kept, overwrite: true);
+            if (File.Exists(_filePath))
+            {
+                var kept = _filePath + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+                File.Move(_filePath, kept, overwrite: true);
+            }
         }
         catch
         {
@@ -150,20 +190,24 @@ public sealed class PendingOperationStore : IPendingOperationStore
         }
     }
 
-    private async Task SaveUnsafeAsync(List<PendingOperation> items)
+    private async Task<bool> SaveUnsafeAsync(List<PendingOperation> items)
     {
-        _cache = items;
         try
         {
             var json = JsonSerializer.Serialize(items, JsonOptions);
             await JsonOfflineReadCache.WriteDurableAsync(_filePath, json);
-            HasStorageFault = false;
+            _cache = items;
+            HasStorageFault = HasUnresolvedStorageEvidence();
+            return !HasStorageFault;
         }
         catch
         {
             // The capture is in memory for this run, but it is NOT safe on the device — which is what the queue
             // promises. Recorded so the review sheet can say so instead of showing a clean queue.
             HasStorageFault = true;
+            try { File.WriteAllText(_filePath + ".storage-fault", DateTime.UtcNow.ToString("O")); }
+            catch { /* preserve the in-memory issue block when fault evidence cannot be persisted */ }
+            return false;
         }
     }
 }

@@ -304,7 +304,7 @@
     <div class="sheet-overlay" @onclick="ClosePendingSheet">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
-            <div class="sheet-title">Pending Sync</div>
+            <div class="sheet-title">Offline &amp; Cash Ticket history</div>
             <div class="sheet-sub">
                 @if (Sync.HasStorageFault)
                 {
@@ -314,13 +314,13 @@
                         This device could not read or write its offline queue@(PendingOps.Count > 0 ? $", and {PendingOps.Count} collection{(PendingOps.Count == 1 ? "" : "s")} are held in memory only" : ""). Sync while you have signal, and report this device.
                     </text>
                 }
-                else if (PendingOps.Count == 0)
+                else if (WaitingOperationCount == 0 && RetainedTicketCount == 0)
                 {
                     <text>No offline collections are waiting to sync.</text>
                 }
                 else
                 {
-                    <text>@PendingOps.Count collection@(PendingOps.Count == 1 ? "" : "s") queued on this device.</text>
+                    <text>@WaitingOperationCount operation@(WaitingOperationCount == 1 ? "" : "s") need sync or review; @RetainedTicketCount physically issued Cash Ticket record@(RetainedTicketCount == 1 ? "" : "s") retained on this device.</text>
                 }
             </div>
 
@@ -349,6 +349,14 @@
                                 {
                                     <div class="pending-item-msg">@op.ResultMessage</div>
                                 }
+                                else if (op.LocalStatus == PendingLocalStatus.ReconciliationRequired)
+                                {
+                                    <div class="pending-item-msg">@(!string.IsNullOrWhiteSpace(op.ResultMessage) ? op.ResultMessage : "Physical Cash Ticket requires office reconciliation. Keep the ticket.")</div>
+                                }
+                                else if (op.IssuedDocumentState == IssuedDocumentLocalState.SyncedAcknowledged)
+                                {
+                                    <div class="pending-item-msg">Server acknowledged this physical Cash Ticket. Its identity remains retained locally.</div>
+                                }
                                 else if (op.LocalStatus == PendingLocalStatus.Failed)
                                 {
                                     @* Say what has been tried, so a row that keeps failing does not look ignored.
@@ -362,7 +370,8 @@
                             <div class="pending-item-right">
                                 <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
                                 <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
-                                @if (orphaned || op.LocalStatus == PendingLocalStatus.Rejected)
+                                @if ((orphaned || op.LocalStatus == PendingLocalStatus.Rejected)
+                                    && op.AccountableDocumentId is null && op.IssuedDocumentState is null)
                                 {
                                     <button class="pending-discard" type="button" @onclick="() => DiscardPendingAsync(op.ClientOperationId)">Discard</button>
                                 }
@@ -734,6 +743,10 @@
     bool ShowPendingSheet = false;
     IReadOnlyList<PendingOperation> PendingOps = Array.Empty<PendingOperation>();
 
+    int WaitingOperationCount => PendingOps.Count(op => op.LocalStatus != PendingLocalStatus.Synced);
+    int RetainedTicketCount => PendingOps.Count(op => op.AccountableDocumentId is not null
+        || op.IssuedDocumentState is not null);
+
     bool HasRetryable => PendingOps.Any(o => o.OwnerKey is not null && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
 
     async Task OpenPendingSheetAsync()
@@ -763,6 +776,7 @@
         PendingLocalStatus.Pending => "Pending",
         PendingLocalStatus.Failed => "Retry",
         PendingLocalStatus.Rejected => "Rejected",
+        PendingLocalStatus.ReconciliationRequired => "Reconciliation",
         PendingLocalStatus.Synced => "Synced",
         _ => string.Empty
     };
@@ -770,6 +784,7 @@
     static string PendingItemClass(PendingOperation op) => op.LocalStatus switch
     {
         PendingLocalStatus.Rejected => "rejected",
+        PendingLocalStatus.ReconciliationRequired => "rejected",
         PendingLocalStatus.Failed => "failed",
         _ => "pending"
     };

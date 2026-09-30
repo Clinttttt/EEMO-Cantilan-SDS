@@ -3,7 +3,9 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
-using EEMOCantilanSDS.Application.Requests.Mobile;using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Requests.Mobile;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -11,6 +13,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IMobileApiClient
 {
     Task<Result<MobileMenuDto>> GetMenuAsync();
+
+    /// <summary>Read-only: which assigned non-facility operations are collectible now (GET api/Mobile/operations/capabilities).</summary>
+    Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync();
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);
@@ -20,6 +25,7 @@ public interface IMobileApiClient
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
+    Task<Result<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateQuoteAsync(DateOnly businessDate);
 
     /// <summary>
     /// What the market is behind on: months that closed owing, and the days of this month gone by.
@@ -45,6 +51,9 @@ public interface IMobileApiClient
     Task<Result<bool>> SettleNpmMonthAsync(SettleMobileNpmMonthRequest request);
     Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
     Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
+    Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth);
+    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
+    Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);

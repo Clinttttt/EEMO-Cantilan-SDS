@@ -423,3 +423,66 @@
         right: -100%;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.slh-edit-backdrop, .slh-edit-panel {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.slh-edit-panel-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.slh-edit-panel-icon {
+    background: var(--accent-soft);
+    color: var(--navy);
+}
+
+    .slh-edit-panel-icon svg {
+        stroke: var(--navy);
+    }
+
+.slh-edit-panel-title {
+    color: var(--navy);
+}
+
+.slh-edit-panel-sub {
+    color: var(--text-tertiary);
+}
+
+.slh-edit-panel-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .slh-edit-panel-close:hover {
+        border-color: transparent;
+        background: var(--surface-hover);
+    }
+
+    .slh-edit-panel-close svg {
+        stroke: var(--text-secondary);
+    }
+
+    .slh-edit-panel-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.slh-edit-btn-save {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.slh-edit-btn-save:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    color: var(--surface);
+}

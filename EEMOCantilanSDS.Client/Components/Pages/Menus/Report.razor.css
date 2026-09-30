@@ -39,7 +39,7 @@
 
 /* Uppercase micro-label */
 .rfp-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
@@ -230,8 +230,8 @@
     padding: 0 14px;
     border-radius: 9px;
     border: none;
-    background: var(--navy);
-    color: var(--gold);
+    background: var(--accent);
+    color: #fff;
     font-size: 12.5px;
     font-weight: 600;
     font-family: 'DM Sans', sans-serif;
@@ -247,7 +247,7 @@
     }
 
     .rpt-btn-excel:hover {
-        background: var(--navy-2, #0a2038);
+        background: var(--accent-hover);
     }
 
 /* ── Divider ── */
@@ -337,7 +337,7 @@
 
 /* Code badge inside chip */
 .rfp-chip-code {
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .4px;
     background: #eef2f6;
@@ -522,7 +522,7 @@
 
 .rpt-rule-key {
     display: block;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
@@ -665,7 +665,7 @@
     }
 
     .bar.collected {
-        background: linear-gradient(180deg, #1e3a5f 0%, #0d2137 100%);
+        background: var(--accent);
         z-index: 1;
     }
     .bar.collected::before { background: #2e4d6e; }
@@ -737,7 +737,7 @@
 }
 
     .rpt-chart-val.gold-text {
-        color: var(--gold);
+        color: var(--accent);
     }
 
 .rpt-chart-sublabel {
@@ -847,7 +847,7 @@
     display: inline-block;
     margin-left: 6px;
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: .02em;
     text-transform: uppercase;
@@ -1224,7 +1224,7 @@
 
     .delinq-item-link:hover .delinq-item {
         background-color: rgba(201, 168, 75, 0.05);
-        border-color: var(--gold);
+        border-color: var(--accent);
     }
 
 /* Vendor/stall link in transaction table */
@@ -1237,7 +1237,7 @@
 }
 
     .vendor-link:hover {
-        color: var(--gold);
+        color: var(--accent);
         text-decoration: underline;
     }
 
@@ -1432,7 +1432,7 @@
     flex-direction: column;
     justify-content: space-between;
     height: 160px;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 500;
     color: var(--text-subtle);
     text-align: right;
@@ -1573,7 +1573,7 @@
 
 .rpt-retry {
     margin-left: 10px;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -1646,7 +1646,7 @@
 }
 
 .rpt-aging-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
@@ -1676,7 +1676,7 @@
 }
 
 .fac-close-key {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
@@ -1729,7 +1729,7 @@
     .rpt-trend-table th {
         padding: 8px 10px;
         border-bottom: 1px solid var(--border);
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: .6px;
         text-transform: uppercase;
@@ -1766,11 +1766,11 @@
 
 .rpt-trend-here {
     margin-left: 7px;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .5px;
     text-transform: uppercase;
-    color: var(--gold, #a67c00);
+    color: var(--accent);
 }
 
 /* The Attention header's figures. Value above its label, so the eye lands on the number rather than on a sentence — the
@@ -1876,7 +1876,7 @@
 }
 
 .rpt-panel-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .8px;
     text-transform: uppercase;
@@ -2025,7 +2025,7 @@
 
 .fac-caret {
     display: inline-block;
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-right: 7px;
     transition: transform .12s ease;
@@ -2053,7 +2053,7 @@
 }
 
 .fac-detail-heading {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .6px;
     text-transform: uppercase;
@@ -2375,7 +2375,7 @@
         color: #111827;
     }
     .rpt-pdf-logo { display: block; width: 54px; height: 54px; object-fit: contain; margin: 0 auto 8px; }
-    .rpt-pdf-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
+    .rpt-pdf-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: #374151; }
     .rpt-pdf-office { font-size: 15px; font-weight: 700; margin: 4px 0 0; }
     .rpt-pdf-muni { font-size: 11px; color: #4b5563; }
     .rpt-pdf-title { margin-top: 12px; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; font-weight: 800; }

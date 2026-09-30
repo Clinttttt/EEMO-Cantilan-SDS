@@ -34,7 +34,7 @@
 }
 
     .search-box:focus-within {
-        border-color: var(--gold);
+        border-color: var(--accent);
     }
 
     .search-box svg {
@@ -106,7 +106,7 @@
     }
 
     .filter-tab.active {
-        background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+        background: var(--accent);
         border-color: color-mix(in srgb, var(--navy) 76%, #fff);
         color: #fff;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
@@ -120,7 +120,7 @@
 }
 
 .data-table th {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -137,7 +137,7 @@
 }
 
 .collector-email {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 1px;
 }
@@ -149,7 +149,7 @@
 }
 
     .facility-tags span {
-        font-size: 10px;
+        font-size: 11px;
         padding: 2px 6px;
         border-radius: 4px;
         background: var(--bg-icon);
@@ -306,7 +306,7 @@
     font-weight: 600;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
     margin-bottom: 4px;
 }
 
@@ -342,7 +342,7 @@
 }
 
 .vs-hero-key {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(255,255,255,.5);
     margin-top: 2px;
     text-transform: uppercase;
@@ -351,7 +351,7 @@
 }
 
 .vs-hero-sub2 {
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(255,255,255,.35);
     margin-top: 1px;
     line-height: 1.2;
@@ -607,7 +607,7 @@
     .data-table.registry-table thead th {
         background: color-mix(in srgb, var(--bg) 70%, var(--bg-card));
         color: var(--text-subtle);
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -634,7 +634,7 @@
         }
 
         .data-table.registry-table tbody tr:hover {
-            background: color-mix(in srgb, var(--navy) 3%, transparent);
+            background: var(--accent-hover);
         }
 
 .registry-table .col-actions {
@@ -655,12 +655,12 @@
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--accent);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -853,7 +853,7 @@
     gap: 4px;
     padding: 2px 7px;
     border-radius: 5px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     line-height: 1.3;
     color: var(--navy);
@@ -1036,7 +1036,7 @@
 }
 
 .profile-label {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
@@ -1091,7 +1091,7 @@
 }
 
 .drawer-section-title {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
@@ -1149,7 +1149,7 @@
 }
 
 .info-panel-title {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
@@ -1307,7 +1307,7 @@
 }
 
 .reset-success-pass-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
@@ -1364,3 +1364,116 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
+}
+
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.eemo-drawer-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.eemo-drawer-header-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .eemo-drawer-header-icon svg {
+        stroke: var(--navy);
+    }
+
+.eemo-drawer-header-title {
+    color: var(--navy);
+}
+
+.eemo-drawer-header-sub {
+    color: var(--text-tertiary);
+}
+
+.eemo-drawer-header-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .eemo-drawer-header-close:hover {
+        border-color: transparent;
+        background: var(--surface-hover);
+    }
+
+    .eemo-drawer-header-close svg {
+        stroke: var(--text-secondary);
+    }
+
+    .eemo-drawer-header-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }

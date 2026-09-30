@@ -20,4 +20,5 @@ public sealed record RecordMobileNpmCollectionRequest(
     decimal? FishKilos = null,
     // Excused/absent day: the payor was not operating. ₱0 owed, mutually exclusive with IsPaid.
     bool IsAbsent = false,
-    DateOnly? CollectionDate = null);
+    DateOnly? CollectionDate = null,
+    decimal? MeatKilos = null);

@@ -1397,3 +1397,99 @@
     .trm-loading-table tbody tr:hover {
         background: transparent;
     }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md)
+   Presentation only. Drawer headers become light (navy title on white, thin divider) instead of navy
+   gradients; primary buttons use civic blue; readable tertiary text replaces the legacy muted grey and
+   civic blue replaces gold for interaction. Small labels were raised to 11px.
+   ══════════════════════════════════════════════════════════════ */
+.topbar,
+.content-area,
+.trm-profile-panel,
+.trm-add-panel {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.trm-profile-header,
+.trm-add-panel-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.trm-profile-icon,
+.trm-add-panel-icon {
+    background: var(--accent-soft);
+}
+
+    .trm-profile-icon svg,
+    .trm-add-panel-icon svg {
+        stroke: var(--navy);
+    }
+
+.trm-profile-name,
+.trm-add-panel-title {
+    color: var(--navy);
+}
+
+.trm-profile-meta,
+.trm-add-panel-sub {
+    color: var(--text-tertiary);
+}
+
+.trm-profile-close,
+.trm-add-panel-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .trm-profile-close:hover,
+    .trm-add-panel-close:hover {
+        border-color: transparent;
+        background: var(--surface-hover);
+    }
+
+    .trm-profile-close svg,
+    .trm-add-panel-close svg {
+        stroke: var(--text-secondary);
+    }
+
+.trm-add-btn,
+.trm-dispatch-btn,
+.trm-profile-record-btn,
+.trm-add-submit-btn,
+.trm-quick-or-save {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+    .trm-add-btn:hover,
+    .trm-dispatch-btn:hover,
+    .trm-profile-record-btn:hover,
+    .trm-add-submit-btn:hover,
+    .trm-quick-or-save:hover {
+        border-color: var(--accent-hover);
+        background: var(--accent-hover);
+        color: var(--surface);
+    }
+
+    .trm-add-btn svg,
+    .trm-profile-record-btn svg,
+    .trm-add-submit-btn svg,
+    .trm-quick-or-save svg {
+        stroke: var(--surface);
+    }
+
+.trm-add-btn:focus-visible,
+.trm-profile-record-btn:focus-visible,
+.trm-add-submit-btn:focus-visible,
+.trm-quick-or-save:focus-visible,
+.trm-profile-close:focus-visible,
+.trm-add-panel-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}

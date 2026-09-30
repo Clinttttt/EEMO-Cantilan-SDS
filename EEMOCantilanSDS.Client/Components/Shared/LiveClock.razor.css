@@ -13,7 +13,7 @@
 .live-clock-icon {
     width: 20px;
     height: 20px;
-    color: var(--gold, #c8a84b);
+    color: var(--accent);
     flex-shrink: 0;
 }
 

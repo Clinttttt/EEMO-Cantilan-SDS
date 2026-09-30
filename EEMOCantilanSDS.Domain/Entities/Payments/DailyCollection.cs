@@ -41,8 +41,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public decimal? FishKilos { get; private set; }
         public decimal? FishFeeAmount => FishKilos.HasValue 
             ? FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0;
+        /// <summary>Optional NPM Meat weighing quantity recorded with this paid daily collection.</summary>
+        public decimal? MeatKilos { get; private set; }
+        /// <summary>The rate evidence resolved for this source event; null on rows without Meat weighing.</summary>
+        public decimal? MeatFeeRatePerKilo { get; private set; }
+        public DateOnly? MeatFeeRateEffectiveDate { get; private set; }
+        /// <summary>Frozen NPM Meat weighing charge; persisted so report queries use the exact recorded amount.</summary>
+        public decimal MeatFeeAmount { get; private set; }
         public decimal TotalCollected => IsPaid
-                                          ? DailyFee + (FishFeeAmount ?? 0)
+                                          ? DailyFee + (FishFeeAmount ?? 0) + MeatFeeAmount
                                           : 0;
         public Facilities.Stall? Stall { get; private set; }
         private DailyCollection() { }
@@ -70,13 +77,28 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string orNumber,
             Guid? collectorId,
             decimal? fishKilos = null,
-            string updatedBy = "System")
+            string updatedBy = "System",
+            decimal? meatKilos = null,
+            decimal? meatFeeRatePerKilo = null,
+            DateOnly? meatFeeRateEffectiveDate = null)
         {
+            if (meatKilos is < 0m)
+                throw new ArgumentOutOfRangeException(nameof(meatKilos));
+            if (meatKilos.HasValue && (meatFeeRatePerKilo is not > 0m || meatFeeRateEffectiveDate is null))
+                throw new ArgumentException("Meat kilos require a positive effective rate snapshot.", nameof(meatFeeRatePerKilo));
+            if (meatFeeRateEffectiveDate > CollectionDate)
+                throw new ArgumentException("Meat rate evidence cannot be effective after the collection date.", nameof(meatFeeRateEffectiveDate));
+            if (!meatKilos.HasValue && (meatFeeRatePerKilo.HasValue || meatFeeRateEffectiveDate.HasValue))
+                throw new ArgumentException("Meat rate evidence requires a Meat kilos source fact.", nameof(meatFeeRatePerKilo));
             IsPaid = true;
             IsAbsent = false;
             ORNumber = orNumber;
             CollectorId = collectorId;
             FishKilos = fishKilos;
+            MeatKilos = meatKilos;
+            MeatFeeRatePerKilo = meatFeeRatePerKilo;
+            MeatFeeRateEffectiveDate = meatFeeRateEffectiveDate;
+            MeatFeeAmount = meatKilos.GetValueOrDefault() * meatFeeRatePerKilo.GetValueOrDefault();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -87,6 +109,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            MeatKilos = null;
+            MeatFeeRatePerKilo = null;
+            MeatFeeRateEffectiveDate = null;
+            MeatFeeAmount = 0m;
             ClearMonthEndAdjustment();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
@@ -103,6 +129,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            MeatKilos = null;
+            MeatFeeRatePerKilo = null;
+            MeatFeeRateEffectiveDate = null;
+            MeatFeeAmount = 0m;
             ClearMonthEndAdjustment();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;

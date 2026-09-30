@@ -1,7 +1,9 @@
-/* SIDEBAR styles moved from global app.css */
+/* SIDEBAR styles moved from global app.css.
+   V3 (docs/interface/STALLTRACK_UI_V3_DIRECTION.md §5): a light shell where only the active destination is
+   strongly highlighted. Presentation only — routes, role visibility, collapse and drawer behavior are unchanged. */
 .sidebar {
     width: var(--sidebar-w);
-    background: var(--navy);
+    background: var(--surface);
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -11,7 +13,7 @@
     z-index: 200;
     transition: width 0.25s ease;
     overflow: hidden;
-    border-right: 1px solid var(--navy-3);
+    border-right: 1px solid var(--border);
 }
 
     .sidebar.collapsed {
@@ -46,22 +48,23 @@
     font-family: 'EB Garamond', serif;
     font-size: 16px;
     font-weight: 700;
-    color: var(--gold-light);
+    color: var(--navy);
+    letter-spacing: 0.02em;
     white-space: nowrap;
 }
 
 .sidebar-brand-sub {
-    font-size: 9px;
-    color: var(--text-muted);
-    letter-spacing: 1px;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     white-space: nowrap;
 }
 
 .sidebar-divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gold), transparent);
-    opacity: 0.3;
+    background: var(--border);
     margin: 0 16px 12px;
     flex-shrink: 0;
 }
@@ -79,12 +82,12 @@
     }
 
 .nav-group-label {
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgba(255,255,255,0.25);
-    padding: 0 8px 6px;
+    color: var(--text-tertiary);
+    padding: 0 10px 6px;
     white-space: nowrap;
     overflow: hidden;
 }
@@ -95,11 +98,11 @@
     gap: 10px;
     padding: 9px 10px;
     border-radius: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-secondary);
     margin-bottom: 2px;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
     position: relative;
     cursor: pointer;
@@ -115,11 +118,11 @@
     gap: 10px;
     padding: 9px 10px;
     border-radius: 8px;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-secondary);
     margin-bottom: 2px;
-    transition: all 0.15s;
+    transition: background-color 0.15s ease, color 0.15s ease;
     white-space: nowrap;
     position: relative;
     cursor: pointer;
@@ -165,12 +168,12 @@
 /* Head-only items (Collectors, Audit Trail) shown to a plain Admin: visible for context but locked —
    dimmed, non-navigable, with a small padlock. Keeps the nav honest without hiding capabilities. */
 .nav-item-locked {
-    color: rgba(255,255,255,0.3);
+    color: var(--text-disabled);
     cursor: not-allowed;
 }
     .nav-item-locked:hover {
         background: transparent;
-        color: rgba(255,255,255,0.3);
+        color: var(--text-disabled);
     }
     .nav-item-locked .nav-lock {
         margin-left: auto;
@@ -181,30 +184,47 @@
     }
 
     .nav-item:hover {
-        background: rgba(255,255,255,0.07);
-        color: rgba(255,255,255,0.85);
+        background: var(--surface-hover);
+        color: var(--navy);
     }
 
     .sidebar ::deep .nav-item:hover {
-        background: rgba(255,255,255,0.07);
-        color: rgba(255,255,255,0.85);
+        background: var(--surface-hover);
+        color: var(--navy);
     }
 
     .nav-item.active {
-        background: rgba(200,168,75,0.15);
-        color: var(--gold-light);
+        background: var(--accent-soft);
+        color: var(--accent);
         font-weight: 600;
     }
 
     .sidebar ::deep .nav-item.active {
-        background: rgba(200,168,75,0.15);
-        color: var(--gold-light);
+        background: var(--accent-soft);
+        color: var(--accent);
         font-weight: 600;
     }
 
         :global(.nav-item.active svg) {
-            stroke: var(--gold-light);
+            stroke: var(--accent);
         }
+
+    /* The selected destination is the only strongly marked item: a short civic-blue bar at the rail edge. */
+    .sidebar ::deep .nav-item.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        background: var(--accent);
+    }
+
+    .sidebar ::deep .nav-item:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+    }
 
 .nav-badge {
     margin-left: auto;
@@ -220,8 +240,8 @@
 .sidebar-toggle {
     margin: 8px;
     padding: 8px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
     display: flex;
@@ -232,13 +252,19 @@
 }
 
     .sidebar-toggle:hover {
-        background: rgba(255,255,255,0.1);
+        background: var(--surface-hover);
+    }
+
+    .sidebar-toggle:focus-visible,
+    .sidebar-hamburger:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
     }
 
     .sidebar-toggle svg {
         width: 16px;
         height: 16px;
-        stroke: var(--text-muted);
+        stroke: var(--text-tertiary);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -290,7 +316,7 @@
 
         .sidebar.mobile-open {
             transform: translateX(0);
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 8px 32px rgba(13, 33, 55, 0.18);
         }
 
     /* Hamburger: fixed top-left, above the sticky topbar (z-index 100) but below the open sidebar (z 200),

@@ -48,4 +48,5 @@ public sealed record NpmRatesDto(
     /// Asked before the office records vendors, because the answer decides what every month those vendors owe adds up to.
     /// The reference tenant is never asked: its own ordinance is the convention this platform's constants come from.
     /// </remarks>
-    bool NeedsMonthRuleConfirmation = false);
+    bool NeedsMonthRuleConfirmation = false,
+    decimal MeatWeighingRate = 0m);

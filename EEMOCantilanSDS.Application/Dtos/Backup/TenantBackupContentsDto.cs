@@ -42,6 +42,7 @@ public static class TenantBackupTableNames
         ["TrmTrips"] = "Terminal trips",
         ["PayorStallLinks"] = "Payor–stall links",
         ["CollectorFacilityAssignments"] = "Collector assignments",
+        ["CollectorOperationAssignments"] = "Collector operation assignments",
     };
 
     public static string Display(string table)

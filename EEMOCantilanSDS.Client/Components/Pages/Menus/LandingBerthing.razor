@@ -1,0 +1,42 @@
+@page "/operations/landing-berthing"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Landing / Berthing</PageTitle>
+
+@* Landing / Berthing is a day-to-day Cash Ticket operation and one Monthly Income line. StallTrack does not yet record
+   its collections, so this workspace shows the approved policy and says so plainly. It holds no sample rows and records
+   nothing itself; the Web view is for monitoring and reporting, not a stand-in for field collection. The layout owns
+   the <main> landmark. *@
+<div class="v3-page">
+    <WorkspaceHeader Parent="Operations" Title="Landing / Berthing">
+        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Actions>
+            <a class="v3-btn" href="/operations/landing-berthing/report">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                Report
+            </a>
+        </Actions>
+    </WorkspaceHeader>
+
+    <div class="lb-layout">
+        <section class="v3-panel" aria-labelledby="lb-collection-title">
+            <header class="v3-panel-header">
+                <h2 id="lb-collection-title">Collection</h2>
+                <span class="v3-panel-meta">@PhilippineTime.Today.ToString("dddd, MMMM d, yyyy")</span>
+            </header>
+            <div class="v3-panel-body lb-unavailable">
+                <div class="v3-empty-block" role="status">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <strong>Landing / Berthing collections aren't recorded in StallTrack yet</strong>
+                    <p>Cash Ticket collections will appear here once Landing / Berthing collection is activated. Nothing is estimated or entered on this page in the meantime.</p>
+                </div>
+            </div>
+        </section>
+
+        <RevenuePolicyPanel SemanticCode="@RevenueClassificationCodes.LandingBerthing" />
+    </div>
+</div>

@@ -36,7 +36,7 @@
     letter-spacing: -0.02em;
 }
 .donut-center-lbl {
-    font-size: 8px;
+    font-size: 11px;
     font-weight: 700;
     fill: var(--text-muted);
     text-anchor: middle;
@@ -98,7 +98,20 @@
     gap: 5px;
 }
 .donut-leg-value span {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     font-weight: 700;
+}
+
+/* V3: flat legend markers in the same semantic colours as the status pills. */
+.donut-leg-dot.paid {
+    background: var(--green);
+}
+
+.donut-leg-dot.partial {
+    background: #c8942c;
+}
+
+.donut-leg-dot.unpaid {
+    background: var(--red);
 }

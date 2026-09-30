@@ -79,6 +79,11 @@ public class InitiateOnlinePaymentCommandHandler(
             isNewRecord = true;
         }
 
+        if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
+                ResultStatus.Conflict);
+
         // Only an outstanding balance is payable (full balance — no partial online payments in v1).
         if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
@@ -234,6 +239,12 @@ public class InitiateOnlinePaymentCommandHandler(
         var bill = await utilityBillRepository.GetByStallAndMonthAsync(stall.Id, request.Year, request.Month, cancellationToken);
         if (bill is null || bill.BalanceDue <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding utility balance.", ResultStatus.Conflict);
+
+        if (bill.ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
+            || bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "Combined online utility checkout is paused while either utility source is transitioning to canonical settlement. Contact the office for reconciliation.",
+                ResultStatus.Conflict);
 
         var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmUtilityBill, cancellationToken);
         if (resumable is { IsResumable: true })

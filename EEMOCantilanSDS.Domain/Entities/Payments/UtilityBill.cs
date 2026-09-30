@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Domain.Entities.Payments
@@ -48,6 +49,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateTime? PaidAt { get; private set; }
         public string? Remarks { get; private set; }
         public Guid? ClientOperationId { get; private set; }
+        public SettlementAuthority ElectricitySettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public SettlementAuthority WaterSettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+        public long ElectricitySourceVersion { get; private set; } = 1;
+        public long WaterSourceVersion { get; private set; } = 1;
+        public Guid? ElectricitySettlementCutoverId { get; private set; }
+        public Guid? WaterSettlementCutoverId { get; private set; }
 
         // ── Computed (never negative; a lower current reading yields zero, not a credit) ──
         public decimal ElecConsumption => Math.Max(0m, ElecCurrentReading - ElecPreviousReading);
@@ -148,8 +155,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 || waterCurrentReading != WaterCurrentReading
                 || waterRatePerCubicMeter != WaterRatePerCubicMeter;
 
-            return (elecChanged && ElecStatus != PaymentStatus.Unpaid)
-                || (waterChanged && WaterStatus != PaymentStatus.Unpaid);
+            return (elecChanged && (ElecStatus != PaymentStatus.Unpaid
+                    || ElectricitySettlementAuthorityState != SettlementAuthority.Legacy))
+                || (waterChanged && (WaterStatus != PaymentStatus.Unpaid
+                    || WaterSettlementAuthorityState != SettlementAuthority.Legacy));
         }
 
         /// <summary>Admin edits the readings/rates (charges recompute automatically; payment untouched).</summary>
@@ -163,6 +172,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string? remarks,
             string updatedBy = "System")
         {
+            var electricityChanged = elecPreviousReading != ElecPreviousReading
+                || elecCurrentReading != ElecCurrentReading
+                || elecRatePerKwh != ElecRatePerKwh;
+            var waterChanged = waterPreviousReading != WaterPreviousReading
+                || waterCurrentReading != WaterCurrentReading
+                || waterRatePerCubicMeter != WaterRatePerCubicMeter;
+
+            EnsureAssessmentWritable(ElectricitySettlementAuthorityState, electricityChanged, "electricity");
+            EnsureAssessmentWritable(WaterSettlementAuthorityState, waterChanged, "water");
+
             ElecPreviousReading = elecPreviousReading;
             ElecCurrentReading = elecCurrentReading;
             ElecRatePerKwh = elecRatePerKwh;
@@ -170,6 +189,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             WaterCurrentReading = waterCurrentReading;
             WaterRatePerCubicMeter = waterRatePerCubicMeter;
             Remarks = remarks;
+            if (electricityChanged) ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            if (waterChanged) WaterSourceVersion = checked(WaterSourceVersion + 1);
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -191,17 +212,34 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string? remarks = null,
             string updatedBy = "System")
         {
-            ElecStatus = Normalize(elecStatus, elecPartialAmount ?? 0m, ElecCharge, out var elecPartial);
+            var nextElecStatus = Normalize(elecStatus, elecPartialAmount ?? 0m, ElecCharge, out var elecPartial);
+            var nextWaterStatus = Normalize(waterStatus, waterPartialAmount ?? 0m, WaterCharge, out var waterPartial);
+            var nextElecOr = nextElecStatus == PaymentStatus.Unpaid ? null
+                : string.IsNullOrWhiteSpace(elecOrNumber) ? ElecORNumber : elecOrNumber;
+            var nextWaterOr = nextWaterStatus == PaymentStatus.Unpaid ? null
+                : string.IsNullOrWhiteSpace(waterOrNumber) ? WaterORNumber : waterOrNumber;
+
+            var electricityChanged = nextElecStatus != ElecStatus
+                || elecPartial != ElecPartialAmount || nextElecOr != ElecORNumber;
+            var waterChanged = nextWaterStatus != WaterStatus
+                || waterPartial != WaterPartialAmount || nextWaterOr != WaterORNumber;
+
+            EnsureLegacyUtilityWriter(ElectricitySettlementAuthorityState,
+                nextElecStatus == ElecStatus && elecPartial == ElecPartialAmount && nextElecOr == ElecORNumber,
+                "electricity");
+            EnsureLegacyUtilityWriter(WaterSettlementAuthorityState,
+                nextWaterStatus == WaterStatus && waterPartial == WaterPartialAmount && nextWaterOr == WaterORNumber,
+                "water");
+
+            ElecStatus = nextElecStatus;
             ElecPartialAmount = elecPartial;
-            WaterStatus = Normalize(waterStatus, waterPartialAmount ?? 0m, WaterCharge, out var waterPartial);
+            WaterStatus = nextWaterStatus;
             WaterPartialAmount = waterPartial;
 
             // Per-utility OR: keep on payment, clear when reset to Unpaid.
-            if (ElecStatus == PaymentStatus.Unpaid) ElecORNumber = null;
-            else if (!string.IsNullOrWhiteSpace(elecOrNumber)) ElecORNumber = elecOrNumber;
+            ElecORNumber = nextElecOr;
 
-            if (WaterStatus == PaymentStatus.Unpaid) WaterORNumber = null;
-            else if (!string.IsNullOrWhiteSpace(waterOrNumber)) WaterORNumber = waterOrNumber;
+            WaterORNumber = nextWaterOr;
 
             // Per-utility paid-at: stamp on first settlement, preserve on re-marks, clear when reset to Unpaid.
             if (ElecStatus == PaymentStatus.Unpaid) ElecPaidAt = null;
@@ -223,6 +261,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             }
 
             if (remarks is not null) Remarks = remarks;
+            if (electricityChanged) ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            if (waterChanged) WaterSourceVersion = checked(WaterSourceVersion + 1);
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -239,6 +279,159 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline payment).</summary>
-        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+        public void SetClientOperationId(Guid clientOperationId)
+        {
+            // The compatibility idempotency field belongs to the legacy UtilityBill row. A scoped
+            // cutover of one utility must not disable the still-Legacy part on that same row; the
+            // payment mutation itself already rejects changes to Pending/Canonical parts.
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
+                && WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Legacy idempotency writers are disabled after both utility parts leave Legacy.");
+            if (clientOperationId == Guid.Empty)
+                throw new ArgumentException("Client operation id must be valid.", nameof(clientOperationId));
+            ClientOperationId = clientOperationId;
+        }
+
+        private static void EnsureLegacyUtilityWriter(
+            SettlementAuthority authority, bool unchanged, string utility)
+        {
+            if (authority != SettlementAuthority.Legacy && !unchanged)
+                throw new InvalidOperationException($"Legacy {utility} settlement writers are disabled once cutover begins.");
+        }
+
+        private static void EnsureAssessmentWritable(SettlementAuthority authority, bool changed, string utility)
+        {
+            if (authority != SettlementAuthority.Legacy && changed)
+                throw new InvalidOperationException($"Legacy {utility} assessment edits are disabled once cutover begins.");
+        }
+
+        public void MarkElectricityPendingCutover()
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Only Legacy electricity settlement can enter Pending Cutover.");
+            ElectricitySettlementAuthorityState = SettlementAuthority.PendingCutover;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+        }
+
+        public void ActivateCanonicalElectricitySettlement(CollectionSettlementCutover cutover)
+        {
+            ArgumentNullException.ThrowIfNull(cutover);
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Electricity reconciliation must complete before Canonical activation.");
+            if (cutover.SourceKind != CollectionSourceKind.UtilityBill || cutover.SourceId != Id
+                || cutover.SourcePart != CollectionSourcePart.Electricity
+                || (MunicipalityId != Guid.Empty && cutover.MunicipalityId != MunicipalityId))
+                throw new InvalidOperationException("The frozen cutover does not identify this tenant's electricity source.");
+            ElectricitySettlementCutoverId = cutover.Id;
+            ElectricitySettlementAuthorityState = SettlementAuthority.Canonical;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+        }
+
+        public void MarkWaterPendingCutover()
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+                throw new InvalidOperationException("Only Legacy water settlement can enter Pending Cutover.");
+            WaterSettlementAuthorityState = SettlementAuthority.PendingCutover;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+        }
+
+        /// <summary>Advances the Water concurrency boundary while the source remains quiesced in Pending Cutover.</summary>
+        public long AdvancePendingWaterCutoverBoundary()
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Only a Pending Cutover Water source can freeze its opening position.");
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+            return WaterSourceVersion;
+        }
+
+        /// <summary>Advances the Electricity concurrency boundary while the source remains quiesced in Pending Cutover.</summary>
+        public long AdvancePendingElectricityCutoverBoundary()
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Only a Pending Cutover Electricity source can freeze its opening position.");
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            return ElectricitySourceVersion;
+        }
+
+        public void ActivateCanonicalWaterSettlement(CollectionSettlementCutover cutover)
+        {
+            ArgumentNullException.ThrowIfNull(cutover);
+            if (WaterSettlementAuthorityState != SettlementAuthority.PendingCutover)
+                throw new InvalidOperationException("Water reconciliation must complete before Canonical activation.");
+            if (cutover.SourceKind != CollectionSourceKind.UtilityBill || cutover.SourceId != Id
+                || cutover.SourcePart != CollectionSourcePart.Water
+                || (MunicipalityId != Guid.Empty && cutover.MunicipalityId != MunicipalityId))
+                throw new InvalidOperationException("The frozen cutover does not identify this tenant's water source.");
+            WaterSettlementCutoverId = cutover.Id;
+            WaterSettlementAuthorityState = SettlementAuthority.Canonical;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+        }
+
+        /// <summary>
+        /// Updates the legacy Electricity status/amount/OR fields as a projection of canonical settlement.
+        /// It is deliberately independent of Water and cannot be used before the Electricity cutover.
+        /// </summary>
+        public void ApplyCanonicalElectricityProjection(
+            decimal cumulativeSettled,
+            string? latestOrNumber,
+            DateTime projectedAtUtc,
+            string updatedBy)
+        {
+            if (ElectricitySettlementAuthorityState != SettlementAuthority.Canonical
+                || ElectricitySettlementCutoverId is null)
+                throw new InvalidOperationException("Electricity compatibility projection requires Canonical settlement authority.");
+            if (cumulativeSettled < 0m || cumulativeSettled > ElecCharge
+                || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
+                throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
+            if (projectedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Projection time must be UTC.", nameof(projectedAtUtc));
+            if (latestOrNumber?.Length > 50)
+                throw new ArgumentException("Official Receipt number must not exceed 50 characters.", nameof(latestOrNumber));
+
+            ElecStatus = cumulativeSettled == 0m
+                ? PaymentStatus.Unpaid
+                : cumulativeSettled >= ElecCharge ? PaymentStatus.Paid : PaymentStatus.Partial;
+            ElecPartialAmount = ElecStatus == PaymentStatus.Partial ? cumulativeSettled : 0m;
+            ElecORNumber = cumulativeSettled == 0m ? null
+                : string.IsNullOrWhiteSpace(latestOrNumber) ? ElecORNumber : latestOrNumber.Trim();
+            ElecPaidAt = cumulativeSettled == 0m ? null : ElecPaidAt ?? projectedAtUtc;
+            ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            UpdatedAt = projectedAtUtc;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
+        /// Updates the legacy Water status/amount/document fields as a compatibility projection of
+        /// canonical WCF settlement. WaterORNumber is retained only as a legacy column name; its
+        /// value here is the Cash Ticket number and is never accountable-document authority.
+        /// </summary>
+        public void ApplyCanonicalWaterProjection(
+            decimal cumulativeSettled,
+            string? latestCashTicketNumber,
+            DateTime projectedAtUtc,
+            string updatedBy)
+        {
+            if (WaterSettlementAuthorityState != SettlementAuthority.Canonical
+                || WaterSettlementCutoverId is null)
+                throw new InvalidOperationException("Water compatibility projection requires Canonical settlement authority.");
+            if (cumulativeSettled < 0m || cumulativeSettled > WaterCharge
+                || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
+                throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
+            if (projectedAtUtc.Kind != DateTimeKind.Utc)
+                throw new ArgumentException("Projection time must be UTC.", nameof(projectedAtUtc));
+            if (latestCashTicketNumber?.Length > 50)
+                throw new ArgumentException("Cash Ticket number must not exceed 50 characters.", nameof(latestCashTicketNumber));
+
+            WaterStatus = cumulativeSettled == 0m
+                ? PaymentStatus.Unpaid
+                : cumulativeSettled >= WaterCharge ? PaymentStatus.Paid : PaymentStatus.Partial;
+            WaterPartialAmount = WaterStatus == PaymentStatus.Partial ? cumulativeSettled : 0m;
+            WaterORNumber = cumulativeSettled == 0m ? null
+                : string.IsNullOrWhiteSpace(latestCashTicketNumber) ? WaterORNumber : latestCashTicketNumber.Trim();
+            WaterPaidAt = cumulativeSettled == 0m ? null : WaterPaidAt ?? projectedAtUtc;
+            WaterSourceVersion = checked(WaterSourceVersion + 1);
+            UpdatedAt = projectedAtUtc;
+            UpdatedBy = updatedBy;
+        }
     }
 }

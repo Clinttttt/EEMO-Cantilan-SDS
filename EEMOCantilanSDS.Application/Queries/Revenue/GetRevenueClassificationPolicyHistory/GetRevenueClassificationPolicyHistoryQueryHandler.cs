@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,7 +31,9 @@ public sealed class GetRevenueClassificationPolicyHistoryQueryHandler(
 
         var policies = await context.RevenueClassificationPolicies
             .AsNoTracking()
-            .Where(x => x.MunicipalityId == municipalityId && x.RevenueClassificationId == request.ClassificationId)
+            .Where(x => x.MunicipalityId == municipalityId
+                && x.RevenueClassificationId == request.ClassificationId
+                && x.BusinessContext == RevenuePolicyContext.Default)
             .OrderByDescending(x => x.EffectiveDate)
             .ThenByDescending(x => x.Id)
             .Select(x => new RevenueClassificationPolicyDto(

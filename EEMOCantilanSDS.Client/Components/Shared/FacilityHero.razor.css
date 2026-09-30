@@ -1,168 +1,166 @@
 /* ═══════════════════════════════════════════════════
-   FacilityHero.razor.css — Reusable hero banner
-   Used across all 8 EEMO facilities
+   FacilityHero.razor.css — facility / workspace identity band, V3
+   (docs/interface/STALLTRACK_UI_V3_DIRECTION.md). A white surface with navy identity, quiet metadata, the page's
+   figures on the right and a thin civic-blue rate line. Shared by NPM, TCC, SLH, TRM, TPM and Collection Activity;
+   presentation only — every figure is still the page's own.
 ═══════════════════════════════════════════════════ */
 
 .facility-hero {
     position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 28px 32px 20px;
-    margin-bottom: 20px;
     display: flex;
-    align-items: center;
-    gap: 32px;
-    overflow: hidden;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 32px;
+    margin-bottom: 20px;
+    padding: 20px 24px 22px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
 }
-
-    .facility-hero::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        right: -40px;
-        width: 200px;
-        height: 200px;
-        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
-        pointer-events: none;
-    }
 
 .facility-hero-left {
     display: flex;
+    flex: 1 1 280px;
     align-items: center;
-    gap: 18px;
-    flex: 1 1 260px;
+    gap: 16px;
+    min-width: 0;
 }
 
 .facility-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200,168,75,.18);
     display: flex;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--navy);
 }
 
-    .facility-hero-icon :deep(svg) {
-        width: 26px;
-        height: 26px;
-        stroke: var(--gold);
+    .facility-hero-icon ::deep svg {
+        width: 24px;
+        height: 24px;
+        stroke: var(--navy) !important;
         fill: none;
-        stroke-width: 2;
+        stroke-width: 1.8;
         stroke-linecap: round;
         stroke-linejoin: round;
     }
 
 .facility-hero-eyebrow {
+    margin-bottom: 2px;
+    color: var(--text-tertiary);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: .07em;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 4px;
 }
 
 .facility-hero-title {
-    font-size: 22px;
+    color: var(--navy);
+    font-size: 24px;
     font-weight: 700;
-    color: #fff;
-    line-height: 1.2;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
 }
 
 .facility-hero-sub {
+    margin-top: 2px;
+    color: var(--text-tertiary);
     font-size: 13px;
-    color: rgba(255,255,255,.55);
-    margin-top: 3px;
 }
 
 .facility-hero-stats {
     display: flex;
-    align-items: center;
-    gap: 0;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .facility-hero-stat {
-    padding: 0 24px;
-    text-align: center;
+    padding: 0 20px;
+    text-align: right;
 }
 
     .facility-hero-stat:first-child {
         padding-left: 0;
     }
 
+    .facility-hero-stat:last-child {
+        padding-right: 0;
+    }
+
 .facility-hero-val {
-    font-size: 22px;
+    color: var(--navy);
+    font-size: 20px;
     font-weight: 700;
-    color: #fff;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
 }
 
 .facility-hero-key {
-    font-size: 11px;
-    color: rgba(255,255,255,.5);
-    margin-top: 3px;
-    text-transform: uppercase;
-    letter-spacing: .06em;
+    margin-top: 2px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
 }
 
 .facility-hero-divider {
     width: 1px;
     height: 36px;
-    background: rgba(255,255,255,.12);
     flex-shrink: 0;
+    background: var(--border);
 }
 
 .facility-hero-progress {
     position: absolute;
+    right: 0;
     bottom: 0;
     left: 0;
-    right: 0;
-    height: 4px;
-    background: rgba(255,255,255,.1);
+    height: 3px;
+    background: var(--surface-muted);
 }
 
 .facility-hero-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--gold), var(--gold-light));
     border-radius: 0 2px 2px 0;
-    transition: width .5s ease;
+    background: var(--accent);
+    transition: width .4s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .facility-hero-progress-fill {
+        transition: none;
+    }
+}
 
 /* ══════════════════════════════════════════
-   RESPONSIVE — facility hero (mobile/tablet ≤768px)
-   Shared by all 8 facility pages (NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM) + Custom facilities.
-   Desktop (≥769px) is untouched — these rules only exist below the breakpoint.
+   RESPONSIVE — facility hero (≤768px): stack identity above a two-column figure grid.
 ══════════════════════════════════════════ */
 @media (max-width: 768px) {
     .facility-hero {
         flex-direction: column;
-        align-items: stretch;
         flex-wrap: nowrap;
+        align-items: stretch;
         gap: 14px;
         padding: 16px;
     }
 
     .facility-hero-left {
         flex: none;
-        min-width: 0;
         gap: 12px;
     }
 
-    /* Icon dropped on mobile — one less decorative element competing with the title for width, cleaner
-       and more legible on a narrow screen. */
     .facility-hero-icon {
         display: none;
     }
 
     .facility-hero-title {
-        font-size: 19px;
+        font-size: 20px;
     }
 
-    /* Stats reflow into a clean, evenly-spaced grid instead of a horizontal strip that overflows; dividers
-       (meant for a horizontal row) are dropped. */
     .facility-hero-stats {
         display: grid;
         grid-template-columns: 1fr 1fr;

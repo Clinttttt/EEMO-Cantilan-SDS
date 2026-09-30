@@ -36,7 +36,7 @@ Only these values are used:
 Two cross-document distinctions are explicit at this baseline:
 
 1. [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) names the target landing workspace `Dashboard`. The current interface architecture ruling names it `Overview`. This registry treats Overview as the target interface label while preserving the same portfolio-summary purpose. This is an interface wording refinement, not a financial/domain change.
-2. Baseline code, tests, and the revenue architecture agree that `DomainRules.DelinquentThresholdMonths = 1`: every account with at least one fully elapsed unpaid month is delinquent, Arrears remains unavailable until its old/lapsed qualification rule is resolved, and three months is only an urgency/severity boundary.
+2. Baseline code, tests, and the accepted EEMO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary.
 
 ## 3. Decisions
 
@@ -272,13 +272,13 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-020
 - **SUBJECT:** Qualification of old/lapsed debt as Arrears
-- **STATUS:** NEEDS EEMO INPUT
-- **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** What exact age, occupancy status, or other criteria make old/lapsed debt qualify as Arrears?
-- **RATIONALE:** Current age bands establish delinquency and urgency but do not establish Arrears classification.
-- **EVIDENCE / SOURCE:** Current explicit ruling; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 4 and 14; current reports intentionally leave Arrears unset.
-- **IMPACT:** Blocks Arrears status/classification UI and related report cutover. Use Outstanding Balance, Delinquent, and Ended-Occupancy Balance meanwhile.
-- **REVISIT CONDITION:** Close only with an explicit EEMO qualification rule and separate decision on Monthly Income presentation of recovered qualifying Arrears.
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED BUSINESS RULE
+- **DECISION / QUESTION:** Active current accounts become Delinquent after one fully elapsed unpaid month. **Arrears** is reserved for old/lapsed-year stall debt that remains owed after the relevant occupancy/term has lapsed; it is not a month-count synonym for ordinary active-account delinquency.
+- **RATIONALE:** The Head explicitly distinguished current unpaid-month delinquency from old/lapsed owed debt. This preserves Delinquent, follow-up severity, and Arrears as separate concepts.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), sections 1 and 15; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
+- **IMPACT:** Active 1+ elapsed unpaid months remain Delinquent; do not relabel them Arrears. Old/lapsed owed stall debt may be presented as Arrears. When qualifying Arrears are paid, the cash reports under the dedicated Arrears revenue line while the originating facility/obligation remains linked for traceability.
+- **REVISIT CONDITION:** Revisit only if EEMO changes the old/lapsed-debt rule or supplies a more specific formal qualification test.
 
 ### IA-021 — Current correction authority
 
@@ -322,8 +322,8 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Any future remittance workflow
 - **STATUS:** NEEDS EEMO INPUT
 - **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Keep remittance out of the current product until EEMO approves a useful end-to-end workflow. A simple `Remitted = Yes/No` flag is explicitly insufficient. Any future design must define covered amount, date, accountable officer, recipient/acknowledgement, deposit or cashier context, reconciliation states, correction/void behavior, and whether treasury participation is in scope.
-- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Office accountable-form evidence also shows that remittance is an amount-and-accountability process, not merely a boolean collection status.
+- **DECISION / QUESTION:** Keep remittance out of the current product until a complete accountable workflow is implemented. One key operating rule is now confirmed: a Cash Ticket assignment is remitted/accounted for when its assigned batch/range has been fully consumed; normal partial remittance is not allowed. A simple `Remitted = Yes/No` flag is still insufficient. The future design must still define covered amount, date, accountable officer, recipient/acknowledgement, deposit/cashier context, reconciliation states, correction/void behavior, and any Treasury handoff that is actually in scope.
+- **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Current EEMO clarification establishes the CT-exhaustion trigger, while office accountable-form evidence shows that remittance remains an amount-and-accountability process, not merely a boolean collection status.
 - **EVIDENCE / SOURCE:** [IMPLEMENTATION_HISTORY.md](../planning/IMPLEMENTATION_HISTORY.md), retired work record; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), section 4; latest office accountable-form reference showing remittance/deposit and collection-versus-remittance fields.
 - **IMPACT:** Blocks any visible Remittance workspace, collector-balance claim, or simplistic remitted checkbox. Collection reporting remains collection reporting.
 - **REVISIT CONDITION:** Reopen only through a new EEMO business case that defines the complete process; previous removed endpoints/UI do not constitute approval.
@@ -392,13 +392,13 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-030
 - **SUBJECT:** Future transport/parking configuration
-- **STATUS:** NEEDS EEMO INPUT
-- **TYPE:** BUSINESS DECISION GATE
-- **DECISION / QUESTION:** Use Ordinance No. 12-2021 as documented office evidence for the terminal-fee model, but confirm that it remains the current, unamended schedule before production configuration. The visible schedule records Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context on the ordinance. Future rates remain effective-dated and prospective.
-- **RATIONALE:** The ordinance provides a concrete class/rate basis and explicitly describes Cash Ticket issuance, but historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
-- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 4, 5, 7, and 14; TRM shadow reconciliation status.
-- **IMPACT:** Future setup belongs under Administration and TRM work remains under Facilities. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable trips. Cash Ticket remains the target instrument for Transportation/Parking under the confirmed Cantilan policy.
-- **REVISIT CONDITION:** Close when EEMO confirms Ordinance No. 12-2021 is still current or supplies the superseding schedule and any required route/class changes.
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED BUSINESS RULE
+- **DECISION / QUESTION:** Use the documented Ordinance No. 12-2021 vehicle-class schedule as the current Cantilan basis for V2 transport/parking planning: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context where applicable. Transportation/Parking uses Cash Ticket. Future configuration remains effective-dated and prospective.
+- **RATIONALE:** The office reference and latest project ruling confirm that the schedule is the working basis; the remaining design problem is implementation, not rate discovery. Historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
+- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; direct current project/business ruling consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), section 10; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
+- **IMPACT:** Future setup belongs under Administration. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable collections. The old driver/trip-heavy UI must not obscure that the office's primary concern is CT-based transport/parking collection.
+- **REVISIT CONDITION:** Revisit only if EEMO supplies a superseding ordinance/schedule or explicitly changes the vehicle-class basis.
 
 ### IA-031 — AccountableDocument production authority
 
@@ -464,13 +464,156 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-036
 - **SUBJECT:** Initial implementation boundary
-- **STATUS:** PROPOSED
-- **TYPE:** UX DECISION
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED UX DECISION
 - **DECISION / QUESTION:** Begin with Web navigation vocabulary, role visibility, a small additive alias set, and one Facilities landing entry while preserving current page bodies.
 - **RATIONALE:** It validates the target mental model with the smallest runtime surface and no financial change.
 - **EVIDENCE / SOURCE:** Audit recommendation re-evaluated against UI-1/UI-2 sequencing in [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) and formalized in the migration plan.
 - **IMPACT:** Explicitly excludes reports, facility workflow rewrites, account redesign, Mobile, visual redesign, and all future financial capabilities.
-- **REVISIT CONDITION:** Confirm after the presentation and before opening the implementation task; reduce scope further if route or shell risk cannot be isolated.
+- **REVISIT CONDITION:** Revisit only if a proposed slice expands beyond additive navigation/vocabulary/facility-entry work or requires page-body redesign, financial behavior change, or a future capability.
+
+### IA-037 — Curated global sidebar and production visual preservation
+
+- **ID:** IA-037
+- **SUBJECT:** Global Web sidebar composition and V2 visual baseline
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED UX DECISION
+- **DECISION / QUESTION:** The global sidebar is a curated set of real, high-frequency destinations rather than a literal rendering of every V2 capability domain. Preserve the proven production sidebar visual treatment by default. The current approved destinations are Overview, Operations, Collection Activity, Online Payments, Payors & Accounts, Monitoring, Reports, Collectors, Audit Trail, and Settings; Collectors/Audit retain current Head-only authority.
+- **RATIONALE:** Capability ownership and global navigation answer different questions. A compact real-destination sidebar keeps daily office work fast while deeper V2 subdivisions remain contextual inside their owning workspace. V2 is not a visual-reset project.
+- **EVIDENCE / SOURCE:** Current approved V2 task ruling; current production sidebar/code; [STALLTRACK_V2_MASTER_SPECIFICATION.md](../v2/STALLTRACK_V2_MASTER_SPECIFICATION.md), sections 3 and 8; [DESIGN_SYSTEM.md](../interface/DESIGN_SYSTEM.md), production UI preservation rule.
+- **IMPACT:** Individual facilities, Collection Manager, Follow-up History, and Export Data are not required permanent global entries. Existing routes remain compatible. A navigation-content change does not authorize page-body redesign.
+- **REVISIT CONDITION:** Revisit only when a new functional capability proves it needs permanent global access or office workflow evidence shows the curated list is insufficient.
+
+### IA-038 — Business Payor identity independent of authentication
+
+- **ID:** IA-038
+- **SUBJECT:** Tenant-owned business identity for approved operational relationships
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt a small, stable business Payor independent of authentication, governed by the twelve constraints in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). `PayorUser` remains optional authentication/access identity; authoritative source relationships determine eligible obligations; posted payer evidence is frozen.
+- **RATIONALE:** Office obligations must not depend on portal registration, and textual similarity cannot establish financial identity. Payor identifies who, without introducing assessment, balance, receivable, or settlement authority.
+- **EVIDENCE / SOURCE:** Clint's explicit acceptance of MASTER Grill Me Q41 on 2026-09-26, including all twelve constraints, recorded in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). This is a StallTrack engineering/domain decision, not an additional EEMO accounting policy.
+- **IMPACT:** Approved target semantics only. Preserve permitted anonymous/one-off payer contexts, tenant isolation, historical evidence, and unresolved legacy identity. MASTER owns sequential implementation; N/O/P/Q remain paused candidate workstreams. No partial candidate work or financial cutover is approved by this decision.
+- **REVISIT CONDITION:** Concrete source relationship or access requirements expose a conflict with these constraints; bring it to MASTER rather than infer identity or introduce another ledger.
+
+### IA-039 — Per-source canonical settlement cutover
+
+- **ID:** IA-039
+- **SUBJECT:** Opening legacy settlement and one settlement authority after conversion
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt [ADR-002](ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md): frozen evidenced opening settlement, explicit per-source Legacy/Canonical authority marker, canonical post-cutover collections/lines/allocations, and legacy paid/status fields maintained only as atomic compatibility projections.
+- **RATIONALE:** Incremental migration must preserve historical evidence while preventing independent legacy and canonical settlement paths from changing the same balance.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q42 approval on 2026-09-26, including eight clarifications and the payment/reversal example, recorded in ADR-002.
+- **IMPACT:** Every writer for a converted source, including Mobile, online and corrections, follows canonical posting. Retain original assessment, opening settlement, allocations and correction evidence. Opening settlement is not a new collection and must not inflate canonical cash reports/RCD/Activity. No source conversion or lane restart is authorized by this decision alone.
+- **REVISIT CONDITION:** A concrete source cannot satisfy the single-authority or atomic-projection rule; escalate before conversion. The separately approved operational readiness gate is IA-040 / Q43.
+
+### IA-040 — Controlled reconciliation gate before cutover
+
+- **ID:** IA-040
+- **SUBJECT:** Scoped reconciliation before freezing opening settlement and activating Canonical authority
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Apply the eight requirements in [ADR-002, Q43](ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md#controlled-reconciliation-gate--q43): mark an explicit scope Pending Cutover, quiesce its new legacy activity, drain/reconcile all in-flight channels and physical documents, freeze evidenced opening positions, then activate Canonical authority. Unready sources remain Legacy.
+- **RATIONALE:** Server cumulative state can omit physically collected money still in device queues or in-flight processing. Snapshotting server state alone cannot establish a reliable opening boundary.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q43 approval on 2026-09-26, including eight clarifications and the WCF PHP 800 assessment / PHP 300 reconciled opening settled / PHP 500 outstanding example.
+- **IMPACT:** Late old submissions become preserved reconciliation exceptions, retaining ClientOperationId/document identity; no automatic legacy write, opening-snapshot change, or conversion of cumulative values into receipts. Issued OR/CT units stay consumed. Unrelated sources continue normally. MASTER coordinates enforcement and evidence sequentially; no actual cutover is authorized by this decision alone.
+- **REVISIT CONDITION:** A proposed cutover cannot account for affected offline, physical-document, Web, online or retry/idempotency activity. Defer that scope rather than weaken the gate.
+
+### IA-041 — Durable posting operation identity
+
+- **ID:** IA-041
+- **SUBJECT:** Tenant-scoped immutable posting intent and durable outcome
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt the eleven requirements in [ADR-003](ADR_003_DURABLE_POSTING_OPERATIONS.md). TenantId + ClientOperationId binds one normalized semantic posting intent to its durable outcome. Equivalent retries return the existing authorized outcome; changed-intent reuse is an explicit IDEMPOTENCY CONFLICT; concurrent identical requests have one financial effect.
+- **RATIONALE:** Mutable source-row keys and duplicate flags cannot preserve posting intent or durable retry history through installments, corrections and cutover.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q44 approval on 2026-09-26, including scope, normalization, atomicity, authorization, correction, document and failure semantics.
+- **IMPACT:** MASTER owns the durable registry and atomic success transaction. Preserve original bindings after reversal, expose current disposition, distinguish infrastructure failure from durable business rejection, and never let a new key bypass document/source/reconciliation rules. Existing source keys are compatibility only once active. N/O/P/Q remain paused candidate workstreams.
+- **REVISIT CONDITION:** A proposed workflow cannot preserve immutable intent, tenant-safe authorized replay or atomic financial success; resolve it before that workflow converts.
+
+### IA-042 — Server-persisted versioned Web collection drafts
+
+- **ID:** IA-042
+- **SUBJECT:** Durable user-owned draft authority, revision-bound review and one successful posting
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Apply all ten requirements in [ADR-004](ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md). Stable tenant/user-owned DraftId, server persistence, expected-revision mutation checks, normalized financial review binding, final revalidation and atomic Posted/CollectionId linkage. One DraftId produces at most one successful Collection regardless of operation keys.
+- **RATIONALE:** Circuit-local state and a review boolean cannot provide durable recovery or protect review integrity across tabs. Posting retry identity and draft identity solve separate problems.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q45 approval on 2026-09-26, including ten requirements and multi-tab/posting examples.
+- **IMPACT:** Drafts create no revenue, allocation or document consumption and are excluded from financial Activity/RCD. Material changes require renewed review. MASTER owns draft persistence, contracts and consumers sequentially. Shared editing/handoff requires separate approval. Abandoned-draft retention is deferred. N/O/P/Q remain paused candidates.
+- **REVISIT CONDITION:** A concrete workflow requires shared ownership or cannot satisfy atomic single posting/review integrity; return to MASTER before expanding the model.
+
+### IA-043 — As-of and latest-corrected reporting
+
+- **ID:** IA-043
+- **SUBJECT:** Immutable events/corrections, recorded-knowledge cutoff and explicit reporting basis
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt all eleven requirements in [ADR-005](ADR_005_CORRECTION_REPORTING_BASES.md). AsOf uses only events/corrections durably recorded by its cutoff; LatestCorrected follows all currently applicable corrections to period events. Preserve original events, distinct dates, correction relationships and explicit financial effects. Official cross-period RCD treatment remains pending Office confirmation.
+- **RATIONALE:** Later or backdated corrections must not rewrite what the system knew earlier. A replacement physical document does not by itself represent another receipt of money.
+- **EVIDENCE / SOURCE:** Clint's explicit MASTER Grill Me Q46 approval on 2026-09-26, including eleven requirements and the September 26 collection / September 27 reversal example.
+- **IMPACT:** MASTER owns event/correction evidence and explicit period/cutoff/basis queries and drill-down, and labels legacy reconstruction limits. Reports remain derived. No automatic earlier-RCD restatement or later-period adjustment policy is approved; N/O/P/Q remain paused candidates.
+- **REVISIT CONDITION:** Office confirmation determines official cross-period RCD presentation/accounting. Preserve both query capabilities and the evidence needed for the eventual policy.
+
+### IA-044 — Governed configurable service operations
+
+- **ID:** IA-044
+- **SUBJECT:** Flexible but governed handling of locally defined EEMO services and Collector Mobile exposure
+- **STATUS:** CONFIRMED
+- **TYPE:** APPROVED ARCHITECTURE
+- **DECISION / QUESTION:** Adopt [ADR-006](ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md). A structurally simple local EEMO service may be represented by governed tenant configuration for classification, effective-dated instrument/rate/calculation policy, Payor requirement, operational fields, setup state and allowed collection channels. Incomplete setup cannot produce a financial Collection. Collectors record transaction facts only and never invent charge identity, rate, classification, or OR/CT policy.
+- **RATIONALE:** StallTrack needs to accommodate local services such as Transfer Large Cattle and future EEMO revenue lines without hard-coding guessed rules or stopping the entire V2 design while office policy is being confirmed.
+- **EVIDENCE / SOURCE:** Clint's explicit V2 architecture discussion and approval on 2026-09-27; existing Malinawa/configurable-service direction in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md); canonical no-arbitrary-line, instrument-policy, Mobile-authority and collection rules.
+- **IMPACT:** Operations may show **Setup Required** for incomplete services. Active services may feed the same canonical Collection infrastructure through Web and, only when explicitly enabled/authorized, focused Collector Mobile. IA-048 later confirms Transfer Large Cattle as an occasional transfer transaction with a corresponding direct approved amount; its exact Cantilan fee schedule/accountable-form and mandatory local regulatory detail remain configurable. A configurable service may later be promoted to a specialized source domain without rewriting posted history.
+- **REVISIT CONDITION:** A service requires materially specialized approval, regulatory, assessment, lifecycle or reconciliation behavior beyond the governed configuration model; promote that source rather than stretching the generic model.
+### IA-045 — EEMO Head correction: Tabo, Vegetable/Fruit, and Market grouping
+
+- **ID:** IA-045
+- **SUBJECT:** Latest Cantilan instrument and report-grouping clarification
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS DECISION
+- **DECISION / QUESTION:** The EEMO Head confirmed **Tabo = Official Receipt (OR)**, superseding the earlier CT assumption. **Vegetable/Fruit Space Rental may use OR or CT, with CT the predominant practice.** For Market Fees/report grouping, use the office Monthly Income 2026 sheet: Market Fees is one sibling income row, while ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Transfer Large Cattle, and Ice Plant are separate sibling rows.
+- **RATIONALE:** The Head explicitly directed StallTrack to follow the office itemized Monthly Income sheet instead of inventing nested Market Fees subcategories.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification on 2026-09-27 plus the photographed Municipal Economic Enterprises Development Office Monthly Income 2026 sheet; recorded in [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthly_income_clarification.md).
+- **IMPACT:** Operations/UI and tenant instrument policy must stop presenting Tabo as CT. Vegetable/Fruit cannot remain CT-only in target design; IA-046 subsequently resolves full/whole payment = OR and daily transaction = CT. Tabo shadow/configuration must be re-verified before cutover. Market Fees remains one official report line rather than a container for the other listed market income rows.
+- **REVISIT CONDITION:** Revisit only if EEMO supplies a newer official policy/report or clarifies a superseding instrument rule.
+
+### IA-046 - Vegetable/Fruit OR-versus-CT selection condition
+
+- **ID:** IA-046
+- **SUBJECT:** Deterministic instrument resolution for dual-instrument Vegetable/Fruit Space Rental
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS DECISION
+- **DECISION / QUESTION:** The EEMO Head confirmed the resolver on 2026-09-27: **full/whole ("buo") payment uses Official Receipt (OR); daily transactions/collections use Cash Tickets (CT).**
+- **RATIONALE:** Vegetable/Fruit legitimately supports both instruments, but the choice is not arbitrary collector discretion. The collection cadence/context resolves the accountable document.
+- **EVIDENCE / SOURCE:** Direct EEMO Head chat clarification recorded in [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **IMPACT:** Target policy must support contextual instrument resolution. Remove CT-only presentation and remove the former unresolved decision gate. IA-047's regular/fixed-versus-transient/temporary inference is superseded for Cantilan.
+- **REVISIT CONDITION:** Only if EEMO supplies a newer local rule that supersedes the full-payment/daily-transaction distinction.
+
+### IA-047 - Interim Philippine-reference basis for presentation and UI audit
+
+- **ID:** IA-047
+- **SUBJECT:** Temporary evidence-based handling of unresolved Vegetable/Fruit instrument selection, utility assessment basis, and Transfer Large Cattle workflow
+- **STATUS:** PARTIALLY SUPERSEDED / REFERENCE ONLY
+- **TYPE:** PRESENTATION / UI-AUDIT REFERENCE - NOT PRODUCTION CUTOVER AUTHORITY
+- **DECISION / QUESTION:** External Philippine references remain useful only where direct Cantilan policy is still absent. They no longer govern Vegetable/Fruit OR-versus-CT selection or the current ECF/WCF presentation because the EEMO Head has now directly clarified those items.
+- **RATIONALE:** Direct Cantilan office clarification outranks comparative external-LGU precedent.
+- **EVIDENCE / SOURCE:** [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md) supersedes the applicable portions of [2026-09-27 Interim Philippine Reference Basis](../evidence/2026-09-27_interim_philippine_reference_basis.md).
+- **IMPACT:** Keep IA-047 only as supporting reference for unresolved regulatory structure, especially optional Transfer Large Cattle ownership/animal/certificate details and other future comparative research. Do not use it to override current Head instructions.
+- **REVISIT CONDITION:** Retire additional portions whenever Cantilan supplies direct local policy.
+
+### IA-048 - EEMO utility operations are not NPM-owned; latest utility and transfer working rules
+
+- **ID:** IA-048
+- **SUBJECT:** Utility operation scope, current ECF/WCF basis, and latest Transfer Large Cattle office direction
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS + TARGET ARCHITECTURE CLARIFICATION
+- **DECISION / QUESTION:** ECF and WCF are broader **EEMO Utility Operations**, not globally owned by the NPM facility. An NPM stall may be one service subject/context, but NPM must not be the architectural parent of every utility assessment. Current Head direction is **ECF = OR with direct approved amount entry** and **WCF = CT at the currently stated PHP 10 rate**. Transfer Large Cattle is an occasional transfer transaction with a corresponding **direct approved amount**.
+- **RATIONALE:** The office Monthly Income/board material presents ECF and WCF as separate revenue lines, and earlier Head clarification already distinguished the broader EEMO/Public Market operation from NPM. The current code's UtilityBill is explicitly stall/NPM-bound and should therefore be treated as a legacy/current specialized source, not as proof that all future utilities are NPM-owned.
+- **EVIDENCE / SOURCE:** Direct EEMO Head clarification on 2026-09-27, office Monthly Income/board evidence, and earlier confirmed Public Market-versus-NPM scope. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **IMPACT:** Operations keeps a separate Utility Operations section. NPM may expose contextual utility links for its occupants but must not own global ECF/WCF navigation or reporting. Existing UtilityBill rows remain valid and must not be destructively rewritten; future non-NPM utility subjects should be handled additively through an appropriate generalized source/context model or adapter. Do not hard-code PHP 10 or direct ECF amounts into UI markup; resolve approved effective configuration/policy.
+- **REVISIT CONDITION:** Revisit only if EEMO later restricts utilities to a specific facility or supplies a superseding utility-assessment/rate policy.
 
 ## 4. Decision-gate summary
 
@@ -478,15 +621,14 @@ The following items require EEMO input, a UX decision, or a stated technical pre
 
 | ID | Gate | Blocks or constrains |
 |---|---|---|
-| IA-020 | Exact Arrears qualification boundary | Arrears status/classification and report cutover |
 | IA-022 | Online-payment operational ownership | Queue ownership, escalation, and messaging |
-| IA-024 | Whether and how remittance should exist | Any visible remittance capability |
+| IA-024 | Exact remittance/RCD operating sequence | Any visible remittance capability |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
 | IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
-| IA-030 | Ordinance currentness / superseding transportation schedule | Production transportation setup and classified flow |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
+| IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |
 
 ## 5. Superseded interpretations
 

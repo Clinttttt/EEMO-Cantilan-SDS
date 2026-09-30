@@ -48,14 +48,14 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
-.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
 .vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
 .vs-hero-stat { padding: 0 18px; text-align: center; flex: 1; min-width: 140px; }
 .vs-hero-stat:first-child { padding-left: 0; }
 .vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
-.vs-hero-key { font-size: 10px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
-.vs-hero-sub2 { font-size: 10px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
+.vs-hero-key { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
+.vs-hero-sub2 { font-size: 11px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
 .vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
 @media (max-width: 1100px) {
     .vs-hero-title { font-size: 18px; }
@@ -123,7 +123,7 @@
 .set-fac { font-weight: 700; color: var(--navy); }
 .set-code {
     margin-left: 8px;
-    font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em;
     color: var(--text-subtle);
     background: var(--bg-icon);
     border-radius: 5px; padding: 2px 6px;
@@ -158,7 +158,7 @@
 .set-links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .set-card-head .set-link { flex-shrink: 0; margin-left: auto; padding-top: 0; border: none; }
 .set-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--navy); text-decoration: none; }
-.set-link:hover { color: #8a6d1b; }
+.set-link:hover { color: var(--accent); }
 .set-link-arrow { transition: transform .14s ease; }
 .set-link:hover .set-link-arrow { transform: translateX(3px); }
 
@@ -194,12 +194,12 @@
 .set-retry {
     margin-top: 4px;
     font-size: 13px; font-weight: 650;
-    color: #fff; background: var(--navy);
+    color: #fff; background: var(--accent);
     border: none; border-radius: 9px;
     padding: 9px 18px; cursor: pointer;
     transition: background .14s ease;
 }
-.set-retry:hover { background: var(--navy-2); }
+.set-retry:hover { background: var(--accent-hover); }
 
 @media (max-width: 900px) { .set-grid { grid-template-columns: 1fr; } }
 
@@ -259,7 +259,7 @@
 .set-signout-yes:hover:not(:disabled) { filter: brightness(1.05); }
 
 .set-signout-no { background: transparent; color: var(--text-subtle); border-color: var(--border); }
-.set-signout-no:hover:not(:disabled) { border-color: var(--gold); color: var(--navy); }
+.set-signout-no:hover:not(:disabled) { border-color: var(--accent); color: var(--navy); }
 
 .set-signout-yes:disabled,
 .set-signout-no:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -395,4 +395,70 @@
     pointer-events: none;
     text-decoration: none;
     opacity: .75;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
 }

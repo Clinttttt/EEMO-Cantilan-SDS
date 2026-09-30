@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +20,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
 {
     public interface IAppDbContext
     {
+        ChangeTracker ChangeTracker { get; }
+        Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(CancellationToken cancellationToken = default);
         DbSet<Facility> Facilities { get; }
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
@@ -27,6 +30,19 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }
+        DbSet<Payor> Payors { get; }
+        DbSet<CollectionAllocation> CollectionAllocations { get; }
+        DbSet<WebCollectionDraft> WebCollectionDrafts { get; }
+        DbSet<WebCollectionDraftLine> WebCollectionDraftLines { get; }
+        DbSet<WebCollectionDraftAllocation> WebCollectionDraftAllocations { get; }
+        DbSet<PostingOperation> PostingOperations { get; }
+        DbSet<CollectionSettlementCutover> CollectionSettlementCutovers { get; }
+        DbSet<AccountableFormBook> AccountableFormBooks { get; }
+        DbSet<AccountableDocument> AccountableDocuments { get; }
+        DbSet<AccountableFormAssignment> AccountableFormAssignments { get; }
+        DbSet<CollectionCorrection> CollectionCorrections { get; }
+        DbSet<CollectionCorrectionLine> CollectionCorrectionLines { get; }
+        DbSet<CollectionCorrectionAllocation> CollectionCorrectionAllocations { get; }
 
     /// <summary>An office's own market sections' daily fees, effective-dated like every other rate here.</summary>
     DbSet<FacilitySectionRate> FacilitySectionRates { get; }
@@ -38,6 +54,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
         DbSet<DailyCollection> DailyCollections { get; }
+        DbSet<UtilityBill> UtilityBills { get; }
         DbSet<StallMonthlyException> StallMonthlyExceptions { get; }
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
         DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }
@@ -56,6 +73,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorActivationCode> PayorActivationCodes { get; }
         DbSet<PayorStallLink> PayorStallLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
+        DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

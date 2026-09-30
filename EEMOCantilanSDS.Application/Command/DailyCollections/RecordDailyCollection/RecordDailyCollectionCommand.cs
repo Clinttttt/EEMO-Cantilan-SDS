@@ -12,5 +12,6 @@ public record RecordDailyCollectionCommand(
     // Offline-sync idempotency key (set when replaying a queued offline collection); null online.
     Guid? ClientOperationId = null,
     // Excused/absent day: the payor was not operating. ₱0 owed, mutually exclusive with IsPaid.
-    bool IsAbsent = false
+    bool IsAbsent = false,
+    decimal? MeatKilos = null
 ) : IRequest<Result<bool>>;

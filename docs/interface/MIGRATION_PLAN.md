@@ -658,6 +658,7 @@ Revert page/component style slices independently. Avoid one cross-application st
 
 ## 6. Cross-phase release and validation rules
 
+- **UI preservation gate:** Interface V2 does not authorize a visual redesign by default. Preserve the proven production page/shell/body treatment and make the smallest additive or corrective UI change needed for the approved V2 requirement. Route, navigation, vocabulary, or workspace migration alone is not permission to restyle the page body.
 - Do not combine a navigation migration with a financial behavior change.
 - Money, reporting, tenancy, or authorization changes discovered during interface work become separate defects/tasks with failing-before-fix tests.
 - Run the unit and component suites separately when runtime implementation begins; integration tests remain a separate Docker/Testcontainers run.

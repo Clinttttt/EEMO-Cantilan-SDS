@@ -1003,3 +1003,105 @@
         min-width: 0;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md)
+   Presentation only: the active section tab follows the civic-blue active state used by the sidebar,
+   hovers are blue rather than gold, and small labels use readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.npm-back-btn {
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+}
+
+    .npm-back-btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+    .npm-back-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.npm-sec-tab {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .npm-sec-tab:hover {
+        border-color: var(--accent);
+        background: var(--surface-hover);
+    }
+
+    .npm-sec-tab.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        box-shadow: inset 3px 0 0 var(--accent), var(--elevation-1);
+    }
+
+.npm-sec-icon {
+    background: var(--surface-muted);
+}
+
+.npm-sec-tab.active .npm-sec-icon {
+    background: var(--surface);
+}
+
+.npm-sec-sub {
+    color: var(--text-tertiary);
+}
+
+.npm-sec-tab.active .npm-sec-name {
+    color: var(--accent);
+}
+
+.npm-sec-tab.active .npm-sec-sub {
+    color: var(--text-secondary);
+}
+
+.npm-section-info {
+    align-items: center;
+    padding: 14px 20px;
+}
+
+.npm-section-desc {
+    color: var(--text-tertiary);
+}
+
+.fee-chip {
+    border-radius: 4px;
+    background: var(--surface-muted);
+    border-color: var(--border-strong);
+}
+
+.npm-mini-stat {
+    text-align: right;
+}
+
+.npm-mini-val {
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+}
+
+.npm-mini-key {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.npm-mini-stat.partial-stat .npm-mini-val {
+    color: #9a6a1f;
+}
+
+@media (max-width: 768px) {
+    .npm-mini-stat {
+        text-align: left;
+    }
+}

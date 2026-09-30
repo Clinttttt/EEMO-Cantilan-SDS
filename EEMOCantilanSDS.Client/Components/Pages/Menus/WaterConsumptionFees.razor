@@ -1,0 +1,301 @@
+@page "/operations/water-consumption-fees"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IWcfCollectionsApiClient WcfApi
+
+<PageTitle>StallTrack — Water Consumption Fees</PageTitle>
+
+@* WCF on the Web is monitoring, source review and reporting. Field collection is recorded on Collector Mobile, and
+   Cash Ticket custody is managed in Accountable Forms. The layout owns the <main> landmark. *@
+<div class="v3-page wcf-page">
+    <WorkspaceHeader Parent="Operations" Title="Water Consumption Fees" Code="WCF">
+        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Actions>
+            <label class="wcf-period">
+                <span>Through</span>
+                <input class="v3-input" type="month" aria-label="Show obligations through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+            <div class="v3-btn-group" role="group" aria-label="WCF actions">
+                <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_busy">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
+                    Refresh
+                </button>
+                <a class="v3-btn" href="/operations/water-consumption-fees/accounts">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
+                    Accounts
+                </a>
+                <a class="v3-btn" href="/operations/water-consumption-fees/report">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                    Report
+                </a>
+            </div>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+
+    <SummaryStrip Label="WCF position" Items="SummaryItems" />
+
+    <div class="wcf-readiness" aria-label="Field collection readiness">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
+        <p>
+            <strong>Collected on Collector Mobile</strong>
+            <span>@SettlementReadiness · @StockReadiness</span>
+        </p>
+        <a class="v3-btn v3-btn-sm" href="/accountable-forms">Manage Accountable Forms</a>
+    </div>
+
+    <section class="v3-panel" aria-labelledby="wcf-obligations-title">
+        <header class="v3-panel-header">
+            <h2 id="wcf-obligations-title">Obligations</h2>
+            <span class="v3-panel-meta">Unpaid periods through @ThroughPeriodLabel stay listed</span>
+        </header>
+
+        <div class="v3-toolbar" aria-label="Obligation filters">
+            <label class="v3-search">
+                <span class="v3-sr-only">Search WCF sources</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                <input type="search" placeholder="Search payer, stall or facility" aria-label="Search WCF sources" @bind="_searchText" @bind:event="oninput" />
+            </label>
+            <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count</span>
+        </div>
+
+        <div class="v3-table-wrap" role="region" aria-label="WCF obligations" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Water obligations through @ThroughPeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Payer</th>
+                        <th scope="col">Period · meter</th>
+                        <th scope="col" class="v3-num">Assessed</th>
+                        <th scope="col" class="v3-num">Previously settled</th>
+                        <th scope="col" class="v3-num">Outstanding</th>
+                        <th scope="col" class="wcf-status-col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var quote in FilteredQuotes)
+                    {
+                        <tr>
+                            <td>
+                                <span class="v3-strong">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</span>
+                                <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
+                            </td>
+                            <td>@Period(quote.BillingYear, quote.BillingMonth)<span class="v3-block">@quote.Consumption.ToString("N2") m³ × PHP @quote.RatePerCubicMeter.ToString("N2")</span></td>
+                            <td class="v3-num">@Money(quote.AssessedAmount)</td>
+                            <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
+                            <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
+                            <td class="wcf-status-col"><span class="v3-state">@CollectionState(quote)</span></td>
+                        </tr>
+                    }
+                    @if (!FilteredQuotes.Any())
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="6">
+                                @if (_busy && _quotes.Count == 0)
+                                {
+                                    <span role="status">Loading obligations…</span>
+                                }
+                                else if (_quotes.Count > 0)
+                                {
+                                    <span>No obligations match this search.</span>
+                                }
+                                else
+                                {
+                                    <span>No WCF obligations through @ThroughPeriodLabel.</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel" aria-labelledby="wcf-activity-title">
+        <header class="v3-panel-header">
+            <h2 id="wcf-activity-title">Collection activity</h2>
+            <span class="v3-panel-meta">Posted collections · @ThroughPeriodLabel</span>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="Posted WCF collections" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">WCF Collections for @ThroughPeriodLabel</caption>
+                <thead><tr><th scope="col">Business date</th><th scope="col">Cash Ticket · payer</th><th scope="col">Status</th><th scope="col" class="v3-num">Total</th><th scope="col">Items</th></tr></thead>
+                <tbody>
+                    @foreach (var item in _activity)
+                    {
+                        <tr>
+                            <td>@item.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(item.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
+                            <td><span class="v3-strong">@item.DocumentNumber</span><span class="v3-block">@(item.PayerName ?? "No payer recorded")</span></td>
+                            <td>@item.Disposition</td>
+                            <td class="v3-num v3-strong">@Money(item.TotalAmount)</td>
+                            <td>
+                                <details class="v3-details">
+                                    <summary>@item.ItemCount item@(item.ItemCount == 1 ? "" : "s")</summary>
+                                    <ul>
+                                        @foreach (var line in item.Lines)
+                                        {
+                                            <li>
+                                                <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
+                                                <span class="v3-muted">@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) + " obligation" : "WCF obligation")</span>
+                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Meter reading and rate recorded with this collection" : line.CalculationSnapshot)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">No WCF collections were posted in @ThroughPeriodLabel.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
+        <header class="v3-panel-header">
+            <h2 id="wcf-reconciliation-title">Cash Ticket exceptions</h2>
+            <span class="v3-panel-meta">@(_exceptions.Count == 0 ? "None recorded" : $"{_exceptions.Count} need office review")</span>
+        </header>
+        @if (_exceptions.Count > 0)
+        {
+            <p class="v3-panel-note">Issued tickets that could not be accepted as collections. They stay unavailable until the office reviews them.</p>
+        }
+        <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
+            <table class="v3-table">
+                <thead><tr><th scope="col">Recorded</th><th scope="col">Ticket</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                <tbody>
+                    @foreach (var exception in _exceptions)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
+                            <td class="v3-strong">@(exception.DocumentNumber ?? "Document identity unresolved")</td>
+                            <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
+                            <td>@exception.OutcomeCode</td>
+                            <td>@exception.OutcomeDetails</td>
+                        </tr>
+                    }
+                    @if (_exceptions.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">No Cash Ticket exceptions are recorded.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private DateOnly _through = PhilippineTime.Today;
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private string _searchText = string.Empty;
+    private List<WcfObligationQuoteDto> _quotes = [];
+    private List<CashTicketDocumentDto> _tickets = [];
+    private List<WcfCollectionActivityDto> _activity = [];
+    private List<WcfReconciliationExceptionDto> _exceptions = [];
+    private bool _busy;
+    private string? _error;
+
+    private string ThroughPeriodLabel => _through.ToString("MMMM yyyy");
+
+    // The same server-supplied totals the page already showed, in one V3 summary strip.
+    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
+    [
+        new("Through", ThroughPeriodLabel),
+        new("Assessed", Money(_quotes.Sum(x => x.AssessedAmount))),
+        new("Previously settled", Money(_quotes.Sum(x => x.CumulativeSettledEvidence))),
+        new("Outstanding", Money(_quotes.Sum(x => x.OutstandingAmount)), Emphasis: true),
+        new("Open periods", _quotes.Count(x => x.OutstandingAmount > 0m).ToString()),
+    ];
+    private IEnumerable<WcfObligationQuoteDto> FilteredQuotes => _quotes.Where(x =>
+        string.IsNullOrWhiteSpace(_searchText)
+        || (x.PayerNameSnapshot?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)
+        || x.StallNo.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+        || x.FacilityName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
+        || x.Section.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        if (DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", out var parsed))
+        {
+            _through = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadAsync();
+        }
+    }
+
+    // Book custody and collector lists moved to Accountable Forms with the forms that used them; this page now reads
+    // only what it displays.
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var obligations = await WcfApi.GetObligationsAsync(_through.Year, _through.Month);
+            if (!obligations.IsSuccess) _error = obligations.Error ?? "Unable to load WCF source facts.";
+            else _quotes = obligations.Value?.ToList() ?? [];
+            var tickets = await WcfApi.GetAvailableCashTicketsAsync();
+            if (!tickets.IsSuccess) _error ??= tickets.Error ?? "Unable to load Cash Ticket custody state.";
+            else _tickets = tickets.Value?.ToList() ?? [];
+            var from = new DateOnly(_through.Year, _through.Month, 1);
+            var activity = await WcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
+            if (!activity.IsSuccess) _error ??= activity.Error ?? "Unable to load WCF Collection Activity.";
+            else _activity = activity.Value?.ToList() ?? [];
+            var exceptions = await WcfApi.GetReconciliationExceptionsAsync();
+            if (!exceptions.IsSuccess) _error ??= exceptions.Error ?? "Unable to load WCF reconciliation exceptions.";
+            else _exceptions = exceptions.Value?.ToList() ?? [];
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // Mobile readiness from server truth only: settlement authority on the returned obligations, and the office's
+    // in-office Cash Ticket stock (for Head/Admin, "available" tickets are unassigned office stock — a collector can
+    // issue only tickets assigned to them in Accountable Forms). Per-collector capability is decided by the server
+    // on Collector Mobile.
+    private string SettlementReadiness
+    {
+        get
+        {
+            var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
+            var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
+            if (owing == 0) return "No outstanding obligation returned";
+            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet";
+            return $"{open} of {owing} outstanding obligation{(owing == 1 ? "" : "s")} open for field collection";
+        }
+    }
+
+    private string StockReadiness => _tickets.Count == 0
+        ? "no Cash Tickets in office stock"
+        : $"{_tickets.Count} Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock awaiting assignment";
+
+    /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
+    private static string CollectionState(WcfObligationQuoteDto quote) => quote switch
+    {
+        { SettlementAuthority: SettlementAuthority.Legacy } when quote.OutstandingAmount > 0m => "Not open for collection",
+        { SettlementAuthority: SettlementAuthority.PendingCutover } => "Reconciliation in progress",
+        { OutstandingAmount: <= 0m } => "Settled",
+        { CanCollectCanonical: true } => "Open for field collection",
+        _ => "Not open for collection",
+    };
+
+    private static string Period(int year, int month) => new DateTime(year, month, 1).ToString("MMM yyyy");
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
+}

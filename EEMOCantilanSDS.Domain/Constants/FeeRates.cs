@@ -16,6 +16,9 @@ namespace EEMOCantilanSDS.Domain.Constants
         // resolved per LGU through Stall.ResolveMonthlyRent.
         public const decimal NpmMonthlyFee = 900.00m;
         public const decimal NpmFishFeePerKilo = 1.00m;    // Fish Area only
+        // Cantilan Meat weighing rate. This is seeded only for the default (Cantilan) tenant as an
+        // effective-dated FacilityRate; it is never a cross-tenant resolver fallback.
+        public const decimal NpmMeatFeePerKilo = 66.00m;
 
         // TCC — RANGE (actual rate from Stall.MonthlyRate)
         public const decimal TccMonthlyMin = 2_400.00m;

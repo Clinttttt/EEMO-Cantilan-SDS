@@ -1,0 +1,28 @@
+@* Accountable-instrument marker (OR / CT). The letters and the spoken name carry the meaning; the tint only groups
+   them. The instrument itself always comes from the page's approved policy — this component never decides it. *@
+<span class="ic @(Instrument == "OR" ? "ic-or" : "ic-ct")">
+    <span class="ic-code" aria-hidden="true">@Instrument</span>
+    @if (ShowName)
+    {
+        <span class="ic-name" aria-hidden="true">@Name</span>
+    }
+    <span class="ic-sr">@(Context is null ? Name : $"{Context}: {Name}")</span>
+</span>
+
+@code {
+    /// <summary>"OR" or "CT".</summary>
+    [Parameter, EditorRequired] public string Instrument { get; set; } = string.Empty;
+
+    /// <summary>Show the full instrument name beside the code.</summary>
+    [Parameter] public bool ShowName { get; set; }
+
+    /// <summary>Optional business context read before the name, e.g. "Whole payment".</summary>
+    [Parameter] public string? Context { get; set; }
+
+    private string Name => Instrument switch
+    {
+        "OR" => "Official Receipt",
+        "CT" => "Cash Ticket",
+        _ => Instrument,
+    };
+}

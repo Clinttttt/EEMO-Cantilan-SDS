@@ -74,4 +74,54 @@ public sealed class RevenueClassificationDomainTests
 
         Assert.Equal("A policy", classificationA.ResolvePolicyAsOf([policyA, policyB], new DateOnly(2027, 2, 1))!.DisplayName);
     }
+
+    [Fact]
+    public void PolicyContextsAreExplicitAndResolveIndependently()
+    {
+        var tenant = Guid.NewGuid();
+        var classification = RevenueClassification.Create("VEGETABLE_FRUIT_SPACE_RENTAL", tenant);
+        var effectiveDate = new DateOnly(2026, 9, 27);
+        var defaultPolicy = RevenueClassificationPolicy.Create(
+            classification.Id, new DateOnly(2026, 9, 1), "Legacy default", null, tenant);
+        var wholePayment = RevenueClassificationPolicy.Create(
+            classification.Id, effectiveDate, "Whole payment", RevenueInstrumentType.OfficialReceipt,
+            tenant, businessContext: RevenuePolicyContext.VegetableWholePayment);
+        var dailyTransaction = RevenueClassificationPolicy.Create(
+            classification.Id, effectiveDate, "Daily transaction", RevenueInstrumentType.CashTicket,
+            tenant, businessContext: RevenuePolicyContext.VegetableDailyTransaction);
+        var policies = new[] { defaultPolicy, wholePayment, dailyTransaction };
+
+        Assert.Equal(RevenuePolicyContext.Default, defaultPolicy.BusinessContext);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt,
+            classification.ResolvePolicyAsOf(policies, effectiveDate, RevenuePolicyContext.VegetableWholePayment)!
+                .PermittedInstrumentType);
+        Assert.Equal(RevenueInstrumentType.CashTicket,
+            classification.ResolvePolicyAsOf(policies, effectiveDate, RevenuePolicyContext.VegetableDailyTransaction)!
+                .PermittedInstrumentType);
+        Assert.Null(classification.ResolvePolicyAsOf([dailyTransaction], effectiveDate,
+            RevenuePolicyContext.VegetableWholePayment));
+        Assert.Null(classification.ResolvePolicyAsOf([wholePayment], effectiveDate,
+            RevenuePolicyContext.VegetableDailyTransaction));
+        Assert.Null(classification.ResolvePolicyAsOf(policies, effectiveDate)!.PermittedInstrumentType);
+        Assert.Null(classification.ResolvePolicyAsOf([], effectiveDate, RevenuePolicyContext.VegetableWholePayment));
+        Assert.Throws<ArgumentOutOfRangeException>(() => classification.ResolvePolicyAsOf(
+            policies, effectiveDate, (RevenuePolicyContext)999));
+    }
+
+    [Fact]
+    public void OnlyKnownContextsAreAccepted_AndContextualPolicyRequiresAnInstrument()
+    {
+        var classification = RevenueClassification.Create("VEGETABLE_FRUIT_SPACE_RENTAL");
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => RevenueClassificationPolicy.Create(
+            classification.Id, new DateOnly(2026, 9, 27), "Unknown", RevenueInstrumentType.CashTicket,
+            businessContext: (RevenuePolicyContext)999));
+        Assert.Throws<ArgumentException>(() => RevenueClassificationPolicy.Create(
+            classification.Id, new DateOnly(2026, 9, 27), "Whole payment", null,
+            businessContext: RevenuePolicyContext.VegetableWholePayment));
+
+        var unresolvedDefault = RevenueClassificationPolicy.Create(
+            classification.Id, new DateOnly(2026, 9, 27), "Unresolved", null);
+        Assert.Null(unresolvedDefault.PermittedInstrumentType);
+    }
 }

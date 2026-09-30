@@ -81,7 +81,7 @@
     height: auto !important;
     min-height: 0 !important;
     text-align: center;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--text-muted);
     padding: 6px 2px;
@@ -208,7 +208,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -349,7 +349,7 @@
 }
 
 .cal-kilo-val {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--navy);
     background: var(--bg-icon);
@@ -453,7 +453,7 @@
 
 .cal-sum-key {
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.7px;
@@ -565,3 +565,12 @@
         stroke: #44607d;
     }
 .cal-sum-val.cal-sum-closed { color: #44607d; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.detail-section {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}

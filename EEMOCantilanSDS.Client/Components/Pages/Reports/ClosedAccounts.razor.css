@@ -32,7 +32,7 @@
 }
 .ca-chip:hover { color: var(--navy); }
 .ca-chip-active, .ca-chip-active:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    background: var(--accent);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -44,7 +44,7 @@
     height: 38px; padding: 0 12px; flex: 1 1 auto; min-width: 0;
     transition: border-color .12s ease, box-shadow .12s ease;
 }
-.ca-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.ca-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 .ca-search svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .ca-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13px; color: var(--navy); }
 .ca-search input::placeholder { color: var(--text-muted); }
@@ -54,10 +54,10 @@
 
 .ca-print-btn {
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--navy); color: #fff; border: none; border-radius: 9px;
+    background: var(--accent); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.ca-print-btn:hover { background: var(--navy-2, #112d47); }
+.ca-print-btn:hover { background: var(--accent-hover); }
 .ca-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Bulk "Renew all" button — green (renew) accent; sits in the year-group header beside the
@@ -83,11 +83,11 @@
 .ca-frame-space { height: 0; }
 .ca-rpt-head { text-align: center; margin-bottom: 20px; }
 .ca-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
-.ca-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.ca-gov { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .ca-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .ca-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
 .ca-doc { margin-top: 12px; font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--navy); }
-.ca-doc-scope { margin-top: 3px; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #8a6d1b; }
+.ca-doc-scope { margin-top: 3px; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-secondary); }
 .ca-doc-period { margin-top: 4px; font-size: 11px; color: var(--text-subtle); }
 
 /* Summary cards */
@@ -136,7 +136,7 @@
 
 .ca-rpt-foot { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; padding-top: 18px; }
 .ca-rpt-foot div { text-align: center; flex: 1; }
-.ca-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
+.ca-rpt-foot span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
 .ca-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
 
 @media screen and (max-width: 860px) {
@@ -154,7 +154,7 @@
     .ca-summary, .ca-note { display: none !important; }
     .ca-year-head { font-size: 11px; }
     .ca-year-label { font-size: 12px; }
-    .ca-table { display: table !important; width: 100%; overflow: visible !important; white-space: normal !important; font-size: 9px; }
+    .ca-table { display: table !important; width: 100%; overflow: visible !important; white-space: normal !important; font-size: 11px; }
     .ca-table th, .ca-table td { border-left: 1px solid #d8dee5; border-right: 1px solid #d8dee5; padding: 4px 5px; word-break: break-word; vertical-align: top; }
     .ca-table thead th { border-top: 1px solid #d8dee5; border-bottom: 1px solid #d8dee5; background: #f4f7fa; }
     .ca-table tr.ca-grp-start td { border-top: 1px solid #d8dee5; }
@@ -179,7 +179,7 @@
 }
 .ca-row-btn:hover { box-shadow: 0 4px 10px rgba(9, 31, 52, .12); }
 .ca-row-reopen { border-color: color-mix(in srgb, var(--navy) 35%, transparent); color: var(--navy); }
-.ca-row-reopen:hover { background: var(--navy); color: #fff; }
+.ca-row-reopen:hover { background: var(--accent-hover); color: #fff; }
 .ca-row-renew { border-color: color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); }
 .ca-row-renew:hover { background: var(--green); color: #fff; }
 .ca-row-remove { border-color: color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
@@ -369,7 +369,7 @@
 .ca-subtotal-note {
     display: block;
     margin-top: 2px;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 400;
     color: var(--text-muted);
 }
@@ -377,7 +377,7 @@
 /* The account count under a summary figure, so a peso amount never stands without saying how many it covers. */
 .ca-sum-sub {
     margin-top: 3px;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     text-align: center;
 }

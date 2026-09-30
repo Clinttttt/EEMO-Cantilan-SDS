@@ -21,6 +21,7 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
     public string ActorRole { get; private set; } = string.Empty;
 
     public Guid? CollectorId { get; private set; }
+    public Guid? PayorId { get; private set; }
     public Guid? PayorUserId { get; private set; }
     public string? PayerName { get; private set; }
 
@@ -45,7 +46,8 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
         Guid? collectorId = null,
         Guid? payorUserId = null,
         string? payerName = null,
-        Guid? clientOperationId = null)
+        Guid? clientOperationId = null,
+        Guid? payorId = null)
     {
         ArgumentNullException.ThrowIfNull(lines);
         var drafts = lines.ToList();
@@ -62,8 +64,11 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
         ValidateOptionalId(collectorId, nameof(collectorId));
         ValidateOptionalId(payorUserId, nameof(payorUserId));
         ValidateOptionalId(clientOperationId, nameof(clientOperationId));
+        ValidateOptionalId(payorId, nameof(payorId));
         if (payerName?.Length > 200)
             throw new ArgumentException("Payer name must not exceed 200 characters.", nameof(payerName));
+        if (payorId.HasValue && string.IsNullOrWhiteSpace(payerName))
+            throw new ArgumentException("A linked Payor requires frozen payer-name evidence.", nameof(payerName));
 
         var municipalityId = drafts[0].Classification?.MunicipalityId
             ?? throw new ArgumentException("Every line requires a classification.", nameof(lines));
@@ -78,6 +83,7 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
             ActorName = actorName.Trim(),
             ActorRole = actorRole.Trim(),
             CollectorId = collectorId,
+            PayorId = payorId,
             PayorUserId = payorUserId,
             PayerName = string.IsNullOrWhiteSpace(payerName) ? null : payerName.Trim(),
             ClientOperationId = clientOperationId
@@ -110,7 +116,9 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
                 draft.Amount,
                 draft.SourceKind,
                 draft.SourceId,
-                draft.SourcePart));
+                draft.SourcePart,
+                draft.CalculationSnapshot,
+                draft.Allocations));
         }
 
         collection.TotalAmount = total;

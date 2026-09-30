@@ -27,6 +27,24 @@ public class MobileSyncServiceTests
         Amount = 30m
     };
 
+    private static PendingOperation IssuedWcfOp(string owner = CollectorA) => new()
+    {
+        Kind = OfflineOperationKind.WcfCollection,
+        PayloadVersion = 1,
+        BusinessDate = new DateOnly(2026, 9, 27),
+        UtilityBillId = Guid.NewGuid(),
+        ReceivedAmount = 100m,
+        WaterSourceVersion = 2,
+        AccountableDocumentId = Guid.NewGuid(),
+        DocumentNumber = "CT-004126",
+        IssuedAtUtc = new DateTime(2026, 9, 27, 4, 0, 0, DateTimeKind.Utc),
+        OwnerKey = owner,
+        FacilityLabel = "NPM",
+        Title = "Water payment",
+        Amount = 100m,
+        IssuedDocumentState = IssuedDocumentLocalState.IssuedLocallyPendingSync
+    };
+
     private static MobileSyncService Sut(IPendingOperationStore store, IMobileApiClient api, bool online, string? collectorKey = CollectorA) =>
         new(store, api, new FakeConnectivityMonitor(online), new FakeCurrentCollectorProvider { CollectorKey = collectorKey });
 
@@ -234,6 +252,42 @@ public class MobileSyncServiceTests
         await sut.SyncNowAsync();
 
         Assert.Equal(0, changes);
+        api.Verify(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Physically_issued_ticket_rejection_is_retained_and_cannot_be_discarded()
+    {
+        var operation = IssuedWcfOp();
+        var store = new FakePendingOperationStore(operation);
+        var api = new Mock<IMobileApiClient>();
+        api.Setup(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()))
+            .ReturnsAsync(Result<SyncOfflineCollectionsResultDto>.Success(new SyncOfflineCollectionsResultDto(
+                0, 0, 0, [new SyncOperationResultDto(operation.ClientOperationId,
+                    SyncResultStatus.ReconciliationRequired, "Physical ticket requires office review.")], 1)));
+        var sut = Sut(store, api.Object, online: true);
+
+        await sut.SyncNowAsync();
+
+        var kept = Assert.Single(store.Snapshot);
+        Assert.Equal(PendingLocalStatus.ReconciliationRequired, kept.LocalStatus);
+        Assert.Equal(IssuedDocumentLocalState.ReconciliationRequired, kept.IssuedDocumentState);
+        Assert.False(await sut.DiscardAsync(operation.ClientOperationId));
+        Assert.Equal(operation.AccountableDocumentId, Assert.Single(store.Snapshot).AccountableDocumentId);
+    }
+
+    [Fact]
+    public async Task A_different_collector_cannot_sync_another_collectors_issued_ticket()
+    {
+        var operation = IssuedWcfOp(CollectorA);
+        var store = new FakePendingOperationStore(operation);
+        var api = new Mock<IMobileApiClient>(MockBehavior.Strict);
+        var sut = Sut(store, api.Object, online: true, collectorKey: "collector-B");
+
+        var result = await sut.SyncNowAsync();
+
+        Assert.Equal(0, result.Total);
+        Assert.Single(store.Snapshot);
         api.Verify(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()), Times.Never);
     }
 

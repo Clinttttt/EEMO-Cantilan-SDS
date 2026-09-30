@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
@@ -18,11 +19,13 @@ namespace EEMOCantilanSDS.Testing.Application.OnlinePayments;
 public class InitiateOnlinePaymentCommandHandlerTests
 {
     private static Stall StallInFacility(FacilityCode code, decimal monthlyRate = 2400m,
-        DateOnly? contractStart = null, int contractYears = 20)
+        DateOnly? contractStart = null, int contractYears = 20, Guid municipalityId = default)
     {
-        var stall = Stall.Create(Guid.NewGuid(), "4", monthlyRate, ApplicableFees.BaseRental);
+        var facility = Facility.Create(code, code.ToString(), code.ToString(), municipalityId: municipalityId);
+        var stall = Stall.Create(facility.Id, "4", monthlyRate, ApplicableFees.BaseRental,
+            createdBy: "test", municipalityId: municipalityId);
         typeof(Stall).GetProperty(nameof(Stall.Facility))!
-            .SetValue(stall, Facility.Create(code, code.ToString(), code.ToString()));
+            .SetValue(stall, facility);
         // A contract so the requested period is covered (wide by default; narrow it for the out-of-term test).
         stall.Contracts.Add(Contract.Create(
             stall.Id, "Occupant", "Occupant", contractStart ?? new DateOnly(2020, 1, 1), contractYears, monthlyRate));
@@ -36,7 +39,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Result<CheckoutSessionResult>? gatewayResult = null,
         Mock<INpmMonthSettlementService>? npmServiceOut = null,
         Mock<IUtilityBillRepository>? utilOut = null,
-        IFeeRateResolver? feeRates = null)
+        IFeeRateResolver? feeRates = null,
+        Mock<IPaymentGateway>? gatewayOut = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -62,7 +66,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var payorRepo = new Mock<IPayorRepository>();
         payorRepo.Setup(r => r.LinkExistsAsync(It.IsAny<Guid>(), stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(linked);
 
-        var gateway = new Mock<IPaymentGateway>();
+        var gateway = gatewayOut ?? new Mock<IPaymentGateway>();
         gateway.SetupGet(g => g.Provider).Returns("PayMongo");
         gateway.Setup(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(gatewayResult ?? Result<CheckoutSessionResult>.Success(new CheckoutSessionResult("https://pay", "cs_test", "PayMongo")));
@@ -90,6 +94,42 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
         Assert.Equal(ResultStatus.Forbidden, result.Status);
+    }
+
+    [Theory]
+    [InlineData(SettlementAuthority.PendingCutover)]
+    [InlineData(SettlementAuthority.Canonical)]
+    public async Task MonthlyRecord_DoesNotStartOnlineCheckoutAfterSettlementAuthorityChanges(
+        SettlementAuthority authority)
+    {
+        var tenantId = Guid.NewGuid();
+        var stall = StallInFacility(FacilityCode.TCC, municipalityId: tenantId);
+        var record = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "test");
+        if (authority == SettlementAuthority.PendingCutover)
+            record.MarkSettlementPendingCutover();
+        else
+        {
+            record.MarkSettlementPendingCutover();
+            var boundary = DateTime.UtcNow;
+            var cutover = CollectionSettlementCutover.Freeze(tenantId,
+                CollectionSourceKind.PaymentRecord, record.Id, null, record.SettlementVersion,
+                boundary, record.BaseRentalAmount, 0m, record.BaseRentalAmount,
+                "{\"legacyWritersQuiesced\":true}", Guid.NewGuid(), boundary);
+            record.ActivateCanonicalSettlement(cutover);
+        }
+
+        var gateway = new Mock<IPaymentGateway>();
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        var handler = Build(stall, record, Guid.NewGuid(), linked: true,
+            onlineRepoOut: onlineRepo, gatewayOut: gateway);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -263,6 +303,48 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Assert.Equal(stall.Id, captured.TargetStallId);
         Assert.Equal(220m, captured.Amount);          // full utility balance
         Assert.Null(captured.PaymentRecordId);
+    }
+
+    [Theory]
+    [InlineData(CollectionSourcePart.Electricity, false)]
+    [InlineData(CollectionSourcePart.Water, false)]
+    [InlineData(CollectionSourcePart.Water, true)]
+    public async Task NpmUtility_DoesNotStartCombinedCheckoutAfterEitherPartLeavesLegacy(
+        CollectionSourcePart transitionedPart, bool canonical)
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 2m, 5m);
+        if (transitionedPart == CollectionSourcePart.Electricity)
+            bill.MarkElectricityPendingCutover();
+        else
+        {
+            bill.MarkWaterPendingCutover();
+            if (canonical)
+            {
+                var boundary = DateTime.UtcNow;
+                var cutover = CollectionSettlementCutover.Freeze(Guid.NewGuid(),
+                    CollectionSourceKind.UtilityBill, bill.Id, CollectionSourcePart.Water,
+                    bill.WaterSourceVersion, boundary, bill.WaterCharge, 0m, bill.WaterCharge,
+                    "{\"pendingCheckouts\":0}", Guid.NewGuid(), boundary);
+                bill.ActivateCanonicalWaterSettlement(cutover);
+            }
+        }
+
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        var utilityRepo = new Mock<IUtilityBillRepository>();
+        utilityRepo.Setup(r => r.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bill);
+        var gateway = new Mock<IPaymentGateway>();
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true,
+            onlineRepoOut: onlineRepo, utilOut: utilityRepo, gatewayOut: gateway);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(
+            stall.Id, 2026, 6, PayorPayableKind.NpmUtility), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

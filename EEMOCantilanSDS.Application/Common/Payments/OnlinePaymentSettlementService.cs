@@ -214,6 +214,20 @@ public sealed class OnlinePaymentSettlementService(
         if (bill is null)
             return Result<bool>.Failure("Linked utility bill not found.", ResultStatus.Failed);
 
+        // The legacy online checkout is one combined ECF/WCF settlement with an OR bridge. It cannot
+        // safely settle either part once a scoped source cutover begins. The gateway has captured the
+        // money, so retain the transaction as a reconciliation exception without mutating the bill.
+        if (bill.ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
+            || bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy)
+        {
+            transaction.MarkSettlementReconciliationRequired(
+                "legacy combined NPM utility payment reached a source in Pending Cutover or Canonical authority");
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+                tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+            return Result<bool>.Success(true);
+        }
+
         if (bill.Status != PaymentStatus.Paid)
         {
             var note = $"Paid online via {transaction.Method ?? transaction.Provider} · ref {transaction.Reference}";

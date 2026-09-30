@@ -220,6 +220,59 @@ public class OnlinePaymentSettlementServiceTests
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NpmUtilityPaymentAfterEitherPartStartsCutover_IsPreservedForReconciliation(bool electricityPending)
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental,
+            section: MarketSection.FishSection);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 5m, 20m);
+        if (electricityPending) bill.MarkElectricityPendingCutover();
+        else bill.MarkWaterPendingCutover();
+        var electricityStatus = bill.ElecStatus;
+        var waterStatus = bill.WaterStatus;
+        var electricityPaid = bill.ElecAmountPaid;
+        var waterPaid = bill.WaterAmountPaid;
+        var transaction = OnlinePaymentTransaction.CreateForNpmUtility(
+            "EEMO-OP-CUTOVER", Guid.NewGuid(), stall.Id, 2026, 6, 220m, "PayMongo");
+        transaction.SetPending("cs_cutover", "https://checkout");
+
+        var utilityRepository = new Mock<IUtilityBillRepository>();
+        utilityRepository.Setup(x => x.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bill);
+        var uow = new Mock<IUnitOfWork>();
+        var service = new OnlinePaymentSettlementService(
+            new Mock<IPaymentRepository>().Object,
+            new Mock<IStallRepository>().Object,
+            new Mock<INpmMonthSettlementService>().Object,
+            utilityRepository.Object,
+            new Mock<IOnlinePaymentNotifier>().Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
+
+        var result = await service.SettleAsync(transaction,
+            new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_cutover", 220m,
+                "pay_cutover", "qrph", DateTime.UtcNow, "{}"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, transaction.Status);
+        Assert.True(transaction.IsTerminal);
+        Assert.Equal(electricityStatus, bill.ElecStatus);
+        Assert.Equal(waterStatus, bill.WaterStatus);
+        Assert.Equal(electricityPaid, bill.ElecAmountPaid);
+        Assert.Equal(waterPaid, bill.WaterAmountPaid);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        var retry = await service.SettleAsync(transaction,
+            new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_cutover", 220m,
+                "pay_cutover", "qrph", DateTime.UtcNow, "{}"));
+        Assert.True(retry.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, transaction.Status);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task NpmUtilityTransaction_BalanceGrewAfterCheckout_RecordsPartial_NotFullPaid()
     {

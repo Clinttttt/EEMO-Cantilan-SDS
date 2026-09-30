@@ -21,6 +21,26 @@ The design system prioritizes:
 
 Avoid visual novelty that makes routine work harder.
 
+### 1.1 Production UI preservation — strict V2 rule
+
+Interface V2 is an adoption and consistency program, not a visual-reset project. The current/proven production UI is the default visual baseline.
+
+- Preserve existing page layout, shell treatment, cards, tables, spacing, hierarchy, and domain-specific workflow presentation when they already work.
+- Add or adjust UI only when an approved V2 requirement needs it: information architecture, workflow placement, terminology, accessibility, semantic correctness, consistency, or a real new capability.
+- Prefer additive changes and small local corrections over wholesale page recomposition.
+- Do not replace a proven production component with a new visual pattern merely to make a page look "V2", "modern", or more generic.
+- Navigation or route migration does not imply page-body redesign.
+- When a visual change is genuinely required, reuse the established StallTrack production language first: navy structure, restrained gold accents, neutral work surfaces, compact operational density, and existing domain-specific patterns.
+- If the old/current UI and a proposed V2 visual treatment conflict, preserve the old/current UI unless the task explicitly approves that visual change or the existing presentation is demonstrably misleading, inaccessible, inconsistent, or unable to support the required workflow.
+
+This preservation rule does not freeze defects. Misleading labels, broken responsive behavior, inaccessible controls, inconsistent states, or UI that cannot express an approved V2 capability should be corrected with the smallest compatible change.
+
+### 1.2 V3 presentation authority
+
+`STALLTRACK_UI_V3_DIRECTION.md` is the Clint-approved authority for Web Office **visual presentation**. Where this document or §1.1 requires preserving the dark/heavy-navy production appearance (navy structure, dark sidebar, dark heroes, gold as the active-context color), V3 supersedes it for Web presentation.
+
+V3 does not supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts. The non-visual rules in this document — page anatomy, card restraint, table/filter semantics, status and terminology, money and date basis, standard states, confirmation UX, responsive and accessibility minimums, CSS/component rules — remain in force.
+
 ## 2. Canonical page anatomy
 
 A normal office page should follow this order when the concepts apply:

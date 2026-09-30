@@ -15,11 +15,12 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
                 "CK_CollectionLines_SourceShape",
                 "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) " +
                 "OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) " +
-                "OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4)) " +
+                "OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) " +
                 "OR (\"SourceKind\" IN (1, 4, 5, 6, 7) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
         });
 
         builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         builder.Property(x => x.MunicipalityId).IsRequired();
         builder.Property(x => x.CollectionId).IsRequired();
         builder.Property(x => x.RevenueClassificationId).IsRequired();
@@ -28,6 +29,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
         builder.Property(x => x.SourceKind).HasConversion<int?>();
         builder.Property(x => x.SourceId);
         builder.Property(x => x.SourcePart).HasConversion<int?>();
+        builder.Property(x => x.CalculationSnapshot).HasColumnType("text");
 
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectionId });
         builder.HasIndex(x => new
@@ -59,5 +61,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
                 x.Id
             })
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Navigation(x => x.Allocations).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence.Seeders;
@@ -8,6 +9,8 @@ namespace EEMOCantilanSDS.Testing.Phase1;
 
 public sealed class RevenueClassificationSeederTests : RepositoryTestBase
 {
+    private static readonly DateOnly ClarificationDate = new(2026, 9, 27);
+
     [Fact]
     public async Task SeedIsIdempotentAndOnlyAssignsConfirmedCantilanInstruments()
     {
@@ -64,5 +67,106 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
 
         Assert.Empty(await context.RevenueClassifications.ToListAsync());
         Assert.Empty(await context.RevenueClassificationPolicies.ToListAsync());
+    }
+
+    [Fact]
+    public async Task FreshPreClarificationSeedKeepsHistoricalTaboAndVegetableDefaults()
+    {
+        await using var context = NewContext();
+        var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
+            tenantCode: "cantilan-sds");
+        context.Municipalities.Add(cantilan);
+        await context.SaveChangesAsync();
+
+        var seedDate = ClarificationDate.AddDays(-1);
+        await RevenueClassificationSeeder.SeedAsync(context, seedDate);
+
+        var classifications = await context.RevenueClassifications
+            .Where(x => x.MunicipalityId == cantilan.Id).ToDictionaryAsync(x => x.SemanticCode);
+        var policies = await context.RevenueClassificationPolicies
+            .Where(x => x.MunicipalityId == cantilan.Id).ToListAsync();
+        var tabo = Assert.Single(policies, x => x.RevenueClassificationId == classifications[RevenueClassificationCodes.Tabo].Id);
+        var vegetable = Assert.Single(policies, x => x.RevenueClassificationId == classifications[RevenueClassificationCodes.VegetableFruitSpaceRental].Id);
+
+        Assert.Equal(seedDate, tabo.EffectiveDate);
+        Assert.Equal(RevenueInstrumentType.CashTicket, tabo.PermittedInstrumentType);
+        Assert.Equal(RevenuePolicyContext.Default, vegetable.BusinessContext);
+        Assert.Equal(RevenueInstrumentType.CashTicket, vegetable.PermittedInstrumentType);
+        Assert.DoesNotContain(policies, x => x.BusinessContext != RevenuePolicyContext.Default);
+    }
+
+    [Fact]
+    public async Task FreshPostClarificationSeedUsesTaboOrAndDistinctVegetableContextsIdempotently()
+    {
+        await using var context = NewContext();
+        var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
+            tenantCode: "cantilan-sds");
+        context.Municipalities.Add(cantilan);
+        await context.SaveChangesAsync();
+
+        await RevenueClassificationSeeder.SeedAsync(context, ClarificationDate.AddDays(3));
+        await RevenueClassificationSeeder.SeedAsync(context, ClarificationDate.AddDays(3));
+
+        var classifications = await context.RevenueClassifications
+            .Where(x => x.MunicipalityId == cantilan.Id).ToDictionaryAsync(x => x.SemanticCode);
+        var policies = await context.RevenueClassificationPolicies
+            .Where(x => x.MunicipalityId == cantilan.Id).ToListAsync();
+        var tabo = Assert.Single(policies, x => x.RevenueClassificationId == classifications[RevenueClassificationCodes.Tabo].Id);
+        Assert.Equal(ClarificationDate, tabo.EffectiveDate);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, tabo.PermittedInstrumentType);
+
+        var vegetable = policies.Where(x => x.RevenueClassificationId == classifications[RevenueClassificationCodes.VegetableFruitSpaceRental].Id)
+            .ToList();
+        Assert.Equal(2, vegetable.Count);
+        Assert.DoesNotContain(vegetable, x => x.BusinessContext == RevenuePolicyContext.Default);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt,
+            Assert.Single(vegetable, x => x.BusinessContext == RevenuePolicyContext.VegetableWholePayment).PermittedInstrumentType);
+        Assert.Equal(RevenueInstrumentType.CashTicket,
+            Assert.Single(vegetable, x => x.BusinessContext == RevenuePolicyContext.VegetableDailyTransaction).PermittedInstrumentType);
+        Assert.All(vegetable, x => Assert.Equal(ClarificationDate, x.EffectiveDate));
+        Assert.Equal(14, policies.Count);
+    }
+
+    [Fact]
+    public async Task ExistingPreClarificationTaboAndVegetablePoliciesArePreservedAndCorrectedByAppending()
+    {
+        await using var context = NewContext();
+        var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
+            tenantCode: "cantilan-sds");
+        var taboClassification = RevenueClassification.Create(RevenueClassificationCodes.Tabo, cantilan.Id);
+        var vegetableClassification = RevenueClassification.Create(RevenueClassificationCodes.VegetableFruitSpaceRental, cantilan.Id);
+        var earlierDate = ClarificationDate.AddDays(-1);
+        var earlierTabo = RevenueClassificationPolicy.Create(taboClassification.Id, earlierDate,
+            "Tabo", RevenueInstrumentType.CashTicket, cantilan.Id, description: "Earlier CT policy", createdBy: "seed-v1");
+        var earlierVegetable = RevenueClassificationPolicy.Create(vegetableClassification.Id, earlierDate,
+            "Vegetable/Fruit Space Rental", RevenueInstrumentType.CashTicket, cantilan.Id,
+            description: "Earlier default CT policy", createdBy: "seed-v1");
+        context.AddRange(cantilan, taboClassification, vegetableClassification, earlierTabo, earlierVegetable);
+        await context.SaveChangesAsync();
+
+        await RevenueClassificationSeeder.SeedAsync(context, ClarificationDate.AddDays(3));
+        await RevenueClassificationSeeder.SeedAsync(context, ClarificationDate.AddDays(3));
+
+        var taboRows = await context.RevenueClassificationPolicies
+            .Where(x => x.RevenueClassificationId == taboClassification.Id)
+            .OrderBy(x => x.EffectiveDate).ToListAsync();
+        Assert.Equal(2, taboRows.Count);
+        Assert.Equal(earlierTabo.Id, taboRows[0].Id);
+        Assert.Equal(earlierDate, taboRows[0].EffectiveDate);
+        Assert.Equal(RevenueInstrumentType.CashTicket, taboRows[0].PermittedInstrumentType);
+        Assert.Equal("Earlier CT policy", taboRows[0].Description);
+        Assert.Equal(ClarificationDate, taboRows[1].EffectiveDate);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, taboRows[1].PermittedInstrumentType);
+
+        var vegetableRows = await context.RevenueClassificationPolicies
+            .Where(x => x.RevenueClassificationId == vegetableClassification.Id).ToListAsync();
+        Assert.Equal(3, vegetableRows.Count);
+        var preservedVegetable = Assert.Single(vegetableRows, x => x.Id == earlierVegetable.Id);
+        Assert.Equal(earlierDate, preservedVegetable.EffectiveDate);
+        Assert.Equal(RevenuePolicyContext.Default, preservedVegetable.BusinessContext);
+        Assert.Equal(RevenueInstrumentType.CashTicket, preservedVegetable.PermittedInstrumentType);
+        Assert.Equal("Earlier default CT policy", preservedVegetable.Description);
+        Assert.Single(vegetableRows, x => x.BusinessContext == RevenuePolicyContext.VegetableWholePayment);
+        Assert.Single(vegetableRows, x => x.BusinessContext == RevenuePolicyContext.VegetableDailyTransaction);
     }
 }

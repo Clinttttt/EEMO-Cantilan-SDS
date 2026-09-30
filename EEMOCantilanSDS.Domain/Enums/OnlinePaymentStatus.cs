@@ -13,6 +13,7 @@ namespace EEMOCantilanSDS.Domain.Enums
         Completed = 4,  // OR encoded by staff
         Failed = 5,
         Cancelled = 6,
-        Expired = 7
+        Expired = 7,
+        ReconciliationRequired = 8
     }
 }

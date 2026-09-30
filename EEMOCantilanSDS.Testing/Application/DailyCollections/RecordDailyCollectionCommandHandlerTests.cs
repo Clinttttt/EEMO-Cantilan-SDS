@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -12,9 +13,87 @@ namespace EEMOCantilanSDS.Testing;
 
 public class RecordDailyCollectionCommandHandlerTests
 {
-    private static Stall StallInFacility(FacilityCode code)
+    [Fact]
+    public async Task Meat_section_collection_freezes_effective_meat_weighing_rate()
     {
-        var stall = Stall.Create(Guid.NewGuid(), "A-1", 900m, ApplicableFees.DailyRental);
+        var effective = new DateOnly(2026, 9, 29);
+        var stall = Stall.Create(Guid.NewGuid(), "M-1", 900m, ApplicableFees.DailyRental,
+            section: MarketSection.MeatSection);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var uow = new Mock<IUnitOfWork>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        var feeRates = new Mock<IFeeRateResolver>();
+        orNumbers.Setup(o => o.IsAvailableAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        feeRates.Setup(x => x.GetSnapshotAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FeeRateSnapshot(new[]
+            {
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1)),
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmMeatPerKilo, 66m, effective)
+            }));
+        stallRepo.Setup(x => x.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        dailyRepo.Setup(x => x.GetByStallAndDateAsync(stall.Id, effective, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyCollection?)null);
+        uow.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        DailyCollection? saved = null;
+        dailyRepo.Setup(x => x.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
+            .Callback<DailyCollection, CancellationToken>((value, _) => saved = value)
+            .Returns(Task.CompletedTask);
+
+        var handler = new RecordDailyCollectionCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object,
+            currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, feeRates.Object, CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(new RecordDailyCollectionCommand(
+            stall.Id, effective, IsPaid: true, MeatKilos: 2m), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(saved);
+        Assert.Equal(2m, saved!.MeatKilos);
+        Assert.Equal(66m, saved.MeatFeeRatePerKilo);
+        Assert.Equal(effective, saved.MeatFeeRateEffectiveDate);
+        Assert.Equal(132m, saved.MeatFeeAmount);
+    }
+
+    [Fact]
+    public async Task Meat_weight_requires_an_effective_tenant_rate_for_the_business_date()
+    {
+        var date = new DateOnly(2026, 9, 29);
+        var stall = StallInFacility(FacilityCode.NPM, MarketSection.MeatSection);
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var uow = new Mock<IUnitOfWork>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        var orNumbers = new Mock<IOrNumberRegistry>();
+        var feeRates = new Mock<IFeeRateResolver>();
+        feeRates.Setup(x => x.GetSnapshotAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FeeRateSnapshot(new[]
+            {
+                new FeeRateEntry(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1))
+            }));
+        stallRepo.Setup(x => x.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var handler = new RecordDailyCollectionCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, orNumbers.Object, stallRepo.Object, collectorRepo.Object,
+            currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, feeRates.Object, CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(new RecordDailyCollectionCommand(
+            stall.Id, date, IsPaid: true, MeatKilos: 1m), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        dailyRepo.Verify(x => x.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static Stall StallInFacility(FacilityCode code, MarketSection? section = null)
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "A-1", 900m, ApplicableFees.DailyRental, section: section);
         typeof(Stall).GetProperty(nameof(Stall.Facility))!
             .SetValue(stall, Facility.Create(code, code.ToString(), code.ToString()));
         return stall;

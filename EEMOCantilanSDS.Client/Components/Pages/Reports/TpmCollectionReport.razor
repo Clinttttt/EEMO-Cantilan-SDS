@@ -1,0 +1,562 @@
+@page "/facility/tpm/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using System.Globalization
+@using System.Text
+@using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Domain.Constants
+@inject ITpmApiClient TpmApi
+@inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+<PageTitle>StallTrack — Tabo Collection Report</PageTitle>
+
+<header class="tpm-report-topbar">
+    <div class="tpm-report-navigation">
+        <a href="/facility/tpm" class="tpm-report-back" aria-label="Back to Tabo">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div class="tpm-report-breadcrumb">
+            <a href="/operations">Operations</a><span>/</span><a href="/facility/tpm">@FacilityCatalog.ShortNameOf(FacilityCode.TPM)</a><span>/</span><strong>Report</strong>
+        </div>
+    </div>
+    <div class="tpm-report-actions">
+        <button type="button" class="tpm-report-action secondary" @onclick="ExportCsvAsync" disabled="@_isLoading">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16" /></svg>
+            Export
+        </button>
+        <button type="button" class="tpm-report-action primary" @onclick="PrintReportAsync" disabled="@_isLoading">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /></svg>
+            Print Report
+        </button>
+    </div>
+</header>
+
+<main class="tpm-report-page">
+    <section class="tpm-report-intro">
+        <div>
+            <div class="tpm-report-eyebrow">Operations / Tabo</div>
+            <h1>Tabo Collection Report</h1>
+            <p>Market-day Cash Ticket collections and annual revenue performance.</p>
+        </div>
+        <div class="tpm-report-controls">
+            <label>
+                Fiscal Year
+                <select value="@SelectedYear" @onchange="OnFiscalYearChanged" aria-label="Fiscal year">
+                    @foreach (var year in FiscalYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Month
+                <select value="@SelectedMonth" @onchange="OnMonthChanged" aria-label="Market day month">
+                    @foreach (var month in Months)
+                    {
+                        <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </section>
+
+    @if (_isLoading)
+    {
+        <div class="tpm-report-state" aria-busy="true">Loading Tabo collection report…</div>
+    }
+    else if (_loadError is not null)
+    {
+        <div class="tpm-report-error" role="alert">
+            <span>@_loadError</span>
+            <button type="button" @onclick="LoadReportAsync">Try again</button>
+        </div>
+    }
+    else
+    {
+        <article class="tpm-report-sheet print-report-sheet">
+            <header class="tpm-report-letterhead">
+                @if (!string.IsNullOrWhiteSpace(Branding.SealPath))
+                {
+                    <img src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+                }
+                <div class="tpm-report-republic">Republic of the Philippines</div>
+                <div class="tpm-report-municipality">Province of @Branding.Province</div>
+                <div class="tpm-report-municipality">Municipality of @Branding.Municipality</div>
+                <div class="tpm-report-office">@Branding.OfficeName</div>
+                <h2>TABO COLLECTION REPORT</h2>
+                <div class="tpm-report-fiscal-year">Fiscal Year @SelectedYear</div>
+            </header>
+
+            @if (HasReconciliationGap)
+            {
+                <div class="tpm-reconciliation-note" role="status">
+                    Monthly history and market-day totals do not reconcile for this report scope.
+                </div>
+            }
+
+            <section class="tpm-report-section" aria-labelledby="tpm-financial-position-title">
+                <h3 id="tpm-financial-position-title">Financial Position</h3>
+                <div class="tpm-position-strip">
+                    <div><span>Annual Target</span><strong>—</strong></div>
+                    <div><span>@YearCollectionLabel</span><strong>@FormatOrDash(YearCollection)</strong></div>
+                    <div><span>Remaining Target</span><strong>—</strong></div>
+                    <div><span>Target Attainment</span><strong>—</strong></div>
+                </div>
+                <p class="tpm-report-note">Annual Tabo target data is not available in the current reporting source.</p>
+            </section>
+
+            <section class="tpm-report-section" aria-labelledby="tpm-monthly-summary-title">
+                <h3 id="tpm-monthly-summary-title">Monthly Tabo Collection Summary</h3>
+                <div class="tpm-table-scroll">
+                    <table class="tpm-report-table tpm-monthly-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Revenue</th>
+                                <th scope="col">Annual Target</th>
+                                @foreach (var month in Months)
+                                {
+                                    <th scope="col">@CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month)</th>
+                                }
+                                <th scope="col">YTD Total</th>
+                                <th scope="col">%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Tabo</th>
+                                <td>—</td>
+                                @foreach (var month in Months)
+                                {
+                                    var summary = MonthlySummary(month);
+                                    <td>@(summary is null ? "—" : FormatMoney(summary.Collected))</td>
+                                }
+                                <td>@FormatOrDash(YearCollection)</td>
+                                <td>—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tpm-report-basis-inline">Collection basis: paid Tabo attendance entries, grouped by market date.</div>
+            </section>
+
+            <section class="tpm-report-section" aria-labelledby="tpm-market-day-summary-title">
+                <div class="tpm-section-heading">
+                    <h3 id="tpm-market-day-summary-title">Market Day Summary</h3>
+                    <span>@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(SelectedMonth) @SelectedYear</span>
+                </div>
+                <div class="tpm-table-scroll">
+                    <table class="tpm-report-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Market Date</th>
+                                <th scope="col">Weekday</th>
+                                <th scope="col" class="numeric">Vendor Entries</th>
+                                <th scope="col" class="numeric">Collection</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (MarketDayRows.Count == 0)
+                            {
+                                <tr><td colspan="4" class="tpm-report-empty">No configured market dates or attendance entries for this month.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var day in MarketDayRows)
+                                {
+                                    <tr>
+                                        <td>@day.Date.ToString("MMMM d, yyyy")</td>
+                                        <td>@day.Date.DayOfWeek</td>
+                                        <td class="numeric">@(day.VendorEntries?.ToString() ?? "—")</td>
+                                        <td class="numeric">@FormatOrDash(day.Collection)</td>
+                                    </tr>
+                                }
+                                <tr class="total-row">
+                                    <th scope="row" colspan="2">Total</th>
+                                    <td class="numeric">@MarketDayRows.Where(day => day.VendorEntries.HasValue).Sum(day => day.VendorEntries!.Value)</td>
+                                    <td class="numeric">@FormatMoney(MarketDayCollectionTotal)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="tpm-report-section" aria-labelledby="tpm-vendor-summary-title">
+                <div class="tpm-section-heading">
+                    <h3 id="tpm-vendor-summary-title">Vendor Entry Summary</h3>
+                    <span>@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(SelectedMonth) @SelectedYear</span>
+                </div>
+                @if (VendorSummaryRows.Count == 0)
+                {
+                    <div class="tpm-report-empty-block">No vendor entries are available for this month.</div>
+                }
+                else
+                {
+                    <div class="tpm-table-scroll">
+                        <table class="tpm-report-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Vendor</th>
+                                    <th scope="col">Goods / Product</th>
+                                    <th scope="col" class="numeric">Market Days Attended</th>
+                                    <th scope="col" class="numeric">Fees Collected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in VendorSummaryRows)
+                                {
+                                    <tr>
+                                        <td class="vendor-cell">@row.Vendor</td>
+                                        <td>@row.Goods</td>
+                                        <td class="numeric">@row.MarketDays</td>
+                                        <td class="numeric">@FormatMoney(row.Collected)</td>
+                                    </tr>
+                                }
+                                <tr class="total-row">
+                                    <th scope="row" colspan="2">Total</th>
+                                    <td class="numeric">@_monthAttendance.Select(entry => entry.MarketDate).Distinct().Count()</td>
+                                    <td class="numeric">@FormatMoney(_monthAttendance.Where(entry => entry.IsPaid).Sum(entry => entry.Fee))</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="tpm-report-section" aria-labelledby="tpm-day-detail-title">
+                <div class="tpm-section-heading">
+                    <h3 id="tpm-day-detail-title">Market Day Detail</h3>
+                    <span class="tpm-report-print-date">@(SelectedMarketDate?.ToString("MMMM d, yyyy") ?? "—")</span>
+                    <label class="tpm-day-picker">
+                        Market Date
+                        <select value="@SelectedMarketDateValue" @onchange="OnMarketDateChanged" disabled="@(SelectableMarketDates.Count == 0)" aria-label="Market date detail">
+                            @if (SelectedMarketDate is null)
+                            {
+                                <option value="">No market day available</option>
+                            }
+                            @foreach (var date in SelectableMarketDates)
+                            {
+                                <option value="@date.ToString("yyyy-MM-dd")">@date.ToString("MMMM d, yyyy")</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                @if (SelectedMarketDate is null)
+                {
+                    <div class="tpm-report-empty-block">No market day is available for detail in this month.</div>
+                }
+                else if (SelectedDayEntries.Count == 0)
+                {
+                    <div class="tpm-report-empty-block">No entries recorded for @SelectedMarketDate.Value.ToString("MMMM d, yyyy").</div>
+                    <div class="tpm-day-summary">
+                        <div><span>Vendor Entries</span><strong>0</strong></div>
+                        <div><span>Tabo Collection</span><strong>@FormatOrDash(SelectedDayCollection)</strong></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="tpm-table-scroll">
+                        <table class="tpm-report-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Vendor</th>
+                                    <th scope="col">Goods / Product</th>
+                                    <th scope="col" class="numeric">Fee</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entry in SelectedDayEntries)
+                                {
+                                    <tr>
+                                        <td class="vendor-cell">@entry.VendorName</td>
+                                        <td>@entry.Goods</td>
+                                        <td class="numeric">@(entry.IsPaid ? FormatMoney(entry.Fee) : "—")</td>
+                                    </tr>
+                                }
+                                <tr class="total-row">
+                                    <th scope="row" colspan="2">Vendor Entries: @SelectedDayEntries.Count</th>
+                                    <td class="numeric">@FormatOrDash(SelectedDayCollection)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="tpm-report-basis-inline">Market-day collection includes attendance entries marked paid.</div>
+                }
+            </section>
+
+            <section class="tpm-report-basis" aria-labelledby="tpm-report-basis-title">
+                <h3 id="tpm-report-basis-title">Report Basis</h3>
+                <dl>
+                    <div><dt>Revenue Classification</dt><dd>Tabo</dd></div>
+                    <div><dt>Accountable Instrument</dt><dd><span class="tpm-ct-mark">CT</span> Cash Ticket</dd></div>
+                    <div><dt>Collection Unit</dt><dd>Market Day / Vendor Entry</dd></div>
+                    <div><dt>Fiscal Year</dt><dd>@SelectedYear</dd></div>
+                    <div><dt>Source</dt><dd>TPM market-day attendance records</dd></div>
+                    <div><dt>As of</dt><dd>@PhilippineTime.Now.ToString("MMM d, yyyy")</dd></div>
+                </dl>
+            </section>
+        </article>
+    }
+</main>
+
+@code {
+    private readonly int _currentYear = PhilippineTime.Now.Year;
+    private int SelectedYear = PhilippineTime.Now.Year;
+    private int SelectedMonth = PhilippineTime.Now.Month;
+    private TpmHistoryDto? _history;
+    private TpmOverviewDto? _monthOverview;
+    private List<TpmMarketDayDto> _marketDays = new();
+    private List<TpmVendorAttendanceDto> _monthAttendance = new();
+    private DateOnly? SelectedMarketDate;
+    private string? _loadError;
+    private bool _isLoading = true;
+
+    private IReadOnlyList<int> FiscalYears => Enumerable.Range(_currentYear - 4, 5).Reverse().ToArray();
+    private IReadOnlyList<int> Months => Enumerable.Range(1, 12).ToArray();
+    private TpmPeriodSummaryDto? AnnualSummary => _history?.Yearly.FirstOrDefault(summary => summary.Year == SelectedYear);
+    private decimal? YearCollection => AnnualSummary?.Collected;
+    private string YearCollectionLabel => SelectedYear == _currentYear ? "YTD Collection" : "Annual Collection";
+    private string SelectedMarketDateValue => SelectedMarketDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+    private TpmPeriodSummaryDto? MonthlySummary(int month) =>
+        _history?.Monthly.FirstOrDefault(summary => summary.Year == SelectedYear && summary.Month == month);
+
+    private IReadOnlyList<MarketDayRow> MarketDayRows
+    {
+        get
+        {
+            if (_monthOverview is null) return Array.Empty<MarketDayRow>();
+
+            var today = DateOnly.FromDateTime(PhilippineTime.Now.Date);
+            var dates = _monthOverview.MarketDates
+                .Concat(_monthAttendance.Select(entry => entry.MarketDate))
+                .Distinct()
+                .OrderBy(date => date);
+
+            return dates.Select(date =>
+            {
+                var entries = _monthAttendance.Where(entry => entry.MarketDate == date).ToList();
+                var isFutureWithoutEntries = date > today && entries.Count == 0;
+                var marketDay = _marketDays.FirstOrDefault(summary => summary.MarketDate == date);
+                var collection = isFutureWithoutEntries
+                    ? (decimal?)null
+                    : entries.Count == 0
+                        ? 0m
+                        : marketDay?.TotalCollected;
+
+                return new MarketDayRow(
+                    date,
+                    isFutureWithoutEntries ? null : entries.Count,
+                    collection);
+            }).ToArray();
+        }
+    }
+
+    private decimal MarketDayCollectionTotal => MarketDayRows
+        .Where(day => day.Collection.HasValue)
+        .Sum(day => day.Collection!.Value);
+
+    private bool HasReconciliationGap
+    {
+        get
+        {
+            var monthly = MonthlySummary(SelectedMonth);
+            if (monthly is null) return false;
+
+            var today = DateOnly.FromDateTime(PhilippineTime.Now.Date);
+            var rowsThroughAsOf = MarketDayRows
+                .Where(day => day.Date <= today || _monthAttendance.Any(entry => entry.MarketDate == day.Date))
+                .ToList();
+            return rowsThroughAsOf.Any(day => !day.Collection.HasValue)
+                || rowsThroughAsOf.Sum(day => day.Collection!.Value) != monthly.Collected;
+        }
+    }
+
+    private IReadOnlyList<VendorSummaryRow> VendorSummaryRows => _monthAttendance
+        .GroupBy(entry => new { entry.VendorId, entry.VendorName, entry.Goods })
+        .Select(group => new VendorSummaryRow(
+            group.Key.VendorId,
+            group.Key.VendorName,
+            group.Key.Goods,
+            group.Select(entry => entry.MarketDate).Distinct().Count(),
+            group.Count(),
+            group.Where(entry => entry.IsPaid).Sum(entry => entry.Fee)))
+        .OrderBy(row => row.Vendor, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(row => row.Goods, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private IReadOnlyList<DateOnly> SelectableMarketDates => MarketDayRows
+        .Where(day => day.Date <= DateOnly.FromDateTime(PhilippineTime.Now.Date)
+                      || _monthAttendance.Any(entry => entry.MarketDate == day.Date))
+        .Select(day => day.Date)
+        .OrderByDescending(date => date)
+        .ToArray();
+
+    private IReadOnlyList<TpmVendorAttendanceDto> SelectedDayEntries => SelectedMarketDate is { } date
+        ? _monthAttendance.Where(entry => entry.MarketDate == date).OrderBy(entry => entry.VendorName).ToArray()
+        : Array.Empty<TpmVendorAttendanceDto>();
+
+    private decimal? SelectedDayCollection => SelectedMarketDate is { } date
+        ? _marketDays.FirstOrDefault(day => day.MarketDate == date)?.TotalCollected
+            ?? (SelectedDayEntries.Count == 0 ? 0m : null)
+        : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await Branding.EnsureLoadedAsync();
+        await LoadReportAsync();
+    }
+
+    private async Task LoadReportAsync()
+    {
+        _isLoading = true;
+        _loadError = null;
+        _history = null;
+        _monthOverview = null;
+        _marketDays.Clear();
+        _monthAttendance.Clear();
+        SelectedMarketDate = null;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        try
+        {
+            var historyTask = TpmApi.GetHistoryAsync(SelectedYear);
+            var overviewTask = TpmApi.GetOverviewAsync(SelectedYear, SelectedMonth);
+            var marketDaysTask = TpmApi.GetMarketDaysAsync(SelectedYear, SelectedMonth);
+            var attendanceTask = TpmApi.GetMonthAttendanceAsync(SelectedYear, SelectedMonth);
+            await Task.WhenAll(historyTask, overviewTask, marketDaysTask, attendanceTask);
+
+            var history = await historyTask;
+            var overview = await overviewTask;
+            var marketDays = await marketDaysTask;
+            var attendance = await attendanceTask;
+            if (!history.IsSuccess || history.Value is null
+                || !overview.IsSuccess || overview.Value is null
+                || !marketDays.IsSuccess || marketDays.Value is null
+                || !attendance.IsSuccess || attendance.Value is null)
+            {
+                _loadError = "The Tabo collection report could not be loaded.";
+                return;
+            }
+
+            _history = history.Value;
+            _monthOverview = overview.Value;
+            _marketDays = marketDays.Value.ToList();
+            _monthAttendance = attendance.Value.ToList();
+            SelectedMarketDate = SelectableMarketDates.FirstOrDefault();
+            if (SelectableMarketDates.Count == 0)
+                SelectedMarketDate = null;
+        }
+        catch
+        {
+            _loadError = "The Tabo collection report could not be loaded.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnFiscalYearChanged(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var year) || !FiscalYears.Contains(year)) return;
+        SelectedYear = year;
+        SelectedMonth = year == _currentYear ? PhilippineTime.Now.Month : 12;
+        await LoadReportAsync();
+    }
+
+    private async Task OnMonthChanged(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var month) || month is < 1 or > 12) return;
+        SelectedMonth = month;
+        await LoadReportAsync();
+    }
+
+    private void OnMarketDateChanged(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            && SelectableMarketDates.Contains(date))
+        {
+            SelectedMarketDate = date;
+        }
+    }
+
+    private async Task PrintReportAsync() =>
+        await JS.InvokeVoidAsync("stalltrackPrint.landscape");
+
+    private async Task ExportCsvAsync()
+    {
+        var csv = new StringBuilder();
+        AppendCsv(csv, "TABO COLLECTION REPORT");
+        AppendCsv(csv, $"Fiscal Year {SelectedYear}");
+        AppendCsv(csv);
+        AppendCsv(csv, "FINANCIAL POSITION");
+        AppendCsv(csv, "Measure", "Amount");
+        AppendCsv(csv, "Annual Target", "—");
+        AppendCsv(csv, YearCollectionLabel, FormatOrDash(YearCollection));
+        AppendCsv(csv, "Remaining Target", "—");
+        AppendCsv(csv, "Target Attainment", "—");
+        AppendCsv(csv);
+
+        var monthlyHeader = new List<string?> { "Revenue", "Annual Target" };
+        monthlyHeader.AddRange(Months.Select(month => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month)));
+        monthlyHeader.Add("YTD Total");
+        monthlyHeader.Add("%");
+        AppendCsv(csv, monthlyHeader.ToArray());
+
+        var monthlyRow = new List<string?> { "Tabo", "—" };
+        monthlyRow.AddRange(Months.Select(month => MonthlySummary(month) is { } summary ? FormatMoney(summary.Collected) : "—"));
+        monthlyRow.Add(FormatOrDash(YearCollection));
+        monthlyRow.Add("—");
+        AppendCsv(csv, monthlyRow.ToArray());
+        AppendCsv(csv);
+
+        AppendCsv(csv, "MARKET DAY SUMMARY", CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(SelectedMonth), SelectedYear.ToString());
+        AppendCsv(csv, "Market Date", "Weekday", "Vendor Entries", "Collection");
+        foreach (var day in MarketDayRows)
+            AppendCsv(csv, day.Date.ToString("MMMM d, yyyy"), day.Date.DayOfWeek.ToString(), day.VendorEntries?.ToString() ?? "—", FormatOrDash(day.Collection));
+        AppendCsv(csv, "Total", "", MarketDayRows.Where(day => day.VendorEntries.HasValue).Sum(day => day.VendorEntries!.Value).ToString(), FormatMoney(MarketDayCollectionTotal));
+        AppendCsv(csv);
+
+        AppendCsv(csv, "VENDOR ENTRY SUMMARY");
+        AppendCsv(csv, "Vendor", "Goods / Product", "Market Days Attended", "Fees Collected");
+        foreach (var row in VendorSummaryRows)
+            AppendCsv(csv, row.Vendor, row.Goods, row.MarketDays.ToString(), FormatMoney(row.Collected));
+        AppendCsv(csv);
+
+        AppendCsv(csv, "MARKET DAY DETAIL", SelectedMarketDate?.ToString("MMMM d, yyyy") ?? "—");
+        AppendCsv(csv, "Vendor", "Goods / Product", "Fee");
+        foreach (var entry in SelectedDayEntries)
+            AppendCsv(csv, entry.VendorName, entry.Goods, entry.IsPaid ? FormatMoney(entry.Fee) : "—");
+        AppendCsv(csv, "Vendor Entries", SelectedDayEntries.Count.ToString(), "Collection", FormatOrDash(SelectedDayCollection));
+        AppendCsv(csv);
+
+        AppendCsv(csv, "REPORT BASIS");
+        AppendCsv(csv, "Revenue Classification", "Tabo");
+        AppendCsv(csv, "Accountable Instrument", "CT Cash Ticket");
+        AppendCsv(csv, "Collection Unit", "Market Day / Vendor Entry");
+        AppendCsv(csv, "Fiscal Year", SelectedYear.ToString());
+        AppendCsv(csv, "Source", "TPM market-day attendance records; collected totals include entries marked paid");
+        AppendCsv(csv, "As of", PhilippineTime.Now.ToString("MMM d, yyyy"));
+
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        await JS.InvokeVoidAsync(
+            "downloadFileFromBytes",
+            $"Tabo-Collection-Report-{SelectedYear}.csv",
+            Convert.ToBase64String(bytes),
+            "text/csv;charset=utf-8");
+    }
+
+    private static void AppendCsv(StringBuilder csv, params string?[] fields)
+    {
+        csv.AppendLine(string.Join(",", fields.Select(field =>
+            $"\"{(field ?? string.Empty).Replace("\"", "\"\"")}\"")));
+    }
+
+    private static string FormatMoney(decimal amount) => $"₱{amount:N2}";
+    private static string FormatOrDash(decimal? amount) => amount.HasValue ? FormatMoney(amount.Value) : "—";
+
+    private sealed record MarketDayRow(DateOnly Date, int? VendorEntries, decimal? Collection);
+    private sealed record VendorSummaryRow(Guid VendorId, string Vendor, string Goods, int MarketDays, int Entries, decimal Collected);
+}

@@ -94,7 +94,7 @@
     font-weight: 600;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
     margin-bottom: 4px;
 }
 
@@ -196,7 +196,7 @@
 }
 
     .btn-outline:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         background: #fffbf0;
         color: var(--navy);
     }
@@ -227,7 +227,7 @@
 }
 
 .slr-doc-republic {
-    font-size: 10px;
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .12em;
     color: #374151;
@@ -290,7 +290,7 @@
 }
 
 .slr-section-count {
-    font-size: 9px;
+    font-size: 11px;
     color: #6b7280;
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -416,7 +416,7 @@
 
 .tfoot-label {
     padding: 8px 8px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--navy);
     text-transform: uppercase;
@@ -464,7 +464,7 @@
 }
 
 .slr-grand-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -502,7 +502,7 @@
     }
 
     .slr-table {
-        font-size: 10px;
+        font-size: 11px;
     }
 
         .slr-table th, .slr-table td {
@@ -599,8 +599,8 @@
 }
 
 .slr-seg-item.active {
-    background: var(--navy);
-    border-color: var(--navy);
+    background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
 }
 
@@ -624,4 +624,70 @@
     /* The toolbar is a screen control; the printed roster keeps only the document. */
     .slr-seg { display: none !important; }
     .slr-subrow td { background: transparent; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.slr-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .slr-hero::before,
+    .slr-hero::after {
+        display: none;
+    }
+
+.slr-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .slr-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.slr-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.slr-hero-title,
+.slr-hero-val {
+    color: var(--navy);
+}
+
+.slr-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.slr-hero-sub,
+.slr-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.slr-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.slr-hero-divider {
+    background: var(--border);
+}
+
+.slr-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.slr-hero-progress-fill {
+    background: var(--accent);
 }

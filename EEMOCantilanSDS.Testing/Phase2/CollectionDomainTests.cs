@@ -155,6 +155,7 @@ public sealed class CollectionDomainTests
     [InlineData(CollectionSourceKind.UtilityBill, CollectionSourcePart.Water)]
     [InlineData(CollectionSourceKind.DailyCollection, CollectionSourcePart.DailyFee)]
     [InlineData(CollectionSourceKind.DailyCollection, CollectionSourcePart.FishFee)]
+    [InlineData(CollectionSourceKind.DailyCollection, CollectionSourcePart.MeatWeighing)]
     public void ComponentSourcesRequireTheCorrectPart(CollectionSourceKind kind, CollectionSourcePart part)
     {
         var line = Draft(10m, sourceKind: kind, sourceId: Guid.NewGuid(), sourcePart: part);

@@ -13,13 +13,13 @@ Reference tenant: EEMO, Municipality of Cantilan, Surigao del Sur.
 
 ## Read these before changing code, in this order
 
-1. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
-2. `docs/architecture/ARCHITECTURE_RULES.md` — implementation boundaries: what is allowed and what is forbidden.
-3. `docs/architecture/APPLICATION_PATTERNS.md` — established code shapes to copy.
-4. `docs/architecture/SYSTEM_ARCHITECTURE.md` — why the current architecture is shaped this way.
-5. `docs/business/EEMO_BUSINESS_RULES.md` — accepted business semantics.
-6. `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue architecture and migration direction.
-7. Read the relevant domain-specific documents under `docs/interface/`, `docs/security/`, `docs/testing/`, and `docs/decisions/` before changing those areas.
+1. `docs/v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of CURRENT vs TARGET V2 vs FUTURE/BLOCKED work, V2 scope, sidebar direction, migration rules, and strict UI-preservation policy.
+2. When concurrent V2 workstreams are active, read `docs/planning/ACTIVE_WORKSTREAMS.md` — temporary session/worktree ownership and shared-file locks. It controls edit ownership only and never overrides business/architecture authority.
+3. `docs/README.md` — canonical documentation map, authority order, and conflict handling.
+4. Read the relevant authoritative business/architecture source for the task — especially `docs/business/EEMO_OPERATIONAL_RULEBOOK.md`, `docs/architecture/ARCHITECTURE_RULES.md`, `docs/architecture/APPLICATION_PATTERNS.md`, `docs/business/EEMO_BUSINESS_RULES.md`, and `docs/business/REVENUE_ARCHITECTURE.md`.
+5. `docs/decisions/DECISION_REGISTRY.md` — confirm that the task does not assume a blocked, future, or unresolved EEMO decision.
+6. Inspect current code, migrations, tests, CI/workflows, and verified production behavior as evidence of what is actually implemented now.
+7. Read relevant domain-specific documents under `docs/interface/`, `docs/security/`, and `docs/testing/` before changing those areas.
 
 The repository knowledge base is tool-neutral. `.agents/skills/` contains repeatable review/runbook procedures; skills never override the canonical documents above.
 
@@ -53,6 +53,8 @@ The repository knowledge base is tool-neutral. `.agents/skills/` contains repeat
 - **Scoped CSS must stay brace-balanced.** One unbalanced brace in a `.razor.css` corrupts the whole bundle and
   breaks every page; neither `dotnet build` nor `/health` catches it.
 - **Prerendering runs `OnInitializedAsync` twice.** Never consume a one-time token there.
+- **Interface V2 preserves the production UI by default.** Do not visually redesign an existing page, shell, card, table, or workflow merely because it is being migrated to V2. Adopt the proven current/old UI first, then make only the additions or adjustments required by approved V2 structure, terminology, workflow placement, accessibility, semantic correctness, consistency, or a specifically approved visual task. A navigation or vocabulary change is not permission to redesign the page body.
+- **Web Office presentation authority is V3.** `docs/interface/STALLTRACK_UI_V3_DIRECTION.md` (approved by Clint) governs Web Office visual presentation and supersedes older requirements to preserve the dark/heavy-navy production appearance. It does **not** supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts; those — and the behavioral preservation in the rule above — still apply. V3 changes still ship as approved, reviewed slices, never as incidental restyling.
 
 ## Commands
 
@@ -69,6 +71,19 @@ dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.cs
 Migrations are **additive only** (production applies them at startup).
 
 ## Working agreements
+
+### Current V2 linked-worktree mode
+
+- StallTrack V2 uses one Git repository with linked Git worktrees for concurrent sessions. `C:\dev\stalltrack-v2-clean` on `interface-v2/clean-adoption` is the canonical pre-final integration checkout; the A–M directories under `C:\dev\stalltrack-v2-worktrees` are linked worktrees of that same repository, not independent clones.
+- Read `docs/planning/ACTIVE_WORKSTREAMS.md` before changing V2 UI. It defines session ownership, branch/worktree mapping, integration rules, and shared-file boundaries.
+- Every feature branch must begin from the latest accepted canonical HEAD. The local launcher safely fast-forwards an idle clean worktree when it is only behind canonical; it never resets, rebases, or overwrites dirty/diverged work automatically.
+- Sessions may work concurrently only on clearly separated feature boundaries. Shared navigation, shell, global design-system files, and cross-feature integration belong to the canonical integration flow.
+- A finished feature must not remain isolated on its worktree branch. After its scoped validation passes, make one focused feature commit and merge it locally into `interface-v2/clean-adoption` through the canonical integration flow; do not wait for GitHub Actions, deployment, or a remote CI cycle during this V2 UI sprint. If the merge conflicts with active shared-file work, stop and coordinate instead of forcing it.
+- After every successful canonical merge, run the combined Client build from `C:\dev\stalltrack-v2-clean`, then sync every clean/idle linked worktree forward so later sessions inherit the newest accepted UI and structure.
+- Multiple sessions do not have permission to invent multiple UI systems. Before creating or refining a page, inspect the latest accepted canonical V2 pages and reuse their established hero proportions, page width, left/right workspace structure, white summary surfaces, table density, modal/form spacing, input treatment, button hierarchy, report styling, typography, and restrained navy/gold/neutral palette wherever the business workflow allows.
+- Structural consistency does not mean copying the wrong business model: WCF/ECF may share visual patterns while Market Fees, Tabo, Landing/Berthing, Large Cattle, rent, and space-rental workflows retain their own domain behavior.
+- All browser review uses `https://localhost:7167`. Only one StallTrack Client preview runs at a time; do not assign permanent feature ports such as 7267/7367 or change committed `launchSettings.json` only for preview switching.
+- Build success is not visual approval. Clint's localhost review remains the visual gate for design acceptance, but local feature integration should remain fast and should not depend on production deployment or remote CI.
 
 - Use file editors, not scripted in-place edits: PowerShell string replacement has corrupted tracked files here
   (stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, produced invalid YAML).

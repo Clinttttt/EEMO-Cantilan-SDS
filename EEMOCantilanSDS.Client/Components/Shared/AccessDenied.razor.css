@@ -36,7 +36,7 @@
 .ad-text { font-size: 13px; color: var(--text-subtle, #6a8aa0); margin: 8px 0 20px; line-height: 1.5; }
 
 .ad-btn {
-    background: var(--navy, #0d2137);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 10px;
@@ -46,4 +46,4 @@
     cursor: pointer;
 }
 
-.ad-btn:hover { background: var(--navy-2, #112d47); }
+.ad-btn:hover { background: var(--accent-hover); }

@@ -28,7 +28,7 @@
 }
 
 .receipt-gov {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: var(--text-muted);
@@ -43,7 +43,7 @@
 }
 
 .receipt-muni {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-subtle);
     margin-top: 2px;
 }
@@ -51,7 +51,7 @@
 .receipt-doc {
     display: inline-block;
     margin-top: 8px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 1px;
     text-transform: uppercase;
@@ -143,3 +143,25 @@
     .btn-receipt-close:hover {
         background: var(--navy-2);
     }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.eemo-modal-overlay {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.btn-receipt-close {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.btn-receipt-close:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    color: var(--surface);
+}
