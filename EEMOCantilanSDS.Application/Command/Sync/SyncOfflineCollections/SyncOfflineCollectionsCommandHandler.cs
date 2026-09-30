@@ -65,7 +65,7 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 var governed = await governedWorkflow.PostMobileAsync(new GovernedServicePostRequest(
                     op.PayloadVersion, op.ClientOperationId, op.OperationCode ?? string.Empty, op.BusinessDate,
                     op.ReceivedAmount ?? 0m, op.CollectionMode, op.PayerName, op.Reference,
-                    op.AccountableDocumentId ?? Guid.Empty, op.DocumentNumber ?? string.Empty, op.IssuedAtUtc), ct);
+                    op.AccountableDocumentId ?? Guid.Empty, op.DocumentNumber ?? string.Empty, op.IssuedAtUtc, op.VehicleClassCode), ct);
                 var governedStatus = governed.IsSuccess ? SyncResultStatus.Synced
                     : governed.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
                         ? SyncResultStatus.ReconciliationRequired

@@ -49,6 +49,8 @@ public static class TenantBackupTableNames
         ["ObligationAccounts"] = "Obligation accounts",
         ["ObligationRates"] = "Obligation rates",
         ["ObligationPeriods"] = "Obligation periods",
+        ["VehicleClasses"] = "Vehicle classes",
+        ["VehicleClassRates"] = "Vehicle class rates",
     };
 
     public static string Display(string table)

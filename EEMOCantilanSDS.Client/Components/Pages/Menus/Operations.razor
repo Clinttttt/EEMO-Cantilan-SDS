@@ -156,7 +156,8 @@
         new("Fish / Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees"),
         new("Landing / Berthing", CashTicket, Route: "/operations/landing-berthing",
             Links: [new("Report", "/operations/landing-berthing/report")]),
-        new("Transportation Fees", CashTicket, FacilityCode.TRM),
+        // Cash Ticket on Collector Mobile at the approved vehicle-class rate (IA-030, IA-050); legacy trips stay under the TRM facility.
+        new("Transportation Fees", CashTicket, FacilityCode.TRM, Route: "/operations/transportation"),
         new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
         new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle"),

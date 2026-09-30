@@ -1,0 +1,26 @@
+/* Vehicle class rates — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.vcr-notice {
+    margin: 12px 20px 0;
+}
+
+.vcr-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--border);
+}
+
+.vcr-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.vcr-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}

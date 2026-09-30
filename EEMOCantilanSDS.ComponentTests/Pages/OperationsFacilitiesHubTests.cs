@@ -111,7 +111,8 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             AssertFacilityLink(cut, FacilityCode.BBQ, "/facility/bbq");
             AssertFacilityLink(cut, FacilityCode.ICE, "/facility/ice");
             AssertFacilityLink(cut, FacilityCode.SLH, "/facility/slh");
-            AssertFacilityLink(cut, FacilityCode.TRM, "/facility/trm");
+            // Transportation is a Cash Ticket workspace (IA-050); the legacy trip pages stay on the TRM facility route below.
+            AssertFacilityLink(cut, FacilityCode.TRM, "/operations/transportation");
             AssertFacilityLink(cut, FacilityCode.TPM, "/facility/tpm");
             AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/tcr");
             AssertFacilityLink(cut, FacilityCode.Custom2, "/facility/tc2");

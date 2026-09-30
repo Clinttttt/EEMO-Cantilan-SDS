@@ -85,6 +85,7 @@ public sealed class GovernedServiceWorkflowTests
             {
                 (RevenueClassificationCodes.MarketFees, RevenueInstrumentType.CashTicket),
                 (RevenueClassificationCodes.LandingBerthing, RevenueInstrumentType.CashTicket),
+                (RevenueClassificationCodes.TransportationParking, RevenueInstrumentType.CashTicket),
                 (RevenueClassificationCodes.TransferLargeCattle, RevenueInstrumentType.OfficialReceipt),
             })
             {
@@ -127,7 +128,8 @@ public sealed class GovernedServiceWorkflowTests
                 var assign = new CollectorOperationAssignmentWorkflow(db, new CurrentUser(world.HeadId, tenant.Id, "SuperAdmin"), new FixedTenant(tenant.Id));
                 Assert.True((await assign.ReplaceAsync(collector.Id, new EEMOCantilanSDS.Application.Dtos.ReplaceCollectorOperationAssignmentsRequest(
                     [CollectorOperationCodes.MarketFees, CollectorOperationCodes.LandingBerthing,
-                     CollectorOperationCodes.TransferLargeCattle, CollectorOperationCodes.VegetableFruitSpaceRental]))).IsSuccess);
+                     CollectorOperationCodes.TransferLargeCattle, CollectorOperationCodes.VegetableFruitSpaceRental,
+                     CollectorOperationCodes.Transportation]))).IsSuccess);
             }
         }
         return world;
@@ -540,5 +542,105 @@ public sealed class GovernedServiceWorkflowTests
         Assert.Equal("Posted", row.Disposition);
         var other = await Open(w, "Admin").Workflow.GetActivityAsync(CollectorOperationCodes.LandingBerthing, Today.AddDays(-1), Today);
         Assert.Empty(other.Value!);
+    }
+
+    // ── Transportation / Parking: the amount is the approved rate of the vehicle class (IA-030, IA-050) ──
+
+    private static async Task DefineClassAsync(World w, string code, string name, decimal amount, DateOnly? effective = null)
+    {
+        var (db, _) = Open(w, "SuperAdmin");
+        await using var _2 = db;
+        var classes = new VehicleClassWorkflow(db, new CurrentUser(w.HeadId, w.TenantId, "SuperAdmin"), new FixedTenant(w.TenantId));
+        var saved = await classes.SaveAsync(new SaveVehicleClassRequest(code, name, effective ?? Today.AddDays(-20), amount));
+        Assert.True(saved.IsSuccess, saved.Error);
+    }
+
+    private static GovernedServicePostRequest TransportPost(
+        AccountableDocumentSnapshot doc, decimal amount, string? vehicleClass, string? reference = null) => new(
+        1, Guid.NewGuid(), CollectorOperationCodes.Transportation, Today, amount, null, null, reference,
+        doc.Id, doc.Number, DateTime.UtcNow.AddMinutes(-1), vehicleClass);
+
+    [Fact]
+    public async Task Transportation_TheCollectorSelectsAClass_AndTheApprovedRateIsTheAmount_OnACashTicket()
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.Transportation, GovernedServiceBasis.VehicleClassRate, null, null);
+        await DefineClassAsync(w, "JEEPNEY", "Jeepney", 20m);
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+
+        var terms = await workflow.GetTermsAsync(CollectorOperationCodes.Transportation, null);
+        Assert.True(terms.IsSuccess, terms.Error);
+        var offered = Assert.Single(terms.Value!.VehicleClasses!);
+        Assert.Equal(("JEEPNEY", "Jeepney", 20m), (offered.Code, offered.Name, offered.Amount));
+        Assert.Equal(RevenueInstrumentType.CashTicket, terms.Value.Instrument);
+
+        var outcome = await workflow.PostMobileAsync(TransportPost(w.Ct[0], 20m, "jeepney", "ABC 123"));
+
+        Assert.True(outcome.IsSuccess, outcome.Error);
+        Assert.Equal(20m, outcome.Value!.Amount);
+        Assert.Equal(RevenueInstrumentType.CashTicket, outcome.Value.Instrument);
+        var line = await db.CollectionLines.SingleAsync();
+        Assert.Equal(CollectionSourceKind.GovernedService, line.SourceKind);
+        Assert.Contains("JEEPNEY", line.CalculationSnapshot);
+        Assert.Equal("Jeepney · ABC 123", GovernedServiceWorkflow.ReadReference(line.CalculationSnapshot));
+    }
+
+    [Fact]
+    public async Task Transportation_RefusesAWrongAmount_AnUnknownClass_AndAMissingClass_KeepingTheDocumentQuarantined()
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.Transportation, GovernedServiceBasis.VehicleClassRate, null, null);
+        await DefineClassAsync(w, "JEEPNEY", "Jeepney", 20m);
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+
+        Assert.False((await workflow.PostMobileAsync(TransportPost(w.Ct[0], 25m, "JEEPNEY"))).IsSuccess);   // typed amount
+        Assert.False((await workflow.PostMobileAsync(TransportPost(w.Ct[1], 20m, "BUS"))).IsSuccess);       // unapproved class
+        Assert.False((await workflow.PostMobileAsync(TransportPost(w.Ct[2], 20m, null))).IsSuccess);        // no class
+
+        Assert.Empty(db.Collections);
+        var states = await db.AccountableDocuments.Where(x => w.Ct.Select(d => d.Id).Contains(x.Id)).Select(x => x.State).ToListAsync();
+        Assert.All(states, s => Assert.Equal(AccountableDocumentState.ReconciliationRequired, s));
+    }
+
+    [Fact]
+    public async Task Transportation_AClassWithoutARateInForce_IsNotOfferedAndNotCollectible_AndRatesNeverReachBack()
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.Transportation, GovernedServiceBasis.VehicleClassRate, null, null);
+        await DefineClassAsync(w, "VAN", "Van", 20m, effective: Today.AddDays(5));   // not yet in force
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+
+        var terms = await workflow.GetTermsAsync(CollectorOperationCodes.Transportation, null);
+        Assert.Empty(terms.Value!.VehicleClasses!);
+        Assert.False((await workflow.PostMobileAsync(TransportPost(w.Ct[0], 20m, "VAN"))).IsSuccess);
+
+        var (headDb, _) = Open(w, "SuperAdmin");
+        await using var _3 = headDb;
+        var classes = new VehicleClassWorkflow(headDb, new CurrentUser(w.HeadId, w.TenantId, "SuperAdmin"), new FixedTenant(w.TenantId));
+        var backdated = await classes.SaveAsync(new SaveVehicleClassRequest("VAN", "Van", Today.AddDays(2), 30m));
+        Assert.Equal(ResultStatus.Conflict, backdated.Status);   // a new rate must follow the previous one
+    }
+
+    [Fact]
+    public async Task Transportation_OnlyTheHeadDefinesClasses_AndAServiceThatIsNotTransportationTakesNoClass()
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.MarketFees, GovernedServiceBasis.FixedAmount, 30m, null);
+        var (adminDb, _) = Open(w, "Admin");
+        await using var _2 = adminDb;
+        var asAdmin = new VehicleClassWorkflow(adminDb, new CurrentUser(w.HeadId, w.TenantId, "Admin"), new FixedTenant(w.TenantId));
+        Assert.Equal(ResultStatus.Forbidden, (await asAdmin.SaveAsync(new SaveVehicleClassRequest("BUS", "Bus", Today, 30m))).Status);
+        Assert.True((await asAdmin.GetAsync()).IsSuccess);
+
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+        var withClass = await workflow.PostMobileAsync(new GovernedServicePostRequest(
+            1, Guid.NewGuid(), CollectorOperationCodes.MarketFees, Today, 30m, null, null, null,
+            w.Ct[0].Id, w.Ct[0].Number, DateTime.UtcNow.AddMinutes(-1), "JEEPNEY"));
+        Assert.False(withClass.IsSuccess);
+        Assert.Empty(db.Collections);
     }
 }

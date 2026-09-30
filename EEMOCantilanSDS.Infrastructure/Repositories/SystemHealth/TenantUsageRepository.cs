@@ -57,6 +57,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["ObligationAccounts"] = "Obligation accounts",
         ["ObligationRates"] = "Obligation rates",
         ["ObligationPeriods"] = "Obligation periods",
+        ["VehicleClasses"] = "Vehicle classes",
+        ["VehicleClassRates"] = "Vehicle class rates",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)

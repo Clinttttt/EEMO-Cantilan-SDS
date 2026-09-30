@@ -51,7 +51,9 @@ public sealed record ConfigureGovernedServiceRequest(
 public sealed record GovernedServicePostRequest(
     int SchemaVersion, Guid ClientOperationId, string OperationCode, DateOnly BusinessDate,
     decimal ReceivedAmount, GovernedServiceMode? Mode, string? PayerName, string? Reference,
-    Guid AccountableDocumentId, string DocumentNumber, DateTime? IssuedAtUtc);
+    Guid AccountableDocumentId, string DocumentNumber, DateTime? IssuedAtUtc,
+    // Transportation / Parking only: the stable vehicle class the collector selected. The amount is that class's approved rate.
+    string? VehicleClassCode = null);
 
 public sealed record GovernedServiceOutcomeDto(
     Guid CollectionId, Guid AccountableDocumentId, string DocumentNumber, DateOnly BusinessDate,
@@ -74,4 +76,13 @@ public sealed record GovernedServiceRecordDto(
 /// </summary>
 public sealed record GovernedServiceTermsDto(
     string OperationCode, string Name, bool ModeAware, GovernedServiceBasis Basis, decimal? FixedAmount,
-    decimal? MaximumAmount, RevenueInstrumentType Instrument, bool RequiresReference);
+    decimal? MaximumAmount, RevenueInstrumentType Instrument, bool RequiresReference,
+    IReadOnlyList<VehicleClassTermDto>? VehicleClasses = null);
+
+/// <summary>One approved vehicle class and the rate in force today, for a collector to select. Display only; posting revalidates.</summary>
+public sealed record VehicleClassTermDto(string Code, string Name, decimal Amount);
+
+public sealed record VehicleClassDto(
+    Guid Id, string Code, string DisplayName, bool IsActive, decimal? CurrentAmount, DateOnly? CurrentEffectiveDate);
+
+public sealed record SaveVehicleClassRequest(string Code, string DisplayName, DateOnly EffectiveDate, decimal Amount);

@@ -80,6 +80,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<ObligationAccount> ObligationAccounts { get; }
         DbSet<ObligationRate> ObligationRates { get; }
         DbSet<ObligationPeriod> ObligationPeriods { get; }
+        DbSet<VehicleClass> VehicleClasses { get; }
+        DbSet<VehicleClassRate> VehicleClassRates { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

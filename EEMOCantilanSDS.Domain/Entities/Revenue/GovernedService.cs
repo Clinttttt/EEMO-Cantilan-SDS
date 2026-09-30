@@ -89,6 +89,10 @@ public sealed class GovernedServiceSetting : BaseEntity, IMunicipalityOwned
                 if (maximumAmount is not null)
                     throw new ArgumentException("A fixed-amount service has no separate ceiling.", nameof(maximumAmount));
                 break;
+            case GovernedServiceBasis.VehicleClassRate:
+                if (fixedAmount is not null || maximumAmount is not null)
+                    throw new ArgumentException("A vehicle-class-rate service takes its amounts from the approved class rates.", nameof(fixedAmount));
+                break;
             case GovernedServiceBasis.DirectApprovedAmount:
                 if (fixedAmount is not null)
                     throw new ArgumentException("A direct-approved-amount service has no fixed amount.", nameof(fixedAmount));

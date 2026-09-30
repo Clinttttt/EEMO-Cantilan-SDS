@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 
 namespace EEMOCantilanSDS.Testing;
@@ -95,5 +96,52 @@ public class RecordTripCommandHandlerTests
         Assert.Null(captured!.TransporterId);              // no roster entry
         Assert.Equal("Walk-in Driver", captured.DriverName);
         trmRepo.Verify(r => r.GetTransporterByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>The canonical Transportation Cash Ticket service, enabled from a date (IA-050): the legacy trip writer stops from then on.</summary>
+    private static async Task<EEMOCantilanSDS.Application.Common.Revenue.TransportationCollectionAuthority> AuthorityAsync(
+        bool enabled, DateOnly effective)
+    {
+        var tenant = Guid.NewGuid();
+        var accessor = new Mock<EEMOCantilanSDS.Application.Common.Tenancy.ICurrentMunicipalityAccessor>();
+        accessor.SetupGet(a => a.MunicipalityId).Returns(tenant);
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext>()
+            .UseInMemoryDatabase($"trm-authority-{Guid.NewGuid():N}")
+            .AddInterceptors(new EEMOCantilanSDS.Infrastructure.Persistence.Interceptors.MunicipalityStampInterceptor())
+            .Options;
+        var db = new EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext(options, accessor.Object);
+        var service = EEMOCantilanSDS.Domain.Entities.Revenue.GovernedService.Create(
+            tenant, EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation, "head");
+        db.Add(service);
+        db.Add(EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceSetting.Create(tenant, service.Id, effective,
+            GovernedServiceBasis.VehicleClassRate, null, null, enabled, false, "head"));
+        await db.SaveChangesAsync();
+        return new EEMOCantilanSDS.Application.Common.Revenue.TransportationCollectionAuthority(db, accessor.Object);
+    }
+
+    [Fact]
+    public async Task LegacyTripWriter_StopsOnceTheCanonicalTransportationServiceIsEnabled_AndNeverBefore()
+    {
+        var collector = CollectorWith(FacilityCode.TRM);
+        var (before, beforeRepo) = Build(collector, "Collector", collector.Id);
+        var past = new EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip.RecordTripCommandHandler(
+            beforeRepo.Object, Mock.Of<ICollectorRepository>(c => c.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>()) == Task.FromResult<CollectorUser?>(collector)),
+            Mock.Of<ICurrentUserService>(u => u.Role == "Collector" && u.CollectorId == collector.Id && u.Username == "tester"),
+            Mock.Of<IUnitOfWork>(), CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant,
+            await AuthorityAsync(enabled: true, effective: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30)));
+
+        // Enabled only from a future date: today's trip still goes to the legacy writer, nothing is backdated.
+        Assert.True((await past.Handle(TripCommand(), CancellationToken.None)).IsSuccess);
+
+        var live = new EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip.RecordTripCommandHandler(
+            beforeRepo.Object, Mock.Of<ICollectorRepository>(c => c.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>()) == Task.FromResult<CollectorUser?>(collector)),
+            Mock.Of<ICurrentUserService>(u => u.Role == "Collector" && u.CollectorId == collector.Id && u.Username == "tester"),
+            Mock.Of<IUnitOfWork>(), CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant,
+            await AuthorityAsync(enabled: true, effective: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-2)));
+        var refused = await live.Handle(TripCommand(), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, refused.Status);
+        Assert.Contains("canonical Cash Ticket", refused.Error);
+        Assert.NotNull(before);
     }
 }

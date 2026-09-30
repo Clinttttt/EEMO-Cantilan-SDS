@@ -13,5 +13,11 @@ public enum GovernedServiceBasis
     /// The collector records the amount actually charged, but only for a service whose approved definition enables
     /// this, and never above the approved ceiling when one is configured.
     /// </summary>
-    DirectApprovedAmount = 2
+    DirectApprovedAmount = 2,
+
+    /// <summary>
+    /// The amount is the approved effective-dated rate of the vehicle class the collector states (Transportation / Parking,
+    /// IA-030). The collector chooses a class from the approved list, never a rate.
+    /// </summary>
+    VehicleClassRate = 3
 }

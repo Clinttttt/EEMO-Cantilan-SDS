@@ -31,6 +31,10 @@ public static class GovernedServiceCatalog
         // cannot describe both, so this service records an approved direct amount (with an optional ceiling).
         new(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental",
             RevenueClassificationCodes.VegetableFruitSpaceRental, true, [GovernedServiceBasis.DirectApprovedAmount]),
+        // Transportation / Parking (IA-030, IA-050): a Cash Ticket day-to-day collection whose amount is the approved,
+        // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured.
+        new(CollectorOperationCodes.Transportation, "Transportation / Parking", RevenueClassificationCodes.TransportationParking,
+            false, [GovernedServiceBasis.VehicleClassRate]),
     ];
 
     public static Entry? Find(string? code) => All.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
@@ -112,6 +116,22 @@ public sealed class GovernedServiceWorkflow(
             return Result<GovernedServiceDefinitionDto>.Success(await BuildDefinitionAsync(actor.TenantId, entry, ct));
         }, ct);
 
+    /// <summary>The active vehicle classes that have an approved rate in force on a date, with that rate. A class without one is not offered.</summary>
+    private async Task<IReadOnlyList<VehicleClassTermDto>> CurrentVehicleClassTermsAsync(Guid tenantId, DateOnly date, CancellationToken ct)
+    {
+        var classes = await db.VehicleClasses.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.IsActive).ToListAsync(ct);
+        if (classes.Count == 0) return [];
+        var ids = classes.Select(x => x.Id).ToArray();
+        var rates = (await db.VehicleClassRates.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.VehicleClassId)).ToListAsync(ct))
+            .ToLookup(x => x.VehicleClassId);
+        return classes.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(c => (Class: c, Rate: VehicleClassRate.Resolve(rates[c.Id], date)))
+            .Where(x => x.Rate is not null)
+            .Select(x => new VehicleClassTermDto(x.Class.Code, x.Class.DisplayName, x.Rate!.Amount)).ToList();
+    }
+
     private async Task<GovernedServiceDefinitionDto> BuildDefinitionAsync(
         Guid tenantId, GovernedServiceCatalog.Entry entry, CancellationToken ct)
     {
@@ -140,6 +160,10 @@ public sealed class GovernedServiceWorkflow(
                     ? $"No effective {(mode == GovernedServiceMode.WholePayment ? "whole-payment" : "daily-transaction")} instrument policy."
                     : "No effective revenue classification policy with an approved instrument.");
         }
+
+        if (setting?.Basis == GovernedServiceBasis.VehicleClassRate
+            && (await CurrentVehicleClassTermsAsync(tenantId, today, ct)).Count == 0)
+            issues.Add("No active vehicle class has an approved rate in force.");
 
         GovernedServiceSetupState state;
         if (setting is null)
@@ -215,8 +239,10 @@ public sealed class GovernedServiceWorkflow(
             if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
+            var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate
+                ? await CurrentVehicleClassTermsAsync(actor.TenantId, BusinessToday, ct) : null;
             return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, instrument, false));
+                setting.FixedAmount, setting.MaximumAmount, instrument, false, classTerms));
         }, ct);
 
     // ── Mobile posting ─────────────────────────────────────────────────────────────────────────────────
@@ -303,7 +329,36 @@ public sealed class GovernedServiceWorkflow(
             if (document.InstrumentType != instrument)
                 return await RecordTerminalAsync(actor, request, normalized, document, "INSTRUMENT_POLICY_CONFLICT",
                     $"The approved policy requires {(instrument == RevenueInstrumentType.OfficialReceipt ? "an Official Receipt" : "a Cash Ticket")} for this transaction.", ct);
-            if (setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
+            // Transportation / Parking: the collector states the vehicle class; the amount is that class's approved rate in
+            // force on the business date, never a typed or remembered figure. Any other service takes no class.
+            VehicleClass? vehicleClass = null;
+            VehicleClassRate? vehicleRate = null;
+            var classCode = request.VehicleClassCode?.Trim().ToUpperInvariant();
+            if (setting.Basis == GovernedServiceBasis.VehicleClassRate)
+            {
+                if (string.IsNullOrEmpty(classCode))
+                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_REQUIRED",
+                        "Choose the vehicle class. Its approved rate is the amount.", ct);
+                vehicleClass = await db.VehicleClasses.AsNoTracking().SingleOrDefaultAsync(x =>
+                    x.MunicipalityId == actor.TenantId && x.Code == classCode && x.IsActive, ct);
+                if (vehicleClass is null)
+                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_UNKNOWN",
+                        "This vehicle class is not an approved, active class for this office.", ct);
+                var rates = await db.VehicleClassRates.AsNoTracking().Where(x =>
+                    x.MunicipalityId == actor.TenantId && x.VehicleClassId == vehicleClass.Id).ToListAsync(ct);
+                vehicleRate = VehicleClassRate.Resolve(rates, request.BusinessDate);
+                if (vehicleRate is null)
+                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_RATE_NOT_EFFECTIVE",
+                        "This vehicle class has no approved rate in force for the business date.", ct);
+                if (request.ReceivedAmount != vehicleRate.Amount)
+                    return await RecordTerminalAsync(actor, request, normalized, document, "AMOUNT_NOT_APPROVED",
+                        "The amount is not the approved rate for this vehicle class.", ct);
+            }
+            else if (!string.IsNullOrEmpty(classCode))
+                return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
+                    "This service does not take a vehicle class.", ct);
+
+            if (setting.Basis != GovernedServiceBasis.VehicleClassRate && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
                 return await RecordTerminalAsync(actor, request, normalized, document, amountProblem,
                     amountProblem == "AMOUNT_ABOVE_CEILING"
                         ? "The amount exceeds the approved ceiling for this service."
@@ -312,7 +367,11 @@ public sealed class GovernedServiceWorkflow(
             var snapshot = JsonSerializer.Serialize(new GovernedSnapshot(
                 1, actor.TenantId, service.Id, entry.Code, setting.Id, setting.EffectiveDate, setting.Basis,
                 setting.FixedAmount, setting.MaximumAmount, request.Mode, instrument, entry.ClassificationCode,
-                resolved.Policy.Id, resolved.Policy.EffectiveDate, request.Reference?.Trim(), request.PayerName?.Trim()), JsonOptions);
+                resolved.Policy.Id, resolved.Policy.EffectiveDate,
+                vehicleClass is null ? request.Reference?.Trim()
+                    : string.IsNullOrWhiteSpace(request.Reference) ? vehicleClass.DisplayName : $"{vehicleClass.DisplayName} · {request.Reference.Trim()}",
+                request.PayerName?.Trim(),
+                vehicleClass?.Code, vehicleClass?.DisplayName, vehicleRate?.Id, vehicleRate?.EffectiveDate, vehicleRate?.Amount), JsonOptions);
             // An immediate activity charge: an approved source identity and frozen evidence, no fabricated receivable.
             var line = new CollectionLineDraft(resolved.Classification, resolved.Policy, request.ReceivedAmount,
                 CollectionSourceKind.GovernedService, service.Id, null, snapshot, null);
@@ -527,7 +586,17 @@ public sealed class GovernedServiceWorkflow(
         db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
 
-    private static string NormalizeIntent(Actor actor, GovernedServicePostRequest request) =>
+    private static string NormalizeIntent(Actor actor, GovernedServicePostRequest request)
+    {
+        var json = NormalizeBaseIntent(actor, request);
+        if (string.IsNullOrWhiteSpace(request.VehicleClassCode)) return json;
+        // The class is part of the intent only when stated, so every earlier intent keeps its exact fingerprint.
+        var node = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        node["VehicleClassCode"] = request.VehicleClassCode.Trim().ToUpperInvariant();
+        return node.ToJsonString(JsonOptions);
+    }
+
+    private static string NormalizeBaseIntent(Actor actor, GovernedServicePostRequest request) =>
         JsonSerializer.Serialize(new
         {
             SchemaVersion = request.SchemaVersion,
@@ -579,5 +648,7 @@ public sealed class GovernedServiceWorkflow(
         int SchemaVersion, Guid MunicipalityId, Guid ServiceId, string OperationCode, Guid SettingId,
         DateOnly SettingEffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount,
         GovernedServiceMode? Mode, RevenueInstrumentType Instrument, string ClassificationCode,
-        Guid PolicyId, DateOnly PolicyEffectiveDate, string? Reference, string? PayerName);
+        Guid PolicyId, DateOnly PolicyEffectiveDate, string? Reference, string? PayerName,
+        string? VehicleClassCode = null, string? VehicleClassName = null, Guid? VehicleClassRateId = null,
+        DateOnly? VehicleClassRateEffectiveDate = null, decimal? VehicleClassRate = null);
 }

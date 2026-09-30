@@ -146,6 +146,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
         public DbSet<ObligationRate> ObligationRates { get; set; }
         public DbSet<ObligationPeriod> ObligationPeriods { get; set; }
+        public DbSet<VehicleClass> VehicleClasses { get; set; }
+        public DbSet<VehicleClassRate> VehicleClassRates { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

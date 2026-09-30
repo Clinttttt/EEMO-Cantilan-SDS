@@ -79,6 +79,49 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task VehicleClassRateBasis_IsAcceptedWithNoAmounts_AndClassesAreUniquePerTenant_WithTenantScopedRates()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var a = NewTenant("va");
+        var b = NewTenant("vb");
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.AddRange(a, b);
+            await setup.SaveChangesAsync();
+        }
+
+        VehicleClass jeepney;
+        await using (var ctx = db.CreateContext(a.Id))
+        {
+            var service = GovernedService.Create(a.Id, CollectorOperationCodes.Transportation, "head");
+            ctx.Add(service);
+            ctx.Add(GovernedServiceSetting.Create(a.Id, service.Id, new DateOnly(2026, 1, 1),
+                GovernedServiceBasis.VehicleClassRate, null, null, true, false, "head"));
+            jeepney = VehicleClass.Create(a.Id, "JEEPNEY", "Jeepney", "head");
+            ctx.Add(jeepney);
+            ctx.Add(VehicleClassRate.Create(a.Id, jeepney.Id, new DateOnly(2026, 1, 1), 20m, "head"));
+            await ctx.SaveChangesAsync();
+        }
+        // The same code twice in one tenant is refused; another tenant may use it.
+        await using (var ctx = db.CreateContext(a.Id))
+        {
+            ctx.Add(VehicleClass.Create(a.Id, "JEEPNEY", "Jeepney again", "head"));
+            await Assert.ThrowsAsync<DbUpdateException>(() => ctx.SaveChangesAsync());
+        }
+        await using (var ctx = db.CreateContext(b.Id))
+        {
+            ctx.Add(VehicleClass.Create(b.Id, "JEEPNEY", "Jeepney", "head"));
+            await ctx.SaveChangesAsync();
+            Assert.Single(await ctx.VehicleClasses.ToListAsync());
+            Assert.Empty(await ctx.VehicleClassRates.ToListAsync());
+            // A rate cannot point at another tenant's class.
+            ctx.Add(VehicleClassRate.Create(b.Id, jeepney.Id, new DateOnly(2026, 1, 1), 99m, "head"));
+            await Assert.ThrowsAsync<DbUpdateException>(() => ctx.SaveChangesAsync());
+        }
+    }
+
+    [SkippableFact]
     public async Task DatabaseRefusesAnImpossibleAmountShape_EvenIfTheDomainFactoryWereBypassed()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -99,7 +142,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
 
         // A fixed-amount version without an amount, and a direct version carrying a fixed amount, both violate the shape.
         await using var raw = db.CreateContext(tenant.Id);
-        foreach (var (basis, fixedAmount) in new[] { (1, "NULL"), (2, "30.00"), (1, "0"), (3, "NULL") })
+        foreach (var (basis, fixedAmount) in new[] { (1, "NULL"), (2, "30.00"), (1, "0"), (3, "5.00"), (4, "NULL") })
         {
             var sql = $"""
                 INSERT INTO "GovernedServiceSettings"

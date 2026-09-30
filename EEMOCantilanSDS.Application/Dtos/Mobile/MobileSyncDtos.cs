@@ -84,7 +84,8 @@ public sealed record SyncOfflineOperationDto(
     string? OperationCode = null,
     GovernedServiceMode? CollectionMode = null,
     string? PayerName = null,
-    string? Reference = null);
+    string? Reference = null,
+    string? VehicleClassCode = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

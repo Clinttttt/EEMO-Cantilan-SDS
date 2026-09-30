@@ -159,12 +159,16 @@
                                         <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
                                     </label>
                                 }
-                                else
+                                else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
                                 {
                                     <label class="v3-field">
                                         <span>Ceiling per transaction (₱, optional)</span>
                                         <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
                                     </label>
+                                }
+                                else
+                                {
+                                    <p class="gsw-note">The amount is the approved rate of the vehicle class the collector selects. Set the classes and rates below.</p>
                                 }
                                 <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
                                 <label class="gsw-check"><input type="checkbox" @bind="_mobile" /> Collector Mobile may record it</label>
@@ -324,12 +328,14 @@
     private static string BasisName(GovernedServiceBasis basis) => basis switch
     {
         GovernedServiceBasis.FixedAmount => "Fixed approved amount",
+        GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
         _ => "Direct approved amount"
     };
 
     private static string BasisLabel(GovernedServiceDefinitionDto d) => d.Basis switch
     {
         GovernedServiceBasis.FixedAmount => $"Fixed · {Money(d.FixedAmount ?? 0m)}",
+        GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
         GovernedServiceBasis.DirectApprovedAmount => d.MaximumAmount is { } ceiling
             ? $"Direct approved amount · up to {Money(ceiling)}" : "Direct approved amount · no ceiling set",
         _ => "Not set up"

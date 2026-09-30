@@ -1,0 +1,23 @@
+@page "/operations/transportation"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Transportation / Parking</PageTitle>
+
+@* Transportation / Parking is a day-to-day Cash Ticket collection on Collector Mobile (IA-030, IA-050). The Head sets the
+   vehicle classes and their approved effective-dated rates; the collector selects a class and the approved rate is the
+   amount. It replaces the legacy trip record from the date the Head enables it: earlier trips stay readable and unchanged.
+   Nothing on this page records money. The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <WorkspaceHeader Parent="Operations" Title="Transportation / Parking">
+        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Actions>
+            <a class="v3-btn" href="/facility/trm">Legacy trip history</a>
+        </Actions>
+    </WorkspaceHeader>
+
+    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation / Parking" />
+    <VehicleClassRates />
+</div>
