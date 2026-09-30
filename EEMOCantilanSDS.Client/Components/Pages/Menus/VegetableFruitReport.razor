@@ -1,0 +1,13 @@
+@page "/operations/vegetable-fruit/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Vegetable / Fruits Report</PageTitle>
+
+@* Vegetable / Fruits report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+   month's governed collections, all read from the server. The layout owns the <main> landmark. *@
+<GovernedOperationReport OperationCode="@CollectorOperationCodes.VegetableFruitSpaceRental" Name="Vegetable / Fruits" ParentHref="/operations/vegetable-fruit"
+                         RowKey="VEGETABLE_FRUIT_SPACE_RENTAL" Classification="Vegetable / Fruits space rental" Instruments="@(new[] { "OR", "CT" })"
+                         InstrumentFact="Official Receipt for a whole payment; Cash Ticket for a daily transaction" IdPrefix="vfr" ModeAware="true" Basis="The instrument follows the transaction mode (IA-046): a whole payment is an Official Receipt, a daily transaction a Cash Ticket. The register states each one." />

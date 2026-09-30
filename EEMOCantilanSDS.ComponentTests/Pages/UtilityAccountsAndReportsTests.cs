@@ -27,6 +27,10 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        // Operation reports read the official Monthly Income and the governed-activity register; an unanswered read
+        // shows "—", which is what these tests assert.
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        Services.AddSingleton(Mock.Of<IGovernedServicesApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 

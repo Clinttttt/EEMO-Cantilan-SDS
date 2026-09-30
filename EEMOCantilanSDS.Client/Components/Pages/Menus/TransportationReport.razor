@@ -1,0 +1,13 @@
+@page "/operations/transportation/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Transportation Fees Report</PageTitle>
+
+@* Transportation Fees report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+   month's governed collections, all read from the server. The layout owns the <main> landmark. *@
+<GovernedOperationReport OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation Fees" ParentHref="/operations/transportation"
+                         RowKey="TRANSPORTATION_PARKING" Classification="Transportation Fees" Instruments="@(new[] { "CT" })"
+                         InstrumentFact="Cash Ticket" IdPrefix="trr" Code="TRM" Basis="Canonical Transportation is a Cash Ticket at the approved vehicle-class rate. Legacy terminal trips recorded before the source's cutover stay in the TRM facility report." />
