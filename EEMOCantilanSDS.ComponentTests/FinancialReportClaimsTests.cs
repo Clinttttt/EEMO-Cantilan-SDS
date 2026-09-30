@@ -109,7 +109,7 @@ public class FinancialReportClaimsTests
         // A section is either hidden by the screen-only class (it must exist for the export) or rendered only when open.
         foreach (var key in keys)
             Assert.True(
-                markup.Contains($@"SectionOff(""{key}"")") || markup.Contains($@"SectionShown(""{key}"")"),
+                markup.Contains($@"SectionOff(""{key}"")") || markup.Contains($@"SectionShown(""{key}"")") || markup.Contains($@"=> ""{key}"""),
                 $"the '{key}' tab marks no section");
     }
 

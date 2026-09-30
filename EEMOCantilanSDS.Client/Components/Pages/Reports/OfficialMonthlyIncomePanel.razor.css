@@ -1,0 +1,142 @@
+/* Official Monthly Income — V3 statement. Numbers align right; annual mode scrolls horizontally and prints landscape. */
+
+.mi {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.mi-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+.mi-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--navy, var(--text));
+}
+
+.mi-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mi-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.mi-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.mi-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.mi-table th,
+.mi-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.mi-table thead th {
+    background: var(--surface-muted);
+    font-weight: 600;
+    text-align: right;
+}
+
+.mi-table thead th.mi-line,
+.mi-table tbody th.mi-line,
+.mi-table tfoot th.mi-line {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+}
+
+.mi-num {
+    text-align: right;
+}
+
+.mi-muted {
+    color: var(--text-secondary);
+}
+
+.mi-strong {
+    font-weight: 600;
+}
+
+.mi-group th {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-align: left;
+}
+
+.mi-subtotal th,
+.mi-subtotal td {
+    font-weight: 600;
+    border-top: 1px solid var(--border-strong, var(--border));
+}
+
+.mi-total th,
+.mi-total td {
+    font-weight: 700;
+    background: var(--surface-muted);
+    border-top: 2px solid var(--border-strong, var(--border));
+}
+
+.mi-tag {
+    margin-left: 8px;
+    padding: 1px 6px;
+    border: 1px solid var(--border-strong, var(--border));
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+}
+
+.mi-notes {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.mi-print-head {
+    display: none;
+}
+
+@media print {
+    .mi-print-head {
+        display: block;
+    }
+
+    .mi-tools {
+        display: none;
+    }
+
+    .mi-scroll {
+        overflow: visible;
+        border: 0;
+    }
+}

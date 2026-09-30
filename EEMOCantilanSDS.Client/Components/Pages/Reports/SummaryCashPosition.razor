@@ -1,0 +1,60 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@inject IRemittancesApiClient Remittances
+
+@* The management summary line (IA-052): what was collected, the year to date, target attainment, and the three things that
+   must never be blended: what payors still OWE (outstanding obligations), what was COLLECTED but not yet remitted
+   (unremitted collections), and accountability exceptions. Collection efficiency and target attainment are different
+   figures; without an approved annual target, attainment is stated as not configured rather than invented. *@
+<section class="scp no-print" aria-label="Collections and accountability position">
+    <SummaryStrip Label="Collections and accountability" Items="Items" />
+    @if (_failed)
+    {
+        <p class="scp-note" role="status">The unremitted and exception figures could not be loaded, so they are not shown.</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public decimal Collected { get; set; }
+    [Parameter] public decimal YtdCollected { get; set; }
+
+    /// <summary>What payors still owe for the period (an obligation, never cash on hand).</summary>
+    [Parameter] public decimal Outstanding { get; set; }
+
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+
+    private AccountabilityPositionDto? _position;
+    private bool _failed;
+    private DateOnly _loadedFrom;
+    private DateOnly _loadedTo;
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Items =>
+    [
+        new("Collected", Money(Collected)),
+        new("Year to date", Money(YtdCollected)),
+        new("Target attainment", "Not configured"),
+        new("Outstanding obligations", Money(Outstanding)),
+        new("Unremitted collections", _position is null ? "—" : Money(_position.Unremitted), Emphasis: _position is { Unremitted: not 0m }),
+        new("Accountability exceptions", _position is null ? "—" : _position.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && _loadedTo == To && (_position is not null || _failed)) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        _failed = false;
+        try
+        {
+            var result = await Remittances.GetPositionAsync(From, To);
+            if (result.IsSuccess) _position = result.Value;
+            else { _position = null; _failed = true; }
+        }
+        catch { _position = null; _failed = true; }
+    }
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}
