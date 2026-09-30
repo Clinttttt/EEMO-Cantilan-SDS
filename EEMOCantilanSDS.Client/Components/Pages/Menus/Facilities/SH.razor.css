@@ -767,3 +767,11 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
+
+.detail-fee-items {
+    margin-top: 2px;
+    padding-left: 22px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}

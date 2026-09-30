@@ -31,7 +31,8 @@ public record SlaughterTransactionDto(
     decimal RatePerHead,
     decimal TotalAmount,
     string? ORNumber,
-    DateOnly TransactionDate
+    DateOnly TransactionDate,
+    SlaughterFeeComponentsDto? Components = null
 );
 
 public record SlaughterOverviewDto(
@@ -101,4 +102,18 @@ public record TransactionDateGroupDto(
     DateOnly TransactionDate,
     string? ORNumber,
     IReadOnlyList<SlaughterTransactionDto> Transactions
+);
+
+/// <summary>
+/// The fee components stored with the transaction when it was recorded. Presentation only: it itemizes the rate that was
+/// already charged and never re-prices it. A component that does not apply to the animal is null.
+/// </summary>
+public record SlaughterFeeComponentsDto(
+    decimal SlaughterFee,
+    decimal? SlaughterPermit,
+    decimal AntemortemFee,
+    decimal? PostmortemFee,
+    decimal TableCharge,
+    decimal? EntranceFee,
+    decimal? LivestockFee
 );

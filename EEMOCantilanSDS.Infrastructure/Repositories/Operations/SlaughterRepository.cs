@@ -42,7 +42,8 @@ public class SlaughterRepository(
                 x.RatePerHead,
                 x.RatePerHead * x.NumberOfHeads,
                 x.ORNumber,
-                x.TransactionDate
+                x.TransactionDate,
+                new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
             ))
             .ToListAsync(ct);
     }
@@ -62,7 +63,8 @@ public class SlaughterRepository(
                 x.RatePerHead,
                 x.RatePerHead * x.NumberOfHeads,
                 x.ORNumber,
-                x.TransactionDate
+                x.TransactionDate,
+                new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
             ))
             .ToListAsync(ct);
     }
@@ -83,7 +85,8 @@ public class SlaughterRepository(
                 x.RatePerHead,
                 x.RatePerHead * x.NumberOfHeads,
                 x.ORNumber,
-                x.TransactionDate
+                x.TransactionDate,
+                new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
             ))
             .ToListAsync(ct);
     }
@@ -102,7 +105,8 @@ public class SlaughterRepository(
                 x.RatePerHead,
                 x.RatePerHead * x.NumberOfHeads,
                 x.ORNumber,
-                x.TransactionDate
+                x.TransactionDate,
+                new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
             ))
             .ToListAsync(ct);
 
@@ -182,7 +186,8 @@ public class SlaughterRepository(
                         x.RatePerHead,
                         x.RatePerHead * x.NumberOfHeads,
                         x.ORNumber,
-                        x.TransactionDate
+                        x.TransactionDate,
+                        new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
                     ))
                     .ToList();
 
@@ -241,7 +246,8 @@ public class SlaughterRepository(
                     x.RatePerHead,
                     x.RatePerHead * x.NumberOfHeads,
                     x.ORNumber,
-                    x.TransactionDate
+                    x.TransactionDate,
+                    new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
                 )).ToList()
             ))
             .ToList();
