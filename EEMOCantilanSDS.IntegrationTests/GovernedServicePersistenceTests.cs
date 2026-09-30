@@ -177,6 +177,50 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task CollectorReport_StatesPostedOperationCollectionsApart_AndOnlyForTheCollectorWhoTookThem()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var f = await SeedPostableAsync();
+        var workflow = CollectorWorkflow(f, out var ctx);
+        await using (ctx)
+        {
+            Assert.True((await workflow.PostMobileAsync(Request(f))).IsSuccess);
+        }
+        var stranger = Guid.NewGuid();
+
+        await using var read = db.CreateContext(f.Tenant.Id);
+        var reader = new EEMOCantilanSDS.Infrastructure.Repositories.CollectorReportQueries(read);
+        var today = PhilippineTime.Today;
+        var mine = await reader.GetCollectionsAsync(f.Collector.Id, today.AddDays(-1), today);
+        var theirs = await reader.GetCollectionsAsync(stranger, today.AddDays(-1), today);
+
+        var row = Assert.Single(mine.OperationCollections!);
+        Assert.Equal(f.Document.DocumentNumber, row.DocumentNumber);
+        Assert.Equal("Market Fees", row.OperationName);
+        Assert.Equal(RevenueInstrumentType.CashTicket, row.Instrument);
+        Assert.Equal("PG test", row.Reference);
+        Assert.Equal(30m, row.Amount);
+        Assert.Empty(mine.Lines);                 // not folded into a facility line
+        Assert.Empty(theirs.OperationCollections!);
+
+        // The collector's own Mobile records read the same posted Collection, only for that collector.
+        var ownFlow = CollectorWorkflow(f, out var ownCtx);
+        await using (ownCtx)
+        {
+            var records = await ownFlow.GetCollectorRecordsAsync(today.AddDays(-1), today);
+            var record = Assert.Single(records.Value!);
+            Assert.Equal("Market Fees", record.OperationName);
+            Assert.Equal(30m, record.Amount);
+            Assert.Equal("Posted", record.Disposition);
+            Assert.Equal(f.Document.DocumentNumber, record.DocumentNumber);
+        }
+        await using var strangerCtx = db.CreateContext(f.Tenant.Id);
+        var strangerFlow = new GovernedServiceWorkflow(strangerCtx, new Caller(stranger, f.Tenant.Id, "Collector"), new FixedTenant(f.Tenant.Id));
+        Assert.Empty((await strangerFlow.GetCollectorRecordsAsync(today.AddDays(-1), today)).Value!);
+    }
+
+    [SkippableFact]
     public async Task TwoConcurrentPostsOnTheSameDocument_ProduceExactlyOneCollection()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

@@ -33,6 +33,13 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
         string operationCode, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await workflow.GetActivityAsync(operationCode, from, to, ct));
 
+    /// <summary>The calling collector's own posted operation collections (read from the canonical Collection).</summary>
+    [HttpGet("records")]
+    [Authorize(Roles = "Collector")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceRecordDto>>> RecordsAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await workflow.GetCollectorRecordsAsync(from, to, ct));
+
     [HttpGet("{operationCode}/documents")]
     [Authorize(Roles = "Collector")]
     public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> DocumentsAsync(

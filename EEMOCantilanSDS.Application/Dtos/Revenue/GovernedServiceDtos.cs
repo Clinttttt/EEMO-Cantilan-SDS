@@ -61,3 +61,9 @@ public sealed record GovernedServiceActivityDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string DocumentNumber,
     RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName, string? Reference,
     decimal Amount, string? CollectorName, string Disposition);
+
+/// <summary>One collection a collector took through a governed operation, as the server recorded it.</summary>
+public sealed record GovernedServiceRecordDto(
+    Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string OperationCode, string OperationName,
+    string DocumentNumber, RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName,
+    string? Reference, decimal Amount, string Disposition);

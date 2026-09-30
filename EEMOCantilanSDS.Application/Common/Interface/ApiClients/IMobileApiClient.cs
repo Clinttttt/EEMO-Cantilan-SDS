@@ -19,6 +19,9 @@ public interface IMobileApiClient
 
     /// <summary>Documents of the instrument this governed operation (and mode) resolves to that this collector holds (GET api/governed-services/{code}/documents).</summary>
     Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode);
+
+    /// <summary>This collector's posted governed-operation collections for a period (GET api/governed-services/records).</summary>
+    Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to);
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);

@@ -46,7 +46,22 @@ public sealed record ReportOfCollectionsDto(
     // ₱566 taken in September of which ₱30 settled an August day means September itself earned ₱536. Stated beside the
     // total rather than moved out of it, because this report describes collections attributed to the collector, not a
     // separate remittance/deposit event. Stating the earlier-period portion separately preserves when it was collected.
-    decimal CollectedForEarlierPeriods = 0m);
+    decimal CollectedForEarlierPeriods = 0m,
+
+    // Canonical collections of governed operations (no facility). Stated separately: they are real collector cash but belong
+    // to no facility line, and how they roll into the official collector RCD is not yet decided.
+    IReadOnlyList<ReportOperationCollectionDto>? OperationCollections = null,
+    decimal OperationCollected = 0m);
+
+public sealed record ReportOperationCollectionDto(
+    string DocumentNumber,
+    DateTime TakenAt,
+    DateOnly BusinessDate,
+    string OperationName,
+    string? InstrumentLabel,
+    string? PayerName,
+    string? Reference,
+    decimal Amount);
 
 public sealed record ReportFacilityLineDto(
     FacilityCode Facility,

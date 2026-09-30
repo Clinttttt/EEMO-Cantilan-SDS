@@ -63,6 +63,10 @@ public sealed class CachingMobileApiClient(
     // Capability is day-scoped (business date, custody, settlement authority) and cleared after every write, so a Cash
     // Ticket used by the last capture is not still reported as held. Offline, the last answer for today stands; the
     // posting endpoint revalidates every gate on sync.
+    // An offline REVIEW view like the other records: read-through, and deliberately not cleared by a write.
+    public Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to) =>
+        ReadThroughAsync($"records|operations|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetOperationRecordsAsync(from, to));
+
     // Custody changes with every issue, and "operations" is cleared after every write, so a used document is not offered again.
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
         ReadThroughAsync($"operations|documents|{operationCode}|{mode}|{Today}", () => inner.GetOperationDocumentsAsync(operationCode, mode));

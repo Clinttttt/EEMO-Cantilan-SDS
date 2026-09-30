@@ -420,6 +420,46 @@ public sealed class GovernedServiceWorkflow(
             return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(activity);
         }, ct);
 
+    /// <summary>
+    /// The calling collector's own posted collections through governed operations. Read from the canonical Collection,
+    /// never from the device queue, so a collection that was rejected or is awaiting reconciliation is not listed as money.
+    /// </summary>
+    public Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetCollectorRecordsAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceRecordDto>>(async actor =>
+        {
+            if (actor.Role != "Collector") return Result<IReadOnlyList<GovernedServiceRecordDto>>.Forbidden();
+            if (from > to || to.DayNumber - from.DayNumber > 366)
+                return Result<IReadOnlyList<GovernedServiceRecordDto>>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
+            var rows = await (
+                from collection in db.Collections.AsNoTracking()
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join service in db.GovernedServices.AsNoTracking()
+                    on new { line.MunicipalityId, Id = line.SourceId } equals new { service.MunicipalityId, Id = (Guid?)service.Id }
+                where collection.MunicipalityId == actor.TenantId && collection.CollectorId == actor.UserId
+                    && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && line.SourceKind == CollectionSourceKind.GovernedService
+                orderby collection.RecordedAtUtc descending
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName,
+                    service.OperationCode, line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
+            var ids = rows.Select(x => x.Id).ToArray();
+            var documents = await db.AccountableDocuments.AsNoTracking().Where(x =>
+                x.MunicipalityId == actor.TenantId && x.CollectionId.HasValue && ids.Contains(x.CollectionId.Value)).ToListAsync(ct);
+            var corrections = await db.CollectionCorrections.AsNoTracking().Where(x =>
+                x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionId))
+                .Select(x => new { x.OriginalCollectionId, x.FinancialEffectAmount }).ToListAsync(ct);
+            var records = rows.Select(x =>
+            {
+                var facts = ReadSnapshot(x.CalculationSnapshot);
+                var document = documents.FirstOrDefault(d => d.CollectionId == x.Id);
+                return new GovernedServiceRecordDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.OperationCode,
+                    GovernedServiceCatalog.Find(x.OperationCode)?.Name ?? x.OperationCode,
+                    document?.DocumentNumber ?? "—", document?.InstrumentType, facts?.Mode, x.PayerName, facts?.Reference,
+                    x.Amount, corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted");
+            }).ToList();
+            return Result<IReadOnlyList<GovernedServiceRecordDto>>.Success(records);
+        }, ct);
+
     // ── Shared helpers ─────────────────────────────────────────────────────────────────────────────────
 
     private async Task<PolicyFacts?> ResolvePolicyAsync(
@@ -476,6 +516,9 @@ public sealed class GovernedServiceWorkflow(
         }, JsonOptions);
 
     private static string ActorId(Actor actor) => actor.UserId.ToString("N");
+
+    /// <summary>The optional free-text reference a collector recorded, read from the frozen calculation snapshot.</summary>
+    public static string? ReadReference(string? snapshotJson) => ReadSnapshot(snapshotJson)?.Reference;
 
     private static GovernedSnapshot? ReadSnapshot(string? json)
     {

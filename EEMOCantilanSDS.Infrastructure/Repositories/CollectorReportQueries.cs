@@ -224,6 +224,38 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             new DateOnly(x.BillingYear, x.BillingMonth, 1),
             x.BusinessDate)));
 
+        // Governed operations (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit) are canonical
+        // collections with no facility. They are read from the posted Collection, never rebuilt from a device queue.
+        var governed = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join service in context.GovernedServices.AsNoTracking()
+                on new { line.MunicipalityId, Id = line.SourceId } equals new { service.MunicipalityId, Id = (Guid?)service.Id }
+            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            where collection.CollectorId == collectorId
+                && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
+                && line.SourceKind == CollectionSourceKind.GovernedService
+            select new
+            {
+                document.DocumentNumber,
+                document.InstrumentType,
+                collection.RecordedAtUtc,
+                collection.BusinessDate,
+                collection.PayerName,
+                service.OperationCode,
+                line.CalculationSnapshot,
+                line.Amount
+            })
+            .ToListAsync(ct);
+        var operations = governed
+            .OrderBy(x => x.RecordedAtUtc)
+            .Select(x => new CollectorOperationCollection(
+                x.DocumentNumber, x.RecordedAtUtc, x.BusinessDate, x.OperationCode,
+                Application.Common.Revenue.GovernedServiceCatalog.Find(x.OperationCode)?.Name ?? x.OperationCode,
+                x.InstrumentType, x.PayerName,
+                Application.Common.Revenue.GovernedServiceWorkflow.ReadReference(x.CalculationSnapshot), x.Amount))
+            .ToList();
+
         return new CollectorCollectionsData(
             lines.OrderBy(l => l.TakenAtUtc).ToList(),
             absences.OrderBy(a => a.Day).ToList(),
@@ -231,7 +263,8 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             officeReceipts,
             utilityBilled,
             utilityCollected,
-            utilityOutstanding);
+            utilityOutstanding,
+            operations);
 
         static decimal Collected(PaymentStatus status, decimal charge, decimal partial) => status switch
         {
