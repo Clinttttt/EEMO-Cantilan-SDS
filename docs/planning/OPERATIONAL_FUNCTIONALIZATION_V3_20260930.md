@@ -50,7 +50,7 @@ States: FUNCTIONAL · FOUNDATION READY · IMPLEMENTING · BLOCKED POLICY · BLOC
 
 - FUNCTIONAL: OR custody, governed-service source, collector records/report projection, Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit, Fines/Penalties.
 - FOUNDATION READY: ECF direct amount, Weight & Measure (frozen Fish evidence, forward-safe only), Monthly Income reader.
-- BLOCKED POLICY: Fish/Meat Vendor Fee, Ice Plant, Transportation CT date, Kanmanggay, WCF rate unit.
+- (Superseded by IA-050: no operation is BLOCKED POLICY. Gates left: TRM cutover date, CB-06.)
 - DEFERRED: Fiesta/Araw lot rental. LEGACY AUTHORITY: Slaughterhouse (itemized display only), Tabo.
 - BLOCKED CUTOVER: canonical Monthly Income and source cutover (CB-06); nothing in this pass performs a cutover, migration, deployment or backfill.
 
