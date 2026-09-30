@@ -87,6 +87,67 @@ compiled locally only to prove the Mobile changes build.
 - required behavior: remove or mark obsolete when Core Brain closes CB-03.
 - exact frontend contract needed: none; cleanup only.
 
+**G-6 — Contextual instrument policy is not exposed**
+- current behavior: `GET` revenue classifications returns one `EffectivePolicy` (Default context). Vegetable/Fruit's `VegetableWholePayment` (OR) and `VegetableDailyTransaction` (CT) policies are not in the DTO.
+- required behavior: the classification DTO lists effective contextual policies (`Context`, instrument, effective date).
+- why the UI cannot truthfully implement it: showing the Default row would present a single (historical CT) instrument for a two-mode line, so the Vegetable / Fruits workspace states the IA-046 ruling instead of reading policy rows.
+- exact frontend contract needed: `RevenueClassificationDto.ContextualPolicies: IReadOnlyList<(RevenuePolicyContext Context, RevenueClassificationPolicyDto Policy)>`.
+
+## Runtime diagnostic — IDX10703 (local JWT)
+
+- **Cause:** `AuthenticationExtensions.ConfigureServices` builds `new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))`. In the committed `EEMOCantilanSDS.Api/appsettings.json`, `Jwt:Key`, `Jwt:Issuer` and `Jwt:Audience` are all empty strings (by design — no secret in source). There is no user-secrets store for the API's `UserSecretsId` (`9c52f74a-9378-4de3-b669-9ac14e61ef44`) on this machine and no `Jwt__Key` environment variable, so the key is zero bytes.
+- **Also required:** `TokenService` signs with `HmacSha512`, so the key must be **at least 64 bytes**. `Issuer`/`Audience` should be set too (validation is on for both).
+- **How Clint supplies it locally (not committed):**
+  ```
+  dotnet user-secrets set "Jwt:Key" "<random string of 64+ characters>" --project EEMOCantilanSDS.Api
+  dotnet user-secrets set "Jwt:Issuer" "<issuer>" --project EEMOCantilanSDS.Api
+  dotnet user-secrets set "Jwt:Audience" "<audience>" --project EEMOCantilanSDS.Api
+  ```
+  (or environment variables `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience`). The API both issues (`TokenService`) and
+  validates the token from this one configuration, so any consistent local values work; if another worktree or the
+  main checkout already has working values, reuse them — user secrets are per `UserSecretsId`, shared by every
+  checkout of the API on the machine. A new key only invalidates existing local sessions.
+- No secret was generated, printed or committed; authentication, `[Authorize]` and endpoint policies are unchanged.
+
+## /operations directory — row audit (2026-09-30)
+
+| Group | Row | Receipt shown | Workspace | Source of truth | Notes |
+|---|---|---|---|---|---|
+| Income from Market | Market Fees | CT | `/operations/market-fees` | Classification `MARKET_FEES` | Not recorded (CB-16) |
+| | Electricity Consumption Fees (ECF) | OR | `/operations/ecf` | ECF obligations | Web OR draft path exists |
+| | Water Consumption Fees (WCF) | CT | `/operations/water-consumption-fees` | WCF obligations | Mobile-only collection |
+| | Tabo | OR (IA-045) | `/facility/tpm` when configured | Facility record | |
+| | Fish / Meat Vendor Fees | OR | `/operations/fish-meat-vendor-fees` | none | U-1 |
+| | Landing / Berthing | CT | `/operations/landing-berthing` | Classification | Not recorded (CB-18) |
+| | Transportation Fees | CT | `/facility/trm` when configured | Facility record | |
+| | Weight & Measure / Registration | OR | `/operations/weight-and-measure` | NPM weighing facts | Fish unresolved |
+| | Transfer Large Cattle | — (not set) | **new** `/operations/transfer-large-cattle` | none | No classification (CB-19) |
+| | Ice Plant | — | `/facility/ice` when configured | Facility record | Q-2 |
+| Rent Income — Stall Rental | NPM / NCC / TCC / BBQ | OR | facility pages | Facility record | "couldn't be loaded" row on failure |
+| | Arrears | — | none ("No workspace yet") | Classification `ARREARS` | Q-1 |
+| Space Rental | Vegetable / Fruits | OR whole / CT daily (IA-046) | **new** `/operations/vegetable-fruit` | Ruling; G-6 | Not recorded (CB-17) |
+| | Kanmanggay | OR | **new** `/operations/kanmanggay` | none | No classification |
+| | Lot Rental — Fiesta / Araw | OR | **new** `/operations/fiesta-araw` | none | No classification |
+| | Fines | OR | **new** `/operations/fines` | Classification `PENALTIES_AND_FINES` | Q-3 |
+| Other operations | Slaughterhouse, office-defined facilities | OR / — | facility pages | Facility record | Section shown only when one is configured (Q-4) |
+
+Wording: "None in StallTrack" is replaced by the actual reason — "No workspace yet", "Not configured for this
+office", "Couldn't be loaded" (facility record unavailable) or "Loading…". When the facilities API fails, facility-backed
+lines say "Couldn't be loaded" and the rent-income group shows one "couldn't be loaded" line instead of silently
+omitting the facilities; no fallback facility catalog is used.
+
+### Questions for Core Brain
+
+- **Q-1 Arrears placement:** the Monthly Income sheet lists Arrears under Rent Income, but arrears are settled through
+  each facility's accounts (and NPM arrears on Mobile). Is Arrears an independent report line with its own workspace,
+  or a reporting classification of facility collections? Left without a workspace.
+- **Q-2 Ice Plant:** no receipt type is recorded for Ice Plant and its row is a facility workspace. Which instrument
+  (OR/CT) and which income group does it belong to?
+- **Q-3 Fines:** the sheet places Fines under Space Rental; the classification is Penalties/Fines. Confirm the group,
+  and whether stall-payment penalties already recorded elsewhere count toward this line.
+- **Q-4 Other operations:** Slaughterhouse and office-defined facilities are shown in a separate section that is not a
+  Monthly Income group. Confirm where Slaughterhouse income sits on the sheet.
+
 ## Test notes
 
 - Unit suite: 2277/2277 passed (run alone).
