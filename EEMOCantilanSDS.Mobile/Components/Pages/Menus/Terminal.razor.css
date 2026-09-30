@@ -10,7 +10,7 @@
 }
 
 .back-btn {
-    background: var(--mobile-blue-subtle);
+    background: transparent;
 }
 
 .collection-month-pill {
