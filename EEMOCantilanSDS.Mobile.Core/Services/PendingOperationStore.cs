@@ -75,7 +75,10 @@ public sealed class PendingOperationStore : IPendingOperationStore
             {
                 OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0,
                 // A governed service records facts only: which operation, and (for Vegetable/Fruit) the mode.
-                OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode),
+                // Transportation additionally carries the vehicle class: without it the server cannot resolve the approved rate.
+                OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode)
+                    && (operation.OperationCode != global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation
+                        || !string.IsNullOrWhiteSpace(operation.VehicleClassCode)),
                 _ => false
             };
             if (!issuedShape

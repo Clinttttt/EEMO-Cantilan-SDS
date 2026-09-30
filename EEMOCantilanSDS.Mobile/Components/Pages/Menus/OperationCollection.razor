@@ -79,6 +79,28 @@
                 }
                 else
                 {
+                    @if (terms.Basis == GovernedServiceBasis.VehicleClassRate)
+                    {
+                        @* The collector states the vehicle class; the server's approved rate for it is the amount. A class with no
+                           rate in force is never offered, and no price can be typed. *@
+                        <label class="form-field">
+                            <span class="form-label">Vehicle class</span>
+                            <select class="form-input" @bind="_vehicleClass" aria-label="Vehicle class">
+                                <option value="">Select vehicle class</option>
+                                @foreach (var vehicle in terms.VehicleClasses ?? [])
+                                {
+                                    <option value="@vehicle.Code">@vehicle.Name · @Money(vehicle.Amount)</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="form-field">
+                            <span class="form-label">Approved rate</span>
+                            <input class="form-input mono-input" type="text" readonly aria-readonly="true"
+                                   value="@(SelectedVehicleClass is { } chosen ? Money(chosen.Amount) : "Select a vehicle class")" />
+                        </label>
+                    }
+                    else
+                    {
                     <label class="form-field">
                         <span class="form-label">@(terms.Basis == GovernedServiceBasis.FixedAmount ? "Approved amount" : "Amount received")</span>
                         @if (terms.Basis == GovernedServiceBasis.FixedAmount)
@@ -92,6 +114,7 @@
                                    placeholder="Amount received" @bind="_amount" @bind:event="oninput" />
                         }
                     </label>
+                    }
                     <label class="form-field">
                         <span class="form-label">Payer (optional)</span>
                         <input class="form-input" type="text" maxlength="200" placeholder="Name as given by the payer" @bind="_payer" @bind:event="oninput" />
@@ -172,6 +195,7 @@
     private string? _payer;
     private string? _reference;
     private Guid? _documentId;
+    private string _vehicleClass = string.Empty;
 
     private string Title => _entry?.Name ?? "Operation";
     private string Subtitle => _entry is { ModeAware: true } ? "Choose whole payment or daily transaction" : "Field collection";
@@ -184,14 +208,20 @@
     private CashTicketDocumentDto? SelectedDocument => _documentId is { } id
         ? AvailableDocuments.FirstOrDefault(d => d.DocumentId == id) : null;
 
-    private decimal ExpectedAmount => Variant?.Terms is { Basis: GovernedServiceBasis.FixedAmount } fixedTerms
+    private VehicleClassTermDto? SelectedVehicleClass => Variant?.Terms is { Basis: GovernedServiceBasis.VehicleClassRate } t
+        ? t.VehicleClasses?.FirstOrDefault(v => v.Code == _vehicleClass) : null;
+
+    private decimal ExpectedAmount => Variant?.Terms is { Basis: GovernedServiceBasis.VehicleClassRate }
+        ? SelectedVehicleClass?.Amount ?? 0m
+        : Variant?.Terms is { Basis: GovernedServiceBasis.FixedAmount } fixedTerms
         ? fixedTerms.FixedAmount ?? 0m : _amount;
 
     // The server revalidates every one of these; they only keep an obviously wrong entry from becoming an issued document.
     private bool CanCapture => !_saving && !Sync.HasStorageFault && Variant is { Available: true, Terms: { } t }
         && SelectedDocument is not null && ExpectedAmount > 0m
         && decimal.Round(ExpectedAmount, 2, MidpointRounding.ToZero) == ExpectedAmount
-        && (t.Basis != GovernedServiceBasis.DirectApprovedAmount || t.MaximumAmount is not { } ceiling || ExpectedAmount <= ceiling);
+        && (t.Basis != GovernedServiceBasis.DirectApprovedAmount || t.MaximumAmount is not { } ceiling || ExpectedAmount <= ceiling)
+        && (t.Basis != GovernedServiceBasis.VehicleClassRate || SelectedVehicleClass is not null);
 
     protected override async Task OnInitializedAsync()
     {
@@ -294,6 +324,7 @@
         _mode = mode;
         _documentId = null;
         _amount = 0m;
+        _vehicleClass = string.Empty;
         _message = null;
     }
 
@@ -321,13 +352,14 @@
             CollectionMode = _mode,
             PayerName = string.IsNullOrWhiteSpace(_payer) ? null : _payer.Trim(),
             Reference = string.IsNullOrWhiteSpace(_reference) ? null : _reference.Trim(),
+            VehicleClassCode = terms.Basis == GovernedServiceBasis.VehicleClassRate ? _vehicleClass : null,
             ReceivedAmount = amount,
             AccountableDocumentId = document.DocumentId,
             DocumentNumber = document.DocumentNumber,
             IssuedAtUtc = DateTime.UtcNow,
             FacilityLabel = Title,
             Title = string.IsNullOrWhiteSpace(_payer) ? Title : _payer!.Trim(),
-            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
+            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")}{(SelectedVehicleClass is { } vc ? " · " + vc.Name : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
             Amount = amount
         };
 
@@ -348,6 +380,7 @@
             else if (result is not null)
                 _message = $"{InstrumentName(terms.Instrument)} issue is durably queued and awaiting synchronization.";
             _amount = 0m;
+            _vehicleClass = string.Empty;
             _documentId = null;
             _payer = null;
             _reference = null;
@@ -376,6 +409,7 @@
     private static string AmountRule(GovernedServiceTermsDto terms) => terms.Basis switch
     {
         GovernedServiceBasis.FixedAmount => $"{Money(terms.FixedAmount ?? 0m)} (fixed)",
+        GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
         _ => terms.MaximumAmount is { } ceiling ? $"As charged, up to {Money(ceiling)}" : "As charged"
     };
 

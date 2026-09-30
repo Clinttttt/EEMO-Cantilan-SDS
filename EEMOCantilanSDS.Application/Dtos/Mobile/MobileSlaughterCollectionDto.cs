@@ -16,4 +16,6 @@ public sealed record MobileSlaughterCollectionDto(
     decimal LargeAnimalRatePerHead,
     IReadOnlyList<SlaughterTransactionDto> Transactions,
     IReadOnlyList<string> KnownOwners,
-    SlaughterAnimalLabelsDto? Labels = null);
+    SlaughterAnimalLabelsDto? Labels = null,
+    // The Head/Admin-approved custom animals and their approved per-head rates (IA-050). A collector selects from these; a rate is never typed.
+    IReadOnlyList<SlaughterAnimalRateDto>? ApprovedAnimals = null);

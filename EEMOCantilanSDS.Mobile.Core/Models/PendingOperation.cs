@@ -107,6 +107,10 @@ public sealed class PendingOperation
     public string? PayerName { get; set; }
     public string? Reference { get; set; }
 
+    // Transportation / Parking only (IA-030, IA-050): the stable vehicle class the collector selected. The amount is the server's
+    // approved rate for that class, so no price is ever stored or trusted here.
+    public string? VehicleClassCode { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -175,5 +179,6 @@ public sealed class PendingOperation
         OperationCode,
         CollectionMode,
         PayerName,
-        Reference);
+        Reference,
+        VehicleClassCode);
 }

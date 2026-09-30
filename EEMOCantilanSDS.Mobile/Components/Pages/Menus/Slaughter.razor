@@ -168,10 +168,13 @@
                         <span class="animal-chip-rate">@FormatCurrency(opt.Rate)</span>
                     </button>
                 }
-                <button class="animal-chip @(UseCustomAnimal ? "active" : "")" type="button" @onclick="ToggleCustom">
-                    <span class="animal-chip-name">Other</span>
-                    <span class="animal-chip-rate">custom</span>
-                </button>
+                @if (ApprovedAnimals.Count > 0)
+                {
+                    <button class="animal-chip @(UseCustomAnimal ? "active" : "")" type="button" @onclick="ToggleCustom">
+                        <span class="animal-chip-name">Other</span>
+                        <span class="animal-chip-rate">approved</span>
+                    </button>
+                }
             </div>
 
             @if (FixedAnimals.Any(a => a.Heads() > 0))
@@ -194,13 +197,18 @@
             @if (UseCustomAnimal)
             {
                 <div class="or-number-wrap">
-                    <div class="form-label">Animal name</div>
-                    <input class="form-input" type="text" maxlength="100" placeholder="e.g. Goat" @bind="CustomAnimalType" @bind:event="oninput" />
-                    <div class="form-label" style="margin-top:12px;">Rate per head</div>
-                    <div class="fish-input-row">
-                        <span>₱</span>
-                        <input class="form-input" type="number" min="0" step="0.01" placeholder="0" @bind="CustomRate" @bind:event="oninput" />
-                    </div>
+                    <label class="form-label" for="slh-approved-animal">Approved animal</label>
+                    <select id="slh-approved-animal" class="form-input" value="@CustomAnimalType" @onchange="OnApprovedAnimalChanged">
+                        <option value="">Select an approved animal</option>
+                        @foreach (var a in ApprovedAnimals)
+                        {
+                            <option value="@a.AnimalName">@a.AnimalName</option>
+                        }
+                    </select>
+                    @if (CustomRate is > 0)
+                    {
+                        <div class="form-label" style="margin-top:12px;">Approved rate per head: @FormatCurrency(CustomRate.Value)</div>
+                    }
                     <div class="form-label" style="margin-top:12px;">Number of heads</div>
                     <input class="form-input" type="number" min="1" step="1" @bind="CustomHeads" @bind:event="oninput" />
                 </div>
@@ -335,10 +343,13 @@
                         <span class="animal-chip-rate">@FormatCurrency(opt.Rate)</span>
                     </button>
                 }
-                <button class="animal-chip @(EditUseCustom ? "active" : "")" type="button" @onclick="ToggleEditCustom">
-                    <span class="animal-chip-name">Other</span>
-                    <span class="animal-chip-rate">custom</span>
-                </button>
+                @if (ApprovedAnimals.Count > 0 || EditUseCustom)
+                {
+                    <button class="animal-chip @(EditUseCustom ? "active" : "")" type="button" @onclick="ToggleEditCustom">
+                        <span class="animal-chip-name">Other</span>
+                        <span class="animal-chip-rate">approved</span>
+                    </button>
+                }
             </div>
 
             @if (EditFixedAnimals.Any(a => a.Heads() > 0))
@@ -361,13 +372,22 @@
             @if (EditUseCustom)
             {
                 <div class="or-number-wrap">
-                    <div class="form-label">Animal name</div>
-                    <input class="form-input" type="text" maxlength="100" @bind="EditCustomType" @bind:event="oninput" />
-                    <div class="form-label" style="margin-top:12px;">Rate per head</div>
-                    <div class="fish-input-row">
-                        <span>₱</span>
-                        <input class="form-input" type="number" min="0" step="0.01" @bind="EditCustomRate" @bind:event="oninput" />
-                    </div>
+                    <label class="form-label" for="slh-edit-approved-animal">Approved animal</label>
+                    <select id="slh-edit-approved-animal" class="form-input" value="@EditCustomType" @onchange="OnEditApprovedAnimalChanged">
+                        <option value="">Select an approved animal</option>
+                        @if (!string.IsNullOrWhiteSpace(EditCustomType) && ApprovedAnimals.All(a => !string.Equals(a.AnimalName, EditCustomType, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            <option value="@EditCustomType">@EditCustomType (recorded rate)</option>
+                        }
+                        @foreach (var a in ApprovedAnimals)
+                        {
+                            <option value="@a.AnimalName">@a.AnimalName</option>
+                        }
+                    </select>
+                    @if (EditCustomRate is > 0)
+                    {
+                        <div class="form-label" style="margin-top:12px;">Rate per head: @FormatCurrency(EditCustomRate.Value)</div>
+                    }
                     <div class="form-label" style="margin-top:12px;">Number of heads</div>
                     <input class="form-input" type="number" min="1" step="1" @bind="EditCustomHeads" @bind:event="oninput" />
                 </div>
@@ -491,6 +511,25 @@
     // municipality's ordinance — so a collector whose payload had not loaded was quoted another municipality's figures,
     // and every amount on this screen was struck from them. Zero where the office has stated nothing: the server refuses
     // to record a transaction at an unstated rate, so nothing is receipted at zero.
+    private IReadOnlyList<SlaughterAnimalRateDto> ApprovedAnimals =>
+        (Collection?.ApprovedAnimals ?? Array.Empty<SlaughterAnimalRateDto>()).Where(a => a.IsActive).ToList();
+
+    // The rate is the office's approved rate for the chosen animal; the collector never types an animal name or a rate.
+    private void OnApprovedAnimalChanged(ChangeEventArgs e)
+    {
+        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == (e.Value?.ToString() ?? string.Empty));
+        CustomAnimalType = match?.AnimalName ?? string.Empty;
+        CustomRate = match?.RatePerHead;
+        SheetError = null;
+    }
+
+    private void OnEditApprovedAnimalChanged(ChangeEventArgs e)
+    {
+        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == (e.Value?.ToString() ?? string.Empty));
+        if (match is not null) { EditCustomType = match.AnimalName; EditCustomRate = match.RatePerHead; }
+        EditError = null;
+    }
+
     private decimal HogRate => Collection?.HogRatePerHead ?? 0m;
     private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 0m;
     private SlaughterAnimalLabelsDto AnimalLabels => Collection?.Labels ?? new("Hog", "Carabao", "Cow");
@@ -754,7 +793,7 @@
         {
             if (string.IsNullOrWhiteSpace(EditCustomType) || EditCustomRate is null or <= 0 || EditCustomHeads < 1)
             {
-                EditError = "Enter the custom animal name, a rate greater than 0, and at least 1 head.";
+                EditError = "Select an approved animal and at least 1 head.";
                 return;
             }
             animals.Add(new MobileAnimalEntry(AnimalType.Other, EditCustomHeads, EditCustomType.Trim(), EditCustomRate));
@@ -940,7 +979,7 @@
         {
             if (string.IsNullOrWhiteSpace(CustomAnimalType) || CustomRate is null or <= 0 || CustomHeads < 1)
             {
-                SheetError = "For 'Other', enter the animal name, a rate greater than 0, and at least 1 head.";
+                SheetError = "For 'Other', select an approved animal and at least 1 head.";
                 return;
             }
             lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Other, CustomHeads, CustomAnimalType.Trim(), CustomRate));

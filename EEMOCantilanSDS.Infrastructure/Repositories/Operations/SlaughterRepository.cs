@@ -147,7 +147,8 @@ public class SlaughterRepository(
             rates.Resolve(FeeRateKey.SlhLargePerHead, date),
             transactions,
             knownOwners,
-            new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow));
+            new SlaughterAnimalLabelsDto(labels.Hog, labels.Carabao, labels.Cow),
+            await GetApprovedCustomAnimalsAsync(ct));
     }
 
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
