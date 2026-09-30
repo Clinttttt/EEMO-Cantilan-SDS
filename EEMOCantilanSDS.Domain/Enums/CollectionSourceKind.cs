@@ -13,5 +13,7 @@ public enum CollectionSourceKind
     /// <summary>A governed configurable service (Market Fees, Landing/Berthing, ...). SourceId is the tenant service identity.</summary>
     GovernedService = 8,
     /// <summary>An approved penalty definition version (IA-049). SourceId is the exact version applied; it carries no receivable.</summary>
-    PenaltyDefinition = 9
+    PenaltyDefinition = 9,
+    /// <summary>One assessed period of a specialized obligation account (vendor fee, Kanmanggay, event lot). SourceId is the period.</summary>
+    ObligationPeriod = 10
 }

@@ -55,6 +55,11 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
         [FromBody] AddPenaltyDraftLineRequest request, CancellationToken ct) =>
         HandleResponse(await composer.AddPenaltyLineAsync(request, ct));
 
+    [HttpPost("drafts/obligation-allocations")]
+    public async Task<ActionResult<EcfCollectionDraftDto>> AddObligationAllocation(
+        [FromBody] AddObligationDraftAllocationRequest request, CancellationToken ct) =>
+        HandleResponse(await composer.AddObligationAllocationAsync(request, ct));
+
     [HttpPost("drafts/rent-allocations")]
     public async Task<ActionResult<EcfCollectionDraftDto>> AddRentAllocation(
         [FromBody] AddRentDraftAllocationRequest request, CancellationToken ct) =>

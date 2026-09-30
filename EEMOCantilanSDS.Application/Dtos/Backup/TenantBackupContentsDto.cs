@@ -46,6 +46,9 @@ public static class TenantBackupTableNames
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
         ["PenaltyDefinitions"] = "Penalty definitions",
+        ["ObligationAccounts"] = "Obligation accounts",
+        ["ObligationRates"] = "Obligation rates",
+        ["ObligationPeriods"] = "Obligation periods",
     };
 
     public static string Display(string table)

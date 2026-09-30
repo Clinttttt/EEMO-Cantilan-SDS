@@ -24,6 +24,7 @@ public interface IEcfCollectionsApiClient
     Task<Result<EcfCollectionDraftDto>> AddEcfLineAsync(AddEcfDraftLineRequest request);
     Task<Result<EcfCollectionDraftDto>> AddRentAllocationAsync(AddRentDraftAllocationRequest request);
     Task<Result<EcfCollectionDraftDto>> AddPenaltyLineAsync(AddPenaltyDraftLineRequest request);
+    Task<Result<EcfCollectionDraftDto>> AddObligationAllocationAsync(AddObligationDraftAllocationRequest request);
     Task<Result<EcfCollectionDraftDto>> UpdateDraftAllocationAsync(Guid draftId, UpdateCollectionDraftAllocationRequest request);
     Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionPayorsAsync(string search);
 }

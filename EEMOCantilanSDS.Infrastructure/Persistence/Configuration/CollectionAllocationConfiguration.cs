@@ -15,7 +15,7 @@ public sealed class CollectionAllocationConfiguration : IEntityTypeConfiguration
                 "CK_CollectionAllocations_SourceShape",
                 "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR " +
                 "(\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR " +
-                "(\"SourceKind\" IN (1, 4, 5, 6, 7) AND \"SourcePart\" IS NULL))");
+                "(\"SourceKind\" IN (1, 4, 5, 6, 7, 10) AND \"SourcePart\" IS NULL))");
         });
 
         builder.HasKey(x => x.Id);

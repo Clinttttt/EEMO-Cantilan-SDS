@@ -44,6 +44,7 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.CollectorOperationAssignmentWorkflow>();
             services.AddScoped<Common.Revenue.GovernedServiceWorkflow>();
             services.AddScoped<Common.Revenue.PenaltyDefinitionWorkflow>();
+            services.AddScoped<Common.Revenue.ObligationWorkflow>();
 
             return services;
         }

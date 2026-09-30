@@ -168,6 +168,8 @@ public class ApplicationEfBoundaryTests
         // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
         // a fine is collected only through the Composer, which revalidates the definition version at review and post.
         "PenaltyDefinitionWorkflow.cs",
+        "ObligationWorkflow.cs",
+        "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.

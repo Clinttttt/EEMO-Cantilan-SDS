@@ -145,6 +145,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IRevenueClassificationsApiClient, RevenueClassificationsApiClient>(configuration);
             service.AddApiHttpClient<IGovernedServicesApiClient, GovernedServicesApiClient>(configuration);
             service.AddApiHttpClient<IPenaltiesApiClient, PenaltiesApiClient>(configuration);
+            service.AddApiHttpClient<IObligationsApiClient, ObligationsApiClient>(configuration);
             service.AddApiHttpClient<IDatabaseHealthApiClient, DatabaseHealthApiClient>(configuration);
             service.AddApiHttpClient<ITenantUsageApiClient, TenantUsageApiClient>(configuration);
             service.AddApiHttpClient<IMunicipalitiesApiClient, MunicipalitiesApiClient>(configuration);

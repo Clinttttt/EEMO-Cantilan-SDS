@@ -143,6 +143,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<GovernedService> GovernedServices { get; set; }
         public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
+        public DbSet<ObligationAccount> ObligationAccounts { get; set; }
+        public DbSet<ObligationRate> ObligationRates { get; set; }
+        public DbSet<ObligationPeriod> ObligationPeriods { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

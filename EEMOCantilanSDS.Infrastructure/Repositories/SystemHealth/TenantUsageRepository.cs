@@ -54,6 +54,9 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
         ["PenaltyDefinitions"] = "Penalty definitions",
+        ["ObligationAccounts"] = "Obligation accounts",
+        ["ObligationRates"] = "Obligation rates",
+        ["ObligationPeriods"] = "Obligation periods",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)

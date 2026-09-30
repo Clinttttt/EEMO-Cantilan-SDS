@@ -107,6 +107,17 @@ public sealed class CollectionComposerWorkflow(
                     RevenueInstrumentType.OfficialReceipt, facts.Quote.CanAddToDraft));
         }
 
+        var obligationAccounts = await db.ObligationAccounts.AsNoTracking()
+            .Where(x => x.MunicipalityId == actor.MunicipalityId && x.PayorId == payorId).ToListAsync(ct);
+        foreach (var quote in await new ObligationCollectionSource(db).GetQuotesAsync(
+                     actor.MunicipalityId, obligationAccounts, BusinessToday, ct))
+            if (quote.OutstandingAmount > 0m)
+                candidates.Add(new CollectionCandidateDto(
+                    CollectionSourceKind.ObligationPeriod, quote.AccountId, null, Guid.Empty, quote.SubjectLabel,
+                    $"{quote.KindLabel} · {quote.SubjectLabel}", quote.PeriodStart.Year, quote.PeriodStart.Month,
+                    quote.PayorId, quote.PayerName, quote.OutstandingAmount, RevenueInstrumentType.OfficialReceipt,
+                    quote.CanAddToDraft));
+
         return Result<IReadOnlyList<CollectionCandidateDto>>.Success(candidates
             .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
             .ThenBy(x => x.SourceLabel, StringComparer.OrdinalIgnoreCase).ToList());
@@ -411,6 +422,95 @@ public sealed class CollectionComposerWorkflow(
         return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
     }, ct);
 
+    /// <summary>
+    /// Adds an amount against one period of a specialized obligation account (Fish/Meat Vendor Fee, Kanmanggay, event
+    /// lot rental) to the caller's Official Receipt draft. The period is assessed from the approved rate in force the
+    /// first time it is allocated to, the Payor comes from the account, and any partial amount up to the remaining
+    /// balance is allowed: the monthly obligation is unchanged by how it is paid.
+    /// </summary>
+    public Task<Result<EcfCollectionDraftDto>> AddObligationAllocationAsync(
+        AddObligationDraftAllocationRequest request, CancellationToken ct = default) => Run(async actor =>
+    {
+        var draft = await CurrentDraftTrackedAsync(actor, ct);
+        var businessDate = draft?.BusinessDate ?? BusinessToday;
+        if (draft is not null) EnsureDraftBusinessDateIsCurrent(draft);
+        if (request.BillingYear is < 2000 or > 2200 || request.BillingMonth is < 1 or > 12)
+            throw Problem("A valid billing year and month are required.", ResultStatus.Invalid);
+
+        var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.MunicipalityId && x.Id == request.AccountId, ct);
+        if (account is null) return Result<EcfCollectionDraftDto>.NotFound();
+        var periodStart = account.IsMonthly
+            ? new DateOnly(request.BillingYear, request.BillingMonth, 1)
+            : account.EventDate!.Value;
+        if (!account.IsMonthly && (periodStart.Year != request.BillingYear || periodStart.Month != request.BillingMonth))
+            return Result<EcfCollectionDraftDto>.NotFound();
+
+        var facts = await new ObligationCollectionSource(db).LoadAsync(actor.MunicipalityId, account.Id, periodStart,
+            businessDate, tracked: true, assess: true, actor: actor.Username, ct: ct);
+        if (facts is null)
+            throw Problem("This period is not billable: the account is not active for it or no approved amount is in force.", ResultStatus.Conflict);
+        if (!facts.Quote.CanAddToDraft)
+            throw Problem("This period has no remaining balance to collect.", ResultStatus.Conflict);
+        ValidateProposedAmount(request.ProposedAmount, facts.Quote.OutstandingAmount);
+
+        var existingAllocations = draft is null ? [] : await DraftAllocationsAsync(actor.MunicipalityId, draft.Id, ct);
+        var alreadyAllocated = existingAllocations.Where(x =>
+            x.SourceKind == CollectionSourceKind.ObligationPeriod && x.SourceId == facts.Period.Id).Sum(x => x.Amount);
+        if (alreadyAllocated + request.ProposedAmount > facts.Quote.OutstandingAmount)
+            throw Problem("The proposed allocation exceeds this period's remaining balance.", ResultStatus.Conflict);
+
+        if (draft is null)
+        {
+            if (request.ExpectedRevision.HasValue)
+                throw Problem("The current draft no longer exists. Reload before adding this item.", ResultStatus.Conflict);
+            draft = WebCollectionDraft.Create(actor.MunicipalityId, actor.UserId, businessDate,
+                facts.Quote.PayorId, facts.Quote.PayerName, RevenueInstrumentType.OfficialReceipt, null, actor.Username);
+            db.WebCollectionDrafts.Add(draft);
+        }
+        else
+        {
+            if (request.ExpectedRevision is not { } expected)
+                throw Problem("ExpectedRevision is required when adding to an existing draft.", ResultStatus.Conflict);
+            EnsureExpectedRevision(draft, expected);
+            await EnsureDraftPayerContextAsync(draft, existingAllocations,
+                facts.Quote.PayorId, facts.Quote.PayerName, null, ct);
+            if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt
+                || facts.Policy.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
+                throw Problem("Only Official Receipt-compatible lines may share this Collection.", ResultStatus.Conflict);
+            draft.AdvanceRevision(expected, actor.Username);
+        }
+
+        var draftLines = await DraftLinesAsync(actor.MunicipalityId, draft.Id, ct);
+        var line = draftLines.SingleOrDefault(x =>
+            x.RevenueClassificationId == facts.Policy.RevenueClassificationId
+            && x.RevenueClassificationPolicyId == facts.Policy.Id
+            && x.SourceKind is null && x.SourceId is null && x.SourcePart is null);
+        var lineSnapshot = $"{{\"schemaVersion\":1,\"lineKind\":\"Obligation\",\"kind\":{(int)account.Kind}}}";
+        if (line is null)
+        {
+            line = WebCollectionDraftLine.Create(actor.MunicipalityId, draft.Id, draftLines.Count,
+                facts.Policy.RevenueClassificationId, facts.Policy.Id, request.ProposedAmount,
+                facts.Policy.DisplayName, null, null, null, lineSnapshot, actor.Username);
+            db.WebCollectionDraftLines.Add(line);
+        }
+        else
+            line.UpdateFinancialTerms(facts.Policy.RevenueClassificationId, facts.Policy.Id,
+                line.Amount + request.ProposedAmount, lineSnapshot, actor.Username);
+
+        var prior = existingAllocations.SingleOrDefault(x => x.DraftLineId == line.Id
+            && x.SourceKind == CollectionSourceKind.ObligationPeriod && x.SourceId == facts.Period.Id && x.SourcePart is null);
+        if (prior is null)
+            db.WebCollectionDraftAllocations.Add(WebCollectionDraftAllocation.Create(
+                actor.MunicipalityId, line.Id, CollectionSourceKind.ObligationPeriod, facts.Period.Id, null,
+                request.ProposedAmount, facts.SnapshotJson, actor.Username));
+        else
+            prior.UpdateAmountAndSnapshot(prior.Amount + request.ProposedAmount, facts.SnapshotJson, actor.Username);
+
+        await db.SaveChangesAsync(ct);
+        return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
+    }, ct);
+
     public Task<Result<EcfCollectionDraftDto>> UpdateDraftAllocationAsync(
         Guid draftId, UpdateCollectionDraftAllocationRequest request, CancellationToken ct = default) => Run(async actor =>
     {
@@ -465,6 +565,17 @@ public sealed class CollectionComposerWorkflow(
                 facts.Quote.SettlementAuthority, facts.Quote.CumulativeSettledEvidence,
                 facts.Quote.OutstandingAmount, facts.Quote.PayorId, facts.Quote.PayerNameSnapshot,
                 facts.Snapshot.ContractId, facts.SnapshotJson, null, facts.Record);
+        }
+        else if (allocation.SourceKind == CollectionSourceKind.ObligationPeriod && allocation.SourcePart is null)
+        {
+            var facts = await new ObligationCollectionSource(db).LoadByPeriodIdAsync(
+                actor.MunicipalityId, allocation.SourceId, draft.BusinessDate, tracked: true, ct);
+            if (facts is null) return Result<EcfCollectionDraftDto>.NotFound();
+            if (!string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
+                throw Problem("Obligation facts changed. Refresh the source and review the current draft before editing this allocation.", ResultStatus.Conflict);
+            current = new ResolvedDraftSource(allocation, facts.Classification, facts.Policy,
+                SettlementAuthority.Canonical, facts.Quote.SettledAmount, facts.Quote.OutstandingAmount,
+                facts.Quote.PayorId, facts.Quote.PayerName, null, facts.SnapshotJson, null, null, facts.Period);
         }
         else
         {
@@ -746,6 +857,8 @@ public sealed class CollectionComposerWorkflow(
                             else
                                 throw Problem("Unsupported UtilityBill source part.", ResultStatus.Conflict);
                         }
+                        else if (source.ObligationPeriod is { } obligation)
+                            obligation.ApplyCanonicalSettlement();
                         else if (source.PaymentRecord is { } payment)
                             payment.ApplyCanonicalRentProjection(cumulative, now, actor.Username);
                         else
@@ -1212,6 +1325,19 @@ public sealed class CollectionComposerWorkflow(
                         facts.Quote.OutstandingAmount, facts.Quote.PayorId, facts.Quote.PayerNameSnapshot,
                         facts.Snapshot.ContractId, facts.SnapshotJson, null, facts.Record);
                 }
+                else if (allocation.SourceKind == CollectionSourceKind.ObligationPeriod && allocation.SourcePart is null)
+                {
+                    var facts = await new ObligationCollectionSource(db).LoadByPeriodIdAsync(
+                        draft.MunicipalityId, allocation.SourceId, resolvedBusinessDate, tracked, ct);
+                    if (facts is null)
+                        throw Problem("The obligation period or its account is no longer available.", ResultStatus.Conflict);
+                    if (!allowSnapshotRefresh
+                        && !string.Equals(allocation.SourceSnapshot, facts.SnapshotJson, StringComparison.Ordinal))
+                        throw Problem("Obligation facts changed after this draft item was added. Refresh and review again.", ResultStatus.Conflict);
+                    source = new ResolvedDraftSource(allocation, facts.Classification, facts.Policy,
+                        SettlementAuthority.Canonical, facts.Quote.SettledAmount, facts.Quote.OutstandingAmount,
+                        facts.Quote.PayorId, facts.Quote.PayerName, null, facts.SnapshotJson, null, null, facts.Period);
+                }
                 else
                 {
                     throw Problem("This collection draft contains a source not supported by the shared Composer.", ResultStatus.Conflict);
@@ -1353,7 +1479,8 @@ public sealed class CollectionComposerWorkflow(
         Guid? ContractId,
         string SourceSnapshot,
         UtilityBill? UtilityBill,
-        PaymentRecord? PaymentRecord);
+        PaymentRecord? PaymentRecord,
+        ObligationPeriod? ObligationPeriod = null);
     private sealed record NormalizedComposerIntent(
         int SchemaVersion, Guid MunicipalityId, Guid DraftId, Guid OwnerUserId, DateOnly BusinessDate,
         Guid? PayorId, string? PayerName, RevenueInstrumentType? Instrument,

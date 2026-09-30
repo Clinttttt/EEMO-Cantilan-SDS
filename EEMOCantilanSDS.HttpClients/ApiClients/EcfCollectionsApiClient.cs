@@ -66,6 +66,10 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
         PostAsync<AddPenaltyDraftLineRequest, EcfCollectionDraftDto>(
             "api/collections/composer/drafts/penalty-lines", request);
 
+    public Task<Result<EcfCollectionDraftDto>> AddObligationAllocationAsync(AddObligationDraftAllocationRequest request) =>
+        PostAsync<AddObligationDraftAllocationRequest, EcfCollectionDraftDto>(
+            "api/collections/composer/drafts/obligation-allocations", request);
+
     public Task<Result<EcfCollectionDraftDto>> AddRentAllocationAsync(AddRentDraftAllocationRequest request) =>
         PostAsync<AddRentDraftAllocationRequest, EcfCollectionDraftDto>(
             "api/collections/composer/drafts/rent-allocations", request);
