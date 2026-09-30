@@ -302,3 +302,25 @@ baseline. The file is now registered with its reason. Test-only change.
   facility list when operations are chosen (Claude UI). Collector Mobile shows only facilities today, so an
   operation-only collector sees nothing collectible until a Mobile operation surface and signed APK exist (CB-15).
 - No push, merge, deployment, migration, data change, activation or APK.
+
+### CB-14 — Mobile operation capability query (`feat(mobile)`)
+
+- **Scope:** read-only `GetCollectorOperationCapabilitiesQuery` and Collector-only
+  `GET api/Mobile/operations/capabilities`. For every catalog operation it returns `IsAssigned`, a status
+  (`NotAssigned`, `Unsupported`, `AssignedButInactive`, `PendingCutover`, `NeedsPolicy`, `NeedsDocument`, `Ready`),
+  `IsCollectible` (only `Ready`) and machine reason codes. Business date is the server's Philippine date.
+- **Rule:** assignment alone is never collectible. Only WCF has an approved Collector Mobile writer on this baseline;
+  Market Fees, Vegetable/Fruit, Landing/Berthing and Transfer Large Cattle are `Unsupported` (`NO_MOBILE_WRITER`) when
+  assigned. WCF mirrors the posting gates: active collector and NPM facility authorization for the current NPM-bound
+  Water source (`AssignedButInactive`), at least one Canonical NPM Water part (`PendingCutover` — the production state
+  today), effective Default WCF policy permitting CT (`NeedsPolicy`), and present CT custody (Assigned to the collector
+  under an unreturned assignment, `NeedsDocument`). All failing reasons are listed; the status is the first in that
+  order. It grants nothing: the posting workflow still revalidates every gate.
+- **Tenancy/auth:** Collector role only; token tenant must match the resolved tenant; every query filters by tenant.
+- **Tests:** unit — 12 new plus the EF boundary test, all passing. Regression proof: ignoring CT custody failed the
+  NeedsDocument test; restored. PostgreSQL/Testcontainers WCF class: 23 passed, including a new test that reports
+  `PendingCutover` for a Legacy source and `Ready` for a Canonical source, writes nothing, and whose Ready case is
+  followed by a successful Mobile post.
+- **Validation:** API Release build 0 errors; no model change; `git diff --check` clean. The endpoint is not yet
+  consumed (Mobile client/APK follow-up; CB-15).
+- No push, merge, deployment, migration, data change, activation or APK.

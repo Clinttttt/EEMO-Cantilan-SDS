@@ -16,6 +16,7 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
@@ -49,6 +50,14 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
         var result = await Sender.Send(new GetCollectorMobileMenuQuery());
         return HandleResponse(result);
     }
+
+    /// <summary>
+    /// Read-only: which assigned non-facility operations are collectible now. Assignment alone is never collectible;
+    /// posting endpoints still revalidate every gate.
+    /// </summary>
+    [HttpGet("operations/capabilities")]
+    public async Task<ActionResult<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync(CancellationToken ct) =>
+        HandleResponse(await Sender.Send(new GetCollectorOperationCapabilitiesQuery(), ct));
 
     [HttpGet("profile")]
     public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()

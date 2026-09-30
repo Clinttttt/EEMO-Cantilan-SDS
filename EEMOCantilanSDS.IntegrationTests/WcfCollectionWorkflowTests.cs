@@ -965,6 +965,50 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Single(await context.Collections.ToListAsync());
     }
 
+    private sealed class NowClock : EEMOCantilanSDS.Application.Common.Interface.Time.IClock
+    {
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => PhilippineTime.Now;
+        public DateOnly PhilippineToday => PhilippineTime.Today;
+    }
+
+    [SkippableFact]
+    public async Task MobileCapabilityReportsWcfReadyOnlyForACanonicalSourceAndThePostingThenSucceeds()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var legacySeed = await SeedAsync(canonicalWater: false, assignTicket: true);
+        await using (var legacyContext = db.CreateContext(legacySeed.TenantId))
+        {
+            var legacy = await new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities.GetCollectorOperationCapabilitiesQueryHandler(
+                    legacyContext, new TestActor(legacySeed.CollectorId!.Value, legacySeed.TenantId, "Collector"),
+                    new FixedTenant(legacySeed.TenantId), new NowClock())
+                .Handle(new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities.GetCollectorOperationCapabilitiesQuery(), default);
+            Assert.True(legacy.IsSuccess, legacy.Error);
+            var wcf = legacy.Value!.Operations.Single(x => x.OperationCode == CollectorOperationCodes.Wcf);
+            Assert.Equal(CollectorOperationCapabilityStatus.PendingCutover, wcf.Status);
+            Assert.False(wcf.IsCollectible);
+        }
+
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var capabilities = await new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities.GetCollectorOperationCapabilitiesQueryHandler(
+                context, new TestActor(seed.CollectorId!.Value, seed.TenantId, "Collector"),
+                new FixedTenant(seed.TenantId), new NowClock())
+            .Handle(new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities.GetCollectorOperationCapabilitiesQuery(), default);
+        Assert.True(capabilities.IsSuccess, capabilities.Error);
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready,
+            capabilities.Value!.Operations.Single(x => x.OperationCode == CollectorOperationCodes.Wcf).Status);
+        Assert.Empty(await context.PostingOperations.ToListAsync()); // the capability read wrote nothing
+
+        var workflow = Workflow(context, seed, "Collector");
+        var quote = Assert.Single((await workflow.GetObligationsAsync(seed.Period.Year, seed.Period.Month)).Value!);
+        var posted = await workflow.PostMobileAsync(new WcfCollectionPostRequest(1, Guid.NewGuid(), PhilippineTime.Today,
+            seed.BillId, 1m, quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, DateTime.UtcNow.AddMinutes(-1)));
+        Assert.True(posted.IsSuccess, posted.Error);
+    }
+
     private async Task<Seed> SeedAsync(bool canonicalWater, bool assignTicket = false, bool assignWcfOperation = true)
     {
         var today = PhilippineTime.Today;

@@ -18,7 +18,7 @@ public sealed class CollectorOperationAssignmentWorkflow(
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality)
 {
-    private static readonly (string Code, string Name)[] Catalog =
+    internal static readonly (string Code, string Name)[] Catalog =
     [
         (CollectorOperationCodes.Wcf, "Water Consumption Fee"),
         (CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),

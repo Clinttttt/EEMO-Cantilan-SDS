@@ -156,6 +156,9 @@ public class ApplicationEfBoundaryTests
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
         // permission rows. It carries no money, source, document or policy state.
         "CollectorOperationAssignmentWorkflow.cs",
+        // Read-only Mobile capability derivation: one collector's permissions checked against the same source,
+        // authorization, policy and CT-custody facts the WCF workflow enforces. It writes nothing and grants nothing.
+        "GetCollectorOperationCapabilitiesQueryHandler.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.
