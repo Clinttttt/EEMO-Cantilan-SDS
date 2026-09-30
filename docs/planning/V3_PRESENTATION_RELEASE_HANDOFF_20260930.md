@@ -59,7 +59,7 @@
 ## Production smoke test
 
 - Verified deployment workflow success, API health, and portal login availability.
-- Authenticated UI smoke checks remain unverified. The Windows Computer Use bridge could not connect to the native pipe, and the web inspection tool could not access the portal URL. As a result, this session could not inspect login/logout, tenant branding, navigation, facility rows, historical records, financial accounts, or authenticated screens including Overview, Operations, NPM, TCC/NCC/BBQ/ICE, Collection Activity, Online Payments, Payors & Accounts, Monitoring, Reports, Collectors, Accountable Forms, Audit Trail, Settings, WCF, Weight & Measure, and truthful operation workspaces.
+- Authenticated UI smoke checks remain unverified. Computer Use reconnected but reported no available apps or browsers; both the in-app browser and Chrome were unavailable. The web inspection tool could not access the portal URL. As a result, this session could not establish the portal session or inspect login/logout, tenant branding, navigation, facility rows, historical records, financial accounts, or authenticated screens including Overview, Operations, NPM, TCC/NCC/BBQ/ICE, Collection Activity, Online Payments, Payors & Accounts, Monitoring, Reports, Collectors, Accountable Forms, Audit Trail, Settings, WCF, Weight & Measure, and truthful operation workspaces.
 - Do not treat the HTTP 200 checks as evidence for those authenticated flows.
 
 ## Deferred capabilities
