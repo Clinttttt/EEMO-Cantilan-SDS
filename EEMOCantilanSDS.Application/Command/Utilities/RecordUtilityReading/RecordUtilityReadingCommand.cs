@@ -15,4 +15,8 @@ public record RecordUtilityReadingCommand(
     decimal WaterPreviousReading,
     decimal WaterCurrentReading,
     decimal WaterRatePerCubicMeter,
-    string? Remarks) : IRequest<Result<UtilityBillDto>>;
+    string? Remarks,
+    // IA-050: the office's approved amount, with no meter reading. When stated, that utility is DirectApproved and its
+    // readings/rate arguments are ignored.
+    decimal? ElecApprovedAmount = null,
+    decimal? WaterApprovedAmount = null) : IRequest<Result<UtilityBillDto>>;

@@ -588,7 +588,7 @@ public sealed class WcfCollectionWorkflow(
             bill.WaterCurrentReading, bill.WaterConsumption, bill.WaterRatePerCubicMeter,
             bill.WaterCharge, settled, outstanding, policy.Classification.Id, policy.Policy.Id,
             policy.Policy.DisplayName, RevenueInstrumentType.CashTicket,
-            bill.WaterSettlementAuthorityState, "Metered", section);
+            bill.WaterSettlementAuthorityState, (bill.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), section);
         var quote = new WcfObligationQuoteDto(
             tenantId, bill.Id, bill.WaterSourceVersion, bill.StallId, bill.Stall.StallNo,
             facility.Name, section, bill.BillingYear, bill.BillingMonth,
@@ -596,7 +596,7 @@ public sealed class WcfCollectionWorkflow(
             bill.WaterRatePerCubicMeter, bill.WaterCharge, settled, outstanding,
             bill.WaterSettlementAuthorityState, payorId, payerName,
             policy.Classification.Id, policy.Policy.Id, policy.Policy.DisplayName,
-            RevenueInstrumentType.CashTicket, "Metered",
+            RevenueInstrumentType.CashTicket, (bill.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"),
             bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical && outstanding > 0m);
         return new WaterFacts(bill, policy.Classification, policy.Policy, quote, snapshot);
     }

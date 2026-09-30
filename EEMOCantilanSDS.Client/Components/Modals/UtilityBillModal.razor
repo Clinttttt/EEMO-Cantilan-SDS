@@ -85,6 +85,30 @@
                         </div>
                         <div class="ub-meter-period">@calendarIcon<span>Billing Period:</span><strong>@billingPeriod</strong></div>
                     </div>
+                    <label class="ub-direct-toggle">
+                        <input type="checkbox" @bind="ElecDirect" disabled="@(ElecReadingsSettled)" />
+                        <span>Approved amount, no meter reading</span>
+                    </label>
+                    @if (ElecDirect)
+                    {
+                        <div class="ub-grid3">
+                            <label>Approved amount
+                                @if (ElecReadingsSettled)
+                                {
+                                    <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                        <span class="ub-locked-value">₱@ElecRate.ToString("N2")</span>
+                                        <span class="ub-locked-mark">@lockIcon</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="ub-field"><input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" /></span>
+                                }
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
                     <div class="ub-grid3">
                         <label>Previous Reading
                             @if (ElecReadingsSettled)
@@ -137,15 +161,19 @@
                             }
                         </label>
                     </div>
+                    }
                     @* What the readings come to. The office reads a usage figure and an amount due, not the
                        multiplication that produced them. *@
                     <div class="ub-usage">
                         <span class="ub-usage-badge">@gaugeIcon</span>
+                        @if (!ElecDirect)
+                        {
                         <div class="ub-usage-cell">
                             <span class="ub-usage-label">Usage (kWh)</span>
                             <strong class="ub-usage-value">@ElecConsumption.ToString("N2")<span class="ub-unit">kWh</span></strong>
                         </div>
                         <span class="ub-usage-sep"></span>
+                        }
                         <div class="ub-usage-cell">
                             <span class="ub-usage-label">
                                 Amount Due
@@ -213,6 +241,30 @@
                         </div>
                         <div class="ub-meter-period">@calendarIcon<span>Billing Period:</span><strong>@billingPeriod</strong></div>
                     </div>
+                    <label class="ub-direct-toggle">
+                        <input type="checkbox" @bind="WaterDirect" disabled="@(WaterReadingsSettled)" />
+                        <span>Approved amount, no meter reading</span>
+                    </label>
+                    @if (WaterDirect)
+                    {
+                        <div class="ub-grid3">
+                            <label>Approved amount
+                                @if (WaterReadingsSettled)
+                                {
+                                    <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                        <span class="ub-locked-value">₱@WaterRate.ToString("N2")</span>
+                                        <span class="ub-locked-mark">@lockIcon</span>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="ub-field"><input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" /></span>
+                                }
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
                     <div class="ub-grid3">
                         <label>Previous Reading
                             @if (WaterReadingsSettled)
@@ -265,13 +317,17 @@
                             }
                         </label>
                     </div>
+                    }
                     <div class="ub-usage">
                         <span class="ub-usage-badge">@gaugeIcon</span>
+                        @if (!WaterDirect)
+                        {
                         <div class="ub-usage-cell">
                             <span class="ub-usage-label">Usage (cu.m)</span>
                             <strong class="ub-usage-value">@WaterConsumption.ToString("N2")<span class="ub-unit">cu.m</span></strong>
                         </div>
                         <span class="ub-usage-sep"></span>
+                        }
                         <div class="ub-usage-cell">
                             <span class="ub-usage-label">
                                 Amount Due
@@ -396,6 +452,8 @@
     private bool _seedHasWaterData;
 
     private decimal ElecPrev, ElecRate, WaterPrev, WaterRate, ElecPartial, WaterPartial;
+    // IA-050: a part assessed as an approved amount (held in the rate field) rather than a meter reading.
+    private bool ElecDirect, WaterDirect;
 
     // This month's meter readings, unset until the office states them. A new month has no current reading by
     // definition: the box used to open pre-filled with last month's figure, which read as though the month had
@@ -429,8 +487,8 @@
 
     private decimal ElecConsumption => ShowElec ? Math.Max(0m, ElecReadingNow - ElecPrev) : 0m;
     private decimal WaterConsumption => ShowWater ? Math.Max(0m, WaterReadingNow - WaterPrev) : 0m;
-    private decimal ElecCharge => ElecConsumption * ElecRate;
-    private decimal WaterCharge => WaterConsumption * WaterRate;
+    private decimal ElecCharge => ShowElec && ElecDirect ? ElecRate : ElecConsumption * ElecRate;
+    private decimal WaterCharge => ShowWater && WaterDirect ? WaterRate : WaterConsumption * WaterRate;
     private decimal TotalCharge => ElecCharge + WaterCharge;
 
     // What has been credited to each utility, and what is therefore still owed. The dialog showed the CHARGE
@@ -544,12 +602,15 @@
             _elecSeedSettled = _waterSeedSettled = false;
             _seedHasElecData = false; _seedHasWaterData = false;
             ElecPrev = ElecRate = WaterPrev = WaterRate = 0m;
+            ElecDirect = WaterDirect = false;
             ElecCur = WaterCur = null;
 
             var seed = await UtilitiesApi.GetBillForEntryAsync(StallId, Year, Month);
             if (seed.IsSuccess && seed.Value is { } s)
             {
                 ElecPrev = s.ElecPreviousReading; ElecRate = s.ElecRatePerKwh;
+                ElecDirect = s.ElecCalculationBasis == "DirectApproved";
+                WaterDirect = s.WaterCalculationBasis == "DirectApproved";
                 WaterPrev = s.WaterPreviousReading; WaterRate = s.WaterRatePerCubicMeter;
                 // Only a month already on record has a current reading. For a new one the server carries the
                 // previous forward and repeats it as the current; the form does not repeat it back at the clerk.
@@ -661,7 +722,8 @@
         // server seeded and are sent back unchanged. Deliberately NOT zeroed: if a caller's flag ever
         // disagreed with stored data, zeroing would erase a real reading or a recorded payment.
         var reading = await UtilitiesApi.RecordReadingAsync(new RecordUtilityReadingCommand(
-            StallId, Year, Month, ElecPrev, ElecReadingNow, ElecRate, WaterPrev, WaterReadingNow, WaterRate, null));
+            StallId, Year, Month, ElecPrev, ElecReadingNow, ElecRate, WaterPrev, WaterReadingNow, WaterRate, null,
+            ShowElec && ElecDirect ? ElecRate : null, ShowWater && WaterDirect ? WaterRate : null));
         if (!reading.IsSuccess || reading.Value is null)
         {
             Error = reading.Error ?? "Unable to save the readings.";

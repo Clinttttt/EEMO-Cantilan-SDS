@@ -1047,7 +1047,7 @@ public sealed class CollectionComposerWorkflow(
             bill.ElecPreviousReading, bill.ElecCurrentReading, bill.ElecConsumption,
             bill.ElecRatePerKwh, bill.ElecCharge, settled, outstanding,
             policy.Classification.Id, policy.Policy.Id, policy.Policy.DisplayName,
-            RevenueInstrumentType.OfficialReceipt, bill.ElectricitySettlementAuthorityState, "Metered");
+            RevenueInstrumentType.OfficialReceipt, bill.ElectricitySettlementAuthorityState, (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"));
         var canAdd = outstanding > 0m && bill.ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover;
         var quote = new EcfObligationQuoteDto(
             bill.MunicipalityId, bill.Id, CollectionSourceKind.UtilityBill, CollectionSourcePart.Electricity,
@@ -1057,7 +1057,7 @@ public sealed class CollectionComposerWorkflow(
             bill.ElecRatePerKwh, bill.ElecCharge, settled, outstanding,
             bill.ElectricitySettlementAuthorityState, payorId, payerName,
             policy.Classification.Id, policy.Policy.Id, policy.Policy.DisplayName,
-            RevenueInstrumentType.OfficialReceipt, "Metered", canAdd,
+            RevenueInstrumentType.OfficialReceipt, (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), canAdd,
             bill.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical && canAdd);
         return new SourceFacts(bill, policy.Classification, policy.Policy, quote, snapshot,
             JsonSerializer.Serialize(snapshot, JsonOptions));

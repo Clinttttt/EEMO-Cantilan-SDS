@@ -18,4 +18,7 @@ public record UtilityBillEntryDto(
     string WaterStatus,
     decimal WaterPartialAmount,
     string? ElecORNumber,
-    string? WaterORNumber);
+    string? WaterORNumber,
+    // IA-050: a DirectApproved part is one approved amount (carried in the rate field) with no meter reading.
+    string ElecCalculationBasis = "Metered",
+    string WaterCalculationBasis = "Metered");

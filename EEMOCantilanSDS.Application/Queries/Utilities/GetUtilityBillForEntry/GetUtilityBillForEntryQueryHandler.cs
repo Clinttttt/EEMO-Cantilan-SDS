@@ -24,7 +24,8 @@ public class GetUtilityBillForEntryQueryHandler(
                 current.WaterPreviousReading, current.WaterCurrentReading, current.WaterRatePerCubicMeter,
                 current.ElecStatus.ToString(), current.ElecPartialAmount,
                 current.WaterStatus.ToString(), current.WaterPartialAmount,
-                current.ElecORNumber, current.WaterORNumber));
+                current.ElecORNumber, current.WaterORNumber,
+                current.ElecCalculationBasis.ToString(), current.WaterCalculationBasis.ToString()));
         }
 
         // New month → carry the previous readings forward from the last bill's current readings, and
@@ -34,8 +35,11 @@ public class GetUtilityBillForEntryQueryHandler(
         // WaterPerCubicMeter FacilityRate, resolved as-of the bill month). A tenant with no such rows
         // (e.g. Cantilan) resolves to 0 and is left unchanged.
         var prior = await utilityRepository.GetLatestBeforeAsync(request.StallId, request.Year, request.Month, ct);
-        var elecPrev = prior?.ElecCurrentReading ?? 0m;
-        var waterPrev = prior?.WaterCurrentReading ?? 0m;
+        // A DirectApproved prior part has no meter to carry forward: the next month starts as a fresh approved amount.
+        var elecDirect = prior?.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved;
+        var waterDirect = prior?.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved;
+        var elecPrev = elecDirect ? 0m : prior?.ElecCurrentReading ?? 0m;
+        var waterPrev = waterDirect ? 0m : prior?.WaterCurrentReading ?? 0m;
 
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
@@ -48,6 +52,8 @@ public class GetUtilityBillForEntryQueryHandler(
             waterPrev, waterPrev, waterRate,
             "Unpaid", 0m,
             "Unpaid", 0m,
-            null, null));
+            null, null,
+            elecDirect ? nameof(UtilityCalculationBasis.DirectApproved) : nameof(UtilityCalculationBasis.Metered),
+            waterDirect ? nameof(UtilityCalculationBasis.DirectApproved) : nameof(UtilityCalculationBasis.Metered)));
     }
 }
