@@ -11,5 +11,7 @@ public enum CollectionSourceKind
     TrmTrip = 6,
     OnlinePaymentTransaction = 7,
     /// <summary>A governed configurable service (Market Fees, Landing/Berthing, ...). SourceId is the tenant service identity.</summary>
-    GovernedService = 8
+    GovernedService = 8,
+    /// <summary>An approved penalty definition version (IA-049). SourceId is the exact version applied; it carries no receivable.</summary>
+    PenaltyDefinition = 9
 }

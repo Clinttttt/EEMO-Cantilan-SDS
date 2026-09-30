@@ -165,6 +165,9 @@ public class ApplicationEfBoundaryTests
         // Governed configurable services (IA-044): tenant-bound setup versions and the one focused Mobile writer, which
         // posts only through CanonicalCollectionPostingCoordinator and revalidates authorization, policy and custody.
         "GovernedServiceWorkflow.cs",
+        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
+        // a fine is collected only through the Composer, which revalidates the definition version at review and post.
+        "PenaltyDefinitionWorkflow.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.

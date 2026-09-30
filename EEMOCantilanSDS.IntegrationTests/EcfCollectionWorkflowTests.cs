@@ -892,6 +892,195 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     private CollectionComposerWorkflow Workflow(AppDbContext context, Seed seed, IClock? clock = null) =>
         new(context, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId), clock);
 
+    /// <summary>Seeds the tenant's Penalties/Fines classification (OR) and one approved penalty version.</summary>
+    private async Task<Guid> SeedFinesAsync(
+        Seed seed, string code = "LATE_PAYMENT", GovernedServiceBasis basis = GovernedServiceBasis.FixedAmount,
+        decimal? fixedAmount = 50m, decimal? ceiling = null)
+    {
+        await using var context = db.CreateContext(seed.TenantId);
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.PenaltiesAndFines, seed.TenantId);
+        var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
+            "Penalties/Fines", RevenueInstrumentType.OfficialReceipt, seed.TenantId);
+        var version = PenaltyDefinition.Create(seed.TenantId, code, new DateOnly(2020, 1, 1), "Late payment penalty",
+            "Stall rent arrears", basis, basis == GovernedServiceBasis.FixedAmount ? fixedAmount : null, ceiling, true, "head");
+        context.AddRange(classification, policy, version);
+        await context.SaveChangesAsync();
+        return version.Id;
+    }
+
+    private static async Task<EcfCollectionDraftDto> ReviewedEcfDraftAsync(
+        CollectionComposerWorkflow workflow, Seed seed, decimal ecfAmount)
+    {
+        var ecf = await workflow.AddEcfLineAsync(new AddEcfDraftLineRequest(seed.BillId, ecfAmount));
+        Assert.True(ecf.IsSuccess, ecf.Error);
+        return ecf.Value!;
+    }
+
+    [SkippableFact]
+    public async Task AnApprovedPenaltyRidesOnTheSameOrAsEcf_AsItsOwnClassifiedLineWithNoAllocation()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await SeedFinesAsync(seed);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+
+        var ecf = await ReviewedEcfDraftAsync(workflow, seed, 500m);
+        var withPenalty = await workflow.AddPenaltyLineAsync(
+            new AddPenaltyDraftLineRequest("LATE_PAYMENT", 50m, "Stall ECF-01 · late August rent", ecf.Revision));
+        Assert.True(withPenalty.IsSuccess, withPenalty.Error);
+        Assert.Equal(550m, withPenalty.Value!.TotalAmount);
+        Assert.Equal(2, withPenalty.Value.Lines.Count);
+        var penaltyLine = Assert.Single(withPenalty.Value.Lines, x => x.SourceKind == CollectionSourceKind.PenaltyDefinition);
+        Assert.Equal("Late payment penalty", penaltyLine.ClassificationName);
+        Assert.Empty(penaltyLine.Allocations ?? []);
+
+        var selected = await workflow.SelectDocumentAsync(withPenalty.Value.DraftId,
+            new SelectEcfDraftDocumentRequest(withPenalty.Value.Revision, seed.OrDocumentId));
+        var reviewed = await workflow.ReviewAsync(selected.Value!.DraftId, new EcfDraftRevisionRequest(selected.Value.Revision));
+        Assert.True(reviewed.IsSuccess, reviewed.Error);
+        var posted = await workflow.PostAsync(reviewed.Value!.DraftId,
+            new PostEcfCollectionDraftRequest(reviewed.Value.Revision, Guid.NewGuid()));
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(550m, posted.Value!.Amount);
+
+        var collection = await context.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
+        Assert.Equal(550m, collection.TotalAmount);
+        Assert.Equal(seed.PayorId, collection.PayorId);
+        var finesId = await context.RevenueClassifications.Where(x =>
+            x.SemanticCode == RevenueClassificationCodes.PenaltiesAndFines).Select(x => x.Id).SingleAsync();
+        var fine = Assert.Single(collection.Lines, x => x.RevenueClassificationId == finesId);
+        Assert.Equal(50m, fine.Amount);
+        Assert.Equal(CollectionSourceKind.PenaltyDefinition, fine.SourceKind);
+        Assert.Empty(fine.Allocations);                          // an immediate approved charge, not a receivable
+        Assert.Contains("\"code\":\"LATE_PAYMENT\"", fine.CalculationSnapshot);
+        Assert.Contains("late August rent", fine.CalculationSnapshot);
+        var ecfLine = Assert.Single(collection.Lines, x => x.RevenueClassificationId != finesId);
+        Assert.Equal(500m, ecfLine.Amount);
+        Assert.Equal(AccountableDocumentState.Consumed,
+            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+
+        // One OR, two independently classified official lines; the fines register reads the canonical line.
+        var register = await new PenaltyDefinitionWorkflow(context, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId))
+            .GetRegisterAsync(seed.Period, seed.Period.AddMonths(1).AddDays(-1));
+        var row = Assert.Single(register.Value!);
+        Assert.Equal("LATE_PAYMENT", row.PenaltyCode);
+        Assert.Equal(50m, row.Amount);
+        Assert.Equal("Lisa ECF", row.PayerName);
+        Assert.Equal("Stall ECF-01 · late August rent", row.Origin);
+        Assert.StartsWith("OR-", row.DocumentNumber);
+        Assert.Equal("Posted", row.Status);
+    }
+
+    [SkippableFact]
+    public async Task APenaltyNeedsAnAllocatedItemFirst_AndIsHeldToItsApprovedAmount_AndCannotBeAddedTwice()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await SeedFinesAsync(seed);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+
+        var alone = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("LATE_PAYMENT", 50m, null, 0L));
+        Assert.False(alone.IsSuccess);
+        Assert.Empty(await context.WebCollectionDrafts.ToListAsync());
+
+        var ecf = await ReviewedEcfDraftAsync(workflow, seed, 500m);
+        var wrongAmount = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("LATE_PAYMENT", 75m, null, ecf.Revision));
+        var unknown = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("MADE_UP", 50m, null, ecf.Revision));
+        var stale = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("LATE_PAYMENT", 50m, null, ecf.Revision + 5));
+        Assert.False(wrongAmount.IsSuccess);
+        Assert.False(unknown.IsSuccess);
+        Assert.False(stale.IsSuccess);
+        Assert.Single(await context.WebCollectionDraftLines.ToListAsync());
+
+        var added = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("late_payment", 50m, null, ecf.Revision));
+        Assert.True(added.IsSuccess, added.Error);
+        var again = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("LATE_PAYMENT", 50m, null, added.Value!.Revision));
+        Assert.False(again.IsSuccess);
+        Assert.Equal(2, (await context.WebCollectionDraftLines.ToListAsync()).Count);
+    }
+
+    [SkippableFact]
+    public async Task ADirectApprovedPenaltyIsHeldToItsCeiling()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await SeedFinesAsync(seed, "ILLEGAL_VENDING", GovernedServiceBasis.DirectApprovedAmount, null, 200m);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+        var ecf = await ReviewedEcfDraftAsync(workflow, seed, 500m);
+
+        var above = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("ILLEGAL_VENDING", 200.01m, null, ecf.Revision));
+        var within = await workflow.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest("ILLEGAL_VENDING", 150m, null, ecf.Revision));
+
+        Assert.False(above.IsSuccess);
+        Assert.True(within.IsSuccess, within.Error);
+        Assert.Equal(650m, within.Value!.TotalAmount);
+    }
+
+    [SkippableFact]
+    public async Task IfThePenaltysApprovedTermsChangeOrItIsRetired_ReviewAndPostRefuse_NothingIsPosted()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await SeedFinesAsync(seed);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+        var ecf = await ReviewedEcfDraftAsync(workflow, seed, 500m);
+        var withPenalty = (await workflow.AddPenaltyLineAsync(
+            new AddPenaltyDraftLineRequest("LATE_PAYMENT", 50m, null, ecf.Revision))).Value!;
+        var selected = (await workflow.SelectDocumentAsync(withPenalty.DraftId,
+            new SelectEcfDraftDocumentRequest(withPenalty.Revision, seed.OrDocumentId))).Value!;
+        var reviewed = (await workflow.ReviewAsync(selected.DraftId, new EcfDraftRevisionRequest(selected.Revision))).Value!;
+
+        // The Head appends a newer version effective today: the frozen version is no longer the one in force.
+        await using (var head = db.CreateContext(seed.TenantId))
+        {
+            var define = await new PenaltyDefinitionWorkflow(head, new TestActor(seed.UserId, seed.TenantId, "SuperAdmin"),
+                new FixedTenant(seed.TenantId)).DefineAsync(new DefinePenaltyRequest(
+                "LATE_PAYMENT", "Late payment penalty", null, PhilippineTime.Today, GovernedServiceBasis.FixedAmount, 60m, null, true));
+            Assert.True(define.IsSuccess, define.Error);
+        }
+
+        var posted = await workflow.PostAsync(reviewed.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, Guid.NewGuid()));
+        var reReview = await workflow.ReviewAsync(reviewed.DraftId, new EcfDraftRevisionRequest(reviewed.Revision));
+
+        Assert.False(posted.IsSuccess);
+        Assert.False(reReview.IsSuccess);
+        Assert.Empty(await context.Collections.ToListAsync());
+        Assert.Equal(AccountableDocumentState.InOffice,
+            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+    }
+
+    [SkippableFact]
+    public async Task OnlyTheHeadDefinesPenalties_AndVersionsAreAppendedNeverEdited()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var admin = new PenaltyDefinitionWorkflow(context, new TestActor(seed.UserId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
+        var head = new PenaltyDefinitionWorkflow(context, new TestActor(seed.UserId, seed.TenantId, "SuperAdmin"), new FixedTenant(seed.TenantId));
+        var request = new DefinePenaltyRequest("LATE_PAYMENT", "Late payment", null, PhilippineTime.Today.AddDays(-30),
+            GovernedServiceBasis.FixedAmount, 50m, null, true);
+
+        Assert.Equal(ResultStatus.Forbidden, (await admin.DefineAsync(request)).Status);
+        Assert.True((await head.DefineAsync(request)).IsSuccess);
+        Assert.True((await head.DefineAsync(request with { EffectiveDate = PhilippineTime.Today.AddDays(-1), FixedAmount = 55m })).IsSuccess);
+        Assert.Equal(ResultStatus.Invalid, (await head.DefineAsync(request with { Code = "bad code!" })).Status);
+        Assert.Equal(ResultStatus.Invalid, (await head.DefineAsync(request with { Basis = GovernedServiceBasis.FixedAmount, FixedAmount = null })).Status);
+
+        Assert.Equal(2, await context.PenaltyDefinitions.CountAsync());
+        var current = Assert.Single((await admin.GetDefinitionsAsync()).Value!);
+        Assert.Equal(55m, current.FixedAmount);   // the newest effective version; the earlier one is untouched history
+        Assert.Equal(50m, (await context.PenaltyDefinitions.OrderBy(x => x.EffectiveDate).FirstAsync()).FixedAmount);
+    }
+
     private async Task<RentSeed> SeedRentSourcesAsync(
         Seed seed,
         IReadOnlyList<DateOnly> periods,

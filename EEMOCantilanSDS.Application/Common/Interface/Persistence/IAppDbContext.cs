@@ -76,6 +76,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
         DbSet<GovernedService> GovernedServices { get; }
         DbSet<GovernedServiceSetting> GovernedServiceSettings { get; }
+        DbSet<PenaltyDefinition> PenaltyDefinitions { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

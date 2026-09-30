@@ -53,3 +53,36 @@ public sealed class GovernedServiceSettingConfiguration : IEntityTypeConfigurati
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public sealed class PenaltyDefinitionConfiguration : IEntityTypeConfiguration<PenaltyDefinition>
+{
+    public void Configure(EntityTypeBuilder<PenaltyDefinition> builder)
+    {
+        builder.ToTable("PenaltyDefinitions", table =>
+        {
+            table.HasCheckConstraint("CK_PenaltyDefinitions_Code", "\"Code\" ~ '^[A-Z][A-Z0-9_]{1,39}$'");
+            table.HasCheckConstraint("CK_PenaltyDefinitions_Basis", "\"Basis\" IN (1, 2)");
+            table.HasCheckConstraint(
+                "CK_PenaltyDefinitions_AmountShape",
+                "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) " +
+                "OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)))");
+        });
+        builder.HasKey(x => x.Id);
+        // A collection line's SourceId is a version id, so tenant-consistent reads and lookups go through this pair.
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
+        builder.Property(x => x.Code).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.AppliesTo).HasMaxLength(80);
+        builder.Property(x => x.Basis).HasConversion<int>().IsRequired();
+        builder.Property(x => x.FixedAmount).HasPrecision(18, 2);
+        builder.Property(x => x.MaximumAmount).HasPrecision(18, 2);
+        builder.Property(x => x.EffectiveDate).IsRequired();
+        builder.Property(x => x.CreatedAtUtc).IsRequired();
+        builder.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        builder.HasIndex(x => new { x.MunicipalityId, x.Code, x.EffectiveDate });
+
+        builder.HasOne<Municipality>().WithMany()
+            .HasForeignKey(x => x.MunicipalityId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

@@ -45,6 +45,7 @@ public static class TenantBackupTableNames
         ["CollectorOperationAssignments"] = "Collector operation assignments",
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
+        ["PenaltyDefinitions"] = "Penalty definitions",
     };
 
     public static string Display(string table)

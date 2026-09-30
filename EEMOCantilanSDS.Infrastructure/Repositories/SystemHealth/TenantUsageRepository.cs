@@ -53,6 +53,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["CollectorOperationAssignments"] = "Collector operation assignments",
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
+        ["PenaltyDefinitions"] = "Penalty definitions",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)

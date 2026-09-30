@@ -279,6 +279,55 @@ public sealed class CollectionComposerWorkflow(
         return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
     }, ct);
 
+    /// <summary>
+    /// Adds one approved penalty (IA-049) to the caller's current Official Receipt draft. A penalty is never a free-text
+    /// charge: the server resolves the definition version in force, validates the amount against it, and freezes that
+    /// exact version on the line. It rides on an OR that already has an allocated rent or ECF item (which supplies the
+    /// authoritative payer context), and one draft carries a given penalty at most once.
+    /// </summary>
+    public Task<Result<EcfCollectionDraftDto>> AddPenaltyLineAsync(
+        AddPenaltyDraftLineRequest request, CancellationToken ct = default) => Run(async actor =>
+    {
+        var draft = await CurrentDraftTrackedAsync(actor, ct)
+            ?? throw Problem("A penalty rides on an Official Receipt that already has a rent or ECF item. Add that item first.", ResultStatus.Conflict);
+        EnsureExpectedRevision(draft, request.ExpectedRevision);
+        EnsureDraftBusinessDateIsCurrent(draft);
+        if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
+            throw Problem("Penalties and fines are collected on an Official Receipt only.", ResultStatus.Conflict);
+
+        var code = (request.PenaltyCode ?? string.Empty).Trim().ToUpperInvariant();
+        var penalty = await ResolvePenaltyAsync(actor.MunicipalityId, code, draft.BusinessDate, ct);
+        if (penalty.Version.CheckAmount(request.ProposedAmount) is { } amountProblem)
+            throw Problem(amountProblem == "AMOUNT_ABOVE_CEILING"
+                ? "The amount exceeds the approved ceiling for this penalty."
+                : amountProblem == "AMOUNT_NOT_APPROVED"
+                    ? "This penalty has a fixed approved amount; the amount must match it."
+                    : "Enter a positive amount in whole centavos.", ResultStatus.Invalid);
+        var origin = string.IsNullOrWhiteSpace(request.Origin) ? null : request.Origin.Trim();
+        if (origin?.Length > 200)
+            throw Problem("The origin note must not exceed 200 characters.", ResultStatus.Invalid);
+
+        var lines = await DraftLinesAsync(actor.MunicipalityId, draft.Id, ct);
+        var versionIds = (await db.PenaltyDefinitions.AsNoTracking()
+            .Where(x => x.MunicipalityId == actor.MunicipalityId && x.Code == code).Select(x => x.Id).ToListAsync(ct)).ToHashSet();
+        if (lines.Any(x => x.SourceKind == CollectionSourceKind.PenaltyDefinition && x.SourceId is { } id && versionIds.Contains(id)))
+            throw Problem("This penalty is already on the draft.", ResultStatus.Conflict);
+        if (!lines.Any(x => x.SourceKind is not CollectionSourceKind.PenaltyDefinition))
+            throw Problem("A penalty rides on an Official Receipt that already has a rent or ECF item. Add that item first.", ResultStatus.Conflict);
+
+        var snapshot = JsonSerializer.Serialize(new PenaltySnapshot(
+            1, actor.MunicipalityId, penalty.Version.Id, penalty.Version.Code, penalty.Version.DisplayName,
+            penalty.Version.EffectiveDate, penalty.Version.Basis, penalty.Version.FixedAmount,
+            penalty.Version.MaximumAmount, penalty.Version.AppliesTo, penalty.Classification.SemanticCode,
+            penalty.Policy.Id, origin), JsonOptions);
+        draft.AdvanceRevision(request.ExpectedRevision, actor.Username);
+        db.WebCollectionDraftLines.Add(WebCollectionDraftLine.Create(actor.MunicipalityId, draft.Id, lines.Count,
+            penalty.Classification.Id, penalty.Policy.Id, request.ProposedAmount, penalty.Version.DisplayName,
+            CollectionSourceKind.PenaltyDefinition, penalty.Version.Id, null, snapshot, actor.Username));
+        await db.SaveChangesAsync(ct);
+        return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
+    }, ct);
+
     public Task<Result<EcfCollectionDraftDto>> AddRentAllocationAsync(
         AddRentDraftAllocationRequest request, CancellationToken ct = default) => Run(async actor =>
     {
@@ -554,6 +603,14 @@ public sealed class CollectionComposerWorkflow(
                 businessDate: BusinessToday, allowSnapshotRefresh: true);
             foreach (var resolvedLine in resolved.Lines)
             {
+                if (resolvedLine.Sources.Count == 0)
+                {
+                    // A penalty line keeps its frozen version and amount; only its classification/policy identity is
+                    // carried to the new business date (the resolver already refused a changed penalty version).
+                    resolvedLine.Line.UpdateFinancialTerms(resolvedLine.Classification!.Id, resolvedLine.Policy!.Id,
+                        resolvedLine.Line.Amount, resolvedLine.Line.CalculationSnapshot!, actor.Username);
+                    continue;
+                }
                 var source = resolvedLine.Sources[0];
                 var lineSnapshot = resolvedLine.Line.SourceKind == CollectionSourceKind.UtilityBill
                     && resolvedLine.Line.SourcePart == CollectionSourcePart.Electricity
@@ -662,7 +719,7 @@ public sealed class CollectionComposerWorkflow(
                 draft.AccountableDocumentId, "OR_UNAVAILABLE", problem.Message, ct);
         }
         var collectionLineDrafts = resolved.Lines.Select(line => new CollectionLineDraft(
-            line.Sources[0].Classification, line.Sources[0].Policy, line.Line.Amount,
+            line.Classification ?? line.Sources[0].Classification, line.Policy ?? line.Sources[0].Policy, line.Line.Amount,
             line.Line.SourceKind, line.Line.SourceId, line.Line.SourcePart,
             line.Line.CalculationSnapshot,
             line.Sources.Select(source => new CollectionAllocationDraft(
@@ -858,6 +915,62 @@ public sealed class CollectionComposerWorkflow(
         return true;
     }
 
+    /// <summary>The penalty version in force plus the tenant's active Fines classification and its effective OR policy.</summary>
+    private async Task<PenaltyFacts> ResolvePenaltyAsync(Guid tenantId, string code, DateOnly businessDate, CancellationToken ct)
+    {
+        var versions = await db.PenaltyDefinitions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.Code == code).ToListAsync(ct);
+        var version = PenaltyDefinition.Resolve(versions, code, businessDate);
+        if (version is null || !version.IsActive)
+            throw Problem("This penalty is not an active approved definition for the business date.", ResultStatus.Conflict);
+        return await WithFinesPolicyAsync(tenantId, version, businessDate, ct);
+    }
+
+    private async Task<PenaltyFacts> WithFinesPolicyAsync(
+        Guid tenantId, PenaltyDefinition version, DateOnly businessDate, CancellationToken ct)
+    {
+        var classification = await db.RevenueClassifications.SingleOrDefaultAsync(x =>
+            x.MunicipalityId == tenantId && x.SemanticCode == RevenueClassificationCodes.PenaltiesAndFines && x.IsActive, ct);
+        if (classification is null)
+            throw Problem("Penalties/Fines has no active revenue classification for this tenant.", ResultStatus.Conflict);
+        var policy = await db.RevenueClassificationPolicies
+            .Where(x => x.MunicipalityId == tenantId && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= businessDate)
+            .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
+        if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
+            throw Problem("The effective Penalties/Fines policy does not approve Official Receipt collection.", ResultStatus.Conflict);
+        return new PenaltyFacts(version, classification, policy);
+    }
+
+    /// <summary>
+    /// Revalidates a penalty line at review/post time: the exact version it froze must exist in this tenant, still be the
+    /// version in force and active, still accept the amount, and the Fines OR policy must still match the line. With
+    /// <paramref name="allowSnapshotRefresh"/> (resuming on a later business date) the classification/policy identity may
+    /// move on, but a changed penalty version or amount never does.
+    /// </summary>
+    private async Task<PenaltyFacts> ResolvePenaltyLineAsync(
+        WebCollectionDraft draft, WebCollectionDraftLine line, DateOnly businessDate, bool allowSnapshotRefresh, CancellationToken ct)
+    {
+        var frozen = line.SourceId is { } versionId
+            ? await db.PenaltyDefinitions.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.MunicipalityId == draft.MunicipalityId && x.Id == versionId, ct)
+            : null;
+        if (frozen is null)
+            throw Problem("The penalty definition on this line was not found in this tenant.", ResultStatus.NotFound);
+        var versions = await db.PenaltyDefinitions.AsNoTracking()
+            .Where(x => x.MunicipalityId == draft.MunicipalityId && x.Code == frozen.Code).ToListAsync(ct);
+        var current = PenaltyDefinition.Resolve(versions, frozen.Code, businessDate);
+        if (current is null || current.Id != frozen.Id || !current.IsActive)
+            throw Problem("This penalty's approved terms changed or it was retired after it was added. Remove the draft and add it again.", ResultStatus.Conflict);
+        if (frozen.CheckAmount(line.Amount) is not null)
+            throw Problem("The penalty amount no longer matches its approved terms.", ResultStatus.Conflict);
+        var facts = await WithFinesPolicyAsync(draft.MunicipalityId, frozen, businessDate, ct);
+        if (!allowSnapshotRefresh && (line.RevenueClassificationId != facts.Classification.Id
+            || line.RevenueClassificationPolicyId != facts.Policy.Id))
+            throw Problem("A line's classification or effective policy no longer matches its source.", ResultStatus.Conflict);
+        return facts;
+    }
+
     private async Task<PolicyFacts> ResolveEcfPolicyAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct)
     {
         var classification = await db.RevenueClassifications
@@ -1045,6 +1158,18 @@ public sealed class CollectionComposerWorkflow(
         var allSources = new List<ResolvedDraftSource>();
         foreach (var line in lines)
         {
+            if (line.SourceKind == CollectionSourceKind.PenaltyDefinition)
+            {
+                // An approved penalty is an immediate charge: no allocation and no receivable. It is revalidated against
+                // its exact definition version, that version's continued effect, and the Fines OR policy - never trusted
+                // from the draft alone.
+                if (allocations.Any(x => x.DraftLineId == line.Id))
+                    throw Problem("A penalty line cannot carry source allocations.", ResultStatus.Conflict);
+                var penalty = await ResolvePenaltyLineAsync(draft, line, resolvedBusinessDate, allowSnapshotRefresh, ct);
+                resolvedLines.Add(new ResolvedDraftLine(line, [], penalty.Classification, penalty.Policy));
+                continue;
+            }
+
             var lineAllocations = allocations.Where(x => x.DraftLineId == line.Id).ToList();
             if (lineAllocations.Count == 0 || lineAllocations.Sum(x => x.Amount) != line.Amount)
                 throw Problem("Every collection line must equal its explicit source allocations.", ResultStatus.Conflict);
@@ -1211,7 +1336,11 @@ public sealed class CollectionComposerWorkflow(
         CollectionSourceKind SourceKind, Guid SourceId, CollectionSourcePart? SourcePart);
 
     private sealed record ResolvedDraft( IReadOnlyList<ResolvedDraftLine> Lines, IReadOnlyList<ResolvedDraftSource> Sources);
-    private sealed record ResolvedDraftLine(WebCollectionDraftLine Line, IReadOnlyList<ResolvedDraftSource> Sources);
+    // A penalty line is an immediate approved charge with no receivable, so it carries its own resolved classification and
+    // policy instead of coming from a source allocation.
+    private sealed record ResolvedDraftLine(
+        WebCollectionDraftLine Line, IReadOnlyList<ResolvedDraftSource> Sources,
+        RevenueClassification? Classification = null, RevenueClassificationPolicy? Policy = null);
     private sealed record ResolvedDraftSource(
         WebCollectionDraftAllocation Allocation,
         RevenueClassification Classification,
@@ -1601,6 +1730,11 @@ public sealed class CollectionComposerWorkflow(
 
     private sealed record Actor(Guid UserId, Guid MunicipalityId, string Username, string Role);
     private sealed record PolicyFacts(RevenueClassification Classification, RevenueClassificationPolicy Policy);
+    private sealed record PenaltyFacts(PenaltyDefinition Version, RevenueClassification Classification, RevenueClassificationPolicy Policy);
+    private sealed record PenaltySnapshot(
+        int SchemaVersion, Guid MunicipalityId, Guid DefinitionId, string Code, string DisplayName, DateOnly EffectiveDate,
+        GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount, string? AppliesTo,
+        string ClassificationCode, Guid PolicyId, string? Origin);
     private sealed record SourceFacts(
         UtilityBill Bill, RevenueClassification Classification, RevenueClassificationPolicy Policy,
         EcfObligationQuoteDto Quote, EcfSourceSnapshot Snapshot, string SnapshotJson);
