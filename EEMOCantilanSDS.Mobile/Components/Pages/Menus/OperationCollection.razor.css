@@ -1,0 +1,84 @@
+.op-back {
+    margin-top: 12px;
+}
+
+.op-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.op-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    cursor: pointer;
+}
+
+.op-mode input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.op-mode.selected {
+    border-color: var(--accent, #1f5fbf);
+    box-shadow: inset 0 0 0 1px var(--accent, #1f5fbf);
+}
+
+.op-mode.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.op-mode:focus-within {
+    outline: 2px solid var(--accent, #1f5fbf);
+    outline-offset: 2px;
+}
+
+.op-mode-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.op-mode-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.op-terms {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.op-terms > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+}
+
+.op-terms span {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.op-terms strong {
+    font-size: 13px;
+    color: var(--navy);
+}
+
+.op-record {
+    cursor: default;
+}

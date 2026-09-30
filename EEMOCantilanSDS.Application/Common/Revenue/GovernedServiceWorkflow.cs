@@ -189,6 +189,36 @@ public sealed class GovernedServiceWorkflow(
             return Result<IReadOnlyList<CashTicketDocumentDto>>.Success(documents);
         }, ct);
 
+    /// <summary>
+    /// The approved terms in force today for an operation the collector is assigned to. It answers "not collectible" as a
+    /// failure with the reason, rather than a guessed zero or a default amount.
+    /// </summary>
+    public Task<Result<GovernedServiceTermsDto>> GetTermsAsync(
+        string operationCode, GovernedServiceMode? mode, CancellationToken ct = default) =>
+        Run<GovernedServiceTermsDto>(async actor =>
+        {
+            var entry = GovernedServiceCatalog.Find(operationCode);
+            if (actor.Role != "Collector" || entry is null || !await IsAssignedAsync(actor, entry.Code, ct))
+                return Result<GovernedServiceTermsDto>.Forbidden();
+            if (entry.ModeAware != mode.HasValue || mode is { } m && !Enum.IsDefined(m))
+                return Result<GovernedServiceTermsDto>.Failure(
+                    entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ResultStatus.Invalid);
+            var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+            var versions = service is null ? [] : await db.GovernedServiceSettings.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
+            var setting = GovernedServiceSetting.Resolve(versions, BusinessToday);
+            if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
+                return Result<GovernedServiceTermsDto>.Failure(
+                    "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
+            var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, BusinessToday, ct);
+            if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
+                return Result<GovernedServiceTermsDto>.Failure(
+                    "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
+            return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware, setting.Basis,
+                setting.FixedAmount, setting.MaximumAmount, instrument, false));
+        }, ct);
+
     // ── Mobile posting ─────────────────────────────────────────────────────────────────────────────────
 
     public Task<Result<GovernedServiceOutcomeDto>> PostMobileAsync(

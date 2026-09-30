@@ -479,6 +479,48 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
+    public async Task Terms_ShowTheApprovedRuleAndTheInstrumentTheModeResolves_ForAnAssignedCollectorOnly()
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.MarketFees, GovernedServiceBasis.FixedAmount, 30m, null);
+        await ConfigureAsync(w, CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceBasis.DirectApprovedAmount, null, 400m);
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+
+        var fees = (await workflow.GetTermsAsync(CollectorOperationCodes.MarketFees, null)).Value!;
+        var whole = (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.WholePayment)).Value!;
+        var daily = (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.DailyTransaction)).Value!;
+
+        Assert.Equal((GovernedServiceBasis.FixedAmount, 30m, RevenueInstrumentType.CashTicket), (fees.Basis, fees.FixedAmount, fees.Instrument));
+        Assert.Equal((RevenueInstrumentType.OfficialReceipt, 400m), (whole.Instrument, whole.MaximumAmount));
+        Assert.Equal(RevenueInstrumentType.CashTicket, daily.Instrument);
+        Assert.Equal(ResultStatus.Invalid, (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, null)).Status);
+        Assert.Equal(ResultStatus.Forbidden, (await Open(w, "Collector", w.OtherCollector.Id).Workflow
+            .GetTermsAsync(CollectorOperationCodes.MarketFees, null)).Status);
+        Assert.Equal(ResultStatus.Forbidden, (await Open(w, "Admin").Workflow
+            .GetTermsAsync(CollectorOperationCodes.MarketFees, null)).Status);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Terms_AreNotOfferedWhenTheServiceIsDisabledOrNotMobileEnabled_NeverAGuessedAmount(bool enabled, bool mobile)
+    {
+        var w = await CreateAsync();
+        await ConfigureAsync(w, CollectorOperationCodes.MarketFees, GovernedServiceBasis.FixedAmount, 30m, null, enabled: enabled, mobile: mobile);
+        var (db, workflow) = Open(w, "Collector");
+        await using var _ = db;
+
+        var result = await workflow.GetTermsAsync(CollectorOperationCodes.MarketFees, null);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Null(result.Value);
+        // With no setup at all it is equally not offered.
+        var unset = await Open(w, "Collector").Workflow.GetTermsAsync(CollectorOperationCodes.LandingBerthing, null);
+        Assert.Equal(ResultStatus.Conflict, unset.Status);
+    }
+
+    [Fact]
     public async Task ActivityRegister_ListsPostedCollectionsWithDocumentPayerAndCollector()
     {
         var w = await CreateAsync();

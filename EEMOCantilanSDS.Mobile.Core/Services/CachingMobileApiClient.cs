@@ -67,6 +67,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to) =>
         ReadThroughAsync($"records|operations|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetOperationRecordsAsync(from, to));
 
+    public Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode) =>
+        ReadThroughAsync($"operations|terms|{operationCode}|{mode}|{Today}", () => inner.GetOperationTermsAsync(operationCode, mode));
+
     // Custody changes with every issue, and "operations" is cleared after every write, so a used document is not offered again.
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
         ReadThroughAsync($"operations|documents|{operationCode}|{mode}|{Today}", () => inner.GetOperationDocumentsAsync(operationCode, mode));

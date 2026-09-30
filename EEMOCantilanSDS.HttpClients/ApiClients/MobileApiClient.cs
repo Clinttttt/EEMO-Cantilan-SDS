@@ -48,6 +48,10 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to) =>
         await GetAsync<IReadOnlyList<GovernedServiceRecordDto>>($"api/governed-services/records?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
+    public async Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode) =>
+        await GetAsync<GovernedServiceTermsDto>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/terms{(mode is { } m ? $"?mode={m}" : string.Empty)}");
+
     public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
         await GetAsync<IReadOnlyList<CashTicketDocumentDto>>(
             $"api/governed-services/{Uri.EscapeDataString(operationCode)}/documents{(mode is { } m ? $"?mode={m}" : string.Empty)}");

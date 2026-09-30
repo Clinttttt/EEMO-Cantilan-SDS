@@ -1,0 +1,390 @@
+@page "/operation/{Code}"
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Common.Revenue
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
+@using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+
+@* Focused field collection for a governed configurable service (Market Fees, Landing / Berthing, Transfer Large Cattle,
+   Vegetable / Fruit). The collector records transaction facts only: the amount rule, classification and OR/CT
+   instrument come from the server's approved setup, and the physical document must be one assigned to this collector.
+   The issue is durably queued (with the document's identity) BEFORE it is reported as captured, exactly like WCF. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Operation</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <div class="header-title-block">
+                <div class="header-title">@Title</div>
+                <div class="header-sub">@Subtitle</div>
+            </div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+
+    <div class="content">
+        @if (_loading)
+        {
+            <LoadingState Text="Loading operation…" />
+        }
+        else if (_blocked is not null)
+        {
+            <div class="menu-state-card" role="status">@_blocked</div>
+            <button class="btn-primary op-back" type="button" @onclick="GoBack">Back to menu</button>
+        }
+        else
+        {
+            @if (_entry is { ModeAware: true })
+            {
+                <div class="op-modes" role="radiogroup" aria-label="Collection mode">
+                    @foreach (var variant in _variants)
+                    {
+                        <label class="op-mode @(variant.Mode == _mode ? "selected" : "") @(variant.Available ? "" : "disabled")">
+                            <input type="radio" name="op-mode" checked="@(variant.Mode == _mode)" disabled="@(!variant.Available)"
+                                   @onchange="() => SelectMode(variant.Mode)" />
+                            <span class="op-mode-title">@ModeLabel(variant.Mode)</span>
+                            <span class="op-mode-sub">@variant.Note</span>
+                        </label>
+                    }
+                </div>
+            }
+
+            @if (Variant is null || !Variant.Available)
+            {
+                <div class="menu-state-card" role="status">@(Variant?.Note ?? "Choose a collection mode.")</div>
+            }
+            else
+            {
+                var terms = Variant.Terms!;
+                <div class="op-terms" aria-label="Approved terms">
+                    <div><span>Receipt</span><strong>@InstrumentName(terms.Instrument)</strong></div>
+                    <div>
+                        <span>Amount</span>
+                        <strong>@AmountRule(terms)</strong>
+                    </div>
+                </div>
+
+                @if (Sync.HasStorageFault)
+                {
+                    <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not issue a document until it is healthy.</div>
+                }
+                else
+                {
+                    <label class="form-field">
+                        <span class="form-label">@(terms.Basis == GovernedServiceBasis.FixedAmount ? "Approved amount" : "Amount received")</span>
+                        @if (terms.Basis == GovernedServiceBasis.FixedAmount)
+                        {
+                            <input class="form-input mono-input" type="text" readonly value="@Money(terms.FixedAmount ?? 0m)" aria-readonly="true" />
+                        }
+                        else
+                        {
+                            <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
+                                   max="@(terms.MaximumAmount?.ToString(CultureInfo.InvariantCulture))"
+                                   placeholder="Amount received" @bind="_amount" @bind:event="oninput" />
+                        }
+                    </label>
+                    <label class="form-field">
+                        <span class="form-label">Payer (optional)</span>
+                        <input class="form-input" type="text" maxlength="200" placeholder="Name as given by the payer" @bind="_payer" @bind:event="oninput" />
+                    </label>
+                    <label class="form-field">
+                        <span class="form-label">Reference (optional)</span>
+                        <input class="form-input" type="text" maxlength="200" placeholder="Short note for the record" @bind="_reference" @bind:event="oninput" />
+                    </label>
+                    <label class="form-field">
+                        <span class="form-label">@InstrumentName(terms.Instrument) number</span>
+                        <select class="form-input" @bind="_documentId">
+                            <option value="">Select your assigned @InstrumentName(terms.Instrument)</option>
+                            @foreach (var document in AvailableDocuments)
+                            {
+                                <option value="@document.DocumentId">@document.DocumentNumber</option>
+                            }
+                        </select>
+                    </label>
+                    <button class="btn-primary" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
+                        Record and issue @InstrumentName(terms.Instrument)
+                    </button>
+                    <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</div>
+                }
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="menu-state-card" role="status">@_message</div>
+            }
+
+            <div class="section-label">This month</div>
+            @if (_recordsFailed)
+            {
+                <div class="menu-state-card">Your collections could not be loaded. Retry while online.</div>
+            }
+            else if (_records.Count == 0)
+            {
+                <div class="menu-state-card">No collections recorded for this operation this month.</div>
+            }
+            else
+            {
+                @foreach (var record in _records)
+                {
+                    <div class="menu-card op-record">
+                        <div class="card-info">
+                            <div class="card-title">@record.DocumentNumber · @Money(record.Amount)</div>
+                            <div class="card-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</div>
+                        </div>
+                        <div class="card-status @(record.Disposition == "Posted" ? "open" : "soon")">@record.Disposition</div>
+                    </div>
+                }
+            }
+        }
+    </div>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = string.Empty;
+
+    private sealed record ModeOption(GovernedServiceMode? Mode, GovernedServiceTermsDto? Terms,
+        IReadOnlyList<CashTicketDocumentDto> Documents, string Note)
+    {
+        public bool Available => Terms is not null && Documents.Count > 0;
+    }
+
+    private GovernedServiceCatalog.Entry? _entry;
+    private List<ModeOption> _variants = [];
+    private GovernedServiceMode? _mode;
+    private List<GovernedServiceRecordDto> _records = [];
+    private HashSet<Guid> _locallyIssued = [];
+    private bool _loading = true;
+    private bool _recordsFailed;
+    private bool _saving;
+    private string? _blocked;
+    private string? _message;
+    private decimal _amount;
+    private string? _payer;
+    private string? _reference;
+    private Guid? _documentId;
+
+    private string Title => _entry?.Name ?? "Operation";
+    private string Subtitle => _entry is { ModeAware: true } ? "Choose whole payment or daily transaction" : "Field collection";
+    private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+    private ModeOption? Variant => _variants.FirstOrDefault(v => v.Mode == _mode);
+
+    private IEnumerable<CashTicketDocumentDto> AvailableDocuments =>
+        (Variant?.Documents ?? []).Where(d => !_locallyIssued.Contains(d.DocumentId));
+
+    private CashTicketDocumentDto? SelectedDocument => _documentId is { } id
+        ? AvailableDocuments.FirstOrDefault(d => d.DocumentId == id) : null;
+
+    private decimal ExpectedAmount => Variant?.Terms is { Basis: GovernedServiceBasis.FixedAmount } fixedTerms
+        ? fixedTerms.FixedAmount ?? 0m : _amount;
+
+    // The server revalidates every one of these; they only keep an obviously wrong entry from becoming an issued document.
+    private bool CanCapture => !_saving && !Sync.HasStorageFault && Variant is { Available: true, Terms: { } t }
+        && SelectedDocument is not null && ExpectedAmount > 0m
+        && decimal.Round(ExpectedAmount, 2, MidpointRounding.ToZero) == ExpectedAmount
+        && (t.Basis != GovernedServiceBasis.DirectApprovedAmount || t.MaximumAmount is not { } ceiling || ExpectedAmount <= ceiling);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await Session.InitializeAsync(); }
+        catch (HttpRequestException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+        if (Session.Menu is null)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+
+        _entry = GovernedServiceCatalog.Find(Code);
+        if (_entry is null)
+        {
+            _blocked = "This operation is not available on Collector Mobile.";
+            _loading = false;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _message = null;
+        try
+        {
+            var capabilities = await MobileApi.GetOperationCapabilitiesAsync();
+            if (!capabilities.IsSuccess || capabilities.Value is null)
+            {
+                _blocked = "Eligibility could not be verified. Retry while online.";
+                return;
+            }
+            var capability = capabilities.Value.Operations.FirstOrDefault(x => x.OperationCode == Code);
+            if (capability is null || !capability.IsAssigned)
+            {
+                _blocked = "This operation is not assigned to you. Ask the office to assign it.";
+                return;
+            }
+            if (!capability.IsCollectible)
+            {
+                _blocked = CapabilityMessage(capability.Status);
+                return;
+            }
+
+            _blocked = null;
+            var modes = _entry!.ModeAware
+                ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction }
+                : new GovernedServiceMode?[] { null };
+            _variants = [];
+            foreach (var mode in modes)
+            {
+                var terms = await MobileApi.GetOperationTermsAsync(Code, mode);
+                var documents = terms.IsSuccess
+                    ? await MobileApi.GetOperationDocumentsAsync(Code, mode)
+                    : null;
+                var list = documents is { IsSuccess: true, Value: not null } ? documents.Value : [];
+                _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null, list,
+                    terms.IsSuccess
+                        ? list.Count == 0
+                            ? $"You hold no assigned {InstrumentName(terms.Value!.Instrument)}."
+                            : $"{InstrumentName(terms.Value!.Instrument)} · {list.Count} held"
+                        : terms.Error ?? "Not available today."));
+            }
+            _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
+
+            _locallyIssued.Clear();
+            foreach (var queued in await Sync.GetAllAsync())
+                if (queued.Kind == OfflineOperationKind.GovernedService && queued.AccountableDocumentId is { } id)
+                    _locallyIssued.Add(id);
+            if (_documentId is { } selected && !AvailableDocuments.Any(d => d.DocumentId == selected))
+                _documentId = null;
+
+            await LoadRecordsAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _blocked = "Eligibility could not be verified. Retry while online.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadRecordsAsync()
+    {
+        var start = new DateOnly(Today.Year, Today.Month, 1);
+        var result = await MobileApi.GetOperationRecordsAsync(start, Today);
+        _recordsFailed = !result.IsSuccess || result.Value is null;
+        _records = _recordsFailed ? [] : result.Value!.Where(x => x.OperationCode == Code).ToList();
+    }
+
+    private void SelectMode(GovernedServiceMode? mode)
+    {
+        _mode = mode;
+        _documentId = null;
+        _amount = 0m;
+        _message = null;
+    }
+
+    private async Task CaptureAsync()
+    {
+        if (!CanCapture || Variant?.Terms is not { } terms || SelectedDocument is not { } document)
+        {
+            _message = Sync.HasStorageFault
+                ? "Local queue storage is not healthy. Do not issue a document."
+                : "Check the amount and choose one of your assigned documents.";
+            return;
+        }
+
+        _saving = true;
+        _message = null;
+        var operationId = Guid.NewGuid();
+        var amount = ExpectedAmount;
+        var operation = new PendingOperation
+        {
+            ClientOperationId = operationId,
+            Kind = OfflineOperationKind.GovernedService,
+            PayloadVersion = 1,
+            BusinessDate = Today,
+            OperationCode = Code,
+            CollectionMode = _mode,
+            PayerName = string.IsNullOrWhiteSpace(_payer) ? null : _payer.Trim(),
+            Reference = string.IsNullOrWhiteSpace(_reference) ? null : _reference.Trim(),
+            ReceivedAmount = amount,
+            AccountableDocumentId = document.DocumentId,
+            DocumentNumber = document.DocumentNumber,
+            IssuedAtUtc = DateTime.UtcNow,
+            FacilityLabel = Title,
+            Title = string.IsNullOrWhiteSpace(_payer) ? Title : _payer!.Trim(),
+            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
+            Amount = amount
+        };
+
+        try
+        {
+            // The durable local write binds the physical document to its immutable operation before this screen
+            // reports the issue as captured or starts synchronization.
+            await Sync.EnqueueIssuedDocumentAsync(operation);
+            _locallyIssued.Add(document.DocumentId);
+            _message = $"{InstrumentName(terms.Instrument)} issue saved on this device. The document is unavailable for reuse.";
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result?.LocalStatus == PendingLocalStatus.Synced)
+                _message = $"{InstrumentName(terms.Instrument)} acknowledged by the server. It remains consumed.";
+            else if (result?.LocalStatus == PendingLocalStatus.ReconciliationRequired)
+                _message = $"RECONCILIATION REQUIRED. Keep this physical {InstrumentName(terms.Instrument)}; office review is required.";
+            else if (result is not null)
+                _message = $"{InstrumentName(terms.Instrument)} issue is durably queued and awaiting synchronization.";
+            _amount = 0m;
+            _documentId = null;
+            _payer = null;
+            _reference = null;
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            _message = "The physical document and operation could not be safely saved. Do not issue the document; resolve device storage attention first.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+
+    private static string ModeLabel(GovernedServiceMode? mode) =>
+        mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
+
+    private static string InstrumentName(RevenueInstrumentType instrument) =>
+        instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
+
+    private static string AmountRule(GovernedServiceTermsDto terms) => terms.Basis switch
+    {
+        GovernedServiceBasis.FixedAmount => $"{Money(terms.FixedAmount ?? 0m)} (fixed)",
+        _ => terms.MaximumAmount is { } ceiling ? $"As charged, up to {Money(ceiling)}" : "As charged"
+    };
+
+    private static string CapabilityMessage(CollectorOperationCapabilityStatus status) => status switch
+    {
+        CollectorOperationCapabilityStatus.AssignedButInactive => "Your authorization is not active. Contact the office.",
+        CollectorOperationCapabilityStatus.NeedsPolicy => "The office has not finished setting this operation up.",
+        CollectorOperationCapabilityStatus.NeedsDocument => "You hold no assigned document for this operation. Request one from the office.",
+        CollectorOperationCapabilityStatus.Unsupported => "This operation is not available on Collector Mobile yet.",
+        _ => "This operation is not collectible right now."
+    };
+}

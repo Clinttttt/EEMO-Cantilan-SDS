@@ -67,3 +67,11 @@ public sealed record GovernedServiceRecordDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string OperationCode, string OperationName,
     string DocumentNumber, RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName,
     string? Reference, decimal Amount, string Disposition);
+
+/// <summary>
+/// What the approved setup says a collector may record today for one operation (and mode): the amount rule and the
+/// instrument the policy resolves. Display facts only — posting revalidates all of it.
+/// </summary>
+public sealed record GovernedServiceTermsDto(
+    string OperationCode, string Name, bool ModeAware, GovernedServiceBasis Basis, decimal? FixedAmount,
+    decimal? MaximumAmount, RevenueInstrumentType Instrument, bool RequiresReference);

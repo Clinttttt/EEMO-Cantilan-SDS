@@ -40,6 +40,13 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await workflow.GetCollectorRecordsAsync(from, to, ct));
 
+    /// <summary>The approved terms a collector may record today for an assigned operation (display only; posting revalidates).</summary>
+    [HttpGet("{operationCode}/terms")]
+    [Authorize(Roles = "Collector")]
+    public async Task<ActionResult<GovernedServiceTermsDto>> TermsAsync(
+        string operationCode, [FromQuery] GovernedServiceMode? mode, CancellationToken ct) =>
+        HandleResponse(await workflow.GetTermsAsync(operationCode, mode, ct));
+
     [HttpGet("{operationCode}/documents")]
     [Authorize(Roles = "Collector")]
     public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> DocumentsAsync(
