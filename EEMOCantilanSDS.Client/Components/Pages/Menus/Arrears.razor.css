@@ -1,0 +1,25 @@
+/* Arrears workspace — V3. Panels, tables and the summary strip come from the v3- layer in app.css. */
+.arr-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.arr-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.arr-search {
+    flex: 1 1 280px;
+}
+
+.arr-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}

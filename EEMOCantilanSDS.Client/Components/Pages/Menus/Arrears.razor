@@ -1,0 +1,172 @@
+@page "/operations/arrears"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IReportsApiClient Reports
+@inject IOfficialReportsApiClient OfficialReports
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+<PageTitle>StallTrack — Arrears</PageTitle>
+
+@* Arrears: a management view over existing receivables (see ArrearsReads). Who owes, how much, since when, and where to
+   open the account. It creates no obligation, recalculates no balance and offers no write-off or adjustment. The layout
+   owns the <main> landmark. *@
+<div class="v3-page arr-page">
+    <WorkspaceHeader Parent="Operations" Title="Arrears" Subtitle="Outstanding receivables requiring office follow-up">
+        <Actions>
+            <label class="v3-period">
+                <span>As of month</span>
+                <input class="v3-input" type="month" aria-label="As of month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+            <a class="v3-btn" href="/operations/arrears/report">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="13" /><line x1="12" y1="20" x2="12" y2="5" /><line x1="18" y1="20" x2="18" y2="10" /></svg>
+                Report
+            </a>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (_data is { Failed: true })
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+            <span>Some receivables could not be loaded; figures that did not load show “—”.</span>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <SummaryStrip Label="Arrears position" Items="Summary" />
+
+    <section class="v3-panel" aria-labelledby="arr-register-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="arr-register-title">Accounts in arrears</h2>
+            <span class="v3-panel-meta">@(Filtered.Count) of @(_data?.Accounts?.Count ?? 0) shown</span>
+        </header>
+        <div class="v3-toolbar arr-filters" aria-label="Arrears filters">
+            <label class="v3-field arr-search">
+                <span class="v3-sr-only">Search</span>
+                <input type="search" placeholder="Search payor, stall or facility" @bind="_search" @bind:event="oninput" />
+            </label>
+            <label class="v3-field">
+                <span class="v3-sr-only">Facility / source</span>
+                <select @bind="_facility">
+                    <option value="">All facilities</option>
+                    @foreach (var facilityCode in Facilities)
+                    {
+                        <option value="@facilityCode">@FacilityCatalog.NameOf(facilityCode)</option>
+                    }
+                </select>
+            </label>
+            <label class="v3-field">
+                <span class="v3-sr-only">Urgency</span>
+                <select @bind="_urgency">
+                    <option value="">All urgencies</option>
+                    <option value="Critical">Critical (3+ months)</option>
+                    <option value="Normal">1–2 months</option>
+                </select>
+            </label>
+        </div>
+        <div class="v3-table-wrap" role="region" aria-label="Accounts in arrears" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Payor</th>
+                        <th scope="col">Facility / account</th>
+                        <th scope="col">Unpaid periods</th>
+                        <th scope="col" class="v3-num">Outstanding</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_data?.Accounts is null)
+                    {
+                        <tr><td class="v3-empty" colspan="6">@(_loading ? "Loading accounts…" : "Accounts could not be loaded.")</td></tr>
+                    }
+                    else if (Filtered.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="6">@(_data.Accounts.Count == 0 ? "No account has a fully elapsed unpaid month." : "No account matches these filters.")</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Filtered)
+                        {
+                            <tr>
+                                <td class="v3-strong">@item.Person</td>
+                                <td>@FacilityCatalog.NameOf(item.Facility) · @item.Identifier<span class="v3-block">@item.Model</span></td>
+                                <td>@item.Period</td>
+                                <td class="v3-num v3-strong">@(item.Amount is { } a ? Money(a) : "—")</td>
+                                <td>@item.Status@(item.Priority == "Critical" ? " · Critical" : "")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.Link))
+                                    {
+                                        <a class="v3-link" href="@item.Link">Open account</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <p class="arr-note">An account is listed when it has one or more fully elapsed unpaid months — the existing delinquency rule, the same figures as Financial Reports → Receivables. Recovery is recorded through the account's own collection workflow. The age-based Arrears qualification and the official Monthly Income placement of recovered arrears are not yet decided; nothing here creates, adjusts or writes off an obligation.</p>
+</div>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private ArrearsReads.Snapshot? _data;
+    private bool _loading;
+    private string _search = string.Empty;
+    private string _facility = string.Empty;
+    private string _urgency = string.Empty;
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Summary =>
+    [
+        new("Accounts", _data?.AccountsTotal is { } n ? n.ToString(CultureInfo.InvariantCulture) : "—"),
+        new("Outstanding", _data?.OutstandingTotal is { } o ? Money(o) : "—", Emphasis: _data?.OutstandingTotal is > 0m),
+        new("Critical (3+ months)", _data?.Accounts is { } rows ? rows.Count(r => r.Priority == "Critical").ToString(CultureInfo.InvariantCulture) : "—"),
+        new($"Recovered · {_month:MMM yyyy}", _data?.RecoveredThisMonth is { } r ? Money(r) : "—"),
+    ];
+
+    private IEnumerable<FacilityCode> Facilities =>
+        (_data?.Accounts ?? []).Select(a => a.Facility).Distinct().OrderBy(c => c);
+
+    private List<FollowUpItemDto> Filtered => (_data?.Accounts ?? [])
+        .Where(a => string.IsNullOrWhiteSpace(_search)
+            || a.Person.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || a.Identifier.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || FacilityCatalog.NameOf(a.Facility).Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .Where(a => _facility == "" || a.Facility.ToString() == _facility)
+        .Where(a => _urgency == "" || (_urgency == "Critical" ? a.Priority == "Critical" : a.Priority != "Critical"))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await LoadAsync();
+    }
+
+    private async Task ChangeMonthAsync(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParseExact($"{e.Value}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
+        {
+            _month = month;
+            _monthInput = month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try { _data = await ArrearsReads.LoadAsync(Reports, OfficialReports, _month); }
+        finally { _loading = false; }
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

@@ -250,8 +250,9 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Empty(Row(cut, "Arrears").QuerySelectorAll("a"));
-            Assert.Contains("No workspace yet", Row(cut, "Arrears").TextContent);
+            // Arrears now has its own workspace and report over the existing receivables.
+            Assert.Equal("/operations/arrears", LinkOf(cut, "Arrears"));
+            Assert.Contains("/operations/arrears/report", Row(cut, "Arrears").InnerHtml);
             Assert.DoesNotContain("None in StallTrack", cut.Markup);
 
             Assert.Equal("/operations/transfer-large-cattle", LinkOf(cut, "Transfer Large Cattle"));

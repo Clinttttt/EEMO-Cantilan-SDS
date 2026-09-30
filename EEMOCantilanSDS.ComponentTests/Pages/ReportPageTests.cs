@@ -28,7 +28,7 @@ public class ReportPageTests : TestContext
     /// render assertions deterministic without slowing the passing path (they return as soon as they pass).
     /// </summary>
     private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(10);
-    private static FinancialReportDto SampleReport() => new(
+    internal static FinancialReportDto SampleReport() => new(
         PeriodLabel: "March 2026",
         ScopeLabel: "All facilities",
         Frequency: "Monthly",

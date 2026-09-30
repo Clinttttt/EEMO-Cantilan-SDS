@@ -87,7 +87,8 @@
                     </li>
                 }
                 <li class="ops-item">
-                    @Line("Arrears", null, NoReceipt, null, null, NoLinks, NoWorkspace)
+                    @* A management view over existing receivables; recovery takes the instrument of the source it settles. *@
+                    @Line("Arrears", null, NoReceipt, "/operations/arrears", null, ArrearsLinks, NoWorkspace)
                 </li>
             </ul>
         </section>
@@ -141,6 +142,7 @@
     private static readonly Receipt[] CashTicket = [new("CT")];
     private static readonly Receipt[] NoReceipt = [];
     private static readonly QuickLink[] NoLinks = [];
+    private static readonly QuickLink[] ArrearsLinks = [new("Report", "/operations/arrears/report")];
 
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
@@ -157,10 +159,12 @@
         new("Landing | Berthing", CashTicket, Route: "/operations/landing-berthing",
             Links: [new("Report", "/operations/landing-berthing/report")]),
         // Cash Ticket on Collector Mobile at the approved vehicle-class rate (IA-030, IA-050); legacy trips stay under the TRM facility.
-        new("Transportation Fees", CashTicket, FacilityCode.TRM, Route: "/operations/transportation"),
+        new("Transportation Fees", CashTicket, FacilityCode.TRM, Route: "/operations/transportation",
+            Links: [new("Report", "/operations/transportation/report")]),
         new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
-        new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle"),
+        new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle",
+            Links: [new("Report", "/operations/transfer-large-cattle/report")]),
         // Official Receipt, own ICE_PLANT classification (IA-050); monthly obligation, installments allowed.
         new("Ice Plant", OfficialReceipt, FacilityCode.ICE),
     ];
@@ -168,7 +172,8 @@
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =
     [
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
-        new("Vegetable | Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit"),
+        new("Vegetable | Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit",
+            Links: [new("Report", "/operations/vegetable-fruit/report")]),
         new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay"),
         new("Fiesta | Araw", OfficialReceipt, Route: "/operations/fiesta-araw"),
         new("Fines", OfficialReceipt, Route: "/operations/fines"),
