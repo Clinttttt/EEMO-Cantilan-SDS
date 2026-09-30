@@ -1,208 +1,148 @@
 @page "/menu"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Presentation
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 @inject global::EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient MobileApi
-
-<style>
-    /* ── In-app update prompt (Menu.razor) ── */
-    .update-banner {
-        display: flex; align-items: center; gap: 10px;
-        background: #ffffff;
-        border: 1px solid #c8a84b;
-        border-left: 3px solid #c8a84b;
-        border-radius: 12px;
-        padding: 11px 12px; margin-bottom: 14px;
-        box-shadow: 0 2px 10px rgba(13,33,55,0.06);
-    }
-    .update-banner svg { width: 18px; height: 18px; stroke: #c8a84b; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
-    .update-banner-text { flex: 1; font-size: 12.5px; font-weight: 600; color: #0d2137; }
-    .update-banner-btn { background: #0d2137; color: #e8cc76; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .update-banner-x { background: transparent; border: none; color: #8faabf; font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
-
-    .update-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(11,27,48,0.74); display: flex; align-items: center; justify-content: center; padding: 28px; }
-    .update-modal { background: #fff; border-radius: 18px; padding: 26px 24px; max-width: 340px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.42); }
-    .update-modal svg { width: 40px; height: 40px; stroke: #c8a84b; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 8px; }
-    .update-modal-title { font-family: 'EB Garamond', serif; font-size: 21px; font-weight: 600; color: #0d2137; margin-bottom: 6px; }
-    .update-modal-sub { font-size: 13px; color: #6a8aa0; line-height: 1.5; margin-bottom: 16px; }
-    .update-modal-notes { font-size: 12px; color: #8faabf; background: #f0f4f8; border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; text-align: left; line-height: 1.5; }
-    .update-modal-btn { width: 100%; background: #0d2137; color: #e8cc76; border: none; border-radius: 12px; padding: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
-
-    /* ── Menu loading skeleton ── */
-    .menu-skeleton { display: flex; flex-direction: column; gap: 12px; }
-    .menu-skeleton .sk-strip { display: flex; gap: 10px; }
-    .menu-skeleton .sk-stat { flex: 1; height: 66px; border-radius: 14px; }
-    .menu-skeleton .sk-label { width: 42%; height: 12px; border-radius: 6px; margin: 8px 0 2px; }
-    .menu-skeleton .sk-card { height: 76px; border-radius: 16px; }
-    .menu-skeleton .sk-stat,
-    .menu-skeleton .sk-label,
-    .menu-skeleton .sk-card {
-        background: linear-gradient(100deg, #e9eef4 28%, #f6f9fc 48%, #e9eef4 68%);
-        background-size: 220% 100%;
-        animation: sk-shimmer 1.35s ease-in-out infinite;
-        border: 1px solid var(--border);
-    }
-    @@keyframes sk-shimmer {
-        0% { background-position: 220% 0; }
-        100% { background-position: -220% 0; }
-    }
-</style>
 
 <div class="page-shell">
     <AppHeader CollectorName="@Session.CollectorName" />
 
-    <div class="content">
+    <main class="content">
         @if (Update is not null && !Update.Mandatory)
         {
-            <div class="update-banner">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            <div class="update-banner" role="status">
                 @* The version on offer comes from the server's own answer, so the banner names it rather than saying
                    "a new version" and leaving the collector to guess what they are being asked to install. *@
                 <div class="update-banner-text">@(string.IsNullOrWhiteSpace(Update.LatestVersion) ? "A new version is available." : $"Version {Update.LatestVersion} is available.")</div>
-                <button class="update-banner-btn" @onclick="DownloadUpdate">Update</button>
-                <button class="update-banner-x" @onclick="() => Update = null" aria-label="Dismiss">×</button>
+                <button class="update-banner-btn" type="button" @onclick="DownloadUpdate">Update</button>
+                <button class="update-banner-x" type="button" @onclick="() => Update = null" aria-label="Dismiss">×</button>
             </div>
         }
         @if (IsLoading)
         {
-            <div class="menu-skeleton" aria-busy="true" aria-label="Loading collection areas">
-                <div class="sk-strip">
-                    <div class="sk-stat"></div>
-                    <div class="sk-stat"></div>
-                    <div class="sk-stat"></div>
-                </div>
-                <div class="sk-label"></div>
-                <div class="sk-card"></div>
-                <div class="sk-card"></div>
-                <div class="sk-card"></div>
+            <div class="menu-skeleton" aria-busy="true" aria-label="Loading today's work">
+                <div class="sk-line sk-title"></div>
+                <div class="sk-line"></div>
+                <div class="sk-line"></div>
+                <div class="sk-line"></div>
             </div>
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))
         {
-            <div class="menu-state-card error">@ErrorMessage</div>
+            <div class="menu-state error" role="alert">@ErrorMessage</div>
         }
         else
         {
-            <div class="summary-strip">
-                <div class="summary-item">
-                    <div class="summary-value">@Facilities.Count(f => f.IsAssigned)</div>
-                    <div class="summary-key">Assigned</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">@Facilities.Count(f => f.IsAvailable)</div>
-                    <div class="summary-key">Open</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">@Facilities.Count(f => !f.IsAssigned)</div>
-                    <div class="summary-key">Locked</div>
-                </div>
-            </div>
+            <h1 class="menu-title">Today's work</h1>
 
-            @if (OpenFacilities.Any())
+            @if (Work.Attention.Count > 0)
             {
-                <div class="section-label">Your Collections</div>
-                @foreach (var facility in OpenFacilities)
+                <section class="menu-group attention" aria-labelledby="menu-attention">
+                    <h2 id="menu-attention" class="menu-group-title">Needs attention</h2>
+                    <ul class="menu-list">
+                        @foreach (var item in Work.Attention)
+                        {
+                            <li>
+                                <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/records", forceLoad: false)'>
+                                    <span class="menu-row-main">
+                                        <span class="menu-row-name">@(item.Count > 1 ? $"{item.Count} " : "")@item.Text</span>
+                                    </span>
+                                    <span class="menu-row-chevron" aria-hidden="true">›</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <section class="menu-group" aria-labelledby="menu-available">
+                <h2 id="menu-available" class="menu-group-title">Available now</h2>
+                @if (Work.Available.Count == 0)
                 {
-                    <div class="menu-card" role="button" tabindex="0" @onclick="() => OpenFacility(facility)">
-                        <div class="card-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="22"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
-                        <div class="card-info">
-                            <div class="card-title">@facility.Name</div>
-                            <div class="card-sub">@facility.Description</div>
-                        </div>
-                        <div class="card-status open">Open</div>
-                        <div class="card-arrow">›</div>
-                    </div>
+                    <div class="menu-state">Nothing is ready to collect right now.</div>
                 }
-            }
-
-            @if (ComingSoonFacilities.Any())
-            {
-                <div class="group-spacer"></div>
-                <div class="section-label">Assigned · Coming Soon</div>
-                @foreach (var facility in ComingSoonFacilities)
+                else
                 {
-                    <div class="menu-card soon">
-                        <div class="card-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="22"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
-                        <div class="card-info">
-                            <div class="card-title">@facility.Name</div>
-                            <div class="card-sub">@facility.Description</div>
-                        </div>
-                        <div class="card-status soon">Soon</div>
-                    </div>
+                    <ul class="menu-list">
+                        @foreach (var item in Work.Available)
+                        {
+                            <li>
+                                @if (item.CanOpen)
+                                {
+                                    <button class="menu-row" type="button" @onclick="() => Open(item)">
+                                        <span class="menu-row-main">
+                                            <span class="menu-row-name">@item.Name</span>
+                                            <span class="menu-row-status ready">@item.Status</span>
+                                        </span>
+                                        <span class="menu-row-chevron" aria-hidden="true">›</span>
+                                    </button>
+                                }
+                                else
+                                {
+                                    @* Ready, but collected from inside another screen (for example WCF from a market stall). *@
+                                    <div class="menu-row plain">
+                                        <span class="menu-row-main">
+                                            <span class="menu-row-name">@item.Name</span>
+                                            <span class="menu-row-status ready">@item.Status · collected from the stall sheet</span>
+                                        </span>
+                                    </div>
+                                }
+                            </li>
+                        }
+                    </ul>
                 }
+            </section>
+
+            @if (Work.AssignedUnavailable.Count > 0)
+            {
+                @* Assignment alone is never collectibility: these are plain status rows with no action. *@
+                <section class="menu-group" aria-labelledby="menu-unavailable">
+                    <h2 id="menu-unavailable" class="menu-group-title">Assigned, not available</h2>
+                    <ul class="menu-list">
+                        @foreach (var item in Work.AssignedUnavailable)
+                        {
+                            <li>
+                                <div class="menu-row plain">
+                                    <span class="menu-row-main">
+                                        <span class="menu-row-name">@item.Name</span>
+                                        <span class="menu-row-status">@item.Status</span>
+                                    </span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </section>
             }
 
-            @if (LockedFacilities.Any())
+            @if (OperationsUnavailable)
             {
-                <div class="group-spacer"></div>
-                <div class="section-label">Locked · Not Assigned</div>
-                @foreach (var facility in LockedFacilities)
-                {
-                    <div class="menu-card locked" aria-disabled="true">
-                        <div class="card-icon locked-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="22"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
-                        <div class="card-info">
-                            <div class="card-title">@facility.Name</div>
-                            <div class="card-sub">Not assigned to your account</div>
-                        </div>
-                        <div class="card-lock" aria-label="Locked">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                        </div>
-                    </div>
-                }
+                <div class="menu-state" role="status">Some assigned operations could not be checked. Retry while online.</div>
             }
 
-            @if (AssignedOperations.Any())
+            @if (!Facilities.Any(f => f.IsAssigned) && Operations.Count == 0 && !OperationsUnavailable)
             {
-                @* Server-derived capability per assigned non-facility operation. Assignment alone is never
-                   collectibility: a card is tappable only when the server reports it Ready, and then opens that operation's own
-                   collection page (which revalidates and never lets the collector define a rate or instrument). *@
-                <div class="group-spacer"></div>
-                <div class="section-label">Assigned Operations</div>
-                @foreach (var op in AssignedOperations)
-                {
-                    <div class="menu-card @(op.IsCollectible ? "" : "soon")"
-                         role="@(OpensPage(op) ? "button" : null)" tabindex="@(OpensPage(op) ? 0 : null)"
-                         @onclick="() => OpenOperation(op)" @onkeydown="e => OperationKey(op, e)">
-                        <div class="card-info">
-                            <div class="card-title">@op.Name</div>
-                            <div class="card-sub">@OperationStatusText(op)</div>
-                        </div>
-                        <div class="card-status @(op.IsCollectible ? "open" : "soon")">@(op.IsCollectible ? "Ready" : "Not yet")</div>
-                        @if (OpensPage(op)) { <div class="card-arrow">›</div> }
-                    </div>
-                }
-            }
-            else if (OperationsUnavailable)
-            {
-                <div class="group-spacer"></div>
-                <div class="menu-state-card">Assigned operations could not be checked. Retry while online.</div>
-            }
-
-            @if (!Facilities.Any() && !AssignedOperations.Any())
-            {
-                <div class="menu-state-card">
-                    No collection facility is configured for this account yet.
-                </div>
+                <div class="menu-state">Nothing is assigned to this account yet. Ask the office to assign your collections.</div>
             }
         }
-    </div>
+    </main>
 
     <BottomNav ActiveTab="menu" />
 
     @if (Update is not null && Update.Mandatory)
     {
-        <div class="update-overlay">
+        <div class="update-overlay" role="alertdialog" aria-modal="true" aria-labelledby="update-title">
             <div class="update-modal">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                <div class="update-modal-title">Update required</div>
+                <div id="update-title" class="update-modal-title">Update required</div>
                 <div class="update-modal-sub">This version is no longer supported.@(string.IsNullOrWhiteSpace(Update.LatestVersion) ? " Please update to continue using StallTrack." : $" Please install version {Update.LatestVersion} to continue using StallTrack.")</div>
                 @if (!string.IsNullOrWhiteSpace(Update.Notes))
                 {
                     <div class="update-modal-notes">@Update.Notes</div>
                 }
-                <button class="update-modal-btn" @onclick="DownloadUpdate">Download update</button>
+                <button class="update-modal-btn" type="button" @onclick="DownloadUpdate">Download update</button>
             </div>
         </div>
     }
@@ -216,17 +156,13 @@
     IReadOnlyList<MobileFacilityMenuItemDto> Facilities =>
         Session.Menu?.Facilities ?? Array.Empty<MobileFacilityMenuItemDto>();
 
-    // Assigned and the screen is built → tappable.
-    IEnumerable<MobileFacilityMenuItemDto> OpenFacilities =>
-        Facilities.Where(f => f.IsAvailable);
+    // Non-facility operations (WCF, Landing/Berthing, …) come from GET api/Mobile/operations/capabilities. A failed read
+    // is shown as "could not be checked", never as "none assigned"; it does not block the facility menu.
+    IReadOnlyList<CollectorOperationCapabilityDto> Operations = Array.Empty<CollectorOperationCapabilityDto>();
+    IReadOnlyList<EEMOCantilanSDS.Mobile.Models.PendingOperation> Queue = Array.Empty<EEMOCantilanSDS.Mobile.Models.PendingOperation>();
+    bool OperationsUnavailable;
 
-    // Assigned but the mobile screen isn't shipped yet.
-    IEnumerable<MobileFacilityMenuItemDto> ComingSoonFacilities =>
-        Facilities.Where(f => f.IsAssigned && !f.IsAvailable);
-
-    // Not assigned to this collector → locked.
-    IEnumerable<MobileFacilityMenuItemDto> LockedFacilities =>
-        Facilities.Where(f => !f.IsAssigned);
+    TodaysWork Work => TodaysWorkBuilder.Build(Facilities, Operations, Queue);
 
     protected override async Task OnInitializedAsync()
     {
@@ -241,6 +177,7 @@
             }
 
             await LoadOperationCapabilitiesAsync();
+            Queue = await Sync.GetAllAsync();
 
             // Best-effort update check (once per session; internally fail-open → no prompt on any failure).
             Update = await Session.GetUpdateInfoAsync();
@@ -255,18 +192,13 @@
         }
     }
 
-    // Non-facility operations (WCF, Landing/Berthing, …) come from GET api/Mobile/operations/capabilities. A failed read
-    // is shown as "could not be checked", never as "none assigned"; it does not block the facility menu.
-    IReadOnlyList<CollectorOperationCapabilityDto> AssignedOperations = Array.Empty<CollectorOperationCapabilityDto>();
-    bool OperationsUnavailable;
-
     async Task LoadOperationCapabilitiesAsync()
     {
         try
         {
             var result = await MobileApi.GetOperationCapabilitiesAsync();
             OperationsUnavailable = !result.IsSuccess || result.Value is null;
-            AssignedOperations = OperationsUnavailable
+            Operations = OperationsUnavailable
                 ? Array.Empty<CollectorOperationCapabilityDto>()
                 : result.Value!.Operations.Where(x => x.IsAssigned).ToList();
         }
@@ -276,34 +208,20 @@
         }
     }
 
-    // Only a collectible governed service has its own page; WCF is collected from the market sheet (its Cash Ticket flow).
-    static bool OpensPage(CollectorOperationCapabilityDto op) =>
-        op.IsCollectible && global::EEMOCantilanSDS.Application.Common.Revenue.GovernedServiceCatalog.Find(op.OperationCode) is not null;
-
-    void OperationKey(CollectorOperationCapabilityDto op, KeyboardEventArgs e)
+    void Open(WorkItem item)
     {
-        if (e.Key is "Enter" or " ")
-            OpenOperation(op);
+        if (!item.CanOpen)
+            return;
+
+        if (item.Target == WorkTarget.Operation && item.OperationCode is not null)
+            Navigation.NavigateTo($"/operation/{Uri.EscapeDataString(item.OperationCode)}", forceLoad: false);
+        else if (item.Target == WorkTarget.Facility)
+        {
+            var facility = Facilities.FirstOrDefault(f => f.Code.ToString() == item.FacilityCode);
+            if (facility is not null)
+                OpenFacility(facility);
+        }
     }
-
-    void OpenOperation(CollectorOperationCapabilityDto op)
-    {
-        if (OpensPage(op))
-            Navigation.NavigateTo($"/operation/{Uri.EscapeDataString(op.OperationCode)}", forceLoad: false);
-    }
-
-    static string OperationStatusText(CollectorOperationCapabilityDto op) => op.Status switch
-    {
-        CollectorOperationCapabilityStatus.Ready when op.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf
-            => "Collect from the market sheet with an assigned Cash Ticket",
-        CollectorOperationCapabilityStatus.Ready => "Tap to record a collection with an assigned document",
-        CollectorOperationCapabilityStatus.Unsupported => "Not available on Collector Mobile yet",
-        CollectorOperationCapabilityStatus.AssignedButInactive => "Authorization not active — contact the office",
-        CollectorOperationCapabilityStatus.PendingCutover => "Awaiting office cutover",
-        CollectorOperationCapabilityStatus.NeedsPolicy => "No approved policy in effect today",
-        CollectorOperationCapabilityStatus.NeedsDocument => "No assigned accountable form — request from the office",
-        _ => "Not collectible"
-    };
 
     async Task DownloadUpdate()
     {
@@ -355,23 +273,4 @@
         }
     }
 
-    static string GetFacilityIcon(FacilityCode code) => code switch
-    {
-        FacilityCode.NPM or FacilityCode.TPM =>
-            "<svg viewBox=\"0 0 24 24\"><path d=\"M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z\" /><polyline points=\"9 22 9 12 15 12 15 22\" /></svg>",
-        FacilityCode.TCC =>
-            "<svg viewBox=\"0 0 24 24\"><rect x=\"2\" y=\"7\" width=\"20\" height=\"14\" rx=\"2\" /><path d=\"M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2\" /></svg>",
-        FacilityCode.NCC =>
-            "<svg viewBox=\"0 0 24 24\"><path d=\"M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18\" /></svg>",
-        FacilityCode.BBQ =>
-            "<svg viewBox=\"0 0 24 24\"><path d=\"M12 2c1.5 2 1.5 3.5 0 5.5S10.5 11 12 13\" /><path d=\"M5 22l4-9\" /><path d=\"M19 22l-4-9\" /><path d=\"M7 13h10\" /></svg>",
-        FacilityCode.ICE =>
-            "<svg viewBox=\"0 0 24 24\"><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"22\" /><line x1=\"3\" y1=\"7\" x2=\"21\" y2=\"17\" /><line x1=\"21\" y1=\"7\" x2=\"3\" y2=\"17\" /></svg>",
-        FacilityCode.SLH =>
-            "<svg viewBox=\"0 0 24 24\"><path d=\"M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z\" /></svg>",
-        FacilityCode.TRM =>
-            "<svg viewBox=\"0 0 24 24\"><rect x=\"1\" y=\"3\" width=\"15\" height=\"13\" rx=\"1\" /><path d=\"M16 8h4l3 3v5h-7V8z\" /><circle cx=\"5.5\" cy=\"18.5\" r=\"2.5\" /><circle cx=\"18.5\" cy=\"18.5\" r=\"2.5\" /></svg>",
-        _ =>
-            "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"10\" /><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\" /><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\" /></svg>"
-    };
 }
