@@ -607,7 +607,11 @@
 
                         <div class="misc-wcf-block">
                             <div class="misc-period-label">Water Consumption · Cash Ticket</div>
-                            @if (WcfLoadFailed)
+                            @if (WcfCapability is { Status: CollectorOperationCapabilityStatus.NotAssigned })
+                            {
+                                <div class="misc-empty">@WcfCapabilityMessage</div>
+                            }
+                            else if (WcfLoadFailed)
                             {
                                 <div class="misc-empty">Water collection eligibility could not be verified. Retry while online.</div>
                             }
@@ -631,6 +635,12 @@
                                 @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
                                 {
                                     <div class="misc-empty">Canonical WCF settlement is not active for this source. Do not issue a Cash Ticket through the canonical workflow.</div>
+                                }
+                                else if (WcfCapability is not { IsCollectible: true })
+                                {
+                                    @* The server's capability answer decides whether this collector may issue a WCF Cash Ticket
+                                       today; the obligation above is shown for reference only. *@
+                                    <div class="misc-empty">@WcfCapabilityMessage</div>
                                 }
                                 else if (Sync.HasStorageFault)
                                 {
@@ -900,7 +910,24 @@
         ? AvailableWcfTickets.FirstOrDefault(x => x.DocumentId == id)
         : null;
 
+    // Server-derived: assignment, authorization, policy, custody and settlement authority for the WCF operation.
+    // Null means the capability could not be read (never "assume collectible").
+    private CollectorOperationCapabilityDto? WcfCapability;
+
+    private string WcfCapabilityMessage => WcfCapability?.Status switch
+    {
+        CollectorOperationCapabilityStatus.NotAssigned => "Water collection is not assigned to you. Ask the office to assign it.",
+        CollectorOperationCapabilityStatus.Unsupported => "Water collection is not available on Collector Mobile yet.",
+        CollectorOperationCapabilityStatus.AssignedButInactive => "Your Water collection authorization is not active. Contact the office.",
+        CollectorOperationCapabilityStatus.PendingCutover => "Water Cash Ticket collection is not active yet. The office has not switched this source over.",
+        CollectorOperationCapabilityStatus.NeedsPolicy => "No approved Water collection policy is in effect today.",
+        CollectorOperationCapabilityStatus.NeedsDocument => "You hold no assigned Cash Ticket. Request Cash Tickets from the office.",
+        CollectorOperationCapabilityStatus.Ready => string.Empty,
+        _ => "Water collection eligibility could not be verified. Retry while online."
+    };
+
     private bool CanCaptureWcf => SelectedWcfQuote is { CanCollectCanonical: true, OutstandingAmount: > 0m }
+        && WcfCapability is { IsCollectible: true }
         && SelectedWcfTicket is not null
         && WcfReceivedAmount > 0m
         && WcfReceivedAmount <= SelectedWcfQuote.OutstandingAmount
@@ -1122,6 +1149,10 @@
                 : new(StringComparer.OrdinalIgnoreCase);
             var wcf = await MobileApi.GetWcfObligationsAsync(SelectedYear, SelectedMonth);
             var tickets = await MobileApi.GetAvailableCashTicketsAsync();
+            var capabilities = await MobileApi.GetOperationCapabilitiesAsync();
+            WcfCapability = capabilities.IsSuccess
+                ? capabilities.Value?.Operations.FirstOrDefault(x => x.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf)
+                : null;
             WcfLoadFailed = !wcf.IsSuccess || wcf.Value is null || !tickets.IsSuccess || tickets.Value is null;
             WcfObligations = wcf.IsSuccess && wcf.Value is not null
                 ? wcf.Value.Where(x => x.OutstandingAmount > 0m).ToList()
@@ -1148,6 +1179,7 @@
             UtilityLoadFailed = true;
             UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
             WcfLoadFailed = true;
+            WcfCapability = null;
             WcfObligations = Array.Empty<WcfObligationQuoteDto>();
             WcfTickets = Array.Empty<CashTicketDocumentDto>();
         }
