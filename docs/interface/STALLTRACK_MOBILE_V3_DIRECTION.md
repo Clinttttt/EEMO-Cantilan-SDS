@@ -18,4 +18,6 @@ The Collector Mobile is a client of server-owned rules. It shares the V3 identit
 - Offline: a physically issued OR/CT is queued first and never returns to the available list; failed and needs-review items stay visible.
 
 ## Status of this direction
-Implemented in this pass: Transportation vehicle-class Cash Ticket, approved-animal Slaughterhouse selection, WCF without meter or rate lines, tenant-branded Profile, neutral connection errors. Not yet implemented: the light shell/tokens, "Today's Work" Menu, Login restyle, Records and Reports redesign, collector position (blocked by a backend gap). See the functional audit and the backend gaps.
+Implemented: `--mobile-*` tokens, light compact header (server business date), quiet bottom nav, light Login and splash, task-first Menu (Available now / Assigned, not available / Needs attention), Reports Position tab, Records with canonical operation collections, Profile with assigned operations and sync status, Transportation vehicle-class CT, approved-animal Slaughterhouse, WCF without meter or rate lines.
+
+Not done: a per-screen hierarchy redesign of NPM, the monthly family and TPM (they take the new tokens, but their layouts are unchanged), removal of the legacy palette variables, and any Android runtime or visual review. See the functional audit and backend gaps.

@@ -227,6 +227,26 @@ public class PendingOperationStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task A_WCF_Cash_Ticket_is_never_available_a_second_time_and_the_wire_carries_no_meter_or_rate_facts()
+    {
+        var store = new PendingOperationStore(_dir);
+        var first = IssuedWcfOp();
+        await store.AddIssuedDocumentOperationAsync(first);
+
+        var reuse = IssuedWcfOp();
+        reuse.AccountableDocumentId = first.AccountableDocumentId;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(reuse));
+        Assert.Single(await store.GetAllAsync());
+
+        // The queued facts are the bill, the server water-source version, the amount received and the ticket: the wire type has
+        // no meter reading, cubic-meter or rate member to carry.
+        var members = typeof(SyncOfflineOperationDto).GetProperties().Select(p => p.Name).ToList();
+        Assert.DoesNotContain(members, m => m.Contains("Meter", StringComparison.OrdinalIgnoreCase)
+            || m.Contains("Cubic", StringComparison.OrdinalIgnoreCase) || m.Contains("Reading", StringComparison.OrdinalIgnoreCase)
+            || m == "Rate" || m.Contains("PerCubic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Governed_issue_without_an_operation_or_a_second_use_of_the_same_document_is_refused()
     {
         var store = new PendingOperationStore(_dir);
