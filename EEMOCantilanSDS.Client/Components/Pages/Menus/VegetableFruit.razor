@@ -1,0 +1,39 @@
+@page "/operations/vegetable-fruit"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+
+<PageTitle>StallTrack — Vegetable / Fruits</PageTitle>
+
+@* Vegetable / Fruit space rental is one Space Rental line with two receipt modes (IA-046): a whole payment is issued an
+   Official Receipt and a daily transaction a Cash Ticket. The classification API returns only the default policy, so
+   the contextual pair is stated from the ruling rather than from one policy row that would show a single instrument.
+   StallTrack has no source or writer for this line yet. The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <WorkspaceHeader Parent="Operations" Title="Vegetable / Fruits" Subtitle="Space rental">
+        <Meta>
+            <InstrumentChip Instrument="OR" ShowName="true" Context="Whole payment" />
+            <InstrumentChip Instrument="CT" ShowName="true" Context="Daily transaction" />
+        </Meta>
+    </WorkspaceHeader>
+
+    <UnrecordedOperation Name="Vegetable / Fruit"
+                         Detail="Whole payments and daily transactions will appear here once a space-rental source and its collection are activated."
+                         Assignable="true">
+        <Policy>
+            <aside class="v3-panel" aria-labelledby="vf-policy-title">
+                <header class="v3-panel-header">
+                    <h2 id="vf-policy-title">Receipt by mode</h2>
+                </header>
+                <div class="v3-panel-body">
+                    <dl class="v3-facts">
+                        <div><dt>Whole payment</dt><dd>Official Receipt</dd></div>
+                        <div><dt>Daily transaction</dt><dd>Cash Ticket</dd></div>
+                        <div><dt>Ruling</dt><dd>IA-046</dd></div>
+                    </dl>
+                    <p class="v3-panel-note">The mode of the transaction decides the receipt; a collector's preference never does.</p>
+                </div>
+            </aside>
+        </Policy>
+    </UnrecordedOperation>
+</div>
