@@ -1,0 +1,12 @@
+@page "/operations/fiesta-araw/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+
+<PageTitle>StallTrack — Fiesta | Araw Report</PageTitle>
+
+@* Fiesta | Araw report: the standard operation-report shell with an obligation body (ObligationOperationReport). The layout owns the
+   <main> landmark. *@
+<ObligationOperationReport Kind="ObligationKind.FiestaArawLotRental" Name="Fiesta | Araw" ParentHref="/operations/fiesta-araw" RowKey="FIESTA_ARAW_LOT_RENTAL" Classification="Fiesta / Araw lot rental"
+                           SubjectNoun="Lot" IdPrefix="far" ShowEvent="true" Basis="A temporary event lot at the amount the office approved. The event date is not a billing date." />

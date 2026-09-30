@@ -23,6 +23,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
     private readonly Mock<IOfficialReportsApiClient> _official = new();
     private readonly Mock<IGovernedServicesApiClient> _governed = new();
     private readonly Mock<IReportsApiClient> _reports = new();
+    private readonly Mock<IObligationsApiClient> _obligations = new();
 
     public OperationReportsAndArrearsTests()
     {
@@ -36,6 +37,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         Services.AddSingleton(_official.Object);
         Services.AddSingleton(_governed.Object);
         Services.AddSingleton(_reports.Object);
+        Services.AddSingleton(_obligations.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -158,7 +160,33 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         }, Timeout);
     }
 
+    [Fact]
+    public void TheFishMeatVendorFeeReport_IsAnOfficialReceiptObligation_SeparateFromRentAndWeighing()
+    {
+        _obligations.Setup(x => x.GetAccountsAsync(ObligationKind.FishMeatVendorFee))
+            .ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success(
+            [
+                new(Guid.NewGuid(), ObligationKind.FishMeatVendorFee, "Fish / Meat Vendor Fee", Guid.NewGuid(), "Lito Tan", Guid.NewGuid(), "F-3",
+                    "Fish stall F-3", null, null, new DateOnly(2026, 1, 1), null, 300m, new DateOnly(2026, 1, 1), 2_700m, 2_100m, 600m),
+            ]));
+
+        var cut = RenderComponent<FishMeatVendorFeesReport>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Official Receipt", cut.Find(".lh-meta").TextContent);
+            var position = cut.Find("section[aria-labelledby='fmvr-position']").TextContent;
+            Assert.Contains("₱600.00", position);              // the account's server outstanding, not a recomputation
+            Assert.Contains("Monthly obligation", cut.Find("section[aria-labelledby='fmvr-accounts'] thead").TextContent);
+            Assert.DoesNotContain("Daily Fee", cut.Markup);
+            Assert.Contains("separate from NPM stall rent", cut.Markup);
+        }, Timeout);
+    }
+
     [Theory]
+    [InlineData(typeof(FishMeatVendorFeesReport), "/operations/fish-meat-vendor-fees/report")]
+    [InlineData(typeof(KanmanggayReport), "/operations/kanmanggay/report")]
+    [InlineData(typeof(FiestaArawReport), "/operations/fiesta-araw/report")]
     [InlineData(typeof(Arrears), "/operations/arrears")]
     [InlineData(typeof(ArrearsReport), "/operations/arrears/report")]
     [InlineData(typeof(TransportationReport), "/operations/transportation/report")]

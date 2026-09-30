@@ -1,0 +1,220 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient ObligationsApi
+@inject IJSRuntime JS
+
+@* The standard operation report for an OBLIGATION-BASED operation (Fish / Meat Vendor Fee, Kanmanggay, Fiesta / Araw lot
+   rental): the ECF report's shell with an obligation body — the official Monthly Income row for the line, the obligation
+   position and the account register. Per-account assessed, settled and outstanding are the server's own to-date figures;
+   the position adds those rows up exactly as the ECF report does. Nothing is billed, adjusted or created here. *@
+<div class="v3-page">
+    <div class="no-print">
+        <WorkspaceHeader Parent="@Name" ParentHref="@ParentHref" Title="@($"{Name} Report")">
+            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+            <Actions>
+                <label class="v3-period">
+                    <span>Fiscal year</span>
+                    <select class="v3-select" aria-label="Fiscal year" @bind="_year">
+                        @for (var year = PhilippineTime.Today.Year; year >= PhilippineTime.Today.Year - 2; year--)
+                        {
+                            <option value="@year">@year</option>
+                        }
+                    </select>
+                </label>
+                <div class="v3-btn-group" role="group" aria-label="Report actions">
+                    <button class="v3-btn" type="button" @onclick="PrintAsync">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
+                        Print
+                    </button>
+                    @if (_accounts is not null)
+                    {
+                        <a class="v3-btn" href="@ExportHref" download="@($"{IdPrefix}-report-{PhilippineTime.Today:yyyy-MM-dd}.csv")">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            Export CSV
+                        </a>
+                    }
+                </div>
+            </Actions>
+        </WorkspaceHeader>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row no-print" role="alert">
+            <span>@_error</span>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <article class="v3-report-sheet print-report-sheet" aria-labelledby="@($"{IdPrefix}-title")" aria-busy="@(_loading ? "true" : "false")">
+        <ReportLetterhead Title="@($"{Name} Report")" Period="@($"Fiscal year {_year} · position as of {PhilippineTime.Today:MMMM d, yyyy}")">
+            <Facts>
+                <div><dt>Classification</dt><dd>@Classification</dd></div>
+                <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
+            </Facts>
+        </ReportLetterhead>
+        <h2 id="@($"{IdPrefix}-title")" class="v3-sr-only">@Name report</h2>
+
+        <OperationMonthlyIncome Classification="@Classification" RowKey="@RowKey" Year="_year" HeadingId="@($"{IdPrefix}-official")" />
+
+        <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-position")">
+            <h3 id="@($"{IdPrefix}-position")">Obligation position — to date</h3>
+            <div class="v3-table-wrap">
+                <table class="v3-report-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="v3-num">Accounts</th>
+                            <th scope="col" class="v3-num">With balance</th>
+                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="v3-num">@Figure(_accounts?.Count.ToString(CultureInfo.InvariantCulture))</td>
+                            <td class="v3-num">@Figure(_accounts?.Count(a => a.OutstandingToDate > 0m).ToString(CultureInfo.InvariantCulture))</td>
+                            <td class="v3-num">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.AssessedToDate)))</td>
+                            <td class="v3-num">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.CollectedToDate)))</td>
+                            <td class="v3-num v3-strong">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.OutstandingToDate)))</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-accounts")">
+            <h3 id="@($"{IdPrefix}-accounts")">Accounts</h3>
+            <div class="v3-table-wrap">
+                <table class="v3-report-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Payor</th>
+                            <th scope="col">@SubjectNoun</th>
+                            @if (ShowEvent)
+                            {
+                                <th scope="col">Event</th>
+                            }
+                            <th scope="col" class="v3-num">@(ShowEvent ? "Approved amount" : "Monthly obligation")</th>
+                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_accounts is null || _accounts.Count == 0)
+                        {
+                            <tr><td colspan="@(ShowEvent ? 8 : 7)" class="v3-report-note">@(_loading ? "Loading accounts…" : _accounts is null ? "Accounts are unavailable." : $"No {Name} accounts are registered.")</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var account in _accounts.OrderBy(a => a.PayerName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                            {
+                                <tr>
+                                    <td>@(account.PayerName ?? "—")</td>
+                                    <td>@account.SubjectLabel@(string.IsNullOrWhiteSpace(account.StallNo) ? "" : $" · Stall {account.StallNo}")</td>
+                                    @if (ShowEvent)
+                                    {
+                                        <td>@(account.Event?.ToString() ?? "—")@(account.EventDate is { } d ? $" · {d:MMM d, yyyy}" : "")</td>
+                                    }
+                                    <td class="v3-num">@(account.CurrentAmount is { } c ? Money(c) : "—")</td>
+                                    <td class="v3-num">@Money(account.AssessedToDate)</td>
+                                    <td class="v3-num">@Money(account.CollectedToDate)</td>
+                                    <td class="v3-num v3-strong">@Money(account.OutstandingToDate)</td>
+                                    <td>@(account.ActiveTo is { } to && to < PhilippineTime.Today ? $"Closed {to:MMM d, yyyy}" : "Active")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="v3-report-note">Assessed, settled and outstanding are the server's own to-date figures per account. @Basis</p>
+        </section>
+    </article>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ObligationKind Kind { get; set; }
+
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string ParentHref { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string RowKey { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Classification { get; set; } = string.Empty;
+
+    [Parameter] public string SubjectNoun { get; set; } = "Subject";
+
+    /// <summary>Event lot rental states the event and its approved amount rather than a monthly obligation.</summary>
+    [Parameter] public bool ShowEvent { get; set; }
+
+    [Parameter] public string? Basis { get; set; }
+
+    [Parameter, EditorRequired] public string IdPrefix { get; set; } = "obr";
+
+    private int _year = PhilippineTime.Today.Year;
+    private IReadOnlyList<ObligationAccountDto>? _accounts;
+    private string? _error;
+    private bool _loading;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await ObligationsApi.GetAccountsAsync(Kind);
+            if (result is { IsSuccess: true, Value: { } rows }) _accounts = rows;
+            else { _accounts = null; _error = $"The {Name} accounts could not be loaded."; }
+        }
+        catch
+        {
+            _accounts = null;
+            _error = $"The {Name} accounts could not be loaded.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
+
+    private string ExportHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(BuildCsv());
+
+    private string BuildCsv()
+    {
+        var rows = new List<string>
+        {
+            Csv("Report", $"{Name} Report"),
+            Csv("Office", Branding.OfficeName),
+            Csv("Municipality", $"{Branding.Municipality}, {Branding.Province}"),
+            Csv("Classification", Classification),
+            Csv("Instrument", "Official Receipt"),
+            Csv("Position as of", PhilippineTime.Today.ToString("yyyy-MM-dd")),
+            string.Empty,
+            Csv("Payor", SubjectNoun, "Event", ShowEvent ? "Approved amount" : "Monthly obligation", "Assessed", "Settled", "Outstanding"),
+        };
+        rows.AddRange((_accounts ?? []).Select(a => Csv(
+            a.PayerName ?? "", a.SubjectLabel, a.Event?.ToString() ?? "",
+            a.CurrentAmount?.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
+            a.AssessedToDate.ToString("0.00", CultureInfo.InvariantCulture),
+            a.CollectedToDate.ToString("0.00", CultureInfo.InvariantCulture),
+            a.OutstandingToDate.ToString("0.00", CultureInfo.InvariantCulture))));
+        return string.Join("\r\n", rows);
+    }
+
+    private static string Csv(params string?[] values) =>
+        string.Join(",", values.Select(v => $"\"{(v ?? string.Empty).Replace("\"", "\"\"")}\""));
+
+    private static string Figure(string? value) => value ?? "—";
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}
