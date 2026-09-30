@@ -90,7 +90,7 @@
                                 <span class="v3-strong">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</span>
                                 <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
                             </td>
-                            <td>@Period(quote.BillingYear, quote.BillingMonth)<span class="v3-block">@quote.Consumption.ToString("N2") m³ × PHP @quote.RatePerCubicMeter.ToString("N2")</span></td>
+                            <td>@Period(quote.BillingYear, quote.BillingMonth)</td>
                             <td class="v3-num">@Money(quote.AssessedAmount)</td>
                             <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                             <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
@@ -147,7 +147,7 @@
                                             <li>
                                                 <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
                                                 <span class="v3-muted">@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) + " obligation" : "WCF obligation")</span>
-                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Meter reading and rate recorded with this collection" : line.CalculationSnapshot)</span>
+                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Approved amount and period recorded with this collection" : line.CalculationSnapshot)</span>
                                             </li>
                                         }
                                     </ul>

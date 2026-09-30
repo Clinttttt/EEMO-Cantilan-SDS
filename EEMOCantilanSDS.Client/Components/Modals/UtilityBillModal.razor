@@ -70,8 +70,8 @@
                 {
                     @* Defensive: the caller should not offer this at all for such a stall. *@
                     <div class="ub-none">
-                        This stall is not billed for electricity or water. Add a utility charge on the stall's
-                        record first, then record a reading here.
+                        This stall has no electricity or water service recorded. Record the utility service on the stall's
+                        record first, then record the approved amount here.
                     </div>
                 }
                 @if (ShowElec || ShowWater)
@@ -616,6 +616,17 @@
                 // previous forward and repeats it as the current; the form does not repeat it back at the clerk.
                 ElecCur = s.Exists ? s.ElecCurrentReading : null;
                 WaterCur = s.Exists ? s.WaterCurrentReading : null;
+
+                // V3: a NEW month is recorded as a direct approved amount — meter readings are not required financial
+                // evidence. A bill already on record keeps the basis it was recorded with, so nothing is repriced. A per-kWh
+                // or per-cu.m rate carried forward from a reading-based month is not an approved amount, so it is not offered
+                // as one; the office enters the approved amount.
+                if (!s.Exists)
+                {
+                    if (!ElecDirect) ElecRate = 0m;
+                    if (!WaterDirect) WaterRate = 0m;
+                    ElecDirect = WaterDirect = true;
+                }
 
                 // Keep a utility visible when this month's bill already carries figures for it, even if the
                 // stall is no longer metered for it — otherwise that balance could not be seen or settled.

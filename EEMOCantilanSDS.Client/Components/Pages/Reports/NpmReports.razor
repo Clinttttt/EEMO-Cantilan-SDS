@@ -1924,10 +1924,10 @@ else
     //
     // Filtered the same way as the table, so "generate" means the payors the office is looking at.
     //
-    // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no reading entered has no
+    // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no utility bill recorded has no
     // charge, and a statement for it would state an amount due of nought - a false statement over the office's own
     // letterhead, and one a payor could reasonably wave at a later bill. The count of those left out is stated on the
-    // Generate Billing Statement button's tooltip, so the exclusion is a decision the office can see rather than a
+    // Statements of account button's tooltip, so the exclusion is a decision the office can see rather than a
     // payor going missing quietly.
     IReadOnlyList<UtilityRegisterRowDto> StatementRows =>
         (UtilityRegister?.Rows ?? Array.Empty<UtilityRegisterRowDto>())

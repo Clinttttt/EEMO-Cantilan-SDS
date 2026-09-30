@@ -75,11 +75,7 @@
                     <tr>
                         <th scope="col">Payer</th>
                         <th scope="col">Period</th>
-                        <th scope="col" class="v3-num">Previous</th>
-                        <th scope="col" class="v3-num">Current</th>
-                        <th scope="col" class="v3-num">Consumption</th>
-                        <th scope="col" class="v3-num">Rate</th>
-                        <th scope="col" class="v3-num">Assessed</th>
+                        <th scope="col" class="v3-num">Approved amount</th>
                         <th scope="col" class="v3-num">Previously settled</th>
                         <th scope="col" class="v3-num">Outstanding</th>
                     </tr>
@@ -93,10 +89,6 @@
                                 <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
                             </td>
                             <td>@Period(quote)</td>
-                            <td class="v3-num">@quote.PreviousReading.ToString("N2")</td>
-                            <td class="v3-num">@quote.CurrentReading.ToString("N2")</td>
-                            <td class="v3-num">@quote.Consumption.ToString("N2") m³</td>
-                            <td class="v3-num">₱@quote.RatePerCubicMeter.ToString("N2")</td>
                             <td class="v3-num">@Money(quote.AssessedAmount)</td>
                             <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                             <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
@@ -105,7 +97,7 @@
                     @if (!Filtered.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="9">
+                            <td class="v3-empty" colspan="5">
                                 @if (_loading) { <span role="status">Loading accounts…</span> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
                                 else if (_quotes.Count > 0) { <span>No accounts match these filters.</span> }
