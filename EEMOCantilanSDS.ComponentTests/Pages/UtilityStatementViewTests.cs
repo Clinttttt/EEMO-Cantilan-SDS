@@ -67,7 +67,7 @@ public class UtilityStatementViewTests : TestContext
     {
         var page = RenderUtilityView(rows);
 
-        page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement")).Click();
+        page.FindAll("button").First(b => b.TextContent.Contains("Statements of account")).Click();
 
         // Waited for, not assumed. Reading the markup straight after the click passed on a warm run and failed on a cold
         // one - the statements had not been rendered yet, so the assertions were racing the second click.
@@ -128,8 +128,8 @@ public class UtilityStatementViewTests : TestContext
         var page = RenderComponent<NpmReports>();
 
         // Into the utility view, then produce the statements — the same two clicks the office makes.
-        page.FindAll("button").First(b => b.TextContent.Contains("Utility", StringComparison.OrdinalIgnoreCase)).Click();
-        page.WaitForState(() => page.Markup.Contains("Generate Billing Statement"), TimeSpan.FromSeconds(5));
+        page.FindAll("button").First(b => b.TextContent.Contains("Related utilities", StringComparison.OrdinalIgnoreCase)).Click();
+        page.WaitForState(() => page.Markup.Contains("Statements of account"), TimeSpan.FromSeconds(5));
 
         return page;
     }
@@ -159,9 +159,12 @@ public class UtilityStatementViewTests : TestContext
         Assert.Contains("Statement of Utility Charges", markup);
         Assert.Contains(BilledPayor, markup);
 
-        // Consumption and the rate together, so a queried line can be checked without pulling the payor's own sheet.
-        Assert.Contains("120.00 kWh", markup);
-        Assert.Contains("8.00 cu.m", markup);
+        // V3: each utility states its recorded charge, never a meter reading, consumption or per-unit rate.
+        var summary = page.Find(".statement-summary-table").TextContent;
+        Assert.Contains("₱1,380.00", summary);
+        Assert.Contains("₱200.00", summary);
+        Assert.DoesNotContain("kWh", summary);
+        Assert.DoesNotContain("cu.m", summary);
 
         // Charges, paid and due — and a total that must agree with the register.
         Assert.Contains("1,580.00", markup);
@@ -171,26 +174,29 @@ public class UtilityStatementViewTests : TestContext
     }
 
     [Fact]
-    public void PerPAYORGivesEachOneItsOwnSheetWithTheReadings()
+    public void PerPAYORGivesEachOneItsOwnSheetWithTheApprovedCharges_AndNoMeterEvidence()
     {
         var page = RenderStatements(Billed());
         SwitchTo(page, "Per payor");
-        var markup = page.Markup;
+        var sheet = page.Find(".statement-sheet").TextContent;
 
-        Assert.Contains("Statement of Account", markup);
-        Assert.Contains(BilledPayor, markup);
+        Assert.Contains("Statement of Account", sheet);
+        Assert.Contains(BilledPayor, sheet);
 
-        // The readings themselves appear only here: 1,000 → 1,120 = 120 kWh at ₱11.50 = ₱1,380.00
-        Assert.Contains("1,000.00", markup);
-        Assert.Contains("1,120.00", markup);
-        Assert.Contains("120.00 kWh", markup);
-        Assert.Contains("11.50", markup);
-        Assert.Contains("1,380.00", markup);
+        // ECF and WCF are separate utility lines with their own instruments; the charge is the recorded amount.
+        Assert.Contains("Electricity Consumption Fee (ECF)", sheet);
+        Assert.Contains("Official Receipt", sheet);
+        Assert.Contains("Water Consumption Fee (WCF)", sheet);
+        Assert.Contains("Cash Ticket", sheet);
+        Assert.Contains("1,380.00", sheet);
+        Assert.Contains("200.00", sheet);
+        Assert.Contains("580.00", sheet);
 
-        Assert.Contains("40.00", markup);
-        Assert.Contains("48.00", markup);
-        Assert.Contains("200.00", markup);
-        Assert.Contains("580.00", markup);
+        // No reading, consumption or per-unit rate is a required financial input any more.
+        Assert.DoesNotContain("kWh", sheet);
+        Assert.DoesNotContain("cu.m", sheet);
+        Assert.DoesNotContain("Previous", sheet);
+        Assert.DoesNotContain("Consumption</", sheet);
     }
 
     [Fact]
@@ -239,7 +245,8 @@ public class UtilityStatementViewTests : TestContext
         // button's tooltip that a collector on a phone never sees.
         var note = Assert.Single(page.FindAll(".statement-excluded-note"));
         Assert.Contains("Not included: 1 payor", note.TextContent);
-        Assert.Contains("no meter reading", note.TextContent);
+        Assert.Contains("no utility bill recorded", note.TextContent);
+        Assert.DoesNotContain("reading", note.TextContent);
 
         // Still excluded when the sheets are produced, not just in the summary.
         SwitchTo(page, "Per payor");
@@ -260,10 +267,10 @@ public class UtilityStatementViewTests : TestContext
     {
         var page = RenderUtilityView(Billed(), Unbilled());
 
-        var generate = page.FindAll("button").First(b => b.TextContent.Contains("Generate Billing Statement"));
+        var generate = page.FindAll("button").First(b => b.TextContent.Contains("Statements of account"));
         var tooltip = generate.GetAttribute("title") ?? string.Empty;
 
-        Assert.Contains("1 on screen have no reading recorded and are left out", tooltip);
+        Assert.Contains("1 on screen have no utility bill recorded and are left out", tooltip);
 
         // The button still offers the payor who CAN be billed, rather than refusing the whole run.
         Assert.Contains("1", generate.TextContent);
@@ -276,7 +283,7 @@ public class UtilityStatementViewTests : TestContext
         var page = RenderStatements(Unbilled());
 
         Assert.Empty(page.FindAll(".statement-sheet"));
-        Assert.Contains("A statement can only be issued once a reading is entered", page.Markup);
+        Assert.Contains("A statement can only be issued once the bill is recorded", page.Markup);
     }
 
     [Fact]
