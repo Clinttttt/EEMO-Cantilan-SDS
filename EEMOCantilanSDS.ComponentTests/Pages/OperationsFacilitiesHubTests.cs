@@ -192,6 +192,14 @@ public sealed class OperationsFacilitiesHubTests : TestContext
         {
             Assert.Contains("Configured facilities couldn't be loaded.", cut.Find("[role='alert']").TextContent);
             Assert.Empty(cut.FindAll("[data-facility-code]"));
+
+            // Facility-backed lines are unknown, not absent, while the office's record can't be read.
+            Assert.Contains("Couldn't be loaded", Row(cut, "Tabo").TextContent);
+            Assert.DoesNotContain("Not configured for this office", cut.Markup);
+            Assert.Contains("Stall-rental facility lines couldn't be loaded.", cut.Markup);
+
+            // Lines that never depended on the facility record keep their workspaces.
+            Assert.Equal("/operations/market-fees", LinkOf(cut, "Market Fees"));
         }, Timeout);
 
         cut.Find("[role='alert'] button").Click();
@@ -239,10 +247,15 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            foreach (var unlinked in new[] { "Transfer Large Cattle", "Arrears", "Vegetable / Fruits", "Kanmanggay", "Fines" })
-                Assert.Empty(Row(cut, unlinked).QuerySelectorAll("a"));
+            Assert.Empty(Row(cut, "Arrears").QuerySelectorAll("a"));
+            Assert.Contains("No workspace yet", Row(cut, "Arrears").TextContent);
+            Assert.DoesNotContain("None in StallTrack", cut.Markup);
 
-            Assert.Contains("None in StallTrack", Row(cut, "Arrears").TextContent);
+            Assert.Equal("/operations/transfer-large-cattle", LinkOf(cut, "Transfer Large Cattle"));
+            Assert.Equal("/operations/vegetable-fruit", LinkOf(cut, "Vegetable / Fruits"));
+            Assert.Equal("/operations/kanmanggay", LinkOf(cut, "Kanmanggay"));
+            Assert.Equal("/operations/fiesta-araw", LinkOf(cut, "Lot Rental — Fiesta / Araw"));
+            Assert.Equal("/operations/fines", LinkOf(cut, "Fines"));
             Assert.Equal("/operations/market-fees", LinkOf(cut, "Market Fees"));
             Assert.Equal("/operations/ecf", LinkOf(cut, "Electricity Consumption Fees"));
             Assert.Equal("ECF", Row(cut, "Electricity Consumption Fees").QuerySelector(":scope > a .ops-row-code")?.TextContent);
@@ -274,6 +287,37 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             Assert.Contains(groups, g => g.StartsWith("Income from Market", StringComparison.Ordinal));
             Assert.Contains(groups, g => g.StartsWith("Rent Income — Stall Rental", StringComparison.Ordinal));
             Assert.Contains(groups, g => g.StartsWith("Space Rental", StringComparison.Ordinal));
+
+            // No authoritative content (no slaughterhouse or office-defined facility): no empty "Other operations" shell.
+            Assert.DoesNotContain(groups, g => g.StartsWith("Other operations", StringComparison.Ordinal));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void ConfiguredFacilityLine_NotInTheOfficeRecord_SaysNotConfigured()
+    {
+        Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.NPM, "Tenant Daily Market", "TDM") }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(Row(cut, "Tabo").QuerySelectorAll(":scope > a"));
+            Assert.Contains("Not configured for this office", Row(cut, "Tabo").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void OtherOperations_AppearsOnlyWithAConfiguredSlaughterhouseOrCustomFacility()
+    {
+        Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.SLH, "Tenant Slaughter Facility", "TSF") }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Other operations");
+            AssertFacilityLink(cut, FacilityCode.SLH, "/facility/slh");
         }, Timeout);
     }
 

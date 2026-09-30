@@ -49,7 +49,7 @@
                     <li class="ops-item" data-facility-code="@workspace?.Code">
                         @Line(ServiceLabel(service, workspace), service.Code ?? workspace?.Code.ToString(), service.Receipts, href,
                               workspace is not null ? $"{workspace.Name} ({workspace.Code})" : null,
-                              ExtraLinks(service, workspace))
+                              ExtraLinks(service, workspace), Absence(service))
                     </li>
                 }
             </ul>
@@ -58,7 +58,7 @@
         <section class="ops-group" aria-labelledby="rent-income-title" aria-busy="@(_loading ? "true" : "false")">
             <h2 id="rent-income-title" class="ops-group-title">
                 Rent Income — Stall Rental
-                @if (!_loading)
+                @if (!_loading && !_loadFailed)
                 {
                     <span class="ops-group-count">@LineCount(RentIncomeFacilities.Count() + 1)</span>
                 }
@@ -73,15 +73,21 @@
                         </li>
                     }
                 }
+                else if (_loadFailed)
+                {
+                    @* The rent-income facilities come from the office's own facility record; when it can't be read the
+                       lines are unknown, not absent. *@
+                    <li class="ops-item ops-item-note">Stall-rental facility lines couldn't be loaded.</li>
+                }
                 @foreach (var facility in RentIncomeFacilities)
                 {
                     <li class="ops-item" data-facility-code="@facility.Code">
                         @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", NoLinks)
+                              $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
                     </li>
                 }
                 <li class="ops-item">
-                    @Line("Arrears", null, NoReceipt, null, null, NoLinks)
+                    @Line("Arrears", null, NoReceipt, null, null, NoLinks, NoWorkspace)
                 </li>
             </ul>
         </section>
@@ -95,38 +101,39 @@
                 @foreach (var service in SpaceRentalServices)
                 {
                     <li class="ops-item">
-                        @Line(service.Name, null, service.Receipts, null, null, NoLinks)
+                        @Line(service.Name, null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace)
                     </li>
                 }
             </ul>
         </section>
     </div>
 
-    <div class="ops-sheet ops-sheet-other">
-        <section class="ops-group" aria-labelledby="other-operations-title">
-            <h2 id="other-operations-title" class="ops-group-title">Other operations</h2>
-            <ul class="ops-rows" aria-label="Slaughterhouse and other configured economic-enterprise workspaces">
-                @if (SlaughterhouseWorkspace is { } slaughterhouse)
-                {
-                    <li class="ops-item" data-facility-code="@slaughterhouse.Code">
-                        @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
-                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks)
-                    </li>
-                }
-                else if (!_loading && !_loadFailed)
-                {
-                    <li class="ops-item ops-item-note">The slaughterhouse workspace is not currently configured.</li>
-                }
-                @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
-                {
-                    <li class="ops-item" data-facility-code="@facility.Code">
-                        @Line(facility.Name, facility.Code.ToString(), NoReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", NoLinks)
-                    </li>
-                }
-            </ul>
-        </section>
-    </div>
+    @* Shown only with authoritative content: a configured slaughterhouse or office-defined facility. An empty shell
+       (or a "not configured" line) is not a Monthly Income row and is left out. *@
+    @if (SlaughterhouseWorkspace is not null || OtherEconomicEnterpriseWorkspaces.Any())
+    {
+        <div class="ops-sheet ops-sheet-other">
+            <section class="ops-group" aria-labelledby="other-operations-title">
+                <h2 id="other-operations-title" class="ops-group-title">Other operations</h2>
+                <ul class="ops-rows" aria-label="Slaughterhouse and other configured economic-enterprise workspaces">
+                    @if (SlaughterhouseWorkspace is { } slaughterhouse)
+                    {
+                        <li class="ops-item" data-facility-code="@slaughterhouse.Code">
+                            @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
+                                  $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks, NoWorkspace)
+                        </li>
+                    }
+                    @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
+                    {
+                        <li class="ops-item" data-facility-code="@facility.Code">
+                            @Line(facility.Name, facility.Code.ToString(), NoReceipt, FacilityHref(facility),
+                                  $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
+                        </li>
+                    }
+                </ul>
+            </section>
+        </div>
+    }
 </div>
 
 @code {
@@ -151,17 +158,17 @@
             Links: [new("Report", "/operations/landing-berthing/report")]),
         new("Transportation Fees", CashTicket, FacilityCode.TRM),
         new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
-        new("Transfer Large Cattle", NoReceipt),
+        new("Transfer Large Cattle", NoReceipt, Route: "/operations/transfer-large-cattle"),
         new("Ice Plant", NoReceipt, FacilityCode.ICE),
     ];
 
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =
     [
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
-        new("Vegetable / Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")]),
-        new("Kanmanggay", OfficialReceipt),
-        new("Lot Rental — Fiesta / Araw", OfficialReceipt),
-        new("Fines", OfficialReceipt),
+        new("Vegetable / Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit"),
+        new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay"),
+        new("Lot Rental — Fiesta / Araw", OfficialReceipt, Route: "/operations/fiesta-araw"),
+        new("Fines", OfficialReceipt, Route: "/operations/fines"),
     ];
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
@@ -236,8 +243,20 @@
     /// One register line: a single link when a workspace exists, plain text otherwise (no navigation affordance),
     /// plus a detail card revealed by CSS on hover or keyboard focus — no server round-trip per hover.
     /// </summary>
+    private const string NoWorkspace = "No workspace yet";
+
+    /// <summary>
+    /// Why a facility-backed line has no link: the office's facility record is still loading, couldn't be read, or
+    /// does not configure that facility. Only the last is a statement about the office.
+    /// </summary>
+    private string Absence(OperationService service) => service.WorkspaceCode is null
+        ? NoWorkspace
+        : _loading ? "Loading…"
+        : _loadFailed ? "Couldn't be loaded"
+        : "Not configured for this office";
+
     private RenderFragment Line(string name, string? facilityCode, IReadOnlyList<Receipt> receipts, string? href,
-        string? workspace, IReadOnlyList<QuickLink> links) => __builder =>
+        string? workspace, IReadOnlyList<QuickLink> links, string absence) => __builder =>
     {
         if (href is not null)
         {
@@ -248,7 +267,7 @@
         else
         {
             <div class="ops-row">
-                @LineCells(name, facilityCode, receipts, links, linked: false)
+                @LineCells(name, facilityCode, receipts, links, linked: false, absence)
             </div>
         }
 
@@ -262,7 +281,7 @@
                         <dd>@InstrumentName(receipt.Instrument)</dd>
                     }
                     <dt>Workspace</dt>
-                    <dd>@(href is null ? "None in StallTrack" : workspace ?? name)</dd>
+                    <dd>@(href is null ? absence : workspace ?? name)</dd>
                 </dl>
                 @if (href is not null)
                 {
@@ -279,7 +298,7 @@
     };
 
     private RenderFragment LineCells(string name, string? facilityCode, IReadOnlyList<Receipt> receipts,
-        IReadOnlyList<QuickLink> links, bool linked) => __builder =>
+        IReadOnlyList<QuickLink> links, bool linked, string? absence = null) => __builder =>
     {
         <span class="ops-row-name">
             @name
@@ -305,7 +324,7 @@
             else
             {
                 <span aria-hidden="true">—</span>
-                <span class="ops-sr-only">No StallTrack page</span>
+                <span class="ops-sr-only">@(absence ?? NoWorkspace)</span>
             }
         </span>
         <span class="ops-row-go" aria-hidden="true">
