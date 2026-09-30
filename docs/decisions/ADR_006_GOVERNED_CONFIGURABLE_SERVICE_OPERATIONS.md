@@ -75,6 +75,8 @@ If later evidence shows that cattle transfer requires a materially specialized a
 
 See also IA-048 and the 2026-09-27 EEMO Head final clarification evidence note.
 
+**2026-09-30 update (IA-049):** the instrument is confirmed as **Official Receipt**, collected on Collector Mobile as a direct approved amount. The remaining configurable items are the approved amount rule (fixed, or direct approved with an optional per-transaction ceiling) and its effective date; the operation is not collectible until they are recorded.
+
 ## 6. Collector Mobile
 
 Collector Mobile remains focused and assignment-driven.

@@ -615,6 +615,31 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Operations keeps a separate Utility Operations section. NPM may expose contextual utility links for its occupants but must not own global ECF/WCF navigation or reporting. Existing UtilityBill rows remain valid and must not be destructively rewritten; future non-NPM utility subjects should be handled additively through an appropriate generalized source/context model or adapter. Do not hard-code PHP 10 or direct ECF amounts into UI markup; resolve approved effective configuration/policy.
 - **REVISIT CONDITION:** Revisit only if EEMO later restricts utilities to a specific facility or supplies a superseding utility-assessment/rate policy.
 
+### IA-049 - Operational functionalization rulings (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-049
+- **SUBJECT:** Instrument, basis, channel and receipt rules for the remaining Monthly Income operations, and the itemized OR model
+- **STATUS:** CONFIRMED (Clint / Core Brain direction for the operational functionalization program; recorded from the task brief, not a new EEMO staff interview)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Itemized OR:** one physical OR may carry several OR-compatible classified lines for one payer context (for example NPM rent + ECF + Fish/Meat Vendor Fee + Weight & Measure + Penalty). Each line keeps its own revenue classification. **OR and CT are never mixed on one physical document**; a visit that also needs CT-based lines uses separate Cash Tickets.
+  - **Billing basis is not payment cadence.** Monthly-obligation sources (NPM, TCC, NCC, BBQ, Ice Plant where configured, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly obligation; ₱30/day style payments are installments/allocations against it and never a daily billing model.
+  - **Fish/Meat Vendor Fee != NPM stall rent != Weight & Measure.** Vendor Fee is its own OR classification with a monthly-style goal (about PHP 900, commonly collected as PHP 30 installments) resolved from effective configuration. NPM remains the source authority for Fish/Meat vendor context; no second vendor registry.
+  - **Weight & Measure** = OR, quantity x approved effective rate, frozen (quantity, rate, effective date, amount) at collection time for new rows. Historical Fish rows without frozen evidence stay unresolved.
+  - **ECF** = OR, current basis direct approved amount. **WCF** = CT, current approved rate PHP 10 through effective configuration (not hard-coded).
+  - **Vegetable / Fruit** (temporary open-space rental, not permanent NPM tenancy): the transaction mode resolves the instrument - whole payment = OR, daily transaction = CT; the collector chooses the mode, never the instrument.
+  - **Market Fees** = CT, **Landing / Berthing** = CT, both direct field transactions on Collector Mobile using an approved fixed amount or, only where the approved operation definition enables it, a direct approved amount. **Transfer Large Cattle** = **OR** (supersedes the unresolved instrument in IA-044/IA-048 wording), Collector Mobile, occasional, direct approved amount, deliberately simple (no livestock registry).
+  - **Transportation / TRM** target = CT at approved vehicle-class effective-dated rates; historical `TrmTrip` money and the existing legacy OR workflow stay readable and are not relabelled.
+  - **Kanmanggay** = Space Rental, OR, monthly per space. **Fiesta / Araw lot rental** = OR, temporary/event lot rental; Aug 15 and Oct 16 are event dates, not billing dates.
+  - **Fines / Penalties** = OR under their own classification, created only from approved penalty definitions; never a free-text line with a collector-typed amount.
+  - **Ice Plant** behaves like a monthly-obligation source but keeps its own classification/report line; it is not BBQ or Stall Rent.
+  - **Slaughterhouse** keeps its specialized workflow, OR, controlled rates and transparent itemization (ante mortem, post mortem, slaughter fee and approved add-ons on the OR detail); reports still roll up to Slaughterhouse. No arbitrary collector-entered rates.
+  - **OR custody** must exist before any new Mobile OR writer is activated; a collector may use only documents assigned to that collector.
+- **RATIONALE:** Removes the remaining "unresolved instrument" and "not recorded yet" wording once a writer is genuinely functional, while keeping every amount, instrument and classification server-resolved from approved policy.
+- **EVIDENCE / SOURCE:** Clint / Core Brain task brief of 2026-09-30 (highest precedence for this program); IA-044, IA-045, IA-046, IA-048; [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md) sections 9-13.
+- **IMPACT:** Supersedes the "collection disabled until the instrument is confirmed" statements for Transfer Large Cattle. Does **not** activate any source, cut over any report, backfill history or publish an APK. Where a rule above would create double billing or invent an amount (for example the Fish/Meat Vendor Fee versus the existing NPM Fish/Meat daily fee, or a collector-typed Slaughterhouse custom rate) the affected slice stays blocked pending an explicit answer, recorded in [OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md](../planning/OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md).
+- **REVISIT CONDITION:** Any newer EEMO staff ruling on the operations above.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:

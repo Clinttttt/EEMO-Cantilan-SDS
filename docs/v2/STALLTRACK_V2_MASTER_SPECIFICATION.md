@@ -351,9 +351,9 @@ Current implementation-phase status is tracked in [`docs/planning/STALLTRACK_V2_
 | Revenue classification cutover | FUTURE / gated |
 | Revenue target setup/attainment | FUTURE / gated |
 | Remittance & Reconciliation | FUTURE; renewed approval required |
-| WCF dual-entry Web/Mobile | TARGET V2 implemented in Phase 4; production source remains Legacy / gated |
+| WCF entry surface | Collector Mobile only (Web WCF posting is retired server-side; Web is monitoring/reconciliation). Supersedes the dual-entry target; production source remains Legacy / gated on the scoped Water cutover (IA-029 wording is stale, IA-049). |
 | Governed configurable service operations | TARGET V2; IA-044. Setup Required is non-financial; Active services use approved policy and explicitly enabled channels. |
-| Transfer Large Cattle financial setup | TARGET V2; Head confirms transfer + corresponding direct approved amount. Exact Cantilan fee schedule/accountable form and mandatory local regulatory details remain configurable/gated. |
+| Transfer Large Cattle financial setup | TARGET V2; **OR**, Collector Mobile, occasional, direct approved amount (IA-049). Exact Cantilan fee/ceiling and any local attestations stay configurable; non-collectible until an amount rule is recorded. |
 | Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
 | Arrears qualification and recovered-cash mapping | CONFIRMED; old/lapsed debt and paid Arrears use the dedicated Arrears classification with source traceability |

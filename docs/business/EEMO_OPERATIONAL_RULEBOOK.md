@@ -268,7 +268,7 @@ Collectors never configure these rules. Collector Mobile may show an operation o
 
 If the operation later proves to require specialized approval, assessment, regulatory, lifecycle, or reconciliation behavior, promote it to a specialized source domain while preserving the canonical Collection model and existing posted history.
 
-**Transfer Large Cattle** is the first explicit use of this pattern. Its operation shell/directory may be designed now, but collection remains disabled until EEMO confirms and authorized setup records the exact trigger, fee/calculation basis, instrument, and required regulatory/reference details.
+**Transfer Large Cattle** is the first explicit use of this pattern. Current direction (Clint / Core Brain, 2026-09-30, IA-049): **Official Receipt**, Collector Mobile, occasional, **direct approved amount**, kept intentionally simple (business date, payer/owner, concise reference, approved amount, assigned OR). It stays **Setup Required** and non-collectible until authorized setup records its approved amount rule and an OR policy is effective; no livestock registry or certificate system is built.
 
 See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 
@@ -372,8 +372,8 @@ System handling remains governed by IA-044 / ADR-006:
 - the operation may be exposed as a specialized/configurable transfer workflow;
 - the amount must come from approved/configured office policy, never arbitrary collector input;
 - Philippine regulatory references may guide optional ownership, animal, certificate, transferor/transferee and verification fields;
-- OR-oriented presentation from Philippine regulatory precedent may be retained until Cantilan supplies a different accountable-instrument rule;
-- exact Cantilan fee schedule, accountable form/reference, and mandatory local attestations remain configurable rather than hard-coded.
+- **instrument = Official Receipt** (confirmed by Clint / Core Brain 2026-09-30, IA-049; no longer a Philippine-precedent placeholder);
+- exact Cantilan fee schedule and any mandatory local attestations remain configurable rather than hard-coded.
 
 See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md) and [Interim Philippine Reference Basis](../evidence/2026-09-27_interim_philippine_reference_basis.md).
 
