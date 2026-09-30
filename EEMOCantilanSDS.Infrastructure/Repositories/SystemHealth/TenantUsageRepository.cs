@@ -51,6 +51,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["AuditLogs"] = "Audit log",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",
+        ["GovernedServices"] = "Governed services",
+        ["GovernedServiceSettings"] = "Governed service settings",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)

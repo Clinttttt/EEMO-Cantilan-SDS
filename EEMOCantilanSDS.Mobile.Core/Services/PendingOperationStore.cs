@@ -71,13 +71,19 @@ public sealed class PendingOperationStore : IPendingOperationStore
         {
             if (HasStorageFault)
                 throw new IOException("Issued Cash Ticket state is unavailable because the local queue has a storage fault.");
-            if (operation.Kind != OfflineOperationKind.WcfCollection
+            var issuedShape = operation.Kind switch
+            {
+                OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0,
+                // A governed service records facts only: which operation, and (for Vegetable/Fruit) the mode.
+                OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode),
+                _ => false
+            };
+            if (!issuedShape
                 || operation.AccountableDocumentId is not { } id || id == Guid.Empty
                 || string.IsNullOrWhiteSpace(operation.DocumentNumber)
                 || operation.ReceivedAmount is null or <= 0m
-                || operation.WaterSourceVersion is null or <= 0
                 || operation.IssuedAtUtc is null)
-                throw new InvalidOperationException("A physically issued WCF operation must include its document and source evidence.");
+                throw new InvalidOperationException("A physically issued operation must include its document and source evidence.");
             var items = new List<PendingOperation>(await LoadUnsafeAsync());
             if (HasStorageFault)
                 throw new IOException("Issued Cash Ticket state is unavailable because the local queue could not be read.");

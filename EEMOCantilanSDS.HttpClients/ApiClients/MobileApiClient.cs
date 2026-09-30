@@ -45,6 +45,10 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 
+    public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
+        await GetAsync<IReadOnlyList<CashTicketDocumentDto>>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/documents{(mode is { } m ? $"?mode={m}" : string.Empty)}");
+
     public async Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         await GetAsync<CollectorOperationCapabilitiesDto>("api/Mobile/operations/capabilities");
 

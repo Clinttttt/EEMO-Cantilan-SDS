@@ -43,6 +43,8 @@ public static class TenantBackupTableNames
         ["PayorStallLinks"] = "Payor–stall links",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",
+        ["GovernedServices"] = "Governed services",
+        ["GovernedServiceSettings"] = "Governed service settings",
     };
 
     public static string Display(string table)

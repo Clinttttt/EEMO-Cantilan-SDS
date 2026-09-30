@@ -19,7 +19,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     ISender sender,
     ISyncRepository syncRepository,
     ICurrentUserService currentUser,
-    WcfCollectionWorkflow? wcfWorkflow = null)
+    WcfCollectionWorkflow? wcfWorkflow = null,
+    GovernedServiceWorkflow? governedWorkflow = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -51,6 +52,26 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                         : IsTransient(outcome.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, wcfStatus,
                     outcome.IsSuccess ? null : outcome.Error));
+                continue;
+            }
+            if (op.Kind == OfflineOperationKind.GovernedService)
+            {
+                if (governedWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "Governed-service canonical sync is not configured."));
+                    continue;
+                }
+                var governed = await governedWorkflow.PostMobileAsync(new GovernedServicePostRequest(
+                    op.PayloadVersion, op.ClientOperationId, op.OperationCode ?? string.Empty, op.BusinessDate,
+                    op.ReceivedAmount ?? 0m, op.CollectionMode, op.PayerName, op.Reference,
+                    op.AccountableDocumentId ?? Guid.Empty, op.DocumentNumber ?? string.Empty, op.IssuedAtUtc), ct);
+                var governedStatus = governed.IsSuccess ? SyncResultStatus.Synced
+                    : governed.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
+                        ? SyncResultStatus.ReconciliationRequired
+                        : IsTransient(governed.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, governedStatus,
+                    governed.IsSuccess ? null : governed.Error));
                 continue;
             }
             // Idempotent: a record already carrying this client operation id means it was synced.

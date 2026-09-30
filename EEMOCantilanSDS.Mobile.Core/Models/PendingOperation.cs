@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Mobile.Models;
@@ -99,6 +100,13 @@ public sealed class PendingOperation
     public DateTime? IssuedAtUtc { get; set; }
     public IssuedDocumentLocalState? IssuedDocumentState { get; set; }
 
+    // Governed configurable service facts (Kind = GovernedService). No rate, classification or instrument is stored:
+    // those are resolved by the server from approved configuration.
+    public string? OperationCode { get; set; }
+    public GovernedServiceMode? CollectionMode { get; set; }
+    public string? PayerName { get; set; }
+    public string? Reference { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -163,5 +171,9 @@ public sealed class PendingOperation
         AccountableDocumentId,
         DocumentNumber,
         IssuedAtUtc,
-        MeatKilos);
+        MeatKilos,
+        OperationCode,
+        CollectionMode,
+        PayerName,
+        Reference);
 }

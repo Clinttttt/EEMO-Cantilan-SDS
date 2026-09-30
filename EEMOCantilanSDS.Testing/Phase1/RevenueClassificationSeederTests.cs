@@ -31,9 +31,9 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
         var policies = await context.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == cantilan.Id).ToListAsync();
 
-        Assert.Equal(13, classifications.Count);
-        Assert.Equal(13, classifications.Select(x => x.SemanticCode).Distinct().Count());
-        Assert.Equal(13, policies.Count);
+        Assert.Equal(14, classifications.Count);
+        Assert.Equal(14, classifications.Select(x => x.SemanticCode).Distinct().Count());
+        Assert.Equal(14, policies.Count);
         Assert.All(policies, x => Assert.Equal(seedDate, x.EffectiveDate));
         Assert.Empty(await context.RevenueClassifications.Where(x => x.MunicipalityId == carmen.Id).ToListAsync());
         Assert.Empty(await context.RevenueClassificationPolicies.Where(x => x.MunicipalityId == carmen.Id).ToListAsync());
@@ -52,6 +52,8 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
         Assert.Equal(RevenueInstrumentType.CashTicket, policyByCode[RevenueClassificationCodes.VegetableFruitSpaceRental].PermittedInstrumentType);
         Assert.Equal(RevenueInstrumentType.CashTicket, policyByCode[RevenueClassificationCodes.Wcf].PermittedInstrumentType);
         Assert.Equal(RevenueInstrumentType.CashTicket, policyByCode[RevenueClassificationCodes.LandingBerthing].PermittedInstrumentType);
+        // IA-049: Transfer Large Cattle is an Official Receipt operation.
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, policyByCode[RevenueClassificationCodes.TransferLargeCattle].PermittedInstrumentType);
         Assert.Null(policyByCode[RevenueClassificationCodes.Arrears].PermittedInstrumentType);
     }
 
@@ -124,7 +126,7 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
         Assert.Equal(RevenueInstrumentType.CashTicket,
             Assert.Single(vegetable, x => x.BusinessContext == RevenuePolicyContext.VegetableDailyTransaction).PermittedInstrumentType);
         Assert.All(vegetable, x => Assert.Equal(ClarificationDate, x.EffectiveDate));
-        Assert.Equal(14, policies.Count);
+        Assert.Equal(15, policies.Count);
     }
 
     [Fact]

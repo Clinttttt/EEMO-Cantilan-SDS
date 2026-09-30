@@ -162,6 +162,9 @@ public class ApplicationEfBoundaryTests
         // Read-only Mobile capability derivation: one collector's permissions checked against the same source,
         // authorization, policy and CT-custody facts the WCF workflow enforces. It writes nothing and grants nothing.
         "GetCollectorOperationCapabilitiesQueryHandler.cs",
+        // Governed configurable services (IA-044): tenant-bound setup versions and the one focused Mobile writer, which
+        // posts only through CanonicalCollectionPostingCoordinator and revalidates authorization, policy and custody.
+        "GovernedServiceWorkflow.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.

@@ -20,7 +20,8 @@ namespace EEMOCantilanSDS.Testing.Application.Mobile;
 /// <summary>
 /// Assigned is not collectible. Each WCF gate the posting workflow enforces (collector active, NPM facility for the
 /// current Water source, Canonical Water authority, effective CT policy, present CT custody) must hold before Ready;
-/// operations without an approved Mobile writer are Unsupported however they are assigned.
+/// governed services additionally need approved setup and a held document of the resolved instrument; operations with
+/// no approved Mobile writer are Unsupported however they are assigned.
 /// </summary>
 public sealed class GetCollectorOperationCapabilitiesQueryHandlerTests
 {
@@ -147,16 +148,83 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandlerTests
     [InlineData(CollectorOperationCodes.MarketFees)]
     [InlineData(CollectorOperationCodes.VegetableFruitSpaceRental)]
     [InlineData(CollectorOperationCodes.TransferLargeCattle)]
-    public async Task AssignedOperationWithoutAMobileWriterIsUnsupported(string code)
+    public async Task AssignedGovernedOperationWithoutSetupIsNotCollectible_NeedsPolicy(string code)
     {
+        // Governed services now have a Mobile writer, but assignment alone is never collectibility: with no approved
+        // amount rule and no instrument policy the operation is Setup Required, and never "Unsupported".
         var world = await SeedAsync(operations: [code]);
 
         var operation = (await RunAsync(world)).Value!.Operations.Single(x => x.OperationCode == code);
 
         Assert.True(operation.IsAssigned);
         Assert.False(operation.IsCollectible);
-        Assert.Equal(CollectorOperationCapabilityStatus.Unsupported, operation.Status);
-        Assert.Equal([GetCollectorOperationCapabilitiesQueryHandler.NoMobileWriter], operation.ReasonCodes);
+        Assert.Equal(CollectorOperationCapabilityStatus.NeedsPolicy, operation.Status);
+        Assert.Contains(GetCollectorOperationCapabilitiesQueryHandler.ServiceSetupRequired, operation.ReasonCodes);
+        Assert.DoesNotContain(GetCollectorOperationCapabilitiesQueryHandler.NoMobileWriter, operation.ReasonCodes);
+    }
+
+    private static async Task ConfigureMarketFeesAsync(
+        World world, RevenueInstrumentType instrument = RevenueInstrumentType.CashTicket,
+        bool enabled = true, bool mobile = true)
+    {
+        await using var context = Context(world.Options, world.TenantId);
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.MarketFees, world.TenantId);
+        context.Add(classification);
+        context.Add(RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2020, 1, 1), "Market Fees", instrument, world.TenantId));
+        var service = GovernedService.Create(world.TenantId, CollectorOperationCodes.MarketFees, "head");
+        context.Add(service);
+        context.Add(GovernedServiceSetting.Create(world.TenantId, service.Id, new DateOnly(2026, 1, 1),
+            GovernedServiceBasis.DirectApprovedAmount, null, null, enabled, mobile, "head"));
+        await context.SaveChangesAsync();
+    }
+
+    private static CollectorOperationCapabilityDto MarketFees(Result<CollectorOperationCapabilitiesDto> result) =>
+        result.Value!.Operations.Single(x => x.OperationCode == CollectorOperationCodes.MarketFees);
+
+    [Fact]
+    public async Task GovernedOperationIsReadyOnlyWithSetupPolicyAndAssignedDocumentOfTheResolvedInstrument()
+    {
+        var world = await SeedAsync(operations: [CollectorOperationCodes.MarketFees]);
+        await ConfigureMarketFeesAsync(world);
+
+        var fees = MarketFees(await RunAsync(world));
+
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready, fees.Status);
+        Assert.True(fees.IsCollectible);
+        Assert.Empty(fees.ReasonCodes);
+    }
+
+    [Fact]
+    public async Task GovernedOperationNeedsADocumentWhenNoneOfTheResolvedInstrumentIsHeld()
+    {
+        // Market Fees resolves to a Cash Ticket; a collector holding only an OR (or nothing) cannot collect it.
+        var noTicket = await SeedAsync(assignTicket: false, operations: [CollectorOperationCodes.MarketFees]);
+        await ConfigureMarketFeesAsync(noTicket);
+        var orPolicy = await SeedAsync(operations: [CollectorOperationCodes.MarketFees]);
+        await ConfigureMarketFeesAsync(orPolicy, RevenueInstrumentType.OfficialReceipt);
+
+        var none = MarketFees(await RunAsync(noTicket));
+        var wrongInstrument = MarketFees(await RunAsync(orPolicy));
+
+        Assert.Equal(CollectorOperationCapabilityStatus.NeedsDocument, none.Status);
+        Assert.Equal([GetCollectorOperationCapabilitiesQueryHandler.NoAssignedDocument], none.ReasonCodes);
+        Assert.Equal(CollectorOperationCapabilityStatus.NeedsDocument, wrongInstrument.Status);
+        Assert.False(wrongInstrument.IsCollectible);
+    }
+
+    [Theory]
+    [InlineData(false, true, GetCollectorOperationCapabilitiesQueryHandler.ServiceDisabled)]
+    [InlineData(true, false, GetCollectorOperationCapabilitiesQueryHandler.MobileChannelDisabled)]
+    public async Task DisabledOrWebOnlyGovernedOperationIsNotCollectibleOnMobile(bool enabled, bool mobile, string reason)
+    {
+        var world = await SeedAsync(operations: [CollectorOperationCodes.MarketFees]);
+        await ConfigureMarketFeesAsync(world, enabled: enabled, mobile: mobile);
+
+        var fees = MarketFees(await RunAsync(world));
+
+        Assert.Equal(CollectorOperationCapabilityStatus.NeedsPolicy, fees.Status);
+        Assert.False(fees.IsCollectible);
+        Assert.Contains(reason, fees.ReasonCodes);
     }
 
     [Fact]

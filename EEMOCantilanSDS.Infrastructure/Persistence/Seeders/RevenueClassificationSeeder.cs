@@ -34,7 +34,9 @@ public static class RevenueClassificationSeeder
         new(RevenueClassificationCodes.VegetableFruitSpaceRental, "Vegetable/Fruit Space Rental", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.Wcf, "WCF", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.LandingBerthing, "Landing/Berthing", RevenueInstrumentType.CashTicket),
-        new(RevenueClassificationCodes.Arrears, "Arrears", null)
+        new(RevenueClassificationCodes.Arrears, "Arrears", null),
+        // IA-049 (Clint / Core Brain, 2026-09-30): Transfer Large Cattle is an Official Receipt operation.
+        new(RevenueClassificationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueInstrumentType.OfficialReceipt)
     ];
 
     public static async Task SeedAsync(IAppDbContext context, DateOnly? effectiveDate = null)

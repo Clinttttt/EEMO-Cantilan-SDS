@@ -19,4 +19,5 @@ public static class RevenueClassificationCodes
     public const string Wcf = "WCF";
     public const string LandingBerthing = "LANDING_BERTHING";
     public const string Arrears = "ARREARS";
+    public const string TransferLargeCattle = "TRANSFER_LARGE_CATTLE";
 }

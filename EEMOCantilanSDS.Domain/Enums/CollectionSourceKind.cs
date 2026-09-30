@@ -9,5 +9,7 @@ public enum CollectionSourceKind
     SlaughterTransaction = 4,
     TpmAttendance = 5,
     TrmTrip = 6,
-    OnlinePaymentTransaction = 7
+    OnlinePaymentTransaction = 7,
+    /// <summary>A governed configurable service (Market Fees, Landing/Berthing, ...). SourceId is the tenant service identity.</summary>
+    GovernedService = 8
 }

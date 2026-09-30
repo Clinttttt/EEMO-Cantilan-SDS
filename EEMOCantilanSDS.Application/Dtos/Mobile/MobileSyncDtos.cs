@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -11,7 +12,9 @@ public enum OfflineOperationKind
     Trip = 4,
     TpmVendor = 5,
     NpmUtility = 6,
-    WcfCollection = 7
+    WcfCollection = 7,
+    /// <summary>A governed configurable service (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit).</summary>
+    GovernedService = 8
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -76,7 +79,12 @@ public sealed record SyncOfflineOperationDto(
     Guid? AccountableDocumentId = null,
     string? DocumentNumber = null,
     DateTime? IssuedAtUtc = null,
-    decimal? MeatKilos = null);
+    decimal? MeatKilos = null,
+    // Governed configurable service (Kind = GovernedService): the collector states facts; the server resolves the rest.
+    string? OperationCode = null,
+    GovernedServiceMode? CollectionMode = null,
+    string? PayerName = null,
+    string? Reference = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,
