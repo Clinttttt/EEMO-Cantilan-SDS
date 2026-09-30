@@ -194,6 +194,27 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TwoUsersRemittingTheSameCollectionsAtOnce_ProduceExactlyOneActiveRemittance()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await PostThreeAsync(w);
+
+        async Task<bool> TryAsync()
+        {
+            await using var ctx = db.CreateContext(w.Tenant.Id);
+            return (await Remit(ctx, w).RecordAsync(Request(w, 110m))).IsSuccess;
+        }
+        var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(TryAsync)));
+
+        await using var verify = db.CreateContext(w.Tenant.Id);
+        Assert.Equal(1, results.Count(x => x));
+        Assert.Equal(1, await verify.CollectionRemittances.CountAsync());
+        Assert.Equal(3, await verify.CollectionRemittanceCoverages.CountAsync(x => x.IsActive));
+    }
+
+    [SkippableFact]
     public async Task ARetryWithTheSameOperationIdReturnsTheSameRemittance_AndAChangedIntentIsAConflict()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
