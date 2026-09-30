@@ -44,6 +44,27 @@ public sealed class CollectionsReportWorkflow(
                 rows.Sum(x => x.Amount + x.CorrectionEffect), ordered.Count > RowLimit));
         }, ct);
 
+    /// <summary>
+    /// The signed-in collector's own canonical collections for a period, read-only. The collector comes from the token, never
+    /// from a request value, so a collector cannot read another collector's or the office's register. Legacy-authoritative
+    /// sources are not included: they keep their own Records feed until they go canonical.
+    /// </summary>
+    public async Task<Result<CollectionsRegisterDto>> GetMyRegisterAsync(DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId
+            || collectorId == Guid.Empty)
+            return Result<CollectionsRegisterDto>.Forbidden();
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
+            return Result<CollectionsRegisterDto>.Forbidden();
+        if (from > to || to.DayNumber - from.DayNumber > 366)
+            return Result<CollectionsRegisterDto>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
+        var rows = (await LoadRowsAsync(tenantId, from, to, collectorId, null, null, ct)).Select(x => x.Row)
+            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal).ToList();
+        return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to, rows.Take(RowLimit).ToList(), [],
+            rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect), rows.Sum(x => x.Amount + x.CorrectionEffect), rows.Count > RowLimit));
+    }
+
     public Task<Result<CollectionDocumentDto>> GetCollectionAsync(Guid collectionId, CancellationToken ct = default) =>
         Run<CollectionDocumentDto>(async tenantId =>
         {

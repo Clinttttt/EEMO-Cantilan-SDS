@@ -59,6 +59,9 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
         await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>($"api/Mobile/position?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
 
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>($"api/Mobile/records/collections?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+
     public async Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         await GetAsync<CollectorOperationCapabilitiesDto>("api/Mobile/operations/capabilities");
 

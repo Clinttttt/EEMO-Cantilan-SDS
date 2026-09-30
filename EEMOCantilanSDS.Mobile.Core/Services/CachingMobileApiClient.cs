@@ -77,6 +77,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
         ReadThroughAsync($"position|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyPositionAsync(from, to));
 
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to) =>
+        ReadThroughAsync($"my-collections|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyCollectionsAsync(from, to));
+
     public Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         ReadThroughAsync($"operations|capabilities|{Today}", inner.GetOperationCapabilitiesAsync);
 

@@ -1,0 +1,71 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Mobile.Records
+@using global::EEMOCantilanSDS.Domain.Enums
+@inject global::EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+
+@* Canonical operation collections the server holds for this collector (Market Fees, Landing, Transportation, ...). The
+   server is the authority: a collection appears here once, after it has synced, and the local queue is shown separately as
+   Pending / Failed / Needs review, so a synced collection is never listed twice. *@
+@if (_failed)
+{
+    <p class="ors-note" role="status">Operation collections could not be loaded. Showing what is saved on this device.</p>
+}
+else if (_records.Count > 0)
+{
+    <section class="ors" aria-labelledby="ors-title">
+        <h2 id="ors-title" class="ors-title">Operation collections</h2>
+        <ul class="ors-list">
+            @foreach (var record in _records)
+            {
+                <li class="ors-row">
+                    <div class="ors-main">
+                        <div class="ors-name">@(record.DocumentNumber ?? "Walk-up")<span class="ors-kind"> · @Kind(record.Instrument)</span></div>
+                        <div class="ors-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName)</div>
+                        @foreach (var line in record.Lines)
+                        {
+                            <div class="ors-line">@line.ClassificationName · @Peso(line.Amount)</div>
+                        }
+                    </div>
+                    <div class="ors-amt">
+                        <div>@Peso(record.Total)</div>
+                        @if (record.Status != "Posted") { <div class="ors-status">@record.Status</div> }
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+
+    private IReadOnlyList<OperationRecord> _records = Array.Empty<OperationRecord>();
+    private bool _failed;
+    private DateOnly _loadedFrom;
+    private DateOnly _loadedTo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && _loadedTo == To) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        _failed = false;
+        try
+        {
+            var result = await Api.GetMyCollectionsAsync(From, To);
+            if (result.IsSuccess && result.Value is not null) _records = OperationRecordGrouping.Group(result.Value.Rows);
+            else _failed = true;
+        }
+        catch { _failed = true; }
+    }
+
+    private static string Kind(RevenueInstrumentType? instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+        RevenueInstrumentType.CashTicket => "Cash Ticket",
+        _ => "Collection",
+    };
+
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

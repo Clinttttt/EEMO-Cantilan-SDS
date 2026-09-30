@@ -43,7 +43,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "Collector")]
 [Route("api/[controller]")]
 [ApiController]
-public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow, RemittanceWorkflow remittances) : ApiBaseController(sender)
+public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow, RemittanceWorkflow remittances, CollectionsReportWorkflow collections) : ApiBaseController(sender)
 {
     [HttpGet("menu")]
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
@@ -68,6 +68,12 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
     public async Task<ActionResult<CollectorPositionDto>> GetMyPositionAsync(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await remittances.GetMyPositionAsync(from, to, ct));
+
+    /// <summary>Read-only: the signed-in collector's own canonical collections (operations recorded through governed writers) for a period.</summary>
+    [HttpGet("records/collections")]
+    public async Task<ActionResult<CollectionsRegisterDto>> GetMyCollectionsAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await collections.GetMyRegisterAsync(from, to, ct));
 
     [HttpGet("profile")]
     public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()

@@ -84,6 +84,11 @@
             }
         </div>
 
+        @if (ActiveFacility is null && !IsLoading)
+        {
+            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" />
+        }
+
         @if (IsLoading)
         {
             <LoadingState Text="Loading collection records…" />

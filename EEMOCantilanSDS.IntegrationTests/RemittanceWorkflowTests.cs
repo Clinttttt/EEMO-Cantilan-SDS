@@ -151,6 +151,34 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ACollectorReadsOnlyTheirOwnCanonicalCollections_AndAdministratorsUseTheOfficeRegisterInstead()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("reg");
+        var other = await SeedAsync("reg2");
+        await PostThreeAsync(w);
+        await PostThreeAsync(other);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        CollectionsReportWorkflow As(Guid id, string role) =>
+            new(ctx, new Caller(id, w.Tenant.Id, role), new FixedTenant(w.Tenant.Id));
+
+        var mine = (await As(w.Collector.Id, "Collector").GetMyRegisterAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal(3, mine.Rows.Count);
+        Assert.Equal(110m, mine.Net);
+        Assert.All(mine.Rows, r => Assert.Equal(w.Collector.Id, r.CollectorId));
+        Assert.All(mine.Rows, r => Assert.NotNull(r.DocumentNumber));
+
+        // The other tenant's collector data is not visible from this tenant's scope.
+        var none = (await As(other.Collector.Id, "Collector").GetMyRegisterAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Empty(none.Rows);
+
+        Assert.Equal(ResultStatus.Forbidden, (await As(w.HeadId, "Admin").GetMyRegisterAsync(Today, Today)).Status);
+        Assert.Equal(ResultStatus.Invalid, (await As(w.Collector.Id, "Collector").GetMyRegisterAsync(Today, Today.AddDays(-1))).Status);
+    }
+
+    [SkippableFact]
     public async Task TheCollectorPositionRefusesAdministratorsAndUnauthenticatedCallers_AndAdminRemittanceStaysAdminOnly()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
