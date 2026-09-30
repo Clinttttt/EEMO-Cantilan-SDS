@@ -98,7 +98,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -246,7 +246,7 @@
 
 .cal-sum-key {
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.7px;
@@ -288,7 +288,7 @@
 }
 
 .monthly-stat-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     font-weight: 600;
     text-transform: uppercase;
@@ -416,7 +416,7 @@
 }
 
 .hist-month-name {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -425,7 +425,7 @@
 }
 
 .hist-month-year {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-subtle);
     font-weight: 600;
     opacity: 0.7;
@@ -471,7 +471,7 @@
 }
 
 .act-stat-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 4px;
     text-transform: uppercase;
@@ -619,7 +619,7 @@
     }
 
     .mo-cell-name {
-        font-size: 10px;
+        font-size: 11px;
         letter-spacing: 0.3px;
     }
 
@@ -640,4 +640,19 @@
     .cal-sum-val {
         font-size: 17px;
     }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.detail-section {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.payment-status-btn.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
 }

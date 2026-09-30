@@ -53,7 +53,7 @@ public sealed class SidebarNavigationTests : TestContext
     }
 
     [Fact]
-    public void HeadSeesTheTenCuratedDestinationsInOrder()
+    public void HeadSeesTheCuratedDestinationsInOrder()
     {
         var cut = RenderComponent<Sidebar>();
         var links = cut.FindAll(".sidebar-nav a.nav-item");
@@ -66,6 +66,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "/online-payments",
                 "/vendors",
                 "/monitoring/follow-up",
+                "/accountable-forms",
                 "/reports",
                 "/collectors",
                 "/audit-trail",
@@ -81,6 +82,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "Online Payments",
                 "Payors & Accounts",
                 "Monitoring",
+                "Accountable Forms",
                 "Reports",
                 "Collectors",
                 "Audit Trail",
@@ -153,6 +155,7 @@ public sealed class SidebarNavigationTests : TestContext
     [InlineData("/monitoring/follow-up", "/monitoring/follow-up")]
     [InlineData("/reports/follow-up", "/monitoring/follow-up")]
     [InlineData("/reports/follow-up/history", "/monitoring/follow-up")]
+    [InlineData("/accountable-forms", "/accountable-forms")]
     [InlineData("/reports", "/reports")]
     [InlineData("/reports/financial-summary", "/reports")]
     [InlineData("/collectors", "/collectors")]

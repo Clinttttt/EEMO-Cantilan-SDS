@@ -23,7 +23,7 @@
     min-height: 34px; padding: 5px 12px; cursor: pointer;
     transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
-.me-period-btn:hover { border-color: var(--gold); background: var(--bg); }
+.me-period-btn:hover { border-color: var(--accent); background: var(--bg); }
 .me-period-btn .me-period { min-width: 96px; }
 .me-period-btn svg { width: 14px; height: 14px; stroke: var(--text-muted); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
 .me-period-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
@@ -53,21 +53,21 @@
     transition: background .12s ease, color .12s ease, border-color .12s ease;
 }
 .me-picker-month:hover { background: var(--bg-icon); }
-.me-picker-month.current { border-color: var(--gold); color: #8a6d1b; }
+.me-picker-month.current { border-color: var(--accent); color: var(--accent); }
 .me-picker-month.selected, .me-picker-month.selected:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%); color: #fff; border-color: transparent;
+    background: var(--accent); color: #fff; border-color: transparent;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .16);
 }
 .me-picker-foot { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; text-align: center; }
-.me-picker-today { background: transparent; border: none; color: #8a6d1b; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
+.me-picker-today { background: transparent; border: none; color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
 .me-picker-today:hover { color: var(--navy); background: var(--bg); }
 
 .me-print-btn {
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--navy); color: #fff; border: none; border-radius: 9px;
+    background: var(--accent); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.me-print-btn:hover { background: var(--navy-2); }
+.me-print-btn:hover { background: var(--accent-hover); }
 .me-print-btn:disabled { opacity: .5; cursor: default; }
 .me-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -80,7 +80,7 @@
     height: 38px; padding: 0 12px; flex: 1 1 auto; min-width: 0;
     transition: border-color .12s ease, box-shadow .12s ease;
 }
-.me-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.me-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 .me-search svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .me-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13px; color: var(--navy); }
 .me-search input::placeholder { color: var(--text-muted); }
@@ -106,7 +106,7 @@
 }
 .me-chip:hover { color: var(--navy); }
 .me-chip-active, .me-chip-active:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    background: var(--accent);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -124,13 +124,13 @@
 
 .me-state { padding: 40px; text-align: center; color: var(--text-subtle); font-size: 14px; }
 .me-state-error { color: var(--red); }
-.me-retry { margin-left: 10px; background: var(--navy); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.me-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
 
 .me-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
 
 .me-rpt-head { text-align: center; margin-bottom: 10px; }
 .me-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
-.me-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.me-gov { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .me-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .me-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
 .me-doc { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--navy); }
@@ -148,12 +148,12 @@
 .me-fac-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); margin-bottom: 8px; }
 .me-fac-title { display: flex; align-items: center; gap: 9px; }
 .me-fac-name { font-size: 15px; font-weight: 700; color: var(--navy); }
-.me-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtle); background: var(--bg-icon); padding: 3px 8px; border-radius: 6px; }
+.me-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtle); background: var(--bg-icon); padding: 3px 8px; border-radius: 6px; }
 .me-fac-stats { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-subtle); }
 .me-fac-stats strong { color: var(--navy); }
 
 .me-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.me-table th { text-align: center; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.me-table th { text-align: center; padding: 7px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .me-table td {
     padding: 7px 10px;
     text-align: center;
@@ -171,7 +171,7 @@
    colour the office already uses for paid, partial and unpaid, so a scanned or photocopied sheet still reads. */
 .me-row-unpaid, .me-row-partial { background: none; }
 
-.me-status { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+.me-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
 .me-paid { color: var(--green); }
 .me-partial { color: #8a6d1b; }
 .me-unpaid { color: var(--red); }
@@ -196,7 +196,7 @@
 }
 
 .me-util-btn:hover {
-    border-color: var(--gold);
+    border-color: var(--accent);
 }
 
 .me-util-block {
@@ -218,7 +218,7 @@
    tint, so the sheet stays ink-cheap and reads the same photocopied. */
 .me-area-row td {
     padding-top: 12px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -258,7 +258,7 @@
 /* Transaction-facility grouped payor rows (SLH/TRM/TPM) */
 .me-txn-row.me-expandable { cursor: pointer; }
 .me-txn-row.me-expandable:hover { background: var(--bg); }
-.me-caret { display: inline-block; font-size: 9px; color: var(--text-muted); margin-right: 6px; transition: transform .12s ease; }
+.me-caret { display: inline-block; font-size: 11px; color: var(--text-muted); margin-right: 6px; transition: transform .12s ease; }
 .me-caret.open { transform: rotate(90deg); }
 .me-txn-payor { font-weight: 400; color: var(--navy); }
 .me-txn-inline { color: var(--text-subtle); font-size: 11.5px; margin-left: 8px; }

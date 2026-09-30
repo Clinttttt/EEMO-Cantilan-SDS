@@ -47,14 +47,14 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
-.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
 .vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
 .vs-hero-stat { padding: 0 18px; text-align: center; flex: 1; min-width: 140px; }
 .vs-hero-stat:first-child { padding-left: 0; }
 .vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
-.vs-hero-key { font-size: 10px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
-.vs-hero-sub2 { font-size: 10px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
+.vs-hero-key { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
+.vs-hero-sub2 { font-size: 11px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
 .vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
 @media (max-width: 1100px) {
     .vs-hero-title { font-size: 18px; }
@@ -114,12 +114,12 @@
 .set-retry {
     margin-top: 4px;
     font-size: 13px; font-weight: 650;
-    color: #fff; background: var(--navy);
+    color: #fff; background: var(--accent);
     border: none; border-radius: 9px;
     padding: 9px 18px; cursor: pointer;
     transition: background .14s ease;
 }
-.set-retry:hover { background: var(--navy-2); }
+.set-retry:hover { background: var(--accent-hover); }
 
 /* ── Facility-specific ── */
 .fac-grid {
@@ -184,7 +184,7 @@
     display: grid;
     place-items: center;
     border-radius: 12px;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     font-weight: 700;
     font-size: 12px;
@@ -252,7 +252,7 @@
 .fac-meta-item svg {
     width: 14px;
     height: 14px;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .fac-rates {
@@ -372,7 +372,7 @@
     flex: 0 0 auto;
     width: 15px;
     height: 15px;
-    color: var(--gold);
+    color: var(--accent);
     margin-top: 1px;
 }
 
@@ -386,14 +386,14 @@
 }
 
 .avail-tile-btn:hover {
-    border-color: var(--gold);
+    border-color: var(--accent);
     background: color-mix(in srgb, var(--gold) 8%, var(--bg-card));
 }
 
 /* The Head-named custom slot — gold dashed accent to read as "create your own". */
 .avail-tile-custom {
     border-style: dashed;
-    border-color: var(--gold);
+    border-color: var(--accent);
     background: color-mix(in srgb, var(--gold) 6%, var(--bg-card));
 }
 .avail-tile-custom .avail-tile-badge {
@@ -474,7 +474,7 @@
 
 .fac-input:focus {
     outline: none;
-    border-color: var(--gold);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent);
 }
 
@@ -505,7 +505,7 @@
 
 /* The focus ring the rest of the drawer uses, so tabbing through the form does not change colour partway. */
 .fac-field ::deep .fh-dd-trigger.open {
-    border-color: var(--gold);
+    border-color: var(--accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent);
 }
 
@@ -553,11 +553,11 @@
 
 .fac-btn:disabled { opacity: .6; cursor: not-allowed; }
 
-.fac-btn-primary { background: var(--navy); color: #fff; }
-.fac-btn-primary:hover:not(:disabled) { background: var(--navy-2); }
+.fac-btn-primary { background: var(--accent); color: #fff; }
+.fac-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
 
 .fac-btn-ghost { background: transparent; color: var(--text-subtle); border-color: var(--border); }
-.fac-btn-ghost:hover:not(:disabled) { border-color: var(--gold); color: var(--navy); }
+.fac-btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--navy); }
 
 @media (max-width: 560px) {
     .fac-addform-grid { grid-template-columns: 1fr; }
@@ -583,7 +583,7 @@
     transition: opacity .16s ease, transform .16s ease;
 }
 .fac-card-btn:hover .fac-card-cta { opacity: 1; transform: translateX(0); }
-.fac-card-btn:hover .fac-card-cta { color: #8a6d1b; }
+.fac-card-btn:hover .fac-card-cta { color: var(--accent); }
 
 /* ── Slide-over configuration drawer ── */
 .cfg-scrim {
@@ -613,7 +613,7 @@
 
 .cfg-head {
     position: relative;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     padding: 22px 24px 18px;
     flex: 0 0 auto;
@@ -627,7 +627,7 @@
     background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
     pointer-events: none;
 }
-.cfg-head-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--gold); }
+.cfg-head-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
 .cfg-head-title { font-size: 19px; font-weight: 800; line-height: 1.2; margin-top: 4px; }
 .cfg-head-sub { font-size: 12.5px; color: rgba(255,255,255,.6); margin-top: 3px; }
 .cfg-close {
@@ -719,7 +719,7 @@
 .cfg-name-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cfg-name-label { font-size: 13px; font-weight: 600; color: var(--text); }
 .cfg-name-tag {
-    font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
     color: var(--text-subtle); background: var(--bg-icon);
     border-radius: 5px; padding: 2px 6px;
 }
@@ -802,10 +802,10 @@
     border-radius: 8px;
     cursor: pointer;
 }
-.cfg-sec-set:hover:not(:disabled) { border-color: var(--gold); color: var(--navy); }
+.cfg-sec-set:hover:not(:disabled) { border-color: var(--accent); color: var(--navy); }
 .cfg-sec-set:disabled { opacity: .6; cursor: not-allowed; }
 .cfg-rate-tag {
-    font-size: 9.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
     color: var(--text-subtle); background: var(--bg-icon);
     border-radius: 5px; padding: 2px 6px;
 }
@@ -820,7 +820,7 @@
     padding: 0 10px;
     transition: border-color .14s ease, box-shadow .14s ease;
 }
-.cfg-rate-input:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent); }
+.cfg-rate-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 20%, transparent); }
 .cfg-peso { color: var(--text-muted); font-size: 13px; font-weight: 700; }
 .cfg-rate-input input {
     width: 92px;
@@ -848,7 +848,7 @@
     font-size: 12px;
     line-height: 1.45;
 }
-.cfg-hint svg { flex: 0 0 auto; width: 15px; height: 15px; color: var(--gold); margin-top: 1px; }
+.cfg-hint svg { flex: 0 0 auto; width: 15px; height: 15px; color: var(--accent); margin-top: 1px; }
 
 .cfg-error {
     font-size: 12.5px; color: var(--red);
@@ -890,8 +890,8 @@
     cursor: pointer;
     transition: border-color .14s ease, background .14s ease;
 }
-.cfg-history-btn svg { width: 16px; height: 16px; color: var(--gold); }
-.cfg-history-btn:hover { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 8%, var(--bg-card)); }
+.cfg-history-btn svg { width: 16px; height: 16px; color: var(--accent); }
+.cfg-history-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--gold) 8%, var(--bg-card)); }
 
 .cfg-deactivate {
     align-self: flex-start;
@@ -960,7 +960,7 @@
     align-items: center;
     gap: 16px;
     padding: 18px 22px;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     flex: 0 0 auto;
 }
@@ -1018,7 +1018,7 @@
 
 .hist-status {
     display: inline-block;
-    font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
     padding: 3px 9px; border-radius: 999px;
     background: var(--bg-icon); color: var(--text-subtle);
 }
@@ -1082,9 +1082,86 @@
     cursor: pointer;
 }
 .cfg-basis-choice input { grid-row: 1 / span 2; margin-top: 3px; accent-color: var(--navy); }
-.cfg-basis-on { border-color: var(--gold); }
+.cfg-basis-on { border-color: var(--accent); }
 .cfg-basis-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
 .cfg-basis-meta { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
 .cfg-basis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 /* The rule sits beside the facility list's own heading, so it reads as belonging to the whole market rather than a card. */
 .set-card-action { flex: 0 0 auto; margin-left: auto; align-self: center; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
+}
+
+.cfg-head,
+.hist-head {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--navy);
+}
+
+.cfg-head-sub {
+    color: var(--text-tertiary);
+}

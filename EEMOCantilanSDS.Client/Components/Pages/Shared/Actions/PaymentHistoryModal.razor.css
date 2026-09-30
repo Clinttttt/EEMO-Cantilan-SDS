@@ -60,7 +60,7 @@
 }
 .ph-header-text { flex: 1; min-width: 0; }
 .ph-header-eyebrow {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
@@ -98,7 +98,7 @@
 
 /* Status badge */
 .ph-status-badge {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     padding: 3px 10px;
     border-radius: 20px;
@@ -160,7 +160,7 @@
 .ph-hstat-red { color: var(--red); }
 .ph-hstat-partial { color: #b87333; }
 .ph-hstat-key {
-    font-size: 9.5px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 3px;
     text-transform: uppercase;
@@ -228,7 +228,7 @@
 .ph-period-month { font-size: 13px; font-weight: 500; color: var(--navy); }
 .ph-period-year { font-size: 13px; color: var(--text-muted); }
 .ph-current-tag {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
@@ -355,3 +355,80 @@
             border-right: none;
         }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   The header becomes a light identity row; the status badges keep their meaning (text first) in light form.
+   ══════════════════════════════════════════════════════════════ */
+.eemo-modal-overlay {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.ph-header-left {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.ph-header-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .ph-header-icon svg {
+        stroke: var(--navy);
+    }
+
+.ph-header-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.ph-header-name {
+    color: var(--navy);
+}
+
+.ph-header-contract {
+    color: var(--text-tertiary);
+}
+
+.ph-status-badge {
+    border-color: var(--border-strong);
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+}
+
+.ph-badge-consistent {
+    border-color: color-mix(in srgb, var(--green) 35%, transparent);
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.ph-badge-arrears {
+    border-color: color-mix(in srgb, var(--gold-light) 60%, transparent);
+    background: color-mix(in srgb, var(--gold-light) 18%, var(--surface));
+    color: #7a5c10;
+}
+
+.ph-badge-delinquent {
+    border-color: color-mix(in srgb, var(--red) 35%, transparent);
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.ph-close-btn {
+    background: transparent;
+}
+
+    .ph-close-btn:hover {
+        background: var(--surface-hover);
+    }
+
+    .ph-close-btn svg {
+        stroke: var(--text-secondary);
+    }
+
+    .ph-close-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }

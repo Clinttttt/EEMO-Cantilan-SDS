@@ -382,7 +382,7 @@
 }
 
 .slh-mini-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 2px;
     text-transform: uppercase;
@@ -445,7 +445,7 @@
     background: var(--gold);
     color: #fff;
     border-radius: 4px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     line-height: 1;
 }
@@ -503,7 +503,7 @@
     background: var(--bg-icon);
     border: 1px solid var(--border);
     border-radius: 6px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-subtle);
     cursor: pointer;
@@ -690,4 +690,80 @@
         .toolbar-actions .btn {
             flex: 1 1 auto;
         }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md)
+   Presentation only: this page keeps its own toolbar and buttons, so they get the same V3 treatment as the
+   shared Toolbar. Readable tertiary text replaces the legacy muted grey; civic blue replaces gold for
+   interaction. Small labels were raised to 11px.
+   ══════════════════════════════════════════════════════════════ */
+.topbar,
+.content-area {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.filter-tab {
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+    .filter-tab:hover {
+        background: var(--surface-hover);
+        color: var(--navy);
+    }
+
+    .filter-tab.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+    }
+
+        .filter-tab.active:hover {
+            background: var(--accent-soft);
+        }
+
+.btn-primary {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+    .btn-primary:hover {
+        border-color: var(--accent-hover);
+        background: var(--accent-hover);
+        color: var(--surface);
+    }
+
+.btn-outline {
+    border-color: var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+}
+
+    .btn-outline:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+.btn-history-toggle:hover,
+.btn-action:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.filter-tab:focus-visible,
+.btn-primary:focus-visible,
+.btn-outline:focus-visible,
+.btn-history-toggle:focus-visible,
+.btn-action:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }

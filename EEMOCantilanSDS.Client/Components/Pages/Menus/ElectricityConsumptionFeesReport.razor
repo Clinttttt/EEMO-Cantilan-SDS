@@ -2,458 +2,231 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using System.Text
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IEcfCollectionsApiClient EcfApi
 @inject IJSRuntime JS
 
-<PageTitle>General Distribution / ECF Report — FY 2026</PageTitle>
+<PageTitle>StallTrack — Electricity Consumption Fees Report</PageTitle>
 
-<main class="ecfr-page">
-    <nav class="ecfr-breadcrumb ecfr-screen-only" aria-label="Breadcrumb">
-        <a href="/operations">Operations</a>
-        <span aria-hidden="true">/</span>
-        <a href="/operations/ecf">General Distribution / ECF</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">Report</span>
-    </nav>
+@* Printable ECF report. Every figure is either the server's own obligation data for the selected billing month or is
+   shown as unavailable ("—"). Nothing is sample data, and no target, rate or percentage is invented. The letterhead is
+   the tenant's. The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <div class="no-print">
+        <WorkspaceHeader Parent="Electricity Consumption Fees" ParentHref="/operations/ecf" Title="ECF Report" Code="ECF">
+            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+            <Actions>
+                <label class="v3-period">
+                    <span>Billing month</span>
+                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+                </label>
+                <div class="v3-btn-group" role="group" aria-label="Report actions">
+                    <button class="v3-btn" type="button" @onclick="PrintAsync" disabled="@(!Ready)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
+                        Print
+                    </button>
+                    @if (Ready)
+                    {
+                        <a class="v3-btn" href="@ExportHref" download="@($"ecf-report-{_period:yyyy-MM}.csv")">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            Export CSV
+                        </a>
+                    }
+                    else
+                    {
+                        <button class="v3-btn" type="button" disabled>Export CSV</button>
+                    }
+                </div>
+            </Actions>
+        </WorkspaceHeader>
+    </div>
 
-    <header class="ecfr-page-heading ecfr-screen-only">
-        <div>
-            <p class="ecfr-eyebrow">EEMO ADMIN · OPERATIONS</p>
-            <h1>GENERAL DISTRIBUTION / ECF REPORT</h1>
-            <p>Monthly electricity billing, collections, and revenue performance.</p>
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row no-print" role="alert">
+            <span>@_error The report can't be prepared until they load.</span>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
         </div>
-        <div class="ecfr-controls">
-            <label class="ecfr-year-control">
-                <span>Fiscal Year</span>
-                <select aria-label="Fiscal Year">
-                    <option value="2026" selected>2026</option>
-                </select>
-            </label>
-            <button class="ecfr-print-button" type="button" @onclick="PrintReport">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM17 11h.01" /></svg>
-                Print Report
-            </button>
-            <a class="ecfr-export-button" href="@ExportHref" download="general-distribution-ecf-report-fy2026.csv">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5M12 15V3" /></svg>
-                Export
-            </a>
-        </div>
-    </header>
+    }
 
-    <section class="ecfr-letterhead" aria-label="Report identity">
-        <p>Republic of the Philippines</p>
-        <p>Province of Surigao del Sur</p>
-        <p>Municipality of Cantilan</p>
-        <h2>MUNICIPAL ECONOMIC ENTERPRISES DEVELOPMENT OFFICE</h2>
-        <h3>GENERAL DISTRIBUTION / ECF REPORT</h3>
-        <p class="ecfr-letterhead-period">Fiscal Year 2026</p>
-    </section>
+    <article class="v3-report-sheet print-report-sheet" aria-labelledby="ecfr-title" aria-busy="@(_loading ? "true" : "false")">
+        <ReportLetterhead Title="Electricity Consumption Fees Report" Period="@($"Billing month {PeriodLabel}")">
+            <Facts>
+                <div><dt>Classification</dt><dd>Electricity Consumption Fees (ECF)</dd></div>
+                <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
+            </Facts>
+        </ReportLetterhead>
+        <h2 id="ecfr-title" class="v3-sr-only">Electricity Consumption Fees report for @PeriodLabel</h2>
 
-    <section class="ecfr-position ecfr-report-section" aria-labelledby="ecfr-position-title">
-        <h2 id="ecfr-position-title" class="ecfr-section-title">Financial Position</h2>
-        <dl class="ecfr-position-grid">
-            <div><dt>Annual Target</dt><dd>@OptionalMoney(AnnualTarget)</dd></div>
-            <div><dt>YTD Collection</dt><dd>@OptionalMoney(YtdOfficialCollection)</dd></div>
-            <div><dt>Remaining Target</dt><dd>@OptionalMoney(RemainingTarget)</dd></div>
-            <div><dt>Target Attainment</dt><dd>@OptionalPercent(TargetAttainment)</dd></div>
-        </dl>
-    </section>
+        <MonthlyIncomeUnavailable Classification="ECF" Year="_period.Year" HeadingId="ecfr-official" />
 
-    <section class="ecfr-section ecfr-report-section" aria-labelledby="ecfr-official-title">
-        <header class="ecfr-section-heading">
-            <div>
-                <p class="ecfr-eyebrow">OFFICIAL MONTHLY SUMMARY</p>
-                <h2 id="ecfr-official-title">General Distribution / ECF — Fiscal Year 2026</h2>
-                <p>Monthly collection figures aligned with the EEMO Monthly Income report.</p>
+        <section class="v3-report-section" aria-labelledby="ecfr-position">
+            <h3 id="ecfr-position">Obligation position — @PeriodLabel</h3>
+            <div class="v3-table-wrap">
+                <table class="v3-report-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="v3-num">Accounts</th>
+                            <th scope="col" class="v3-num">With balance</th>
+                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="v3-num">@Figure(_quotes.Count.ToString())</td>
+                            <td class="v3-num">@Figure(_quotes.Count(x => x.OutstandingAmount > 0m).ToString())</td>
+                            <td class="v3-num">@Figure(Money(TotalAssessed))</td>
+                            <td class="v3-num">@Figure(Money(TotalSettled))</td>
+                            <td class="v3-num">@Figure(Money(TotalOutstanding))</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-        </header>
-        <div class="ecfr-table-scroll" role="region" aria-label="Official monthly ECF summary" tabindex="0">
-            <table class="ecfr-table ecfr-monthly-table">
-                <caption class="ecfr-sr-only">Official ECF annual target, monthly actual collection, year-to-date total, and target attainment for fiscal year 2026.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Revenue Classification</th>
-                        <th scope="col" class="ecfr-number">Annual Target</th>
-                        @foreach (var month in Months)
+        </section>
+
+        <section class="v3-report-section" aria-labelledby="ecfr-accounts">
+            <h3 id="ecfr-accounts">Accounts — @PeriodLabel</h3>
+            <div class="v3-table-wrap">
+                <table class="v3-report-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Payer / stall</th>
+                            <th scope="col" class="v3-num">Consumption</th>
+                            <th scope="col" class="v3-num">Rate</th>
+                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var quote in OrderedQuotes)
                         {
-                            <th scope="col" class="ecfr-number">@month</th>
+                            <tr>
+                                <td>@Payer(quote)<span class="v3-block">@Source(quote)</span></td>
+                                <td class="v3-num">@quote.Consumption.ToString("N2") kWh</td>
+                                <td class="v3-num">₱@quote.RatePerKwh.ToString("N2")</td>
+                                <td class="v3-num">@Money(quote.AssessedAmount)</td>
+                                <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
+                                <td class="v3-num">@Money(quote.OutstandingAmount)</td>
+                            </tr>
                         }
-                        <th scope="col" class="ecfr-number ecfr-total-column">YTD Total</th>
-                        <th scope="col" class="ecfr-number ecfr-total-column">%</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th scope="row">General Distribution / ECF</th>
-                        <td class="ecfr-number">—</td>
-                        @foreach (var _ in Months)
+                        @if (!_quotes.Any())
                         {
-                            <td class="ecfr-number">—</td>
+                            <tr><td colspan="6" class="v3-report-note">@(_loading ? "Loading accounts…" : _error is not null ? "Accounts are unavailable." : $"No electricity accounts for {PeriodLabel}.")</td></tr>
                         }
-                        <td class="ecfr-number ecfr-total-column">—</td>
-                        <td class="ecfr-number ecfr-total-column">—</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="ecfr-data-note">— means unavailable, not zero. Official ECF target and classified collection figures are not available here.</p>
-    </section>
-
-    <section class="ecfr-section ecfr-report-section" aria-labelledby="ecfr-billing-title">
-        <header class="ecfr-section-heading">
-            <div>
-                <p class="ecfr-eyebrow">OPERATIONAL ECF VIEW</p>
-                <h2 id="ecfr-billing-title">Monthly Billing Position</h2>
-            </div>
-        </header>
-        <div class="ecfr-table-scroll" role="region" aria-label="Monthly ECF billing position" tabindex="0">
-            <table class="ecfr-table ecfr-billing-table">
-                <caption class="ecfr-sr-only">September 2026 ECF billed, collected, outstanding, collection rate, and account counts.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Month</th>
-                        <th scope="col" class="ecfr-number">Billed</th>
-                        <th scope="col" class="ecfr-number">Collected</th>
-                        <th scope="col" class="ecfr-number">Outstanding</th>
-                        <th scope="col" class="ecfr-number">Collection Rate</th>
-                        <th scope="col" class="ecfr-number">Accounts Billed</th>
-                        <th scope="col" class="ecfr-number">Accounts with Balance</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th scope="row">September 2026</th>
-                        <td class="ecfr-number">@Money(TotalBilled)</td>
-                        <td class="ecfr-number">@Money(TotalCollected)</td>
-                        <td class="ecfr-number">@Money(TotalOutstanding)</td>
-                        <td class="ecfr-number">@CollectionRate.ToString("N1")%</td>
-                        <td class="ecfr-number">@Accounts.Count</td>
-                        <td class="ecfr-number">@AccountsWithBalance</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="ecfr-data-note">Collection Rate = collected ÷ billed. Target Attainment is reported separately.</p>
-    </section>
-
-    <section class="ecfr-section ecfr-report-section" aria-labelledby="ecfr-account-title">
-        <header class="ecfr-section-heading ecfr-month-detail-heading">
-            <div>
-                <p class="ecfr-eyebrow">SELECTED MONTH</p>
-                <h2 id="ecfr-account-title">Electricity Account Summary</h2>
-            </div>
-            <label class="ecfr-month-control ecfr-screen-only">
-                <span>Month</span>
-                <select aria-label="Month">
-                    <option value="2026-09" selected>September 2026</option>
-                </select>
-            </label>
-        </header>
-        <div class="ecfr-table-scroll" role="region" aria-label="September 2026 electricity account summary" tabindex="0">
-            <table class="ecfr-table ecfr-account-table">
-                <caption class="ecfr-sr-only">September 2026 electricity account readings, charges, collections, balances, and OR numbers.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Account</th>
-                        <th scope="col">Occupant</th>
-                        <th scope="col">Basis</th>
-                        <th scope="col" class="ecfr-number">Previous</th>
-                        <th scope="col" class="ecfr-number">Current</th>
-                        <th scope="col" class="ecfr-number">Consumption</th>
-                        <th scope="col" class="ecfr-number">Billed</th>
-                        <th scope="col" class="ecfr-number">Paid</th>
-                        <th scope="col" class="ecfr-number">Balance</th>
-                        <th scope="col">OR</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var account in Accounts)
+                    </tbody>
+                    @if (_quotes.Any())
                     {
-                        <tr>
-                            <td><strong>@AccountName(account)</strong><span class="ecfr-secondary">@account.Area</span></td>
-                            <td>@account.Occupant</td>
-                            <td>@BasisLabel(account.Basis)</td>
-                            <td class="ecfr-number">@Reading(account.PreviousReading)</td>
-                            <td class="ecfr-number">@Reading(account.CurrentReading)</td>
-                            <td class="ecfr-number">@Consumption(account)</td>
-                            <td class="ecfr-number">@Money(account.Due)</td>
-                            <td class="ecfr-number">@Money(account.Paid)</td>
-                            <td class="ecfr-number">@Money(account.Balance)</td>
-                            <td>@(account.OrNumber ?? "—")</td>
-                        </tr>
+                        <tfoot>
+                            <tr>
+                                <th scope="row" colspan="3">Total · @_quotes.Count account@(_quotes.Count == 1 ? "" : "s")</th>
+                                <td class="v3-num">@Money(TotalAssessed)</td>
+                                <td class="v3-num">@Money(TotalSettled)</td>
+                                <td class="v3-num">@Money(TotalOutstanding)</td>
+                            </tr>
+                        </tfoot>
                     }
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <th scope="row" colspan="6">TOTAL</th>
-                        <td class="ecfr-number">@Money(TotalBilled)</td>
-                        <td class="ecfr-number">@Money(TotalCollected)</td>
-                        <td class="ecfr-number">@Money(TotalOutstanding)</td>
-                        <td>—</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </section>
-
-    <section class="ecfr-section ecfr-report-section" aria-labelledby="ecfr-charge-title">
-        <header class="ecfr-section-heading">
-            <div>
-                <p class="ecfr-eyebrow">OPERATIONAL ECF VIEW</p>
-                <h2 id="ecfr-charge-title">Electricity Charge Summary</h2>
+                </table>
             </div>
-        </header>
-        <div class="ecfr-table-scroll" role="region" aria-label="Electricity charges by area" tabindex="0">
-            <table class="ecfr-table ecfr-charge-table">
-                <caption class="ecfr-sr-only">September 2026 account counts, metered electricity usage, billed amounts, and collections by area.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Area</th>
-                        <th scope="col" class="ecfr-number">Accounts</th>
-                        <th scope="col" class="ecfr-number">Metered Consumption</th>
-                        <th scope="col" class="ecfr-number">Total Billed</th>
-                        <th scope="col" class="ecfr-number">Total Collected</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var summary in AreaSummaries)
-                    {
-                        <tr>
-                            <th scope="row">@summary.Area</th>
-                            <td class="ecfr-number">@summary.Count</td>
-                            <td class="ecfr-number">@OptionalUsage(summary.MeteredConsumption)</td>
-                            <td class="ecfr-number">@Money(summary.Billed)</td>
-                            <td class="ecfr-number">@Money(summary.Collected)</td>
-                        </tr>
-                    }
-                    <tr class="ecfr-total-row">
-                        <th scope="row">TOTAL</th>
-                        <td class="ecfr-number">@Accounts.Count</td>
-                        <td class="ecfr-number">@OptionalUsage(TotalMeteredConsumption)</td>
-                        <td class="ecfr-number">@Money(TotalBilled)</td>
-                        <td class="ecfr-number">@Money(TotalCollected)</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="ecfr-data-note">Only accounts with metered readings contribute to metered consumption.</p>
-    </section>
-
-    <section class="ecfr-section ecfr-report-section" aria-labelledby="ecfr-balances-title">
-        <header class="ecfr-section-heading">
-            <div>
-                <p class="ecfr-eyebrow">OPERATIONAL ECF VIEW</p>
-                <h2 id="ecfr-balances-title">Accounts with Balance</h2>
-            </div>
-        </header>
-        <div class="ecfr-table-scroll" role="region" aria-label="ECF accounts with a balance" tabindex="0">
-            <table class="ecfr-table ecfr-balance-table">
-                <caption class="ecfr-sr-only">September 2026 electricity accounts with an outstanding balance.</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Account</th>
-                        <th scope="col">Occupant</th>
-                        <th scope="col">Month</th>
-                        <th scope="col" class="ecfr-number">Billed</th>
-                        <th scope="col" class="ecfr-number">Paid</th>
-                        <th scope="col" class="ecfr-number">Balance</th>
-                        <th scope="col">Last OR</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var account in Accounts.Where(account => account.Balance > 0m))
-                    {
-                        <tr>
-                            <td><strong>@AccountName(account)</strong><span class="ecfr-secondary">@account.Area</span></td>
-                            <td>@account.Occupant</td>
-                            <td>September 2026</td>
-                            <td class="ecfr-number">@Money(account.Due)</td>
-                            <td class="ecfr-number">@Money(account.Paid)</td>
-                            <td class="ecfr-number">@Money(account.Balance)</td>
-                            <td>@(account.OrNumber ?? "—")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="ecfr-basis ecfr-report-section" aria-labelledby="ecfr-basis-title">
-        <header class="ecfr-section-heading">
-            <div>
-                <p class="ecfr-eyebrow">REPORT BASIS</p>
-                <h2 id="ecfr-basis-title">Report Basis</h2>
-            </div>
-        </header>
-        <dl class="ecfr-basis-grid">
-            <div><dt>Revenue Classification</dt><dd>General Distribution / ECF</dd></div>
-            <div><dt>Accountable Instrument</dt><dd><span class="ecfr-or-chip">OR</span> Official Receipt</dd></div>
-            <div><dt>Fiscal Year</dt><dd>2026</dd></div>
-            <div><dt>Billing Unit</dt><dd>Electricity Account</dd></div>
-            <div><dt>Charge Basis</dt><dd>Configured per account</dd></div>
-            <div><dt>Collection Source</dt><dd>Recorded OR payments</dd></div>
-            <div><dt>Last Updated</dt><dd>Sep 26, 2026</dd></div>
-        </dl>
-    </section>
-</main>
+            <p class="v3-report-note">Basis: ECF obligations recorded in StallTrack for this billing month, as of the date prepared. Settled is all settlement recorded against these obligations. OR numbers are recorded per collection.</p>
+        </section>
+    </article>
+</div>
 
 @code {
-    private static readonly string[] Months = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+    private DateOnly _period = PhilippineTime.Today;
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private List<EcfObligationQuoteDto> _quotes = [];
+    private bool _loading = true;
+    private string? _error;
 
-    private static readonly List<EcfAccount> Accounts = CreateAccounts();
+    private string PeriodLabel => _period.ToString("MMMM yyyy");
+    private bool Ready => !_loading && _error is null;
+    private IEnumerable<EcfObligationQuoteDto> OrderedQuotes => _quotes
+        .OrderBy(x => x.FacilityName).ThenBy(x => x.StallNo, StringComparer.OrdinalIgnoreCase);
 
-    private decimal? AnnualTarget => null;
-    private decimal? YtdOfficialCollection => null;
-    private decimal? RemainingTarget => AnnualTarget is { } target && YtdOfficialCollection is { } ytd ? target - ytd : null;
-    private decimal? TargetAttainment => AnnualTarget is > 0m && YtdOfficialCollection is { } ytd ? ytd / AnnualTarget.Value * 100m : null;
-    private decimal TotalBilled => Accounts.Sum(account => account.Due);
-    private decimal TotalCollected => Accounts.Sum(account => account.Paid);
-    private decimal TotalOutstanding => Accounts.Sum(account => account.Balance);
-    private int AccountsWithBalance => Accounts.Count(account => account.Balance > 0m);
-    private decimal CollectionRate => TotalBilled == 0m ? 0m : TotalCollected / TotalBilled * 100m;
-    private decimal? TotalMeteredConsumption => Accounts.Any(account => account.Consumption is not null)
-        ? Accounts.Where(account => account.Consumption is not null).Sum(account => account.Consumption!.Value)
-        : null;
+    // Totals of the listed server figures only.
+    private decimal TotalAssessed => _quotes.Sum(x => x.AssessedAmount);
+    private decimal TotalSettled => _quotes.Sum(x => x.CumulativeSettledEvidence);
+    private decimal TotalOutstanding => _quotes.Sum(x => x.OutstandingAmount);
 
-    private IEnumerable<AreaSummary> AreaSummaries => Accounts
-        .GroupBy(account => account.Area)
-        .OrderBy(group => group.Key == "Fish Section" ? 0 : group.Key == "Meat Section" ? 1 : 2)
-        .Select(group => new AreaSummary(
-            group.Key,
-            group.Count(),
-            group.Any(account => account.Consumption is not null)
-                ? group.Where(account => account.Consumption is not null).Sum(account => account.Consumption!.Value)
-                : null,
-            group.Sum(account => account.Due),
-            group.Sum(account => account.Paid)));
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", out var parsed))
+        {
+            _period = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await EcfApi.GetObligationsAsync(_period.Year, _period.Month);
+            if (result.IsSuccess) _quotes = result.Value?.ToList() ?? [];
+            else
+            {
+                _quotes = [];
+                _error = "ECF obligations couldn't be loaded.";
+            }
+        }
+        catch
+        {
+            _quotes = [];
+            _error = "ECF obligations couldn't be loaded.";
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task PrintAsync()
+    {
+        if (Ready) await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
+    }
+
+    private string Figure(string value) => Ready ? value : "—";
 
     private string ExportHref => $"data:text/csv;base64,{Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildCsv()))}";
-
-    private static string Money(decimal amount) => $"₱{amount:N2}";
-    private static string OptionalMoney(decimal? amount) => amount is { } value ? Money(value) : "—";
-    private static string OptionalPercent(decimal? amount) => amount is { } value ? $"{value:N2}%" : "—";
-    private static string OptionalUsage(decimal? amount) => amount is { } value ? $"{value:N3} kWh" : "—";
-
-    private static string AccountName(EcfAccount account) =>
-        account.Code.StartsWith("COMMON-", StringComparison.OrdinalIgnoreCase)
-        || account.Code.StartsWith("SHARED-", StringComparison.OrdinalIgnoreCase)
-            ? account.Occupant
-            : $"Stall No. {account.Code}";
-
-    private static string BasisLabel(BasisKind basis) => basis switch
-    {
-        BasisKind.Metered => "Metered",
-        BasisKind.Submetered => "Submetered",
-        BasisKind.Fixed => "Fixed",
-        BasisKind.Allocation => "Bill allocation",
-        BasisKind.Manual => "Approved amount",
-        _ => "—"
-    };
-
-    private static string Reading(decimal? value) => value is { } reading ? $"{reading:N3} kWh" : "—";
-    private static string Consumption(EcfAccount account) => account.Consumption is { } usage ? $"{usage:N3} kWh" : "—";
-
-    private async Task PrintReport() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 
     private string BuildCsv()
     {
         var rows = new List<string>
         {
-            CsvRow("Report", "General Distribution / ECF Report"),
-            CsvRow("Fiscal Year", "2026"),
-            CsvRow("Official ECF Annual Target", "—"),
-            CsvRow("Official ECF YTD Collection", "—"),
-            CsvRow("Operational Billing Position", "September 2026"),
-            CsvRow("Billed", Money(TotalBilled)),
-            CsvRow("Collected", Money(TotalCollected)),
-            CsvRow("Outstanding", Money(TotalOutstanding)),
-            CsvRow("Collection Rate", $"{CollectionRate:N1}%"),
+            Csv("Report", "Electricity Consumption Fees Report"),
+            Csv("Office", Branding.OfficeName),
+            Csv("Municipality", $"{Branding.Municipality}, {Branding.Province}"),
+            Csv("Billing month", PeriodLabel),
+            Csv("Date prepared", PhilippineTime.Now.ToString("yyyy-MM-dd")),
+            Csv("Annual target", "not available"),
             string.Empty,
-            CsvRow("Account", "Occupant", "Area", "Basis", "Previous Reading", "Current Reading", "Consumption", "Billed", "Paid", "Balance", "OR")
+            Csv("Payer", "Facility", "Stall", "Area", "Consumption (kWh)", "Rate", "Assessed", "Settled", "Outstanding"),
         };
-
-        rows.AddRange(Accounts.Select(account => CsvRow(
-            AccountName(account),
-            account.Occupant,
-            account.Area,
-            BasisLabel(account.Basis),
-            Reading(account.PreviousReading),
-            Reading(account.CurrentReading),
-            Consumption(account),
-            Money(account.Due),
-            Money(account.Paid),
-            Money(account.Balance),
-            account.OrNumber ?? "—")));
-
+        rows.AddRange(OrderedQuotes.Select(x => Csv(
+            Payer(x), x.FacilityName, x.StallNo, x.Section,
+            x.Consumption.ToString("0.00"), x.RatePerKwh.ToString("0.00"),
+            x.AssessedAmount.ToString("0.00"), x.CumulativeSettledEvidence.ToString("0.00"), x.OutstandingAmount.ToString("0.00"))));
+        rows.Add(Csv("Total", "", "", "", "", "",
+            TotalAssessed.ToString("0.00"), TotalSettled.ToString("0.00"), TotalOutstanding.ToString("0.00")));
         return string.Join("\r\n", rows);
     }
 
-    private static string CsvRow(params string[] values) =>
+    private static string Csv(params string[] values) =>
         string.Join(",", values.Select(value => $"\"{value.Replace("\"", "\"\"")}\""));
 
-    private static List<EcfAccount> CreateAccounts()
-    {
-        return new List<EcfAccount>
-        {
-            Metered("1", "Juan Dela Cruz", "Fish Section", 420m, 420m, 1245.6m, "001234567"),
-            Metered("2", "Pedro Santos", "Meat Section", 680m, 400m, 810m, "001234568"),
-            Fixed("3", "Maria Flores", "Fish Section", 350m, 0m, null),
-            Allocated("COMMON-01", "Shared Market Area", "Common Area", 1200m, 1200m, "001234569"),
-            Metered("4", "Ana Reyes", "Fish Section", 760m, 760m, 990m, "001234570"),
-            Metered("5", "Carlo Mendoza", "Fish Section", 760m, 760m, 1000m, "001234571"),
-            Metered("6", "Lorna Garcia", "Fish Section", 800m, 800m, 970m, "001234572"),
-            Metered("7", "Nestor Ramos", "Fish Section", 740m, 740m, 1040m, "001234573"),
-            Metered("8", "Rina Bautista", "Fish Section", 860m, 860m, 980m, "001234574"),
-            Metered("9", "Marlon Cruz", "Fish Section", 690m, 690m, 1120m, "001234575"),
-            Metered("10", "Elena Villanueva", "Meat Section", 780m, 780m, 930m, "001234576"),
-            Metered("11", "Roberto Lim", "Meat Section", 900m, 900m, 900m, "001234577"),
-            Metered("12", "Teresa Padilla", "Meat Section", 800m, 800m, 1000m, "001234578"),
-            Metered("13", "Renato Dizon", "Meat Section", 710m, 710m, 1050m, "001234579"),
-            Metered("14", "Nena Castillo", "Meat Section", 850m, 850m, 960m, "001234580"),
-            Metered("15", "Felipe Torres", "Meat Section", 930m, 930m, 890m, "001234581"),
-            Metered("16", "Lourdes Navarro", "Meat Section", 680m, 680m, 1070m, "001234582"),
-            Metered("17", "Antonio Ramos", "Meat Section", 790m, 790m, 980m, "001234583"),
-            Metered("18", "Aida Salazar", "Fish Section", 850m, 850m, 960m, "001234584"),
-            Metered("19", "Mario Espina", "Fish Section", 760m, 760m, 1010m, "001234585"),
-            Fixed("20", "Celia Mercado", "Fish Section", 840m, 840m, "001234586"),
-            Allocated("COMMON-02", "Market Lighting", "Common Area", 720m, 720m, "001234587"),
-            Manual("21", "Rogelio Aquino", "Meat Section", 820m, 820m, "001234588"),
-            Metered("22", "Eduardo Valdez", "Meat Section", 2400m, 1200m, 540m, "001234589", BasisKind.Submetered),
-            Allocated("SHARED-MEAT-01", "Meat Section Shared Connection", "Common Area", 2600m, 1440m, "001234590"),
-            Manual("23", "Sonia Abad", "Fish Section", 1990m, 1200m, "001234591")
-        };
-    }
+    private static string Payer(EcfObligationQuoteDto quote) => quote.PayerNameSnapshot ?? "Payer snapshot unavailable";
 
-    private static EcfAccount Metered(string code, string occupant, string area, decimal due, decimal paid, decimal previousReading, string? orNumber, BasisKind basis = BasisKind.Metered)
-    {
-        const decimal exampleRate = 12m;
-        return new EcfAccount(code, occupant, area, basis, due, paid, previousReading, previousReading + due / exampleRate, orNumber);
-    }
+    private static string Source(EcfObligationQuoteDto quote) =>
+        $"{quote.FacilityName} · Stall {quote.StallNo}{(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")}";
 
-    private static EcfAccount Fixed(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Fixed, due, paid, null, null, orNumber);
-
-    private static EcfAccount Allocated(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Allocation, due, paid, null, null, orNumber);
-
-    private static EcfAccount Manual(string code, string occupant, string area, decimal due, decimal paid, string? orNumber) =>
-        new(code, occupant, area, BasisKind.Manual, due, paid, null, null, orNumber);
-
-    private enum BasisKind
-    {
-        Metered,
-        Submetered,
-        Fixed,
-        Allocation,
-        Manual
-    }
-
-    private sealed record EcfAccount(string Code, string Occupant, string Area, BasisKind Basis, decimal Due, decimal Paid, decimal? PreviousReading, decimal? CurrentReading, string? OrNumber)
-    {
-        public decimal Balance => Math.Max(Due - Paid, 0m);
-        public decimal? Consumption => PreviousReading is { } previous && CurrentReading is { } current
-            ? Math.Max(current - previous, 0m)
-            : null;
-    }
-
-    private sealed record AreaSummary(string Area, int Count, decimal? MeteredConsumption, decimal Billed, decimal Collected);
+    private static string Money(decimal amount) => $"₱{amount:N2}";
 }

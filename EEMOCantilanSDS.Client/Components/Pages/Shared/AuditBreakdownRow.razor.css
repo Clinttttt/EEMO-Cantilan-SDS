@@ -86,8 +86,8 @@
     border-radius: 999px;
     transition: width .4s ease;
 }
-.fm-billed { background: color-mix(in srgb, var(--navy) 40%, var(--border)); }
-.fm-collected { background: var(--navy); }
+.fm-billed { background: var(--accent); }
+.fm-collected { background: var(--accent); }
 .fm-open { background: var(--red); }
 .fm-vals {
     display: flex;
@@ -132,7 +132,7 @@
 }
 .cmp-label {
     margin-top: 8px;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: .07em;

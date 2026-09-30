@@ -25,7 +25,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, var(--navy), var(--gold), var(--navy));
+    background: var(--accent);
 }
 
 .op-form-head {
@@ -145,8 +145,8 @@
     gap: 8px;
     padding: 9px 16px;
     border-radius: 9px;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--accent);
+    color: #fff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
@@ -247,7 +247,7 @@
 }
 
     .breadcrumb-link:hover {
-        color: var(--gold);
+        color: var(--accent);
     }
 
 @media (max-width: 560px) {

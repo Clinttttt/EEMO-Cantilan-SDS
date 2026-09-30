@@ -1,0 +1,19 @@
+@* A short row of figures that describe the page's current scope. Values are displayed exactly as the page supplies
+   them — this component formats nothing and calculates nothing. *@
+<dl class="ss" aria-label="@Label">
+    @foreach (var item in Items)
+    {
+        <div class="ss-item @(item.Emphasis ? "ss-emphasis" : null)">
+            <dt>@item.Label</dt>
+            <dd>@item.Value</dd>
+        </div>
+    }
+</dl>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<SummaryItem> Items { get; set; } = [];
+
+    [Parameter] public string? Label { get; set; }
+
+    public sealed record SummaryItem(string Label, string Value, bool Emphasis = false);
+}

@@ -28,7 +28,7 @@
     background: rgba(200, 168, 75, .18); display: flex; align-items: center; justify-content: center;
 }
 .fh-hero-icon svg { width: 26px; height: 26px; stroke: var(--gold); }
-.fh-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.fh-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .fh-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
 .fh-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
 .fh-hero-stats { flex: 1; display: flex; align-items: center; flex-wrap: wrap; }
@@ -66,7 +66,7 @@
 .fh-chip:disabled { opacity: .42; cursor: not-allowed; }
 .fh-chip-count { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: var(--bg-icon); color: var(--text-subtle); font-size: 10.5px; font-weight: 800; text-align: center; }
 .fh-chip-active, .fh-chip-active:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    background: var(--accent);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -77,7 +77,7 @@
     height: 42px; padding: 0 14px; flex: 1 1 auto; min-width: 0;
     transition: border-color .12s ease, box-shadow .12s ease;
 }
-.fh-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.fh-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 .fh-search svg { width: 16px; height: 16px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .fh-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13.5px; color: var(--navy); }
 .fh-search input::placeholder { color: var(--text-muted); }
@@ -95,10 +95,10 @@
     background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 10px;
     font: inherit; transition: border-color .15s ease, box-shadow .15s ease;
 }
-.fh-dd-trigger:hover { border-color: var(--gold); }
+.fh-dd-trigger:hover { border-color: var(--accent); }
 .fh-dd-trigger.open { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(13, 33, 55, .07); }
 .fh-dd-body { display: flex; flex-direction: column; text-align: left; min-width: 0; }
-.fh-dd-cap { font-size: 8.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); line-height: 1; }
+.fh-dd-cap { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); line-height: 1; }
 .fh-dd-val { font-size: 13px; font-weight: 700; color: var(--navy); line-height: 1.25; margin-top: 2px; white-space: nowrap; }
 .fh-dd-chevron { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; transition: transform .2s ease; }
 .fh-dd-trigger.open .fh-dd-chevron { transform: rotate(180deg); }
@@ -113,13 +113,13 @@
 }
 .fh-dd-menu-right { left: auto; right: 0; }
 @keyframes fh-dd-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-.fh-dd-header { font-size: 8.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--text-muted); padding: 10px 14px 6px; }
+.fh-dd-header { font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--text-muted); padding: 10px 14px 6px; }
 .fh-dd-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: background .12s; }
 .fh-dd-item:hover { background: var(--bg); }
 .fh-dd-item.active { background: rgba(13, 33, 55, .04); }
 .fh-dd-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); font-weight: 500; white-space: nowrap; }
 .fh-dd-item.active .fh-dd-name { font-weight: 700; color: var(--navy); }
-.fh-dd-count { min-width: 18px; padding: 1px 7px; border-radius: 999px; background: var(--bg-icon); color: var(--text-subtle); font-size: 10px; font-weight: 800; text-align: center; flex-shrink: 0; }
+.fh-dd-count { min-width: 18px; padding: 1px 7px; border-radius: 999px; background: var(--bg-icon); color: var(--text-subtle); font-size: 11px; font-weight: 800; text-align: center; flex-shrink: 0; }
 .fh-dd-check { width: 14px; height: 14px; stroke: var(--navy); flex-shrink: 0; }
 
 @media screen and (max-width: 720px) {
@@ -189,8 +189,8 @@
 /* Loading / error states */
 .fh-state { padding: 44px; text-align: center; color: var(--text-subtle); font-size: 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; }
 .fh-state-error { color: var(--red); }
-.fh-retry { margin-left: 10px; background: var(--navy); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
-.fh-retry:hover { background: var(--navy-2, #112d47); }
+.fh-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.fh-retry:hover { background: var(--accent-hover); }
 
 /* Empty period */
 .fh-empty {
@@ -261,7 +261,7 @@
 }
 
 .fq-modal-done {
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 9px;
@@ -270,7 +270,7 @@
     font-weight: 600;
     cursor: pointer;
 }
-.fq-modal-done:hover { background: var(--navy-2, #112d47); }
+.fq-modal-done:hover { background: var(--accent-hover); }
 
 .fq-or-state { padding: 18px 4px; text-align: center; color: var(--text-subtle); font-size: 13px; }
 .fq-or-error { color: var(--red); }
@@ -301,7 +301,7 @@
     font-size: 13px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.fq-or-input:focus { outline: none; border-color: var(--gold); }
+.fq-or-input:focus { outline: none; border-color: var(--accent); }
 
 .fq-or-save {
     background: var(--gold);
@@ -352,7 +352,7 @@
 .fq-or-mode { padding: 8px 10px; border: none; background: var(--bg-card); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-subtle); }
 .fq-or-mode + .fq-or-mode { border-left: 1px solid var(--border); }
 .fq-or-mode:hover:not(.on) { background: #f7fafc; color: var(--text); }
-.fq-or-mode.on { background: var(--navy); color: #fff; }
+.fq-or-mode.on { background: var(--accent); color: #fff; }
 .fq-or-mode:disabled { opacity: .6; cursor: default; }
 
 .fq-or-rowpick { grid-template-columns: auto 1fr; cursor: pointer; }
@@ -382,9 +382,92 @@
 }
 
 .fh-empty-link:hover {
-    color: var(--gold, #b8860b);
+    color: var(--accent);
 }
 
 /* No visible scrollbar under the chip row - it would read as a broken control on a formal sheet. */
 .fh-filters::-webkit-scrollbar { height: 0; }
+
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.fh-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .fh-hero::before,
+    .fh-hero::after {
+        display: none;
+    }
+
+.fh-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .fh-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.fh-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.fh-hero-title,
+.fh-hero-val {
+    color: var(--navy);
+}
+
+.fh-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.fh-hero-sub,
+.fh-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.fh-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.fh-hero-divider {
+    background: var(--border);
+}
+
+.fh-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.fh-hero-progress-fill {
+    background: var(--accent);
+}
+
+.fh-stat-val {
+    color: var(--navy);
+}
+
+.fh-stat-val.fh-stat-critical {
+    color: var(--red);
+}
+
+.fh-stat-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
 

@@ -82,7 +82,7 @@
     }
 
 .facility-card-code {
-    font-size: 8.5px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -103,7 +103,7 @@
     border-radius: 5px;
     background: var(--bg-icon, #eef2f6);
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: .2px;
 }
@@ -119,7 +119,7 @@
     border-radius: 6px;
     background: var(--green-bg, #e9f5ee);
     color: var(--green);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: .2px;
 }
@@ -182,7 +182,7 @@
     }
 
 .fac-stat-key {
-    font-size: 8.5px;
+    font-size: 11px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.8px;
@@ -211,7 +211,7 @@
 }
 
 .facility-progress-pct {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-subtle);
     flex-shrink: 0;
@@ -226,7 +226,7 @@
 }
 
 .fee-chip {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 10px;
@@ -350,14 +350,14 @@
 }
 
 .delinquent-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--red);
 }
 
 .delinquent-months {
-    font-size: 10px;
+    font-size: 11px;
     margin-top: 2px;
 }
 
@@ -431,7 +431,7 @@
     font-weight: 600;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
     margin-bottom: 4px;
 }
 
@@ -583,7 +583,7 @@ a.dashboard-report-tab:hover {
 }
 
 .dashboard-report-tab.active {
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     box-shadow: 0 3px 9px rgba(13,33,55,.18);
 }
@@ -598,7 +598,7 @@ a.dashboard-report-tab:hover {
     border-radius: 999px;
     background: rgba(200,168,75,.18);
     color: #8a6d1b;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -688,3 +688,77 @@ a.dashboard-report-tab:hover {
     }
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
+}
+
+
+/* Non-status tag: neutral, not gold (V3). */
+.dashboard-report-soon {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    box-shadow: inset 0 0 0 1px var(--border);
+}

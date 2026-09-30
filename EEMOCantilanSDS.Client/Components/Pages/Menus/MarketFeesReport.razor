@@ -1,300 +1,60 @@
 @page "/operations/market-fees/report"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @inject IJSRuntime JS
 
-<PageTitle>Market Fees Report - FY 2026</PageTitle>
+<PageTitle>StallTrack — Market Fees Report</PageTitle>
 
-<div class="mfr-page">
-    <nav class="mfr-breadcrumb mfr-screen-only" aria-label="Breadcrumb">
-        <a href="/operations">Operations</a>
-        <span aria-hidden="true">/</span>
-        <a href="/operations/market-fees">Market Fees</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">Report</span>
-    </nav>
-
-    <header class="mfr-page-heading mfr-screen-only">
-        <div class="mfr-page-title">
-            <h1>Market Fees Report</h1>
-            <p>Monthly collection and annual target report.</p>
-        </div>
-        <div class="mfr-controls">
-            <label class="mfr-select-control">
-                <span>Fiscal Year</span>
-                <span class="mfr-select-shell">
-                    <select aria-label="Fiscal Year">
-                        <option value="2026" selected>2026</option>
+@* Printable Market Fees report. StallTrack does not yet hold Market Fees collections, an approved annual target or
+   classified monthly income, so every figure is shown as unavailable ("—") rather than typed into the page. Earlier
+   versions carried hard-coded office-sheet figures and sample section totals; those are not system data and would
+   print for every municipality. The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <div class="no-print">
+        <WorkspaceHeader Parent="Market Fees" ParentHref="/operations/market-fees" Title="Market Fees Report">
+            <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+            <Actions>
+                <label class="v3-period">
+                    <span>Fiscal year</span>
+                    <select class="v3-select mfr-year" aria-label="Fiscal year" @bind="_year">
+                        @for (var year = PhilippineTime.Today.Year; year >= PhilippineTime.Today.Year - 2; year--)
+                        {
+                            <option value="@year">@year</option>
+                        }
                     </select>
-                </span>
-            </label>
-            <button class="mfr-print-button" type="button" @onclick="PrintReport">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7zM17 11h.01" /></svg>
-                Print
-            </button>
-            <button class="mfr-export-button" type="button" disabled title="Export is not available.">Export</button>
-        </div>
-    </header>
+                </label>
+                <div class="v3-btn-group" role="group" aria-label="Report actions">
+                    <button class="v3-btn" type="button" @onclick="PrintAsync">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
+                        Print
+                    </button>
+                </div>
+            </Actions>
+        </WorkspaceHeader>
+    </div>
 
-    <article class="mfr-document" aria-label="Market Fees Collection Report, Fiscal Year 2026">
-        <header class="mfr-letterhead">
-            <div class="mfr-government-heading">
-                <img class="mfr-government-logo mfr-seal-logo"
-                     src="/images/LGU_CANTILAN_LOGO.jpg"
-                     alt="Municipality of Cantilan seal" />
-                <div class="mfr-government-copy">
-                    <p>Republic of the Philippines</p>
-                    <p>Province of Surigao del Sur</p>
-                    <p class="mfr-municipality">MUNICIPALITY OF CANTILAN</p>
-                </div>
-                <img class="mfr-government-logo mfr-bagong-logo"
-                     src="/images/Bagong_Pilipinas_logo.png"
-                     alt="Bagong Pilipinas logo" />
-            </div>
-            <p class="mfr-office-name">MUNICIPAL ECONOMIC ENTERPRISES DEVELOPMENT OFFICE</p>
-            <h2>MARKET FEES COLLECTION REPORT</h2>
-            <p class="mfr-report-year">Fiscal Year 2026</p>
-        </header>
+    <article class="v3-report-sheet print-report-sheet" aria-labelledby="mfr-title">
+        <ReportLetterhead Title="Market Fees Report" Period="@($"Fiscal year {_year}")">
+            <Facts>
+                <div><dt>Classification</dt><dd>Market Fees</dd></div>
+                <div><dt>Instrument</dt><dd>Cash Ticket</dd></div>
+            </Facts>
+        </ReportLetterhead>
+        <h2 id="mfr-title" class="v3-sr-only">Market Fees report for fiscal year @_year</h2>
 
-        <section class="mfr-financial-summary" aria-labelledby="mfr-financial-summary-title">
-            <h2 id="mfr-financial-summary-title">Financial Summary</h2>
-            <dl class="mfr-summary-row">
-                <div>
-                    <dt>Annual Target</dt>
-                    <dd>@Money(AnnualTarget)</dd>
-                </div>
-                <div>
-                    <dt>YTD Collection</dt>
-                    <dd>@Money(YtdCollection)</dd>
-                </div>
-                <div>
-                    <dt>Remaining Target</dt>
-                    <dd>@Money(RemainingTarget)</dd>
-                </div>
-                <div>
-                    <dt>Target Attainment</dt>
-                    <dd>@TargetAttainment.ToString("N2")%</dd>
-                </div>
-            </dl>
-        </section>
+        <MonthlyIncomeUnavailable Classification="Market Fees" Year="_year" HeadingId="mfr-official" />
 
-        <section class="mfr-report-section mfr-official-section" aria-labelledby="mfr-monthly-title">
-            <header class="mfr-section-heading">
-                <div>
-                    <p class="mfr-section-label">OFFICIAL MONTHLY SUMMARY</p>
-                    <h2 id="mfr-monthly-title">Monthly Income - Fiscal Year 2026</h2>
-                </div>
-            </header>
-            <div class="mfr-table-scroll" role="region" aria-label="Official monthly summary table" tabindex="0">
-                <table class="mfr-table mfr-monthly-table">
-                    <caption class="mfr-sr-only">Market Fees annual target, January through December actual collection, year-to-date total, and target attainment.</caption>
-                    <colgroup>
-                        <col class="mfr-col-revenue" />
-                        <col class="mfr-col-target" />
-                        @foreach (var month in Months)
-                        {
-                            <col class="mfr-col-month" />
-                        }
-                        <col class="mfr-col-total" />
-                        <col class="mfr-col-percent" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th scope="col">Revenue</th>
-                            <th scope="col" class="mfr-number">Annual Target</th>
-                            @foreach (var month in Months)
-                            {
-                                <th scope="col" class="mfr-month-heading">@month</th>
-                            }
-                            <th scope="col" class="mfr-number mfr-total-column">Total</th>
-                            <th scope="col" class="mfr-number mfr-total-column">%</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th scope="row">Market Fees</th>
-                            <td class="mfr-number">@Money(AnnualTarget)</td>
-                            @foreach (var actual in MonthlyActuals)
-                            {
-                                <td class="mfr-number">@FormatOptionalMoney(actual)</td>
-                            }
-                            <td class="mfr-number mfr-total-column">@Money(YtdCollection)</td>
-                            <td class="mfr-number mfr-total-column">@TargetAttainment.ToString("N2")%</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="mfr-report-section" aria-labelledby="mfr-breakdown-title">
-            <header class="mfr-section-heading">
-                <div>
-                    <p class="mfr-section-label">SECTION BREAKDOWN</p>
-                    <h2 id="mfr-breakdown-title">Current Digital Detail</h2>
-                </div>
-                <p class="mfr-period-note">September 2026 <span aria-hidden="true">·</span> displayed daily entry: Sep 26, 2026</p>
-            </header>
-            <div class="mfr-table-scroll" role="region" aria-label="Market Fee section breakdown table" tabindex="0">
-                <table class="mfr-table mfr-compact-table">
-                    <caption class="mfr-sr-only">Digital daily collection detail by Market Fees section for the displayed September 26, 2026 entry.</caption>
-                    <colgroup>
-                        <col class="mfr-col-section" />
-                        <col class="mfr-col-collection" />
-                        <col class="mfr-col-share" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th scope="col">Section</th>
-                            <th scope="col" class="mfr-number">Collection</th>
-                            <th scope="col" class="mfr-number">Share</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var section in SectionContributions)
-                        {
-                            <tr>
-                                <th scope="row">@section.Name</th>
-                                <td class="mfr-number">@Money(section.DailyTotal)</td>
-                                <td class="mfr-number">@FormatShare(section.DailyTotal / CurrentDigitalTotal * 100m)</td>
-                            </tr>
-                        }
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th scope="row">Total</th>
-                            <td class="mfr-number">@Money(CurrentDigitalTotal)</td>
-                            <td class="mfr-number">100.00%</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        </section>
-
-        <section class="mfr-report-section" aria-labelledby="mfr-daily-title">
-            <header class="mfr-section-heading">
-                <div>
-                    <p class="mfr-section-label">DAILY COLLECTION DETAIL</p>
-                    <h2 id="mfr-daily-title">September 2026</h2>
-                </div>
-            </header>
-            <div class="mfr-table-scroll" role="region" aria-label="Daily Market Fees collection detail" tabindex="0">
-                <table class="mfr-table mfr-compact-table mfr-daily-table">
-                    <caption class="mfr-sr-only">Supported daily Market Fees entry for September 26, 2026.</caption>
-                    <colgroup>
-                        <col class="mfr-col-date" />
-                        <col class="mfr-col-daily-section" />
-                        <col class="mfr-col-daily-section" />
-                        <col class="mfr-col-daily-total" />
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th scope="col">Date</th>
-                            <th scope="col" class="mfr-number">Comfort Room</th>
-                            <th scope="col" class="mfr-number">General Market Area</th>
-                            <th scope="col" class="mfr-number">Daily Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <th scope="row">Sep 26, 2026</th>
-                            <td class="mfr-number">@Money(ComfortRoomTotal)</td>
-                            <td class="mfr-number">@Money(GeneralMarketAreaTotal)</td>
-                            <td class="mfr-number">@Money(CurrentDigitalTotal)</td>
-                        </tr>
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th scope="row">Total</th>
-                            <td class="mfr-number">@Money(ComfortRoomTotal)</td>
-                            <td class="mfr-number">@Money(GeneralMarketAreaTotal)</td>
-                            <td class="mfr-number">@Money(CurrentDigitalTotal)</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-        </section>
-
-        <section class="mfr-report-section mfr-basis-section" aria-labelledby="mfr-basis-title">
-            <header class="mfr-section-heading">
-                <div>
-                    <p class="mfr-section-label">REPORT BASIS</p>
-                    <h2 id="mfr-basis-title">Report Basis</h2>
-                </div>
-            </header>
-            <table class="mfr-basis-table">
-                <tbody>
-                    <tr><th scope="row">Revenue Classification</th><td>Market Fees</td></tr>
-                    <tr><th scope="row">Instrument</th><td><span class="mfr-ct-chip">CT</span> Cash Ticket</td></tr>
-                    <tr><th scope="row">Fiscal Year</th><td>2026</td></tr>
-                    <tr><th scope="row">Annual Target</th><td>@Money(AnnualTarget)</td></tr>
-                    <tr><th scope="row">Official YTD</th><td>@Money(YtdCollection)</td></tr>
-                    <tr><th scope="row">Digital Detail Period</th><td>September 2026</td></tr>
-                    <tr><th scope="row">Last Updated</th><td>Sep 26, 2026 - 10:12 AM</td></tr>
-                </tbody>
-            </table>
+        <section class="v3-report-section" aria-labelledby="mfr-basis">
+            <h3 id="mfr-basis">Basis</h3>
+            <p class="v3-report-note">Market Fees is one Monthly Income line. It does not include ECF, WCF, Tabo, Fish / Meat Vendor Fees, Landing / Berthing, Transportation Fees, Weight &amp; Measure, Transfer Large Cattle or Ice Plant, which are reported as their own lines.</p>
         </section>
     </article>
 </div>
 
-<style media="print">
-    .sidebar,
-    .sidebar-hamburger,
-    .sidebar-backdrop,
-    .admin-header,
-    .admin-topbar {
-        display: none !important;
-    }
-
-    .admin-layout {
-        display: block !important;
-        min-height: 0 !important;
-    }
-
-    .admin-layout > .admin-main {
-        width: auto !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: visible !important;
-    }
-</style>
-
 @code {
-    private const decimal AnnualTarget = 1_300_000m;
-    private const decimal ComfortRoomTotal = 2_150m;
-    private const decimal GeneralMarketAreaTotal = 2_200m;
-    private const decimal CurrentDigitalTotal = ComfortRoomTotal + GeneralMarketAreaTotal;
+    private int _year = PhilippineTime.Today.Year;
 
-    private static readonly string[] Months =
-    [
-        "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-        "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
-    ];
-
-    private static readonly decimal?[] MonthlyActuals =
-    [
-        69_990m, 50_200m, 64_600m, 52_600m, 54_170m, 51_100m,
-        78_000m, 53_200m, null, null, null, null
-    ];
-
-    private static readonly SectionContribution[] SectionContributions =
-    [
-        new("Comfort Room", ComfortRoomTotal),
-        new("General Market Area", GeneralMarketAreaTotal)
-    ];
-
-    private static decimal YtdCollection => MonthlyActuals.Sum(value => value ?? 0m);
-    private static decimal RemainingTarget => AnnualTarget - YtdCollection;
-    private static decimal TargetAttainment => YtdCollection / AnnualTarget * 100m;
-
-    private static string Money(decimal amount) => $"\u20B1{amount:N2}";
-
-    private static string FormatOptionalMoney(decimal? amount) =>
-        amount is decimal value ? Money(value) : "\u2014";
-
-    private static string FormatShare(decimal percentage) => $"{percentage:N2}%";
-
-    private async Task PrintReport() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
-
-    private sealed record SectionContribution(string Name, decimal DailyTotal);
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 }

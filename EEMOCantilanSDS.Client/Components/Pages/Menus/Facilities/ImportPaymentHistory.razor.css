@@ -66,7 +66,7 @@
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .08em;
-    color: var(--gold);
+    color: var(--accent);
 }
 
 .iph-hero-title {
@@ -158,7 +158,7 @@
 }
 
 .iph-drop:hover {
-    border-color: var(--gold);
+    border-color: var(--accent);
     background: var(--bg-page);
 }
 
@@ -238,7 +238,7 @@
 }
 
 .iph-link:hover {
-    color: #8a6d1b;
+    color: var(--accent);
 }
 
 .iph-link svg {
@@ -260,7 +260,7 @@
 }
 
 .iph-link-btn:hover {
-    color: #8a6d1b;
+    color: var(--accent);
 }
 
 .iph-cols-preview {
@@ -445,7 +445,7 @@
 }
 
 .iph-input:focus {
-    border-color: var(--gold);
+    border-color: var(--accent);
 }
 
 /* Left, like every other cell in the row.
@@ -575,8 +575,8 @@
 }
 
 .iph-btn-primary {
-    background: var(--navy);
-    border-color: var(--navy);
+    background: var(--accent);
+    border-color: var(--accent);
     color: #fff;
 }
 
@@ -674,7 +674,7 @@
 }
 
     .iph-pick-card:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         box-shadow: 0 6px 16px rgba(13, 33, 55, .08);
         transform: translateY(-2px);
     }
@@ -720,7 +720,7 @@
     border-radius: 20px;
     border: 1px solid rgba(200, 168, 75, .35);
     background: rgba(200, 168, 75, .16);
-    color: var(--gold);
+    color: var(--accent);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .04em;
@@ -797,4 +797,70 @@
     margin-top: 4px;
     font-size: 11.5px;
     color: var(--text-muted);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.iph-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .iph-hero::before,
+    .iph-hero::after {
+        display: none;
+    }
+
+.iph-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .iph-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.iph-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.iph-hero-title,
+.iph-hero-val {
+    color: var(--navy);
+}
+
+.iph-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.iph-hero-sub,
+.iph-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.iph-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.iph-hero-divider {
+    background: var(--border);
+}
+
+.iph-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.iph-hero-progress-fill {
+    background: var(--accent);
 }

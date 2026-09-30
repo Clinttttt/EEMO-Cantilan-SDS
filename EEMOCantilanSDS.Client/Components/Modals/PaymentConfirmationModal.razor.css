@@ -9,7 +9,7 @@
 }
 
 .confirm-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 1.4px;
     text-transform: uppercase;
@@ -189,3 +189,12 @@
     .confirm-or-input::placeholder {
         color: var(--text-muted);
     }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.eemo-modal-overlay {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}

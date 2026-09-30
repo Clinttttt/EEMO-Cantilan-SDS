@@ -35,6 +35,12 @@ Interface V2 is an adoption and consistency program, not a visual-reset project.
 
 This preservation rule does not freeze defects. Misleading labels, broken responsive behavior, inaccessible controls, inconsistent states, or UI that cannot express an approved V2 capability should be corrected with the smallest compatible change.
 
+### 1.2 V3 presentation authority
+
+`STALLTRACK_UI_V3_DIRECTION.md` is the Clint-approved authority for Web Office **visual presentation**. Where this document or §1.1 requires preserving the dark/heavy-navy production appearance (navy structure, dark sidebar, dark heroes, gold as the active-context color), V3 supersedes it for Web presentation.
+
+V3 does not supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts. The non-visual rules in this document — page anatomy, card restraint, table/filter semantics, status and terminology, money and date basis, standard states, confirmation UX, responsive and accessibility minimums, CSS/component rules — remain in force.
+
 ## 2. Canonical page anatomy
 
 A normal office page should follow this order when the concepts apply:

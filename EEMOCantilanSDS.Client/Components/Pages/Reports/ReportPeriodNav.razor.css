@@ -2,7 +2,7 @@
 
 /* Base nav chrome (the elements moved into this component, so it owns their styles). */
 .rpt-date-nav { display: flex; align-items: center; gap: 10px; }
-.rpt-date-nav.utility-mode .rpt-current-period { color: var(--gold); }
+.rpt-date-nav.utility-mode .rpt-current-period { color: var(--accent); }
 .rpt-nav-btn {
     width: 30px; height: 30px;
     border-radius: 7px;
@@ -32,8 +32,8 @@
     transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
 }
 
-    .rpt-period-trigger:hover { border-color: var(--gold); background: var(--bg); }
-    .rpt-period-trigger:focus-visible { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+    .rpt-period-trigger:hover { border-color: var(--accent); background: var(--bg); }
+    .rpt-period-trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 
 .rpt-period-caret {
     width: 14px; height: 14px;
@@ -85,9 +85,9 @@
     transition: background .12s ease, color .12s ease, border-color .12s ease;
 }
 .rpt-picker-cell:hover { background: var(--bg-icon); }
-.rpt-picker-cell.current { border-color: var(--gold); color: #8a6d1b; }
+.rpt-picker-cell.current { border-color: var(--accent); color: #8a6d1b; }
 .rpt-picker-cell.selected, .rpt-picker-cell.selected:hover {
-    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%); color: #fff; border-color: transparent;
+    background: var(--accent); color: #fff; border-color: transparent;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .16);
 }
 

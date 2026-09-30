@@ -126,8 +126,8 @@
 
 /* Current period — warm gold glow + gold label & value (no extra row element) */
 .rpt-bar-group.current .bar3d { filter: drop-shadow(4px 9px 13px rgba(200, 168, 75, 0.42)); }
-.rpt-bar-group.current .rpt-bar-label { color: #b5872a; font-weight: 700; }
-.rpt-bar-group.current .rpt-bar-val { color: #b5872a; }
+.rpt-bar-group.current .rpt-bar-label { color: var(--accent); font-weight: 700; }
+.rpt-bar-group.current .rpt-bar-val { color: var(--accent); }
 
 /* Zero-value period — small muted baseline platform so the period still reads (not blank) */
 .rpt-bar-group.is-zero .bar3d { height: 11px !important; filter: none; }
@@ -188,7 +188,7 @@
 .rpt-bar-tip .tip-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .rpt-bar-tip .tip-dot.rent { background: #2d7a5f; }
 .rpt-bar-tip .tip-dot.fish { background: #4a9eff; }
-.rpt-bar-tip .tip-current { margin-top: 7px; font-size: 10px; font-weight: 600; color: var(--text-subtle); }
+.rpt-bar-tip .tip-current { margin-top: 7px; font-size: 11px; font-weight: 600; color: var(--text-subtle); }
 .rpt-bar-tip .tip-empty { margin-top: 5px; font-size: 11px; color: var(--text-subtle); }
 
 .rpt-bar-label {
@@ -222,3 +222,31 @@
 .rpt-empty-icon svg { width: 40px; height: 40px; stroke: var(--text-subtle); opacity: 0.6; }
 .rpt-empty-title { font-size: 14px; font-weight: 700; color: var(--text-subtle); }
 .rpt-empty-text { font-size: 12px; color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Flat bars: V3 forbids decorative gradients and 3-D effects. The extruded faces and drop-shadows are
+   removed; rent stays green, the fish fee civic blue; the current month is marked by its blue label.
+   ══════════════════════════════════════════════════════════════ */
+.bar3d,
+.rpt-bar-group.current .bar3d,
+.rpt-bar-group:hover .bar3d {
+    filter: none;
+}
+
+.face-side,
+.face-top {
+    display: none;
+}
+
+.seg-rent {
+    background: var(--green);
+}
+
+.seg-fish {
+    background: var(--accent);
+}
+
+.rpt-bar-group:hover .seg3d {
+    opacity: .88;
+}

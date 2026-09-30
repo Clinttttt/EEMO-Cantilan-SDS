@@ -5,275 +5,176 @@
 
 <PageTitle>StallTrack — Operations</PageTitle>
 
-<main class="operations-page">
-    <header class="operations-hero">
-        <div class="operations-hero-left">
-            <span class="operations-hero-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                </svg>
-            </span>
-            <div class="operations-hero-copy">
-                <p class="operations-hero-eyebrow">@Branding.OfficeAcronym Admin · Operations</p>
-                <h1>Operations</h1>
-                <p>Economic-enterprise income and operational workspaces.</p>
-            </div>
-        </div>
-        <div class="operations-hero-metrics" aria-label="Operations summary">
-            <div class="operations-hero-metric">
-                <span class="operations-hero-value">
-                    @if (_loading)
-                    {
-                        <span aria-label="Loading configured facilities">…</span>
-                    }
-                    else if (_loadFailed)
-                    {
-                        <span aria-label="Configured facility count unavailable">—</span>
-                    }
-                    else
-                    {
-                        @_facilities.Count
-                    }
-                </span>
-                <span class="operations-hero-key">Configured facilities</span>
-            </div>
-            <span class="operations-hero-divider" aria-hidden="true"></span>
-            <div class="operations-hero-metric">
-                <span class="operations-hero-value">3</span>
-                <span class="operations-hero-key">Income groups</span>
-            </div>
-        </div>
-        <span class="operations-hero-progress" aria-hidden="true"></span>
+@* The layout owns the <main> landmark; this page is a region inside it. *@
+<div class="ops-page">
+    <header class="ops-header">
+        <h1 class="ops-title">Operations</h1>
+        <p class="ops-subtitle">Grouped as in the Monthly Income report</p>
     </header>
 
     @if (_loading)
     {
-        <p class="operations-discovery" role="status">Loading configured facility links…</p>
+        <p class="ops-notice" role="status">Loading configured facilities…</p>
     }
     else if (_loadFailed)
     {
-        <div class="operations-discovery operations-discovery-error" role="alert">
-            <p>Configured facility links are unavailable.</p>
-            <button type="button" @onclick="LoadFacilitiesAsync">Try again</button>
+        <div class="ops-notice ops-notice-error" role="alert">
+            <p>Configured facilities couldn't be loaded.</p>
+            <button type="button" class="ops-retry" @onclick="LoadFacilitiesAsync">Try again</button>
         </div>
     }
     else if (_facilities.Count == 0)
     {
-        <p class="operations-discovery" role="status">No configured facility links are currently available.</p>
+        <p class="ops-notice" role="status">No configured facilities are available.</p>
     }
 
-    <div class="operations-grid">
-        <section class="operations-card operations-card-span" aria-labelledby="income-from-market-title">
-            <header class="operations-card-header">
-                <span class="operations-card-icon" aria-hidden="true">
-                    <FacilityMark Code="FacilityCode.NPM" Ink="FacilityMarkInk.White" Size="20" />
-                </span>
-                <div class="operations-card-heading">
-                    <h2 id="income-from-market-title">Income from Market</h2>
-                    <p class="operations-card-label">MARKET OPERATIONS</p>
-                    <p class="operations-card-description">Market, utility, vendor, transportation, and enterprise-related collections.</p>
-                </div>
-            </header>
+    <div class="ops-sheet">
+        <div class="ops-columns" aria-hidden="true">
+            <span>Income line</span>
+            <span>Receipt</span>
+            <span>Pages</span>
+            <span></span>
+        </div>
 
-            <ul class="operations-services operations-services-columns">
+        <section class="ops-group" aria-labelledby="income-from-market-title">
+            <h2 id="income-from-market-title" class="ops-group-title">
+                Income from Market
+                <span class="ops-group-count">@LineCount(IncomeFromMarketServices.Count)</span>
+            </h2>
+            <ul class="ops-rows">
                 @foreach (var service in IncomeFromMarketServices)
                 {
                     var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
                     var href = service.Route ?? (workspace is not null ? FacilityHref(workspace) : null);
-                    <li class="operations-register-item">
-                        @if (href is not null)
-                        {
-                            <a class="operations-register-row operations-register-row-link" href="@href">
-                                <span class="operations-instrument-slot">
-                                    @if (service.Instrument is not null)
-                                    {
-                                        <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
-                                    }
-                                </span>
-                                <span class="operations-service-name">@ServiceLabel(service, workspace)</span>
-                                <span class="operations-row-chevron" aria-hidden="true">→</span>
-                            </a>
-                        }
-                        else
-                        {
-                            <div class="operations-register-row">
-                                <span class="operations-instrument-slot">
-                                    @if (service.Instrument is not null)
-                                    {
-                                        <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
-                                    }
-                                </span>
-                                <span class="operations-service-name">@ServiceLabel(service, workspace)</span>
-                                <span class="operations-row-chevron" aria-hidden="true">→</span>
-                            </div>
-                        }
+                    <li class="ops-item" data-facility-code="@workspace?.Code">
+                        @Line(ServiceLabel(service, workspace), service.Code ?? workspace?.Code.ToString(), service.Receipts, href,
+                              workspace is not null ? $"{workspace.Name} ({workspace.Code})" : null,
+                              ExtraLinks(service, workspace))
                     </li>
                 }
             </ul>
         </section>
 
-        <section class="operations-card" aria-labelledby="rent-income-title">
-            <header class="operations-card-header">
-                <span class="operations-card-icon" aria-hidden="true">
-                    <FacilityMark Code="FacilityCode.TCC" Ink="FacilityMarkInk.White" Size="20" />
-                </span>
-                <div class="operations-card-heading">
-                    <h2 id="rent-income-title">Rent Income — Stall Rental</h2>
-                    <p class="operations-card-label">RENT INCOME</p>
-                    <p class="operations-card-description">Permanent stall and recurring rental income.</p>
-                </div>
-            </header>
-
-            <ul class="operations-facility-links operations-rental-facility-links" aria-label="Configured rent-income facilities">
+        <section class="ops-group" aria-labelledby="rent-income-title" aria-busy="@(_loading ? "true" : "false")">
+            <h2 id="rent-income-title" class="ops-group-title">
+                Rent Income — Stall Rental
+                @if (!_loading)
+                {
+                    <span class="ops-group-count">@LineCount(RentIncomeFacilities.Count() + 1)</span>
+                }
+            </h2>
+            <ul class="ops-rows" aria-label="Configured rent-income facilities">
+                @if (_loading)
+                {
+                    for (var i = 0; i < 3; i++)
+                    {
+                        <li class="ops-item ops-item-placeholder" aria-hidden="true">
+                            <div class="ops-row"><Skeleton Width="40%" Height="12px" /></div>
+                        </li>
+                    }
+                }
                 @foreach (var facility in RentIncomeFacilities)
                 {
-                    <li class="operations-register-item">
-                        <a class="operations-register-row operations-register-row-link" href="@FacilityHref(facility)">
-                            <span class="operations-instrument-slot">
-                                <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
-                            </span>
-                            <span class="operations-service-name">@facility.Name (@facility.Code)</span>
-                            <span class="operations-row-chevron" aria-hidden="true">→</span>
-                        </a>
+                    <li class="ops-item" data-facility-code="@facility.Code">
+                        @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
+                              $"{facility.Name} ({facility.Code})", NoLinks)
                     </li>
                 }
-                <li class="operations-register-item">
-                    <div class="operations-register-row">
-                        <span class="operations-instrument-slot"></span>
-                        <span class="operations-service-name">Arrears</span>
-                        <span class="operations-row-chevron" aria-hidden="true">→</span>
-                    </div>
+                <li class="ops-item">
+                    @Line("Arrears", null, NoReceipt, null, null, NoLinks)
                 </li>
             </ul>
         </section>
 
-        <section class="operations-card" aria-labelledby="space-rental-title">
-            <header class="operations-card-header">
-                <span class="operations-card-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M4 19h16M6 19V8l6-4 6 4v11M9 19v-5h6v5M8 9h.01M12 9h.01M16 9h.01" />
-                    </svg>
-                </span>
-                <div class="operations-card-heading">
-                    <h2 id="space-rental-title">Space Rental</h2>
-                    <p class="operations-card-label">SPACE RENTAL</p>
-                    <p class="operations-card-description">Temporary, open-space, and event-related rental income.</p>
-                </div>
-            </header>
-
-            <ul class="operations-services">
+        <section class="ops-group" aria-labelledby="space-rental-title">
+            <h2 id="space-rental-title" class="ops-group-title">
+                Space Rental
+                <span class="ops-group-count">@LineCount(SpaceRentalServices.Count)</span>
+            </h2>
+            <ul class="ops-rows">
                 @foreach (var service in SpaceRentalServices)
                 {
-                    <li class="operations-register-item">
-                        <div class="operations-register-row">
-                            <span class="operations-instrument-slot">
-                                @if (service.Instrument is not null)
-                                {
-                                    <span class="@InstrumentCssClass(service.Instrument)" aria-label="@InstrumentName(service.Instrument)">@service.Instrument</span>
-                                }
-                            </span>
-                            <span class="operations-service-name">@service.Name</span>
-                            <span class="operations-row-chevron" aria-hidden="true">→</span>
-                        </div>
+                    <li class="ops-item">
+                        @Line(service.Name, null, service.Receipts, null, null, NoLinks)
                     </li>
                 }
             </ul>
         </section>
-
-        <section class="operations-card operations-card-span" aria-labelledby="slaughterhouse-title">
-            <header class="operations-card-header">
-                <span class="operations-card-icon" aria-hidden="true">
-                    <FacilityMark Code="FacilityCode.SLH" Ink="FacilityMarkInk.White" Size="20" />
-                </span>
-                <div class="operations-card-heading">
-                    <h2 id="slaughterhouse-title">Slaughterhouse</h2>
-                    <p class="operations-card-label">SPECIALIZED ENTERPRISE</p>
-                    <p class="operations-card-description">Livestock processing, approved slaughter charges, and itemized collection activity.</p>
-                </div>
-            </header>
-
-            @if (SlaughterhouseWorkspace is { } slaughterhouse)
-            {
-                <ul class="operations-services" aria-label="Slaughterhouse workspace">
-                    <li class="operations-register-item">
-                        <a class="operations-register-row operations-register-row-link" href="@FacilityHref(slaughterhouse)">
-                            <span class="operations-instrument-slot">
-                                <span class="operations-instrument operations-instrument-or" aria-label="Official Receipt">OR</span>
-                            </span>
-                            <span class="operations-service-name">@slaughterhouse.Name (@slaughterhouse.Code)</span>
-                            <span class="operations-row-chevron" aria-hidden="true">→</span>
-                        </a>
-                    </li>
-                </ul>
-            }
-            else if (!_loading && !_loadFailed)
-            {
-                <p class="operations-no-facilities">The slaughterhouse workspace is not currently configured.</p>
-            }
-        </section>
-
-        @if (OtherEconomicEnterpriseWorkspaces.Any())
-        {
-            <section class="operations-card operations-card-span" aria-labelledby="other-enterprises-title">
-                <header class="operations-card-header">
-                    <span class="operations-card-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" focusable="false">
-                            <path d="M3 20h18M5 20V8l7-4 7 4v12M8 20v-5h8v5M8 9h.01M12 9h.01M16 9h.01" />
-                        </svg>
-                    </span>
-                    <div class="operations-card-heading">
-                        <h2 id="other-enterprises-title">Other Economic Enterprises</h2>
-                        <p class="operations-card-label">CONFIGURED ENTERPRISES</p>
-                        <p class="operations-card-description">Tenant-configured enterprise workspaces and additional revenue operations.</p>
-                    </div>
-                </header>
-
-                <ul class="operations-services operations-additional-links" aria-label="Other configured economic-enterprise workspaces">
-                    @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
-                    {
-                        <li class="operations-register-item">
-                            <a class="operations-register-row operations-register-row-link" href="@FacilityHref(facility)">
-                                <span class="operations-instrument-slot"></span>
-                                <span class="operations-service-name">@facility.Name (@facility.Code)</span>
-                                <span class="operations-row-chevron" aria-hidden="true">→</span>
-                            </a>
-                        </li>
-                    }
-                </ul>
-            </section>
-        }
     </div>
-</main>
+
+    <div class="ops-sheet ops-sheet-other">
+        <section class="ops-group" aria-labelledby="other-operations-title">
+            <h2 id="other-operations-title" class="ops-group-title">Other operations</h2>
+            <ul class="ops-rows" aria-label="Slaughterhouse and other configured economic-enterprise workspaces">
+                @if (SlaughterhouseWorkspace is { } slaughterhouse)
+                {
+                    <li class="ops-item" data-facility-code="@slaughterhouse.Code">
+                        @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
+                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks)
+                    </li>
+                }
+                else if (!_loading && !_loadFailed)
+                {
+                    <li class="ops-item ops-item-note">The slaughterhouse workspace is not currently configured.</li>
+                }
+                @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
+                {
+                    <li class="ops-item" data-facility-code="@facility.Code">
+                        @Line(facility.Name, facility.Code.ToString(), NoReceipt, FacilityHref(facility),
+                              $"{facility.Name} ({facility.Code})", NoLinks)
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+</div>
 
 @code {
+    private static readonly Receipt[] OfficialReceipt = [new("OR")];
+    private static readonly Receipt[] CashTicket = [new("CT")];
+    private static readonly Receipt[] NoReceipt = [];
+    private static readonly QuickLink[] NoLinks = [];
+
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
-        new("Market Fees", "CT", Route: "/operations/market-fees"),
-        new("General Distribution / ECF", "OR", Route: "/operations/ecf"),
-        new("Water Consumption Fees / WCF", "CT", Route: "/operations/water-consumption-fees"),
-        new("Tabo", "CT", FacilityCode.TPM),
-        new("Fish / Meat Vendor Fees", "OR"),
-        new("Landing / Berthing", "CT", Route: "/operations/landing-berthing"),
-        new("Transportation Fees", "CT", FacilityCode.TRM),
-        new("Weight & Measure / Registration", "OR"),
-        new("Transfer Large Cattle", null),
-        new("Ice Plant", null, FacilityCode.ICE),
+        new("Market Fees", CashTicket, Route: "/operations/market-fees",
+            Links: [new("Report", "/operations/market-fees/report")]),
+        // Display names per Clint (2026-09-30); the office sheet row reads "Gen. Distribution / ECF".
+        new("Electricity Consumption Fees", OfficialReceipt, Route: "/operations/ecf", Code: "ECF",
+            Links: [new("Accounts", "/operations/ecf/accounts"), new("Report", "/operations/ecf/report")]),
+        new("Water Consumption Fees", CashTicket, Route: "/operations/water-consumption-fees", Code: "WCF",
+            Links: [new("Accounts", "/operations/water-consumption-fees/accounts"), new("Report", "/operations/water-consumption-fees/report")]),
+        // Tabo = OR per IA-045 (EEMO Head, 2026-09-27).
+        new("Tabo", OfficialReceipt, FacilityCode.TPM, Links: [new("Report", "/facility/tpm/report")]),
+        new("Fish / Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees"),
+        new("Landing / Berthing", CashTicket, Route: "/operations/landing-berthing",
+            Links: [new("Report", "/operations/landing-berthing/report")]),
+        new("Transportation Fees", CashTicket, FacilityCode.TRM),
+        new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
+        new("Transfer Large Cattle", NoReceipt),
+        new("Ice Plant", NoReceipt, FacilityCode.ICE),
     ];
 
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =
     [
-        new("Vegetable / Fruits", "CT"),
-        new("Kanmanggay", "OR"),
-        new("Lot Rental — Fiesta / Araw", "OR"),
-        new("Fines", "OR"),
+        // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
+        new("Vegetable / Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")]),
+        new("Kanmanggay", OfficialReceipt),
+        new("Lot Rental — Fiesta / Araw", OfficialReceipt),
+        new("Fines", OfficialReceipt),
     ];
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
     private bool _loading = true;
     private bool _loadFailed;
+
+    /// <summary>
+    /// The facility list fetched during prerender, carried into the interactive pass so the page asks the API once
+    /// per load instead of twice. Only a successful load is stored; a failure still loads again and Try again always
+    /// re-fetches.
+    /// </summary>
+    [PersistentState(AllowUpdates = true)]
+    public FacilitySidebarSummaryDto[]? CachedFacilities { get; set; }
 
     private IEnumerable<FacilitySidebarSummaryDto> RentIncomeFacilities =>
         new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ }
@@ -287,7 +188,17 @@
         .Where(facility => IsRouteable(facility.Code) && IsCustomFacility(facility.Code))
         .OrderBy(facility => facility.Code);
 
-    protected override Task OnInitializedAsync() => LoadFacilitiesAsync();
+    protected override Task OnInitializedAsync()
+    {
+        if (CachedFacilities is { } cached)
+        {
+            _facilities = cached;
+            _loading = false;
+            return Task.CompletedTask;
+        }
+
+        return LoadFacilitiesAsync();
+    }
 
     private async Task LoadFacilitiesAsync()
     {
@@ -305,7 +216,9 @@
                 return;
             }
 
-            _facilities = result.Value.OrderBy(facility => facility.Code).ToArray();
+            var facilities = result.Value.OrderBy(facility => facility.Code).ToArray();
+            _facilities = facilities;
+            CachedFacilities = facilities;
         }
         catch
         {
@@ -319,13 +232,100 @@
         }
     }
 
+    /// <summary>
+    /// One register line: a single link when a workspace exists, plain text otherwise (no navigation affordance),
+    /// plus a detail card revealed by CSS on hover or keyboard focus — no server round-trip per hover.
+    /// </summary>
+    private RenderFragment Line(string name, string? facilityCode, IReadOnlyList<Receipt> receipts, string? href,
+        string? workspace, IReadOnlyList<QuickLink> links) => __builder =>
+    {
+        if (href is not null)
+        {
+            <a class="ops-row ops-row-link" href="@href">
+                @LineCells(name, facilityCode, receipts, links, linked: true)
+            </a>
+        }
+        else
+        {
+            <div class="ops-row">
+                @LineCells(name, facilityCode, receipts, links, linked: false)
+            </div>
+        }
+
+        <div class="ops-card">
+            <div class="ops-card-body">
+                <p class="ops-card-title">@name</p>
+                <dl class="ops-card-facts">
+                    @foreach (var receipt in receipts)
+                    {
+                        <dt>@(receipt.When ?? "Receipt")</dt>
+                        <dd>@InstrumentName(receipt.Instrument)</dd>
+                    }
+                    <dt>Workspace</dt>
+                    <dd>@(href is null ? "None in StallTrack" : workspace ?? name)</dd>
+                </dl>
+                @if (href is not null)
+                {
+                    <div class="ops-card-links">
+                        <a href="@href">Open</a>
+                        @foreach (var link in links)
+                        {
+                            <a href="@link.Href">@link.Label</a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    private RenderFragment LineCells(string name, string? facilityCode, IReadOnlyList<Receipt> receipts,
+        IReadOnlyList<QuickLink> links, bool linked) => __builder =>
+    {
+        <span class="ops-row-name">
+            @name
+            @if (facilityCode is not null)
+            {
+                <span class="ops-row-code">@facilityCode</span>
+            }
+        </span>
+        <span class="ops-row-receipts">
+            @foreach (var receipt in receipts)
+            {
+                <span class="@InstrumentCssClass(receipt.Instrument)">
+                    <span aria-hidden="true">@receipt.Instrument</span>
+                    <span class="ops-sr-only">@(receipt.When is null ? InstrumentName(receipt.Instrument) : $"{receipt.When}: {InstrumentName(receipt.Instrument)}")</span>
+                </span>
+            }
+        </span>
+        <span class="ops-row-pages">
+            @if (linked)
+            {
+                @string.Join(" · ", links.Select(link => link.Label).Prepend("Workspace"))
+            }
+            else
+            {
+                <span aria-hidden="true">—</span>
+                <span class="ops-sr-only">No StallTrack page</span>
+            }
+        </span>
+        <span class="ops-row-go" aria-hidden="true">
+            @if (linked)
+            {
+                <svg viewBox="0 0 24 24" focusable="false"><polyline points="9 6 15 12 9 18" /></svg>
+            }
+        </span>
+    };
+
+    private IReadOnlyList<QuickLink> ExtraLinks(OperationService service, FacilitySidebarSummaryDto? workspace) =>
+        service.Route is not null || workspace is not null ? service.Links ?? NoLinks : NoLinks;
+
+    private static string LineCount(int count) => count == 1 ? "1 line" : $"{count} lines";
+
     private static string InstrumentCssClass(string instrument) =>
-        $"operations-instrument operations-instrument-{instrument.ToLowerInvariant()}";
+        $"ops-instrument ops-instrument-{instrument.ToLowerInvariant()}";
 
     private static string ServiceLabel(OperationService service, FacilitySidebarSummaryDto? workspace) =>
-        service.WorkspaceCode == FacilityCode.ICE
-            ? $"{workspace?.Name ?? service.Name} ({FacilityCode.ICE})"
-            : service.Name;
+        service.WorkspaceCode == FacilityCode.ICE ? workspace?.Name ?? service.Name : service.Name;
 
     private static string InstrumentName(string instrument) => instrument switch
     {
@@ -349,9 +349,15 @@
     private static bool IsCustomFacility(FacilityCode code) =>
         (int)code >= (int)FacilityCode.Custom1 && (int)code <= (int)FacilityCode.Custom5;
 
+    private sealed record Receipt(string Instrument, string? When = null);
+
+    private sealed record QuickLink(string Label, string Href);
+
     private sealed record OperationService(
         string Name,
-        string? Instrument,
+        IReadOnlyList<Receipt> Receipts,
         FacilityCode? WorkspaceCode = null,
-        string? Route = null);
+        string? Route = null,
+        IReadOnlyList<QuickLink>? Links = null,
+        string? Code = null);
 }

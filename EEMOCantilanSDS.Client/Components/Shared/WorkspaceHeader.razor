@@ -1,0 +1,55 @@
+@* V3 workspace identity: optional breadcrumb, a compact title with its short code, one optional supporting line,
+   and the page's actions aligned to the right. Replaces the dark FacilityHero on V3 workspaces. *@
+<header class="wh">
+    @if (!string.IsNullOrWhiteSpace(Parent))
+    {
+        <nav class="wh-crumbs" aria-label="Breadcrumb">
+            <a href="@ParentHref">@Parent</a>
+            <span aria-hidden="true">/</span>
+            <span aria-current="page">@Title</span>
+        </nav>
+    }
+    <div class="wh-row">
+        <div class="wh-identity">
+            <h1 class="wh-title">
+                @Title
+                @if (!string.IsNullOrWhiteSpace(Code))
+                {
+                    <span class="wh-code">@Code</span>
+                }
+            </h1>
+            @if (Meta is not null || !string.IsNullOrWhiteSpace(Subtitle))
+            {
+                <div class="wh-meta">
+                    @Meta
+                    @if (!string.IsNullOrWhiteSpace(Subtitle))
+                    {
+                        <span>@Subtitle</span>
+                    }
+                </div>
+            }
+        </div>
+        @if (Actions is not null)
+        {
+            <div class="wh-actions">@Actions</div>
+        }
+    </div>
+</header>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Short secondary code shown after the title, e.g. "ECF".</summary>
+    [Parameter] public string? Code { get; set; }
+
+    [Parameter] public string? Subtitle { get; set; }
+
+    [Parameter] public string? Parent { get; set; }
+
+    [Parameter] public string ParentHref { get; set; } = "/operations";
+
+    /// <summary>Small identity facts placed before the subtitle, e.g. the receipt instrument.</summary>
+    [Parameter] public RenderFragment? Meta { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

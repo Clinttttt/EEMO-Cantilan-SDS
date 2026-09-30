@@ -121,7 +121,7 @@
     font-weight: 600;
     letter-spacing: .07em;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--accent);
     margin-bottom: 4px;
 }
 
@@ -261,7 +261,7 @@ input[type=number] {
 }
 
     .fac-trigger:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
     }
 
     .fac-trigger.open {
@@ -287,7 +287,7 @@ input[type=number] {
 
 .fac-trigger-sub {
     display: block;
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 1px;
     white-space: nowrap;
@@ -298,7 +298,7 @@ input[type=number] {
 .fac-trigger-badge {
     background: var(--red);
     color: #fff;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 8px;
@@ -355,7 +355,7 @@ input[type=number] {
 }
 
 .fac-dd-header {
-    font-size: 8.5px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 1.8px;
     text-transform: uppercase;
@@ -399,7 +399,7 @@ input[type=number] {
 .fac-dd-badge {
     background: var(--red);
     color: #fff;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     padding: 1px 6px;
     border-radius: 8px;
@@ -467,7 +467,7 @@ input[type=number] {
     }
 
     .filter-tab.active {
-        background: var(--navy);
+        background: var(--accent);
         color: #fff;
         font-weight: 600;
     }
@@ -486,7 +486,7 @@ input[type=number] {
 }
 
     .search-box:focus-within {
-        border-color: var(--gold);
+        border-color: var(--accent);
         box-shadow: 0 0 0 3px rgba(200,168,75,0.08);
     }
 
@@ -568,7 +568,7 @@ TABLE
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     font-size: 13px;
     font-weight: 700;
@@ -627,7 +627,7 @@ TABLE
 
 /* Daily-collection marker (NPM has no monthly payment status) */
 .pill-daily {
-    background: color-mix(in srgb, var(--navy) 8%, var(--bg-card));
+    background: var(--accent);
     color: var(--navy);
     border: 1px solid var(--border);
 }
@@ -756,7 +756,7 @@ TABLE
     gap: 6px;
     flex-wrap: wrap;
     margin-top: 0;
-    font-size: 10px;
+    font-size: 11px;
     color: rgba(255,255,255,.65);
     font-weight: 600;
     letter-spacing: .5px;
@@ -864,7 +864,7 @@ TABLE
 }
 
 .detail-stat-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-subtle);
     font-weight: 600;
     margin-top: 2px;
@@ -1116,16 +1116,16 @@ TABLE
 }
 
 .detail-modal ::deep .cal-overlay-label {
-    font-size: 8px;
+    font-size: 11px;
 }
 
 .detail-modal ::deep .cal-cell.cal-today {
-    border-color: var(--gold) !important;
+    border-color: var(--accent) !important;
     border-width: 2px;
 }
 
 .detail-modal ::deep .cal-cell.cal-today.cal-paid {
-    border-color: var(--gold) !important;
+    border-color: var(--accent) !important;
     border-width: 2px;
 }
 
@@ -1176,7 +1176,7 @@ TABLE
 }
 
 .detail-modal ::deep .cal-sum-key {
-    font-size: 9px;
+    font-size: 11px;
 }
 
 .detail-modal ::deep .cal-nav {
@@ -1193,7 +1193,7 @@ TABLE
 }
 
 .detail-modal ::deep .detail-section-title {
-    font-size: 10px;
+    font-size: 11px;
     margin-bottom: 10px;
 }
 
@@ -1249,7 +1249,7 @@ TABLE
 }
 
 .util-month-name {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -1258,7 +1258,7 @@ TABLE
 }
 
 .util-month-year {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-subtle);
     font-weight: 600;
     opacity: 0.7;
@@ -1307,7 +1307,7 @@ TABLE
 }
 
     .util-stat:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         box-shadow: 0 2px 8px rgba(200,168,75,0.1);
     }
 
@@ -1319,7 +1319,7 @@ TABLE
 }
 
 .util-stat-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 4px;
     text-transform: uppercase;
@@ -1377,7 +1377,7 @@ TABLE
 }
 
 .hist-month-name {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -1386,7 +1386,7 @@ TABLE
 }
 
 .hist-month-year {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-subtle);
     font-weight: 600;
     opacity: 0.7;
@@ -1420,7 +1420,7 @@ TABLE
 }
 
     .act-stat:hover {
-        border-color: var(--gold);
+        border-color: var(--accent);
         box-shadow: 0 2px 8px rgba(200,168,75,0.1);
     }
 
@@ -1432,7 +1432,7 @@ TABLE
 }
 
 .act-stat-key {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-muted);
     margin-top: 4px;
     text-transform: uppercase;
@@ -1519,8 +1519,8 @@ TABLE
 }
 
 .fac-checkbox.checked .fac-check-box {
-    background: var(--navy);
-    border-color: var(--navy);
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
 .fac-check-box svg {
@@ -1766,8 +1766,8 @@ TABLE
         }
 
     .form-fee-toggle.active .form-fee-toggle-checkbox {
-        border-color: var(--navy);
-        background: var(--navy);
+        border-color: var(--accent);
+        background: var(--accent);
     }
 
 .form-fee-toggle-water {
@@ -1789,8 +1789,8 @@ TABLE
     }
 
         .form-fee-toggle-water.active .form-fee-toggle-checkbox {
-            border-color: var(--navy);
-            background: var(--navy);
+            border-color: var(--accent);
+            background: var(--accent);
         }
 
 .form-fish-fee-section {
@@ -2048,4 +2048,93 @@ TABLE
 
     .action-btn:disabled:hover {
         background: var(--bg-icon);
+    }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.vs-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .vs-hero::before,
+    .vs-hero::after {
+        display: none;
+    }
+
+.vs-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .vs-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.vs-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: var(--navy);
+}
+
+.vs-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.vs-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.vs-hero-divider {
+    background: var(--border);
+}
+
+.vs-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.vs-hero-progress-fill {
+    background: var(--accent);
+}
+
+.vs-hero.vegetables-hero,
+.vs-hero.meat-hero {
+    background: var(--surface);
+}
+
+.detail-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+}
+
+    .detail-header .eemo-modal-close,
+    .detail-header .eemo-modal-close:hover,
+    .detail-header .eemo-modal-close:active {
+        border-color: transparent;
+        background: transparent;
+        color: var(--text-secondary);
+    }
+
+    .detail-header .eemo-modal-close:hover {
+        background: var(--surface-hover);
     }

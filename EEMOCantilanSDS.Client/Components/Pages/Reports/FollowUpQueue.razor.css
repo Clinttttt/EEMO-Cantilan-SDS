@@ -57,7 +57,7 @@
     font-size: 10.5px; font-weight: 800; text-align: center;
 }
 .fq-chip-active, .fq-chip-active:hover {
-    background: var(--navy);
+    background: var(--accent);
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -76,7 +76,7 @@
     min-width: 0;
     transition: border-color .12s ease, box-shadow .12s ease;
 }
-.fq-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.fq-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
 .fq-search svg { width: 16px; height: 16px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .fq-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13.5px; color: var(--navy); }
 .fq-search input::placeholder { color: var(--text-muted); }
@@ -124,8 +124,8 @@
 /* Reason and priority are distinct: the condition stays neutral while priority carries urgency colour. */
 .fq-row-signals { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .fq-reason { display: inline-block; max-width: 190px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; padding: 4px 9px; border-radius: 6px; background: var(--bg-icon); color: var(--text-subtle); line-height: 1.35; }
-.fq-priority { display: inline-flex; align-items: baseline; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .01em; padding: 3px 8px; border-radius: 6px; line-height: 1.2; }
-.fq-priority-caption { font-size: 8px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .76; }
+.fq-priority { display: inline-flex; align-items: baseline; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: .01em; padding: 3px 8px; border-radius: 6px; line-height: 1.2; }
+.fq-priority-caption { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .76; }
 .fq-rb-critical { background: var(--red-bg); color: var(--red); }
 .fq-rb-high { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
 .fq-rb-normal { background: var(--bg-icon); color: var(--text-subtle); }
@@ -139,15 +139,15 @@
 
 /* Action — minimal link */
 .fq-action { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 650; color: var(--navy); text-decoration: none; white-space: nowrap; }
-.fq-action:hover { color: #8a6d1b; }
+.fq-action:hover { color: var(--accent); }
 .fq-action-arrow { font-size: 13px; transition: transform .14s ease; }
 .fq-action:hover .fq-action-arrow { transform: translateX(2px); }
 
 /* ── Empty state ── */
 .fq-state { padding: 44px; text-align: center; color: var(--text-subtle); font-size: 14px; }
 .fq-state-error { color: var(--red); }
-.fq-retry { margin-left: 10px; background: var(--navy); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
-.fq-retry:hover { background: var(--navy-2, #112d47); }
+.fq-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.fq-retry:hover { background: var(--accent-hover); }
 
 .fq-empty { text-align: center; padding: 60px 24px; }
 .fq-empty-icon { width: 52px; height: 52px; margin: 0 auto 14px; color: var(--green); }
@@ -247,7 +247,7 @@
 }
 
 .fq-modal-done {
-    background: var(--navy);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 9px;
@@ -256,7 +256,7 @@
     font-weight: 600;
     cursor: pointer;
 }
-.fq-modal-done:hover { background: var(--navy-2, #112d47); }
+.fq-modal-done:hover { background: var(--accent-hover); }
 
 .fq-or-state { padding: 18px 4px; text-align: center; color: var(--text-subtle); font-size: 13px; }
 .fq-or-error { color: var(--red); }
@@ -287,7 +287,7 @@
     font-size: 13px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.fq-or-input:focus { outline: none; border-color: var(--gold); }
+.fq-or-input:focus { outline: none; border-color: var(--accent); }
 
 .fq-or-save {
     background: var(--gold);
@@ -377,7 +377,7 @@
     cursor: pointer;
     transition: background .14s ease, border-color .14s ease, color .14s ease;
 }
-.fq-hideall:hover { background: var(--bg-icon); border-color: var(--gold); color: #8a6d1b; }
+.fq-hideall:hover { background: var(--bg-icon); border-color: var(--accent); color: var(--accent); }
 .fq-hideall svg { width: 14px; height: 14px; }
 
 
@@ -396,7 +396,7 @@
     background: rgba(200, 168, 75, .18); display: flex; align-items: center; justify-content: center;
 }
 .fq-hero-icon svg { width: 26px; height: 26px; stroke: var(--gold); }
-.fq-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.fq-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .fq-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
 .fq-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
 .fq-hero-stats { flex: 1; display: flex; align-items: center; flex-wrap: wrap; }
@@ -413,7 +413,7 @@
 .fq-or-mode { padding: 8px 10px; border: none; background: var(--bg-card); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-subtle); }
 .fq-or-mode + .fq-or-mode { border-left: 1px solid var(--border); }
 .fq-or-mode:hover:not(.on) { background: #f7fafc; color: var(--text); }
-.fq-or-mode.on { background: var(--navy); color: #fff; }
+.fq-or-mode.on { background: var(--accent); color: #fff; }
 .fq-or-mode:disabled { opacity: .6; cursor: default; }
 
 .fq-or-rowpick { grid-template-columns: auto 1fr; cursor: pointer; }
@@ -425,3 +425,85 @@
 .fq-or-multitotal { font-size: 13px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; }
 .fq-or-multirow { display: flex; gap: 8px; align-items: center; }
 .fq-or-multirow .fq-or-input { flex: 1 1 auto; width: auto; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.fq-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .fq-hero::before,
+    .fq-hero::after {
+        display: none;
+    }
+
+.fq-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .fq-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.fq-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.fq-hero-title,
+.fq-hero-val {
+    color: var(--navy);
+}
+
+.fq-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.fq-hero-sub,
+.fq-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.fq-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.fq-hero-divider {
+    background: var(--border);
+}
+
+.fq-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.fq-hero-progress-fill {
+    background: var(--accent);
+}
+
+.fq-stat-val {
+    color: var(--navy);
+}
+
+.fq-stat-val.fq-stat-critical {
+    color: var(--red);
+}
+
+.fq-stat-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}

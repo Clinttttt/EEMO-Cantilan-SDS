@@ -45,6 +45,8 @@ V2 does **not** mean a full rewrite, a new generic design language, or consolida
 - Prefer additive, local, reversible changes over page-wide recomposition.
 - Preserve StallTrack's established navy structure, restrained gold accents, neutral work surfaces, compact operational density, and specialized workflow patterns.
 - Correct misleading semantics, accessibility defects, broken responsive behavior, inconsistency, or a UI that cannot express an approved capability with the smallest compatible change.
+
+**V3 presentation authority:** [`docs/interface/STALLTRACK_UI_V3_DIRECTION.md`](../interface/STALLTRACK_UI_V3_DIRECTION.md), approved by Clint, now governs Web Office visual presentation. It supersedes the visual-preservation requirements in this section and in §8 and §17–18 (navy structure, old dark sidebar styling) for Web presentation only. It does not supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts, and it does not relax the behavioral preservation, small-slice delivery, or human localhost visual gate in this specification.
 ## 4. Current production baseline
 
 The clean baseline is a multi-tenant LGU economic-enterprise revenue and operations system. Cantilan is the accuracy baseline; tenant-owned names, facilities, rates, users, branding, and data remain scoped per municipality.
@@ -124,6 +126,7 @@ Use the established old/production sidebar visual treatment and replace/adopt co
 4. **Online Payments** → `/online-payments`
 5. **Payors & Accounts** → current implementation may land on `/vendors` until a true landing workspace exists
 6. **Monitoring** → current implementation may land on `/monitoring/follow-up` until a true landing workspace exists
+   - **Accountable Forms** → `/accountable-forms`, Head/Admin — released 2026-09-30 for the implemented Cash Ticket inventory/custody slice only; see `docs/interface/STALLTRACK_UI_V3_DIRECTION.md` §14a.
 7. **Reports** → `/reports`
 8. **Collectors** → `/collectors`, Head-only
 9. **Audit Trail** → `/audit-trail`, Head-only
@@ -342,7 +345,7 @@ Current implementation-phase status is tracked in [`docs/planning/STALLTRACK_V2_
 | Broader Payors & Accounts landing/detail | TARGET V2 |
 | Monitoring full landing/families | TARGET V2 |
 | Context-owned export placement | TARGET V2 |
-| Accountable Forms global workspace | FUTURE / HIDDEN |
+| Accountable Forms global workspace | Cash Ticket inventory/custody slice RELEASED (2026-09-30); OR custody, remittance, void/replacement and RCD remain FUTURE / HIDDEN |
 | AccountableDocument authority | FUTURE / HIDDEN |
 | Cash Ticket inventory/custody | TARGET V2 backend foundation implemented in Phase 4; UI/release remains gated |
 | Revenue classification cutover | FUTURE / gated |

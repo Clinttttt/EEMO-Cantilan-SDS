@@ -288,7 +288,7 @@
 .tpm-friday-label {
     margin-top: 2px;
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
@@ -367,7 +367,7 @@
 
 .tpm-cal-sum-key {
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.035em;
     line-height: 1.3;
     text-transform: uppercase;
@@ -386,7 +386,7 @@
 
 .tpm-selected-eyebrow {
     color: var(--gold);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.09em;
     text-transform: uppercase;
@@ -461,7 +461,7 @@
 
 .tpm-attend-key {
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
 }
@@ -488,7 +488,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 4px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.04em;
 }
@@ -496,7 +496,7 @@
 .tpm-instrument-context small {
     grid-column: 2;
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 450;
 }
 
@@ -547,12 +547,12 @@
     gap: 0.45rem;
     padding: 0.55rem 1.1rem 0;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .tpm-source-label {
     color: var(--gold);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -579,7 +579,7 @@
 .tpm-vendor-table th {
     padding: 0.55rem 0.75rem;
     color: var(--text-muted);
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.045em;
     text-align: left;
@@ -764,7 +764,7 @@
 
     .tpm-instrument-context {
         gap: 0 0.3rem;
-        font-size: 10px;
+        font-size: 11px;
     }
 
     .tpm-cal-footer {
@@ -779,4 +779,16 @@
         max-width: 100px;
         font-size: 7.5px;
     }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md)
+   Presentation only. Inside this page, the legacy muted grey becomes the readable tertiary text and the gold
+   interaction accent (selection, focus, active markers) becomes civic blue. Small labels were raised to 11px.
+   ══════════════════════════════════════════════════════════════ */
+.tpm-topbar,
+.tpm-content-area {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
 }

@@ -234,7 +234,7 @@
 .lsh-doc-republic {
     text-transform: uppercase;
     letter-spacing: .12em;
-    font-size: 10px;
+    font-size: 11px;
     color: #374151;
 }
 
@@ -295,7 +295,7 @@
 }
 
 .lsh-section-count {
-    font-size: 9px;
+    font-size: 11px;
     color: #6b7280;
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -335,7 +335,7 @@
         }
 
 .th-sub {
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 500;
     color: #6b7280;
     text-transform: none;
@@ -475,7 +475,7 @@
 
 .tfoot-label {
     padding: 8px 8px;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
     color: #111827;
     text-transform: uppercase;
@@ -501,7 +501,7 @@
 }
 
 .lsh-grand-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: #111827;
     text-transform: uppercase;
@@ -523,7 +523,7 @@
 }
 
 .lsh-grand-key {
-    font-size: 9px;
+    font-size: 11px;
     color: #6b7280;
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -562,7 +562,7 @@
     }
 
     .lsh-table {
-        font-size: 10px;
+        font-size: 11px;
     }
 
         .lsh-table th, .lsh-table td {
@@ -788,13 +788,13 @@
 }
 
 .lsh-table th {
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: .5px;
     padding: 8px 10px;
 }
 
 .lsh-table th .th-sub {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: normal;
 }
 
@@ -808,7 +808,7 @@
 }
 
 .lsh-section-count {
-    font-size: 10px;
+    font-size: 11px;
 }
 
 /* Trim the vertical air between the letterhead, the rule and the first table so the sheet does not open with
@@ -841,9 +841,9 @@
     .lsh-doc-header { margin-bottom: 10px; }
     .lsh-doc-logo { width: 46px; height: 46px; }
     .lsh-doc-office { font-size: 13px; }
-    .lsh-doc-republic, .lsh-doc-gov { font-size: 9.5px; }
+    .lsh-doc-republic, .lsh-doc-gov { font-size: 11px; }
     .lsh-doc-title { font-size: 12px; }
-    .lsh-doc-facility, .lsh-doc-section { font-size: 10px; }
+    .lsh-doc-facility, .lsh-doc-section { font-size: 11px; }
 
     /* Rows stay whole; a section never breaks straight after its band. */
     .lsh-table tr { break-inside: avoid; }
@@ -886,7 +886,7 @@
 }
 
 .lsh-doc-republic {
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 1.5px;
     color: var(--text-muted);
 }
@@ -936,9 +936,95 @@
 /* The total is the line the office reads first, so it carries a little more weight than a data row — and the
    same weight on both official sheets. */
 .tfoot-label {
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .tfoot-val {
     font-size: 13px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.topbar, .content-area {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.lsh-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .lsh-hero::before {
+        display: none;
+    }
+
+.lsh-hero-icon {
+    background: var(--accent-soft);
+}
+
+    .lsh-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.lsh-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.lsh-hero-title,
+.lsh-hero-val {
+    color: var(--navy);
+}
+
+.lsh-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.lsh-hero-sub {
+    color: var(--text-tertiary);
+}
+
+.lsh-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.lsh-hero-divider {
+    background: var(--border);
+}
+
+.lsh-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.lsh-hero-progress-fill {
+    background: var(--accent);
+}
+
+.lsh-btn-primary {
+    border-color: var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--surface);
+}
+
+.lsh-btn-primary:hover {
+    border-color: var(--accent-hover);
+    background: var(--accent-hover);
+    color: var(--surface);
+}
+
+.lsh-seg-item.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
 }

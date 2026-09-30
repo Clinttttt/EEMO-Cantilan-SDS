@@ -68,15 +68,14 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(2, cut.FindAll(".operations-row").Count);
-            Assert.Contains("Madrid Public Market", cut.Markup);
-            Assert.Contains("MPM", cut.Markup);
-            Assert.Contains("Riverside Market", cut.Markup);
+            Assert.Equal(2, cut.FindAll("[data-facility-code]").Count);
+            Assert.Contains("Madrid Public Market", cut.Find("[data-facility-code='NPM']").TextContent);
+            Assert.Contains("Riverside Market", cut.Find("[data-facility-code='Custom1']").TextContent);
             Assert.DoesNotContain("New Public Market", cut.Markup);
             Assert.DoesNotContain("Tampak Commercial Center", cut.Markup);
-            Assert.Equal("/facility/npm", cut.Find("[data-facility-code='NPM'] .operations-open").GetAttribute("href"));
-            Assert.Equal("/facility/rvm", cut.Find("[data-facility-code='Custom1'] .operations-open").GetAttribute("href"));
-        });
+            AssertFacilityLink(cut, FacilityCode.NPM, "/facility/npm");
+            AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/rvm");
+        }, Timeout);
 
         api.Verify(client => client.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Once);
     }
@@ -119,7 +118,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             AssertFacilityLink(cut, FacilityCode.Custom3, "/facility/tc3");
             AssertFacilityLink(cut, FacilityCode.Custom4, "/facility/tc4");
             AssertFacilityLink(cut, FacilityCode.Custom5, "/facility/tc5");
-        });
+        }, Timeout);
 
         Assert.Same(typeof(NpmFacilityPage), RouteOwner("/facility/npm"));
         Assert.Same(typeof(TccFacilityPage), RouteOwner("/facility/tcc"));
@@ -137,7 +136,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
     }
 
     [Fact]
-    public void UndefinedFacilityCode_IsInformationalOnlyAndNeverGetsARoute()
+    public void UndefinedFacilityCode_NeverGetsARoute()
     {
         var unsupportedCode = (FacilityCode)106;
         Assert.False(Enum.IsDefined(unsupportedCode));
@@ -154,15 +153,11 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var unsupportedRow = cut.Find("[data-facility-code='106']");
-            Assert.Contains("Unmapped Tenant Facility", unsupportedRow.TextContent);
-            Assert.Contains("UTF", unsupportedRow.TextContent);
-            Assert.Contains("Unsupported code (106)", unsupportedRow.TextContent);
-            Assert.Empty(unsupportedRow.QuerySelectorAll("a"));
-            Assert.DoesNotContain("/facility/", unsupportedRow.OuterHtml);
             AssertFacilityLink(cut, FacilityCode.NPM, "/facility/npm");
             AssertFacilityLink(cut, FacilityCode.Custom5, "/facility/tc5");
-        });
+            Assert.Empty(cut.FindAll("[data-facility-code='106']"));
+            Assert.DoesNotContain(cut.FindAll("a"), link => link.GetAttribute("href") == "/facility/utf");
+        }, Timeout);
     }
 
     [Fact]
@@ -175,9 +170,10 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("No active facilities are available to open.", cut.Markup);
-            Assert.Empty(cut.FindAll(".operations-row"));
-        });
+            Assert.Contains("No configured facilities are available.", cut.Find("[role='status']").TextContent);
+            Assert.Empty(cut.FindAll("[data-facility-code]"));
+            Assert.DoesNotContain(cut.FindAll("a"), link => link.GetAttribute("href")?.StartsWith("/facility/") == true);
+        }, Timeout);
     }
 
     [Fact]
@@ -194,18 +190,102 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("The facility list is temporarily unavailable.", cut.Markup);
-            Assert.Empty(cut.FindAll(".operations-row"));
-        });
+            Assert.Contains("Configured facilities couldn't be loaded.", cut.Find("[role='alert']").TextContent);
+            Assert.Empty(cut.FindAll("[data-facility-code]"));
+        }, Timeout);
 
-        cut.Find(".operations-error button").Click();
+        cut.Find("[role='alert'] button").Click();
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Tenant Custom Facility", cut.Markup);
-            Assert.Single(cut.FindAll(".operations-row"));
-        });
+            Assert.Empty(cut.FindAll("[role='alert']"));
+            AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/tcf");
+            Assert.Contains("Tenant Custom Facility", cut.Find("[data-facility-code='Custom1']").TextContent);
+        }, Timeout);
     }
+
+    [Fact]
+    public void IncomeGroups_ShowConfirmedCantilanInstruments_AsText()
+    {
+        Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.TPM, "Tabo-an Public Market", "TPM") }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            // IA-045: Tabo uses Official Receipt.
+            var tabo = Row(cut, "Tabo");
+            Assert.Contains("Official Receipt", tabo.TextContent);
+            Assert.DoesNotContain("Cash Ticket", tabo.TextContent);
+
+            // IA-046: whole payment uses OR, a daily transaction uses CT.
+            var vegetable = Row(cut, "Vegetable / Fruits");
+            Assert.Contains("Official Receipt", vegetable.TextContent);
+            Assert.Contains("Cash Ticket", vegetable.TextContent);
+            Assert.Contains("Whole payment: Official Receipt", vegetable.TextContent);
+            Assert.Contains("Daily transaction: Cash Ticket", vegetable.TextContent);
+
+            Assert.Contains("Cash Ticket", Row(cut, "Market Fees").TextContent);
+            Assert.Contains("Official Receipt", Row(cut, "Kanmanggay").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void RowsWithoutAWorkspace_AreNotLinks_AndLinkedRowsKeepTheirRoutes()
+    {
+        Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.TPM, "Tabo-an Public Market", "TPM") }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            foreach (var unlinked in new[] { "Transfer Large Cattle", "Arrears", "Vegetable / Fruits", "Kanmanggay", "Fines" })
+                Assert.Empty(Row(cut, unlinked).QuerySelectorAll("a"));
+
+            Assert.Contains("None in StallTrack", Row(cut, "Arrears").TextContent);
+            Assert.Equal("/operations/market-fees", LinkOf(cut, "Market Fees"));
+            Assert.Equal("/operations/ecf", LinkOf(cut, "Electricity Consumption Fees"));
+            Assert.Equal("ECF", Row(cut, "Electricity Consumption Fees").QuerySelector(":scope > a .ops-row-code")?.TextContent);
+            Assert.Equal("WCF", Row(cut, "Water Consumption Fees").QuerySelector(":scope > a .ops-row-code")?.TextContent);
+            Assert.Equal("/operations/water-consumption-fees", LinkOf(cut, "Water Consumption Fees"));
+            Assert.Equal("/operations/landing-berthing", LinkOf(cut, "Landing / Berthing"));
+            Assert.Equal("/operations/fish-meat-vendor-fees", LinkOf(cut, "Fish / Meat Vendor Fees"));
+            Assert.Equal("/operations/weight-and-measure", LinkOf(cut, "Weight & Measure / Registration"));
+            Assert.Equal("/facility/tpm", LinkOf(cut, "Tabo"));
+
+            // The detail card offers only existing related pages.
+            var ecfLinks = Row(cut, "Electricity Consumption Fees").QuerySelectorAll(".ops-card a").Select(a => a.GetAttribute("href"));
+            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/accounts", "/operations/ecf/report" }, ecfLinks);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Page_LeavesTheMainLandmarkToTheLayout_AndHeadsEachGroup()
+    {
+        Services.AddSingleton(FacilityApi(Array.Empty<FacilitySidebarSummaryDto>()).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("main"));
+            Assert.Equal("Operations", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
+            var groups = cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray();
+            Assert.Contains(groups, g => g.StartsWith("Income from Market", StringComparison.Ordinal));
+            Assert.Contains(groups, g => g.StartsWith("Rent Income — Stall Rental", StringComparison.Ordinal));
+            Assert.Contains(groups, g => g.StartsWith("Space Rental", StringComparison.Ordinal));
+        }, Timeout);
+    }
+
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>The directory row whose visible text begins with the operation's name.</summary>
+    private static AngleSharp.Dom.IElement Row(IRenderedComponent<Operations> cut, string name)
+        => Assert.Single(cut.FindAll("li"), item => item.TextContent.TrimStart().StartsWith(name, StringComparison.Ordinal));
+
+    /// <summary>The row's own link (the detail card may repeat it and add related pages).</summary>
+    private static string? LinkOf(IRenderedComponent<Operations> cut, string name)
+        => Assert.Single(Row(cut, name).QuerySelectorAll(":scope > a")).GetAttribute("href");
 
     private static FacilitySidebarSummaryDto Summary(FacilityCode code, string name, string shortName)
         => new(code, name, shortName, UnpaidCount: 0);
@@ -219,7 +299,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
     }
 
     private static void AssertFacilityLink(IRenderedComponent<Operations> cut, FacilityCode code, string expectedHref)
-        => Assert.Equal(expectedHref, cut.Find($"[data-facility-code='{code}'] .operations-open").GetAttribute("href"));
+        => Assert.Equal(expectedHref, cut.Find($"[data-facility-code='{code}'] a").GetAttribute("href"));
 
     private static Type RouteOwner(string template)
     {

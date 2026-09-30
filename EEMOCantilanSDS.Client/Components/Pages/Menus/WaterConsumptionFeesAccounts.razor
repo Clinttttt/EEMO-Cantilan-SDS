@@ -1,228 +1,192 @@
 @page "/operations/water-consumption-fees/accounts"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IWcfCollectionsApiClient WcfApi
 
 <PageTitle>StallTrack — Water Accounts</PageTitle>
 
-<main class="wcf-accounts-page">
-    <nav class="wcf-accounts-breadcrumb" aria-label="Breadcrumb">
-        <a href="/operations">Operations</a>
-        <span aria-hidden="true">/</span>
-        <a href="/operations/water-consumption-fees">Water Consumption Fees</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">Water Accounts</span>
-    </nav>
-
-    <header class="wcf-accounts-heading">
-        <div>
-            <p class="wcf-accounts-eyebrow">WCF · CURRENT BILLING PERIOD</p>
-            <h1>Water Accounts</h1>
-            <p>Detailed WCF billing, readings, collections, and balances.</p>
-        </div>
-        <div class="wcf-accounts-heading-actions">
-            <span class="wcf-accounts-period"><span>Billing Period</span><strong>September 2026</strong></span>
-            <a class="wcf-accounts-back" href="/operations/water-consumption-fees">Back to WCF</a>
-        </div>
-    </header>
-
-    <section class="wcf-accounts-panel" aria-labelledby="wcf-accounts-register-title">
-        <header class="wcf-accounts-panel-header">
-            <div>
-                <p class="wcf-accounts-eyebrow">WATER ACCOUNTS</p>
-                <h2 id="wcf-accounts-register-title">September Assessments</h2>
-                <p>Meter readings, Cash Ticket collections, and current balances.</p>
+@* Account-level WCF register, read from the same server obligations the WCF workspace shows. Every reading and amount
+   is the server's; this page computes no balance. The layout owns the <main> landmark. *@
+<div class="v3-page">
+    <WorkspaceHeader Parent="Water Consumption Fees" ParentHref="/operations/water-consumption-fees" Title="Water Accounts" Code="WCF">
+        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Actions>
+            <label class="v3-period">
+                <span>Through</span>
+                <input class="v3-input" type="month" aria-label="Show accounts through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+            <div class="v3-btn-group" role="group" aria-label="Water account actions">
+                <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_loading">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
+                    Refresh
+                </button>
+                <a class="v3-btn" href="/operations/water-consumption-fees/report">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                    Report
+                </a>
             </div>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+            <span>@_error</span>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <SummaryStrip Label="Water account position" Items="SummaryItems" />
+
+    <section class="v3-panel" aria-labelledby="wcfa-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="wcfa-title">Accounts</h2>
+            <span class="v3-panel-meta">@Filtered.Count() of @_quotes.Count · unpaid periods through @PeriodLabel stay listed</span>
         </header>
 
-        <div class="wcf-accounts-toolbar" aria-label="Water account filters">
-            <label>
-                <span class="wcf-accounts-sr-only">Filter by area</span>
-                <select aria-label="Filter by area" @bind="_areaFilter">
-                    <option>All Areas</option>
-                    <option>Fish Section</option>
-                    <option>Meat Section</option>
-                    <option>Shared Areas</option>
-                </select>
+        <div class="v3-toolbar" aria-label="Account filters">
+            <label class="v3-search">
+                <span class="v3-sr-only">Search payer, stall or area</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                <input type="search" placeholder="Search payer, stall or area" aria-label="Search payer, stall or area" @bind="_search" @bind:event="oninput" />
             </label>
-            <label>
-                <span class="wcf-accounts-sr-only">Filter by balance</span>
-                <select aria-label="Filter by balance" @bind="_balanceFilter">
-                    <option>All Balances</option>
-                    <option>Paid</option>
-                    <option>Partial</option>
-                    <option>Unpaid</option>
-                </select>
-            </label>
-            <label class="wcf-accounts-search">
-                <span class="wcf-accounts-sr-only">Search occupant, account, stall, or area</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <circle cx="10.8" cy="10.8" r="6.8" />
-                    <path d="m16 16 4.5 4.5" />
-                </svg>
-                <input type="search"
-                       placeholder="Search occupant, account, stall, or area..."
-                       aria-label="Search occupant, account, stall, or area"
-                       @bind="_searchText"
-                       @bind:event="oninput" />
-            </label>
+            <select class="v3-select" aria-label="Filter by area" @bind="_area">
+                <option value="">All areas</option>
+                @foreach (var area in Areas)
+                {
+                    <option value="@area">@area</option>
+                }
+            </select>
+            <select class="v3-select" aria-label="Filter by balance" @bind="_balance">
+                <option value="">All accounts</option>
+                <option value="open">With balance</option>
+                <option value="settled">Settled</option>
+            </select>
         </div>
 
-        <div class="wcf-accounts-table-wrap" role="region" aria-label="Detailed water account assessments" tabindex="0">
-            <table class="wcf-accounts-table">
-                <caption class="wcf-accounts-sr-only">September 2026 water accounts, readings, assessments, payments, and balances</caption>
+        <div class="v3-table-wrap" role="region" aria-label="Water accounts" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Water accounts through @PeriodLabel</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Account / Area</th>
-                        <th scope="col">Occupant</th>
-                        <th scope="col">Basis</th>
-                        <th scope="col" class="wcf-accounts-number">Previous Reading</th>
-                        <th scope="col" class="wcf-accounts-number">Current Reading</th>
-                        <th scope="col" class="wcf-accounts-number">Consumption</th>
-                        <th scope="col" class="wcf-accounts-number">Due</th>
-                        <th scope="col" class="wcf-accounts-number">Paid</th>
-                        <th scope="col" class="wcf-accounts-number">Balance</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Last Updated</th>
-                        <th scope="col">Action</th>
+                        <th scope="col">Payer</th>
+                        <th scope="col">Period</th>
+                        <th scope="col" class="v3-num">Previous</th>
+                        <th scope="col" class="v3-num">Current</th>
+                        <th scope="col" class="v3-num">Consumption</th>
+                        <th scope="col" class="v3-num">Rate</th>
+                        <th scope="col" class="v3-num">Assessed</th>
+                        <th scope="col" class="v3-num">Previously settled</th>
+                        <th scope="col" class="v3-num">Outstanding</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var account in FilteredAccounts)
+                    @foreach (var quote in Filtered)
                     {
                         <tr>
                             <td>
-                                <strong class="wcf-accounts-primary">@account.WcfLabel</strong>
-                                <span class="wcf-accounts-secondary">@account.AccountLabel · @account.AreaLabel</span>
+                                <span class="v3-strong">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</span>
+                                <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
                             </td>
-                            <td>@account.ResponsibleParty</td>
-                            <td>@account.Basis</td>
-                            <td class="wcf-accounts-number">@account.PreviousReading.ToString("0.##") m³</td>
-                            <td class="wcf-accounts-number">@account.CurrentReading.ToString("0.##") m³</td>
-                            <td class="wcf-accounts-number">@account.Consumption.ToString("0.##") m³</td>
-                            <td class="wcf-accounts-number">₱@account.Due.ToString("N2")</td>
-                            <td class="wcf-accounts-number">₱@account.Paid.ToString("N2")</td>
-                            <td class="wcf-accounts-number wcf-accounts-balance">₱@account.Balance.ToString("N2")</td>
-                            <td><span class="wcf-accounts-status @account.StatusClass">@account.Status</span></td>
-                            <td class="wcf-accounts-updated">@account.LastUpdated</td>
-                            <td><button class="wcf-accounts-view" type="button" @onclick="() => OpenAccount(account)">View</button></td>
+                            <td>@Period(quote)</td>
+                            <td class="v3-num">@quote.PreviousReading.ToString("N2")</td>
+                            <td class="v3-num">@quote.CurrentReading.ToString("N2")</td>
+                            <td class="v3-num">@quote.Consumption.ToString("N2") m³</td>
+                            <td class="v3-num">₱@quote.RatePerCubicMeter.ToString("N2")</td>
+                            <td class="v3-num">@Money(quote.AssessedAmount)</td>
+                            <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
+                            <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
                         </tr>
                     }
-                    @if (!FilteredAccounts.Any())
+                    @if (!Filtered.Any())
                     {
                         <tr>
-                            <td class="wcf-accounts-empty" colspan="12">No water accounts match the selected filters.</td>
+                            <td class="v3-empty" colspan="9">
+                                @if (_loading) { <span role="status">Loading accounts…</span> }
+                                else if (_error is not null) { <span>Accounts are unavailable.</span> }
+                                else if (_quotes.Count > 0) { <span>No accounts match these filters.</span> }
+                                else { <span>No water accounts through @PeriodLabel.</span> }
+                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-
-        <footer class="wcf-accounts-table-footer">
-            <span>@FilteredAccounts.Count() of @_accounts.Count water accounts</span>
-            <span>Billing period: September 2026</span>
-        </footer>
+        <p class="v3-panel-note">Cash Ticket numbers are recorded per collection — see Collection activity on the <a href="/operations/water-consumption-fees">WCF workspace</a>.</p>
     </section>
-</main>
-
-@if (_selectedAccount is not null)
-{
-    <div class="wcf-accounts-modal-backdrop" role="presentation" @onclick="CloseAccount">
-        <section class="wcf-accounts-modal" role="dialog" aria-modal="true" aria-labelledby="wcf-account-detail-title" tabindex="-1" @onclick:stopPropagation="true">
-            <button class="wcf-accounts-modal-close" type="button" aria-label="Close water account details" @onclick="CloseAccount">×</button>
-            <header class="wcf-accounts-modal-header">
-                <p class="wcf-accounts-eyebrow">WATER ACCOUNT · SEPTEMBER 2026</p>
-                <h2 id="wcf-account-detail-title">@_selectedAccount.WcfLabel</h2>
-                <p>@_selectedAccount.AccountLabel · @_selectedAccount.AreaLabel</p>
-            </header>
-
-            <dl class="wcf-accounts-detail-grid">
-                <div><dt>Occupant / Responsible Party</dt><dd>@_selectedAccount.ResponsibleParty</dd></div>
-                <div><dt>Calculation Basis</dt><dd>@_selectedAccount.Basis</dd></div>
-                <div><dt>Previous Reading</dt><dd>@_selectedAccount.PreviousReading.ToString("0.##") m³</dd></div>
-                <div><dt>Current Reading</dt><dd>@_selectedAccount.CurrentReading.ToString("0.##") m³</dd></div>
-                <div><dt>Consumption</dt><dd>@_selectedAccount.Consumption.ToString("0.##") m³</dd></div>
-                <div><dt>Current Due</dt><dd>₱@_selectedAccount.Due.ToString("N2")</dd></div>
-                <div><dt>Paid</dt><dd>₱@_selectedAccount.Paid.ToString("N2")</dd></div>
-                <div><dt>Balance</dt><dd>₱@_selectedAccount.Balance.ToString("N2")</dd></div>
-                <div><dt>Status</dt><dd>@_selectedAccount.Status</dd></div>
-                <div><dt>Last Updated</dt><dd>@_selectedAccount.LastUpdated</dd></div>
-            </dl>
-
-            <footer class="wcf-accounts-modal-footer">
-                <button class="wcf-accounts-close-button" type="button" @onclick="CloseAccount">Close</button>
-            </footer>
-        </section>
-    </div>
-}
+</div>
 
 @code {
-    private readonly List<WaterAccountRecord> _accounts =
+    private DateOnly _period = PhilippineTime.Today;
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private List<WcfObligationQuoteDto> _quotes = [];
+    private string _search = string.Empty;
+    private string _area = string.Empty;
+    private string _balance = string.Empty;
+    private bool _loading = true;
+    private string? _error;
+
+    private string PeriodLabel => _period.ToString("MMMM yyyy");
+    private IEnumerable<string> Areas => _quotes.Select(x => x.Section).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x);
+
+    private IEnumerable<WcfObligationQuoteDto> Filtered => _quotes.Where(x =>
+        (string.IsNullOrEmpty(_area) || x.Section == _area)
+        && (_balance switch { "open" => x.OutstandingAmount > 0m, "settled" => x.OutstandingAmount <= 0m, _ => true })
+        && (string.IsNullOrWhiteSpace(_search)
+            || (x.PayerNameSnapshot?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || x.FacilityName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || x.Section.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+    // Totals of the server's own per-account figures, as the WCF workspace shows them.
+    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
     [
-        new() { WcfNumber = 1, StallNumber = 1, AccountLabel = "Stall No. 1", AreaLabel = "Fish Section", ResponsibleParty = "Juan Dela Cruz", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 125.4m, CurrentReading = 129.6m, Consumption = 4.2m, Due = 168m, Paid = 168m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 26, 10:12 AM" },
-        new() { WcfNumber = 2, StallNumber = 2, AccountLabel = "Stall No. 2", AreaLabel = "Meat Section", ResponsibleParty = "Pedro Santos", AreaGroup = "Meat Section", Basis = "Metered", PreviousReading = 117.2m, CurrentReading = 125m, Consumption = 7.8m, Due = 312m, Paid = 200m, Balance = 112m, Status = "Partial", LastUpdated = "Sep 25, 9:42 AM" },
-        new() { WcfNumber = 3, StallNumber = 3, AccountLabel = "Stall No. 3", AreaLabel = "Fish Section", ResponsibleParty = "Maria Flores", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 72m, CurrentReading = 75.75m, Consumption = 3.75m, Due = 150m, Paid = 0m, Balance = 150m, Status = "Unpaid", LastUpdated = "Sep 25, 8:55 AM" },
-        new() { WcfNumber = 4, AccountLabel = "Cleaning Area", AreaLabel = "Common Area", ResponsibleParty = "Shared Cleaning Area", AreaGroup = "Shared Areas", Basis = "Metered", PreviousReading = 210m, CurrentReading = 222.5m, Consumption = 12.5m, Due = 500m, Paid = 500m, Balance = 0m, Status = "Paid", LastUpdated = "Sep 24, 3:18 PM" },
-        new() { WcfNumber = 5, StallNumber = 4, AccountLabel = "Stall No. 4", AreaLabel = "Fish Section", ResponsibleParty = "Ramon Villanueva", AreaGroup = "Fish Section", Basis = "Metered", PreviousReading = 92m, CurrentReading = 99m, Consumption = 7m, Due = 280m, Paid = 180m, Balance = 100m, Status = "Partial", LastUpdated = "Sep 26, 9:50 AM" }
+        new("Through", PeriodLabel),
+        new("Accounts", _error is null ? _quotes.Count.ToString() : "—"),
+        new("Assessed", _error is null ? Money(_quotes.Sum(x => x.AssessedAmount)) : "—"),
+        new("Previously settled", _error is null ? Money(_quotes.Sum(x => x.CumulativeSettledEvidence)) : "—"),
+        new("Outstanding", _error is null ? Money(_quotes.Sum(x => x.OutstandingAmount)) : "—", Emphasis: true),
     ];
 
-    private string _areaFilter = "All Areas";
-    private string _balanceFilter = "All Balances";
-    private string _searchText = string.Empty;
-    private WaterAccountRecord? _selectedAccount;
+    protected override Task OnInitializedAsync() => LoadAsync();
 
-    private IEnumerable<WaterAccountRecord> FilteredAccounts
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
     {
-        get
+        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", out var parsed))
         {
-            var query = _accounts.AsEnumerable();
-            if (_areaFilter != "All Areas")
-                query = query.Where(account => account.AreaGroup == _areaFilter);
-
-            if (_balanceFilter != "All Balances")
-                query = query.Where(account => account.Status == _balanceFilter);
-
-            if (!string.IsNullOrWhiteSpace(_searchText))
-            {
-                var term = _searchText.Trim();
-                query = query.Where(account =>
-                    account.AccountLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    account.WcfNumber.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    (account.StallNumber?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    account.AreaLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    account.ResponsibleParty.Contains(term, StringComparison.OrdinalIgnoreCase));
-            }
-
-            return query;
+            _period = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadAsync();
         }
     }
 
-    private void OpenAccount(WaterAccountRecord account) => _selectedAccount = account;
-
-    private void CloseAccount() => _selectedAccount = null;
-
-    private sealed class WaterAccountRecord
+    private async Task LoadAsync()
     {
-        public int WcfNumber { get; init; }
-        public int? StallNumber { get; init; }
-        public string AccountLabel { get; init; } = string.Empty;
-        public string AreaLabel { get; init; } = string.Empty;
-        public string ResponsibleParty { get; init; } = string.Empty;
-        public string AreaGroup { get; init; } = string.Empty;
-        public string Basis { get; init; } = string.Empty;
-        public decimal PreviousReading { get; init; }
-        public decimal CurrentReading { get; init; }
-        public decimal Consumption { get; init; }
-        public decimal Due { get; init; }
-        public decimal Paid { get; init; }
-        public decimal Balance { get; init; }
-        public string Status { get; init; } = string.Empty;
-        public string LastUpdated { get; init; } = string.Empty;
-        public string WcfLabel => $"WCF No. {WcfNumber}";
-        public string StatusClass => Status switch
+        _loading = true;
+        _error = null;
+        try
         {
-            "Unpaid" => "is-unpaid",
-            "Partial" => "is-partial",
-            _ => "is-neutral"
-        };
+            var result = await WcfApi.GetObligationsAsync(_period.Year, _period.Month);
+            if (result.IsSuccess) _quotes = result.Value?.ToList() ?? [];
+            else
+            {
+                _quotes = [];
+                _error = "Water accounts couldn't be loaded.";
+            }
+        }
+        catch
+        {
+            _quotes = [];
+            _error = "Water accounts couldn't be loaded.";
+        }
+        finally { _loading = false; }
     }
+
+    private static string Period(WcfObligationQuoteDto quote) => new DateTime(quote.BillingYear, quote.BillingMonth, 1).ToString("MMM yyyy");
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
 }

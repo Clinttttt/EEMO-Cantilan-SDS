@@ -33,7 +33,7 @@
     margin-bottom: 14px;
     border-radius: 11px;
     background: rgba(200, 168, 75, .16);
-    color: var(--gold, #c8a84b);
+    color: var(--accent);
 }
 
     .mfa-remind-mark svg {
@@ -97,12 +97,12 @@
 
 .mfa-remind-go {
     color: #fff;
-    background: var(--navy);
-    border: 1px solid var(--navy);
+    background: var(--accent);
+    border: 1px solid var(--accent);
 }
 
     .mfa-remind-go:hover {
-        background: var(--navy-2, #112d47);
+        background: var(--accent-hover);
     }
 
 .mfa-remind-later:disabled,

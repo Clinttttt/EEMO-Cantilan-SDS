@@ -177,7 +177,7 @@
 }
 
 .dh-ok { color: var(--green); }
-.dh-warn { color: var(--gold); }
+.dh-warn { color: var(--accent); }
 
 .dh-err {
     color: var(--red);

@@ -54,6 +54,7 @@ The repository knowledge base is tool-neutral. `.agents/skills/` contains repeat
   breaks every page; neither `dotnet build` nor `/health` catches it.
 - **Prerendering runs `OnInitializedAsync` twice.** Never consume a one-time token there.
 - **Interface V2 preserves the production UI by default.** Do not visually redesign an existing page, shell, card, table, or workflow merely because it is being migrated to V2. Adopt the proven current/old UI first, then make only the additions or adjustments required by approved V2 structure, terminology, workflow placement, accessibility, semantic correctness, consistency, or a specifically approved visual task. A navigation or vocabulary change is not permission to redesign the page body.
+- **Web Office presentation authority is V3.** `docs/interface/STALLTRACK_UI_V3_DIRECTION.md` (approved by Clint) governs Web Office visual presentation and supersedes older requirements to preserve the dark/heavy-navy production appearance. It does **not** supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts; those — and the behavioral preservation in the rule above — still apply. V3 changes still ship as approved, reviewed slices, never as incidental restyling.
 
 ## Commands
 

@@ -58,6 +58,7 @@ Before changing V2 code, read:
 - `interface/INFORMATION_ARCHITECTURE.md` — target Web/Mobile information architecture and vocabulary.
 - `interface/MIGRATION_PLAN.md` — incremental interface migration.
 - `interface/DESIGN_SYSTEM.md` — reusable UI hierarchy, tokens, states, accessibility, and consistency rules.
+- `interface/STALLTRACK_UI_V3_DIRECTION.md` — Clint-approved V3 Web visual direction. Presentation authority only; supersedes older visual-preservation rules for Web presentation, never business rules.
 ### Security
 
 - `security/SECURITY_ARCHITECTURE.md` — authentication, authorization, token, MFA, secrets, audit, and security invariants.

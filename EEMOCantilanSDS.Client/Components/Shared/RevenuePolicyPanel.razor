@@ -1,0 +1,87 @@
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IRevenueClassificationsApiClient ClassificationsApi
+
+@* The approved revenue policy of one Monthly Income line, read from its revenue classification. The classification API
+   is Head-only, so an Admin sees a plain note rather than an error; nothing is guessed when the policy is absent. *@
+<aside class="v3-panel rpp" aria-labelledby="@_titleId" aria-busy="@(_state == State.Loading ? "true" : "false")">
+    <header class="v3-panel-header">
+        <h2 id="@_titleId">Effective policy</h2>
+        @if (_state == State.Loaded)
+        {
+            <a class="rpp-setup" href="/settings/revenue">Revenue setup</a>
+        }
+    </header>
+    <div class="v3-panel-body">
+        @switch (_state)
+        {
+            case State.Loading:
+                <p class="rpp-note" role="status">Loading policy…</p>
+                break;
+            case State.HeadOnly:
+                <p class="rpp-note">Revenue policy details are available to the Head.</p>
+                break;
+            case State.Failed:
+                <div class="rpp-retry" role="alert">
+                    <p class="rpp-note">The policy couldn't be loaded.</p>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+                </div>
+                break;
+            case State.Loaded when _classification?.EffectivePolicy is { } policy:
+                <dl class="v3-facts">
+                    <div><dt>Revenue line</dt><dd>@policy.DisplayName</dd></div>
+                    <div><dt>Instrument</dt><dd>@InstrumentName(policy.PermittedInstrumentType)</dd></div>
+                    <div><dt>Effective since</dt><dd>@policy.EffectiveDate.ToString("MMM d, yyyy")</dd></div>
+                    <div><dt>Status</dt><dd>@(_classification.IsActive ? "Active" : "Retired")</dd></div>
+                </dl>
+                break;
+            default:
+                <p class="rpp-note">No policy is configured for this revenue line yet.</p>
+                break;
+        }
+    </div>
+</aside>
+
+@code {
+    private enum State { Loading, Loaded, HeadOnly, Failed }
+
+    private readonly string _titleId = $"rpp-{Guid.NewGuid():N}";
+    private State _state = State.Loading;
+    private RevenueClassificationDto? _classification;
+
+    /// <summary>Stable semantic code of the revenue line, e.g. <c>RevenueClassificationCodes.MarketFees</c>.</summary>
+    [Parameter, EditorRequired] public string SemanticCode { get; set; } = string.Empty;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _state = State.Loading;
+        try
+        {
+            var result = await ClassificationsApi.GetClassificationsAsync(PhilippineTime.Today);
+            if (result.IsSuccess)
+            {
+                _classification = result.Value?.FirstOrDefault(x => x.SemanticCode == SemanticCode);
+                _state = State.Loaded;
+            }
+            else
+            {
+                _state = result.Status == ResultStatus.Forbidden ? State.HeadOnly : State.Failed;
+            }
+        }
+        catch
+        {
+            _state = State.Failed;
+        }
+    }
+
+    private static string InstrumentName(RevenueInstrumentType? instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+        RevenueInstrumentType.CashTicket => "Cash Ticket",
+        _ => "Not set",
+    };
+}

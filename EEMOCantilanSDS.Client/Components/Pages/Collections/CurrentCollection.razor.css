@@ -65,7 +65,7 @@
 .cc-candidate-title span, .cc-table td span { display: block; color: #758195; font-size: 11px; }
 .cc-table-wrap { overflow-x: auto; }
 .cc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.cc-table th { padding: 10px 8px; text-align: left; color: #667085; border-bottom: 1px solid #e5e9ef; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.cc-table th { padding: 10px 8px; text-align: left; color: #667085; border-bottom: 1px solid #e5e9ef; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
 .cc-table td { padding: 10px 8px; border-bottom: 1px solid #edf0f4; vertical-align: middle; }
 .cc-number { text-align: right !important; white-space: nowrap; }
 .cc-table input { width: 105px; text-align: right; padding: 7px; }
@@ -75,7 +75,7 @@
 .cc-secondary { background: #eef1f5; color: #31425a; }
 .cc-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px; border-radius: 10px; background: #f5f7fa; }
 .cc-summary div { min-width: 0; }
-.cc-summary dt { color: #768196; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.cc-summary dt { color: #768196; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
 .cc-summary dd { margin: 3px 0 0; color: #1e2f49; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
 .cc-lines { display: grid; gap: 10px; margin: 16px 0; }
 .cc-line { padding: 14px; border: 1px solid #e3e7ed; border-radius: 10px; }
@@ -85,7 +85,7 @@
 .cc-allocation + .cc-allocation { margin-top: 8px; }
 .cc-allocation > div { display: grid; gap: 3px; }
 .cc-allocation > div span { color: #4e5c70; font-size: 12px; }
-.cc-allocation small { color: #929baa; font-size: 10px; }
+.cc-allocation small { color: #929baa; font-size: 11px; }
 .cc-allocation input { width: 112px; text-align: right; }
 .cc-total { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-top: 1px solid #e2e7ee; font-size: 14px; }
 .cc-total strong { color: #17385f; font-size: 20px; }
