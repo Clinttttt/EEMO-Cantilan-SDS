@@ -51,8 +51,23 @@ public class AddVendorModalUtilityChargeTests : TestContext
         var cut = RenderForm(MarketSpace());
 
         Assert.Single(cut.FindAll(".avm-util-none"));
-        Assert.Contains("No utility charges on this space.", cut.Markup);
+        Assert.Contains("No utility service recorded for this space.", cut.Markup);
         Assert.Empty(cut.FindAll(".avm-fee-toggle"));      // no empty boxes offered
+    }
+
+    [Fact]
+    public void UtilityService_IsContextNotARentalCharge_AndHasNoMeterWording()
+    {
+        var cut = RenderForm(MarketSpace("Electricity", "Water"));
+
+        // Stated as a separate utility operation, never as a component of stall rent or a reading-driven bill.
+        Assert.Contains("Utility service", cut.Markup);
+        Assert.Contains("assessed and collected apart from stall rental", cut.Markup);
+        Assert.Contains("Electricity (ECF)", cut.Markup);
+        Assert.Contains("Water (WCF)", cut.Markup);
+        Assert.DoesNotContain("amount varies per reading", cut.Markup);
+        Assert.DoesNotContain("Utility Charges", cut.Markup);
+        Assert.DoesNotContain("metered", cut.Markup);
     }
 
     [Fact]
@@ -64,7 +79,7 @@ public class AddVendorModalUtilityChargeTests : TestContext
 
         Assert.Equal(2, cut.FindAll(".avm-fee-toggle").Count);   // electricity and water
         Assert.Empty(cut.FindAll(".avm-util-none"));
-        Assert.Contains("Tick the service this space is metered for", cut.Markup);
+        Assert.Contains("Mark the service this space uses, then save. No charge is created.", cut.Markup);
         // Nothing is ticked for them: the charge goes on the stall only when the office says which.
         Assert.Empty(cut.FindAll(".avm-fee-toggle.active"));
     }
@@ -76,7 +91,7 @@ public class AddVendorModalUtilityChargeTests : TestContext
 
         Assert.Empty(cut.FindAll(".avm-util-none"));
         Assert.Single(cut.FindAll(".avm-fee-toggle.active"));
-        Assert.DoesNotContain("Tick the service this space is metered for", cut.Markup);
+        Assert.DoesNotContain("Mark the service this space uses", cut.Markup);
     }
 
     [Fact]
