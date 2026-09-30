@@ -103,7 +103,7 @@ public partial class StallRepository
                 && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd);
             var daysMissed = Math.Max(0, collectableDays - daysCollected - absentDays);
             var monthCollectedAmount = paidCollections.Sum(d =>
-                d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate));
+                d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate) + d.MeatFeeAmount);
 
             return new MobileNpmStallCollectionDto(
                 s.Id,
@@ -124,7 +124,11 @@ public partial class StallRepository
                 monthCollectedAmount,
                 todayCollection?.IsAbsent == true,
                 collectableToday,
-                UncollectedDays(s, monthStart, effectiveEnd, closures));
+                UncollectedDays(s, monthStart, effectiveEnd, closures),
+                todayCollection?.MeatKilos,
+                todayCollection?.MeatFeeAmount ?? 0m,
+                todayCollection?.MeatFeeRatePerKilo,
+                todayCollection?.MeatFeeRateEffectiveDate);
         }).ToList();
 
         var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
@@ -139,7 +143,7 @@ public partial class StallRepository
             rows.Count,
             collectedToday.Count,
             pendingToday.Count,
-            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * npmFishRate)),
+            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * npmFishRate) + r.MeatFeeToday),
             pendingToday.Sum(r => r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),

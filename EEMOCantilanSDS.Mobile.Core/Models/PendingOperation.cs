@@ -54,6 +54,7 @@ public sealed class PendingOperation
     public Guid? StallId { get; set; }
     public bool? IsPaid { get; set; }
     public decimal? FishKilos { get; set; }
+    public decimal? MeatKilos { get; set; }
     // Excused/absent day (₱0 owed, mutually exclusive with IsPaid).
     public bool? IsAbsent { get; set; }
 
@@ -161,5 +162,6 @@ public sealed class PendingOperation
         WaterSourceVersion,
         AccountableDocumentId,
         DocumentNumber,
-        IssuedAtUtc);
+        IssuedAtUtc,
+        MeatKilos);
 }

@@ -31,6 +31,17 @@ public interface ICollectorRepository
     Task AddFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
     Task ReplaceFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Stages non-facility operation permissions for the current tenant's collector, in the caller's unit of work. Codes
+    /// must already be validated against <c>CollectorOperationCodes</c>. A permission is not collectibility.
+    /// </summary>
+    Task AddOperationAssignmentsAsync(Guid collectorId, IReadOnlyCollection<string> operationCodes, string assignedBy, CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces the permission set, keeping unchanged rows so their original assignment evidence survives.</summary>
+    Task ReplaceOperationAssignmentsAsync(Guid collectorId, IReadOnlyCollection<string> operationCodes, string assignedBy, CancellationToken cancellationToken = default);
+
+    Task<bool> HasOperationAssignmentsAsync(Guid collectorId, CancellationToken cancellationToken = default);
+
     /// <summary>Ids of ACTIVE collectors assigned to a facility (for routing notifications to them).</summary>
     Task<IReadOnlyList<Guid>> GetActiveCollectorIdsByFacilityAsync(FacilityCode facilityCode, CancellationToken cancellationToken = default);
 }

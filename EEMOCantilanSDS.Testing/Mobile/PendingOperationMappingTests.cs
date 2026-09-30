@@ -24,6 +24,7 @@ public class PendingOperationMappingTests
             StallId = stallId,
             IsPaid = true,
             FishKilos = 12.5m,
+            MeatKilos = 3.25m,
             Status = PaymentStatus.Partial,
             PartialAmount = 100m,
             OwnerName = "Owner",
@@ -57,6 +58,7 @@ public class PendingOperationMappingTests
         Assert.Equal(stallId, dto.StallId);
         Assert.True(dto.IsPaid);
         Assert.Equal(12.5m, dto.FishKilos);
+        Assert.Equal(3.25m, dto.MeatKilos);
         Assert.Equal(PaymentStatus.Partial, dto.Status);
         Assert.Equal(100m, dto.PartialAmount);
         Assert.Equal("Owner", dto.OwnerName);

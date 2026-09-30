@@ -16,6 +16,7 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
@@ -23,6 +24,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetNpmMeatWeighingRateQuote;
 using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
@@ -48,6 +50,14 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
         var result = await Sender.Send(new GetCollectorMobileMenuQuery());
         return HandleResponse(result);
     }
+
+    /// <summary>
+    /// Read-only: which assigned non-facility operations are collectible now. Assignment alone is never collectible;
+    /// posting endpoints still revalidate every gate.
+    /// </summary>
+    [HttpGet("operations/capabilities")]
+    public async Task<ActionResult<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync(CancellationToken ct) =>
+        HandleResponse(await Sender.Send(new GetCollectorOperationCapabilitiesQuery(), ct));
 
     [HttpGet("profile")]
     public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()
@@ -101,6 +111,15 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
         return HandleResponse(result);
     }
 
+    /// <summary>Display-only effective Meat weighing rate for a selected Philippine collection date.</summary>
+    [HttpGet("npm/meat-weighing-rate")]
+    public async Task<ActionResult<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateAsync(
+        [FromQuery] DateOnly businessDate)
+    {
+        var result = await Sender.Send(new GetNpmMeatWeighingRateQuoteQuery(businessDate));
+        return HandleResponse(result);
+    }
+
     /// <summary>
     /// What the market is behind on: months that closed owing, and the days of this month gone by.
     /// </summary>
@@ -129,6 +148,7 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow)
             request.FishKilos,
             request.ORNumber,
             IsAbsent: request.IsAbsent);
+        command = command with { MeatKilos = request.MeatKilos };
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

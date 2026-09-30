@@ -18,6 +18,7 @@ namespace EEMOCantilanSDS.Domain.Constants
             // prices that area apart from the market; stating none leaves every area on the market's own rate, which is
             // what every office had before and what Cantilan still has.
             FeeRateKey.NpmDailyStallVegetable, FeeRateKey.NpmDailyStallFish, FeeRateKey.NpmDailyStallMeat,
+            FeeRateKey.NpmMeatPerKilo,
         };
 
         /// <summary>
@@ -50,7 +51,7 @@ namespace EEMOCantilanSDS.Domain.Constants
             FeeRateKey.NpmDailyStall or FeeRateKey.NpmMonthlyStall or FeeRateKey.NpmFishPerKilo
                 or FeeRateKey.ElecPerKwh or FeeRateKey.WaterPerCubicMeter => FacilityCode.NPM,
             FeeRateKey.NpmDailyStallVegetable or FeeRateKey.NpmDailyStallFish
-                or FeeRateKey.NpmDailyStallMeat => FacilityCode.NPM,
+                or FeeRateKey.NpmDailyStallMeat or FeeRateKey.NpmMeatPerKilo => FacilityCode.NPM,
             FeeRateKey.SlhHogPerHead or FeeRateKey.SlhLargePerHead => FacilityCode.SLH,
             FeeRateKey.TpmVendorDay => FacilityCode.TPM,
             FeeRateKey.TrmPerTrip => FacilityCode.TRM,

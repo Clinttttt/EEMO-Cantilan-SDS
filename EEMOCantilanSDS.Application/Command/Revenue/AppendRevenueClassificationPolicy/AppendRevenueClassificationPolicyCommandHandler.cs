@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,6 +33,7 @@ public sealed class AppendRevenueClassificationPolicyCommandHandler(
             .AsNoTracking()
             .AnyAsync(x => x.MunicipalityId == municipalityId
                 && x.RevenueClassificationId == request.ClassificationId
+                && x.BusinessContext == RevenuePolicyContext.Default
                 && x.EffectiveDate == request.EffectiveDate, cancellationToken);
         if (duplicateDate)
             return Result<RevenueClassificationPolicyDto>.Failure(

@@ -92,7 +92,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 {
                     var r = await sender.Send(new RecordDailyCollectionCommand(
                         op.StallId ?? Guid.Empty, op.BusinessDate, op.IsPaid ?? true,
-                        op.FishKilos, op.ORNumber, op.ClientOperationId, op.IsAbsent ?? false), ct);
+                        op.FishKilos, op.ORNumber, op.ClientOperationId, op.IsAbsent ?? false,
+                        MeatKilos: op.MeatKilos), ct);
                     return (r.IsSuccess, r.StatusCode, r.Error);
                 }
                 case OfflineOperationKind.MonthlyRental:

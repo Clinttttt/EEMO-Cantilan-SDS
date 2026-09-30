@@ -454,6 +454,17 @@
                 </div>
             }
 
+            @if (SelectedIsPaid && SelectedStall.Section == MarketSection.MeatSection)
+            {
+                <div class="fish-kilo-wrap">
+                    <div class="form-label">Meat kilos weighed</div>
+                    <div class="fish-input-row">
+                        <input class="form-input" type="number" min="0" step="0.01" placeholder="0" @bind="MeatKilos" @bind:event="oninput" />
+                        <span>kg</span>
+                    </div>
+                </div>
+            }
+
             @if (SelectedIsPaid)
             {
                 <div class="or-number-wrap">
@@ -697,6 +708,15 @@
                     {
                         <div class="receipt-meta-row"><span>Fish kilos</span><strong>@kg.ToString("0.##") kg</strong></div>
                     }
+                    @if (SelectedStall.Section == MarketSection.MeatSection && SelectedStall.MeatKilosToday is { } meatKg)
+                    {
+                        <div class="receipt-meta-row"><span>Meat weighed</span><strong>@meatKg.ToString("0.##") kg</strong></div>
+                        @if (SelectedStall.MeatFeeRatePerKiloToday is { } meatRate)
+                        {
+                            <div class="receipt-meta-row"><span>Rate applied</span><strong>₱@meatRate.ToString("0.00") / kg (@SelectedStall.MeatFeeRateEffectiveDateToday?.ToString("dd MMM yyyy"))</strong></div>
+                        }
+                        <div class="receipt-meta-row"><span>Weighing amount</span><strong>@FormatCurrency(SelectedStall.MeatFeeToday)</strong></div>
+                    }
                     <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(SelectedStall.ORNumberToday) ? "—" : SelectedStall.ORNumberToday)</strong></div>
                 </div>
                 <div class="receipt-divider"></div>
@@ -793,6 +813,7 @@
     private MobileNpmCollectionDto? Collection;
     // Stall ids with a locally-queued (not-yet-synced) offline collection for the shown day.
     private HashSet<Guid> QueuedOfflineStalls = new();
+    private Dictionary<Guid, decimal?> QueuedOfflineMeatKilos = new();
     // Of those, the ones queued as "absent" — so a reopened sheet restores the answer that was captured.
     private HashSet<Guid> QueuedOfflineAbsent = new();
     private bool IsLoading = true;
@@ -818,6 +839,7 @@
     private bool SelectedIsPaid;
     private bool SelectedIsAbsent;
     private decimal? FishKilos;
+    private decimal? MeatKilos;
     private string ORNumber = string.Empty;
 
     // Electricity remains a focused OR legacy-compatible part. Water is entered separately through WCF/CT.
@@ -1054,6 +1076,7 @@
         if (Collection is null)
         {
             QueuedOfflineStalls = new();
+            QueuedOfflineMeatKilos = new();
             return;
         }
 
@@ -1067,6 +1090,9 @@
             .ToList();
 
         QueuedOfflineStalls = queued.Select(o => o.StallId!.Value).ToHashSet();
+        QueuedOfflineMeatKilos = queued
+            .GroupBy(o => o.StallId!.Value)
+            .ToDictionary(g => g.Key, g => g.Last().MeatKilos);
         // What each queued capture said, so reopening the sheet shows the collector their own answer instead of
         // the server's "not collected" — the card already says "Queued", and the two must not disagree.
         QueuedOfflineAbsent = queued.Where(o => o.IsAbsent == true).Select(o => o.StallId!.Value).ToHashSet();
@@ -1654,6 +1680,9 @@
             SelectedIsAbsent = queuedHere ? QueuedOfflineAbsent.Contains(stall.StallId) : stall.IsAbsentToday;
             SelectedIsPaid = queuedHere ? !SelectedIsAbsent : stall.IsCollectedToday;
             FishKilos = stall.FishKilosToday;
+            MeatKilos = queuedHere && QueuedOfflineMeatKilos.TryGetValue(stall.StallId, out var queuedMeatKilos)
+                ? queuedMeatKilos
+                : stall.MeatKilosToday;
             ORNumber = stall.ORNumberToday ?? string.Empty;
         }
         else
@@ -1665,6 +1694,7 @@
             SelectedIsAbsent = false;
             SelectedIsPaid = false;
             FishKilos = null;
+            MeatKilos = null;
             ORNumber = string.Empty;
         }
         SelectedIsMisc = false;
@@ -1800,6 +1830,7 @@
             IsPaid = SelectedIsPaid,
             IsAbsent = SelectedIsAbsent,
             FishKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
+            MeatKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.MeatSection ? MeatKilos : null,
             ORNumber = SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
             FacilityLabel = "NPM",
             Title = SelectedStall.PayorName,
@@ -1894,6 +1925,10 @@
             // The day being settled. The server refuses a paid day dated ahead, so a stale sheet cannot file money
             // in the future.
             SelectedDate);
+        request = request with
+        {
+            MeatKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.MeatSection ? MeatKilos : null
+        };
 
         var result = await MobileApi.RecordNpmCollectionAsync(request);
         if (!result.IsSuccess)
@@ -2027,6 +2062,7 @@
         SelectedDate = Today;
         SheetIsArrears = false;
         FishKilos = null;
+        MeatKilos = null;
         ORNumber = string.Empty;
         SelectedIsMisc = false;
         SelectedBill = null;

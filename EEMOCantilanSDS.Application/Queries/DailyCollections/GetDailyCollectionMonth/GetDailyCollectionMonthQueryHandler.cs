@@ -71,6 +71,8 @@ public class GetDailyCollectionMonthQueryHandler(
         var daysClosedPast = 0;      // market-closed days up to today — excluded from DaysMissed
         var daysClosedAll = 0;       // market-closed days in the whole month
         var totalFishKilos = 0m;
+        var totalMeatKilos = 0m;
+        var totalMeatFee = 0m;
 
         var collectionDict = new Dictionary<string, DailyCollectionDayDto>();
 
@@ -91,8 +93,11 @@ public class GetDailyCollectionMonthQueryHandler(
                 // adjustment — plus this day's fish fee at the tenant's own resolved rate. A receipt written against
                 // the day must state what the office received, not a figure re-derived from a constant.
                 AmountCollected: collection.IsPaid
-                    ? collection.DailyFee + ((collection.FishKilos ?? 0m) * fishRate)
-                    : 0m
+                    ? collection.DailyFee + ((collection.FishKilos ?? 0m) * fishRate) + collection.MeatFeeAmount
+                    : 0m,
+                MeatKilos: collection.MeatKilos,
+                MeatFeeRatePerKilo: collection.MeatFeeRatePerKilo,
+                MeatFeeAmount: collection.IsPaid ? collection.MeatFeeAmount : 0m
             );
 
             if (collection.IsPaid && day >= contractStartDay)
@@ -104,6 +109,11 @@ public class GetDailyCollectionMonthQueryHandler(
                     daysCollectedPast++;
                 if (collection.FishKilos.HasValue)
                     totalFishKilos += collection.FishKilos.Value;
+                if (collection.MeatKilos.HasValue)
+                {
+                    totalMeatKilos += collection.MeatKilos.Value;
+                    totalMeatFee += collection.MeatFeeAmount;
+                }
             }
             else if (closedToday && day >= contractStartDay)
             {
@@ -137,7 +147,7 @@ public class GetDailyCollectionMonthQueryHandler(
         var daysMissed    = Math.Max(0, validDays - daysCollectedPast - daysAbsentPast - daysClosedPast);
         var totalDailyFee = daysCollected * npmDaily;
         var totalFishFee  = totalFishKilos * fishRate;
-        var grandTotal    = totalDailyFee + totalFishFee;
+        var grandTotal    = totalDailyFee + totalFishFee + totalMeatFee;
         // Fully settled when every collectable day from contract start is collected, excused, or closed.
         var fullMonthDays = Math.Max(0, daysInMonth - contractStartDay + 1);
         var isFullyPaid   = fullMonthDays > 0 && (daysCollected + daysAbsentAll + daysClosedAll) >= fullMonthDays;
@@ -155,7 +165,9 @@ public class GetDailyCollectionMonthQueryHandler(
             isFullyPaid,
             collectionDict,
             daysAbsentAll,
-            daysClosedAll
+            daysClosedAll,
+            totalMeatKilos,
+            totalMeatFee
         ));
     }
 }

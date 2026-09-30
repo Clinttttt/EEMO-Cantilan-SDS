@@ -116,6 +116,7 @@ public class PendingOperationStoreTests : IDisposable
     public async Task Items_persist_to_disk_and_reload_in_a_fresh_store()
     {
         var op = NpmOp("OR-9");
+        op.MeatKilos = 12.5m;
 
         // First store instance writes the file.
         var writer = new PendingOperationStore(_dir);
@@ -129,6 +130,7 @@ public class PendingOperationStoreTests : IDisposable
         Assert.Equal(op.ClientOperationId, all[0].ClientOperationId);
         Assert.Equal("OR-9", all[0].ORNumber);
         Assert.True(all[0].IsPaid);
+        Assert.Equal(12.5m, all[0].MeatKilos);
     }
 
     [Fact]

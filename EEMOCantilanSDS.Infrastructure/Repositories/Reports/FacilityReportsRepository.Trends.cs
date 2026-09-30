@@ -96,7 +96,7 @@ public partial class FacilityReportsRepository
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
+                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
@@ -180,7 +180,7 @@ public partial class FacilityReportsRepository
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
+                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
@@ -277,7 +277,7 @@ public partial class FacilityReportsRepository
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
+                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.

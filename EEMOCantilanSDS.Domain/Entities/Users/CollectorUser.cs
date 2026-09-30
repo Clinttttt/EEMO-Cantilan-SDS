@@ -15,6 +15,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
 
         public ICollection<CollectorFacilityAssignment> FacilityAssignments { get; private set; }
      = new List<CollectorFacilityAssignment>();
+        public ICollection<CollectorOperationAssignment> OperationAssignments { get; private set; }
+     = new List<CollectorOperationAssignment>();
         private CollectorUser() { }
         public static CollectorUser Create(
        string fullName,

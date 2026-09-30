@@ -54,12 +54,21 @@ public partial class FacilityReportsRepository
             .Where(dc => npmStallIds.Contains(dc.StallId)
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
-                && dc.IsPaid
-               
-                && !stallsWithMonthlyPayments.Contains(dc.StallId))
+                && dc.IsPaid)
             .ToListAsync(ct);
 
-        var collectableDailyCollections = dailyCollections
+        // Rent and Fish remain deduplicated against monthly stall payments. Meat weighing is an independent
+        // source charge, so preserve its daily evidence even where the same rental account also has a monthly payment.
+        var rentDailyCollections = dailyCollections
+            .Where(dc => !stallsWithMonthlyPayments.Contains(dc.StallId))
+            .ToList();
+
+        var collectableDailyCollections = rentDailyCollections
+            .Where(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
+                && IsUnderContractOn(stall, dc.CollectionDate))
+            .ToList();
+
+        var collectableMeatWeighingCollections = dailyCollections
             .Where(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                 && IsUnderContractOn(stall, dc.CollectionDate))
             .ToList();
@@ -68,6 +77,8 @@ public partial class FacilityReportsRepository
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
             ? dc.FishKilos.Value * _npmFishRate
             : 0m);
+        var weightMeasureFromCollections = collectableMeatWeighingCollections.Sum(dc => dc.MeatFeeAmount);
+        var meatKilosFromCollections = collectableMeatWeighingCollections.Sum(dc => dc.MeatKilos ?? 0m);
 
         // Daily fee from monthly payments (BaseRentalAmount = daily fee equivalent)
         var dailyFeeFromMonthly = periodPaymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -139,7 +150,10 @@ public partial class FacilityReportsRepository
             FishFeeAmount: fishFeeFromCollections + fishFeeFromMonthly,
             FishKiloComparison: fishComparison,
             PaidDayRecords: paidDayRecords,
-            ExpectedDayRecords: expectedDayRecords
+            ExpectedDayRecords: expectedDayRecords,
+            WeightMeasureAmount: weightMeasureFromCollections,
+            MeatKilos: meatKilosFromCollections,
+            MeatWeightMeasureAmount: weightMeasureFromCollections
         );
     }
 

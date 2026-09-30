@@ -557,7 +557,7 @@ public partial class PaymentRepository
                     // The lessee answerable for that business day — a day inside a former occupancy belongs to them.
                     occupants.OnDate(stallId, d.CollectionDate) ?? payorName,
                     d.IsPaid ? "Paid" : "Absent",
-                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) : 0m,
+                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) + d.MeatFeeAmount : 0m,
                     d.ORNumber,
                     d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null,
                     // Recorder: the field collector when set, else the admin/Head resolved from the actor.

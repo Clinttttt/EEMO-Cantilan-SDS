@@ -46,7 +46,41 @@ public class RecordDailyCollectionCommandHandler(
         var recordedBy = currentUser.Username ?? "System";
         var orNumber = request.ORNumber?.Trim();
 
+        if (request.MeatKilos is < 0m)
+            return Result<bool>.Failure("Meat kilos cannot be negative.", ResultStatus.Invalid);
+
+        if (request.MeatKilos.HasValue
+            && (request.IsAbsent || !request.IsPaid
+                || stall.Facility?.Code != FacilityCode.NPM
+                || stall.Section != MarketSection.MeatSection))
+            return Result<bool>.Failure("Meat kilos can only be recorded on a paid NPM Meat-section collection.", ResultStatus.Invalid);
+
         var existing = await dailyCollectionRepository.GetByStallAndDateAsync(request.StallId, request.CollectionDate, ct);
+        // A legacy client omitting the newly-added optional weight field must not erase already captured
+        // Meat source evidence on an update. Clearing/voiding still follows the existing unpaid/absent path.
+        var meatKilosToSave = request.MeatKilos;
+        var meatRateToSave = (decimal?)null;
+        var meatRateEffectiveDateToSave = (DateOnly?)null;
+        FeeRateEntry? meatRate = null;
+        FeeRateSnapshot? rateSnapshot = null;
+        if (request.MeatKilos.HasValue || existing is null)
+        {
+            rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+            if (request.MeatKilos.HasValue)
+            {
+                meatRate = rateSnapshot.ResolveEntryOrNull(FeeRateKey.NpmMeatPerKilo, request.CollectionDate);
+                if (meatRate is null || meatRate.Value.Amount <= 0m)
+                    return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmMeatPerKilo), ResultStatus.Conflict);
+                meatRateToSave = meatRate.Value.Amount;
+                meatRateEffectiveDateToSave = meatRate.Value.EffectiveDate;
+            }
+        }
+        if (existing is not null && request.IsPaid && !request.MeatKilos.HasValue && existing.MeatKilos.HasValue)
+        {
+            meatKilosToSave = existing.MeatKilos;
+            meatRateToSave = existing.MeatFeeRatePerKilo;
+            meatRateEffectiveDateToSave = existing.MeatFeeRateEffectiveDate;
+        }
 
         if (existing is not null)
         {
@@ -82,7 +116,10 @@ public class RecordDailyCollectionCommandHandler(
                     orNumber: orNumber ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
-                    updatedBy: recordedBy);
+                    updatedBy: recordedBy,
+                    meatKilos: meatKilosToSave,
+                    meatFeeRatePerKilo: meatRateToSave,
+                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave);
             }
             else
             {
@@ -96,7 +133,7 @@ public class RecordDailyCollectionCommandHandler(
             // the market's own keeps the rate it was let at, and an office stating one rate for the whole market is
             // answered that rate exactly as before. A fee the office has never stated is refused rather than taken as
             // zero: the amount stamped here is what it reconciles against by hand.
-            var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+            rateSnapshot ??= await feeRateResolver.GetSnapshotAsync(ct);
             if (NpmDailyFee.ForStallOrNull(stall, rateSnapshot, request.CollectionDate) is not { } dailyFee)
                 return Result<bool>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
 
@@ -122,7 +159,10 @@ public class RecordDailyCollectionCommandHandler(
                     orNumber: orNumber ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
-                    updatedBy: recordedBy);
+                    updatedBy: recordedBy,
+                    meatKilos: meatKilosToSave,
+                    meatFeeRatePerKilo: meatRateToSave,
+                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave);
             }
 
             await dailyCollectionRepository.AddAsync(newCollection, ct);

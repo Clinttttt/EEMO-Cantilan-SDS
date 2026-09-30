@@ -45,6 +45,10 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 
+    public async Task<Result<NpmMeatWeighingRateQuoteDto>> GetNpmMeatWeighingRateQuoteAsync(DateOnly businessDate) =>
+        await GetAsync<NpmMeatWeighingRateQuoteDto>(
+            $"api/Mobile/npm/meat-weighing-rate?businessDate={businessDate:yyyy-MM-dd}");
+
     public async Task<Result<MobileNpmArrearsDto>> GetNpmArrearsAsync(int year, int month) =>
         await GetAsync<MobileNpmArrearsDto>($"api/Mobile/npm/arrears?year={year}&month={month}");
 

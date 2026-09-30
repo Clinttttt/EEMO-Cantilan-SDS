@@ -102,6 +102,13 @@ public class ApplicationEfBoundaryTests
         "GetTpmCollectionShadowReconciliationQueryHandler.cs",
         // Phase 2B.2 applies the same bounded, read-only reconciliation boundary to historical TRM trip money.
         "GetTrmCollectionShadowReconciliationQueryHandler.cs",
+        // The NPM weighing shadow is the same bounded read-only boundary over DailyCollection weighing facts and the
+        // effective WEIGHT_AND_MEASURE policy. It projects only server-frozen amounts and writes no ledger rows.
+        "GetNpmWeighingShadowReconciliationQueryHandler.cs",
+        // The canonical Monthly Income foundation is the same bounded, read-only shape: one tenant-scoped read over
+        // posted Collection lines and their linked corrections, grouped by stable classification identity. It writes
+        // nothing and no production report consumes it yet.
+        "GetCanonicalMonthlyIncomeQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",
@@ -149,6 +156,12 @@ public class ApplicationEfBoundaryTests
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
+        // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
+        // permission rows. It carries no money, source, document or policy state.
+        "CollectorOperationAssignmentWorkflow.cs",
+        // Read-only Mobile capability derivation: one collector's permissions checked against the same source,
+        // authorization, policy and CT-custody facts the WCF workflow enforces. It writes nothing and grants nothing.
+        "GetCollectorOperationCapabilitiesQueryHandler.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.

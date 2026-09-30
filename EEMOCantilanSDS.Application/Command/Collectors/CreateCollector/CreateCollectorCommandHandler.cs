@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
@@ -15,7 +16,8 @@ public class CreateCollectorCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext,
-    IPasswordHasher passwordHasher)
+    IPasswordHasher passwordHasher,
+    ICurrentUserService? currentUser = null)
     : IRequestHandler<CreateCollectorCommand, Result<CollectorDto>>
 {
     public async Task<Result<CollectorDto>> Handle(CreateCollectorCommand request, CancellationToken cancellationToken)
@@ -36,6 +38,9 @@ public class CreateCollectorCommandHandler(
         await collectorRepo.AddAsync(collector, cancellationToken);
 
         await collectorRepo.AddFacilityAssignmentsAsync(collector.Id, request.AssignedFacilities, cancellationToken);
+        if (request.OperationCodes is { Count: > 0 } operationCodes)
+            await collectorRepo.AddOperationAssignmentsAsync(collector.Id, operationCodes,
+                AssignedBy(currentUser), cancellationToken);
 
         // ONE commit for the account and the facilities it is assigned to. Saving the account first left a window in
         // which a failure produced a collector who could sign in but was assigned nowhere — their app would open with no
@@ -62,4 +67,9 @@ public class CreateCollectorCommandHandler(
 
         return Result<CollectorDto>.Success(dto);
     }
+
+    /// <summary>The Head recorded as granting the permission; the same actor evidence the replace endpoint keeps.</summary>
+    internal static string AssignedBy(ICurrentUserService? currentUser) =>
+        currentUser?.Username?.Trim() is { Length: > 0 } name ? name
+            : currentUser?.UserId?.ToString("D") ?? "Head";
 }

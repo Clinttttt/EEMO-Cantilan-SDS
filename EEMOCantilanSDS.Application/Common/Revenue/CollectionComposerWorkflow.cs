@@ -867,6 +867,7 @@ public sealed class CollectionComposerWorkflow(
             throw Problem("ECF has no active revenue classification for this tenant.", ResultStatus.Conflict);
         var policy = await db.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == tenantId && x.RevenueClassificationId == classification.Id
+                && x.BusinessContext == RevenuePolicyContext.Default
                 && x.EffectiveDate <= businessDate)
             .OrderByDescending(x => x.EffectiveDate)
             .FirstOrDefaultAsync(ct);

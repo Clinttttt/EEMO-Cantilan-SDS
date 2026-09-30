@@ -1,9 +1,11 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
+using EEMOCantilanSDS.Infrastructure.Persistence.Seeders;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.IntegrationTests;
@@ -131,6 +133,74 @@ public sealed class RevenueClassificationPersistenceTests(PostgresFixture db)
         duplicate.RevenueClassificationPolicies.Add(RevenueClassificationPolicy.Create(
             classificationId, effectiveDate, "Changed same-day policy", RevenueInstrumentType.CashTicket));
         await Assert.ThrowsAsync<DbUpdateException>(() => duplicate.SaveChangesAsync());
+    }
+
+    [SkippableFact]
+    public async Task PostgreSqlPersistsCantilanContextualPoliciesAndKeepsLegacyEvidenceTenantScoped()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var cantilanId = await CreateMunicipalityAsync("CANTILAN");
+        var otherTenantId = await CreateMunicipalityAsync("REV-CONTEXT-OTHER");
+        var beforeClarification = new DateOnly(2026, 9, 26);
+        var clarificationDate = new DateOnly(2026, 9, 27);
+        Guid taboClassificationId;
+        Guid vegetableClassificationId;
+        Guid oldTaboPolicyId;
+        Guid oldVegetablePolicyId;
+
+        await using (var seed = db.CreateContext(cantilanId))
+        {
+            var tabo = RevenueClassification.Create(RevenueClassificationCodes.Tabo, cantilanId);
+            var vegetable = RevenueClassification.Create(RevenueClassificationCodes.VegetableFruitSpaceRental, cantilanId);
+            var oldTabo = RevenueClassificationPolicy.Create(tabo.Id, beforeClarification, "Tabo", RevenueInstrumentType.CashTicket,
+                cantilanId, description: "Pre-clarification CT", createdBy: "historical-seed");
+            var oldVegetable = RevenueClassificationPolicy.Create(vegetable.Id, beforeClarification,
+                "Vegetable/Fruit Space Rental", RevenueInstrumentType.CashTicket,
+                cantilanId, description: "Legacy default CT", createdBy: "historical-seed");
+            taboClassificationId = tabo.Id;
+            vegetableClassificationId = vegetable.Id;
+            oldTaboPolicyId = oldTabo.Id;
+            oldVegetablePolicyId = oldVegetable.Id;
+            seed.AddRange(tabo, vegetable, oldTabo, oldVegetable);
+            await seed.SaveChangesAsync();
+            await RevenueClassificationSeeder.SeedAsync(seed, new DateOnly(2026, 9, 30));
+        }
+
+        await using (var verify = db.CreateContext(cantilanId))
+        {
+            var taboRows = await verify.RevenueClassificationPolicies
+                .Where(x => x.RevenueClassificationId == taboClassificationId)
+                .OrderBy(x => x.EffectiveDate).ToListAsync();
+            Assert.Equal(2, taboRows.Count);
+            Assert.Equal(oldTaboPolicyId, taboRows[0].Id);
+            Assert.Equal(beforeClarification, taboRows[0].EffectiveDate);
+            Assert.Equal(RevenueInstrumentType.CashTicket, taboRows[0].PermittedInstrumentType);
+            Assert.Equal(clarificationDate, taboRows[1].EffectiveDate);
+            Assert.Equal(RevenueInstrumentType.OfficialReceipt, taboRows[1].PermittedInstrumentType);
+
+            var vegetableRows = await verify.RevenueClassificationPolicies
+                .Where(x => x.RevenueClassificationId == vegetableClassificationId).ToListAsync();
+            Assert.Equal(3, vegetableRows.Count);
+            Assert.Contains(vegetableRows, x => x.Id == oldVegetablePolicyId
+                && x.EffectiveDate == beforeClarification
+                && x.PermittedInstrumentType == RevenueInstrumentType.CashTicket);
+            Assert.Single(vegetableRows, x => x.BusinessContext == RevenuePolicyContext.VegetableWholePayment
+                && x.EffectiveDate == clarificationDate
+                && x.PermittedInstrumentType == RevenueInstrumentType.OfficialReceipt);
+            Assert.Single(vegetableRows, x => x.BusinessContext == RevenuePolicyContext.VegetableDailyTransaction
+                && x.EffectiveDate == clarificationDate
+                && x.PermittedInstrumentType == RevenueInstrumentType.CashTicket);
+        }
+
+        await using (var otherTenant = db.CreateContext(otherTenantId))
+            Assert.Empty(await otherTenant.RevenueClassificationPolicies.ToListAsync());
+
+        await using var duplicateContext = db.CreateContext(cantilanId);
+        duplicateContext.RevenueClassificationPolicies.Add(RevenueClassificationPolicy.Create(
+            vegetableClassificationId, clarificationDate, "Duplicate whole payment", RevenueInstrumentType.OfficialReceipt,
+            cantilanId, businessContext: RevenuePolicyContext.VegetableWholePayment));
+        await Assert.ThrowsAsync<DbUpdateException>(() => duplicateContext.SaveChangesAsync());
     }
 
     [SkippableFact]

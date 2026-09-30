@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using System.Text.RegularExpressions;
 
 namespace EEMOCantilanSDS.Domain.Entities.Revenue;
@@ -60,10 +61,18 @@ public sealed class RevenueClassification : AuditableEntity, IMunicipalityOwned
     /// </summary>
     public RevenueClassificationPolicy? ResolvePolicyAsOf(
         IEnumerable<RevenueClassificationPolicy> versions,
-        DateOnly asOf) => versions
+        DateOnly asOf,
+        RevenuePolicyContext businessContext = RevenuePolicyContext.Default)
+    {
+        if (!Enum.IsDefined(businessContext))
+            throw new ArgumentOutOfRangeException(nameof(businessContext));
+
+        return versions
             .Where(x => x.MunicipalityId == MunicipalityId
                 && x.RevenueClassificationId == Id
+                && x.BusinessContext == businessContext
                 && x.EffectiveDate <= asOf)
             .OrderByDescending(x => x.EffectiveDate)
             .FirstOrDefault();
+    }
 }

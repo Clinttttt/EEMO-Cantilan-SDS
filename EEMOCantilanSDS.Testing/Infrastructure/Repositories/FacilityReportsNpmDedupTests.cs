@@ -38,6 +38,33 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task MeatWeighingBreakdown_IsPreserved_WhenRentalHasMonthlyPayment()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "Meat-1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Meat Payor", "Meat Payor", new DateOnly(2026, 1, 1), 3, 900m);
+        var payment = PaymentRecord.Create(stall.Id, 2026, 6, 900m);
+        payment.UpdateStatus(PaymentStatus.Partial, 100m);
+
+        var collectionDate = new DateOnly(2026, 6, 15);
+        var daily = DailyCollection.Create(stall.Id, collectionDate, dailyFee: 30m);
+        daily.MarkPaid("OR-MEAT", Guid.NewGuid(), updatedBy: "collector",
+            meatKilos: 2m, meatFeeRatePerKilo: 66m, meatFeeRateEffectiveDate: collectionDate);
+
+        context.AddRange(facility, stall, contract, payment, daily);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(
+            FacilityCode.NPM, ReportPeriod.Monthly, 2026, 6, null, CancellationToken.None);
+
+        Assert.Equal(2m, report.FeeTypeBreakdown!.MeatKilos);
+        Assert.Equal(132m, report.FeeTypeBreakdown.MeatWeightMeasureAmount);
+    }
+
+    [Fact]
     public async Task WeeklyReport_NpmMonthlyEquivalentPayment_IsAllocatedAsThirtyPesosPerDay()
     {
         var context = NewContext();
