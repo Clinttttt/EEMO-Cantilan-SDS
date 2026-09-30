@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IEcfCollectionsApiClient CollectionsApi
+@inject IPenaltiesApiClient PenaltiesApi
 @inject IJSRuntime JS
 
 <PageTitle>StallTrack — Current Collection</PageTitle>
@@ -183,6 +184,51 @@
                     }
                 </div>
 
+                @* An approved penalty rides on this OR only once it has a rent or ECF item (which carries the payer context).
+                   The server names the amount rule: a fixed penalty is shown, not typed; a manually approved one is held to
+                   its ceiling. Nothing here lets a clerk type a charge. *@
+                @if (_penalties.Count > 0 && !_draft.RequiresBusinessDateRefresh
+                    && _draft.Lines.Any(x => x.SourceKind != CollectionSourceKind.PenaltyDefinition))
+                {
+                    <div class="cc-penalty" role="group" aria-label="Add an approved penalty">
+                        <label class="cc-field">
+                            <span>Approved penalty (optional)</span>
+                            <select @bind="_penaltyCode" disabled="@_busy">
+                                <option value="">No penalty</option>
+                                @foreach (var penalty in _penalties)
+                                {
+                                    <option value="@penalty.Code">@penalty.DisplayName@(penalty.AppliesTo is null ? "" : $" · {penalty.AppliesTo}")</option>
+                                }
+                            </select>
+                        </label>
+                        @if (SelectedPenalty is { } chosen)
+                        {
+                            <label class="cc-field">
+                                <span>@(chosen.Basis == GovernedServiceBasis.FixedAmount ? "Approved amount" : "Amount")</span>
+                                @if (chosen.Basis == GovernedServiceBasis.FixedAmount)
+                                {
+                                    <input type="text" readonly aria-readonly="true" value="@Money(chosen.FixedAmount ?? 0m)" />
+                                }
+                                else
+                                {
+                                    <input type="number" min="0.01" step="0.01" max="@(chosen.MaximumAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                                           @bind="_penaltyAmount" @bind:event="oninput" disabled="@_busy" />
+                                    @if (chosen.MaximumAmount is { } ceiling)
+                                    {
+                                        <small class="cc-line-detail">Up to @Money(ceiling)</small>
+                                    }
+                                }
+                            </label>
+                            <label class="cc-field">
+                                <span>Origin (optional)</span>
+                                <input type="text" maxlength="200" placeholder="For example the stall and month it relates to"
+                                       @bind="_penaltyOrigin" @bind:event="oninput" disabled="@_busy" />
+                            </label>
+                            <button type="button" class="cc-button cc-secondary" disabled="@_busy" @onclick="AddPenaltyAsync">Add penalty</button>
+                        }
+                    </div>
+                }
+
                 <label class="cc-field">
                     <span>Available Official Receipt</span>
                     <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
@@ -285,6 +331,14 @@
     private string? _error;
     private string? _message;
 
+    // Approved penalty definitions (active ones only) and the add-penalty form state.
+    private List<PenaltyDefinitionDto> _penalties = [];
+    private string _penaltyCode = string.Empty;
+    private decimal _penaltyAmount;
+    private string? _penaltyOrigin;
+    private PenaltyDefinitionDto? SelectedPenalty => string.IsNullOrEmpty(_penaltyCode)
+        ? null : _penalties.FirstOrDefault(x => x.Code == _penaltyCode);
+
     private bool CanPost => _draft is { Status: "Draft", IsReviewedForCurrentRevision: true,
         AccountableDocumentId: not null }
         && !_draft.RequiresBusinessDateRefresh
@@ -308,11 +362,41 @@
             var to = from.AddMonths(1).AddDays(-1);
             var activity = await CollectionsApi.GetCollectionActivityAsync(from, to);
             _activity = activity.IsSuccess ? activity.Value?.ToList() ?? [] : [];
+            // Non-fatal: without definitions the penalty control simply isn't offered.
+            var penalties = await PenaltiesApi.GetDefinitionsAsync();
+            _penalties = penalties.IsSuccess ? penalties.Value?.Where(x => x.IsActive).ToList() ?? [] : [];
         }
         catch (Exception exception)
         {
             _error = exception.Message;
         }
+        finally { _busy = false; }
+    }
+
+    private async Task AddPenaltyAsync()
+    {
+        if (_draft is null || SelectedPenalty is not { } penalty) return;
+        var amount = penalty.Basis == GovernedServiceBasis.FixedAmount ? penalty.FixedAmount ?? 0m : _penaltyAmount;
+        if (amount <= 0m)
+        {
+            _error = "Enter a positive penalty amount.";
+            return;
+        }
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await CollectionsApi.AddPenaltyLineAsync(new AddPenaltyDraftLineRequest(
+                penalty.Code, amount, _penaltyOrigin, _draft.Revision));
+            if (!result.IsSuccess) { _error = ErrorText(result, "The penalty could not be added."); return; }
+            _draft = result.Value;
+            PopulateAllocationInputs();
+            _penaltyCode = string.Empty;
+            _penaltyAmount = 0m;
+            _penaltyOrigin = null;
+            _message = "Penalty added to the same Official Receipt. Review is required again.";
+        }
+        catch (Exception exception) { _error = exception.Message; }
         finally { _busy = false; }
     }
 

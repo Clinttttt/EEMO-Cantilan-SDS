@@ -108,3 +108,13 @@
     .cc-allocation label { grid-column: 1; }
     .cc-allocation button { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* Approved penalty: a small group above the receipt picker; the server names the amount rule. */
+.cc-penalty {
+    display: grid;
+    gap: 10px;
+    margin: 4px 0 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}

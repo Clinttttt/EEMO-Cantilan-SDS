@@ -13,8 +13,8 @@ using Moq;
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
 /// <summary>
-/// Monthly Income lines with no StallTrack writer yet (Kanmanggay, Fiesta / Araw and Fines;
-/// Vegetable/Fruits, Transfer Large Cattle, Market Fees and Landing/Berthing now have real writers) get a focused
+/// Monthly Income lines with no StallTrack writer yet (Kanmanggay and Fiesta / Araw;
+/// Vegetable/Fruits, Transfer Large Cattle, Market Fees, Landing/Berthing and Fines now have real writers) get a focused
 /// workspace that states the line is not recorded yet. They hold no entry form, sample rows or
 /// collector / payor / accountable-form management.
 /// </summary>
@@ -44,7 +44,6 @@ public sealed class UnrecordedOperationWorkspacesTests : TestContext
     [Theory]
     [InlineData(typeof(Kanmanggay), "/operations/kanmanggay", "Kanmanggay")]
     [InlineData(typeof(FiestaAraw), "/operations/fiesta-araw", "Lot Rental — Fiesta / Araw")]
-    [InlineData(typeof(Fines), "/operations/fines", "Fines")]
     public void Workspace_IsOfficeOnly_StatesNotRecorded_AndRecordsNothing(Type page, string route, string title)
     {
         var template = Assert.Single(page.GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template;
@@ -71,15 +70,4 @@ public sealed class UnrecordedOperationWorkspacesTests : TestContext
         }, Timeout);
     }
 
-    [Fact]
-    public void Fines_ReadsItsPolicyFromTheClassification()
-    {
-        var cut = RenderComponent<Fines>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Penalties/Fines", cut.Markup);
-            Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href") == "/collectors");
-        }, Timeout);
-    }
 }
