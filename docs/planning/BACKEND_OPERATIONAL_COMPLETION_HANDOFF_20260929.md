@@ -324,3 +324,24 @@ baseline. The file is now registered with its reason. Test-only change.
 - **Validation:** API Release build 0 errors; no model change; `git diff --check` clean. The endpoint is not yet
   consumed (Mobile client/APK follow-up; CB-15).
 - No push, merge, deployment, migration, data change, activation or APK.
+
+### CB-09 — NPM weighing → Weight & Measure shadow reconciliation (`feat(npm)`)
+
+- **Scope:** read-only `GetNpmWeighingShadowReconciliationQuery(From, To)` in the accepted TPM/TRM shadow shape (query
+  only, no endpoint, no ledger write). Paid `DailyCollection` rows with weighing facts in the period are compared with
+  the tenant's `WEIGHT_AND_MEASURE` classification and the Default policy effective on the collection date.
+- **Rule:** only server-frozen money is projected — Meat kilos × frozen rate = frozen `MeatFeeAmount`, as
+  `DailyCollection` / `MeatWeighing`, with the policy instrument reported (Cantilan: OR). **Fish weighing is always
+  unresolved** (`FISH_WEIGHING_RATE_NOT_FROZEN`) with its kilos and a null amount: the row stores kilos only and the
+  domain's `FishFeeAmount` is computed from the constant `FeeRates.NpmFishFeePerKilo`, so no historical Fish amount is
+  inferred. Missing classification or policy leaves frozen money unresolved. Daily stall rent and any Fish/Meat vendor
+  fee are never part of this comparison.
+- **Remaining gates for a real adapter:** Fish rate/amount freezing going forward (a source change needing its own
+  approval), AccountableDocument OR custody instead of the free-text NPM OR string, a `DailyCollection` settlement
+  authority/cutover marker, exact-once posting and corrections, and the vendor-fee ruling (CB-08).
+- **Tests:** unit — 4 new plus the EF boundary test, all passing (frozen Meat projected at ₱165 not the ₱30 rent; Fish
+  unresolved with kilos and no amount; missing classification/late policy unresolved; tenant isolation, no ledger
+  writes, fail-closed caller). Regression proof: silently skipping Fish rows failed its test; restored.
+  PostgreSQL/Testcontainers: 1 passed.
+- **Validation:** API Release build 0 errors; no model change; `git diff --check` clean.
+- No push, merge, deployment, migration, data change, activation, backfill or APK.
