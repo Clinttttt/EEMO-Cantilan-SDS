@@ -132,6 +132,36 @@ public sealed class GetNpmWeighingShadowReconciliationQueryHandlerTests
     }
 
     [Fact]
+    public async Task FishWeighingWithFrozenEvidenceProjectsWhileHistoricalFishStaysUnresolved()
+    {
+        var options = Options();
+        var tenantId = Guid.NewGuid();
+        await SeedPolicyAsync(options, tenantId, new DateOnly(2020, 1, 1));
+        var frozen = DailyCollection.Create(Guid.NewGuid(), new DateOnly(2026, 9, 30), dailyFee: 30m);
+        frozen.MarkPaid("OR-2", Guid.NewGuid(), 10m, fishFeeRatePerKilo: 1.5m, fishFeeRateEffectiveDate: new DateOnly(2020, 1, 1));
+        var historical = Paid(new DateOnly(2026, 9, 10), fishKilos: 12m); // kilos only, no frozen rate
+        await using (var context = Context(options, tenantId))
+        {
+            context.AddRange(frozen, historical);
+            await context.SaveChangesAsync();
+        }
+
+        var dto = (await RunAsync(options, tenantId)).Value!;
+
+        var projected = Assert.Single(dto.ProjectedRows);
+        Assert.Equal(frozen.Id, projected.SourceId);
+        Assert.Equal(CollectionSourcePart.FishFee, projected.SourcePart);
+        Assert.Equal(15m, projected.Amount);                  // frozen 10 kg x 1.50, whatever the rate is today
+        Assert.Equal(new DateOnly(2020, 1, 1), projected.RateEffectiveDate);
+        var unresolved = Assert.Single(dto.UnresolvedRows);
+        Assert.Equal(historical.Id, unresolved.DailyCollectionId);
+        Assert.Equal(NpmWeighingShadowUnresolvedReasons.FishRateNotFrozenCode, unresolved.ReasonCode);
+        Assert.Null(unresolved.Amount);
+        Assert.Equal(12m, dto.UnresolvedFishKilos);           // only the row with no evidence counts as unresolved kilos
+        Assert.Equal(15m, dto.FrozenSourceTotal);
+    }
+
+    [Fact]
     public async Task MissingClassificationOrPolicyLeavesFrozenMoneyUnresolved()
     {
         var noClassification = Options();

@@ -12,7 +12,8 @@ namespace EEMOCantilanSDS.Application.Queries.Revenue.GetNpmWeighingShadowReconc
 /// <summary>
 /// Shadow reconciliation of NPM weighing facts to WEIGHT_AND_MEASURE, in the same bounded shape as the TPM and TRM
 /// shadows: the NPM DailyCollection stays the authority, no Collection/CollectionLine is written, and nothing is
-/// activated. Only server-frozen Meat weighing money is projected; Fish weighing has no frozen rate/amount and is
+/// activated. Only server-frozen weighing money is projected: Meat, and Fish rows collected after Fish rate evidence
+/// began to be frozen (IA-049). Historical Fish rows carry kilos only, so they are
 /// reported unresolved rather than priced from a constant or a current rate.
 /// </summary>
 public sealed class GetNpmWeighingShadowReconciliationQueryHandler(
@@ -39,7 +40,8 @@ public sealed class GetNpmWeighingShadowReconciliationQueryHandler(
             .Select(x => new
             {
                 x.Id, x.StallId, x.CollectionDate, x.CollectorId, x.FishKilos,
-                x.MeatKilos, x.MeatFeeRatePerKilo, x.MeatFeeRateEffectiveDate, x.MeatFeeAmount
+                x.MeatKilos, x.MeatFeeRatePerKilo, x.MeatFeeRateEffectiveDate, x.MeatFeeAmount,
+                x.FishFeeRatePerKilo, x.FishFeeRateEffectiveDate, x.FishFeeAmountFrozen
             })
             .ToListAsync(cancellationToken);
 
@@ -66,50 +68,57 @@ public sealed class GetNpmWeighingShadowReconciliationQueryHandler(
         var frozenTotal = 0m;
         var fishKilos = 0m;
 
-        foreach (var row in rows)
+        // One frozen weighing part (Fish or Meat) becomes a projected row only with complete frozen evidence, a
+        // configured classification and a policy effective on the collection date. Otherwise it stays unresolved with
+        // its reason; nothing is ever priced from a constant or from today's rate.
+        void Resolve(Guid rowId, Guid stallId, DateOnly date, Guid? collectorId, CollectionSourcePart part,
+            decimal kilos, decimal? rate, DateOnly? rateDate, decimal? amount)
         {
-            if (row.FishKilos is > 0m and var fish)
+            var frozen = rate is > 0m && rateDate is not null && amount is > 0m;
+            if (!frozen)
             {
-                fishKilos += fish;
-                unresolved.Add(new(row.Id, row.CollectionDate, CollectionSourcePart.FishFee, fish, null,
-                    NpmWeighingShadowUnresolvedReasons.FishRateNotFrozenCode,
-                    NpmWeighingShadowUnresolvedReasons.FishRateNotFrozenMessage));
-            }
-
-            if (row.MeatKilos is not (> 0m and var meat))
-                continue;
-            if (row.MeatFeeRatePerKilo is not (> 0m and var rate)
-                || row.MeatFeeRateEffectiveDate is not { } rateDate
-                || row.MeatFeeAmount <= 0m)
-            {
-                unresolved.Add(new(row.Id, row.CollectionDate, CollectionSourcePart.MeatWeighing, meat,
-                    row.MeatFeeAmount > 0m ? row.MeatFeeAmount : null,
-                    NpmWeighingShadowUnresolvedReasons.MeatRateEvidenceMissingCode,
-                    NpmWeighingShadowUnresolvedReasons.MeatRateEvidenceMissingMessage));
-                continue;
+                var isFish = part == CollectionSourcePart.FishFee;
+                unresolved.Add(new(rowId, date, part, kilos, amount is > 0m ? amount : null,
+                    isFish ? NpmWeighingShadowUnresolvedReasons.FishRateNotFrozenCode
+                           : NpmWeighingShadowUnresolvedReasons.MeatRateEvidenceMissingCode,
+                    isFish ? NpmWeighingShadowUnresolvedReasons.FishRateNotFrozenMessage
+                           : NpmWeighingShadowUnresolvedReasons.MeatRateEvidenceMissingMessage));
+                if (isFish) fishKilos += kilos;
+                return;
             }
 
             frozenCount++;
-            frozenTotal += row.MeatFeeAmount;
+            frozenTotal += amount!.Value;
             if (classification is null)
             {
-                unresolved.Add(new(row.Id, row.CollectionDate, CollectionSourcePart.MeatWeighing, meat, row.MeatFeeAmount,
+                unresolved.Add(new(rowId, date, part, kilos, amount,
                     NpmWeighingShadowUnresolvedReasons.ClassificationMissingCode,
                     NpmWeighingShadowUnresolvedReasons.ClassificationMissingMessage));
-                continue;
+                return;
             }
-            var policy = policies.FirstOrDefault(x => x.EffectiveDate <= row.CollectionDate);
+            var policy = policies.FirstOrDefault(x => x.EffectiveDate <= date);
             if (policy is null)
             {
-                unresolved.Add(new(row.Id, row.CollectionDate, CollectionSourcePart.MeatWeighing, meat, row.MeatFeeAmount,
+                unresolved.Add(new(rowId, date, part, kilos, amount,
                     NpmWeighingShadowUnresolvedReasons.PolicyNotEffectiveCode,
                     NpmWeighingShadowUnresolvedReasons.PolicyNotEffectiveMessage));
-                continue;
+                return;
             }
 
-            projected.Add(new(row.Id, row.StallId, row.CollectionDate, CollectionSourcePart.MeatWeighing, meat, rate,
-                rateDate, row.MeatFeeAmount, row.CollectorId, classification.Id, policy.Id, policy.EffectiveDate,
-                policy.PermittedInstrumentType, CollectionSourceKind.DailyCollection, row.Id));
+            projected.Add(new(rowId, stallId, date, part, kilos, rate!.Value, rateDate!.Value, amount.Value,
+                collectorId, classification.Id, policy.Id, policy.EffectiveDate, policy.PermittedInstrumentType,
+                CollectionSourceKind.DailyCollection, rowId));
+        }
+
+        foreach (var row in rows)
+        {
+            if (row.FishKilos is > 0m and var fish)
+                Resolve(row.Id, row.StallId, row.CollectionDate, row.CollectorId, CollectionSourcePart.FishFee,
+                    fish, row.FishFeeRatePerKilo, row.FishFeeRateEffectiveDate, row.FishFeeAmountFrozen);
+            if (row.MeatKilos is > 0m and var meat)
+                Resolve(row.Id, row.StallId, row.CollectionDate, row.CollectorId, CollectionSourcePart.MeatWeighing,
+                    meat, row.MeatFeeRatePerKilo, row.MeatFeeRateEffectiveDate,
+                    row.MeatFeeAmount > 0m ? row.MeatFeeAmount : null);
         }
 
         return Result<NpmWeighingShadowReconciliationDto>.Success(new(

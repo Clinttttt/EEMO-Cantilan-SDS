@@ -18,5 +18,9 @@ public record FeeTypeBreakdownDto(
     /// <summary>Meat kilos recorded on paid daily NPM collections for the selected period.</summary>
     decimal MeatKilos = 0m,
     /// <summary>Explicit Meat weighing amount; separate from daily stall rent and Fish weighing.</summary>
-    decimal MeatWeightMeasureAmount = 0m
+    decimal MeatWeightMeasureAmount = 0m,
+    /// <summary>Fish weighing money frozen at collection time (rate, effective date and amount); never derived from today's rate.</summary>
+    decimal FishWeightMeasureFrozenAmount = 0m,
+    /// <summary>Fish kilos with no frozen rate evidence (earlier rows and monthly-payment kilos): unresolved, not priced.</summary>
+    decimal FishKilosWithoutFrozenRate = 0m
 );

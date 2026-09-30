@@ -45,14 +45,6 @@
     outline-offset: 2px;
 }
 
-
-/* Historical Fish weighing: kilos only, no frozen rate/amount — shown as unresolved, never as money. */
-.wm-unresolved {
-    color: var(--text-tertiary);
-    font-size: 0.8125rem;
-    white-space: nowrap;
-}
-
 .wm-meat-facts {
     padding: 14px 20px 4px;
 }

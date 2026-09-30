@@ -63,7 +63,9 @@ public class RecordDailyCollectionCommandHandler(
         var meatRateEffectiveDateToSave = (DateOnly?)null;
         FeeRateEntry? meatRate = null;
         FeeRateSnapshot? rateSnapshot = null;
-        if (request.MeatKilos.HasValue || existing is null)
+        // Fish weighing evidence: resolved once at collection time and never re-priced on a later re-mark.
+        var fishKilosPaid = request.IsPaid && !request.IsAbsent && request.FishKilos is > 0m;
+        if (request.MeatKilos.HasValue || existing is null || fishKilosPaid)
         {
             rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
             if (request.MeatKilos.HasValue)
@@ -75,6 +77,25 @@ public class RecordDailyCollectionCommandHandler(
                 meatRateEffectiveDateToSave = meatRate.Value.EffectiveDate;
             }
         }
+        // Freeze the rate in force on the collection date. A re-mark with unchanged kilos keeps the evidence it already
+        // has (a later rate must not re-price an earlier weighing); an office that has stated no Fish rate freezes
+        // nothing, so the row stays unresolved rather than being given an invented amount.
+        var fishRateToSave = (decimal?)null;
+        var fishRateEffectiveDateToSave = (DateOnly?)null;
+        if (fishKilosPaid)
+        {
+            if (existing is { FishFeeRatePerKilo: not null } && existing.FishKilos == request.FishKilos)
+            {
+                fishRateToSave = existing.FishFeeRatePerKilo;
+                fishRateEffectiveDateToSave = existing.FishFeeRateEffectiveDate;
+            }
+            else if (rateSnapshot?.ResolveEntryOrNull(FeeRateKey.NpmFishPerKilo, request.CollectionDate) is { Amount: > 0m } fishRate)
+            {
+                fishRateToSave = fishRate.Amount;
+                fishRateEffectiveDateToSave = fishRate.EffectiveDate;
+            }
+        }
+
         if (existing is not null && request.IsPaid && !request.MeatKilos.HasValue && existing.MeatKilos.HasValue)
         {
             meatKilosToSave = existing.MeatKilos;
@@ -119,7 +140,9 @@ public class RecordDailyCollectionCommandHandler(
                     updatedBy: recordedBy,
                     meatKilos: meatKilosToSave,
                     meatFeeRatePerKilo: meatRateToSave,
-                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave);
+                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave,
+                    fishFeeRatePerKilo: fishRateToSave,
+                    fishFeeRateEffectiveDate: fishRateEffectiveDateToSave);
             }
             else
             {
@@ -162,7 +185,9 @@ public class RecordDailyCollectionCommandHandler(
                     updatedBy: recordedBy,
                     meatKilos: meatKilosToSave,
                     meatFeeRatePerKilo: meatRateToSave,
-                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave);
+                    meatFeeRateEffectiveDate: meatRateEffectiveDateToSave,
+                    fishFeeRatePerKilo: fishRateToSave,
+                    fishFeeRateEffectiveDate: fishRateEffectiveDateToSave);
             }
 
             await dailyCollectionRepository.AddAsync(newCollection, ct);
