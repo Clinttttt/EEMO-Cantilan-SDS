@@ -13,6 +13,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IMobileApiClient
 {
     Task<Result<MobileMenuDto>> GetMenuAsync();
+
+    /// <summary>Read-only: which assigned non-facility operations are collectible now (GET api/Mobile/operations/capabilities).</summary>
+    Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync();
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);

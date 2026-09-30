@@ -33,7 +33,7 @@ public sealed class CachingMobileApiClient(
     // always hit the network when online (see ReadThroughAsync), wiping them gives no online benefit and
     // only destroys the offline copy a collector relies on after going offline.
     private static readonly string[] CollectionPrefixes =
-        { "npm", "utility", "wcf", "monthly", "slaughter", "trm", "tpm" };
+        { "npm", "utility", "wcf", "monthly", "slaughter", "trm", "tpm", "operations" };
 
     // ── Reads: cache on success, serve last-known on connectivity failure ───
     public Task<Result<MobileMenuDto>> GetMenuAsync() =>
@@ -58,6 +58,12 @@ public sealed class CachingMobileApiClient(
 
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         ReadThroughAsync($"npm|{year}|{month}|{Today}", () => inner.GetNpmCollectionAsync(year, month));
+
+    // Capability is day-scoped (business date, custody, settlement authority) and cleared after every write, so a Cash
+    // Ticket used by the last capture is not still reported as held. Offline, the last answer for today stands; the
+    // posting endpoint revalidates every gate on sync.
+    public Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
+        ReadThroughAsync($"operations|capabilities|{Today}", inner.GetOperationCapabilitiesAsync);
 
     // A rate quote is display-only and must stay tied to the server's current effective-dated answer.
     // Do not serve a stale cached rate while offline; the posting handler resolves it again on sync.

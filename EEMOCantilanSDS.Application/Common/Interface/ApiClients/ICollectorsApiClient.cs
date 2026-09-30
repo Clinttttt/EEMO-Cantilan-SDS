@@ -19,6 +19,9 @@ public interface ICollectorsApiClient
     Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword, string confirmPassword);
     Task<Result<string>> GetNextEmployeeIdAsync();
 
+    /// <summary>Supported non-facility operations and whether this collector is assigned (GET api/Collectors/{id}/collection-operations).</summary>
+    Task<Result<IReadOnlyList<CollectorOperationAssignmentDto>>> GetCollectionOperationsAsync(Guid collectorId);
+
     /// <summary>Sends a push notification to a collector's devices. Returns the number of devices reached.</summary>
     Task<Result<int>> SendNotificationAsync(Guid collectorId, string title, string body);
 

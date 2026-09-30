@@ -20,6 +20,9 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
     public async Task<Result<CollectorActivityDto>> GetCollectorByIdAsync(Guid id) =>
         await GetAsync<CollectorActivityDto>($"api/Collectors/{id}");
 
+    public async Task<Result<IReadOnlyList<CollectorOperationAssignmentDto>>> GetCollectionOperationsAsync(Guid collectorId) =>
+        await GetAsync<IReadOnlyList<CollectorOperationAssignmentDto>>($"api/Collectors/{collectorId}/collection-operations");
+
     public async Task<Result<CollectorDto>> CreateCollectorAsync(CreateCollectorCommand command) =>
         await PostAsync<CreateCollectorCommand, CollectorDto>("api/Collectors", command);
 

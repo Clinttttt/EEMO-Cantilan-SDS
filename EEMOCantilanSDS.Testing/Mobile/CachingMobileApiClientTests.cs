@@ -265,4 +265,28 @@ public class CachingMobileApiClientTests
 
         Assert.True(cache.Has("monthly|TCC|2026|6")); // unchanged on failure
     }
+
+    [Fact]
+    public async Task Operation_capabilities_are_cached_for_today_and_cleared_after_a_collection_write()
+    {
+        // A capture can use the collector's last Cash Ticket, so yesterday's or pre-write "Ready" must not be served.
+        var today = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        var key = $"operations|capabilities|{today}";
+        var capabilities = new CollectorOperationCapabilitiesDto(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Now), []);
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetOperationCapabilitiesAsync())
+            .ReturnsAsync(Result<CollectorOperationCapabilitiesDto>.Success(capabilities));
+        inner.Setup(x => x.PostWcfCollectionAsync(It.IsAny<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionPostRequest>()))
+            .ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionOutcomeDto>.Success(
+                new(Guid.NewGuid(), Guid.NewGuid(), "CT000101", DateOnly.FromDateTime(DateTime.Now), 10m, "Posted", false)));
+        var cache = new FakeOfflineReadCache();
+        var sut = Sut(inner.Object, cache, online: true);
+
+        await sut.GetOperationCapabilitiesAsync();
+        Assert.True(cache.Has(key));
+
+        await sut.PostWcfCollectionAsync(new(1, Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Now), Guid.NewGuid(), 10m, 1,
+            Guid.NewGuid(), "CT000101", null));
+        Assert.False(cache.Has(key));
+    }
 }
