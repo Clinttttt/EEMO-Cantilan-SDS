@@ -169,3 +169,19 @@ BACKEND GAP: Slaughterhouse custom animal rate
 - exact frontend contract needed: an approved definition list for non-standard animals, if approved.
 
 Other notes: Fish reads for legacy rows remain read-time priced (unchanged); a penalty-only OR is not permitted; collector totals rollup across legacy and operation collections is undecided.
+
+## Final completion gaps (Mobile V3 dependencies and remaining backend work)
+
+BACKEND GAP: Collector Mobile Transportation
+- current behavior: the server exposes vehicle classes with rates in force in the governed-service terms and accepts `VehicleClassCode` on the governed sync payload; the legacy Mobile trip screen is unchanged.
+- required behavior: Mobile V3 offers the class list, shows the approved rate, and posts the class with the physically issued Cash Ticket.
+- why the UI cannot truthfully implement it now: keep the service `MobileEnabled=false` until then, or a collector without a class would have a physically issued CT quarantined.
+- exact frontend contract needed: `GET terms` -> `VehicleClasses[{Code,Name,Amount}]`; sync `GovernedService` op with `VehicleClassCode`.
+
+BACKEND GAP: Collector Mobile Slaughterhouse custom animal
+- current behavior: the server refuses an animal the Head/Admin has not approved and any rate other than the approved one; Mobile still shows typed animal and rate inputs.
+- required behavior: Mobile selects from `GET api/slaughter/animal-rates` and shows the approved rate read-only.
+
+BACKEND GAP: mixed-period official Monthly Income
+- current behavior: the canonical reader is canonical-only and lists each source's reporting authority; legacy classified totals are not merged.
+- required behavior: an assembled official view that adds legacy money only for sources whose authority is legacy for that period and canonical money only where canonical, using `CollectionSourceAuthorityMap`.

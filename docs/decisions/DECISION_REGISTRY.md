@@ -663,6 +663,21 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Only two gates remain: TRM cutover date and CB-06. A NEW contradiction that could change money, document identity, classification or historical meaning must be grilled again.
 - **REVISIT CONDITION:** Any newer EEMO staff ruling; the TRM cutover date or CB-06 authorization.
 
+### IA-051 - Final Transportation and Monthly Income go-live rulings (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-051
+- **SUBJECT:** Transportation / TRM cutover and the Monthly Income (CB-06) cutover authority
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "cutover date not authorized" wording in IA-050 for TRM and CB-06)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Transportation / TRM** is a day-to-day **Cash Ticket** collection on Collector Mobile at an approved vehicle-class, effective-dated rate. There is no unresolved question about a historical OR-to-CT date. The technical cutover takes effect when the approved production release containing the canonical Transportation workflow goes live: before it, legacy TRM history is preserved unchanged; after it, all new Transportation collections use the canonical CT workflow. Old TRM rows are never rewritten, old OR fields never converted to CT, no old CT numbers invented, history never re-priced, and missing vehicle classes never inferred.
+  - **Monthly Income cutover (CB-06)** is **authorized prospectively at the approved production go-live, source by source, with exactly-once coverage.** When the release ships and a source is activated, new financial events for that source use canonical Collection / CollectionLine / Allocation / AccountableDocument / PostingOperation and the Monthly Income and reporting paths use those rows. No arbitrary historical date is chosen and no old money is backfilled. Pre-go-live legacy stays the historical authority; post-go-live canonical is the authority for activated sources; a mixed period combines legacy pre-cutover and canonical post-cutover collections exactly once, and shadow or compatibility rows are comparison only and never add money.
+  - The release itself establishes the real go-live boundary; this session does not deploy.
+- **RATIONALE:** Removes the last two gates. Activation is per source (a row's settlement authority, or the Head enabling a new service), which is what makes a mixed period countable exactly once.
+- **EVIDENCE / SOURCE:** Clint / Core Brain FINAL FUNCTIONALIZATION PASS direction of 2026-09-30.
+- **IMPACT:** `CollectionSourceAuthorityMap` is the single decision of which representation is authoritative per source kind. The Head enabling the Transportation service is the Transportation boundary and closes the legacy trip writer from that date.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
