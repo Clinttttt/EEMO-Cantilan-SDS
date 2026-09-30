@@ -2840,3 +2840,28 @@
     font-size: 0.75rem;
     line-height: 1.45;
 }
+
+/* Receivables and Trends sections share the statement's document language: a navy top rule, modest radius, a quiet
+   header band and 40px register rows. Content and logic are unchanged. */
+@media screen {
+    .section-card {
+        border-top: 3px solid var(--navy);
+        border-radius: 10px;
+        box-shadow: none;
+    }
+
+    .section-card .section-header {
+        padding: 14px 20px 12px;
+        background: var(--surface);
+    }
+
+    .section-card .section-title {
+        font-size: 1rem;
+        letter-spacing: -0.005em;
+    }
+
+    .section-card table td,
+    .section-card table th {
+        font-variant-numeric: tabular-nums;
+    }
+}
