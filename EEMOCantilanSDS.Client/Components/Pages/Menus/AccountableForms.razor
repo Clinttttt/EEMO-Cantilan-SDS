@@ -18,15 +18,22 @@
    nothing on this page creates a collection. The layout owns the <main> landmark. *@
 <div class="v3-page af-page">
     <WorkspaceHeader Title="Accountable Forms" Subtitle="Physical inventory and collector custody">
-        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+        <Meta><InstrumentChip Instrument="@Chip" ShowName="true" /></Meta>
         <Actions>
+            @* OR and CT are separate physical documents with separate books and custody; they are never mixed. *@
+            <div class="v3-btn-group af-switch" role="group" aria-label="Accountable form type">
+                <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.CashTicket ? "true" : "false")"
+                        @onclick="() => SelectInstrument(RevenueInstrumentType.CashTicket)">Cash Tickets</button>
+                <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.OfficialReceipt ? "true" : "false")"
+                        @onclick="() => SelectInstrument(RevenueInstrumentType.OfficialReceipt)">Official Receipts</button>
+            </div>
             <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Register received book
             </button>
-            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !CashTicketBooks.Any())">
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !Books.Any())">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
-                Assign Cash Tickets
+                Assign @Nouns
             </button>
         </Actions>
     </WorkspaceHeader>
@@ -40,20 +47,20 @@
         <p class="v3-notice v3-notice-error" role="alert">@_error</p>
     }
 
-    <SummaryStrip Label="Cash Ticket custody" Items="SummaryItems" />
+    <SummaryStrip Label="@($"{Noun} custody")" Items="SummaryItems" />
 
     <section class="v3-panel" aria-labelledby="af-books-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="af-books-title">Cash Ticket books</h2>
-            <span class="v3-panel-meta">@CashTicketBooks.Count() registered</span>
+            <h2 id="af-books-title">@Noun books</h2>
+            <span class="v3-panel-meta">@Books.Count() registered</span>
         </header>
-        <div class="v3-table-wrap" role="region" aria-label="Registered Cash Ticket books" tabindex="0">
+        <div class="v3-table-wrap" role="region" aria-label="@($"Registered {Noun} books")" tabindex="0">
             <table class="v3-table">
                 <thead>
                     <tr>
                         <th scope="col">Book</th>
                         <th scope="col">Serial range</th>
-                        <th scope="col" class="v3-num">Tickets</th>
+                        <th scope="col" class="v3-num">@Units</th>
                         <th scope="col" class="v3-num">In office</th>
                         <th scope="col" class="v3-num">Assigned</th>
                         <th scope="col" class="v3-num">Consumed</th>
@@ -62,7 +69,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var book in CashTicketBooks)
+                    @foreach (var book in Books)
                     {
                         <tr>
                             <td class="v3-strong">@book.SeriesName</td>
@@ -75,7 +82,7 @@
                             <td class="v3-num">@Count(book, AccountableDocumentState.Voided)</td>
                         </tr>
                     }
-                    @if (!CashTicketBooks.Any())
+                    @if (!Books.Any())
                     {
                         <tr>
                             <td class="v3-empty" colspan="8">
@@ -85,7 +92,7 @@
                                 }
                                 else
                                 {
-                                    <span>No Cash Ticket books are registered yet. Use <strong>Register received book</strong> when the office receives one.</span>
+                                    <span>No @Noun books are registered yet. Use <strong>Register received book</strong> when the office receives one.</span>
                                 }
                             </td>
                         </tr>
@@ -98,16 +105,16 @@
     <section class="v3-panel" aria-labelledby="af-custody-title">
         <header class="v3-panel-header">
             <h2 id="af-custody-title">Collector custody</h2>
-            <span class="v3-panel-meta">Tickets currently assigned and not yet used</span>
+            <span class="v3-panel-meta">@Units currently assigned and not yet used</span>
         </header>
-        <div class="v3-table-wrap" role="region" aria-label="Cash Tickets held by collectors" tabindex="0">
+        <div class="v3-table-wrap" role="region" aria-label="@($"{Nouns} held by collectors")" tabindex="0">
             <table class="v3-table">
                 <thead>
                     <tr>
                         <th scope="col">Collector</th>
                         <th scope="col">Book</th>
-                        <th scope="col">Ticket ranges</th>
-                        <th scope="col" class="v3-num">Tickets</th>
+                        <th scope="col">@Unit ranges</th>
+                        <th scope="col" class="v3-num">@Units</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -122,7 +129,7 @@
                     }
                     @if (!Holdings.Any())
                     {
-                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading custody…" : "No Cash Tickets are currently assigned to collectors.")</td></tr>
+                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading custody…" : $"No {Nouns} are currently assigned to collectors.")</td></tr>
                     }
                 </tbody>
             </table>
@@ -131,18 +138,18 @@
 
     <section class="v3-panel" aria-labelledby="af-tickets-title">
         <header class="v3-panel-header">
-            <h2 id="af-tickets-title">Tickets</h2>
+            <h2 id="af-tickets-title">@Units</h2>
             <span class="v3-panel-meta">@FilteredTickets.Count() of @AllTickets.Count()</span>
         </header>
         <div class="v3-toolbar" aria-label="Ticket filters">
             <label class="v3-search">
-                <span class="v3-sr-only">Search ticket number</span>
+                <span class="v3-sr-only">Search @Unit.ToLowerInvariant() number</span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                <input type="search" placeholder="Search ticket number or collector" aria-label="Search ticket number or collector" @bind="_ticketSearch" @bind:event="oninput" />
+                <input type="search" placeholder="@($"Search {Unit.ToLowerInvariant()} number or collector")" aria-label="@($"Search {Unit.ToLowerInvariant()} number or collector")" @bind="_ticketSearch" @bind:event="oninput" />
             </label>
             <select class="v3-select" aria-label="Filter by book" @bind="_bookFilter">
                 <option value="">All books</option>
-                @foreach (var book in CashTicketBooks)
+                @foreach (var book in Books)
                 {
                     <option value="@book.BookId">@book.SeriesName</option>
                 }
@@ -155,9 +162,9 @@
                 }
             </select>
         </div>
-        <div class="v3-table-wrap v3-table-wrap-tall" role="region" aria-label="Cash Ticket units" tabindex="0">
+        <div class="v3-table-wrap v3-table-wrap-tall" role="region" aria-label="@($"{Noun} units")" tabindex="0">
             <table class="v3-table">
-                <thead><tr><th scope="col">Ticket</th><th scope="col">Book</th><th scope="col">State</th><th scope="col">Custody</th></tr></thead>
+                <thead><tr><th scope="col">@Unit</th><th scope="col">Book</th><th scope="col">State</th><th scope="col">Custody</th></tr></thead>
                 <tbody>
                     @foreach (var ticket in FilteredTickets)
                     {
@@ -170,14 +177,14 @@
                     }
                     @if (!FilteredTickets.Any())
                     {
-                        <tr><td class="v3-empty" colspan="4">@(AllTickets.Any() ? "No tickets match these filters." : "No tickets yet.")</td></tr>
+                        <tr><td class="v3-empty" colspan="4">@(AllTickets.Any() ? $"No {Units.ToLowerInvariant()} match these filters." : $"No {Units.ToLowerInvariant()} yet.")</td></tr>
                     }
                 </tbody>
             </table>
         </div>
     </section>
 
-    <p class="af-scope">This workspace covers Cash Ticket inventory and collector custody. Official Receipt custody, remittance, void/replacement and signed RCD processes are not managed here yet.</p>
+    <p class="af-scope">This workspace covers Official Receipt and Cash Ticket inventory and collector custody. Remittance, void/replacement and signed RCD processes are not managed here yet.</p>
 </div>
 
 @if (_dialog == Dialog.Register)
@@ -190,10 +197,13 @@
                 <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
             </header>
             <form class="v3-modal-body" id="af-register-form" @onsubmit="RegisterAsync" @onsubmit:preventDefault="true">
-                <p class="af-hint">Record a pre-numbered Cash Ticket book the office has physically received. StallTrack does not generate ticket numbers.</p>
+                <p class="af-hint">Record a pre-numbered @Noun book the office has physically received. StallTrack does not generate @Unit.ToLowerInvariant() numbers.</p>
                 <div class="v3-form-grid">
                     <label class="v3-field"><span>Book reference</span><input @ref="_firstField" required maxlength="80" @bind="_seriesName" /></label>
-                    <label class="v3-field"><span>Number prefix</span><input required maxlength="20" @bind="_numberPrefix" /></label>
+                    <label class="v3-field">
+                        <span>@(_instrument == RevenueInstrumentType.OfficialReceipt ? "Number prefix (optional)" : "Number prefix")</span>
+                        <input required="@(_instrument != RevenueInstrumentType.OfficialReceipt)" maxlength="20" @bind="_numberPrefix" />
+                    </label>
                 </div>
                 <div class="v3-form-grid">
                     <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_firstSerial" /></label>
@@ -230,16 +240,16 @@
         <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-assign-title"
                  @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
             <header class="v3-modal-header">
-                <h2 id="af-assign-title">Assign Cash Tickets</h2>
+                <h2 id="af-assign-title">Assign @Nouns</h2>
                 <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
             </header>
             <form class="v3-modal-body" id="af-assign-form" @onsubmit="AssignAsync" @onsubmit:preventDefault="true">
-                <p class="af-hint">Transfers custody of physical tickets to a collector. No money is recorded.</p>
+                <p class="af-hint">Transfers custody of physical @Nouns.ToLowerInvariant() to a collector. No money is recorded and no operation is authorized by this.</p>
                 <label class="v3-field">
-                    <span>Cash Ticket book</span>
+                    <span>@Noun book</span>
                     <select @ref="_firstField" @bind="_assignBookId" @bind:after="SuggestRange">
                         <option value="">Select book</option>
-                        @foreach (var book in CashTicketBooks)
+                        @foreach (var book in Books)
                         {
                             <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
                         }
@@ -281,7 +291,7 @@
                         <strong>@AssignPreview</strong>
                         @if (NotInOfficeInRange > 0)
                         {
-                            <span class="af-attention">@NotInOfficeInRange of these ticket@(NotInOfficeInRange == 1 ? " is" : "s are") not currently in office.</span>
+                            <span class="af-attention">@NotInOfficeInRange of these @Unit.ToLowerInvariant()@(NotInOfficeInRange == 1 ? " is" : "s are") not currently in office.</span>
                         }
                     </div>
                 }
@@ -292,7 +302,7 @@
             </form>
             <footer class="v3-modal-footer">
                 <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="af-assign-form" disabled="@(_busy || AssignProblem is not null)">Assign Cash Tickets</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-assign-form" disabled="@(_busy || AssignProblem is not null)">Assign @Nouns</button>
             </footer>
         </section>
     </div>
@@ -329,11 +339,29 @@
     private long _assignFirst;
     private long _assignLast;
 
-    private IEnumerable<AccountableFormBookDto> CashTicketBooks =>
-        _books.Where(x => x.InstrumentType == RevenueInstrumentType.CashTicket);
+    // Books, custody and numbers are per instrument: an OR and a CT are different physical documents and are never mixed.
+    private RevenueInstrumentType _instrument = RevenueInstrumentType.CashTicket;
+    private string Chip => _instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT";
+    private string Noun => _instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
+    private string Nouns => _instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipts" : "Cash Tickets";
+    private string Unit => _instrument == RevenueInstrumentType.OfficialReceipt ? "Receipt" : "Ticket";
+    private string Units => _instrument == RevenueInstrumentType.OfficialReceipt ? "Receipts" : "Tickets";
+
+    private void SelectInstrument(RevenueInstrumentType instrument)
+    {
+        if (instrument == _instrument) return;
+        _instrument = instrument;
+        _ticketSearch = string.Empty;
+        _bookFilter = string.Empty;
+        _stateFilter = string.Empty;
+        _message = null;
+    }
+
+    private IEnumerable<AccountableFormBookDto> Books =>
+        _books.Where(x => x.InstrumentType == _instrument);
 
     private IEnumerable<(AccountableFormBookDto Book, CashTicketDocumentDto Document)> AllTickets =>
-        CashTicketBooks.SelectMany(book => book.Documents.OrderBy(d => d.SerialNumber).Select(d => (book, d)));
+        Books.SelectMany(book => book.Documents.OrderBy(d => d.SerialNumber).Select(d => (book, d)));
 
     private IEnumerable<(AccountableFormBookDto Book, CashTicketDocumentDto Document)> FilteredTickets => AllTickets.Where(t =>
         (string.IsNullOrEmpty(_bookFilter) || t.Book.BookId.ToString() == _bookFilter)
@@ -354,7 +382,7 @@
 
     /// <summary>Assigned, unused tickets grouped by collector and book, shown as runs of consecutive serials.</summary>
     private IEnumerable<(string Collector, string Book, IReadOnlyList<string> Ranges, int Count)> Holdings =>
-        CashTicketBooks
+        Books
             .SelectMany(book => book.Documents
                 .Where(d => d.State == AccountableDocumentState.Assigned && d.AssignedUserId is not null)
                 .Select(d => (Book: book, Document: d)))
@@ -366,11 +394,11 @@
                 Count: g.Count()))
             .OrderBy(x => x.Collector).ThenBy(x => x.Book);
 
-    private AccountableFormBookDto? SelectedBook => CashTicketBooks.FirstOrDefault(b => b.BookId == _assignBookId);
+    private AccountableFormBookDto? SelectedBook => Books.FirstOrDefault(b => b.BookId == _assignBookId);
 
     private string? RegisterProblem =>
         string.IsNullOrWhiteSpace(_seriesName) ? "Enter the book reference."
-        : string.IsNullOrWhiteSpace(_numberPrefix) ? "Enter the number prefix."
+        : string.IsNullOrWhiteSpace(_numberPrefix) && _instrument != RevenueInstrumentType.OfficialReceipt ? "Enter the number prefix."
         : _firstSerial < 0 ? "First serial cannot be negative."
         : _lastSerial < _firstSerial ? "Last serial must be at or after the first serial."
         : _serialWidth is < 1 or > 12 ? "Digits must be between 1 and 12."
@@ -383,12 +411,13 @@
             var count = _lastSerial - _firstSerial + 1;
             var format = new string('0', _serialWidth);
             var prefix = _numberPrefix.Trim();
-            return $"{prefix}{_firstSerial.ToString(format)} – {prefix}{_lastSerial.ToString(format)} · {count:N0} ticket{(count == 1 ? "" : "s")}";
+            var unit = Unit.ToLowerInvariant();
+            return $"{prefix}{_firstSerial.ToString(format)} – {prefix}{_lastSerial.ToString(format)} · {count:N0} {unit}{(count == 1 ? "" : "s")}";
         }
     }
 
     private string? AssignProblem =>
-        _assignBookId is null ? "Select a Cash Ticket book."
+        _assignBookId is null ? $"Select a {Noun} book."
         : _collectorsUnavailable is not null ? "A collector cannot be selected from this account."
         : _assignCollectorId is null ? "Select a collector."
         : _assignFirst < 0 ? "First serial cannot be negative."
@@ -403,7 +432,7 @@
         {
             var count = _assignLast - _assignFirst + 1;
             var collector = _collectors.FirstOrDefault(c => c.Id == _assignCollectorId)?.FullName ?? "the collector";
-            return $"{count:N0} Cash Ticket{(count == 1 ? "" : "s")} will be assigned to {collector}.";
+            return $"{count:N0} {Noun}{(count == 1 ? "" : "s")} will be assigned to {collector}.";
         }
     }
 
@@ -454,7 +483,8 @@
     private void OpenRegister()
     {
         _seriesName = string.Empty;
-        _numberPrefix = "CT";
+        // An OR book is often numbered with digits only; the office states the prefix, if any. CT keeps its "CT" habit.
+        _numberPrefix = _instrument == RevenueInstrumentType.OfficialReceipt ? string.Empty : "CT";
         _firstSerial = 0;
         _lastSerial = 0;
         _serialWidth = 6;
@@ -507,16 +537,16 @@
         try
         {
             var result = await FormsApi.ReceiveBookAsync(new ReceiveAccountableFormBookRequest(
-                RevenueInstrumentType.CashTicket, _seriesName.Trim(), _numberPrefix.Trim(),
+                _instrument, _seriesName.Trim(), _numberPrefix.Trim(),
                 _firstSerial, _lastSerial, _serialWidth));
             if (!result.IsSuccess)
             {
-                _dialogError = result.Error ?? "The Cash Ticket book could not be registered.";
+                _dialogError = result.Error ?? $"The {Noun} book could not be registered.";
                 return;
             }
             var registered = result.Value!;
             _dialog = Dialog.None;
-            _message = $"Registered {registered.Documents.Count:N0} Cash Tickets in {registered.SeriesName}.";
+            _message = $"Registered {registered.Documents.Count:N0} {Nouns} in {registered.SeriesName}.";
             await LoadAsync();
         }
         catch (Exception ex) { _dialogError = ex.Message; }
@@ -530,16 +560,18 @@
         _dialogError = null;
         try
         {
-            var result = await FormsApi.AssignCashTicketsAsync(new AssignAccountableFormRangeRequest(
-                bookId, collectorId, _assignFirst, _assignLast));
+            var request = new AssignAccountableFormRangeRequest(bookId, collectorId, _assignFirst, _assignLast);
+            var result = _instrument == RevenueInstrumentType.OfficialReceipt
+                ? await FormsApi.AssignOfficialReceiptsAsync(request)
+                : await FormsApi.AssignCashTicketsAsync(request);
             if (!result.IsSuccess)
             {
-                _dialogError = result.Error ?? "The Cash Tickets could not be assigned.";
+                _dialogError = result.Error ?? $"The {Nouns} could not be assigned.";
                 return;
             }
             var collector = CollectorName(collectorId);
             _dialog = Dialog.None;
-            _message = $"Assigned {result.Value:N0} Cash Ticket{(result.Value == 1 ? "" : "s")} to {collector} (serials {_assignFirst}–{_assignLast}).";
+            _message = $"Assigned {result.Value:N0} {Noun}{(result.Value == 1 ? "" : "s")} to {collector} (serials {_assignFirst}–{_assignLast}).";
             await LoadAsync();
         }
         catch (Exception ex) { _dialogError = ex.Message; }
@@ -549,7 +581,7 @@
     private int Count(AccountableFormBookDto book, AccountableDocumentState state) =>
         book.Documents.Count(d => d.State == state);
 
-    private int StateTotal(AccountableDocumentState state) => CashTicketBooks.Sum(book => Count(book, state));
+    private int StateTotal(AccountableDocumentState state) => Books.Sum(book => Count(book, state));
 
     private string Custodian(CashTicketDocumentDto document) => document.AssignedUserId is { } userId
         ? CollectorName(userId)

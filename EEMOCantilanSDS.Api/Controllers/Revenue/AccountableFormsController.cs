@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,4 +27,10 @@ public sealed class AccountableFormsController(
     public async Task<ActionResult<int>> AssignCashTicketsAsync(
         [FromBody] AssignAccountableFormRangeRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.AssignCashTicketRangeAsync(request, ct));
+
+    /// <summary>Assigns a range from a received Official Receipt book to a collector (custody only).</summary>
+    [HttpPost("official-receipts/assign")]
+    public async Task<ActionResult<int>> AssignOfficialReceiptsAsync(
+        [FromBody] AssignAccountableFormRangeRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.AssignRangeAsync(request, RevenueInstrumentType.OfficialReceipt, ct));
 }

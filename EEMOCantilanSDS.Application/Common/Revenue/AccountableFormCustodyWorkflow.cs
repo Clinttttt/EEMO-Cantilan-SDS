@@ -70,31 +70,48 @@ public sealed class AccountableFormCustodyWorkflow(
             ToDto(book, documents.Where(x => x.FormBookId == book.Id))).ToList());
     }, ct);
 
+    /// <summary>Assigns a range from a received Cash Ticket book (the original route; refuses OR books).</summary>
     public Task<Result<int>> AssignCashTicketRangeAsync(
-        AssignAccountableFormRangeRequest request, CancellationToken ct = default) => Run(async actor =>
+        AssignAccountableFormRangeRequest request, CancellationToken ct = default) =>
+        AssignRangeAsync(request, RevenueInstrumentType.CashTicket, ct);
+
+    /// <summary>
+    /// Assigns a range of unused in-office units from ONE received book to an active collector of this tenant. The
+    /// instrument comes from the book itself, so an OR range can never be assigned as a Cash Ticket or the reverse;
+    /// <paramref name="expectedInstrument"/> lets a route insist on one instrument. Assignment is custody only: it
+    /// authorizes no operation, and a unit that is issued, consumed or awaiting reconciliation is never re-assigned.
+    /// </summary>
+    public Task<Result<int>> AssignRangeAsync(
+        AssignAccountableFormRangeRequest request, RevenueInstrumentType? expectedInstrument = null,
+        CancellationToken ct = default) => Run(async actor =>
     {
         if (request.FormBookId == Guid.Empty || request.AssignedUserId == Guid.Empty
             || request.FirstSerialNumber < 0 || request.LastSerialNumber < request.FirstSerialNumber
             || request.LastSerialNumber - request.FirstSerialNumber >= MaximumUnitsPerRequest)
-            return Result<int>.Failure("A valid Cash Ticket book, collector, and bounded serial range are required.", ResultStatus.Invalid);
+            return Result<int>.Failure("A valid accountable-form book, collector, and bounded serial range are required.", ResultStatus.Invalid);
         var book = await db.AccountableFormBooks.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == actor.TenantId && x.Id == request.FormBookId, ct);
         if (book is null) return Result<int>.Failure("The accountable-form book was not found in this tenant.", ResultStatus.NotFound);
-        if (book.InstrumentType != RevenueInstrumentType.CashTicket
+        if (expectedInstrument is { } required && book.InstrumentType != required)
+            return Result<int>.Failure(
+                $"This route assigns {InstrumentName(required)} books only; the selected book holds {InstrumentName(book.InstrumentType)}.",
+                ResultStatus.Invalid);
+        if (book.InstrumentType is not (RevenueInstrumentType.CashTicket or RevenueInstrumentType.OfficialReceipt)
             || request.FirstSerialNumber < book.FirstSerialNumber
             || request.LastSerialNumber > book.LastSerialNumber)
-            return Result<int>.Failure("Assignments must stay within one received Cash Ticket book.", ResultStatus.Invalid);
+            return Result<int>.Failure("Assignments must stay within one received OR or Cash Ticket book.", ResultStatus.Invalid);
         var collector = await db.CollectorUsers.SingleOrDefaultAsync(x =>
             x.MunicipalityId == actor.TenantId && x.Id == request.AssignedUserId && x.IsActive, ct);
         if (collector is null) return Result<int>.Failure("An active collector in this tenant is required.", ResultStatus.Invalid);
+        var instrument = book.InstrumentType;
         var documents = await db.AccountableDocuments.Where(x =>
             x.MunicipalityId == actor.TenantId && x.FormBookId == request.FormBookId
-            && x.InstrumentType == RevenueInstrumentType.CashTicket
+            && x.InstrumentType == instrument
             && x.SerialNumber >= request.FirstSerialNumber && x.SerialNumber <= request.LastSerialNumber)
             .OrderBy(x => x.SerialNumber).ToListAsync(ct);
         var expected = checked((int)(request.LastSerialNumber - request.FirstSerialNumber + 1));
         if (documents.Count != expected || documents.Any(x => x.State != AccountableDocumentState.InOffice))
-            return Result<int>.Failure("Every requested Cash Ticket must exist and remain unused in office custody.", ResultStatus.Conflict);
+            return Result<int>.Failure($"Every requested {InstrumentName(instrument)} must exist and remain unused in office custody.", ResultStatus.Conflict);
         var now = UtcNow;
         foreach (var document in documents)
         {
@@ -109,6 +126,13 @@ public sealed class AccountableFormCustodyWorkflow(
         }
         return Result<int>.Success(documents.Count);
     }, ct);
+
+    private static string InstrumentName(RevenueInstrumentType instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+        RevenueInstrumentType.CashTicket => "Cash Ticket",
+        _ => "accountable document"
+    };
 
     private DateTime UtcNow => clock?.UtcNow ?? DateTime.UtcNow;
 

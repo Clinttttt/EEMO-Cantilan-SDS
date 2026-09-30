@@ -13,4 +13,7 @@ public interface IWcfCollectionsApiClient
     Task<Result<IReadOnlyList<AccountableFormBookDto>>> GetBooksAsync();
     Task<Result<AccountableFormBookDto>> ReceiveBookAsync(ReceiveAccountableFormBookRequest request);
     Task<Result<int>> AssignCashTicketsAsync(AssignAccountableFormRangeRequest request);
+
+    /// <summary>Custody assignment of a received Official Receipt range (POST api/accountable-forms/official-receipts/assign).</summary>
+    Task<Result<int>> AssignOfficialReceiptsAsync(AssignAccountableFormRangeRequest request);
 }

@@ -92,3 +92,15 @@
         transition: none;
     }
 }
+
+/* Instrument switch: the selected type reads as the civic-blue active state. */
+.af-switch > .v3-btn[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.af-switch > .v3-btn[aria-pressed="true"]:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}

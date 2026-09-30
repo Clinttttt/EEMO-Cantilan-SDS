@@ -32,4 +32,7 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
 
     public Task<Result<int>> AssignCashTicketsAsync(AssignAccountableFormRangeRequest request) =>
         PostAsync<AssignAccountableFormRangeRequest, int>("api/accountable-forms/cash-tickets/assign", request);
+
+    public Task<Result<int>> AssignOfficialReceiptsAsync(AssignAccountableFormRangeRequest request) =>
+        PostAsync<AssignAccountableFormRangeRequest, int>("api/accountable-forms/official-receipts/assign", request);
 }
