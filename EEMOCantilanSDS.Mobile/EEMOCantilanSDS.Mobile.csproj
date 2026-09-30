@@ -61,8 +61,8 @@
         <!-- App Icon — StallTrack seal on navy (was the default .NET bot) -->
         <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\stalltrackfg.png" Color="#0d2137" />
 
-        <!-- Splash Screen — StallTrack seal on navy (was the default .NET bot on purple) -->
-        <MauiSplashScreen Include="Resources\Splash\stalltrack_splash.svg" Color="#0d2137" BaseSize="160,160" />
+        <!-- Splash Screen — plain light canvas so startup does not flash a dark block before the light V3 app -->
+        <MauiSplashScreen Include="Resources\Splash\stalltrack_splash.svg" Color="#f4f6f9" BaseSize="160,160" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />
