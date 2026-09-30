@@ -152,7 +152,8 @@ public sealed class GetCanonicalMonthlyIncomeQueryHandler(
                 var gross = lines.Where(x => x.SourceKind == key.SourceKind && x.SourcePart == key.SourcePart).Sum(x => x.Amount);
                 var effect = corrections.Where(x => x.SourceKind == key.SourceKind && x.SourcePart == key.SourcePart).Sum(x => x.Effect);
                 return new CanonicalMonthlyIncomeSourceDto(key.SourceKind?.ToString(), key.SourcePart?.ToString(),
-                    gross, effect, gross + effect);
+                    gross, effect, gross + effect,
+                    key.SourceKind is { } kind ? Domain.Constants.CollectionSourceAuthorityMap.For(kind).ToString() : null);
             })
             .OrderBy(x => x.SourceKind, StringComparer.Ordinal).ThenBy(x => x.SourcePart, StringComparer.Ordinal)
             .ToList();
