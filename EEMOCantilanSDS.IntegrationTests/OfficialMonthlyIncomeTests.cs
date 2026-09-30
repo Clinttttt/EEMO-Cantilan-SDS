@@ -261,4 +261,33 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Null(unused.Collection);
         Assert.Equal(ResultStatus.NotFound, (await reports.TraceAsync("CT-9999")).Status);
     }
+
+    [SkippableFact]
+    public async Task CollectionActivity_ListsEveryPostedCanonicalCollection_OncePerCollection_WithNoLegacyDuplicate()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var period = new DateOnly(Today.Year, Today.Month, 1);
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var composer = new CollectionComposerWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id));
+        var draft = (await composer.AddRentAllocationAsync(new AddRentDraftAllocationRequest(w.IceStallId, period.Year, period.Month, 250m))).Value!;
+        var selected = (await composer.SelectDocumentAsync(draft.DraftId, new SelectEcfDraftDocumentRequest(draft.Revision, w.OrIds[0]))).Value!;
+        var reviewed = (await composer.ReviewAsync(draft.DraftId, new EcfDraftRevisionRequest(selected.Revision))).Value!;
+        Assert.True((await composer.PostAsync(draft.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, Guid.NewGuid()))).IsSuccess);
+        var workflow = new GovernedServiceWorkflow(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id));
+        var doc = w.CtDocuments[0];
+        Assert.True((await workflow.PostMobileAsync(new GovernedServicePostRequest(
+            1, Guid.NewGuid(), CollectorOperationCodes.MarketFees, Today, 30m, null, null, null, doc.Id, doc.DocumentNumber,
+            DateTime.UtcNow.AddMinutes(-1)))).IsSuccess);
+
+        var activity = (await composer.GetActivityAsync(Today.AddDays(-1), Today)).Value!;
+
+        // The web-posted OR and the Mobile-posted CT each appear once, under their own document; the converted ICE row's
+        // legacy PaymentRecord projection and the still-legacy sources are not listed, so nothing is duplicated.
+        Assert.Equal(2, activity.Count);
+        Assert.Equal(new[] { "CT-0001", "OR-0001" }, activity.Select(x => x.DocumentNumber).Order());
+        Assert.Equal(280m, activity.Sum(x => x.TotalAmount));
+        Assert.All(activity, a => Assert.Equal("Posted", a.CurrentDisposition));
+    }
 }

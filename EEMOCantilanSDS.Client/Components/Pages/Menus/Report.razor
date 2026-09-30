@@ -37,7 +37,7 @@
    The class is added by JS rather than held as page state, because Blazor Server would have to round-trip the render to the
    browser before window.print() fired, and a print that races a render is a print that sometimes contains the wrong
    document. *@
-<div id="rpt-sheet" class="content-area">
+<div id="rpt-sheet" class="content-area@(IsOfficialTab ? " print-official" : "")">
 
     @* The "Reporting period / Scope / Frequency" strip was removed: every one of the three was already stated by the
        controls immediately below it — the period pills and year/month pickers, the facility chips, and the Monthly/Annual

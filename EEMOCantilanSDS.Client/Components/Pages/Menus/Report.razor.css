@@ -2278,6 +2278,12 @@
     .print-register #rpt-records tfoot td { height: 8mm !important; border: none !important; padding: 0 !important; }
     .print-register #rpt-records tr { break-inside: avoid; page-break-inside: avoid; }
 
+    /* An official tab (Monthly Income, Collections, Accountability) prints its own report, never the legacy summary sections that
+       are otherwise always part of the Export Summary PDF (IA-052). */
+    .print-official .pdf-include,
+    .print-official .rpt-pdf-header,
+    .print-official .rpt-page-space { display: none !important; }
+
     /* Seven columns on a portrait sheet. The cells carry the screen's 22px side padding, which was enough to wrap
        "OR / Ref #" and "Payor / Stall" onto two lines and leave the headings twice as tall as the rows they label.
        Tighter cells, one line each, and the payor column takes the room the rest give back. */
