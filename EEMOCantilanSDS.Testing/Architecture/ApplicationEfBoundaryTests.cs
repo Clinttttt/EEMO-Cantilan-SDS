@@ -109,6 +109,7 @@ public class ApplicationEfBoundaryTests
         // posted Collection lines and their linked corrections, grouped by stable classification identity. It writes
         // nothing and no production report consumes it yet.
         "GetCanonicalMonthlyIncomeQueryHandler.cs",
+        "GetOfficialMonthlyIncomeQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",
@@ -171,6 +172,7 @@ public class ApplicationEfBoundaryTests
         "ObligationWorkflow.cs",
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",
+        "CollectionsReportWorkflow.cs",
         "TransportationCollectionAuthority.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",

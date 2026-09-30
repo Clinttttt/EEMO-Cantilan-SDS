@@ -156,6 +156,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ISlaughterRepository, SlaughterRepository>();
             service.AddScoped<IDailyCollectionRepository, DailyCollectionRepository>();
         service.AddScoped<ICollectorReportQueries, CollectorReportQueries>();
+        service.AddScoped<ILegacyMonthlyIncomeReader, LegacyMonthlyIncomeReader>();
             service.AddScoped<IUtilityBillRepository, EEMOCantilanSDS.Infrastructure.Repositories.Payments.UtilityBillRepository>();
             service.AddScoped<IFacilityReportsRepository, FacilityReportsRepository>();
             service.AddScoped<IDashboardRepository, DashboardRepository>();
