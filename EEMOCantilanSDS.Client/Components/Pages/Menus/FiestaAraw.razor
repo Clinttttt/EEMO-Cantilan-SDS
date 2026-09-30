@@ -2,28 +2,17 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
 
 <PageTitle>StallTrack — Lot Rental — Fiesta / Araw</PageTitle>
 
-@* Lot Rental — Fiesta / Araw is a Space Rental line on the Monthly Income sheet (Official Receipt). StallTrack has no
-   revenue classification or writer for it yet; this page says so and records nothing. The layout owns the <main>
-   landmark. *@
+@* Lot Rental — Fiesta / Araw is a Space Rental line (Official Receipt): a temporary event lot with an amount the Head
+   approves (IA-050). Event dates are event dates, not billing dates, and a lot is never a permanent stall tenancy.
+   Money is collected on an Official Receipt in Current Collection. The layout owns the <main> landmark. *@
 <div class="v3-page">
     <WorkspaceHeader Parent="Operations" Title="Lot Rental — Fiesta / Araw" Subtitle="Space rental">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
     </WorkspaceHeader>
 
-    <UnrecordedOperation Name="Fiesta / Araw lot rental"
-                         Detail="Lot rentals will appear here once this line has a revenue classification and its collection is activated.">
-        <Policy>
-            <aside class="v3-panel" aria-labelledby="fa-policy-title">
-                <header class="v3-panel-header">
-                    <h2 id="fa-policy-title">Effective policy</h2>
-                </header>
-                <div class="v3-panel-body">
-                    <p class="v3-panel-note">No revenue classification is configured for this line yet.</p>
-                </div>
-            </aside>
-        </Policy>
-    </UnrecordedOperation>
+    <ObligationWorkspace Kind="ObligationKind.FiestaArawLotRental" Name="Lot rental" SubjectNoun="Lot" />
 </div>

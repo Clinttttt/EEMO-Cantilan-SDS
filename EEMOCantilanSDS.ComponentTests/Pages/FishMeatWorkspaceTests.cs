@@ -1,7 +1,9 @@
 using Bunit;
+using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Services;
@@ -27,6 +29,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
 
     private readonly Mock<IFacilitiesApiClient> _facilities = new();
     private readonly Mock<IStallsApiClient> _stalls = new();
+    private readonly Mock<IObligationsApiClient> _obligations = new();
 
     public FishMeatWorkspaceTests()
     {
@@ -41,8 +44,11 @@ public sealed class FishMeatWorkspaceTests : TestContext
         Services.AddSingleton<BrandingState>();
         Services.AddSingleton(_facilities.Object);
         Services.AddSingleton(_stalls.Object);
+        Services.AddSingleton(_obligations.Object);
+        Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
         Services.AddSingleton<FacilityState>();
         JSInterop.Mode = JSRuntimeMode.Loose;
+        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
     }
 
     [Theory]
@@ -55,8 +61,16 @@ public sealed class FishMeatWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void VendorFees_StatesTheObligationIsUnavailable_WithoutRentFiguresOrManagementActions()
+    public void VendorFees_ListsTheObligationAccounts_AnchoredToNpmStalls_WithoutRentFigures()
     {
+        _obligations.Setup(x => x.GetAccountsAsync(ObligationKind.FishMeatVendorFee)).ReturnsAsync(
+            Result<IReadOnlyList<ObligationAccountDto>>.Success(new[]
+            {
+                new ObligationAccountDto(Guid.NewGuid(), ObligationKind.FishMeatVendorFee, "Fish/Meat Vendor Fee", Guid.NewGuid(),
+                    "Pedro Vendor", FishStallId, "F-12", "F-12", null, null, new DateOnly(2026, 9, 1), null,
+                    900m, new DateOnly(2026, 9, 1), 900m, 90m, 810m)
+            }));
+
         var cut = RenderComponent<FishMeatVendorFees>();
 
         cut.WaitForAssertion(() =>
@@ -64,20 +78,42 @@ public sealed class FishMeatWorkspaceTests : TestContext
             Assert.Empty(cut.FindAll("main"));
             Assert.Contains("Fish / Meat Vendor Fees", Assert.Single(cut.FindAll("h1")).TextContent);
             Assert.Contains("Official Receipt", cut.Find("header").TextContent);
-            Assert.Contains("aren't available yet", cut.Markup);
+            Assert.DoesNotContain("aren't available yet", cut.Markup);
 
-            // No amounts at all, and in particular nothing that could have come from stall rent.
-            Assert.DoesNotContain("₱", cut.Markup);
-            Assert.Empty(cut.FindAll("input"));
+            var row = Assert.Single(cut.FindAll("[aria-label='Fish / Meat Vendor Fee accounts'] tbody tr"));
+            Assert.Contains("Pedro Vendor", row.TextContent);
+            Assert.Contains("F-12", row.TextContent);
+            // The monthly goal, what was collected in installments and what remains: all the server's figures.
+            Assert.Contains("₱900.00", row.TextContent);
+            Assert.Contains("₱90.00", row.TextContent);
+            Assert.Contains("₱810.00", row.TextContent);
+
+            // Reading only: no form, no amount input, and no way to record money here.
             Assert.Empty(cut.FindAll("form"));
-            AssertNoManagementActions(cut);
-
+            Assert.Empty(cut.FindAll("input"));
+            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/current");
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/facility/npm" && a.TextContent.Contains("Tenant Public Market"));
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/weight-and-measure");
         }, Timeout);
 
         _stalls.Verify(x => x.GetNpmRatesAsync(), Times.Never);
     }
+
+    [Fact]
+    public void VendorFees_FailedLoad_SaysSo_InsteadOfShowingAnEmptyRegister()
+    {
+        _obligations.Setup(x => x.GetAccountsAsync(ObligationKind.FishMeatVendorFee))
+            .ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Failure("offline"));
+
+        var cut = RenderComponent<FishMeatVendorFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("accounts couldn't be loaded", cut.Find("[role='alert']").TextContent);
+            Assert.DoesNotContain("has been opened yet", cut.Markup);
+        }, Timeout);
+    }
+
 
     [Fact]
     public void WeightAndMeasure_ListsNpmFishWeighing_WithSourceLinks_AndServerTotalsOnly()

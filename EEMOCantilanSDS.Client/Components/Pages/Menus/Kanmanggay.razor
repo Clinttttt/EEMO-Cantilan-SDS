@@ -2,27 +2,17 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
 
 <PageTitle>StallTrack — Kanmanggay</PageTitle>
 
-@* Kanmanggay is a Space Rental line on the Monthly Income sheet (Official Receipt). StallTrack has no revenue
-   classification or writer for it yet; this page says so and records nothing. The layout owns the <main> landmark. *@
+@* Kanmanggay is a Space Rental line (Official Receipt), monthly per space, with an approved monthly amount per account
+   (IA-050). It is not BBQ and not an NPM stall. This page shows the accounts and what is assessed, collected and still
+   owed; money is collected on an Official Receipt in Current Collection. The layout owns the <main> landmark. *@
 <div class="v3-page">
     <WorkspaceHeader Parent="Operations" Title="Kanmanggay" Subtitle="Space rental">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
     </WorkspaceHeader>
 
-    <UnrecordedOperation Name="Kanmanggay"
-                         Detail="Space rentals will appear here once this line has a revenue classification and its collection is activated.">
-        <Policy>
-            <aside class="v3-panel" aria-labelledby="kmg-policy-title">
-                <header class="v3-panel-header">
-                    <h2 id="kmg-policy-title">Effective policy</h2>
-                </header>
-                <div class="v3-panel-body">
-                    <p class="v3-panel-note">No revenue classification is configured for this line yet.</p>
-                </div>
-            </aside>
-        </Policy>
-    </UnrecordedOperation>
+    <ObligationWorkspace Kind="ObligationKind.KanmanggaySpaceRental" Name="Kanmanggay" SubjectNoun="Space" />
 </div>

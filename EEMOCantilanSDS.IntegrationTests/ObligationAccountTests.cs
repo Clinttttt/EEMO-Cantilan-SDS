@@ -220,6 +220,51 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(0m, Assert.Single((await head.GetRegisterAsync(lot.Value.Id)).Value!).OutstandingAmount);
     }
 
+    [SkippableFact]
+    public async Task IcePlantRent_CollectsUnderItsOwnClassification_NotPermanentStallRent()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var period = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        Guid iceStallId;
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            var facility = Facility.Create(FacilityCode.ICE, "Ice Plant", "ICE", municipalityId: seed.TenantId);
+            var stall = Stall.Create(facility.Id, "ICE-01", 1000m, ApplicableFees.BaseRental, municipalityId: seed.TenantId);
+            var contract = Contract.Create(stall.Id, "Pedro Vendor", "Pedro Vendor", period, 5, 1000m, createdBy: "test");
+            contract.AssociatePayor(seed.PayorId, "test");
+            var ice = RevenueClassification.Create(RevenueClassificationCodes.IcePlant, seed.TenantId);
+            var iceOr = RevenueClassificationPolicy.Create(ice.Id, new DateOnly(2000, 1, 1), "Ice Plant",
+                RevenueInstrumentType.OfficialReceipt, seed.TenantId);
+            var rent = RevenueClassification.Create(RevenueClassificationCodes.PermanentStallRent, seed.TenantId);
+            var rentOr = RevenueClassificationPolicy.Create(rent.Id, new DateOnly(2000, 1, 1), "Permanent Stall Rent",
+                RevenueInstrumentType.OfficialReceipt, seed.TenantId);
+            var record = PaymentRecord.Create(stall.Id, period.Year, period.Month, 1000m, "test");
+            record.MarkSettlementPendingCutover();
+            var at = DateTime.UtcNow.AddMinutes(-3);
+            var cutover = CollectionSettlementCutover.Freeze(seed.TenantId, CollectionSourceKind.PaymentRecord, record.Id, null,
+                record.SettlementVersion, at, 1000m, 0m, 1000m,
+                "{\"pendingMobileOperations\":0,\"issuedDocuments\":0,\"legacyWritersQuiesced\":true}", seed.UserId, at.AddMinutes(1));
+            record.ActivateCanonicalSettlement(cutover);
+            setup.AddRange(facility, stall, contract, ice, iceOr, rent, rentOr, record);
+            setup.CollectionSettlementCutovers.Add(cutover);
+            await setup.SaveChangesAsync();
+            iceStallId = stall.Id;
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var composer = Composer(context, seed);
+        var draft = await composer.AddRentAllocationAsync(
+            new AddRentDraftAllocationRequest(iceStallId, period.Year, period.Month, 250m));
+        Assert.True(draft.IsSuccess, draft.Error);
+        await PostAsync(composer, draft.Value!, seed.OrIds[0]);
+
+        var iceClassification = await context.RevenueClassifications.SingleAsync(x => x.SemanticCode == RevenueClassificationCodes.IcePlant);
+        var line = await context.CollectionLines.SingleAsync();
+        Assert.Equal(iceClassification.Id, line.RevenueClassificationId);
+    }
+
     private async Task<Seed> SeedAsync()
     {
         var municipality = Municipality.Create($"OBL-{Guid.NewGuid():N}"[..24], "Obligation Test", "Surigao del Sur",

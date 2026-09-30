@@ -160,7 +160,8 @@
         new("Weight & Measure / Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
         new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle"),
-        new("Ice Plant", NoReceipt, FacilityCode.ICE),
+        // Official Receipt, own ICE_PLANT classification (IA-050); monthly obligation, installments allowed.
+        new("Ice Plant", OfficialReceipt, FacilityCode.ICE),
     ];
 
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =

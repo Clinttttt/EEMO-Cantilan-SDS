@@ -383,7 +383,7 @@ public sealed class SettlementCutoverWorkflow(
                 ? "Mixed legacy utility/fish components make the single PaymentRecord status unsafe to attribute to rent; this source remains blocked until separately reconciled."
                 : "The late legacy PaymentRecord Mobile path must be drained and confirmed before freeze; it has no canonical rent offline reconciliation registry yet.";
             return new SourceState(scope, null, record, record.SettlementAuthorityState, record.SettlementVersion,
-                record.BaseRentalAmount, settled, outstanding, RevenueClassificationCodes.PermanentStallRent,
+                record.BaseRentalAmount, settled, outstanding, RevenueClassificationCodes.ForMonthlyRental(record.Stall!.Facility!.Code),
                 RevenueInstrumentType.OfficialReceipt, record.Stall?.FacilityId,
                 $"PaymentRecord {record.Id:N} / {record.BillingYear:D4}-{record.BillingMonth:D2}",
                 record.ORNumber, writerStatus, hasMixedLegacyComponents: mixed,

@@ -1,0 +1,57 @@
+/* Obligation workspace — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.obw-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    align-items: start;
+    gap: 20px;
+}
+
+.obw-layout:not(:has(aside)) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.obw-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.obw-register-row > td {
+    padding: 0 0 12px 24px;
+    background: var(--surface-muted);
+}
+
+.obw-retry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 20px 0;
+}
+
+.obw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px 20px;
+}
+
+.obw-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.obw-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+    .obw-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
