@@ -1,116 +1,225 @@
-/* Official Monthly Income — V3 statement. Numbers align right; annual mode scrolls horizontally and prints landscape. */
+/* Official Monthly Income — the office sheet as a digital statement. Formal document heading, lettered office rows under
+   group bands, Annual Target / months / Total / % columns, sticky header and first column, tabular figures. Tokens only. */
 
 .mi {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
 }
 
-.mi-head {
+/* ── Document heading ── */
+.mi-doc {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    gap: 8px 16px;
+    gap: 12px 24px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--navy);
+    border-radius: 10px 10px 0 0;
+    background: var(--surface);
 }
 
-.mi-head h2 {
+.mi-doc-office {
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--navy, var(--text));
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
-.mi-tools {
+.mi-doc-title {
+    margin: 4px 0 0;
+    color: var(--navy);
+    font-size: 1.375rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.mi-doc-period {
+    margin: 2px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.mi-doc-tools {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.mi-check {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
+.mi-doc-generated {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
 }
 
+.mi-legend,
+.mi-state {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+/* ── Statement table ── */
 .mi-scroll {
-    overflow-x: auto;
+    max-height: calc(100vh - 220px);
+    overflow: auto;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 0 0 10px 10px;
     background: var(--surface);
 }
 
 .mi-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
+    color: var(--text);
     font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
 }
 
 .mi-table th,
 .mi-table td {
-    padding: 6px 10px;
+    height: 40px;
+    padding: 0 12px;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
 }
 
+/* Month columns read as a sheet: a hairline between each figure column. */
+.mi-annual .mi-table td + td,
+.mi-annual .mi-table th + th,
+.mi-annual .mi-table th + td {
+    border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
 .mi-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 44px;
     background: var(--surface-muted);
+    border-bottom: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
     font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     text-align: right;
 }
 
-.mi-table thead th.mi-line,
-.mi-table tbody th.mi-line,
-.mi-table tfoot th.mi-line {
-    text-align: left;
+.mi-table .mi-line {
     position: sticky;
     left: 0;
+    z-index: 1;
+    min-width: 260px;
     background: var(--surface);
+    text-align: left;
+    font-weight: 500;
+    border-right: 1px solid var(--border);
+}
+
+.mi-table thead th.mi-line {
+    z-index: 3;
+    background: var(--surface-muted);
+    color: var(--navy);
+}
+
+.mi-letter {
+    display: inline-block;
+    min-width: 1.4em;
+    color: var(--text-tertiary);
+    font-weight: 500;
 }
 
 .mi-num {
     text-align: right;
 }
 
-.mi-muted {
+.mi-target,
+.mi-pct {
     color: var(--text-secondary);
 }
 
-.mi-strong {
+.mi-ytd {
     font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 3%, var(--surface));
 }
 
+.mi-table thead th.mi-ytd {
+    background: color-mix(in srgb, var(--accent) 6%, var(--surface-muted));
+    color: var(--navy);
+}
+
+.mi-recon-col {
+    color: var(--text-tertiary);
+    font-style: italic;
+}
+
+/* Group bands: report section headings, not cards. */
 .mi-group th {
-    background: var(--surface-muted);
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    letter-spacing: 0.04em;
+    height: 34px;
+    position: sticky;
+    left: 0;
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface-muted));
+    border-top: 1px solid var(--border-strong);
+    color: var(--navy);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-align: left;
+}
+
+.mi-pending .mi-group th {
+    background: color-mix(in srgb, var(--gold) 10%, var(--surface));
+    color: var(--text-secondary);
 }
 
 .mi-subtotal th,
 .mi-subtotal td {
+    height: 38px;
     font-weight: 600;
-    border-top: 1px solid var(--border-strong, var(--border));
+    background: var(--surface-muted);
+    border-top: 1px solid var(--border-strong);
+    color: var(--navy);
+}
+
+.mi-subtotal th.mi-line {
+    background: var(--surface-muted);
+    font-size: 0.75rem;
 }
 
 .mi-total th,
 .mi-total td {
+    height: 46px;
     font-weight: 700;
-    background: var(--surface-muted);
-    border-top: 2px solid var(--border-strong, var(--border));
+    background: var(--navy);
+    color: var(--surface);
+    border-bottom: 0;
+}
+
+.mi-total th.mi-line {
+    background: var(--navy);
+    letter-spacing: 0.04em;
+}
+
+.mi-total .mi-ytd {
+    background: var(--navy);
 }
 
 .mi-tag {
     margin-left: 8px;
     padding: 1px 6px;
-    border: 1px solid var(--border-strong, var(--border));
+    border: 1px solid var(--border-strong);
     border-radius: 999px;
     font-size: 0.6875rem;
+    font-weight: 500;
     color: var(--text-secondary);
 }
 
@@ -122,21 +231,102 @@
     line-height: 1.5;
 }
 
+/* Reconciliation: a quiet secondary control below the statement. */
+.mi-recon {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: 0.8125rem;
+}
+
+.mi-recon summary {
+    padding: 10px 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.mi-recon[open] summary {
+    border-bottom: 1px solid var(--border);
+}
+
+.mi-recon .mi-check,
+.mi-recon p {
+    margin: 10px 14px;
+}
+
+.mi-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+}
+
+.mi-recon p {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
 .mi-print-head {
     display: none;
 }
 
+/* ── Print: the letterhead, the full statement, totals and notes; no screen controls. ── */
 @media print {
     .mi-print-head {
         display: block;
     }
 
-    .mi-tools {
+    .mi-doc {
+        border: 0;
+        padding: 0;
+    }
+
+    .mi-doc-office,
+    .mi-doc-title {
         display: none;
     }
 
     .mi-scroll {
+        max-height: none;
         overflow: visible;
-        border: 0;
+        border: 1px solid #000;
+        border-radius: 0;
+    }
+
+    .mi-table {
+        font-size: 7.5pt;
+    }
+
+    .mi-table th,
+    .mi-table td {
+        height: auto;
+        padding: 3px 5px;
+        border-bottom: 1px solid #999;
+    }
+
+    .mi-table thead th,
+    .mi-table .mi-line,
+    .mi-group th {
+        position: static;
+    }
+
+    .mi-total th,
+    .mi-total td,
+    .mi-total th.mi-line,
+    .mi-total .mi-ytd {
+        background: #fff;
+        color: #000;
+        border-top: 2px solid #000;
+    }
+
+    .mi-table .mi-line {
+        min-width: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mi-recon summary {
+        transition: none;
     }
 }

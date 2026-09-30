@@ -85,3 +85,27 @@
         display: none;
     }
 }
+
+/* Itemized documents: the first line carries the document; following lines of the same document sit indented under it. */
+.cr-cont td {
+    border-top: 0;
+}
+
+.cr-cont td:not(.cr-cont-cell):first-of-type {
+    padding-left: 28px;
+}
+
+.cr-cont-cell {
+    position: relative;
+}
+
+.cr-cont-cell::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 50%;
+    left: 20px;
+    width: 10px;
+    border-left: 1px solid var(--border-strong);
+    border-bottom: 1px solid var(--border-strong);
+}

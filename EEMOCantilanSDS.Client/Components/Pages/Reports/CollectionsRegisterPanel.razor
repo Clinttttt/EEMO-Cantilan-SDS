@@ -102,14 +102,26 @@
                         </tr>
                     </thead>
                     <tbody>
+                        @{ Guid? previousCollection = null; }
                         @foreach (var row in _data.Rows)
                         {
-                            <tr>
-                                <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@(row.DocumentNumber ?? "—")</button></td>
-                                <td>@(row.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
-                                <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
-                                <td>@(row.CollectorName ?? "Office")</td>
+                            @* One physical document, several revenue lines: the document facts are stated once, on its first line,
+                               and the lines that follow are indented under it — never three rows that read as three receipts. *@
+                            var continuation = previousCollection == row.CollectionId;
+                            previousCollection = row.CollectionId;
+                            <tr class="@(continuation ? "cr-cont" : "cr-doc")">
+                                @if (continuation)
+                                {
+                                    <td colspan="5" class="cr-cont-cell"><span class="v3-sr-only">Same document @row.DocumentNumber:</span></td>
+                                }
+                                else
+                                {
+                                    <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@(row.DocumentNumber ?? "—")</button></td>
+                                    <td>@(row.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
+                                    <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
+                                    <td>@(row.CollectorName ?? "Office")</td>
+                                }
                                 <td>@row.ClassificationName</td>
                                 <td>@row.SourceLabel</td>
                                 <td class="v3-num">@Money(row.Amount)</td>

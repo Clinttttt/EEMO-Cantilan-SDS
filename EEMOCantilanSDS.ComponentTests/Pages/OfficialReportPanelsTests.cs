@@ -68,7 +68,8 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("INCOME FROM MARKET", table.TextContent);
             Assert.Contains("RENT INCOME - STALL RENTAL", table.TextContent);
             var rows = table.QuerySelectorAll("tbody tr").Select(r => r.TextContent).ToList();
-            Assert.Contains(rows, r => r.Contains("Market Fees") && r.Contains("30.00") && r.Contains("Canonical"));
+            // One authoritative amount per row; the legacy/canonical authority is a reconciliation detail, not shown by default.
+            Assert.Contains(rows, r => r.Contains("Market Fees") && r.Contains("30.00") && !r.Contains("Canonical"));
             Assert.Contains(rows, r => r.Contains("Tampak Commercial Center (TCC)") && r.Contains("900.00"));
             Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
             // No annual target is configured, so none is shown and attainment is not fabricated.
@@ -91,6 +92,19 @@ public sealed class OfficialReportPanelsTests : TestContext
             var headings = monthly.FindAll("thead th").Select(h => h.TextContent.Trim()).ToList();
             Assert.Contains("Legacy", headings);
             Assert.Contains("Canonical", headings);
+            // The reconciliation control is secondary: it lives in a collapsed "Reconciliation details" disclosure.
+            Assert.NotNull(monthly.Find("details.mi-recon input[type='checkbox']"));
+        }, Timeout);
+
+        // Monthly mode is a focused statement: the selected month and year to date, not all twelve months.
+        var monthlyHeadings = RenderComponent<OfficialMonthlyIncomePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 9));
+        monthlyHeadings.WaitForAssertion(() =>
+        {
+            var headings = monthlyHeadings.FindAll("thead th").Select(h => h.TextContent.Trim()).ToList();
+            Assert.Contains("Sep", headings);
+            Assert.Contains("YTD", headings);
+            Assert.DoesNotContain("Jan", headings);
+            Assert.Contains("Annual target", headings);
         }, Timeout);
 
         var annual = RenderComponent<OfficialMonthlyIncomePanel>(p => p.Add(x => x.Year, 2026));
@@ -134,6 +148,38 @@ public sealed class OfficialReportPanelsTests : TestContext
             new CollectionsSummaryLineDto(market, "Market Fees", 1, 30m, 0m, 30m, "CT-000101", "CT-000101"),
             new CollectionsSummaryLineDto(ice, "Ice Plant", 1, 250m, 0m, 250m, "OR-000201", "OR-000201"),
         ], 280m, 0m, 280m, false);
+    }
+
+    [Fact]
+    public void AnItemizedOfficialReceipt_ReadsAsOneDocumentWithItsLines_NotSeveralReceipts()
+    {
+        var collection = Guid.NewGuid();
+        var rent = Guid.NewGuid();
+        var ecf = Guid.NewGuid();
+        var register = new CollectionsRegisterDto(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
+        [
+            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "OR-000001", RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
+                rent, "Stall Rental", "NPM · Stall 12", 500m, 0m, "Posted"),
+            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "OR-000001", RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
+                ecf, "General Distribution / ECF", "ECF · Stall 12", 650m, 0m, "Posted"),
+        ],
+        [
+            new CollectionsSummaryLineDto(rent, "Stall Rental", 1, 500m, 0m, 500m, "OR-000001", "OR-000001"),
+            new CollectionsSummaryLineDto(ecf, "General Distribution / ECF", 1, 650m, 0m, 650m, "OR-000001", "OR-000001"),
+        ], 1150m, 0m, 1150m, false);
+        _reports.Setup(x => x.GetCollectionsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
+            .ReturnsAsync(Result<CollectionsRegisterDto>.Success(register));
+
+        var cut = RenderComponent<CollectionsRegisterPanel>(p => p.Add(x => x.From, new DateOnly(2026, 9, 1)).Add(x => x.To, new DateOnly(2026, 9, 30)).Add(x => x.PeriodLabel, "September 2026"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("[aria-label='Collections register'] tbody tr");
+            Assert.Equal(2, rows.Count);                                         // both revenue lines are listed...
+            Assert.Single(cut.FindAll("button.cr-link"));                          // ...under one document link
+            Assert.Contains("cr-cont", rows[1].GetAttribute("class"));
+            Assert.Contains("General Distribution / ECF", rows[1].TextContent);
+        }, Timeout);
     }
 
     [Fact]
