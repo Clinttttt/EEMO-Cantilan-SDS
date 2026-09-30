@@ -17,10 +17,10 @@ States: FUNCTIONAL · FOUNDATION READY · IMPLEMENTING · BLOCKED POLICY · BLOC
 |---|---|---|
 | Canonical Collection / CollectionLine / Allocation / PostingOperation | FOUNDATION READY (exists) | Used by ECF (Web OR) and WCF (Mobile CT). |
 | Cash Ticket custody (receive, assign, consume, reconcile) | FUNCTIONAL | `AccountableFormCustodyWorkflow`; assignment was CT-only. |
-| **OR custody** (assign to collector, collector-owned availability) | IMPLEMENTING | Books already receivable as OR; assignment and availability extended in this pass. |
-| **Governed-service / direct-amount source** | IMPLEMENTING | New tenant-owned definition + effective-dated rate + focused Mobile writer. |
+| **OR custody** (assign to collector, collector-owned availability) | FUNCTIONAL | Assignment, collector-owned availability and Web custody screen are live. |
+| **Governed-service / direct-amount source** | FUNCTIONAL | New tenant-owned definition + effective-dated rate + focused Mobile writer. |
 | Canonical Monthly Income reader | FOUNDATION READY | Derives by classification, so new lines are recognized; production report cutover is **not** performed (BLOCKED CUTOVER, CB-06). |
-| Collector Records / Reports include canonical operation collections | IMPLEMENTING | Server projection, not reconstructed from the device queue. |
+| Collector Records / Reports include canonical operation collections | FUNCTIONAL | Server projection, not reconstructed from the device queue. |
 
 ## Operations matrix
 
@@ -34,14 +34,22 @@ States: FUNCTIONAL · FOUNDATION READY · IMPLEMENTING · BLOCKED POLICY · BLOC
 | Tabo | TPM attendance | Per market day | Per day | OR (IA-045) | Effective vendor rate | Facility page | Vendor entry | Legacy OR field | Legacy | Yes (legacy) | TPM shadow only | Legacy | Legacy | LEGACY AUTHORITY | OR custody + cutover |
 | Fish / Meat Vendor Fee | NPM Fish/Meat vendor context | Monthly goal (configured) | Flexible | OR | Effective configuration | Workspace (unavailable) | None | OR (planned) | **None** | — | None | — | — | **BLOCKED POLICY** | **Double-billing question vs NPM Fish/Meat daily fee (grill)** |
 | Weight & Measure | NPM weighing evidence | Quantity x rate | Per transaction | OR | Frozen rate x kilos | Read from NPM | Meat kilos (NPM round) | Legacy OR field | NPM daily writer | Yes | Shadow only | NPM | Shadow | FOUNDATION READY | Fish rate freeze (this pass); real adapter needs custody/cutover |
-| Market Fees | Governed service | Per transaction | Per transaction | CT | Fixed or direct approved | Configuration, activity | Field collection | Assigned CT | Governed writer (this pass) | Yes | Yes | Yes | Derived | IMPLEMENTING | Head must record an amount rule |
-| Landing / Berthing | Governed service | Per transaction | Per transaction | CT | Fixed or direct approved | Configuration, activity | Field collection | Assigned CT | Governed writer (this pass) | Yes | Yes | Yes | Derived | IMPLEMENTING | Head must record an amount rule |
-| Transfer Large Cattle | Governed service | Per transaction | Occasional | OR | Direct approved | Configuration, activity | Field collection | Assigned OR | Governed writer (this pass) | Yes | Yes | Yes | Derived | IMPLEMENTING | Classification seed + amount rule |
-| Vegetable / Fruit | Governed service (mode-aware) | Per transaction | Whole / daily | OR whole, CT daily | Fixed or direct approved | Configuration, activity | Field collection | Assigned OR or CT by mode | Governed writer (this pass) | Yes | Yes | Yes | Derived | IMPLEMENTING | Head must record an amount rule |
+| Market Fees | Governed service | Per transaction | Per transaction | CT | Fixed or direct approved | Configuration, activity | Field collection | Assigned CT | Governed writer (this pass) | Yes | Yes | Yes | Derived | FUNCTIONAL | Head must record an amount rule |
+| Landing / Berthing | Governed service | Per transaction | Per transaction | CT | Fixed or direct approved | Configuration, activity | Field collection | Assigned CT | Governed writer (this pass) | Yes | Yes | Yes | Derived | FUNCTIONAL | Head must record an amount rule |
+| Transfer Large Cattle | Governed service | Per transaction | Occasional | OR | Direct approved | Configuration, activity | Field collection | Assigned OR | Governed writer (this pass) | Yes | Yes | Yes | Derived | FUNCTIONAL | Classification seed + amount rule |
+| Vegetable / Fruit | Governed service (mode-aware) | Per transaction | Whole / daily | OR whole, CT daily | Fixed or direct approved | Configuration, activity | Field collection | Assigned OR or CT by mode | Governed writer (this pass) | Yes | Yes | Yes | Derived | FUNCTIONAL | Head must record an amount rule |
 | Transportation / TRM | TRM trips | Per trip | Per trip | Legacy OR → target CT | Vehicle-class rates (IA-030) | Facility page | Trip entry | Legacy OR field | Legacy | Yes (legacy) | No | Legacy | Legacy | BLOCKED POLICY | Effective date of the CT transition (grill) |
 | Kanmanggay | **None** | Monthly per space | Flexible | OR | Configured per-space rate | Workspace (unavailable) | — | OR | None | — | None | — | — | BLOCKED POLICY | Space/occupant source model (grill) |
 | Fiesta / Araw lot rental | Governed service (event context) | Per lot per event | Per event | OR | Fixed or direct approved | Configuration, activity | Field collection | Assigned OR | Governed writer if enabled | Yes | Yes | Yes | Derived | DEFERRED | Classification seed and Head approval of the lot amount |
-| Fines / Penalties | Penalty definitions | Per penalty | Per transaction | OR | Approved definition | Definitions + register | None | Office OR | None | — | Classification exists | — | — | IMPLEMENTING | Definitions + Web line on an OR |
-| Slaughterhouse | SLH transactions | Per head | Per transaction | OR | Effective per-head rates | Facility page | Slaughter entry | Legacy OR field | Legacy | Yes (legacy) | No | Legacy | Legacy | LEGACY AUTHORITY | **Collector-typed custom rate (grill)** |
+| Fines / Penalties | Penalty definitions | Per penalty | Per transaction | OR | Approved definition | Definitions + register | None | Office OR | None | — | Classification exists | — | — | FUNCTIONAL | Definitions + Web line on an OR |
+| Slaughterhouse | SLH transactions | Per head | Per transaction | OR | Effective per-head rates | Facility page | Slaughter entry | Legacy OR field | Legacy | Yes (legacy) | No | Legacy | Legacy | LEGACY AUTHORITY | Stored fee components now itemized on the read model and SLH detail (presentation only); **collector-typed custom rate (grill)** |
 
 *Statuses are updated at the end of each slice; the final checkpoint response repeats them.*
+
+## Final state (checkpoint)
+
+- FUNCTIONAL: OR custody, governed-service source, collector records/report projection, Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit, Fines/Penalties.
+- FOUNDATION READY: ECF direct amount, Weight & Measure (frozen Fish evidence, forward-safe only), Monthly Income reader.
+- BLOCKED POLICY: Fish/Meat Vendor Fee, Ice Plant, Transportation CT date, Kanmanggay, WCF rate unit.
+- DEFERRED: Fiesta/Araw lot rental. LEGACY AUTHORITY: Slaughterhouse (itemized display only), Tabo.
+- BLOCKED CUTOVER: canonical Monthly Income and source cutover (CB-06); nothing in this pass performs a cutover, migration, deployment or backfill.

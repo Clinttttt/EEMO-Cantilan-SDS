@@ -153,3 +153,19 @@ omitting the facilities; no fallback facility catalog is used.
 - Unit suite: 2277/2277 passed (run alone).
 - Component suite: 579/580 before the date fix; `RevenueSetupTests.AsOfDate_ReloadsRegisterWithRequestedBusinessDate` hard-coded 2026-09-30, which is today, so it collided with the initial "today" load — made date-independent.
 - **Pre-existing failure (not this slice):** `VendorRegistryTerminologyTests.TpmPageRetainsTemporaryVendorTerminology` expects "Vendor Attendance / Vendor Name / Add Vendor" in `TPM.razor`; those strings were already gone at baseline `024556fd` (Tabo rewrite `cca17c16`). Needs a Core Brain terminology decision before the test or page changes.
+
+## Additional gaps recorded at the operational functionalization checkpoint
+
+BACKEND GAP: Market Fees / Landing report pages
+- current behavior: the report pages still print "—" because the Monthly Income source is not cut over (CB-06).
+- required behavior: read canonical operation collections once the cutover is authorized.
+- why the UI cannot truthfully implement it: showing canonical totals beside legacy reports would create two authorities.
+- exact frontend contract needed: a Monthly Income reader endpoint declared authoritative for the period.
+
+BACKEND GAP: Slaughterhouse custom animal rate
+- current behavior: `RecordSlaughterCommandHandler` accepts a collector-typed `CustomRate` for AnimalType.Other.
+- required behavior: an approved rate or Head-approved amount ceiling (policy needed from Clint).
+- why the UI cannot truthfully implement it: inventing the governance would fabricate a financial rule.
+- exact frontend contract needed: an approved definition list for non-standard animals, if approved.
+
+Other notes: Fish reads for legacy rows remain read-time priced (unchanged); a penalty-only OR is not permitted; collector totals rollup across legacy and operation collections is undecided.
