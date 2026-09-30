@@ -132,7 +132,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             string.IsNullOrWhiteSpace(x.PayerName) ? "Unidentified payor" : x.PayerName,
             x.StallNo, x.FacilityCode,
             x.FacilityCode == FacilityCode.ICE ? "Ice Plant" : "Stall Rental",
-            x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate)));
+            x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate, IsCanonical: true)));
 
         // ── Slaughterhouse: one line per animal type on the receipt, its own date being the day it was taken ──
         var slaughter = await context.SlaughterTransactions
@@ -259,7 +259,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             x.Amount,
             null,
             new DateOnly(x.BillingYear, x.BillingMonth, 1),
-            x.BusinessDate)));
+            x.BusinessDate, IsCanonical: true)));
 
         var canonicalEcf = await (
             from collection in context.Collections.AsNoTracking()
@@ -285,7 +285,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             string.IsNullOrWhiteSpace(x.PayerName) ? "Unidentified payor" : x.PayerName,
             x.StallNo, x.FacilityCode,
             $"Electricity Consumption Fee / ECF · {new DateOnly(x.BillingYear, x.BillingMonth, 1):MMM yyyy}",
-            x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate)));
+            x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate, IsCanonical: true)));
 
         // Governed operations (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit) are canonical
         // collections with no facility. They are read from the posted Collection, never rebuilt from a device queue.

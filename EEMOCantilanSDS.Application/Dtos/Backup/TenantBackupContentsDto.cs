@@ -51,6 +51,9 @@ public static class TenantBackupTableNames
         ["ObligationPeriods"] = "Obligation periods",
         ["VehicleClasses"] = "Vehicle classes",
         ["VehicleClassRates"] = "Vehicle class rates",
+        ["CollectionRemittances"] = "Collection remittances",
+        ["CollectionRemittanceCoverages"] = "Remittance coverage",
+        ["AccountableFormSpoilages"] = "Spoiled form records",
     };
 
     public static string Display(string table)

@@ -170,6 +170,7 @@ public class ApplicationEfBoundaryTests
         "PenaltyDefinitionWorkflow.cs",
         "ObligationWorkflow.cs",
         "VehicleClassWorkflow.cs",
+        "RemittanceWorkflow.cs",
         "TransportationCollectionAuthority.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",

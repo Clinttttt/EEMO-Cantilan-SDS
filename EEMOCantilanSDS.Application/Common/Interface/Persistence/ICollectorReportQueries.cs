@@ -61,7 +61,9 @@ public sealed record CollectorCollectionLine(
     decimal Amount,
     DateOnly? FeeDay,
     DateOnly? BilledMonth,
-    DateOnly? BusinessDate = null);
+    DateOnly? BusinessDate = null,
+    // True when the line is read from a posted canonical Collection; false for a legacy source row (IA-052 coverage).
+    bool IsCanonical = false);
 
 public sealed record CollectorAbsenceLine(
     DateOnly Day,
