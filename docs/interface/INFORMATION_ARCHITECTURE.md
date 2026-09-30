@@ -357,7 +357,7 @@ This does not define the future AccountableDocument/Cash Ticket void-and-replace
 
 ### Future remittance
 
-**FUTURE CAPABILITY / UNRESOLVED DECISION:** the navigation reserves Collections > Remittance & Reconciliation. Current production has no active complete digital remittance workflow. An earlier partial collector-remittance implementation was retired by office decision.
+**REMITTANCE (IA-052):** Accountable Forms > Remittance & Liquidation is the money-accountability workspace, separate from form custody. The earlier partial collector-remittance workflow was retired and is not resurrected; the new one covers whole authoritative collections exactly once and adds no Treasury workflow.
 
 A simple `Remitted = Yes/No` field is not an acceptable substitute. Office accountable-form evidence treats remittance as an amount-and-accountability process with date, accountable officer, recipient/acknowledgement, deposit/cashier context, and collection-versus-remittance reconciliation. The reserved placement does not authorize implementation, restoration of the retired workflow, a Treasury approval flow, or any assumption about ownership.
 
@@ -715,7 +715,7 @@ Principles:
 | AccountableDocument | Accountable Forms > Documents; linked from Collection/Account detail | Future; not production authority |
 | Official Receipt management | Accountable Forms > Official Receipts | Future lifecycle; current OR evidence remains in source workflows |
 | Cash Ticket books/series | Accountable Forms > Cash Tickets > Inventory & Custody | Future; detailed custody policy unresolved |
-| Remittance reconciliation | Collections > Remittance & Reconciliation | Future placement only; retired partial workflow must not be resurrected without renewed approval |
+| Remittance reconciliation | Accountable Forms > Remittance & Liquidation (IA-052) | Whole-collection coverage, exactly once; no Treasury approval workflow |
 | Revenue-classification reporting | Reports > Cash Revenue > Revenue Classification | Future production report; current classifications/setup do not make it authoritative |
 | Annual revenue targets | Reports > Management > Target Attainment; setup under Administration | Future; governance/period/revision policy unresolved |
 | WCF dual entry | Relevant facility operation on Web and Mobile | Future; one canonical backend flow, offline-safe Mobile path |

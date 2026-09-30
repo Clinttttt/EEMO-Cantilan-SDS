@@ -320,7 +320,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-024
 - **SUBJECT:** Any future remittance workflow
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** SUPERSEDED IN PART by IA-052 (the CT-exhaustion trigger and "no partial remittance" wording are withdrawn; remittance is a separate ledger)
 - **TYPE:** BUSINESS DECISION GATE
 - **DECISION / QUESTION:** Keep remittance out of the current product until a complete accountable workflow is implemented. One key operating rule is now confirmed: a Cash Ticket assignment is remitted/accounted for when its assigned batch/range has been fully consumed; normal partial remittance is not allowed. A simple `Remitted = Yes/No` flag is still insufficient. The future design must still define covered amount, date, accountable officer, recipient/acknowledgement, deposit/cashier context, reconciliation states, correction/void behavior, and any Treasury handoff that is actually in scope.
 - **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Current EEMO clarification establishes the CT-exhaustion trigger, while office accountable-form evidence shows that remittance remains an amount-and-accountability process, not merely a boolean collection status.
@@ -677,6 +677,25 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Clint / Core Brain FINAL FUNCTIONALIZATION PASS direction of 2026-09-30.
 - **IMPACT:** `CollectionSourceAuthorityMap` is the single decision of which representation is authoritative per source kind. The Head enabling the Transportation service is the Transportation boundary and closes the legacy trip writer from that date.
 - **REVISIT CONDITION:** Any newer EEMO staff ruling.
+
+### IA-052 - Accountable-form custody and cash remittance are separate ledgers (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-052
+- **SUBJECT:** Cash Ticket remittance timing, the four ledgers, and remittance coverage
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the CT-exhaustion trigger in IA-024, the Rulebook section 5 and the Revenue Architecture wording)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - Accountable-form inventory and cash remittance are related but distinct. A collector may keep unused forms while remitting the money collected with forms already issued (for example 10,000 assigned, 725 used, 9,275 on hand, PHP 20,000 collected and PHP 20,000 remitted). Remittance is **not** blocked by remaining stock. The eventual complete accountability of a batch (issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions) is tracked separately and never treated as a peso figure.
+  - Four ledgers, never collapsed: (1) accountable-form ledger (physical stock and custody); (2) collection ledger (Collection/CollectionLine/Allocation/PostingOperation); (3) remittance ledger (money already collected and turned over); (4) reporting projections (RCD, Monthly Income, collector totals, targets, accountability).
+  - **A remittance never creates revenue.** It covers whole, already-posted authoritative Collections attributable to the collector. A Collection is actively covered by at most one remittance (exactly once, database-enforced). The expected amount is derived from the covered collections and frozen at recording; the remitted amount is typed; a shortfall is a visible difference and needs review; an amount above the expected is refused (the office's 2026-08-25 answer). Source collections are never adjusted and no other collection is manufactured.
+  - Head and Administrators record a remittance; a mistake is voided with a reason, which frees its collections. History is append-only. A retried request with the same operation id does not create a second remittance.
+  - StallTrack records operational accountability only. It invents no Treasurer role, approval chain, bank-deposit workflow or general-ledger integration; a reference or acknowledgement number is optional evidence.
+  - Legacy-authoritative collections (pre-cutover sources with no canonical Collection) cannot be covered exactly and are reported apart as outside structured remittance until their source goes canonical; nothing is manufactured for them.
+  - Physical form states: In Office, Assigned, Issued/Consumed, Spoiled/Cancelled (a blank form, recorded with reason, actor and time, never revenue, never returned to stock), Returned (an unused assigned form back to office custody through an auditable event, never revenue), Needs Review. An issued/consumed serial never becomes available again.
+- **RATIONALE:** Tickets are consumed per payer while cash is turned over on its own schedule; tying them made the process unusable and hid the real accountability.
+- **EVIDENCE / SOURCE:** Clint / Core Brain ACCOUNTABILITY, REMITTANCE and FINANCIAL REPORTING program brief of 2026-09-30; IMPLEMENTATION_HISTORY.md (retired 2026-08-25 remittance, whose office answers still hold).
+- **IMPACT:** Supersedes IA-024's exhaustion trigger. Remittance is buildable; no Treasury workflow is.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling on remittance or Treasury handoff.
 
 ## 4. Decision-gate summary
 

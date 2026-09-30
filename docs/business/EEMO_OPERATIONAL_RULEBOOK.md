@@ -112,8 +112,8 @@ Working operating model:
 2. Tickets are issued to individual payers as collections occur.
 3. Ticket usage decreases the remaining accountable stock.
 4. Collections are reported by revenue category.
-5. When the assigned Cash Ticket stock/range is consumed, the officer remits/accounts for the full covered amount.
-6. Partial remittance is not considered a valid normal workflow.
+5. Collected money may be remitted while unused tickets remain on hand. Accountable-form custody and cash remittance are related but distinct (IA-052): the collector remits the money collected with the tickets already issued, and the unused tickets stay under the collector's accountable custody.
+6. A shortfall against the collected amount is recorded as a visible difference for review; a remittance never exceeds what was collected (the office's 2026-08-25 answer) and never creates revenue.
 
 Future StallTrack support should therefore be capable of representing:
 
@@ -127,7 +127,7 @@ Future StallTrack support should therefore be capable of representing:
 
 Do not reduce this to a boolean `Remitted = Yes/No`.
 
-Remittance is triggered when the assigned Cash Ticket range/batch is fully consumed. Do not model routine remittance while accountable CT stock remains unconsumed.
+Remittance is **not** triggered by, or blocked by, exhaustion of the assigned Cash Ticket range (IA-052). Complete accountability of a physical batch remains issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions, tracked separately from the money.
 ## 6. Cash Ticket payer identity
 
 For transactional Cash Ticket collections, payor identity is **optional**, not universally mandatory.
@@ -309,8 +309,8 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 - whether Fish/Meat Vendor Fee is OR;
 - whether Penalties/Fines are itemized on OR;
 - whether CT payor name may be optional;
-- whether partial remittance is allowed in the normal workflow;
-- whether Cash Ticket remittance is triggered before the assigned range is consumed — normal remittance waits until the assigned CT range/batch is exhausted;
+- whether partial remittance is allowed in the normal workflow - a remittance covers whole collections; a shortfall against them is a visible difference, never an adjusted collection (IA-052);
+- whether Cash Ticket remittance is triggered before the assigned range is consumed - it is not blocked by remaining stock; remittance and form custody are separate ledgers (IA-052);
 - whether current transportation vehicle-rate evidence is usable for V2 planning;
 - whether the Monthly Income sheet is the formal reporting grouping — it is; the board remains valid working/tally evidence;
 - whether Fish/Meat Vendor Fee and Weight & Measure are separate charges — they are;

@@ -118,7 +118,7 @@ The existing singular-instrument implementation is therefore insufficient as the
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
 - Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market. Cantilan Lot Rental uses OR; Kanmanggay Space Rental also uses OR.
 - When qualifying old/lapsed Arrears are paid, the collection reports under the dedicated **Arrears** revenue classification while retaining the originating facility/obligation reference for traceability.
-- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Cash Ticket remittance is triggered when the assigned CT range/batch is consumed; do not resurrect the retired partial-remittance workflow as a substitute.
+- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Remittance and accountable-form custody are separate ledgers (IA-052): CT money may be remitted while unused tickets remain assigned, and a remittance never creates revenue. Remittance covers whole authoritative collections exactly once; it is not the retired date-range workflow and adds no Treasury approval process.
 
 ## 5. Target domain components
 
