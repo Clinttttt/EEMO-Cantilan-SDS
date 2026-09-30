@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -263,6 +264,23 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         var iceClassification = await context.RevenueClassifications.SingleAsync(x => x.SemanticCode == RevenueClassificationCodes.IcePlant);
         var line = await context.CollectionLines.SingleAsync();
         Assert.Equal(iceClassification.Id, line.RevenueClassificationId);
+
+        // Exactly once (IA-050): attribute the posted Collection AND the converted row's legacy projection to one collector.
+        // The legacy projection is comparison evidence, so the collector's report shows the canonical receipt line only.
+        var collector = CollectorUser.Create("Ana Reyes", "C-01", $"ana-{Guid.NewGuid():N}"[..14], null, null,
+            new HashedPassword("h"), seed.TenantId);
+        await using (var attach = db.CreateContext(seed.TenantId))
+        {
+            attach.Add(collector);
+            await attach.SaveChangesAsync();
+            await attach.Database.ExecuteSqlRawAsync("UPDATE \"Collections\" SET \"CollectorId\" = {0}", collector.Id);
+            await attach.Database.ExecuteSqlRawAsync("UPDATE \"PaymentRecords\" SET \"CollectorId\" = {0}", collector.Id);
+        }
+        await using var read = db.CreateContext(seed.TenantId);
+        var report = await new EEMOCantilanSDS.Infrastructure.Repositories.CollectorReportQueries(read)
+            .GetCollectionsAsync(collector.Id, seed.Today.AddDays(-1), seed.Today);
+        var only = Assert.Single(report.Lines);
+        Assert.Equal(("Ice Plant", 250m), (only.Nature, only.Amount));
     }
 
     private async Task<Seed> SeedAsync()
