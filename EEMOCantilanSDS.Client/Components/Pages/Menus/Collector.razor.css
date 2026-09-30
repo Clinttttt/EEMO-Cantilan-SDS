@@ -1128,3 +1128,40 @@
 .applink-modal .eemo-modal-sub {
     color: var(--text-tertiary);
 }
+
+/* Operation assignments: a separate group from facilities (an operation is not a facility). */
+.op-group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.op-group legend {
+    padding: 0;
+}
+
+.op-input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+
+.fac-checkbox:has(.op-input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.op-unavailable {
+    color: var(--text-secondary);
+}
+
+.facility-tags .no-facility {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--text-tertiary);
+    font-weight: 500;
+}

@@ -224,6 +224,10 @@
                                                 {
                                                     <span>@f</span>
                                                 }
+                                                @if (c.AssignedFacilities.Count == 0)
+                                                {
+                                                    <span class="no-facility">No facility · operations only</span>
+                                                }
                                             </div>
                                         </td>
                                         <td>
@@ -366,8 +370,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Assigned Facilities <span class="req">*</span></label>
-                    <div class="form-hint">Select one or more facilities to assign to this collector.</div>
+                    <label class="form-label">Assigned Facilities</label>
+                    <div class="form-hint">Facilities this collector works. Leave empty for an operation-only collector.</div>
                     @* Two columns with each facility's own mark: the eight facilities used to run down a single
                        column and pushed the buttons out of the dialog. The mark is the same line art the
                        sidebar and the facility pages use, so a collector's assignment reads the same
@@ -393,6 +397,42 @@
                         }
                     </div>
                 </div>
+
+                @* Operation permissions are separate from facilities: an operation (WCF, Landing/Berthing, …) is not a
+                   facility and is never stored as one. Assignment is permission only — Collector Mobile collects an
+                   operation only when the server reports it ready. *@
+                <fieldset class="form-group op-group">
+                    <legend class="form-label">Assigned Operations</legend>
+                    <div class="form-hint">Non-facility work. Assignment grants permission only; Collector Mobile shows an operation as collectible when the server reports it ready.</div>
+                    @if (IsEditing && _operationsLoading)
+                    {
+                        <div class="form-hint" role="status">Loading operation assignments…</div>
+                    }
+                    else if (IsEditing && !_operationsLoaded)
+                    {
+                        <div class="form-hint op-unavailable" role="status">Operation assignments could not be loaded. Saving keeps them unchanged.</div>
+                    }
+                    else
+                    {
+                        <div class="facility-checkboxes">
+                            @foreach (var op in OperationOptions)
+                            {
+                                var isChecked = Form.OperationCodes.Contains(op.Code);
+                                <label class="fac-checkbox @(isChecked ? "checked" : "")">
+                                    <input type="checkbox" class="op-input" checked="@isChecked"
+                                           @onchange="() => ToggleOperation(op.Code)" />
+                                    <span class="fac-check-box" aria-hidden="true">
+                                        @if (isChecked)
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </span>
+                                    <span class="fac-check-name">@op.Name</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </fieldset>
 
                 @if (!string.IsNullOrEmpty(FormError))
                 {
@@ -766,6 +806,43 @@
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public List<FacilityCode> AssignedFacilities { get; set; } = new();
+        public List<string> OperationCodes { get; set; } = new();
+    }
+
+    // Supported non-facility operations. Editing reads the collector's own list (code, name, assigned) from
+    // GET api/Collectors/{id}/collection-operations. Creating has no collector id yet and no catalog endpoint, so it
+    // uses the stable permission codes from the Domain with the same names the server returns (BACKEND GAP noted).
+    record OperationOption(string Code, string Name);
+    static readonly IReadOnlyList<OperationOption> DefaultOperationCatalog =
+    [
+        new(EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf, "Water Consumption Fee"),
+        new(EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),
+        new(EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.LandingBerthing, "Landing / Berthing"),
+        new(EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle"),
+        new(EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.MarketFees, "Market Fees")
+    ];
+    IReadOnlyList<OperationOption> OperationOptions = DefaultOperationCatalog;
+    bool _operationsLoading;
+    bool _operationsLoaded;
+
+    void ToggleOperation(string code)
+    {
+        if (!Form.OperationCodes.Remove(code))
+            Form.OperationCodes.Add(code);
+    }
+
+    async Task LoadCollectorOperationsAsync(Guid collectorId)
+    {
+        _operationsLoading = true;
+        _operationsLoaded = false;
+        var result = await CollectorsApi.GetCollectionOperationsAsync(collectorId);
+        if (result.IsSuccess && result.Value is not null && EditingId == collectorId)
+        {
+            OperationOptions = result.Value.Select(x => new OperationOption(x.Code, x.DisplayName)).ToList();
+            Form.OperationCodes = result.Value.Where(x => x.Assigned).Select(x => x.Code).ToList();
+            _operationsLoaded = true;
+        }
+        _operationsLoading = false;
     }
 
     bool ShowModal = false;
@@ -781,6 +858,9 @@
         Form = new();
         FormError = string.Empty;
         _showCollectorPw = false;
+        OperationOptions = DefaultOperationCatalog;
+        _operationsLoading = false;
+        _operationsLoaded = true;
         
         await LoadNextEmployeeId();
         
@@ -813,6 +893,9 @@
             AssignedFacilities = new(c.AssignedFacilities)
         };
         FormError = string.Empty;
+        OperationOptions = DefaultOperationCatalog;
+        _operationsLoading = true;
+        _operationsLoaded = false;
         ShowModal = true;
 
         var details = await CollectorsApi.GetCollectorByIdAsync(c.Id);
@@ -822,6 +905,9 @@
             Form.Username = details.Value.Username ?? string.Empty;
             StateHasChanged();
         }
+
+        await LoadCollectorOperationsAsync(c.Id);
+        StateHasChanged();
     }
 
     void ToggleFacility(FacilityCode code)
@@ -838,7 +924,15 @@
         if (string.IsNullOrWhiteSpace(Form.EmployeeId)) { FormError = "Employee ID is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
         if (!IsEditing && string.IsNullOrWhiteSpace(Form.Password)) { FormError = "Password is required for new accounts."; return; }
-        if (!Form.AssignedFacilities.Any()) { FormError = "Assign at least one facility."; return; }
+        if (IsEditing && _operationsLoading) { FormError = "Operation assignments are still loading."; return; }
+        // When an edit could not read the collector's operations they are sent as null (left untouched), and the
+        // page cannot know whether any exist — the server enforces "at least one facility or operation" then.
+        var operationsKnown = !IsEditing || _operationsLoaded;
+        if (operationsKnown && !Form.AssignedFacilities.Any() && !Form.OperationCodes.Any())
+        {
+            FormError = "Assign at least one facility or operation.";
+            return;
+        }
 
         if (IsEditing)
         {
@@ -848,7 +942,8 @@
                 Form.ContactNumber.Trim(),
                 Form.Email.Trim(),
                 Form.AssignedFacilities,
-                Username: Form.Username.Trim());
+                Username: Form.Username.Trim(),
+                OperationCodes: _operationsLoaded ? Form.OperationCodes.ToList() : null);
 
             var result = await CollectorsApi.UpdateCollectorAsync(command);
             if (result.IsSuccess)
@@ -870,7 +965,8 @@
                 Form.Email.Trim(),
                 Form.Username.Trim(),
                 Form.Password,
-                Form.AssignedFacilities);
+                Form.AssignedFacilities,
+                Form.OperationCodes.ToList());
 
             var result = await CollectorsApi.CreateCollectorAsync(command);
             if (result.IsSuccess)
