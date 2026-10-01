@@ -53,3 +53,27 @@ Mobile does not fake any of these.
 ## Not a gap
 Transportation vehicle classes and rates (governed terms), approved slaughter animals (`MobileSlaughterCollectionDto.ApprovedAnimals`),
 governed sync payload with `VehicleClassCode`. Mobile cannot record or void a remittance; that stays with the office.
+
+## RESOLVED 2026-10-01 - WCF end-to-end readiness (operation-only collector)
+- Runtime evidence: Bobby Mercado held the WCF assignment, no NPM facility assignment and 4,999 assigned Cash Tickets;
+  Mobile showed "Authorization inactive". The local V3 database had no UtilityBill at all.
+- Root cause 1 (authorization): the WCF capability added `NPM_FACILITY_REQUIRED`, and — contrary to its
+  `requireNpmAuthorityForCollector: false` argument — `WcfCollectionWorkflow.PostMobileAsync` still rejected a collector
+  without NPM, as did the WCF obligation and Cash Ticket reads. Per IA-053 the WCF operation assignment alone now
+  authorizes the collector in the capability, the reads and the writer; the NPM-bound UtilityBill remains the SOURCE
+  context (checked on the source), and the legacy NPM utility sync path keeps its own NPM gate.
+- Root cause 2 (no obligation path): Water obligations could only be written through the NPM utility dialog with both
+  utilities, and no route could make one Canonical. Added, Head/Admin only:
+  - `GET/POST api/wcf-collections/setup-sources|obligations` — the direct approved Water amount for one stall and billing
+    month on the ONE stall/month UtilityBill (created only if none exists); Electricity is passed through unchanged; a
+    settled, partly settled or cutover Water part is frozen; no future period; no reading/cubic metre/rate input.
+  - `POST api/wcf-collections/activation-readiness|activations` — "Activate for Mobile collection" for one unsettled direct
+    approved Water obligation through the existing `SettlementCutoverWorkflow` (dry-run, attested checklist, freeze,
+    activate). Nothing is written while a real blocker remains. Clint chose this scoped exposure on 2026-10-01; there is
+    still no bulk or generic cutover route. Water cutover collector evidence now covers NPM-facility collectors (legacy
+    writers) and every WCF-assigned collector.
+- Mobile: a Ready WCF now opens its own page (`/wcf`) — obligation list, approved/settled/outstanding, amount up to the
+  outstanding (partial settlement is what the writer already supports), next assigned CT, durable enqueue before report.
+- No obligation: capability stays Ready when collectible sources exist but nothing is owed, and the page says
+  "No outstanding WCF obligations"; with no active source at all it is "Pending activation", never an authorization fault.
+- Tests: `WcfEndToEndReadinessTests` (PostgreSQL), capability/Today's Work unit tests, WCF Accounts component tests.
