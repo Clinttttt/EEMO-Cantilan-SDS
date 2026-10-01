@@ -116,3 +116,44 @@ Do not squash or discard 03809525 unless there is a demonstrated defect; amend/f
 After utilities are green, implement the unified Collection Activity backend feed and exactly-once tests.
 
 At the end return the full "STALLTRACK V3 — RELEASE-CANDIDATE BACKEND CLOSURE CHECKPOINT" with exact test/build results and genuine remaining release gaps only.
+
+## Checkpoint — Cloud continuation (2026-10-01)
+
+### Utilities (IA-055) — DONE, commit `0676290` (on top of WIP `03809525`)
+- Writer audit: the only `UtilityBill` assessment writers are `POST api/utilities/reading`
+  (`RecordUtilityReadingCommandHandler`) and the WCF workflows (`WcfCollectionWorkflow` office prepare and direct
+  Mobile entry, both `DirectApprovedReadings` by construction). Mobile repositories only read bills or record payments;
+  ECF posting (Composer) settles an existing bill and never assesses one. No import/sync/raw-SQL writer exists.
+- Server refuses new readings/rates (Invalid, nothing written); a recorded metered part may be resubmitted unchanged
+  (keeps its basis and evidence) or restated as a direct amount; a recorded direct part can no longer be zeroed or turned
+  into readings; an unchanged resubmission keeps its recorded basis. IA-054 WCF paths untouched.
+- IA-055 recorded in `docs/decisions/DECISION_REGISTRY.md`.
+
+### Collection Activity — DONE (backend), commit `a5af73b`
+- `GET api/collections/activity?from&to[&facility&collectorId&authority&limit]` → `CollectionActivityFeedDto`
+  (Head/Admin, ≤ 31 days). Reader `CollectionActivityReader`; handler `GetCollectionActivityQueryHandler`.
+- Legacy rows only while `LegacyMoneyCounts`; canonical Collections one event each with lines/corrections, shadow lines
+  excluded via `CanonicalMoneyCounts`. Totals equal the official Monthly Income month (PostgreSQL-proven).
+- FRONTEND CONTRACT FOLLOW-UP: `/collections/activity` (Transactions.razor) still reads `api/transactions/recent`
+  (`TransactionFeedRepository`), which does not apply the authority map (a converted rent row's legacy projection would
+  be listed) and covers facility sources only. Switch the page to the new endpoint; add an `ICollectionActivityApiClient`.
+- FRONTEND CONTRACT FOLLOW-UP: the utility entry modal should read `AllowedElecCalculationBases` /
+  `AllowedWaterCalculationBases` and offer reading entry only when "Metered" is listed.
+
+### Remaining audit findings (audited, not invented)
+- Fish/Meat Vendor Fee, Kanmanggay, Fiesta/Araw: canonical `ObligationAccount` sources posted through the Web Composer
+  (OR). No Collector Mobile writer exists. Not Mobile-ready; Web office posting is the release path.
+- ECF: Web Composer + OR only. No Mobile writer, by design of the current release path.
+- Slaughterhouse: approved animal rates only; no package/add-on definitions exist in Domain/Application.
+- Annual targets: no target entity/governance exists; Monthly Income shows no target and no attainment (IA-027 open).
+- Seven skipped integration tests: `OccupancyHistorySnapshotTests` (5) and `RegisterAndFollowUpAgreementTests` (2) are
+  read-only checks against a production snapshot, gated on `STALLTRACK_SNAPSHOT_DB`. Intentional; run them against a
+  fresh snapshot before release sign-off.
+- Observation: `GetOfficialMonthlyIncomeQueryHandler` counts every canonical line; it does not apply
+  `CanonicalMoneyCounts`, so a shadow line on a legacy-authoritative row would be double counted there. No production
+  writer creates such lines (posting cuts the row over first), so this is latent, not live.
+
+### Validation (Cloud, .NET SDK 10.0.112, roll-forward for net9.0)
+- Unit 2477/2477 · PostgreSQL integration 173 passed / 7 skipped (snapshot-gated) · API Release build OK ·
+  `has-pending-model-changes`: none · `git diff --check` clean.
+- Commits are local: `git push` was refused by the session's permission policy and needs to be run by Clint.
