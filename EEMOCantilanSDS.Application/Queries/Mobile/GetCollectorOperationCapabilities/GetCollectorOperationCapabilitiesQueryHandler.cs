@@ -166,11 +166,16 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
         // WCF is a utility operation (IA-053): the WCF assignment authorizes the collector, exactly as the writer checks.
         // The current Water source is an NPM-bound UtilityBill, but that is source context, not a collector gate.
 
-        var canonicalWater = await db.UtilityBills.AsNoTracking().AnyAsync(x =>
-            x.MunicipalityId == tenantId
-            && x.WaterSettlementAuthorityState == SettlementAuthority.Canonical
-            && x.Stall!.Facility!.Code == FacilityCode.NPM, ct);
-        if (!canonicalWater)
+        // The OPERATION's readiness, not whether a payor's Water row was prepared: WCF is collectible once the office has
+        // enabled WCF Mobile collection (new sources are canonical from birth), or where a migrated canonical source exists.
+        // No outstanding row is workload, never an authorization failure.
+        var enabled = await db.CollectorOperationActivations.AsNoTracking().AnyAsync(x =>
+                x.MunicipalityId == tenantId && x.OperationCode == CollectorOperationCodes.Wcf, ct)
+            || await db.UtilityBills.AsNoTracking().AnyAsync(x =>
+                x.MunicipalityId == tenantId
+                && x.WaterSettlementAuthorityState == SettlementAuthority.Canonical
+                && x.Stall!.Facility!.Code == FacilityCode.NPM, ct);
+        if (!enabled)
             reasons.Add((CollectorOperationCapabilityStatus.PendingCutover, NoCanonicalSource));
 
         var classificationId = await db.RevenueClassifications.AsNoTracking()

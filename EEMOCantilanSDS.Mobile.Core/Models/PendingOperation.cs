@@ -111,6 +111,11 @@ public sealed class PendingOperation
     // approved rate for that class, so no price is ever stored or trusted here.
     public string? VehicleClassCode { get; set; }
 
+    // ── WCF direct entry: the selected source (StallId above) and its billing period. The amount the collector stated is
+    //    ReceivedAmount; the ticket is AccountableDocumentId. All four stay bound to one ClientOperationId across restarts.
+    public int? BillingYear { get; set; }
+    public int? BillingMonth { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -180,5 +185,7 @@ public sealed class PendingOperation
         CollectionMode,
         PayerName,
         Reference,
-        VehicleClassCode);
+        VehicleClassCode,
+        BillingYear,
+        BillingMonth);
 }

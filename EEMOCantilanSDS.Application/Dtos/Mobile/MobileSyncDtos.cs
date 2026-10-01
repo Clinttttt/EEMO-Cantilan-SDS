@@ -85,7 +85,10 @@ public sealed record SyncOfflineOperationDto(
     GovernedServiceMode? CollectionMode = null,
     string? PayerName = null,
     string? Reference = null,
-    string? VehicleClassCode = null);
+    string? VehicleClassCode = null,
+    // WCF direct entry: the billing period of the selected source (StallId above identifies the source).
+    int? BillingYear = null,
+    int? BillingMonth = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

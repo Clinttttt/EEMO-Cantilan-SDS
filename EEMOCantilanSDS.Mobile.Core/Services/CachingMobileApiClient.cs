@@ -96,6 +96,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
         ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
 
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth) =>
+        ReadThroughAsync($"wcf|sources|{billingYear}|{billingMonth}", () => inner.GetWcfSourcesAsync(billingYear, billingMonth));
+
     public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         ReadThroughAsync($"wcf|obligations|{throughYear}|{throughMonth}", () => inner.GetWcfObligationsAsync(throughYear, throughMonth));
 

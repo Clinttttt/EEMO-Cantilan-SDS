@@ -67,6 +67,9 @@ public interface IMobileApiClient
     Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
     Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
     Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth);
+
+    /// <summary>Eligible WCF sources for a billing period, each with its prepared, settled and outstanding Water amounts.</summary>
+    Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth);
     Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
     Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);

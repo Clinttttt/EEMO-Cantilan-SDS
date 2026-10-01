@@ -86,6 +86,9 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
         await PostAsync<RecordMobileUtilityPaymentRequest, bool>("api/Mobile/npm-utility/pay", request);
 
+    public async Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth) =>
+        await GetAsync<IReadOnlyList<WcfMobileSourceDto>>($"api/wcf-collections/mobile-sources?billingYear={billingYear}&billingMonth={billingMonth}");
+
     public async Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         await GetAsync<IReadOnlyList<WcfObligationQuoteDto>>($"api/wcf-collections/obligations?throughYear={throughYear}&throughMonth={throughMonth}");
 

@@ -22,6 +22,23 @@ public sealed class WcfCollectionsController(
     public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> CashTicketsAsync(CancellationToken ct) =>
         HandleResponse(await workflow.GetAvailableCashTicketsAsync(ct));
 
+    [HttpGet("mobile-sources")]
+    public async Task<ActionResult<IReadOnlyList<WcfMobileSourceDto>>> MobileSourcesAsync(
+        [FromQuery] int billingYear, [FromQuery] int billingMonth, CancellationToken ct) =>
+        HandleResponse(await workflow.GetMobileSourcesAsync(billingYear, billingMonth, ct));
+
+    [HttpGet("mobile-status")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<WcfMobileStatusDto>> MobileStatusAsync(
+        [FromServices] WcfMobileCollectionWorkflow mobileCollection, CancellationToken ct) =>
+        HandleResponse(await mobileCollection.GetStatusAsync(ct));
+
+    [HttpPost("mobile-status/enable")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<WcfMobileStatusDto>> EnableMobileAsync(
+        [FromServices] WcfMobileCollectionWorkflow mobileCollection, CancellationToken ct) =>
+        HandleResponse(await mobileCollection.EnableAsync(ct));
+
     [HttpGet("setup-sources")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<IReadOnlyList<WcfSetupSourceDto>>> SetupSourcesAsync(

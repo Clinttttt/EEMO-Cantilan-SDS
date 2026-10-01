@@ -27,6 +27,12 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest request) =>
         PostAsync<EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest, SettlementCutoverOutcomeDto>("api/wcf-collections/activations", request);
 
+    public Task<Result<WcfMobileStatusDto>> GetMobileStatusAsync() =>
+        GetAsync<WcfMobileStatusDto>("api/wcf-collections/mobile-status");
+
+    public Task<Result<WcfMobileStatusDto>> EnableMobileAsync() =>
+        PostAsync<WcfMobileStatusDto>("api/wcf-collections/mobile-status/enable");
+
     public Task<Result<WcfCollectionOutcomeDto>> PostAsync(WcfCollectionPostRequest request) =>
         PostAsync<WcfCollectionPostRequest, WcfCollectionOutcomeDto>("api/wcf-collections/collections", request);
 

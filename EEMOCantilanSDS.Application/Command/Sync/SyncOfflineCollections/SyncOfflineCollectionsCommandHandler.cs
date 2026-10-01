@@ -45,7 +45,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 var outcome = await wcfWorkflow.PostMobileAsync(new WcfCollectionPostRequest(
                     op.PayloadVersion, op.ClientOperationId, op.BusinessDate, op.UtilityBillId ?? Guid.Empty,
                     op.ReceivedAmount ?? 0m, op.WaterSourceVersion ?? 0, op.AccountableDocumentId ?? Guid.Empty,
-                    op.DocumentNumber ?? string.Empty, op.IssuedAtUtc), ct);
+                    op.DocumentNumber ?? string.Empty, op.IssuedAtUtc,
+                    StallId: op.UtilityBillId is null ? op.StallId : null, BillingYear: op.BillingYear, BillingMonth: op.BillingMonth), ct);
                 var wcfStatus = outcome.IsSuccess ? SyncResultStatus.Synced
                     : outcome.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
                         ? SyncResultStatus.ReconciliationRequired

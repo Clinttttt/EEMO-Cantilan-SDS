@@ -15,12 +15,12 @@ public sealed record WcfActivationRequest(
     SettlementCutoverReconciliationEvidence Evidence);
 
 /// <summary>
-/// "Activate for Mobile collection" for one WCF Water obligation — a narrow route onto the existing source-scoped cutover
+/// Legacy WCF migration for one historical Water source — a narrow route onto the existing source-scoped cutover
 /// control plane (<see cref="SettlementCutoverWorkflow"/>): Legacy → Pending Cutover → frozen opening position → Canonical.
 /// </summary>
 /// <remarks>
-/// It never activates in bulk, never touches Electricity or rent, and accepts only a Water part that is still an unsettled
-/// direct approved assessment — so the frozen opening position is that assessment with nothing previously settled, and no
+/// It never migrates in bulk and never touches Electricity or rent. It is the exceptional path for a Water part that has
+/// legacy settlement history: the cutover workflow freezes that real settled amount as the opening position, so no
 /// historical payment is re-read as canonical money. Readiness is checked with the office's attested evidence BEFORE any
 /// state changes: while a real blocker remains, nothing is written. Each later step is the workflow's own command, with its
 /// own serializable transaction and version checks; a retry resumes from whichever step the source reached.
@@ -91,8 +91,8 @@ public sealed class WcfActivationWorkflow(
     }
 
     /// <summary>
-    /// Only a Head/Admin, only this tenant's Water part, and — while it is still Legacy — only an unsettled direct approved
-    /// assessment with an amount. A source already in cutover may resume; a Canonical one is already collectible.
+    /// Only a Head/Admin, only this tenant's Water part, and only one with an assessment to migrate. A source already in
+    /// cutover may resume; a Canonical one is already collectible. Routine new WCF activity never comes here (2026-10-01).
     /// </summary>
     private async Task<(string Message, ResultStatus Status)?> EligibilityProblemAsync(Guid utilityBillId, CancellationToken ct)
     {
@@ -106,13 +106,11 @@ public sealed class WcfActivationWorkflow(
             return ("The Water obligation was not found.", ResultStatus.NotFound);
         if (bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical)
             return ("This Water obligation is already active for Mobile collection.", ResultStatus.Conflict);
-        if (bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy)
-        {
-            if (bill.WaterCalculationBasis != UtilityCalculationBasis.DirectApproved || bill.WaterCharge <= 0m)
-                return ("Only a Water obligation with a direct approved amount can be activated here.", ResultStatus.Invalid);
-            if (bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterAmountPaid > 0m)
-                return ("Settlement has begun on this Water obligation under the legacy records; it needs the full reconciled cutover, not this action.", ResultStatus.Conflict);
-        }
+        // Legacy migration (2026-10-01): a Water part WITH legacy settlement is exactly what this attested path is for — the
+        // cutover workflow freezes its real legacy settled amount as the opening position. An unsettled part needs no
+        // migration: once WCF Mobile collection is enabled it becomes canonical at its first collection.
+        if (bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy && bill.WaterCharge <= 0m)
+            return ("This Water record has no assessment to migrate.", ResultStatus.Invalid);
         return null;
     }
 }

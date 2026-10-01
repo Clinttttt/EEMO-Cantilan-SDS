@@ -14,6 +14,12 @@ public interface IWcfCollectionsApiClient
     /// <summary>Head/Admin: establish or, before settlement, revise a direct approved Water amount (POST api/wcf-collections/obligations).</summary>
     Task<Result<WcfSetupSourceDto>> EstablishObligationAsync(WcfObligationSetupRequest request);
 
+    /// <summary>Head/Admin: WCF Mobile collection status with system-derived readiness.</summary>
+    Task<Result<WcfMobileStatusDto>> GetMobileStatusAsync();
+
+    /// <summary>Head/Admin: enable WCF Mobile collection once (idempotent; the server re-checks readiness).</summary>
+    Task<Result<WcfMobileStatusDto>> EnableMobileAsync();
+
     /// <summary>Head/Admin: the activation dry-run for one Water obligation, with optional attested evidence.</summary>
     Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence);
 
