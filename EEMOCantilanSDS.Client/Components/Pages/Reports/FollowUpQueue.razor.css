@@ -144,8 +144,6 @@
 .fq-action:hover .fq-action-arrow { transform: translateX(2px); }
 
 /* ── Empty state ── */
-.fq-state { padding: 44px; text-align: center; color: var(--text-subtle); font-size: 14px; }
-.fq-state-error { color: var(--red); }
 .fq-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
 .fq-retry:hover { background: var(--accent-hover); }
 
@@ -342,7 +340,6 @@
     border-bottom: 1px solid var(--border);
 }
 
-
 /* ── Manual hide (admin dismisses an item permanently from the live queue) ── */
 .fq-action-cell { display: inline-flex; align-items: center; gap: 12px; justify-content: flex-end; }
 
@@ -358,7 +355,6 @@
     transition: background .14s ease, color .14s ease;
 }
 .fq-hidebtn:hover { background: var(--bg); color: var(--navy); }
-
 
 /* Bulk "Hide all Contract expired" — right side of the immediate section header */
 .fq-hideall {
@@ -380,33 +376,10 @@
 .fq-hideall:hover { background: var(--bg-icon); border-color: var(--accent); color: var(--accent); }
 .fq-hideall svg { width: 14px; height: 14px; }
 
-
 /* Past follow-up button — standard app button (btn-outline), right-aligned in the filter bar. */
 .fq-history-link { margin-left: auto; flex-shrink: 0; }
 
 /* ── Hero + queue summary stat strip (matches the facility pages) ── */
-.fq-hero {
-    position: relative; display: flex; align-items: center; gap: 28px;
-    background: var(--navy); border-radius: 14px; padding: 22px 28px; margin-bottom: 18px;
-    overflow: hidden; flex-wrap: wrap;
-}
-.fq-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 230px; }
-.fq-hero-icon {
-    width: 54px; height: 54px; border-radius: 12px; flex-shrink: 0;
-    background: rgba(200, 168, 75, .18); display: flex; align-items: center; justify-content: center;
-}
-.fq-hero-icon svg { width: 26px; height: 26px; stroke: var(--gold); }
-.fq-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
-.fq-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
-.fq-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
-.fq-hero-stats { flex: 1; display: flex; align-items: center; flex-wrap: wrap; }
-.fq-stat { padding: 0 20px; text-align: center; flex: 1; min-width: 110px; }
-.fq-stat-val { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.fq-stat-val.fq-stat-critical { color: #e5a5a5; }
-.fq-stat-key { font-size: 10.5px; color: rgba(255, 255, 255, .55); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
-.fq-hero-divider { width: 1px; height: 42px; background: rgba(255, 255, 255, .12); flex-shrink: 0; }
-@media screen and (max-width: 1000px) { .fq-hero-stats { width: 100%; } .fq-stat { min-width: 80px; padding: 0 12px; } }
-
 
 /* NPM "one OR for several days" mode */
 .fq-or-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
@@ -426,84 +399,7 @@
 .fq-or-multirow { display: flex; gap: 8px; align-items: center; }
 .fq-or-multirow .fq-or-input { flex: 1 1 auto; width: auto; }
 
-
 /* ══════════════════════════════════════════════════════════════
    V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
    Light identity band / drawer headers; civic-blue interaction; readable secondary text.
    ══════════════════════════════════════════════════════════════ */
-.fq-hero {
-    padding: 20px 24px 22px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--elevation-1);
-}
-
-    .fq-hero::before,
-    .fq-hero::after {
-        display: none;
-    }
-
-.fq-hero-icon {
-    border-color: transparent;
-    background: var(--accent-soft);
-}
-
-    .fq-hero-icon svg {
-        stroke: var(--navy) !important;
-    }
-
-.fq-hero-eyebrow {
-    color: var(--text-tertiary);
-}
-
-.fq-hero-title,
-.fq-hero-val {
-    color: var(--navy);
-}
-
-.fq-hero-val {
-    font-variant-numeric: tabular-nums;
-}
-
-.fq-hero-sub,
-.fq-hero-sub2 {
-    color: var(--text-tertiary);
-}
-
-.fq-hero-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.fq-hero-divider {
-    background: var(--border);
-}
-
-.fq-hero-progress {
-    height: 3px;
-    background: var(--surface-muted);
-}
-
-.fq-hero-progress-fill {
-    background: var(--accent);
-}
-
-.fq-stat-val {
-    color: var(--navy);
-}
-
-.fq-stat-val.fq-stat-critical {
-    color: var(--red);
-}
-
-.fq-stat-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}

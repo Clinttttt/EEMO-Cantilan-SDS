@@ -3597,3 +3597,137 @@ body .setup-root .login-network-arrow {
 h1[tabindex="-1"]:focus {
     outline: none;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   V3 REPORT HEADER FAMILY (2026-10-02) — facility report pages (NPM, NCC, TCC, BBQ, ICE, SLH, TRM, TPM, custom).
+   Each page still owns its markup (.rpt-topbar, .rpt-period-bar); this one block gives them the Dashboard's civic-blue
+   identity band and a joined report-tab rail, so the family changes together. Scoped by .admin-main so it outranks
+   each page's own scoped copy. Solid colour only; white text on --civic-panel meets AA.
+   ══════════════════════════════════════════════════════════════════════ */
+.admin-layout .admin-main .rpt-topbar {
+    padding: 18px 28px 20px;
+    border-bottom: 0;
+    background: var(--civic-panel);
+}
+
+    .admin-layout .admin-main .rpt-topbar::before,
+    .admin-layout .admin-main .rpt-topbar::after {
+        display: none;
+    }
+
+.admin-main .rpt-topbar .rpt-back-btn {
+    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+    .admin-main .rpt-topbar .rpt-back-btn:hover {
+        border-color: #ffffff;
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+    }
+
+    .admin-main .rpt-topbar .rpt-back-btn:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+    }
+
+.admin-main .rpt-topbar .rpt-topbar-icon {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+    .admin-main .rpt-topbar .rpt-topbar-icon svg {
+        stroke: #ffffff;
+    }
+
+.admin-main .rpt-topbar .rpt-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.admin-main .rpt-topbar .rpt-title {
+    color: #ffffff;
+}
+
+    .admin-main .rpt-topbar .rpt-title:focus {
+        outline: none;
+    }
+
+.admin-main .rpt-topbar .rpt-subtitle {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-main .rpt-topbar .rpt-action-btn {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+    .admin-main .rpt-topbar .rpt-action-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+    }
+
+    .admin-main .rpt-topbar .rpt-action-btn svg {
+        stroke: #ffffff;
+    }
+
+.admin-main .rpt-topbar .rpt-header-progress {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.admin-main .rpt-topbar .rpt-header-progress-fill {
+    background: #ffffff;
+}
+
+/* Report tabs: one joined rail with hairline dividers; the active tab is civic blue. */
+.admin-main .rpt-period-bar .rpt-period-tabs {
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: none;
+    overflow: hidden;
+}
+
+.admin-main .rpt-period-bar .rpt-period-tab {
+    min-height: 36px;
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    font-weight: 600;
+    box-shadow: none;
+    transform: none;
+}
+
+    .admin-main .rpt-period-bar .rpt-period-tab:first-child {
+        border-left: 0;
+    }
+
+    .admin-main .rpt-period-bar .rpt-period-tab:hover {
+        border-color: var(--border);
+        background: var(--surface-hover);
+    }
+
+    .admin-main .rpt-period-bar .rpt-period-tab.active {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #ffffff;
+        box-shadow: none;
+    }
+
+    .admin-main .rpt-period-bar .rpt-period-tab:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+    }
+
+@media print {
+    .admin-layout .admin-main .rpt-topbar {
+        background: none;
+    }
+}
+
+.admin-main .rpt-topbar .live-clock-icon {
+    color: #ffffff;
+}
