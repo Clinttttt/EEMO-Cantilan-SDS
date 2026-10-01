@@ -37,17 +37,34 @@
         }
         else
         {
-            <h1 class="menu-title">Today's work</h1>
-            <div class="menu-summary" aria-label="Today at a glance">
-                <div class="menu-summary-item ready"><span class="menu-summary-num">@Work.Available.Count</span><span class="menu-summary-key">Ready</span></div>
-                <div class="menu-summary-item attention"><span class="menu-summary-num">@Work.Attention.Count</span><span class="menu-summary-key">Attention</span></div>
-                <div class="menu-summary-item idle"><span class="menu-summary-num">@Work.AssignedUnavailable.Count</span><span class="menu-summary-key">Not available</span></div>
+            <div class="menu-hero">
+                <div class="menu-hero-text">
+                    <h1 class="menu-title">Today's work</h1>
+                    <p class="menu-date">@BusinessDate.ToString("dddd, MMMM d", System.Globalization.CultureInfo.InvariantCulture)</p>
+                </div>
+                <div class="menu-summary" aria-label="Today at a glance">
+                    <div class="menu-summary-item ready">
+                        <span class="menu-summary-dot" aria-hidden="true"></span>
+                        <span class="menu-summary-num">@Work.Available.Count</span>
+                        <span class="menu-summary-key">Ready to collect</span>
+                    </div>
+                    <div class="menu-summary-item attention">
+                        <span class="menu-summary-dot" aria-hidden="true"></span>
+                        <span class="menu-summary-num">@Work.Attention.Count</span>
+                        <span class="menu-summary-key">Need attention</span>
+                    </div>
+                    <div class="menu-summary-item idle">
+                        <span class="menu-summary-dot" aria-hidden="true"></span>
+                        <span class="menu-summary-num">@Work.AssignedUnavailable.Count</span>
+                        <span class="menu-summary-key">Not available</span>
+                    </div>
+                </div>
             </div>
 
             @if (Work.Attention.Count > 0)
             {
                 <section class="menu-group attention" aria-labelledby="menu-attention">
-                    <h2 id="menu-attention" class="menu-group-title">Needs attention</h2>
+                    <h2 id="menu-attention" class="menu-group-title">Needs attention <span class="menu-group-count">@Work.Attention.Count</span></h2>
                     <ul class="menu-list">
                         @foreach (var item in Work.Attention)
                         {
@@ -66,7 +83,7 @@
             }
 
             <section class="menu-group" aria-labelledby="menu-available">
-                <h2 id="menu-available" class="menu-group-title">Available now</h2>
+                <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
                 @if (Work.Available.Count == 0)
                 {
                     <div class="menu-state">Nothing is ready to collect right now.</div>
@@ -110,7 +127,7 @@
             {
                 @* Assignment alone is never collectibility: these are plain status rows with no action. *@
                 <section class="menu-group" aria-labelledby="menu-unavailable">
-                    <h2 id="menu-unavailable" class="menu-group-title">Assigned, not available</h2>
+                    <h2 id="menu-unavailable" class="menu-group-title">Assigned, not available <span class="menu-group-count">@Work.AssignedUnavailable.Count</span></h2>
                     <ul class="menu-list">
                         @foreach (var item in Work.AssignedUnavailable)
                         {
@@ -173,6 +190,9 @@
     bool OperationsUnavailable;
 
     TodaysWork Work => TodaysWorkBuilder.Build(Facilities, Operations, Queue);
+
+    // The server business date; the device clock only before the menu has loaded.
+    DateOnly BusinessDate => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
 
     protected override async Task OnInitializedAsync()
     {
