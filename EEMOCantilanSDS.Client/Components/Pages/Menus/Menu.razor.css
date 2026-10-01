@@ -762,30 +762,63 @@ a.dashboard-report-tab:hover {
     color: var(--text-secondary);
     box-shadow: inset 0 0 0 1px var(--border);
 }
+.vs-scope-note {
+    margin: 10px 2px 18px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
 
-/* V3 web-admin consistency (2026-10-01): blue supplies structure, not decoration — a thin civic-blue accent on the
-   identity band, a blue-tinted identity block, and a quiet scope line that says what the hero figures cover. */
+/* ── Dashboard hero, V3 (2026-10-01): ONE civic-blue surface. Identity and figures share the same band — no split
+      background — with white text, translucent separators and a light icon tile. Compact height; solid colour only. ── */
 .vs-hero {
-    border-top: 3px solid var(--civic-panel);
+    padding: 18px 24px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--civic-panel);
+    box-shadow: none;
 }
 
 .vs-hero-left {
-    padding: 10px 14px;
-    border-radius: 8px;
-    background: var(--surface-blue-subtle);
+    padding: 0;
+    background: transparent;
 }
 
 .vs-hero-icon {
-    background: var(--civic-panel);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.12);
 }
 
     .vs-hero-icon svg {
         stroke: #ffffff !important;
     }
 
-.vs-scope-note {
-    margin: 10px 2px 18px;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    color: var(--text-secondary);
+.vs-hero-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.vs-hero-title,
+.vs-hero-val {
+    color: #ffffff;
+}
+
+.vs-hero-sub,
+.vs-hero-sub2 {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.vs-hero-key {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.vs-hero-divider {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.vs-hero-progress {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.vs-hero-progress-fill {
+    background: #ffffff;
 }
