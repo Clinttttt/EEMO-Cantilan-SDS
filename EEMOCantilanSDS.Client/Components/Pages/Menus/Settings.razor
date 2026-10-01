@@ -280,16 +280,6 @@
                     </div>
                 }
             </section>
-            <!-- ── Storage usage (this municipality only) — every Head ── -->
-            @if (_isHead)
-            {
-                <TenantUsagePanel />
-            }
- <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
-            @if (_isHead)
-            {
-                <DatabaseHealthPanel />
-            }
             <!-- ── Backups & Restore — per-municipality for every Head; whole-DB tools operator-only ── -->
             @if (_isHead)
             {
@@ -333,6 +323,16 @@
                         <a class="set-link" href="/settings/backups">Open backups &amp; restore<span class="set-link-arrow">→</span></a>
                     </div>
                 </section>
+            }
+ <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
+            @if (_isHead)
+            {
+                <DatabaseHealthPanel />
+            }
+            <!-- ── Storage usage (this municipality only) — every Head ── -->
+            @if (_isHead)
+            {
+                <TenantUsagePanel />
             }
     <!-- ── System Information ── -->
             <section class="set-card">

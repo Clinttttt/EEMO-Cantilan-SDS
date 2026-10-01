@@ -101,7 +101,7 @@
 
 .tu-stat-num {
     font-size: 1.35rem;
-    font-weight: 800;
+    font-weight: 700;
     color: var(--navy);
     letter-spacing: -0.02em;
 }
@@ -235,3 +235,9 @@
 }
 .tu-restore-go:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 88%, black); }
 .tu-restore-go:disabled { opacity: .5; cursor: default; }
+
+/* V3 consistency: one quiet civic-blue icon tile for every settings card (status colour stays on the status itself). */
+.set-card-icon {
+    background: var(--accent-soft);
+    color: var(--civic-panel);
+}
