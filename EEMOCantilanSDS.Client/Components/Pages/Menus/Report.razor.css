@@ -2710,9 +2710,13 @@
     margin: 0 0 16px;
 }
 
+/* One joined control: a single outer border and radius, an internal divider only. The older .rpp rules above give a
+   selected pill its own radius, border and shadow; each is reset here, because any one of them reads as a seam. */
 .rpt-seg {
     display: inline-flex;
+    align-items: stretch;
     align-self: flex-end;
+    gap: 0;
     overflow: hidden;
     border: 1px solid var(--border-strong);
     border-radius: 8px;
@@ -2720,10 +2724,12 @@
 }
 
 .rpt-seg .rpp {
+    margin: 0;
     min-height: 36px;
     padding: 0 14px;
     border: 0;
     border-radius: 0;
+    box-shadow: none;
     background: transparent;
     color: var(--text-secondary);
     font: inherit;
@@ -2739,6 +2745,7 @@
 .rpt-seg .rpp.on {
     background: var(--accent-soft);
     color: var(--accent);
+    box-shadow: none;
 }
 
 .rpt-seg .rpp:focus-visible {
