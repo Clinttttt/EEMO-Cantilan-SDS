@@ -53,6 +53,22 @@ and Storage Usage swapped, one civic icon tile), Revenue Setup (full width, V3 t
 panel and section bands, real empty state, no meter wording), Financial Reports (joined scope controls, sticky section
 strip, All sources default), Collection Activity (scope stated truthfully).
 
+## Pages touched in the release-candidate pass (2026-10-01, cloud continuation)
+
+- **Revenue Setup** — the register is the only surface on the page. Manage opens a right-side drawer (`.v3-drawer-wide`)
+  with the policy in effect and the immutable policy history; nothing expands under the register. Add revenue source and
+  Schedule policy change are drawer forms that separate the permanent source identity (internal reference) from the
+  effective-dated policy being added. Retirement is a small confirmation above the drawer. Escape closes; focus moves in.
+- **Facility Configuration** — V3 workspace header instead of the topbar and dark hero; the facility card mosaic is a
+  register (facility, billing, units, ordinance rates, status, Configure). A note states scope: instrument and policy per
+  revenue source live in Revenue Setup. The configure drawer lost its blurred scrim and glow; its close control is visible.
+- **WCF Water Accounts** — Prepare Water amounts rows centre on one line, dividers run the full width, footnotes sit
+  under a hairline.
+- **Official Monthly Income** — office-sheet letterhead with the Bagong Pilipinas mark, one-page A4 landscape print with
+  fixed paper column widths (see `OFFICIAL_MONTHLY_INCOME_REPORT_V3.md`).
+- **Financial Reports · Collections** — one-line filters, full-bleed registers under header bands, the legacy-source
+  register in the same frame with no empty band above its table.
+
 ## Accountable Forms exclusion
 
 Accountable Forms is accepted as is and was not restyled. The pass added new tokens only; no shared rule that Accountable
