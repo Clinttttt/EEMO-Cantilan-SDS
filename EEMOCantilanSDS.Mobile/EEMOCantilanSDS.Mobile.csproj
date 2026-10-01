@@ -61,8 +61,9 @@
         <!-- App Icon — StallTrack seal on navy (was the default .NET bot) -->
         <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\stalltrackfg.png" Color="#0d2137" />
 
-        <!-- Splash Screen — plain light canvas so startup does not flash a dark block before the light V3 app -->
-        <MauiSplashScreen Include="Resources\Splash\stalltrack_splash.svg" Color="#f4f6f9" BaseSize="160,160" />
+        <!-- Splash Screen — the StallTrack icon (the launcher foreground, sized for the adaptive safe zone) on the Mobile V3
+             canvas (the mobile-canvas token, #eef3f9). The Blazor launch screen continues on the same canvas, so start-up reads as one state. -->
+        <MauiSplashScreen Include="Resources\Splash\stalltrack_splash.png" Color="#eef3f9" BaseSize="160,160" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />
