@@ -7,6 +7,18 @@ public interface IWcfCollectionsApiClient
 {
     Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetObligationsAsync(int throughYear, int throughMonth);
     Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
+
+    /// <summary>Head/Admin: the Water sources that can be set up for a billing period (GET api/wcf-collections/setup-sources).</summary>
+    Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(int billingYear, int billingMonth);
+
+    /// <summary>Head/Admin: establish or, before settlement, revise a direct approved Water amount (POST api/wcf-collections/obligations).</summary>
+    Task<Result<WcfSetupSourceDto>> EstablishObligationAsync(WcfObligationSetupRequest request);
+
+    /// <summary>Head/Admin: the activation dry-run for one Water obligation, with optional attested evidence.</summary>
+    Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence);
+
+    /// <summary>Head/Admin: make one Water obligation collectible on Collector Mobile through the scoped cutover.</summary>
+    Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest request);
     Task<Result<WcfCollectionOutcomeDto>> PostAsync(WcfCollectionPostRequest request);
     Task<Result<IReadOnlyList<WcfCollectionActivityDto>>> GetActivityAsync(DateOnly from, DateOnly to);
     Task<Result<IReadOnlyList<WcfReconciliationExceptionDto>>> GetReconciliationExceptionsAsync();

@@ -159,6 +159,9 @@ public class ApplicationEfBoundaryTests
         // The WCF operation adapter and accountable-form custody workflow require one tenant-scoped tracked
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",
+        // One Water obligation's activation for Mobile: reads its UtilityBill and frozen cutover row to resume each step of
+        // the existing SettlementCutoverWorkflow; it writes nothing itself.
+        "WcfActivationWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
         // permission rows. It carries no money, source, document or policy state.

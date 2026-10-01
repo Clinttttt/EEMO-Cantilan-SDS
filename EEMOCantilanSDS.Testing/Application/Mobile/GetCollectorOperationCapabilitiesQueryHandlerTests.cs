@@ -240,13 +240,15 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandlerTests
     }
 
     [Fact]
-    public async Task MissingNpmAuthorizationOrInactiveCollectorIsAssignedButInactive()
+    public async Task AnOperationOnlyCollector_IsReadyForWcf_WithoutNpmFacilityAssignment_ButAnInactiveOneIsNot()
     {
+        // IA-053: WCF is a utility operation. The writer authorizes on the WCF assignment alone, so the capability must too.
         var noNpm = Wcf(await RunAsync(await SeedAsync(npmFacility: false, operations: [CollectorOperationCodes.Wcf])));
         var inactive = Wcf(await RunAsync(await SeedAsync(active: false, operations: [CollectorOperationCodes.Wcf])));
 
-        Assert.Equal(CollectorOperationCapabilityStatus.AssignedButInactive, noNpm.Status);
-        Assert.Contains(GetCollectorOperationCapabilitiesQueryHandler.NpmFacilityRequired, noNpm.ReasonCodes);
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready, noNpm.Status);
+        Assert.True(noNpm.IsCollectible);
+        Assert.Empty(noNpm.ReasonCodes);
         Assert.Equal(CollectorOperationCapabilityStatus.AssignedButInactive, inactive.Status);
         Assert.Contains(GetCollectorOperationCapabilitiesQueryHandler.CollectorInactive, inactive.ReasonCodes);
     }

@@ -14,6 +14,19 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
         GetAsync<IReadOnlyList<CashTicketDocumentDto>>("api/wcf-collections/cash-tickets/available");
 
+    public Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(int billingYear, int billingMonth) =>
+        GetAsync<IReadOnlyList<WcfSetupSourceDto>>(
+            $"api/wcf-collections/setup-sources?billingYear={billingYear}&billingMonth={billingMonth}");
+
+    public Task<Result<WcfSetupSourceDto>> EstablishObligationAsync(WcfObligationSetupRequest request) =>
+        PostAsync<WcfObligationSetupRequest, WcfSetupSourceDto>("api/wcf-collections/obligations", request);
+
+    public Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence) =>
+        PostAsync<WcfActivationReadinessRequest, SettlementCutoverReadinessDto>("api/wcf-collections/activation-readiness", new(utilityBillId, evidence));
+
+    public Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest request) =>
+        PostAsync<EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest, SettlementCutoverOutcomeDto>("api/wcf-collections/activations", request);
+
     public Task<Result<WcfCollectionOutcomeDto>> PostAsync(WcfCollectionPostRequest request) =>
         PostAsync<WcfCollectionPostRequest, WcfCollectionOutcomeDto>("api/wcf-collections/collections", request);
 

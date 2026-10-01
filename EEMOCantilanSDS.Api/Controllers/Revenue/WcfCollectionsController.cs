@@ -22,6 +22,30 @@ public sealed class WcfCollectionsController(
     public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> CashTicketsAsync(CancellationToken ct) =>
         HandleResponse(await workflow.GetAvailableCashTicketsAsync(ct));
 
+    [HttpGet("setup-sources")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<WcfSetupSourceDto>>> SetupSourcesAsync(
+        [FromQuery] int billingYear, [FromQuery] int billingMonth, CancellationToken ct) =>
+        HandleResponse(await workflow.GetSetupSourcesAsync(billingYear, billingMonth, ct));
+
+    [HttpPost("obligations")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<WcfSetupSourceDto>> EstablishObligationAsync(
+        [FromBody] WcfObligationSetupRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.EstablishObligationAsync(request, ct));
+
+    [HttpPost("activation-readiness")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<SettlementCutoverReadinessDto>> ActivationReadinessAsync(
+        [FromBody] WcfActivationReadinessRequest request, [FromServices] WcfActivationWorkflow activation, CancellationToken ct) =>
+        HandleResponse(await activation.GetReadinessAsync(request.UtilityBillId, request.Evidence, ct));
+
+    [HttpPost("activations")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<SettlementCutoverOutcomeDto>> ActivateAsync(
+        [FromBody] WcfActivationRequest request, [FromServices] WcfActivationWorkflow activation, CancellationToken ct) =>
+        HandleResponse(await activation.ActivateAsync(request, ct));
+
     [HttpPost("collections")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<WcfCollectionOutcomeDto>> PostWebAsync(

@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
@@ -51,7 +52,123 @@ public sealed class WcfCollectionWorkflow(
                 result.Add(facts.Quote);
         }
         return Result<IReadOnlyList<WcfObligationQuoteDto>>.Success(result);
+    }, ct, requireNpmAuthorityForCollector: false);
+
+    /// <summary>
+    /// The Water sources a Head/Admin may set up for one billing period: NPM stalls with an occupancy answering for that
+    /// month (the current Water source context), each with its Water part as it stands for the period.
+    /// </summary>
+    public Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(
+        int billingYear, int billingMonth, CancellationToken ct = default) => Run(async actor =>
+    {
+        if (actor.Role is not ("Admin" or "SuperAdmin"))
+            return Result<IReadOnlyList<WcfSetupSourceDto>>.Forbidden();
+        if (billingYear is < 2000 or > 2200 || billingMonth is < 1 or > 12)
+            return Result<IReadOnlyList<WcfSetupSourceDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
+
+        var stalls = await db.Stalls.AsNoTracking()
+            .Include(x => x.Facility)
+            .Include(x => x.Contracts).ThenInclude(x => x.Payor)
+            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM)
+            .OrderBy(x => x.StallNo)
+            .ToListAsync(ct);
+        var stallIds = stalls.Select(x => x.Id).ToArray();
+        var bills = await db.UtilityBills.AsNoTracking()
+            .Where(x => x.MunicipalityId == actor.TenantId && stallIds.Contains(x.StallId)
+                && x.BillingYear == billingYear && x.BillingMonth == billingMonth)
+            .ToDictionaryAsync(x => x.StallId, ct);
+
+        var rows = new List<WcfSetupSourceDto>();
+        foreach (var stall in stalls)
+        {
+            var contract = stall.OccupancyAnsweringForMonth(billingYear, billingMonth, BusinessToday)?.Contract;
+            if (contract is null) continue;   // no payor answers for this month, so there is no Water obligation to set up
+            var payer = contract.PayorId is not null && contract.Payor?.MunicipalityId == actor.TenantId
+                ? contract.Payor.DisplayName
+                : string.IsNullOrWhiteSpace(contract.ActualOccupant) ? null : contract.ActualOccupant.Trim();
+            bills.TryGetValue(stall.Id, out var bill);
+            var locked = bill is null ? null : WaterLockReason(bill);
+            rows.Add(new WcfSetupSourceDto(
+                stall.Id, stall.StallNo, SectionOf(stall), payer,
+                bill?.Id, bill is null || bill.WaterCharge == 0m ? null : bill.WaterCharge,
+                bill is null ? null : bill.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered",
+                bill?.WaterSettlementAuthorityState, bill?.WaterAmountPaid ?? 0m, locked is null, locked));
+        }
+        return Result<IReadOnlyList<WcfSetupSourceDto>>.Success(rows);
     }, ct);
+
+    /// <summary>
+    /// Establishes, or revises before any settlement, the direct approved Water amount for one source and period (IA-053).
+    /// Uses the one stall/month UtilityBill — creating it only when none exists — and changes only its Water part, so an
+    /// Electricity amount on the same bill is never overwritten. A settled, partly settled or cutover Water part is frozen.
+    /// A new Water part starts under Legacy settlement authority: Mobile collection requires the approved cutover.
+    /// </summary>
+    public Task<Result<WcfSetupSourceDto>> EstablishObligationAsync(
+        WcfObligationSetupRequest request, CancellationToken ct = default) => Run(async actor =>
+    {
+        if (actor.Role is not ("Admin" or "SuperAdmin"))
+            return Result<WcfSetupSourceDto>.Forbidden();
+        if (request.BillingYear is < 2000 or > 2200 || request.BillingMonth is < 1 or > 12)
+            return Result<WcfSetupSourceDto>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
+        if (new DateOnly(request.BillingYear, request.BillingMonth, 1) > new DateOnly(BusinessToday.Year, BusinessToday.Month, 1))
+            return Result<WcfSetupSourceDto>.Failure("A Water obligation cannot be set up for a period that has not begun.", ResultStatus.Invalid);
+        if (request.ApprovedAmount <= 0m || request.ApprovedAmount > 1_000_000m
+            || decimal.Round(request.ApprovedAmount, 2, MidpointRounding.ToZero) != request.ApprovedAmount)
+            return Result<WcfSetupSourceDto>.Failure("Enter a positive approved amount with at most two decimal places.", ResultStatus.Invalid);
+
+        var stall = await db.Stalls
+            .Include(x => x.Facility)
+            .Include(x => x.Contracts).ThenInclude(x => x.Payor)
+            .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == request.StallId, ct);
+        if (stall is null)
+            return Result<WcfSetupSourceDto>.NotFound();
+        // The current Water source is an NPM-bound UtilityBill: NPM is its context here, never a collector authorization.
+        if (stall.Facility?.Code != FacilityCode.NPM)
+            return Result<WcfSetupSourceDto>.Failure("The current Water source applies to New Public Market stalls only.", ResultStatus.Invalid);
+        var contract = stall.OccupancyAnsweringForMonth(request.BillingYear, request.BillingMonth, BusinessToday)?.Contract;
+        if (contract is null)
+            return Result<WcfSetupSourceDto>.Failure("No occupancy answers for this stall and month, so there is no payor to owe the Water amount.", ResultStatus.Invalid);
+
+        var (previous, current, rate) = UtilityBill.DirectApprovedReadings(request.ApprovedAmount);
+        var bill = await db.UtilityBills.SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId
+            && x.StallId == stall.Id && x.BillingYear == request.BillingYear && x.BillingMonth == request.BillingMonth, ct);
+        if (bill is null)
+        {
+            bill = UtilityBill.Create(stall.Id, request.BillingYear, request.BillingMonth,
+                0m, 0m, 0m, previous, current, rate, actor.Username);
+            bill.SetCalculationBasis(UtilityCalculationBasis.DirectApproved, UtilityCalculationBasis.DirectApproved);
+            db.UtilityBills.Add(bill);
+        }
+        else
+        {
+            if (WaterLockReason(bill) is { } reason)
+                return Result<WcfSetupSourceDto>.Failure(reason, ResultStatus.Conflict);
+            // Electricity is passed through exactly as it stands, so this writer can never change it.
+            bill.UpdateReadings(bill.ElecPreviousReading, bill.ElecCurrentReading, bill.ElecRatePerKwh,
+                previous, current, rate, bill.Remarks, actor.Username);
+            bill.SetCalculationBasis(bill.ElecCalculationBasis, UtilityCalculationBasis.DirectApproved);
+        }
+        await db.SaveChangesAsync(ct);
+
+        var payer = contract.PayorId is not null && contract.Payor?.MunicipalityId == actor.TenantId
+            ? contract.Payor.DisplayName
+            : string.IsNullOrWhiteSpace(contract.ActualOccupant) ? null : contract.ActualOccupant.Trim();
+        return Result<WcfSetupSourceDto>.Success(new WcfSetupSourceDto(
+            stall.Id, stall.StallNo, SectionOf(stall), payer, bill.Id, bill.WaterCharge, "DirectApproved",
+            bill.WaterSettlementAuthorityState, bill.WaterAmountPaid, WaterLockReason(bill) is null, WaterLockReason(bill)));
+    }, ct);
+
+    // Why a Water part can no longer be revised here, or null while it is still a Legacy, unsettled assessment.
+    private static string? WaterLockReason(UtilityBill bill) =>
+        bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy
+            ? "This Water obligation has entered cutover or canonical settlement; its approved amount is frozen."
+            : bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterAmountPaid > 0m
+                ? "Settlement has begun on this Water obligation; its approved amount is frozen."
+                : null;
+
+    private static string SectionOf(Stall stall) => stall.Section is { } marketSection
+        ? stall.Facility!.SectionLabel(marketSection) ?? stall.CustomSectionName ?? string.Empty
+        : stall.CustomSectionName ?? string.Empty;
 
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync(
         CancellationToken ct = default) => Run(async actor =>
@@ -69,7 +186,7 @@ public sealed class WcfCollectionWorkflow(
             .Select(x => new CashTicketDocumentDto(x.Id, x.DocumentNumber, x.State, x.AssignedUserId, x.SerialNumber))
             .ToListAsync(ct);
         return Result<IReadOnlyList<CashTicketDocumentDto>>.Success(documents);
-    }, ct);
+    }, ct, requireNpmAuthorityForCollector: false);
 
     public Task<Result<IReadOnlyList<WcfReconciliationExceptionDto>>> GetReconciliationExceptionsAsync(
         CancellationToken ct = default) => Run(async actor =>
@@ -306,12 +423,13 @@ public sealed class WcfCollectionWorkflow(
             return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
                 "WEB_CHANNEL_RETIRED",
                 "Routine WCF collection is recorded by the assigned collector on Collector Mobile. Web WCF posting is retired; no Collection was created.", ct);
-        if (mobile && (!await CollectorHasOperationAssignmentAsync(
-                actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct)
-            || !await CollectorHasNpmAuthorityAsync(actor.UserId, actor.TenantId, ct)))
+        // WCF is a utility operation (IA-053): the collector is authorized by the WCF operation assignment alone. NPM is
+        // only the current Water source's context, checked on the source below, never a collector authorization.
+        if (mobile && !await CollectorHasOperationAssignmentAsync(
+                actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
             return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
                 "COLLECTOR_OPERATION_NOT_ASSIGNED",
-                "An explicit WCF operation assignment and NPM facility authorization are required. Any physically issued Cash Ticket is retained for office reconciliation.", ct);
+                "An explicit WCF operation assignment is required. Any physically issued Cash Ticket is retained for office reconciliation.", ct);
         var collectorOwnsDocument = mobile && document?.State == AccountableDocumentState.Assigned
             && document.AssignedUserId == actor.UserId;
         var validCustody = mobile

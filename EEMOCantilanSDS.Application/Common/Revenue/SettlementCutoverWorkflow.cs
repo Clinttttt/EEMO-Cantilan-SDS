@@ -206,6 +206,13 @@ public sealed class SettlementCutoverWorkflow(
                 .Where(x => x.MunicipalityId == actor.TenantId && x.FacilityId == facilityId)
                 .Select(x => x.CollectorId).Distinct().ToListAsync(ct)
             : [];
+        // Water is a utility operation (IA-053): besides the facility's collectors (the legacy utility writers, whose
+        // queues must be drained), every WCF-assigned collector can write it on Mobile, so each must attest too.
+        if (scope.SourceKind == CollectionSourceKind.UtilityBill && scope.SourcePart == CollectionSourcePart.Water)
+            affectedCollectors = affectedCollectors.Union(await db.CollectorOperationAssignments.AsNoTracking()
+                    .Where(x => x.MunicipalityId == actor.TenantId && x.OperationCode == CollectorOperationCodes.Wcf)
+                    .Select(x => x.CollectorId).Distinct().ToListAsync(ct))
+                .ToList();
         var reconciliationDocumentRows = await db.AccountableDocuments.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.TenantId
                 && (x.State == AccountableDocumentState.ReconciliationRequired
@@ -458,7 +465,7 @@ public sealed class SettlementCutoverWorkflow(
                     : $"Collector {collectorId:N} has incomplete Mobile version/queue-drain evidence.");
         }
         if (entries.Any(x => !affectedCollectors.Contains(x.CollectorId)))
-            blockers.Add("Collector capability evidence includes a collector outside the exact source facility scope.");
+            blockers.Add("Collector capability evidence includes a collector outside the collectors who can write this exact source.");
     }
 
     private IReadOnlyList<Guid> GetMissingCollectorEvidence(

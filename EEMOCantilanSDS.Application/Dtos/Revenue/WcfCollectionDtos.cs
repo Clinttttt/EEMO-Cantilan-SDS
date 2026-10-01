@@ -54,3 +54,21 @@ public sealed record WcfReconciliationExceptionDto(
     Guid ClientOperationId, string Origin, DateTime RecordedAtUtc,
     string OutcomeCode, string OutcomeDetails, Guid? AccountableDocumentId,
     string? DocumentNumber);
+
+/// <summary>
+/// Head/Admin request to establish (or, before any settlement, revise) the direct approved Water amount for one source and
+/// billing period (IA-053). It writes only the Water part of the single stall/month UtilityBill; Electricity is untouched.
+/// </summary>
+public sealed record WcfObligationSetupRequest(Guid StallId, int BillingYear, int BillingMonth, decimal ApprovedAmount);
+
+/// <summary>
+/// A Water source a Head/Admin may set up for a period: the stall that is the source context, the payor answering for the
+/// month, and the Water part as it stands. <see cref="Editable"/> is false once settlement or cutover has begun.
+/// </summary>
+public sealed record WcfSetupSourceDto(
+    Guid StallId, string StallNo, string Section, string? PayerName,
+    Guid? UtilityBillId, decimal? ApprovedAmount, string? ChargeBasis,
+    SettlementAuthority? SettlementAuthority, decimal SettledAmount, bool Editable, string? LockedReason);
+
+/// <summary>The activation dry-run request for one Water obligation.</summary>
+public sealed record WcfActivationReadinessRequest(Guid UtilityBillId, SettlementCutoverReconciliationEvidence? Evidence);

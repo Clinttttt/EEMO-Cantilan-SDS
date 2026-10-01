@@ -27,7 +27,6 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
 {
     public const string NoMobileWriter = "NO_MOBILE_WRITER";
     public const string CollectorInactive = "COLLECTOR_INACTIVE";
-    public const string NpmFacilityRequired = "NPM_FACILITY_REQUIRED";
     public const string NoCanonicalSource = "NO_CANONICAL_SOURCE";
     public const string PolicyNotEffective = "POLICY_NOT_EFFECTIVE";
     public const string NoAssignedCashTicket = "NO_ASSIGNED_CASH_TICKET";
@@ -79,8 +78,7 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
                 continue;
             }
 
-            operations.Add(await EvaluateWcfAsync(tenantId, collector.IsActive,
-                collector.FacilityAssignments.Any(x => x.FacilityCode == FacilityCode.NPM), collectorId, code, name, today, ct));
+            operations.Add(await EvaluateWcfAsync(tenantId, collector.IsActive, collectorId, code, name, today, ct));
         }
 
         return Result<CollectorOperationCapabilitiesDto>.Success(new(collectorId, today, operations));
@@ -159,15 +157,14 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
 
     /// <summary>Mirrors the gates WcfCollectionWorkflow.PostMobileAsync enforces, in the same terms.</summary>
     private async Task<CollectorOperationCapabilityDto> EvaluateWcfAsync(
-        Guid tenantId, bool collectorActive, bool hasNpmFacility, Guid collectorId,
+        Guid tenantId, bool collectorActive, Guid collectorId,
         string code, string name, DateOnly today, CancellationToken ct)
     {
         var reasons = new List<(CollectorOperationCapabilityStatus Status, string Code)>();
         if (!collectorActive)
             reasons.Add((CollectorOperationCapabilityStatus.AssignedButInactive, CollectorInactive));
-        // The current Water source is the NPM-bound UtilityBill, so its writer also requires NPM facility authorization.
-        if (!hasNpmFacility)
-            reasons.Add((CollectorOperationCapabilityStatus.AssignedButInactive, NpmFacilityRequired));
+        // WCF is a utility operation (IA-053): the WCF assignment authorizes the collector, exactly as the writer checks.
+        // The current Water source is an NPM-bound UtilityBill, but that is source context, not a collector gate.
 
         var canonicalWater = await db.UtilityBills.AsNoTracking().AnyAsync(x =>
             x.MunicipalityId == tenantId
