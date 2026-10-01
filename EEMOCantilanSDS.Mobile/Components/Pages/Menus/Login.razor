@@ -262,15 +262,8 @@
             var muni = await MunicipalitiesApi.GetMunicipalitiesAsync();
             if (muni.IsSuccess && muni.Value is not null)
             {
-                var active = muni.Value.Where(m => m.IsActive).OrderBy(m => m.Name).ToList();
-                if (active.Count == 1)
-                {
-                    SelectedMunicipalityCode = active[0].Code;
-                }
-                else if (active.Count > 1)
-                {
-                    SelectedMunicipalityCode = active.FirstOrDefault(m => m.IsDefault)?.Code;
-                }
+                // The single live LGU, or the one explicitly marked default; ambiguity resolves to null (fail closed).
+                SelectedMunicipalityCode = EEMOCantilanSDS.Mobile.Presentation.LoginTenant.ResolveUnbound(muni.Value);
             }
         }
         catch

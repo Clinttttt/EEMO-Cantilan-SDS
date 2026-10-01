@@ -56,6 +56,21 @@ public class CollectorLoginCommandHandlerTests
     }
 
     [Fact]
+    public async Task LockedCollector_IsRejected_EvenWithTheCorrectPassword()
+    {
+        // Five wrong attempts lock the account; the right password during the lockout is still refused, and says nothing
+        // about whether it was right.
+        var collector = NewCollector();
+        for (var i = 0; i < 5; i++) collector.RecordFailedLogin(DateTime.UtcNow);
+        var (handler, token, _, _) = Build(collector);
+
+        var result = await handler.Handle(new CollectorLoginCommand("juan", Password), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
+        token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
+    }
+
+    [Fact]
     public async Task BadPassword_RecordsFailedAttempt_AndReturnsUnauthorized()
     {
         var collector = NewCollector();
