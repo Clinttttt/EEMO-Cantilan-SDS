@@ -27,111 +27,69 @@
 
 <PageTitle>StallTrack — Facility Configuration</PageTitle>
 
-<header class="topbar">
-    <div class="topbar-left">
-        <div class="topbar-title">Facility Configuration</div>
-        <div class="topbar-breadcrumb">
-            <span>@Branding.OfficeAcronym Admin</span>
-            <span class="breadcrumb-sep">/</span>
-            <a class="breadcrumb-link" href="/settings">Settings</a>
-            <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-active">Facilities</span>
-        </div>
-    </div>
-    <div class="topbar-right">
-        <AccountChip />
-    </div>
-</header>
+@{
+    var loaded = _model is not null;
+    var configuredCount = _model?.Configured.Count ?? 0;
+    var activeCount = _model?.Configured.Count(f => f.IsActive) ?? 0;
+    var availableCount = _model?.Available.Count ?? 0;
+}
 
-<div class="content-area">
-
-    @{
-        var loaded = _model is not null;
-        var configuredCount = _model?.Configured.Count ?? 0;
-        var activeCount = _model?.Configured.Count(f => f.IsActive) ?? 0;
-        var availableCount = _model?.Available.Count ?? 0;
-    }
-
-    <!-- ── Hero ── -->
-    <div class="vs-hero">
-        <div class="vs-hero-left">
-            <div class="vs-hero-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
-                    <path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
-                </svg>
-            </div>
-            <div>
-                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Facilities</div>
-                <div class="vs-hero-title">Facility Configuration</div>
-                <div class="vs-hero-sub">Your municipality's facilities &amp; ordinance rates</div>
-            </div>
-        </div>
-        <div class="vs-hero-stats">
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@configuredCount</div>
-                <div class="vs-hero-key">Configured</div>
-                <div class="vs-hero-sub2">Operating</div>
-            </div>
-            <div class="vs-hero-divider"></div>
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@activeCount</div>
-                <div class="vs-hero-key">Active</div>
-                <div class="vs-hero-sub2">Collecting</div>
-            </div>
-            <div class="vs-hero-divider"></div>
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@availableCount</div>
-                <div class="vs-hero-key">Available</div>
-                <div class="vs-hero-sub2">To add</div>
-            </div>
-        </div>
-    </div>
+@* Scope: the office's own facilities — their identity, market sections and fixed ordinance rates. The accountable
+   instrument and effective-dated policy of each revenue source (facility or not) live in Revenue Setup. The layout owns
+   the <main> landmark. *@
+<div class="v3-page fac-page">
+    <WorkspaceHeader Title="Facility Configuration" Parent="Settings" ParentHref="/settings"
+                     Subtitle="Your municipality's facilities, market sections and fixed ordinance rates" />
 
     @if (_error is not null)
     {
-        <div class="set-state">
+        <div class="set-state" role="alert">
             <div class="set-state-title">Couldn't load facilities</div>
             <div class="set-state-text">@_error</div>
-            <button class="set-retry" @onclick="LoadAsync">Try again</button>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="LoadAsync">Try again</button>
         </div>
     }
     else
     {
         <!-- ── Configured facilities ── -->
-        <section class="set-card">
-            <div class="set-card-head">
-                <div class="set-card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-                </div>
-                <div class="set-card-titles">
-                    <div class="set-card-title">Configured facilities</div>
-                    <div class="set-card-sub">@(loaded ? $"{configuredCount} facilit{(configuredCount == 1 ? "y" : "ies")} · select one to configure its rates" : "Select a facility to configure its rates")</div>
+        <section class="v3-panel" aria-labelledby="fac-configured-title" aria-busy="@(loaded ? "false" : "true")">
+            <header class="v3-panel-header">
+                <div class="fac-panel-title">
+                    <h2 id="fac-configured-title">Configured facilities</h2>
+                    @if (loaded)
+                    {
+                        <span class="v3-panel-meta">@configuredCount configured · @activeCount active</span>
+                    }
                 </div>
 
                 @* The market's own month rule, stated where the office reads its facilities rather than buried in a drawer:
-                   it decides what every daily rate adds up to, so it belongs beside the list and not inside one card. Shown
+                   it decides what every daily rate adds up to, so it belongs beside the list and not inside one row. Shown
                    only to an office that runs a market, since nothing else has a market month. *@
                 @if (loaded && _hasMarket)
                 {
-                    <button class="fac-btn fac-btn-ghost set-card-action" type="button" @onclick="OpenMonthBasis">
-                        Market month rule
-                    </button>
+                    <button class="v3-btn" type="button" @onclick="OpenMonthBasis">Market month rule</button>
                 }
-            </div>
+            </header>
 
             @if (!loaded)
             {
-                <div class="fac-grid">
-                    @for (var i = 0; i < 4; i++)
-                    {
-                        <div class="fac-card fac-card-skeleton">
-                            <Skeleton Width="52px" Height="52px" Radius="12px" />
-                            <Skeleton Width="70%" Height="14px" Radius="6px" />
-                            <Skeleton Width="45%" Height="11px" Radius="6px" />
-                            <Skeleton Width="100%" Height="11px" Radius="6px" />
-                        </div>
-                    }
+                <div class="v3-table-wrap">
+                    <table class="v3-table fac-table">
+                        <thead><tr><th>Facility</th><th>Billing</th><th class="v3-num">Units</th><th>Ordinance rates</th><th>Status</th><th><span class="v3-sr-only">Actions</span></th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < 4; i++)
+                            {
+                                <tr class="fac-skeleton-row">
+                                    <td><Skeleton Width="70%" Height="12px" Radius="6px" /></td>
+                                    <td><Skeleton Width="60%" Height="11px" Radius="6px" /></td>
+                                    <td><Skeleton Width="40%" Height="11px" Radius="6px" /></td>
+                                    <td><Skeleton Width="80%" Height="11px" Radius="6px" /></td>
+                                    <td><Skeleton Width="50%" Height="11px" Radius="6px" /></td>
+                                    <td></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             }
             else if (configuredCount == 0)
@@ -140,109 +98,117 @@
             }
             else
             {
-                <div class="fac-grid">
-                    @foreach (var f in _model!.Configured)
-                    {
-                        <button type="button" class="fac-card fac-card-btn @(f.IsActive ? "" : "fac-card-inactive")" @onclick="() => OpenConfigure(f)">
-                            <div class="fac-card-top">
-                                @* The facility's own mark, as in the sidebar and on its page. A custom facility
-                                   has no dedicated artwork, so it keeps its short code. *@
-                                <div class="fac-badge">
-                                    @if (CodeOf(f.Code) is { } markCode)
-                                    {
-                                        <FacilityMark Code="markCode" Ink="FacilityMarkInk.White" Size="24">
-                                            <Fallback><span class="fac-badge-code">@f.ShortName</span></Fallback>
-                                        </FacilityMark>
-                                    }
-                                    else
-                                    {
-                                        <span class="fac-badge-code">@f.ShortName</span>
-                                    }
-                                </div>
-                                <div class="fac-titles">
-                                    <div class="fac-name">@f.Name</div>
-                                </div>
-                                <span class="fac-pill @(f.IsActive ? "fac-pill-on" : "fac-pill-off")">@(f.IsActive ? "Active" : "Inactive")</span>
-                            </div>
-
-                            <div class="fac-meta">
-                                <span class="fac-meta-item">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13" /><path d="M9 21v-6h6v6" /></svg>
-                                    @f.BillingModel
-                                </span>
-                                @if (f.StallCount > 0)
-                                {
-                                    <span class="fac-meta-item">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-                                        @f.StallCount unit@(f.StallCount == 1 ? "" : "s")
-                                    </span>
-                                }
-                            </div>
-
-                            <div class="fac-rates">
-                                @if (f.Rates.Count == 0)
-                                {
-                                    <div class="fac-rate-none">Rents set per stall</div>
-                                }
-                                else
-                                {
-                                    @* The card is a short statement of the rates in force. A daily-stall market's
-                                       MONTHLY rent is left off it: the facility is let by the day, the office reads
-                                       the daily fee on the line above, and the month follows from it. Its label also
-                                       had to carry the month-length convention in a parenthesis, which was longer
-                                       than the card and pushed the amount off the edge. It stays on the configure
-                                       screen behind this card, where an office whose ordinance states a monthly rent
-                                       can set one.
-
-                                       The metered utilities are the reason the amount is filtered too: electricity
-                                       and water are entered per bill, and printing them here as unset invited the
-                                       reading that the space came with neither. *@
-                                    @foreach (var r in f.Rates.Where(ShownOnCard))
-                                    {
-                                        <div class="fac-rate">
-                                            <span class="fac-rate-label">@r.Label</span>
-                                            <span class="fac-rate-dots"></span>
-                                            <span class="fac-rate-amt">₱@r.Amount.ToString("N2")</span>
+                <div class="v3-table-wrap" role="region" aria-label="Configured facilities" tabindex="0">
+                    <table class="v3-table fac-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Facility</th>
+                                <th scope="col">Billing</th>
+                                <th scope="col" class="v3-num">Units</th>
+                                <th scope="col">Ordinance rates</th>
+                                <th scope="col">Status</th>
+                                <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var f in _model!.Configured)
+                            {
+                                <tr class="@(f.IsActive ? null : "fac-row-inactive")">
+                                    <td>
+                                        <div class="fac-ident">
+                                            @* The facility's own mark, as in the sidebar and on its page. A custom facility
+                                               has no dedicated artwork, so it keeps its short code. *@
+                                            <span class="fac-badge" aria-hidden="true">
+                                                @if (CodeOf(f.Code) is { } markCode)
+                                                {
+                                                    <FacilityMark Code="markCode" Ink="FacilityMarkInk.Navy" Size="18">
+                                                        <Fallback><span class="fac-badge-code">@f.ShortName</span></Fallback>
+                                                    </FacilityMark>
+                                                }
+                                                else
+                                                {
+                                                    <span class="fac-badge-code">@f.ShortName</span>
+                                                }
+                                            </span>
+                                            <span class="fac-titles">
+                                                <span class="fac-name">@f.Name</span>
+                                                <span class="fac-code">@f.ShortName</span>
+                                            </span>
                                         </div>
-                                    }
+                                    </td>
+                                    <td class="fac-billing">@f.BillingModel</td>
+                                    <td class="v3-num">@(f.StallCount > 0 ? f.StallCount.ToString("N0") : "—")</td>
+                                    <td>
+                                        @if (f.Rates.Count == 0)
+                                        {
+                                            <span class="fac-rate-none">Rents set per stall</span>
+                                        }
+                                        else
+                                        {
+                                            @* The row is a short statement of the rates in force. A daily-stall market's
+                                               MONTHLY rent is left off it: the facility is let by the day, the office reads
+                                               the daily fee, and the month follows from it. It stays on the configure
+                                               drawer, where an office whose ordinance states a monthly rent can set one.
 
-                                    @if (f.Rates.Count > 0 && !f.Rates.Any(ShownOnCard))
-                                    {
-                                        @* Said plainly rather than leaving the card blank, which reads as a loading
-                                           failure rather than as work still to do. Tests the same predicate the list
-                                           above filters on, so the two cannot disagree and leave the card empty with
-                                           nothing to explain it. *@
-                                        <div class="fac-rate fac-rate-none">No ordinance rates set yet</div>
-                                    }
-                                }
-                            </div>
-                            <span class="fac-card-cta">Configure <span aria-hidden="true">→</span></span>
-                        </button>
-                    }
+                                               The metered utilities are filtered too: electricity and water are entered
+                                               per bill, and printing them here as unset invited the reading that the space
+                                               came with neither. *@
+                                            <ul class="fac-rates">
+                                                @foreach (var r in f.Rates.Where(ShownOnCard))
+                                                {
+                                                    <li class="fac-rate">
+                                                        <span class="fac-rate-label">@r.Label</span>
+                                                        <span class="fac-rate-amt">₱@r.Amount.ToString("N2")</span>
+                                                    </li>
+                                                }
+                                            </ul>
+
+                                            @if (!f.Rates.Any(ShownOnCard))
+                                            {
+                                                @* Said plainly rather than leaving the cell blank, which reads as a loading
+                                                   failure rather than as work still to do. Tests the same predicate the list
+                                                   above filters on, so the two cannot disagree. *@
+                                                <span class="fac-rate-none">No ordinance rates set yet</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td><span class="fac-pill @(f.IsActive ? "fac-pill-on" : "fac-pill-off")">@(f.IsActive ? "Active" : "Inactive")</span></td>
+                                    <td class="fac-actions">
+                                        <button type="button" class="v3-btn v3-btn-sm fac-configure" @onclick="() => OpenConfigure(f)"
+                                                aria-label="@($"Configure {f.Name}")">Configure</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             }
+            <p class="v3-panel-note fac-scope">
+                Each revenue source's accountable instrument and effective-dated policy, including sources without a facility,
+                is set in <a href="/settings/revenue">Revenue Setup</a>.
+            </p>
         </section>
 
         <!-- ── Available to add ── -->
-        <section class="set-card">
-            <div class="set-card-head">
-                <div class="set-card-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+        <section class="v3-panel" aria-labelledby="fac-available-title">
+            <header class="v3-panel-header">
+                <div class="fac-panel-title">
+                    <h2 id="fac-available-title">Available to add</h2>
+                    @if (loaded)
+                    {
+                        <span class="v3-panel-meta">Standard facility types not yet configured</span>
+                    }
                 </div>
-                <div class="set-card-titles">
-                    <div class="set-card-title">Available to add</div>
-                    <div class="set-card-sub">Standard facility types not yet configured</div>
-                </div>
-            </div>
+            </header>
 
             @if (!loaded)
             {
-                <div class="avail-grid">
+                <ul class="avail-list">
                     @for (var i = 0; i < 3; i++)
                     {
-                        <div class="avail-tile"><Skeleton Width="60%" Height="12px" Radius="6px" /></div>
+                        <li class="avail-row"><Skeleton Width="40%" Height="12px" Radius="6px" /></li>
                     }
-                </div>
+                </ul>
             }
             else if (availableCount == 0)
             {
@@ -250,19 +216,20 @@
             }
             else
             {
-                <div class="avail-grid">
+                <ul class="avail-list">
                     @foreach (var a in _model!.Available)
                     {
-                        <button type="button" class="avail-tile avail-tile-btn @(a.IsCustom ? "avail-tile-custom" : "")" @onclick="() => OpenAdd(a)" title="@("Add " + a.Name)">
-                            <div class="avail-tile-badge">@(a.IsCustom ? "＋" : a.ShortName)</div>
-                            <div class="avail-tile-body">
-                                <div class="avail-tile-name">@a.Name</div>
-                                <div class="avail-tile-model">@a.BillingModel@(a.IsCustom ? " · your own name" : "")</div>
-                            </div>
-                            <span class="avail-tile-add">+ Add</span>
-                        </button>
+                        <li class="avail-row @(a.IsCustom ? "avail-row-custom" : "")">
+                            <span class="avail-badge" aria-hidden="true">@(a.IsCustom ? "+" : a.ShortName)</span>
+                            <span class="avail-body">
+                                <span class="avail-name">@a.Name</span>
+                                <span class="avail-model">@a.BillingModel@(a.IsCustom ? " · your own name" : "")</span>
+                            </span>
+                            <button type="button" class="v3-btn v3-btn-sm avail-add" @onclick="() => OpenAdd(a)"
+                                    aria-label="@("Add " + a.Name)">Add</button>
+                        </li>
                     }
-                </div>
+                </ul>
             }
         </section>
     }

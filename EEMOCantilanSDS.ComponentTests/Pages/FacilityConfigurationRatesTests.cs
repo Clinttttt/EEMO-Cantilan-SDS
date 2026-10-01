@@ -72,8 +72,8 @@ public class FacilityConfigurationRatesTests : TestContext
 
         var cut = RenderComponent<FacilityConfiguration>();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-card")));
-        cut.Find(".fac-card").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-configure")));
+        cut.Find(".fac-configure").Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-drawer")));
 
         return cut;
@@ -150,7 +150,7 @@ public class FacilityConfigurationRatesTests : TestContext
         PressEditNames(cut);
         PressEditRates(cut);
 
-        cut.Find(".fac-card").Click();
+        cut.Find(".fac-configure").Click();
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-name-value")));
         Assert.Empty(cut.FindAll(".cfg-rate-input input"));

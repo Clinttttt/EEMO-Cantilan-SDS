@@ -70,8 +70,8 @@ public class FacilityConfigurationSectionsTests : TestContext
         var cut = RenderComponent<FacilityConfiguration>();
 
         // The block lives in the market's own configuration drawer, which the office opens from its card.
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-card")));
-        cut.Find(".fac-card").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-configure")));
+        cut.Find(".fac-configure").Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-drawer")));
 
         return cut;
@@ -424,8 +424,8 @@ public class FacilityConfigurationSectionsTests : TestContext
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
 
         var cut = RenderComponent<FacilityConfiguration>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-card")));
-        cut.Find(".fac-card").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-configure")));
+        cut.Find(".fac-configure").Click();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cfg-drawer")));
         return cut;
     }

@@ -1,100 +1,5 @@
-/* Facility Configuration — component-scoped styling built on the app.css design tokens.
-   Mirrors the Settings visual language (cards, navy/gold accents) with facility-specific tiles. */
-
-/* ── Shared shell styles (vs-hero / set-card / set-state) are defined per-page in this codebase's
-   scoped CSS, so the subset this page uses is copied here (same values as Settings.razor.css). ── */
-
-.vs-hero {
-    position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 24px 28px 18px;
-    margin-bottom: 18px;
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    overflow: hidden;
-    flex-wrap: wrap;
-}
-.vs-hero::before {
-    content: "";
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    width: 220px;
-    height: 220px;
-    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%);
-    pointer-events: none;
-}
-.vs-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 240px; }
-.vs-hero-stats { flex: 1; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
-.vs-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200, 168, 75, .18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.vs-hero-icon svg {
-    width: 26px;
-    height: 26px;
-    stroke: var(--gold);
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
-.vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
-.vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
-.vs-hero-stat { padding: 0 18px; text-align: center; flex: 1; min-width: 140px; }
-.vs-hero-stat:first-child { padding-left: 0; }
-.vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
-.vs-hero-key { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
-.vs-hero-sub2 { font-size: 11px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
-.vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
-@media (max-width: 1100px) {
-    .vs-hero-title { font-size: 18px; }
-    .vs-hero-val { font-size: 18px; }
-    .vs-hero-stat { padding: 0 14px; }
-}
-@media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
-@media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
-
-.set-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px 16px;
-    box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
-    margin-bottom: 18px;
-}
-.set-card-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding-bottom: 14px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-.set-card-icon {
-    flex-shrink: 0;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-icon);
-    color: var(--navy);
-}
-.set-card-icon svg { width: 19px; height: 19px; }
-.set-card-titles { flex: 1; min-width: 0; }
-.set-card-title { font-size: 14.5px; font-weight: 800; color: var(--navy); }
-.set-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+/* Facility Configuration — component-scoped styling on the app.css V3 tokens. The page is a V3 workspace
+   (WorkspaceHeader + .v3-panel registers); the configure drawer and its dialogs keep their own cfg-/hist- parts. */
 
 .set-state {
     display: flex;
@@ -105,325 +10,209 @@
     text-align: center;
     min-height: 320px;
     padding: 40px 20px;
-    background: var(--bg-card);
+    background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 10px;
 }
-.set-state-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.set-state-title { font-size: 15px; font-weight: 700; color: var(--navy); }
 .set-state-text { font-size: 13px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }
-.set-retry {
-    margin-top: 4px;
-    font-size: 13px; font-weight: 650;
-    color: #fff; background: var(--accent);
-    border: none; border-radius: 9px;
-    padding: 9px 18px; cursor: pointer;
-    transition: background .14s ease;
-}
-.set-retry:hover { background: var(--accent-hover); }
 
-/* ── Facility-specific ── */
-.fac-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-    margin-top: 4px;
-    align-items: stretch; /* every card in a row shares the tallest card's height for a consistent grid */
-}
-
-.fac-card {
+/* ── Configured facilities register ── */
+.fac-panel-title {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
-    height: 100%; /* fill the stretched grid cell so sibling cards match in size */
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: var(--bg-card);
-    position: relative;
-    overflow: hidden;
-    transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
 }
 
-.fac-card::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
-    background: var(--gold);
-    opacity: .85;
+.fac-table td {
+    vertical-align: middle;
 }
 
-.fac-card:hover {
-    box-shadow: 0 8px 24px rgba(13, 33, 55, .10);
-    border-color: var(--gold-light);
-    transform: translateY(-1px);
+.fac-billing {
+    white-space: nowrap;
 }
 
-.fac-card-inactive {
-    opacity: .72;
-}
-
-.fac-card-inactive::before {
-    background: var(--text-muted);
-}
-
-.fac-card-skeleton {
+.fac-ident {
+    display: flex;
+    align-items: center;
     gap: 10px;
-}
-
-.fac-card-top {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
+    min-width: 14rem;
 }
 
 .fac-badge {
-    flex: 0 0 auto;
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
-    border-radius: 12px;
-    background: var(--accent);
-    color: #fff;
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--navy);
+}
+
+.fac-badge-code {
+    font-size: 0.6875rem;
     font-weight: 700;
-    font-size: 12px;
-    letter-spacing: .04em;
+    letter-spacing: .02em;
 }
 
 .fac-titles {
-    flex: 1 1 auto;
+    display: flex;
     min-width: 0;
+    flex-direction: column;
 }
 
 .fac-name {
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.25;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    color: var(--navy);
+    font-weight: 600;
 }
 
 .fac-code {
-    font-size: 11px;
-    color: var(--text-muted);
-    letter-spacing: .06em;
-    margin-top: 2px;
-}
-
-.fac-pill {
-    flex: 0 0 auto;
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: .03em;
-    padding: 3px 9px;
-    border-radius: 999px;
-    text-transform: uppercase;
-}
-
-.fac-pill-on {
-    color: var(--green);
-    background: var(--green-bg);
-}
-
-.fac-pill-off {
-    color: var(--text-subtle);
-    background: var(--bg-icon);
-}
-
-.fac-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 14px;
-}
-
-.fac-meta-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-subtle);
-}
-
-.fac-meta-item svg {
-    width: 14px;
-    height: 14px;
-    color: var(--accent);
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
 }
 
 .fac-rates {
-    border-top: 1px dashed var(--border);
-    padding-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 12rem;
+    max-width: 22rem;
 }
 
 .fac-rate {
     display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-size: 12.5px;
+    justify-content: space-between;
+    gap: 16px;
 }
 
 .fac-rate-label {
-    color: var(--text-subtle);
-    white-space: nowrap;
-}
-
-.fac-rate-dots {
-    flex: 1 1 auto;
-    border-bottom: 1px dotted var(--border);
-    transform: translateY(-3px);
+    color: var(--text-secondary);
 }
 
 .fac-rate-amt {
-    font-weight: 700;
     color: var(--text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.fac-rate-none {
-    font-size: 12px;
-    color: var(--text-muted);
+.fac-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fac-pill-on {
+    border-color: color-mix(in srgb, var(--green) 28%, transparent);
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.fac-row-inactive .fac-name,
+.fac-row-inactive td {
+    color: var(--text-tertiary);
+}
+
+.fac-row-inactive .fac-badge {
+    background: var(--surface-muted);
+}
+
+.fac-actions {
+    width: 1%;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .fac-empty {
-    padding: 22px;
+    padding: 28px 20px;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
     text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
-    border: 1px dashed var(--border);
-    border-radius: 12px;
 }
 
-/* Available-to-add tiles */
-.avail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 12px;
-    margin-top: 4px;
+.fac-scope {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
 }
 
-.avail-tile {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 12px 14px;
-    border: 1px dashed var(--border);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--bg-icon) 55%, transparent);
-}
-
-.avail-tile-badge {
-    flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
-    display: grid;
-    place-items: center;
-    border-radius: 10px;
-    background: var(--bg-icon);
-    color: var(--navy);
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: .04em;
-}
-
-.avail-tile-body {
-    min-width: 0;
-}
-
-.avail-tile-name {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text);
-    line-height: 1.2;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.avail-tile-model {
-    font-size: 11.5px;
-    color: var(--text-muted);
-    margin-top: 2px;
-}
-
-.fac-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin-top: 14px;
-    padding: 11px 13px;
-    border-radius: 10px;
-    background: var(--bg-icon);
-    color: var(--text-subtle);
-    font-size: 12.5px;
-    line-height: 1.4;
-}
-
-.fac-note svg {
-    flex: 0 0 auto;
-    width: 15px;
-    height: 15px;
+.fac-scope a {
     color: var(--accent);
-    margin-top: 1px;
+    font-weight: 600;
 }
 
-/* Clickable available tiles + add form */
-.avail-tile-btn {
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+.fac-scope a:focus-visible {
+    border-radius: 2px;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
-.avail-tile-btn:hover {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--gold) 8%, var(--bg-card));
+/* ── Available to add: one row per standard type ── */
+.avail-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-/* The Head-named custom slot — gold dashed accent to read as "create your own". */
-.avail-tile-custom {
-    border-style: dashed;
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--gold) 6%, var(--bg-card));
-}
-.avail-tile-custom .avail-tile-badge {
-    background: var(--gold);
-    color: #fff;
-    font-size: 18px;
+.avail-row {
+    display: flex;
+    min-height: 60px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
 }
 
-.avail-tile-active {
-    border-style: solid;
-    border-color: var(--navy);
-    background: var(--bg-card);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--navy) 18%, transparent);
-}
-
-.avail-tile-add {
-    margin-left: auto;
-    align-self: center;
-    flex: 0 0 auto;
-    font-size: 11.5px;
+.avail-badge {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
     font-weight: 700;
-    color: var(--navy);
-    background: var(--bg-icon);
-    border-radius: 999px;
-    padding: 4px 10px;
 }
 
-.avail-tile-btn:hover .avail-tile-add {
-    background: var(--gold);
-    color: #fff;
+.avail-row-custom .avail-badge {
+    border-style: dashed;
+    color: var(--accent);
+    font-size: 1rem;
+}
+
+.avail-body {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.avail-name {
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.avail-model {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
 }
 
 .fac-addform {
@@ -440,7 +229,7 @@
     border-bottom: 1px solid var(--border);
 }
 
-.fac-addform-title { font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.fac-addform-title { font-size: 14.5px; font-weight: 700; color: var(--navy); }
 .fac-addform-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
 .fac-addform-sub strong { color: var(--text-subtle); }
 
@@ -543,7 +332,7 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    font-weight: 650;
+    font-weight: 600;
     border-radius: 9px;
     padding: 9px 18px;
     cursor: pointer;
@@ -562,28 +351,6 @@
 @media (max-width: 560px) {
     .fac-addform-grid { grid-template-columns: 1fr; }
 }
-
-/* ── Configured cards as buttons ── */
-.fac-card-btn {
-    width: 100%;
-    text-align: left;
-    font: inherit;
-    cursor: pointer;
-    color: inherit;
-}
-.fac-card-cta {
-    margin-top: auto;
-    align-self: flex-start;
-    padding-top: 4px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--navy);
-    opacity: 0;
-    transform: translateX(-4px);
-    transition: opacity .16s ease, transform .16s ease;
-}
-.fac-card-btn:hover .fac-card-cta { opacity: 1; transform: translateX(0); }
-.fac-card-btn:hover .fac-card-cta { color: var(--accent); }
 
 /* ── Slide-over configuration drawer ── */
 .cfg-scrim {
@@ -628,7 +395,7 @@
     pointer-events: none;
 }
 .cfg-head-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
-.cfg-head-title { font-size: 19px; font-weight: 800; line-height: 1.2; margin-top: 4px; }
+.cfg-head-title { font-size: 19px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
 .cfg-head-sub { font-size: 12.5px; color: rgba(255,255,255,.6); margin-top: 3px; }
 .cfg-close {
     position: absolute;
@@ -881,7 +648,7 @@
     gap: 8px;
     align-self: flex-start;
     font-size: 13px;
-    font-weight: 650;
+    font-weight: 600;
     color: var(--navy);
     background: var(--bg-icon);
     border: 1px solid var(--border);
@@ -896,7 +663,7 @@
 .cfg-deactivate {
     align-self: flex-start;
     font-size: 12.5px;
-    font-weight: 650;
+    font-weight: 600;
     color: var(--red);
     background: transparent;
     border: 1px solid #e6c4c4;
@@ -965,7 +732,7 @@
     flex: 0 0 auto;
 }
 .hist-head-titles { flex: 1 1 auto; min-width: 0; }
-.hist-title { font-size: 17px; font-weight: 800; line-height: 1.2; margin-top: 3px; }
+.hist-title { font-size: 17px; font-weight: 700; line-height: 1.2; margin-top: 3px; }
 .hist-yearnav { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 13.5px; white-space: nowrap; }
 .hist-yearnav button {
     width: 30px; height: 30px;
@@ -993,7 +760,7 @@
     font-size: 13px;
     color: var(--text-muted);
 }
-.hist-summary strong { color: var(--navy); font-size: 15px; font-weight: 800; }
+.hist-summary strong { color: var(--navy); font-size: 15px; font-weight: 700; }
 .hist-summary .hist-out { color: var(--red); }
 .hist-summary-muted { margin-left: auto; color: var(--text-subtle); font-size: 12px; }
 
@@ -1031,23 +798,10 @@
     .hist-table { font-size: 12px; }
 }
 
-/* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
-@media (max-width: 768px) {
-    .vs-hero { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 18px; padding: 16px 16px 18px; }
-    .vs-hero-left { flex: none; min-width: 0; gap: 14px; }
-    .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; flex: none; }
-    .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
-    .vs-hero-divider { display: none; }
-    .vs-hero-icon { display: none; }
-    .vs-hero-sub2 { display: none; }
-}
-
-
 /* No ordinance rates stated yet. Said plainly, because a blank panel reads as a page that failed to load rather than
    as configuration still to do. */
 .fac-rate-none {
-    color: var(--text-muted);
-    font-style: italic;
+    color: var(--text-tertiary);
 }
 
 /* Closing a section sits under the fee, separated: it is a different kind of act from setting a figure. */
@@ -1067,7 +821,7 @@
     border-radius: 16px;
     box-shadow: 0 24px 60px rgba(9, 31, 52, .22);
 }
-.cfg-basis-title { font-size: 16px; font-weight: 800; color: var(--navy); }
+.cfg-basis-title { font-size: 16px; font-weight: 700; color: var(--navy); }
 /* Side by side, so the two rules are read against each other rather than one after the other. Stacks on a narrow
    screen, where a two-column row would wrap into something worse than a stack. */
 .cfg-basis-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
@@ -1086,75 +840,6 @@
 .cfg-basis-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
 .cfg-basis-meta { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
 .cfg-basis-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
-/* The rule sits beside the facility list's own heading, so it reads as belonging to the whole market rather than a card. */
-.set-card-action { flex: 0 0 auto; margin-left: auto; align-self: center; }
-
-
-/* ══════════════════════════════════════════════════════════════
-   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
-   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
-   ══════════════════════════════════════════════════════════════ */
-.vs-hero {
-    padding: 20px 24px 22px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--elevation-1);
-}
-
-    .vs-hero::before,
-    .vs-hero::after {
-        display: none;
-    }
-
-.vs-hero-icon {
-    border-color: transparent;
-    background: var(--accent-soft);
-}
-
-    .vs-hero-icon svg {
-        stroke: var(--navy) !important;
-    }
-
-.vs-hero-eyebrow {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-title,
-.vs-hero-val {
-    color: var(--navy);
-}
-
-.vs-hero-val {
-    font-variant-numeric: tabular-nums;
-}
-
-.vs-hero-sub,
-.vs-hero-sub2 {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.vs-hero-divider {
-    background: var(--border);
-}
-
-.vs-hero-progress {
-    height: 3px;
-    background: var(--surface-muted);
-}
-
-.vs-hero-progress-fill {
-    background: var(--accent);
-}
-
 .cfg-head,
 .hist-head {
     border-bottom: 1px solid var(--border);
@@ -1164,4 +849,68 @@
 
 .cfg-head-sub {
     color: var(--text-tertiary);
+}
+
+/* V3 drawer: a white header with no decoration, a plain scrim, a visible close control and quiet facts. */
+.cfg-head::before {
+    display: none;
+}
+
+.cfg-head-eyebrow {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.cfg-head-title {
+    color: var(--navy);
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.cfg-close {
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 1rem;
+}
+
+.cfg-close:hover {
+    background: var(--surface-hover);
+    color: var(--navy);
+}
+
+.cfg-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.cfg-scrim {
+    background: rgba(13, 33, 55, .38);
+    backdrop-filter: none;
+}
+
+.cfg-summary-item {
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.cfg-summary-item span {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.cfg-summary-item strong {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cfg-scrim,
+    .cfg-drawer {
+        animation: none;
+    }
 }
