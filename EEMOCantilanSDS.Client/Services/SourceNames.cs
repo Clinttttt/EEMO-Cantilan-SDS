@@ -49,6 +49,11 @@ public static partial class SourceNames
         return Names.TryGetValue(code.Trim(), out var name) ? name : Humanize(code);
     }
 
+    /// <summary>A name to show for a value that is usually a name but may be a stable code (an unnamed policy, a test tenant).</summary>
+    public static string Name(string? nameOrCode) =>
+        string.IsNullOrWhiteSpace(nameOrCode) ? string.Empty
+        : LooksLikeCode(nameOrCode) ? For(nameOrCode.Trim()) : nameOrCode.Trim();
+
     /// <summary>A readable name for an unmapped code: words title-cased, underscores as spaces.</summary>
     public static string Humanize(string code)
     {

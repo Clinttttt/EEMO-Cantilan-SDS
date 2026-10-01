@@ -1,6 +1,7 @@
 @page "/operations/ecf"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
@@ -186,7 +187,7 @@
                             {
                                 <li>
                                     <div class="ecf-line-head">
-                                        <span>@line.ClassificationName</span>
+                                        <span>@SourceNames.Name(line.ClassificationName)</span>
                                         <span class="ecf-line-amount">@Money(line.Amount)</span>
                                     </div>
                                     @foreach (var allocation in line.Allocations ?? [])
@@ -255,7 +256,7 @@
                                         @foreach (var line in activity.Lines)
                                         {
                                             <li>
-                                                <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
+                                                <span><strong>@SourceNames.Name(line.ClassificationName)</strong> — @Money(line.Amount)</span>
                                                 <span class="v3-muted">@MonthName(line.BillingMonth) @line.BillingYear · @line.Allocation</span>
                                                 <span class="v3-muted">@SnapshotSummary(line.CalculationSnapshot)</span>
                                             </li>

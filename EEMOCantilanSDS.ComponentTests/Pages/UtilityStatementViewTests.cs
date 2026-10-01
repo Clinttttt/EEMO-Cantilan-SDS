@@ -125,10 +125,10 @@ public class UtilityStatementViewTests : TestContext
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Securities.UiLoadingService>();
 
+        // The utility statements are no longer an NPM report tab; they open from the Financial Report's link.
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        navigation.NavigateTo(Microsoft.AspNetCore.Components.NavigationManagerExtensions.GetUriWithQueryParameter(navigation, "view", "utilities"));
         var page = RenderComponent<NpmReports>();
-
-        // Into the utility view, then produce the statements — the same two clicks the office makes.
-        page.FindAll("button").First(b => b.TextContent.Contains("Related utilities", StringComparison.OrdinalIgnoreCase)).Click();
         page.WaitForState(() => page.Markup.Contains("Statements of account"), TimeSpan.FromSeconds(5));
 
         return page;

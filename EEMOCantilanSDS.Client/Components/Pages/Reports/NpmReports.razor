@@ -84,14 +84,6 @@
             </svg>
             <span>History</span>
         </button>
-        <button type="button" class="rpt-period-tab rpt-document-tab rpt-utility-tab @(ShowUtilityBilling ? "active" : "")"
-                aria-pressed="@ShowUtilityBilling"
-                @onclick="ShowUtilityBillingView">
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-                <path d="M13 2L6 14h6l-1 8 7-12h-6l1-8z" />
-            </svg>
-            <span>Related utilities</span>
-        </button>
     </div>
     <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
                      Yearly="@(!ShowUtilityBilling && !ShowUtilityStatements && !ShowPrintReport && (ShowHistory || ActivePeriod == "Yearly"))"
@@ -316,8 +308,7 @@ else if (ShowUtilityBilling)
             <section class="utility-hero">
                 <div>
                     <div class="utility-eyebrow">RELATED UTILITIES · CONTEXT FOR NPM OCCUPANTS</div>
-                    <h2>Electricity (ECF) and water (WCF) for NPM stalls</h2>
-                    <p class="utility-context-note">Separate utility operations, not part of stall rent. Approved amounts are set and collected in <a href="/operations/ecf">Electricity (ECF)</a> and <a href="/operations/water-consumption-fees">Water (WCF)</a>; this view is read-only.</p>
+                    <h2>Utility statements</h2>
                 </div>
                 <div class="utility-preview-pill">@CurrentDate.ToString("MMMM yyyy")</div>
             </section>
@@ -538,7 +529,7 @@ else if (ShowUtilityStatements)
            else - the same rule the signature strip's edit pencils follow. *@
         <div class="statement-actions no-print">
             <button type="button" class="utility-secondary-btn" @onclick="CloseUtilityStatements">
-                Back to related utilities
+                Back to utility statements
             </button>
 
             @* The same search and section filter as the billing table, bound to the same fields - so a section the
