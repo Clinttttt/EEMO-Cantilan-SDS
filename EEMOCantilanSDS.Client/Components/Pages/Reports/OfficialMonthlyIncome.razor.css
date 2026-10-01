@@ -1,0 +1,265 @@
+/* Official Monthly Income — a document on a quiet canvas: a thin action bar, then the sheet. */
+.omi-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    max-width: 1480px;
+    margin: 0 auto 16px;
+}
+
+.omi-back {
+    color: var(--accent);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+    .omi-back:hover {
+        text-decoration: underline;
+    }
+
+    .omi-back:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+.omi-actions-right {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.omi-print {
+    min-height: 40px;
+}
+
+.omi-state {
+    max-width: 1480px;
+    margin: 24px auto;
+    color: var(--text-secondary);
+}
+
+.omi-review {
+    max-width: 1480px;
+    margin: 0 auto 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.omi-sheet {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 28px 28px 24px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+/* Letterhead: seal beside the three government lines, as on the office sheet. */
+.omi-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.omi-seal {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+}
+
+.omi-head-text p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--text);
+}
+
+.omi-head-text .omi-muni {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.omi-office {
+    margin: 12px 0 0;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.omi-title {
+    margin: 6px 0 0;
+    text-align: center;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.omi-period {
+    margin: 2px 0 18px;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.omi-scroll {
+    overflow-x: auto;
+}
+
+    .omi-scroll:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.omi-table {
+    width: 100%;
+    min-width: 1280px;
+    border-collapse: collapse;
+    font-size: 0.78125rem;
+    color: var(--text);
+}
+
+    .omi-table th,
+    .omi-table td {
+        padding: 6px 8px;
+        border: 1px solid var(--border-strong);
+    }
+
+    .omi-table thead th {
+        background: var(--surface-muted);
+        font-size: 0.71875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--navy);
+        vertical-align: bottom;
+    }
+
+.omi-line {
+    min-width: 240px;
+    text-align: left;
+    font-weight: 500;
+}
+
+.omi-num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.omi-table thead .omi-num {
+    text-align: right;
+}
+
+.omi-letter {
+    display: inline-block;
+    min-width: 1.4em;
+    color: var(--text-secondary);
+}
+
+.omi-section th,
+.omi-group th {
+    text-align: left;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--navy);
+    background: var(--surface);
+}
+
+.omi-section th {
+    font-size: 0.75rem;
+}
+
+.omi-group th {
+    padding-left: 14px;
+    background: var(--surface-muted);
+}
+
+.omi-zero {
+    color: var(--text-tertiary);
+}
+
+.omi-total-col {
+    font-weight: 700;
+}
+
+.omi-unplaced th,
+.omi-unplaced td {
+    font-style: italic;
+}
+
+.omi-grand th,
+.omi-grand td {
+    border-top: 2px solid var(--navy);
+    font-weight: 700;
+    background: var(--surface-muted);
+}
+
+.omi-notes {
+    margin: 14px 0 0;
+    padding-left: 18px;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+/* Paper: A4 landscape via the print helper; the sheet loses its screen frame and the table its scroll. */
+@media print {
+    .omi-sheet {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .omi-scroll {
+        overflow: visible;
+    }
+
+    .omi-table {
+        min-width: 0;
+        font-size: 8.5pt;
+    }
+
+        .omi-table th,
+        .omi-table td {
+            padding: 3px 5px;
+        }
+
+        .omi-table thead {
+            display: table-header-group;
+        }
+
+        .omi-table tr,
+        .omi-grand {
+            break-inside: avoid;
+        }
+
+    .omi-line {
+        min-width: 0;
+    }
+
+    .omi-group th,
+    .omi-grand th,
+    .omi-grand td,
+    .omi-table thead th {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

@@ -1,0 +1,267 @@
+@page "/reports/monthly-income/official"
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficialReportsApiClient Api
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@* ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   OFFICIAL MONTHLY INCOME — the final statement, not the analysis workspace.
+
+   Follows the office's own sheet (development evidence, docs/interface/OFFICIAL_MONTHLY_INCOME_REPORT_V3.md): letterhead,
+   then one table — revenue line, Annual Target, January to December, Total, Percentage — under "1. Receipts", with the
+   lines lettered a. to r. across Income from Market, Rent Income (Stall Rental) and Space Rental, and one closing
+   "Total Income Market Operation". The sheet carries no group subtotals, so none are added here.
+
+   Every figure is the server's official Monthly Income (legacy before a source's cutover plus canonical after it, once).
+   Nothing is computed on this page except the total of months already on it. No target is invented: a missing target
+   and its percentage print as "—". A month not yet reached is blank; a month that has passed with nothing collected is a
+   known 0.00. A line with money but no approved placement is never placed by guess: it is listed apart and flagged.
+   ─────────────────────────────────────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>StallTrack — Official Monthly Income @Year</PageTitle>
+
+<div class="omi-actions no-print">
+    <a class="omi-back" href="/reports">← Back to Financial Reports</a>
+    <div class="omi-actions-right">
+        <FhSelect Caption="Year" Value="@Year.ToString(CultureInfo.InvariantCulture)" Options="@YearOptions" ValueChanged="ChangeYear" />
+        <button type="button" class="v3-btn v3-btn-sm v3-btn-primary omi-print" @onclick="PrintAsync" disabled="@(_data is null)">
+            Print / Save as PDF
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="omi-state no-print" role="status">Preparing the Monthly Income…</p>
+}
+else if (_data is null)
+{
+    <div class="omi-state no-print" role="alert">
+        The Monthly Income for @Year could not be prepared. Nothing is shown rather than an incomplete statement.
+        <button type="button" class="v3-btn v3-btn-sm" @onclick="LoadAsync">Try again</button>
+    </div>
+}
+else
+{
+    @if (UnplacedRows.Count > 0)
+    {
+        <div class="omi-review no-print" role="alert">
+            <strong>Official report requires review.</strong>
+            @UnplacedRows.Count collected revenue @(UnplacedRows.Count == 1 ? "line has" : "lines have") no approved Monthly Income
+            placement (@string.Join(", ", UnplacedRows.Select(r => r.Label))). @(UnplacedRows.Count == 1 ? "It is" : "They are") listed
+            apart below and included in the total, never placed in a group by guess.
+        </div>
+    }
+
+    <article class="omi-sheet" aria-labelledby="omi-title">
+        <header class="omi-head">
+            <img class="omi-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
+            <div class="omi-head-text">
+                <p>Republic of the Philippines</p>
+                <p>Province of @Branding.Province</p>
+                <p class="omi-muni">Municipality of @Branding.Municipality</p>
+            </div>
+        </header>
+        <p class="omi-office">@Branding.OfficeName</p>
+        <h1 id="omi-title" class="omi-title">Monthly Income @Year</h1>
+        <p class="omi-period">@HorizonLabel · Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</p>
+
+        <div class="omi-scroll" role="region" aria-label="Monthly Income statement" tabindex="0">
+            @{ _letter = 0; }
+            <table class="omi-table">
+                <caption class="v3-sr-only">Monthly Income @Year by revenue line, January to December</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="omi-line">Monthly Income @Year</th>
+                        <th scope="col" class="omi-num">Annual target</th>
+                        @foreach (var name in MonthNames)
+                        {
+                            <th scope="col" class="omi-num">@name</th>
+                        }
+                        <th scope="col" class="omi-num omi-total-col">Total</th>
+                        <th scope="col" class="omi-num">Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="omi-section"><th scope="rowgroup" colspan="16">1. Receipts</th></tr>
+                    @foreach (var group in OfficialGroups)
+                    {
+                        <tr class="omi-group"><th scope="rowgroup" colspan="16">@GroupHeading(group)</th></tr>
+                        @foreach (var row in group.Rows)
+                        {
+                            <tr>
+                                <th scope="row" class="omi-line"><span class="omi-letter">@NextLetter().</span> @row.Label</th>
+                                <td class="omi-num">@(row.AnnualTarget is { } t ? Amount(t) : "—")</td>
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    <td class="omi-num @(IsZero(row.Months[m - 1], m) ? "omi-zero" : "")">@MonthCell(row.Months[m - 1], m)</td>
+                                }
+                                <td class="omi-num omi-total-col">@Amount(row.Total.Total)</td>
+                                <td class="omi-num">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                @if (UnplacedRows.Count > 0)
+                {
+                    <tbody class="omi-unplaced">
+                        <tr class="omi-group"><th scope="rowgroup" colspan="16">Awaiting an approved official grouping</th></tr>
+                        @foreach (var row in UnplacedRows)
+                        {
+                            <tr>
+                                <th scope="row" class="omi-line">@row.Label</th>
+                                <td class="omi-num">—</td>
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    <td class="omi-num @(IsZero(row.Months[m - 1], m) ? "omi-zero" : "")">@MonthCell(row.Months[m - 1], m)</td>
+                                }
+                                <td class="omi-num omi-total-col">@Amount(row.Total.Total)</td>
+                                <td class="omi-num">—</td>
+                            </tr>
+                        }
+                    </tbody>
+                }
+                <tfoot>
+                    <tr class="omi-grand">
+                        <th scope="row" class="omi-line">Total Income Market Operation</th>
+                        <td class="omi-num">@(TargetTotal is { } tt ? Amount(tt) : "—")</td>
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            <td class="omi-num">@MonthCell(_data.MonthTotals[m - 1], m)</td>
+                        }
+                        <td class="omi-num omi-total-col">@Amount(_data.GrandTotal.Total)</td>
+                        <td class="omi-num">—</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <ul class="omi-notes">
+            @if (!_data.TargetsConfigured)
+            {
+                <li>Annual targets are not configured in StallTrack, so Annual Target and Percentage show “—”. Percentage is total ÷ annual target, never collection efficiency.</li>
+            }
+            <li>Each line counts a real collection once: authoritative legacy records before a source's cutover, posted collections after it. A remittance is not income and never changes this statement.</li>
+            @if (UnplacedRows.Count > 0)
+            {
+                <li>The total includes @UnplacedRows.Count line@(UnplacedRows.Count == 1 ? "" : "s") awaiting an approved official grouping, listed apart above.</li>
+            }
+            <li>Blank months have not yet been reached; 0.00 is a month that has passed with nothing collected.</li>
+        </ul>
+    </article>
+}
+
+@code {
+    private static readonly string[] MonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    [SupplyParameterFromQuery(Name = "year")] public int? YearParam { get; set; }
+
+    private OfficialMonthlyIncomeDto? _data;
+    private bool _loading = true;
+    private int _letter;
+
+    private int Year => YearParam is int y and >= 2000 and <= 2200 ? y : PhilippineTime.Today.Year;
+
+    // The last month whose figures exist: the current month this year, all twelve for a past year, none for a future one.
+    private int Horizon => Year < PhilippineTime.Today.Year ? 12 : Year > PhilippineTime.Today.Year ? 0 : PhilippineTime.Today.Month;
+
+    private string HorizonLabel => Horizon switch
+    {
+        0 => $"No month of {Year} has been reached",
+        12 => $"January – December {Year}",
+        1 => $"January {Year}",
+        _ => $"January – {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(Horizon)} {Year}"
+    };
+
+    private IEnumerable<OfficialMonthlyIncomeGroupDto> OfficialGroups =>
+        _data?.Groups.Where(g => g.Key != OfficialMonthlyIncomeStructure.Pending) ?? [];
+
+    private IReadOnlyList<OfficialMonthlyIncomeRowDto> UnplacedRows =>
+        _data?.Groups.Where(g => g.Key == OfficialMonthlyIncomeStructure.Pending).SelectMany(g => g.Rows)
+            .Where(r => r.Total.Total != 0m).ToList() ?? [];
+
+    // The total target is stated only when every official line has one; a partial sum would read as the office's target.
+    private decimal? TargetTotal
+    {
+        get
+        {
+            var rows = OfficialGroups.SelectMany(g => g.Rows).ToList();
+            return rows.Count > 0 && rows.All(r => r.AnnualTarget is not null) ? rows.Sum(r => r.AnnualTarget!.Value) : null;
+        }
+    }
+
+    private IReadOnlyList<(string Value, string Label)> YearOptions
+    {
+        get
+        {
+            var current = PhilippineTime.Today.Year;
+            return Enumerable.Range(0, 6).Select(i => current - i)
+                .Append(Year).Distinct().OrderByDescending(y => y)
+                .Select(y => (y.ToString(CultureInfo.InvariantCulture), y.ToString(CultureInfo.InvariantCulture))).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Branding.EnsureLoadedAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _data = null;
+        // Cold-start resilience, as the Financial Summary does: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5 && _data is null; attempt++)
+        {
+            try
+            {
+                var result = await Api.GetMonthlyIncomeAsync(Year, null);
+                if (result.IsSuccess && result.Value is not null) { _data = result.Value; break; }
+            }
+            catch
+            {
+                // Retried below; a lasting failure leaves the explicit error state.
+            }
+            await Task.Delay(250 * (attempt + 1));
+        }
+        _loading = false;
+    }
+
+    private async Task ChangeYear(string value)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var year) || year == Year) return;
+        Navigation.NavigateTo($"/reports/monthly-income/official?year={year}");
+        YearParam = year;
+        await LoadAsync();
+    }
+
+    private static string GroupHeading(OfficialMonthlyIncomeGroupDto group) => group.Key switch
+    {
+        OfficialMonthlyIncomeStructure.Market => "A. Income from Market",
+        OfficialMonthlyIncomeStructure.Rent => "Rent Income (Stall Rental)",
+        _ => group.Label
+    };
+
+    // Lines are lettered on across the official groups, as on the office sheet (a. Market Fees … r. Fines).
+    private string NextLetter()
+    {
+        var index = _letter++;
+        return index < 26 ? ((char)('a' + index)).ToString() : (index + 1).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private bool Reached(int month) => month <= Horizon;
+
+    private bool IsZero(MonthlyIncomeCellDto cell, int month) => Reached(month) && cell.Total == 0m;
+
+    private string MonthCell(MonthlyIncomeCellDto cell, int month) => Reached(month) ? Amount(cell.Total) : string.Empty;
+
+    private static string Amount(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
+}

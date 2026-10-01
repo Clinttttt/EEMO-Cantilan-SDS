@@ -254,4 +254,150 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("Covered (Recorded)", trace);
         }, Timeout);
     }
+
+    // ── Official Monthly Income: the final statement, in the office sheet's structure ──
+
+    private IRenderedComponent<OfficialMonthlyIncome> RenderOfficial(int year)
+    {
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo($"/reports/monthly-income/official?year={year}");
+        return RenderComponent<OfficialMonthlyIncome>();
+    }
+
+    [Fact]
+    public void TheOfficialStatement_LettersTheOfficeLines_ShowsTheFullYear_AndNeverInventsATargetOrSubtotal()
+    {
+        var statement = Statement(null) with { Year = 2025 };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var table = cut.Find("table.omi-table");
+            var head = table.QuerySelectorAll("thead th").Select(th => th.TextContent.Trim()).ToList();
+            Assert.Equal(16, head.Count);                                   // line, target, Jan–Dec, Total, Percentage
+            Assert.Equal(["Annual target", "Jan"], head.Skip(1).Take(2));
+            Assert.Equal(["Total", "Percentage"], head.TakeLast(2));
+            Assert.Contains("1. Receipts", table.TextContent);
+            Assert.Contains("A. Income from Market", table.TextContent);
+            var lines = table.QuerySelectorAll("tbody th.omi-line").Select(th => th.TextContent.Trim()).ToList();
+            Assert.Equal(["a. Market Fees", "b. General Distribution / ECF", "c. Tampak Commercial Center (TCC)"], lines);
+            Assert.DoesNotContain("Subtotal", table.TextContent);
+            Assert.Contains("Total Income Market Operation", table.QuerySelector("tfoot")!.TextContent);
+            Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
+            // No target configured: target and percentage are a dash, never 0 or 0%.
+            Assert.DoesNotContain("%", table.QuerySelector("tbody")!.TextContent);
+            Assert.Contains("Annual targets are not configured", cut.Markup);
+            // A past year has every month reached: a month with nothing collected is a known 0.00.
+            Assert.Contains("0.00", table.QuerySelector("tbody")!.TextContent);
+            // No analysis chrome: no report tabs and no source-performance widgets on the final output.
+            Assert.Empty(cut.FindAll(".rpt-sec-tabs"));
+            Assert.Empty(cut.FindAll(".rsp"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheOfficialStatement_FlagsCollectedMoneyWithoutAPlacement_AndListsItApart_NeverInAGroup()
+    {
+        var statement = Statement(null) with { Year = 2025 };
+        var slaughter = Row("SLAUGHTERHOUSE", "Slaughterhouse", 200m, 0m, "Legacy");
+        statement = statement with
+        {
+            Groups = statement.Groups.Append(new OfficialMonthlyIncomeGroupDto("PENDING", "Awaiting an approved official grouping",
+                [slaughter], slaughter.Months, slaughter.Total)).ToList()
+        };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Official report requires review", cut.Find(".omi-review").TextContent);
+            var unplaced = cut.Find("tbody.omi-unplaced");
+            Assert.Contains("Slaughterhouse", unplaced.TextContent);
+            // Not lettered: a letter would claim a place on the office sheet.
+            Assert.DoesNotContain("d. Slaughterhouse", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheOfficialStatement_ThatCannotBeRead_SaysSo_AndOffersNoPrint()
+    {
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Failure("down"));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("could not be prepared", cut.Markup);
+            Assert.True(cut.Find(".omi-print").HasAttribute("disabled"));
+            Assert.Empty(cut.FindAll("table.omi-table"));
+        }, TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public void TheMonthlyIncomeWorkspace_LinksToTheOfficialStatement_ApartFromItsOwnPrint()
+    {
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, 9)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(Statement(9)));
+
+        var cut = RenderComponent<OfficialMonthlyIncomePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 9));
+
+        cut.WaitForAssertion(() =>
+        {
+            var link = cut.FindAll("a").Single(a => a.TextContent.Contains("Official Monthly Income"));
+            Assert.Equal("/reports/monthly-income/official?year=2026", link.GetAttribute("href"));
+            Assert.Contains("Print this view", cut.Markup);
+        }, Timeout);
+    }
+
+    // ── Revenue source performance: every source, described by its own model ──
+
+    private static RevenueSourcePerformanceRowDto Source(string key, string label, string group, string model, decimal collected,
+        int? transactions, FacilityCode? facility = null, string? instruments = null) =>
+        new(key, label, group, group, model, instruments, facility, collected, 0m, collected, transactions, transactions, transactions,
+            collected != 0m ? "Active" : "Nothing recorded", false);
+
+    [Fact]
+    public void SourcePerformance_ListsOperationsBesideFacilities_AndNeverGivesAPaidOnServiceSourceARate()
+    {
+        var rows = new[]
+        {
+            Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT"),
+            Source("RENT_TCC", "Tampak Commercial Center (TCC)", "RENT", RevenueSourceModel.RecurringObligation, 900m, null, FacilityCode.TCC, "OR"),
+        };
+        var dto = new RevenueSourcePerformanceDto(2026, 10,
+            [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 900m)],
+            rows, 1000m, [], DateTime.UtcNow);
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(dto));
+        var tcc = new EEMOCantilanSDS.Application.Dtos.Reports.FinancialFacilityRowDto(FacilityCode.TCC, "Tampak Commercial Center",
+            "Monthly rental", false, 900m, 300m, 3, 4, 75, "Partial");
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10)
+            .Add(x => x.Facilities, new[] { tcc }));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Revenue source performance — October 2026", cut.Find("#rsp-title").TextContent);
+            var landing = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
+            Assert.Contains("Paid on service · CT", landing.TextContent);
+            Assert.Contains("₱100", landing.TextContent);
+            Assert.Contains("1 transaction", landing.TextContent);
+            Assert.DoesNotContain("%", landing.TextContent);
+            Assert.DoesNotContain("unpaid", landing.TextContent);
+            var rent = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Tampak Commercial Center"));
+            Assert.Contains("₱300 unpaid · 3/4 paid · 75%", rent.TextContent);
+            Assert.Contains("Outstanding balances", rent.TextContent);
+            Assert.Contains("₱1,000", cut.Find("tr.rsp-total").TextContent);
+        }, Timeout);
+
+        // Expanding a transactional source states its activity and links to its own report.
+        cut.FindAll("button.rsp-toggle").Single(b => b.TextContent.Contains("Landing / Berthing")).Click();
+        cut.WaitForAssertion(() =>
+        {
+            var detail = cut.Find("tr.rsp-detail");
+            Assert.Contains("Posted collections", detail.TextContent);
+            Assert.Equal("/operations/landing-berthing/report", detail.QuerySelector("a.rsp-link")!.GetAttribute("href"));
+        }, Timeout);
+    }
 }

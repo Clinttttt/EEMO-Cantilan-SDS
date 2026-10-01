@@ -28,9 +28,11 @@
             {
                 <span class="mi-doc-generated">Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</span>
             }
+            @* The final statement is its own document; Print here prints this working view. *@
+            <a class="v3-btn v3-btn-sm v3-btn-primary" href="@OfficialUrl">Official Monthly Income</a>
             <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print Monthly Income
+                Print this view
             </button>
         </div>
     </header>
@@ -207,6 +209,7 @@
     private int _letter;
 
     private bool Annual => _data is { Month: null };
+    private string OfficialUrl => $"/reports/monthly-income/official?year={Year.ToString(CultureInfo.InvariantCulture)}";
     private int ColumnCount => Annual ? 16 : (_split ? 7 : 5);
     private string PeriodLabel => Month is { } m
         ? $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}" : $"January to December {Year}";
