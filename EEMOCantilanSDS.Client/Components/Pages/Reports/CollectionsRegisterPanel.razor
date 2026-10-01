@@ -50,6 +50,7 @@
     {
         <div class="cr-panel">
             <h3>Report of collections · by revenue line</h3>
+            <div class="v3-table-wrap" role="region" aria-label="Collections by revenue line, scrollable" tabindex="0">
             <table class="v3-table" aria-label="Collections by revenue line">
                 <thead>
                     <tr>
@@ -82,6 +83,7 @@
                     <tr><td colspan="3"><strong>Total</strong></td><td class="v3-num">@Money(_data.Gross)</td><td class="v3-num">@(_data.CorrectionEffect == 0m ? "—" : Money(_data.CorrectionEffect))</td><td class="v3-num v3-strong">@Money(_data.Net)</td></tr>
                 </tfoot>
             </table>
+            </div>
         </div>
 
         <div class="cr-panel">

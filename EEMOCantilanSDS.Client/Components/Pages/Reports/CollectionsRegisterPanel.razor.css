@@ -63,6 +63,12 @@
     border-top: 1px solid var(--border);
 }
 
+/* Registers scroll inside their panel on a narrow screen rather than wrapping dates and serials mid-value. */
+.cr-panel .v3-table td,
+.cr-panel .v3-table th {
+    white-space: nowrap;
+}
+
 .cr-panel tfoot td {
     border-top: 1px solid var(--border);
     background: var(--surface-muted);
