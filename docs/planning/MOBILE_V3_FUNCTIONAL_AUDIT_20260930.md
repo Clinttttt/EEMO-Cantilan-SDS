@@ -28,7 +28,7 @@ Legacy palette variables remain because unmigrated rules still reference them; t
 | Kanmanggay | Not exposed | none | none | none | **none** | none | n/a | n/a | Web | **No** | No Mobile writer (gap) |
 | Fiesta / Araw | Not exposed | none | none | none | **none** | none | n/a | n/a | Web | **No** | No Mobile writer (gap) |
 | Records | n/a | n/a | `/records` | Legacy feed + **new** collector-only canonical register (grouped per document) | none | Local queue kept separate (Pending / Failed / Needs review) | n/a | n/a | Server | Code and unit/integration tests | Canonical register is per collector and period; not device-reviewed |
-| Reports | n/a | n/a | `/reports` | **Position tab** (server) + existing facility report | none | cached read | n/a | counts only | Server | Code and integration tests | Custom period and per-classification breakdown not built |
+| Reports | n/a | n/a | `/reports` | **Position tab** (server) + collector report = legacy facility sources + posted canonical Collections, once (`CollectorReportComposer`) | none | cached read | "Waiting to sync" shown apart, never in totals | walk-up CT never a payee | Server | Unit + PostgreSQL integration | Custom period not built |
 | Profile | n/a | n/a | `/profile` | identity, facilities, operations status, sync, position link | notifications toggle (device-local) | n/a | n/a | n/a | n/a | Code | Not device-reviewed |
 | Menu | n/a | Ready only opens | `/menu` | capabilities + queue | none | n/a | n/a | n/a | n/a | Grouping unit-tested | Not device-reviewed |
 | Offline / sync | n/a | n/a | n/a | n/a | n/a | Store, sync, ClientOperationId, OwnerKey, retry, reconciliation unchanged | n/a | never re-available | n/a | Existing plus new tests | none new |
@@ -47,3 +47,19 @@ Legacy palette variables remain because unmigrated rules still reference them; t
 
 Collector position (own identity, cross-tenant, admin/collector refusals), collector register, Today's Work capability rules,
 operation record grouping, Transportation store validation, WCF reuse and wire shape.
+
+## Collector reporting reconciliation (2026-10-01)
+
+Runtime case: Landing/Berthing ₱100 on CT000001, business date Oct 1 2026, posted (PostingOperation status Posted, one
+Collection, one `LANDING_BERTHING` line, no correction, no remittance). Reports showed ₱0 on By Month, Per Payee and Summary.
+
+| Tab | Endpoint | Legacy coverage | Canonical coverage | Exactly once | Before |
+|---|---|---|---|---|---|
+| Position | `GET api/Mobile/position` (`RemittanceWorkflow.GetMyPositionAsync`) | stated apart as "Recorded before activation" | all posted Collections, net of corrections | yes | correct |
+| By Month / By Day | `GET api/Mobile/report` | facility sources of assigned facilities | posted Collections by business date | yes (authority map) | facility-only |
+| Per Payee | same | stall/vendor accounts | registered Payors by explicit link; walk-up CT as one aggregate | yes | facility-only |
+| Summary | same | same | "Posted collections" block | yes | facility-only |
+
+Authority: canonical facts are the Position's facts, so Position and the report cannot state two canonical totals. Legacy
+PaymentRecord money is skipped once its row is canonical. Business date: `Collection.BusinessDate`, whole month, inclusive.
+"Payor accounts" (was "Payees") counts facility accounts in scope plus registered Payors; a walk-up ticket never adds one.
