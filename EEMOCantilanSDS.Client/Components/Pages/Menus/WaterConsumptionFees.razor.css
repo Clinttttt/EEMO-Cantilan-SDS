@@ -62,3 +62,70 @@
 .wcf-readiness span {
     color: var(--text-secondary);
 }
+
+/* ── V3 consistency (2026-10-01): blue gives structure — a tinted context cell, a tinted channel panel and quiet
+   section bands — while data stays on white. Scoped to this page; the shared summary strip is unchanged elsewhere. ── */
+.wcf-page ::deep .ss-item:first-child {
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-readiness {
+    flex-wrap: nowrap;
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+    border-left: 3px solid var(--accent);
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-readiness p {
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.wcf-readiness span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wcf-readiness .v3-btn {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.v3-panel-header {
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 0;
+    color: var(--text-secondary);
+}
+
+    .wcf-empty svg {
+        width: 22px;
+        height: 22px;
+        margin-bottom: 4px;
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.6;
+    }
+
+    .wcf-empty strong {
+        color: var(--navy);
+        font-weight: 600;
+    }
+
+@media (max-width: 900px) {
+    .wcf-readiness,
+    .wcf-readiness p {
+        flex-wrap: wrap;
+    }
+
+    .wcf-readiness span {
+        white-space: normal;
+    }
+}

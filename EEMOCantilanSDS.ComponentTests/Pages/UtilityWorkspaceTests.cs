@@ -130,6 +130,22 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void Wcf_PresentsTheDirectApprovedCashTicketOperation_WithNoMeterWording()
+    {
+        Services.AddSingleton(WcfApi([], [Ticket()]).Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Cash Ticket", cut.Markup);
+            Assert.Contains("No outstanding WCF obligations", cut.Markup);
+            foreach (var meter in new[] { "meter", "cubic", "m³", "consumption ×" })
+                Assert.DoesNotContain(meter, cut.Find("table").TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
+    }
+
+    [Fact]
     public void Wcf_WithoutAvailableTickets_SaysSoInTheReadinessLine()
     {
         Services.AddSingleton(WcfApi([WcfQuote(outstanding: 10m, canCollect: true)], []).Object);
