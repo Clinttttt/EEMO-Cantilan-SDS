@@ -51,14 +51,14 @@ black rules; no navigation, filters or buttons.
 - **Accountability** — collector × instrument: assigned, issued, spoiled, returned, on hand, review (counts) and
   collected, remitted, unremitted (pesos). Counts are never pesos.
 - **Receivables** — delinquency and follow-up from the existing receivable reader.
-- **Trends & Targets** — revenue trend and **Facility / source performance** (the old "Revenue by Facility"): secondary
-  operational analysis, not the official statement.
+- **Trends & Targets** — revenue trend and **Facility performance** (the old "Revenue by Facility"): facility analysis only,
+  not the complete revenue view and not the official statement.
 
 ## Financial Summary document
 
 `/reports/financial-summary`: I. Collection position · II. Monthly Income by official group (server statement, group
 subtotals) · III. Collection by model · IV. Outstanding position · V. Receivable aging · VI. Period comparison ·
-VII. Facility / source performance · VIII. Accounts needing follow-up · IX. Miscellaneous.
+VII. Facility performance · VIII. Accounts needing follow-up · IX. Miscellaneous.
 
 ## Responsive
 
@@ -70,3 +70,31 @@ the statement never collapses into cards.
 - No annual-target source or governance exists; target and % show "—".
 - Official placement of Slaughterhouse, BBQ rent, other rental and recovered Arrears is unresolved (Decision Registry).
 - The Financial Summary's Miscellaneous section is still the legacy utility view (see the NPM utility decoupling pass).
+
+## Revenue Source Performance (Summary) — added 2026-10-01
+
+- The management view of **every** revenue source, facility or not (Market Fees, ECF, WCF, Tabo, Fish/Meat Vendor Fees,
+  Landing/Berthing, Transportation, Weight & Measure, Transfer Large Cattle, Ice Plant, NPM/NCC/TCC/BBQ rent, Vegetable/Fruit,
+  Kanmanggay, Fiesta/Araw, Fines, Slaughterhouse, Arrears, and any unknown classification kept apart by the statement).
+- Server: `GET api/official-reports/source-performance` → `GetRevenueSourcePerformanceQueryHandler`. **Collected is the
+  official Monthly Income row for the same period** (legacy before cutover + canonical after, once) — not a second algorithm.
+  Counts (transactions, documents, collectors) come from posted Collections and are **null, not zero**, for a row that also
+  holds legacy money in the period. Instruments are read from the classification policies in force.
+- Analytic grouping and model are `RevenueSourceCatalog` (Income from Market, Rent / facility operations, Space rental,
+  Other operations, Receivables context). This is analysis, **not** official placement; an unplaced source with money is
+  flagged "Needs official placement".
+- Model-aware metrics: paid-on-service and quantity sources show activity and "Paid on service", never unpaid or a rate;
+  recurring facility rows (NPM/NCC/TCC/BBQ rent, Ice Plant) show unpaid · paid/expected · rate only from the facility
+  register for the same period; a receivable points to Receivables. Remittance is never a revenue metric.
+- Facility analysis remains under Trends & Targets as **Facility performance**; the toolbar filter is "Facility analysis".
+
+## Official Monthly Income (final output) — added 2026-10-01
+
+Interactive Monthly Income stays the analysis view (tabs, filters, reconciliation split, "Print this view"). Its header
+links to the dedicated **`/reports/monthly-income/official?year=YYYY`** page — no report tabs, no analysis widgets; Back,
+Year and Print / Save as PDF (browser, A4 landscape via `stalltrackPrint.landscape`). See
+`docs/interface/OFFICIAL_MONTHLY_INCOME_REPORT_V3.md`.
+
+Exactly-once relationship: Official Monthly Income, interactive Monthly Income, Revenue Source Performance and the Financial
+Summary all read the same server statement; Collection Activity, operation reports and collector reports read the same
+posted Collections. A Landing/Berthing CT therefore appears once in each.
