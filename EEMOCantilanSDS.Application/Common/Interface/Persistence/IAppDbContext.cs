@@ -74,6 +74,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorStallLink> PayorStallLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; }
         DbSet<GovernedService> GovernedServices { get; }
         DbSet<GovernedServiceSetting> GovernedServiceSettings { get; }
         DbSet<PenaltyDefinition> PenaltyDefinitions { get; }

@@ -51,6 +51,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["AuditLogs"] = "Audit log",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",
+        ["CollectorOperationActivations"] = "Operation Mobile activations",
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
         ["PenaltyDefinitions"] = "Penalty definitions",

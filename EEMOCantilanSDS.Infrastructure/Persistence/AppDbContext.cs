@@ -140,6 +140,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }
         public DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; set; }
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; set; }
         public DbSet<GovernedService> GovernedServices { get; set; }
         public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
