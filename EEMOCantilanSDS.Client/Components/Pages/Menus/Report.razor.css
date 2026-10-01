@@ -504,20 +504,18 @@
     margin-top: 6px;
 }
 
-/* Also used by the Miscellaneous section to state that a period carries no bill. */
+/* Used by the Miscellaneous section to state that a period carries no bill. A flat statement on the card's own 22px
+   content edge, so its label lines up with the section title above instead of sitting in an inset box. */
 .rpt-rule-note {
-    margin: 0 22px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fafcfd;
-    font-size: 12.5px;
+    margin: 0;
+    padding: 16px 22px 20px;
+    font-size: 13px;
     line-height: 1.55;
     color: var(--text-muted);
 }
 
     .rpt-rule-note > div + div {
-        margin-top: 6px;
+        margin-top: 4px;
     }
 
 .rpt-rule-key {
@@ -1661,19 +1659,24 @@
 }
 
 /* Closing statement under the facility table: what the total row cannot say, at the rows it describes. */
+/* A ruled strip on the table's own 22px cell edge (not an inset box), so "Billed facilities" starts where "Facility"
+   does and the two halves read as a continuation of the register. */
 .fac-close {
-    margin: 0 22px 18px;
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: #fafcfd;
+    margin: 0;
+    padding: 14px 22px 18px;
+    border-top: 1px solid var(--border);
 }
 
 .fac-close-split {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px 26px;
+    gap: 14px 22px;
 }
+
+    .fac-close-part + .fac-close-part {
+        padding-left: 22px;
+        border-left: 1px solid var(--border);
+    }
 
 .fac-close-key {
     font-size: 11px;
@@ -1712,6 +1715,11 @@
     .fac-close-split {
         grid-template-columns: 1fr;
     }
+
+        .fac-close-part + .fac-close-part {
+            padding-left: 0;
+            border-left: 0;
+        }
 }
 
 /* The exact figures behind the chart. A register of periods, so it is ruled rather than boxed. */
