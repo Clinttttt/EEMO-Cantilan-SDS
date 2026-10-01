@@ -40,6 +40,18 @@ public sealed class AccountableDocument : AuditableEntity, IMunicipalityOwned
         Touch(updatedBy);
     }
 
+    /// <summary>
+    /// Moves an assigned, still-unused document from one collector's custody to another's. Only custody changes: an
+    /// issued, consumed, spoiled or awaiting-review document is never transferred, so consumed history is untouched.
+    /// </summary>
+    public void TransferTo(Guid userId, string updatedBy)
+    {
+        if (State != AccountableDocumentState.Assigned || userId == Guid.Empty || userId == AssignedUserId)
+            throw new InvalidOperationException("Only an assigned unused document can move to a different valid collector.");
+        AssignedUserId = userId;
+        Touch(updatedBy);
+    }
+
     public void ReturnToOffice(string updatedBy)
     {
         if (State != AccountableDocumentState.Assigned)

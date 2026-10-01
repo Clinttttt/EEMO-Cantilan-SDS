@@ -2754,6 +2754,55 @@ a.topbar-admin.account-chip {
     background: var(--surface-muted);
 }
 
+/* ── Right-side drawer: the modal parts (header, scrolling body, fixed footer) docked to the right edge, for work that
+   needs more room than a dialog — batch assignment, a revenue source's details and history. ── */
+.v3-modal-backdrop.v3-drawer-backdrop {
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+}
+
+.v3-modal.v3-drawer {
+    width: min(100%, 38rem);
+    height: 100vh;
+    max-height: 100vh;
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    box-shadow: -16px 0 40px -16px rgba(13, 33, 55, .28);
+}
+
+.v3-drawer.v3-drawer-wide {
+    width: min(100%, 46rem);
+}
+
+.v3-drawer .v3-modal-body {
+    flex: 1 1 auto;
+    align-content: start;
+    padding: 20px 24px;
+}
+
+.v3-drawer .v3-modal-header,
+.v3-drawer .v3-modal-footer {
+    padding-inline: 24px;
+}
+
+.v3-drawer-section {
+    display: grid;
+    gap: 12px;
+}
+
+.v3-drawer-section + .v3-drawer-section {
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.v3-drawer-section > h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
 /* ── Period picker (label + month input) used in workspace headers ── */
 .v3-period {
     display: inline-flex;

@@ -45,6 +45,20 @@ public sealed record ReceiveAccountableFormBookRequest(
 public sealed record AssignAccountableFormRangeRequest(
     Guid FormBookId, Guid AssignedUserId, long FirstSerialNumber, long LastSerialNumber);
 
+/// <summary>One collector's contiguous range inside a batch assignment from one book.</summary>
+public sealed record AccountableFormBatchLine(Guid AssignedUserId, long FirstSerialNumber, long LastSerialNumber);
+
+/// <summary>
+/// Assigns several collectors' ranges from ONE received book in one all-or-nothing save. <paramref name="InstrumentType"/>
+/// must match the book, so an OR batch can never assign Cash Tickets or the reverse.
+/// </summary>
+public sealed record AssignAccountableFormBatchRequest(
+    Guid FormBookId, RevenueInstrumentType InstrumentType, IReadOnlyList<AccountableFormBatchLine> Lines);
+
+/// <summary>Moves assigned, unused units of one book from their current collector to another, with a reason.</summary>
+public sealed record TransferAccountableFormsRequest(
+    Guid FormBookId, long FirstSerialNumber, long LastSerialNumber, Guid ToUserId, string Reason);
+
 public sealed record AccountableFormBookDto(
     Guid BookId, RevenueInstrumentType InstrumentType, string SeriesName,
     string NumberPrefix, long FirstSerialNumber, long LastSerialNumber,

@@ -34,4 +34,10 @@ public interface IWcfCollectionsApiClient
 
     /// <summary>Custody assignment of a received Official Receipt range (POST api/accountable-forms/official-receipts/assign).</summary>
     Task<Result<int>> AssignOfficialReceiptsAsync(AssignAccountableFormRangeRequest request);
+
+    /// <summary>All-or-nothing assignment of several collectors' ranges from one book (POST api/accountable-forms/assign-batch).</summary>
+    Task<Result<int>> AssignBatchAsync(AssignAccountableFormBatchRequest request);
+
+    /// <summary>Moves assigned, unused units between collectors with a reason (POST api/accountable-forms/transfer).</summary>
+    Task<Result<int>> TransferAsync(TransferAccountableFormsRequest request);
 }

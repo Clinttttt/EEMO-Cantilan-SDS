@@ -113,13 +113,15 @@ public sealed class AccountableFormsTests : TestContext
         selects[0].Change(BookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
 
-        // The range starts at the first ticket still in office (serial 103).
-        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("105");
-        Assert.Contains("3 Cash Tickets will be assigned to Ana Reyes.", cut.Find("[role='dialog']").TextContent);
+        // The range starts at the first ticket still in office (serial 103); the office states a quantity, not serials.
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("3");
+        var availability = cut.Find("dl[aria-label='Availability of the requested range']").TextContent;
+        Assert.Contains("3 · CT000103 – CT000105", availability);
+        Assert.Contains("Remaining in office after this", availability);
 
         cut.Find("#af-assign-form").Submit();
 
-        cut.WaitForAssertion(() => Assert.Contains("Assigned 3 Cash Tickets to Ana Reyes", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("Assigned 3 Cash Tickets to Ana Reyes (CT000103 – CT000105)", cut.Markup), Timeout);
         api.Verify(x => x.AssignCashTicketsAsync(It.Is<AssignAccountableFormRangeRequest>(r =>
             r.FormBookId == BookId && r.AssignedUserId == CollectorId && r.FirstSerialNumber == 103 && r.LastSerialNumber == 105)), Times.Once);
         api.Verify(x => x.PostAsync(It.IsAny<WcfCollectionPostRequest>()), Times.Never);
@@ -165,8 +167,8 @@ public sealed class AccountableFormsTests : TestContext
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Official Receipts").Click();
         cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(OrBookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
-        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("204");
-        Assert.Contains("2 Official Receipts will be assigned to Ana Reyes.", cut.Find("[role='dialog']").TextContent);
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("2");
+        Assert.Contains("2 · OR000203 – OR000204", cut.Find("dl[aria-label='Availability of the requested range']").TextContent);
 
         cut.Find("#af-assign-form").Submit();
 
@@ -222,6 +224,92 @@ public sealed class AccountableFormsTests : TestContext
         Assert.True(dialog.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").HasAttribute("disabled"));
     }
 
+    [Fact]
+    public void ARangeHeldByAnotherCollector_IsExplainedAsAvailability_AndCannotBeSubmitted()
+    {
+        var api = FormsApi();
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi(withSecond: true).Object);
+
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(BookId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(SecondCollectorId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[0].Change("101");
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("2");
+
+        var dialog = cut.Find("[role='dialog']");
+        var availability = cut.Find("dl[aria-label='Availability of the requested range']").TextContent;
+        Assert.Contains("Already assigned · Ana Reyes", availability);
+        Assert.Contains("No Cash Tickets are available to assign from this range. Return or transfer unused tickets before assigning them to another collector.",
+            dialog.TextContent);
+        Assert.DoesNotContain("not currently in office", dialog.TextContent);
+        Assert.True(dialog.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").HasAttribute("disabled"));
+        api.Verify(x => x.AssignCashTicketsAsync(It.IsAny<AssignAccountableFormRangeRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void SeveralCollectors_GetContiguousRanges_SubmittedAsOneBatch()
+    {
+        var api = FormsApi();
+        api.Setup(x => x.AssignBatchAsync(It.IsAny<AssignAccountableFormBatchRequest>())).ReturnsAsync(Result<int>.Success(3));
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi(withSecond: true).Object);
+
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(BookId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("1");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add collector").Click();
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[2].Change(SecondCollectorId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[2].Change("2");
+
+        var rows = cut.FindAll(".af-batch-row");
+        Assert.Contains("CT000103", rows[0].TextContent);
+        Assert.Contains("CT000104 – CT000105", rows[1].TextContent);
+        Assert.Contains("3 Cash Tickets to 2 collectors", cut.Find(".v3-modal-footer").TextContent);
+        cut.Find("#af-assign-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("Assigned 3 Cash Tickets to 2 collectors.", cut.Markup), Timeout);
+        api.Verify(x => x.AssignBatchAsync(It.Is<AssignAccountableFormBatchRequest>(r =>
+            r.FormBookId == BookId && r.InstrumentType == RevenueInstrumentType.CashTicket && r.Lines.Count == 2
+            && r.Lines[0] == new AccountableFormBatchLine(CollectorId, 103, 103)
+            && r.Lines[1] == new AccountableFormBatchLine(SecondCollectorId, 104, 105))), Times.Once);
+        api.Verify(x => x.AssignCashTicketsAsync(It.IsAny<AssignAccountableFormRangeRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Transfer_MovesUnusedTicketsWithAReason_AndRefusesARangeWithAnIssuedTicket()
+    {
+        var api = FormsApi();
+        api.Setup(x => x.TransferAsync(It.IsAny<TransferAccountableFormsRequest>())).ReturnsAsync(Result<int>.Success(2));
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi(withSecond: true).Object);
+
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Transfer").Click();
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(BookId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[0].Change("101");
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("106");
+        Assert.Contains("CT000103 – CT000106 cannot move (in office, consumed)", cut.Find("[role='dialog']").TextContent);
+
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("102");
+        Assert.Contains("Held by Ana Reyes · 2 unused", cut.Find("[role='dialog']").TextContent);
+        cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(SecondCollectorId.ToString());
+        cut.Find("[role='dialog']").QuerySelectorAll("input")[2].Input("Ana on leave");
+        cut.Find("#af-transfer-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("Transferred 2 unused Cash Tickets (CT000101 – CT000102) to Ben Cruz.", cut.Markup), Timeout);
+        api.Verify(x => x.TransferAsync(It.Is<TransferAccountableFormsRequest>(r =>
+            r.FormBookId == BookId && r.FirstSerialNumber == 101 && r.LastSerialNumber == 102
+            && r.ToUserId == SecondCollectorId && r.Reason == "Ana on leave")), Times.Once);
+    }
+
+    private static readonly Guid SecondCollectorId = Guid.NewGuid();
     private static readonly Guid OrBookId = Guid.NewGuid();
 
     private static Mock<IWcfCollectionsApiClient> FormsApi(bool withOrBook = false)
@@ -246,13 +334,15 @@ public sealed class AccountableFormsTests : TestContext
     private static CashTicketDocumentDto OrDoc(long serial, AccountableDocumentState state, Guid? assignedTo = null) =>
         new(Guid.NewGuid(), $"OR{serial:000000}", state, assignedTo, serial);
 
-    private static Mock<ICollectorsApiClient> CollectorsApi()
+    private static Mock<ICollectorsApiClient> CollectorsApi(bool withSecond = false)
     {
         var api = new Mock<ICollectorsApiClient>();
-        api.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(new[]
+        var collectors = new List<CollectorListDto>
         {
-            new CollectorListDto(CollectorId, "Ana Reyes", "ana@example.test", "C-001", [], 0m, 0, null, true),
-        }));
+            new(CollectorId, "Ana Reyes", "ana@example.test", "C-001", [], 0m, 0, null, true),
+        };
+        if (withSecond) collectors.Add(new(SecondCollectorId, "Ben Cruz", "ben@example.test", "C-002", [], 0m, 0, null, true));
+        api.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(collectors));
         return api;
     }
 

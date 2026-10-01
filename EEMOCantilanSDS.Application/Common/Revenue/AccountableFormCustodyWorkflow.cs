@@ -83,49 +83,186 @@ public sealed class AccountableFormCustodyWorkflow(
     /// </summary>
     public Task<Result<int>> AssignRangeAsync(
         AssignAccountableFormRangeRequest request, RevenueInstrumentType? expectedInstrument = null,
-        CancellationToken ct = default) => Run(async actor =>
+        CancellationToken ct = default) => Run(actor => AssignLinesAsync(actor, request.FormBookId, expectedInstrument,
+        [new AccountableFormBatchLine(request.AssignedUserId, request.FirstSerialNumber, request.LastSerialNumber)], ct), ct);
+
+    /// <summary>
+    /// Assigns several collectors' contiguous ranges from ONE received book in a single save: every range is assigned or
+    /// none is. Ranges may not overlap, each collector appears once, and every unit must still be unused in office
+    /// custody — the server decides, whatever the screen showed. Custody only: no money, no operation authorized.
+    /// </summary>
+    public Task<Result<int>> AssignBatchAsync(AssignAccountableFormBatchRequest request, CancellationToken ct = default) =>
+        Run(actor => AssignLinesAsync(actor, request.FormBookId, request.InstrumentType, request.Lines ?? [], ct), ct);
+
+    private const int MaximumLinesPerBatch = 50;
+
+    private async Task<Result<int>> AssignLinesAsync(
+        Actor actor, Guid formBookId, RevenueInstrumentType? expectedInstrument,
+        IReadOnlyList<AccountableFormBatchLine> lines, CancellationToken ct)
     {
-        if (request.FormBookId == Guid.Empty || request.AssignedUserId == Guid.Empty
-            || request.FirstSerialNumber < 0 || request.LastSerialNumber < request.FirstSerialNumber
-            || request.LastSerialNumber - request.FirstSerialNumber >= MaximumUnitsPerRequest)
+        if (formBookId == Guid.Empty || lines.Count == 0 || lines.Count > MaximumLinesPerBatch
+            || lines.Any(x => x.AssignedUserId == Guid.Empty || x.FirstSerialNumber < 0
+                || x.LastSerialNumber < x.FirstSerialNumber
+                || x.LastSerialNumber - x.FirstSerialNumber >= MaximumUnitsPerRequest)
+            || lines.Sum(x => x.LastSerialNumber - x.FirstSerialNumber + 1) > MaximumUnitsPerRequest)
             return Result<int>.Failure("A valid accountable-form book, collector, and bounded serial range are required.", ResultStatus.Invalid);
+        if (lines.Select(x => x.AssignedUserId).Distinct().Count() != lines.Count)
+            return Result<int>.Failure("Each collector can appear once in a batch; combine their ranges into one row.", ResultStatus.Invalid);
+        var ordered = lines.OrderBy(x => x.FirstSerialNumber).ToList();
+        for (var i = 1; i < ordered.Count; i++)
+            if (ordered[i].FirstSerialNumber <= ordered[i - 1].LastSerialNumber)
+                return Result<int>.Failure("Two collectors' ranges overlap. Each serial can be assigned to one collector only.", ResultStatus.Invalid);
         var book = await db.AccountableFormBooks.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.MunicipalityId == actor.TenantId && x.Id == request.FormBookId, ct);
+            x.MunicipalityId == actor.TenantId && x.Id == formBookId, ct);
         if (book is null) return Result<int>.Failure("The accountable-form book was not found in this tenant.", ResultStatus.NotFound);
         if (expectedInstrument is { } required && book.InstrumentType != required)
             return Result<int>.Failure(
                 $"This route assigns {InstrumentName(required)} books only; the selected book holds {InstrumentName(book.InstrumentType)}.",
                 ResultStatus.Invalid);
         if (book.InstrumentType is not (RevenueInstrumentType.CashTicket or RevenueInstrumentType.OfficialReceipt)
-            || request.FirstSerialNumber < book.FirstSerialNumber
-            || request.LastSerialNumber > book.LastSerialNumber)
+            || ordered[0].FirstSerialNumber < book.FirstSerialNumber
+            || ordered[^1].LastSerialNumber > book.LastSerialNumber)
             return Result<int>.Failure("Assignments must stay within one received OR or Cash Ticket book.", ResultStatus.Invalid);
-        var collector = await db.CollectorUsers.SingleOrDefaultAsync(x =>
-            x.MunicipalityId == actor.TenantId && x.Id == request.AssignedUserId && x.IsActive, ct);
-        if (collector is null) return Result<int>.Failure("An active collector in this tenant is required.", ResultStatus.Invalid);
+        var collectorIds = lines.Select(x => x.AssignedUserId).ToArray();
+        var activeCollectors = await db.CollectorUsers.AsNoTracking().Where(x =>
+            x.MunicipalityId == actor.TenantId && collectorIds.Contains(x.Id) && x.IsActive).Select(x => x.Id).ToListAsync(ct);
+        if (activeCollectors.Count != collectorIds.Length)
+            return Result<int>.Failure("An active collector in this tenant is required.", ResultStatus.Invalid);
         var instrument = book.InstrumentType;
+        var low = ordered[0].FirstSerialNumber;
+        var high = ordered[^1].LastSerialNumber;
+        var candidates = await db.AccountableDocuments.Where(x =>
+            x.MunicipalityId == actor.TenantId && x.FormBookId == formBookId
+            && x.InstrumentType == instrument
+            && x.SerialNumber >= low && x.SerialNumber <= high)
+            .OrderBy(x => x.SerialNumber).ToListAsync(ct);
+        var now = UtcNow;
+        var assigned = 0;
+        foreach (var line in ordered)
+        {
+            var documents = candidates.Where(x => x.SerialNumber >= line.FirstSerialNumber && x.SerialNumber <= line.LastSerialNumber).ToList();
+            var expected = checked((int)(line.LastSerialNumber - line.FirstSerialNumber + 1));
+            if (documents.Count != expected)
+                return Result<int>.Failure($"Every requested {InstrumentName(instrument)} must exist in the received book.", ResultStatus.Conflict);
+            var unavailable = documents.Where(x => x.State != AccountableDocumentState.InOffice).ToList();
+            if (unavailable.Count > 0)
+                return Result<int>.Failure(await UnavailableMessageAsync(actor, instrument, unavailable, ct), ResultStatus.Conflict);
+            foreach (var document in documents)
+            {
+                document.AssignTo(line.AssignedUserId, actor.Username);
+                db.AccountableFormAssignments.Add(AccountableFormAssignment.Assign(
+                    document, line.AssignedUserId, actor.ActorId, now, actor.Username));
+            }
+            assigned += documents.Count;
+        }
+        // One save: the state concurrency token and the one-open-custody index make a concurrent assignment of any unit
+        // fail the whole batch rather than split it.
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException)
+        {
+            return Result<int>.Failure(
+                $"Another assignment changed these {InstrumentName(instrument)}s at the same time. Nothing was assigned; reload and review.",
+                ResultStatus.Conflict);
+        }
+        return Result<int>.Success(assigned);
+    }
+
+    /// <summary>
+    /// Moves assigned, unused units of ONE book from the collector who holds them to another active collector, with a
+    /// reason. It closes the current custody interval and opens the new one in one save, so history reads from, to, range,
+    /// by, at and why. Every unit in the range must be held by the same collector; an issued, consumed, spoiled or
+    /// awaiting-review unit is refused and its history is never altered. Custody only: no money moves.
+    /// </summary>
+    public Task<Result<int>> TransferAsync(TransferAccountableFormsRequest request, CancellationToken ct = default) => Run(async actor =>
+    {
+        if (request.FormBookId == Guid.Empty || request.ToUserId == Guid.Empty || request.FirstSerialNumber < 0
+            || request.LastSerialNumber < request.FirstSerialNumber
+            || request.LastSerialNumber - request.FirstSerialNumber >= MaximumUnitsPerRequest)
+            return Result<int>.Failure("A valid accountable-form book, receiving collector, and bounded serial range are required.", ResultStatus.Invalid);
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > AccountableFormAssignment.MaxReasonLength)
+            return Result<int>.Failure($"State why the forms are moving (at most {AccountableFormAssignment.MaxReasonLength} characters).", ResultStatus.Invalid);
+        var receiver = await db.CollectorUsers.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.TenantId && x.Id == request.ToUserId && x.IsActive, ct);
+        if (receiver is null) return Result<int>.Failure("An active collector in this tenant is required.", ResultStatus.Invalid);
         var documents = await db.AccountableDocuments.Where(x =>
             x.MunicipalityId == actor.TenantId && x.FormBookId == request.FormBookId
-            && x.InstrumentType == instrument
             && x.SerialNumber >= request.FirstSerialNumber && x.SerialNumber <= request.LastSerialNumber)
             .OrderBy(x => x.SerialNumber).ToListAsync(ct);
         var expected = checked((int)(request.LastSerialNumber - request.FirstSerialNumber + 1));
-        if (documents.Count != expected || documents.Any(x => x.State != AccountableDocumentState.InOffice))
-            return Result<int>.Failure($"Every requested {InstrumentName(instrument)} must exist and remain unused in office custody.", ResultStatus.Conflict);
+        if (documents.Count != expected)
+            return Result<int>.Failure("Every unit in the range must exist in the selected book.", ResultStatus.Conflict);
+        var instrument = documents[0].InstrumentType;
+        var unavailable = documents.Where(x => x.State != AccountableDocumentState.Assigned).ToList();
+        if (unavailable.Count > 0)
+            return Result<int>.Failure(
+                $"Only assigned, unused forms can be transferred. {await UnavailableMessageAsync(actor, instrument, unavailable, ct)}",
+                ResultStatus.Conflict);
+        var holders = documents.Select(x => x.AssignedUserId).Distinct().ToList();
+        if (holders.Count != 1 || holders[0] is not { } fromUserId)
+            return Result<int>.Failure("The range is held by more than one collector. Transfer one collector's range at a time.", ResultStatus.Conflict);
+        if (fromUserId == request.ToUserId)
+            return Result<int>.Failure("These forms are already with that collector.", ResultStatus.Invalid);
+        var ids = documents.Select(x => x.Id).ToArray();
+        var open = await db.AccountableFormAssignments.Where(x =>
+            x.MunicipalityId == actor.TenantId && ids.Contains(x.AccountableDocumentId) && x.ReturnedAtUtc == null).ToListAsync(ct);
         var now = UtcNow;
         foreach (var document in documents)
         {
-            document.AssignTo(collector.Id, actor.Username);
-            db.AccountableFormAssignments.Add(AccountableFormAssignment.Assign(
-                document, collector.Id, actor.ActorId, now, actor.Username));
+            foreach (var assignment in open.Where(x => x.AccountableDocumentId == document.Id))
+                assignment.RecordReturn(actor.ActorId, now);
+            document.TransferTo(request.ToUserId, actor.Username);
+            db.AccountableFormAssignments.Add(AccountableFormAssignment.Transfer(
+                document, fromUserId, request.ToUserId, request.Reason, actor.ActorId, now, actor.Username));
         }
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
-            return Result<int>.Failure("The Cash Ticket custody assignment changed concurrently.", ResultStatus.Conflict);
+            return Result<int>.Failure("A unit changed while it was being transferred (it may have just been issued). Nothing moved; reload and review.", ResultStatus.Conflict);
         }
         return Result<int>.Success(documents.Count);
     }, ct);
+
+    /// <summary>Names the units that cannot be assigned, grouped by why, e.g. "CT000004 – CT000006 are assigned to Ana Reyes."</summary>
+    private async Task<string> UnavailableMessageAsync(
+        Actor actor, RevenueInstrumentType instrument, IReadOnlyList<AccountableDocument> unavailable, CancellationToken ct)
+    {
+        var holderIds = unavailable.Where(x => x.AssignedUserId is not null).Select(x => x.AssignedUserId!.Value).Distinct().ToArray();
+        var names = await db.CollectorUsers.AsNoTracking()
+            .Where(x => x.MunicipalityId == actor.TenantId && holderIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
+        var parts = unavailable
+            .GroupBy(x => (x.State, x.State == AccountableDocumentState.Assigned ? x.AssignedUserId : null))
+            .Select(group =>
+            {
+                var runs = string.Join(", ", Runs(group));
+                var plural = group.Count() != 1;
+                var reason = group.Key.State switch
+                {
+                    AccountableDocumentState.Assigned => $"assigned to {(group.Key.Item2 is { } id && names.TryGetValue(id, out var name) ? name : "another collector")}",
+                    AccountableDocumentState.Consumed => "already issued",
+                    AccountableDocumentState.Voided => "spoiled",
+                    AccountableDocumentState.ReconciliationRequired => "awaiting review",
+                    AccountableDocumentState.InOffice => "in office",
+                    _ => "unavailable"
+                };
+                return $"{runs} {(plural ? "are" : "is")} {reason}";
+            });
+        return $"{string.Join("; ", parts)}. No {InstrumentName(instrument)}s were assigned.";
+    }
+
+    private static IEnumerable<string> Runs(IEnumerable<AccountableDocument> documents)
+    {
+        AccountableDocument? start = null, previous = null;
+        foreach (var document in documents.OrderBy(x => x.SerialNumber))
+        {
+            if (start is null) { start = previous = document; continue; }
+            if (document.SerialNumber == previous!.SerialNumber + 1) { previous = document; continue; }
+            yield return start == previous ? start.DocumentNumber : $"{start.DocumentNumber} – {previous.DocumentNumber}";
+            start = previous = document;
+        }
+        if (start is not null)
+            yield return start == previous ? start.DocumentNumber : $"{start.DocumentNumber} – {previous!.DocumentNumber}";
+    }
 
     /// <summary>
     /// Returns unused assigned units of ONE book to office custody (IA-052). Only units still Assigned and unused can return:

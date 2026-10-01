@@ -38,6 +38,10 @@
             </button>
             @* Custody follow-ups and the money-side page, joined like the form-type switch. *@
             <div class="v3-btn-group af-followups" role="group" aria-label="Custody and remittance">
+                <button class="v3-btn" type="button" @onclick="OpenTransfer" disabled="@(_busy || !Books.Any())">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
+                    Transfer
+                </button>
                 <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
                     Return unused
@@ -252,62 +256,119 @@
 
 @if (_dialog == Dialog.Assign)
 {
-    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
-        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-assign-title"
+    @* A right-side drawer: one book, then one row per collector with a quantity. Ranges follow each other from the start
+       serial, so the office never types overlapping ranges; the server still assigns all rows or none. *@
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal v3-drawer" role="dialog" aria-modal="true" aria-labelledby="af-assign-title"
                  @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
             <header class="v3-modal-header">
                 <h2 id="af-assign-title">Assign @Nouns</h2>
                 <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
             </header>
             <form class="v3-modal-body" id="af-assign-form" @onsubmit="AssignAsync" @onsubmit:preventDefault="true">
-                <p class="af-hint">Transfers custody of physical @Nouns.ToLowerInvariant() to a collector. No money is recorded and no operation is authorized by this.</p>
-                <label class="v3-field">
-                    <span>@Noun book</span>
-                    <select @ref="_firstField" @bind="_assignBookId" @bind:after="SuggestRange">
-                        <option value="">Select book</option>
-                        @foreach (var book in Books)
-                        {
-                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
-                        }
-                    </select>
-                </label>
-                @if (SelectedBook is { } selected)
+                <p class="af-hint">Hands physical @Nouns.ToLowerInvariant() to collectors. Custody only: no money is recorded and no operation is authorized.</p>
+                @if (_collectorsUnavailable is { } unavailable)
                 {
-                    <p class="af-book-facts">Received range @RangeLabel(selected) · @Count(selected, AccountableDocumentState.InOffice) in office</p>
+                    <p class="af-field-error" role="alert">@unavailable</p>
                 }
-                <label class="v3-field">
-                    <span>Collector</span>
-                    @if (_collectorsUnavailable is { } reason)
-                    {
-                        <span class="af-field-error" role="alert">@reason</span>
-                    }
-                    else
-                    {
-                        <select @bind="_assignCollectorId">
-                            <option value="">Select active collector</option>
-                            @foreach (var collector in _collectors.Where(x => x.IsActive))
+
+                <div class="v3-drawer-section">
+                    <label class="v3-field">
+                        <span>@Noun book</span>
+                        <select @ref="_firstField" @bind="_assignBookId" @bind:after="SuggestRange">
+                            <option value="">Select book</option>
+                            @foreach (var book in Books)
                             {
-                                <option value="@collector.Id">@collector.FullName · @collector.EmployeeId</option>
+                                <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
                             }
                         </select>
+                    </label>
+                    @if (SelectedBook is { } selected)
+                    {
+                        var office = selected.Documents.Where(d => d.State == AccountableDocumentState.InOffice).ToList();
+                        <dl class="af-facts" aria-label="Selected book">
+                            <div><dt>Received</dt><dd>@RangeLabel(selected)</dd></div>
+                            <div><dt>Available in office</dt><dd>@office.Count.ToString("N0")@(office.Count > 0 ? $" · {string.Join(", ", Runs(office))}" : "")</dd></div>
+                        </dl>
+                        <label class="v3-field af-start">
+                            <span>Start at serial</span>
+                            <input type="number" min="@selected.FirstSerialNumber" max="@selected.LastSerialNumber" @bind="_assignStart" />
+                        </label>
                     }
-                </label>
-                <div class="v3-form-grid">
-                    <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_assignFirst" /></label>
-                    <label class="v3-field"><span>Last serial</span><input type="number" min="0" @bind="_assignLast" /></label>
                 </div>
-                @if (AssignProblem is { } problem)
+
+                @if (SelectedBook is { } chosen)
                 {
-                    <p class="af-field-error" role="alert">@problem</p>
-                }
-                else
-                {
-                    <div class="af-preview" aria-live="polite">
-                        <span>Preview</span>
-                        <strong>@AssignPreview</strong>
-                        @if (NotInOfficeInRange > 0)
+                    <div class="v3-drawer-section">
+                        <h3>Collectors</h3>
+                        @if (_collectorsUnavailable is null)
                         {
-                            <span class="af-attention">@NotInOfficeInRange of these @Unit.ToLowerInvariant()@(NotInOfficeInRange == 1 ? " is" : "s are") not currently in office.</span>
+                            var lines = Allocation;
+                            <ol class="af-batch" aria-label="Collector ranges">
+                                @for (var i = 0; i < _rows.Count; i++)
+                                {
+                                    var index = i;
+                                    var row = _rows[index];
+                                    var line = lines[index];
+                                    <li class="af-batch-row" @key="row">
+                                        <label class="v3-field af-batch-collector">
+                                            <span>Collector</span>
+                                            <select @bind="row.CollectorId">
+                                                <option value="">Select active collector</option>
+                                                @foreach (var collector in _collectors.Where(x => x.IsActive && (x.Id == row.CollectorId || _rows.All(r => r.CollectorId != x.Id))))
+                                                {
+                                                    <option value="@collector.Id">@collector.FullName · @collector.EmployeeId</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label class="v3-field af-batch-qty">
+                                            <span>Quantity</span>
+                                            <input type="number" min="1" @bind="row.Quantity" />
+                                        </label>
+                                        <div class="af-batch-range">
+                                            <span>Range</span>
+                                            <strong>@(row.Quantity > 0 ? SerialRange(chosen, line.First, line.Last) : "—")</strong>
+                                        </div>
+                                        <button class="af-row-remove" type="button" aria-label="Remove collector row @(index + 1)"
+                                                disabled="@(_rows.Count == 1)" @onclick="() => RemoveRow(row)">×</button>
+                                    </li>
+                                }
+                            </ol>
+                            <button class="v3-btn af-add-row" type="button" @onclick="AddRow"
+                                    disabled="@(_rows.Count >= _collectors.Count(x => x.IsActive))">Add collector</button>
+                        }
+                    </div>
+
+                    <div class="v3-drawer-section" aria-live="polite">
+                        <h3>Availability</h3>
+                        @if (AssignProblem is { } problem)
+                        {
+                            <p class="af-field-error" role="alert">@problem</p>
+                        }
+                        else
+                        {
+                            var check = Availability(chosen);
+                            <dl class="af-facts af-availability" aria-label="Availability of the requested range">
+                                <div><dt>Requested</dt><dd>@check.Requested.ToString("N0") · @SerialRange(chosen, check.First, check.Last)</dd></div>
+                                <div><dt>Available in office</dt><dd>@check.InOffice.ToString("N0")</dd></div>
+                                @foreach (var held in check.Held)
+                                {
+                                    <div><dt>Already assigned · @held.Collector</dt><dd>@held.Count.ToString("N0")</dd></div>
+                                }
+                                @if (check.Issued > 0) { <div><dt>Already issued</dt><dd>@check.Issued.ToString("N0")</dd></div> }
+                                @if (check.Spoiled > 0) { <div><dt>Spoiled</dt><dd>@check.Spoiled.ToString("N0")</dd></div> }
+                                @if (check.Review > 0) { <div><dt>Needs review</dt><dd>@check.Review.ToString("N0")</dd></div> }
+                                @if (check.Missing > 0) { <div><dt>Outside the book</dt><dd>@check.Missing.ToString("N0")</dd></div> }
+                                <div class="af-facts-total"><dt>Remaining in office after this</dt><dd>@check.RemainingAfter.ToString("N0")</dd></div>
+                            </dl>
+                            @if (check.Unassignable > 0)
+                            {
+                                <p class="v3-notice v3-notice-error" role="alert">
+                                    @(check.InOffice == 0
+                                        ? $"No {Nouns} are available to assign from this range. Return or transfer unused {Units.ToLowerInvariant()} before assigning them to another collector."
+                                        : $"{check.Unassignable:N0} of the requested {Nouns} {(check.Unassignable == 1 ? "is" : "are")} not in office. Change the start serial or quantities, or return or transfer them first.")
+                                </p>
+                            }
                         }
                     </div>
                 }
@@ -317,8 +378,74 @@
                 }
             </form>
             <footer class="v3-modal-footer">
+                @if (SelectedBook is not null && AssignProblem is null)
+                {
+                    <span class="af-footer-total">@AllocatedTotal.ToString("N0") @(AllocatedTotal == 1 ? Noun : Nouns) to @_rows.Count collector@(_rows.Count == 1 ? "" : "s")</span>
+                }
                 <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="af-assign-form" disabled="@(_busy || AssignProblem is not null)">Assign @Nouns</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-assign-form" disabled="@(_busy || !CanAssign)">Assign @Nouns</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_dialog == Dialog.Transfer)
+{
+    @* Moves assigned, unused forms from the collector who holds them to another, with a reason kept in custody history.
+       It never touches an issued form; the server refuses any range it cannot move whole. *@
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-transfer-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-transfer-title">Transfer @Nouns</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-transfer-form" @onsubmit="TransferAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">Moves unused @Nouns.ToLowerInvariant() from one collector to another. Issued forms stay where they are.</p>
+                <label class="v3-field">
+                    <span>@Noun book</span>
+                    <select @ref="_firstField" @bind="_transferBookId">
+                        <option value="">Select book</option>
+                        @foreach (var book in Books)
+                        {
+                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
+                        }
+                    </select>
+                </label>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>First serial</span><input type="number" min="0" @bind="_transferFirst" /></label>
+                    <label class="v3-field"><span>Last serial</span><input type="number" min="0" @bind="_transferLast" /></label>
+                </div>
+                @if (TransferHolder is { } holder)
+                {
+                    <p class="af-book-facts">Held by @holder</p>
+                }
+                <label class="v3-field">
+                    <span>Transfer to</span>
+                    <select @bind="_transferToId">
+                        <option value="">Select active collector</option>
+                        @foreach (var collector in _collectors.Where(x => x.IsActive))
+                        {
+                            <option value="@collector.Id">@collector.FullName · @collector.EmployeeId</option>
+                        }
+                    </select>
+                </label>
+                <label class="v3-field">
+                    <span>Reason</span>
+                    <input type="text" maxlength="300" @bind="_transferReason" @bind:event="oninput" />
+                </label>
+                @if (TransferProblem is { } problem)
+                {
+                    <p class="af-field-error" role="alert">@problem</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-transfer-form" disabled="@(_busy || TransferProblem is not null)">Transfer</button>
             </footer>
         </section>
     </div>
@@ -400,7 +527,7 @@
 }
 
 @code {
-    private enum Dialog { None, Register, Assign, Return, Spoil }
+    private enum Dialog { None, Register, Assign, Transfer, Return, Spoil }
 
     private List<AccountableFormBookDto> _books = [];
     private List<CollectorListDto> _collectors = [];
@@ -426,9 +553,21 @@
     private int _serialWidth = 6;
 
     private Guid? _assignBookId;
-    private Guid? _assignCollectorId;
-    private long _assignFirst;
-    private long _assignLast;
+    private long _assignStart;
+    private List<BatchRow> _rows = [new()];
+
+    /// <summary>One collector's line in a batch: who, and how many forms. The range is derived, never typed.</summary>
+    private sealed class BatchRow
+    {
+        public Guid? CollectorId { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    private Guid? _transferBookId;
+    private long _transferFirst;
+    private long _transferLast;
+    private Guid? _transferToId;
+    private string _transferReason = string.Empty;
 
     // Books, custody and numbers are per instrument: an OR and a CT are different physical documents and are never mixed.
     private RevenueInstrumentType _instrument = RevenueInstrumentType.CashTicket;
@@ -516,26 +655,102 @@
     private string? AssignProblem =>
         _assignBookId is null ? $"Select a {Noun} book."
         : _collectorsUnavailable is not null ? "A collector cannot be selected from this account."
-        : _assignCollectorId is null ? "Select a collector."
-        : _assignFirst < 0 ? "First serial cannot be negative."
-        : _assignLast < _assignFirst ? "Last serial must be at or after the first serial."
-        : SelectedBook is { } book && (_assignFirst < book.FirstSerialNumber || _assignLast > book.LastSerialNumber)
-            ? $"This book was received as serials {book.FirstSerialNumber}–{book.LastSerialNumber}."
+        : _rows.Any(r => r.CollectorId is null) ? "Select a collector for every row."
+        : _rows.Any(r => r.Quantity < 1) ? "Enter a quantity of at least 1 for every collector."
+        : SelectedBook is { } book && _assignStart < book.FirstSerialNumber
+            ? $"Start at a serial within the book ({SerialRange(book, book.FirstSerialNumber, book.LastSerialNumber)})."
         : null;
 
-    private string AssignPreview
+    /// <summary>Each row's range, laid end to end from the start serial in row order.</summary>
+    private IReadOnlyList<(long First, long Last)> Allocation
     {
         get
         {
-            var count = _assignLast - _assignFirst + 1;
-            var collector = _collectors.FirstOrDefault(c => c.Id == _assignCollectorId)?.FullName ?? "the collector";
-            return $"{count:N0} {Noun}{(count == 1 ? "" : "s")} will be assigned to {collector}.";
+            var lines = new List<(long, long)>(_rows.Count);
+            var cursor = _assignStart;
+            foreach (var row in _rows)
+            {
+                var quantity = Math.Max(row.Quantity, 0);
+                lines.Add((cursor, cursor + quantity - 1));
+                cursor += quantity;
+            }
+            return lines;
         }
     }
 
-    // Uses the loaded document states only to warn; the server decides what can actually be assigned.
-    private int NotInOfficeInRange => SelectedBook?.Documents.Count(d =>
-        d.SerialNumber >= _assignFirst && d.SerialNumber <= _assignLast && d.State != AccountableDocumentState.InOffice) ?? 0;
+    private long AllocatedTotal => _rows.Sum(r => (long)Math.Max(r.Quantity, 0));
+
+    private sealed record RangeCheck(long First, long Last, long Requested, int InOffice,
+        IReadOnlyList<(string Collector, int Count)> Held, int Issued, int Spoiled, int Review, long Missing, int RemainingAfter)
+    {
+        public long Unassignable => Requested - InOffice;
+    }
+
+    // Reads the loaded document states to explain the range before submitting; the server decides what is assigned.
+    private RangeCheck Availability(AccountableFormBookDto book)
+    {
+        var first = _assignStart;
+        var last = _assignStart + AllocatedTotal - 1;
+        var inRange = book.Documents.Where(d => d.SerialNumber >= first && d.SerialNumber <= last).ToList();
+        int InRange(AccountableDocumentState state) => inRange.Count(d => d.State == state);
+        var held = inRange.Where(d => d.State == AccountableDocumentState.Assigned)
+            .GroupBy(d => d.AssignedUserId).Select(g => (CollectorName(g.Key), g.Count())).ToList();
+        var inOffice = InRange(AccountableDocumentState.InOffice);
+        return new RangeCheck(first, last, AllocatedTotal, inOffice, held, InRange(AccountableDocumentState.Consumed),
+            InRange(AccountableDocumentState.Voided), InRange(AccountableDocumentState.ReconciliationRequired),
+            AllocatedTotal - inRange.Count, Count(book, AccountableDocumentState.InOffice) - inOffice);
+    }
+
+    private bool CanAssign => AssignProblem is null && SelectedBook is { } book && Availability(book).Unassignable == 0;
+
+    /// <summary>A serial range in the book's own numbering, e.g. "CT000009 – CT000018".</summary>
+    private static string SerialRange(AccountableFormBookDto book, long first, long last)
+    {
+        string Number(long serial) => book.Documents.FirstOrDefault(d => d.SerialNumber == serial)?.DocumentNumber
+            ?? $"{book.NumberPrefix}{serial}";
+        return first == last ? Number(first) : $"{Number(first)} – {Number(last)}";
+    }
+
+    private void AddRow() => _rows.Add(new BatchRow());
+
+    private void RemoveRow(BatchRow row)
+    {
+        if (_rows.Count > 1) _rows.Remove(row);
+    }
+
+    // Transfer: the range must be held, unused, by one collector. Local checks explain; the server decides.
+    private AccountableFormBookDto? TransferBook => Books.FirstOrDefault(b => b.BookId == _transferBookId);
+
+    private IReadOnlyList<CashTicketDocumentDto> TransferRange => TransferBook?.Documents
+        .Where(d => d.SerialNumber >= _transferFirst && d.SerialNumber <= _transferLast).ToList() ?? [];
+
+    private string? TransferHolder => TransferRange is { Count: > 0 } range
+        && range.All(d => d.State == AccountableDocumentState.Assigned)
+        && range.Select(d => d.AssignedUserId).Distinct().Count() == 1
+            ? $"{CollectorName(range[0].AssignedUserId)} · {range.Count:N0} unused"
+            : null;
+
+    private string? TransferProblem
+    {
+        get
+        {
+            if (TransferBook is not { } book) return $"Select a {Noun} book.";
+            if (_transferLast < _transferFirst) return "Last serial must be at or after the first serial.";
+            var range = TransferRange;
+            if (range.Count != _transferLast - _transferFirst + 1)
+                return $"This book was received as {SerialRange(book, book.FirstSerialNumber, book.LastSerialNumber)}.";
+            var blocked = range.Where(d => d.State != AccountableDocumentState.Assigned).ToList();
+            if (blocked.Count > 0)
+                return $"{string.Join(", ", Runs(blocked))} cannot move " +
+                       $"({string.Join(", ", blocked.Select(d => StateLabel(d.State).ToLowerInvariant()).Distinct())}). Only unused {Units.ToLowerInvariant()} held by a collector can be transferred.";
+            if (range.Select(d => d.AssignedUserId).Distinct().Count() != 1)
+                return "These serials are held by more than one collector. Transfer one collector's range at a time.";
+            if (_transferToId is null) return "Select the collector receiving them.";
+            if (_transferToId == range[0].AssignedUserId) return "They are already with that collector.";
+            if (string.IsNullOrWhiteSpace(_transferReason)) return "State why they are moving.";
+            return null;
+        }
+    }
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -591,10 +806,19 @@
     private void OpenAssign()
     {
         _assignBookId = null;
-        _assignCollectorId = null;
-        _assignFirst = 0;
-        _assignLast = 0;
+        _assignStart = 0;
+        _rows = [new BatchRow()];
         OpenDialog(Dialog.Assign);
+    }
+
+    private void OpenTransfer()
+    {
+        _transferBookId = null;
+        _transferFirst = 0;
+        _transferLast = 0;
+        _transferToId = null;
+        _transferReason = string.Empty;
+        OpenDialog(Dialog.Transfer);
     }
 
     private void OpenDialog(Dialog dialog)
@@ -622,8 +846,7 @@
         if (SelectedBook is not { } book) return;
         var next = book.Documents.Where(d => d.State == AccountableDocumentState.InOffice)
             .OrderBy(d => d.SerialNumber).FirstOrDefault();
-        _assignFirst = next?.SerialNumber ?? book.FirstSerialNumber;
-        _assignLast = _assignFirst;
+        _assignStart = next?.SerialNumber ?? book.FirstSerialNumber;
     }
 
     private async Task RegisterAsync()
@@ -652,23 +875,55 @@
 
     private async Task AssignAsync()
     {
-        if (AssignProblem is not null || _busy || _assignBookId is not { } bookId || _assignCollectorId is not { } collectorId) return;
+        if (!CanAssign || _busy || SelectedBook is not { } book) return;
         _busy = true;
         _dialogError = null;
         try
         {
-            var request = new AssignAccountableFormRangeRequest(bookId, collectorId, _assignFirst, _assignLast);
-            var result = _instrument == RevenueInstrumentType.OfficialReceipt
-                ? await FormsApi.AssignOfficialReceiptsAsync(request)
-                : await FormsApi.AssignCashTicketsAsync(request);
+            var lines = _rows.Zip(Allocation, (row, range) =>
+                new AccountableFormBatchLine(row.CollectorId!.Value, range.First, range.Last)).ToList();
+            // One collector keeps the instrument's own route; several go through the all-or-nothing batch.
+            Result<int> result;
+            if (lines.Count == 1)
+            {
+                var request = new AssignAccountableFormRangeRequest(book.BookId, lines[0].AssignedUserId,
+                    lines[0].FirstSerialNumber, lines[0].LastSerialNumber);
+                result = _instrument == RevenueInstrumentType.OfficialReceipt
+                    ? await FormsApi.AssignOfficialReceiptsAsync(request)
+                    : await FormsApi.AssignCashTicketsAsync(request);
+            }
+            else
+            {
+                result = await FormsApi.AssignBatchAsync(new AssignAccountableFormBatchRequest(book.BookId, _instrument, lines));
+            }
             if (!result.IsSuccess)
             {
-                _dialogError = result.Error ?? $"The {Nouns} could not be assigned.";
+                _dialogError = result.Error ?? $"The {Nouns} could not be assigned. Nothing was assigned.";
                 return;
             }
-            var collector = CollectorName(collectorId);
             _dialog = Dialog.None;
-            _message = $"Assigned {result.Value:N0} {Noun}{(result.Value == 1 ? "" : "s")} to {collector} (serials {_assignFirst}–{_assignLast}).";
+            _message = lines.Count == 1
+                ? $"Assigned {result.Value:N0} {(result.Value == 1 ? Noun : Nouns)} to {CollectorName(lines[0].AssignedUserId)} ({SerialRange(book, lines[0].FirstSerialNumber, lines[0].LastSerialNumber)})."
+                : $"Assigned {result.Value:N0} {Nouns} to {lines.Count} collectors.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task TransferAsync()
+    {
+        if (TransferProblem is not null || _busy || _transferBookId is not { } bookId || _transferToId is not { } toId) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await FormsApi.TransferAsync(new TransferAccountableFormsRequest(
+                bookId, _transferFirst, _transferLast, toId, _transferReason.Trim()));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? $"The {Nouns} could not be transferred. Nothing moved."; return; }
+            var range = SerialRange(TransferBook!, _transferFirst, _transferLast);
+            _dialog = Dialog.None;
+            _message = $"Transferred {result.Value:N0} unused {(result.Value == 1 ? Noun : Nouns)} ({range}) to {CollectorName(toId)}.";
             await LoadAsync();
         }
         catch (Exception ex) { _dialogError = ex.Message; }

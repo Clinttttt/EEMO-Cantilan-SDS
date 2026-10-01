@@ -34,6 +34,18 @@ public sealed class AccountableFormsController(
         [FromBody] AssignAccountableFormRangeRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.AssignRangeAsync(request, RevenueInstrumentType.OfficialReceipt, ct));
 
+    /// <summary>Assigns several collectors' ranges from one book in one all-or-nothing save (custody only).</summary>
+    [HttpPost("assign-batch")]
+    public async Task<ActionResult<int>> AssignBatchAsync(
+        [FromBody] AssignAccountableFormBatchRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.AssignBatchAsync(request, ct));
+
+    /// <summary>Moves assigned, unused units from one collector to another with a recorded reason (custody only).</summary>
+    [HttpPost("transfer")]
+    public async Task<ActionResult<int>> TransferAsync(
+        [FromBody] TransferAccountableFormsRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.TransferAsync(request, ct));
+
     // Returns unused assigned units to office custody (IA-052). Issued, consumed or spoiled units cannot return.
     [HttpPost("return")]
     public async Task<ActionResult<int>> ReturnUnusedAsync(
