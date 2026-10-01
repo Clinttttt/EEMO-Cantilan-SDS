@@ -84,6 +84,12 @@
     color: #ffffff;
 }
 
+/* FocusOnNavigate moves focus to the page h1 (tabindex -1) for screen readers; it is not an interactive control, so it
+   shows no focus ring. */
+.v3h-title:focus {
+    outline: none;
+}
+
 .v3h-compact .v3h-title {
     font-size: 1.1875rem;
 }

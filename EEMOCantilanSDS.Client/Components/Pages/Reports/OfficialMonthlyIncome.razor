@@ -154,20 +154,6 @@ else
                 </tfoot>
             </table>
         </div>
-
-        <ul class="omi-notes">
-            <li>@HorizonLabel · Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture).</li>
-            @if (!_data.TargetsConfigured)
-            {
-                <li>Annual targets are not configured in StallTrack, so Annual Target and Percentage show “—”. Percentage is total ÷ annual target, never collection efficiency.</li>
-            }
-            <li>Each line counts a real collection once: authoritative legacy records before a source's cutover, posted collections after it. A remittance is not income and never changes this statement.</li>
-            @if (UnplacedRows.Count > 0)
-            {
-                <li>The total includes @UnplacedRows.Count line@(UnplacedRows.Count == 1 ? "" : "s") awaiting an approved official grouping, listed apart above.</li>
-            }
-            <li>Blank months have not yet been reached; 0.00 is a month that has passed with nothing collected.</li>
-        </ul>
     </article>
 }
 </div>
@@ -185,14 +171,6 @@ else
 
     // The last month whose figures exist: the current month this year, all twelve for a past year, none for a future one.
     private int Horizon => Year < PhilippineTime.Today.Year ? 12 : Year > PhilippineTime.Today.Year ? 0 : PhilippineTime.Today.Month;
-
-    private string HorizonLabel => Horizon switch
-    {
-        0 => $"No month of {Year} has been reached",
-        12 => $"January – December {Year}",
-        1 => $"January {Year}",
-        _ => $"January – {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(Horizon)} {Year}"
-    };
 
     private IEnumerable<OfficialMonthlyIncomeGroupDto> OfficialGroups =>
         _data?.Groups.Where(g => g.Key != OfficialMonthlyIncomeStructure.Pending) ?? [];

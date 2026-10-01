@@ -1989,6 +1989,9 @@ a.topbar-admin.account-chip {
        height, so that floor kept the layout box a whole page tall even when the sheet inside it ended halfway down,
        and the leftover height printed as a trailing blank sheet. Reported on the stallholder roster. */
     .admin-layout { display: block !important; min-height: 0 !important; }
+    /* The same viewport floor on the main column (min-height: 100vh) printed one-page statements onto a second, blank
+       sheet once the print helper's body padding was added (Official Monthly Income, 2026-10-02). */
+    .admin-main { min-height: 0 !important; }
     .no-print { display: none !important; }
 }
 
