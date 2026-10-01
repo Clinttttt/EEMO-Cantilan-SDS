@@ -183,31 +183,35 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
     }
 
     [Fact]
-    public void WcfAccounts_OffersActivationOnlyForASavedUnsettledAmount_AndAsksForTheAttestation()
+    public void WcfAccounts_RoutineRowsNeedNoActivation_AndOnlyHistoricalRowsOfferTheLegacyMigration()
     {
         var notSet = Source(null, null);
-        var ready = Source(10m, SettlementAuthority.Legacy) with { StallNo = "13", PayerName = "Ana Reyes" };
+        var prepared = Source(10m, SettlementAuthority.Legacy) with { StallNo = "13", PayerName = "Ana Reyes" };
+        var historical = Source(10m, SettlementAuthority.Legacy, editable: false) with { StallNo = "15", PayerName = "Cora Lim" };
         var active = Source(10m, SettlementAuthority.Canonical, editable: false) with { StallNo = "14", PayerName = "Ben Cruz" };
-        var api = SetupApi(notSet, ready, active);
-        api.Setup(x => x.GetActivationReadinessAsync(ready.UtilityBillId!.Value, null))
+        var api = SetupApi(notSet, prepared, historical, active);
+        api.Setup(x => x.GetActivationReadinessAsync(historical.UtilityBillId!.Value, null))
             .ReturnsAsync(Result<SettlementCutoverReadinessDto>.Failure("not checked"));
 
         var cut = RenderComponent<WaterConsumptionFeesAccounts>();
 
-        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("section.wcfs tbody tr").Count), Timeout);
+        cut.WaitForAssertion(() => Assert.Equal(4, cut.FindAll("section.wcfs tbody tr").Count), Timeout);
         var rows = cut.FindAll("section.wcfs tbody tr");
-        Assert.DoesNotContain("Activate for Mobile", rows[0].TextContent);
-        Assert.Contains("Activate for Mobile", rows[1].TextContent);
-        Assert.DoesNotContain("Activate for Mobile", rows[2].TextContent);
-        Assert.Contains("Active", rows[2].TextContent);
+        // No per-row activation for routine rows: a prepared amount is simply ready for Collector Mobile.
+        Assert.DoesNotContain("Activate for Mobile", cut.Markup);
+        Assert.Contains("Prepared", rows[1].TextContent);
+        Assert.DoesNotContain("Review legacy migration", rows[1].TextContent);
+        Assert.Contains("Active", rows[3].TextContent);
+        Assert.DoesNotContain("Review legacy migration", rows[3].TextContent);
+        Assert.Contains("Historical record", rows[2].TextContent);
 
-        rows[1].QuerySelectorAll("button").Single(b => b.TextContent.Contains("Activate for Mobile")).Click();
+        // Only the historical row opens the attested migration review, under its own name.
+        rows[2].QuerySelectorAll("button").Single(b => b.TextContent.Contains("Review legacy migration")).Click();
         cut.WaitForAssertion(() =>
         {
             var dialog = cut.Find("[role='dialog']");
+            Assert.Contains("Review legacy WCF migration", dialog.TextContent);
             Assert.Contains("Office attestation", dialog.TextContent);
-            Assert.Equal(6, dialog.QuerySelectorAll(".wcfs-checks input[type='checkbox']").Length);
-            // Nothing is activated until the office submits the checklist.
             api.Verify(x => x.ActivateAsync(It.IsAny<EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest>()), Times.Never);
         }, Timeout);
     }

@@ -185,6 +185,84 @@ public sealed class UtilityWorkspaceTests : TestContext
         return api;
     }
 
+    // ── WCF Mobile collection: one operation-level enable, readiness derived by the server ──
+
+    private static WcfMobileStatusDto Status(bool active = false, params WcfReadinessItemDto[] blockers) => new(
+        active, active ? new DateOnly(2026, 10, 1) : null, active ? DateTime.UtcNow : null, active ? "head" : null,
+        !active && blockers.Length == 0, blockers,
+        [new WcfReadinessItemDto("POLICY", "Water policy", "Cash Ticket · direct amount", true, null, null)],
+        [new WcfCollectorReadinessDto(Guid.NewGuid(), "Bobby Mercado", true, blockers.Length == 0 ? 4999 : 0, 0, blockers.Length == 0)],
+        0);
+
+    [Fact]
+    public void WcfMobile_ReadyToEnable_OffersOneAction_AndAsksTheOfficeToTypeNothing()
+    {
+        var api = WcfApi([], [Ticket()]);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status()));
+        api.Setup(x => x.EnableMobileAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(active: true)));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Ready to enable", cut.Find("section.wcf-mobile").TextContent), Timeout);
+        var panel = cut.Find("section.wcf-mobile");
+        // No attestation checklist, evidence reference, app-version input or separate readiness check.
+        Assert.Empty(panel.QuerySelectorAll("input"));
+        Assert.DoesNotContain("Check readiness", cut.Markup);
+        Assert.DoesNotContain("Evidence reference", cut.Markup);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable Mobile Collection").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Historical Water records", cut.Find("[role='dialog']").TextContent), Timeout);
+        Assert.Empty(cut.Find("[role='dialog']").QuerySelectorAll("input"));
+        cut.Find("[role='dialog'] .v3-btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+        }, Timeout);
+        api.Verify(x => x.EnableMobileAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void WcfMobile_Blocked_ShowsOnlyTheRealBlocker_WithItsAction()
+    {
+        var api = WcfApi([], []);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(false,
+            new WcfReadinessItemDto("CASH_TICKETS", "Cash Ticket custody", "Cash Tickets have not been assigned to Bobby Mercado.",
+                false, "Manage Accountable Forms", "/accountable-forms"))));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Needs attention", cut.Find("section.wcf-mobile").TextContent);
+            var blocker = Assert.Single(cut.FindAll(".wcf-blockers li"));
+            Assert.Contains("Bobby Mercado", blocker.TextContent);
+            Assert.Equal("/accountable-forms", blocker.QuerySelector("a")!.GetAttribute("href"));
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Enable Mobile Collection");
+        }, Timeout);
+    }
+
+    [Fact]
+    public void WcfMobile_Active_StatesItPlainly_WithNoEnableAction()
+    {
+        var api = WcfApi([], [Ticket()]);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(active: true)));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Enable Mobile Collection");
+            foreach (var technical in new[] { "Canonical", "Settlement authority", "Pending cutover", "cutover" })
+                Assert.DoesNotContain(technical, cut.Find("section.wcf-mobile").TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
+    }
+
     private static Mock<IWcfCollectionsApiClient> WcfApi(
         IReadOnlyList<WcfObligationQuoteDto>? quotes = null, IReadOnlyList<CashTicketDocumentDto>? tickets = null)
     {

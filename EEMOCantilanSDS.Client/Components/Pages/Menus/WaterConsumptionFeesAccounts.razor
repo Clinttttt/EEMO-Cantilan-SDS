@@ -117,8 +117,8 @@
        bill is never changed here. No reading, cubic metre or rate is asked for. *@
     <section class="v3-panel wcfs" aria-labelledby="wcfs-title" aria-busy="@(_setupLoading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="wcfs-title">Set up Water obligations — @PeriodLabel</h2>
-            <span class="v3-panel-meta">Direct approved amount · Cash Ticket · collected on Collector Mobile once active</span>
+            <h2 id="wcfs-title">Prepare Water amounts — @PeriodLabel</h2>
+            <span class="v3-panel-meta">Optional · when no amount is prepared, the collector enters it on Mobile at collection</span>
         </header>
 
         @if (_setupMessage is not null)
@@ -134,7 +134,7 @@
                         <th scope="col">Payer</th>
                         <th scope="col">Source</th>
                         <th scope="col" class="v3-num">Approved amount</th>
-                        <th scope="col">Mobile collection</th>
+                        <th scope="col">Status</th>
                         <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
                 </thead>
@@ -166,9 +166,9 @@
                                 {
                                     <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => SaveAsync(source)">Save</button>
                                 }
-                                @if (CanActivate(source))
+                                @if (CanMigrate(source))
                                 {
-                                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" disabled="@_busy" @onclick="() => OpenActivationAsync(source)">Activate for Mobile</button>
+                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => OpenActivationAsync(source)">Review legacy migration</button>
                                 }
                             </td>
                         </tr>
@@ -186,7 +186,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="v3-panel-note">An amount can be revised until settlement or activation begins. Activation is one obligation at a time and needs the office's attested checklist.</p>
+        <p class="v3-panel-note">A prepared amount can be revised until it is collected. Historical records with legacy payments keep the legacy path; migrating one is an exceptional, attested review.</p>
     </section>
 </div>
 
@@ -195,13 +195,13 @@
     <div class="v3-modal-backdrop" role="presentation" @onclick="CloseActivation">
         <section class="v3-modal wcfs-modal" role="dialog" aria-modal="true" aria-labelledby="wcfs-activate-title" @onclick:stopPropagation="true">
             <header class="v3-modal-header">
-                <h2 id="wcfs-activate-title">Activate for Mobile collection</h2>
+                <h2 id="wcfs-activate-title">Review legacy WCF migration</h2>
                 <button class="wcfs-close" type="button" aria-label="Close" @onclick="CloseActivation">×</button>
             </header>
             <form class="v3-modal-body" id="wcfs-activate-form" @onsubmit="ActivateAsync" @onsubmit:preventDefault="true">
                 <p class="wcfs-hint">
                     Stall @target.StallNo · @(target.PayerName ?? "Payer not named") · @PeriodLabel · @(target.ApprovedAmount is { } amt ? Money(amt) : "—").
-                    The opening position is frozen at this amount with nothing previously settled; this does not create a collection.
+                    This historical source has legacy Water records. Migrating it freezes its legacy settled amount as the opening position (nothing is re-counted as a collection) and moves it to the canonical path.
                 </p>
                 <fieldset class="wcfs-checks">
                     <legend>Office attestation</legend>
@@ -388,20 +388,20 @@
         finally { _busy = false; }
     }
 
-    // Only a saved, unsettled, still-Legacy amount can be activated here; a source already in cutover can resume.
-    private static bool CanActivate(WcfSetupSourceDto s) =>
-        s.UtilityBillId is not null && s.ApprovedAmount is > 0m && s.ChargeBasis == "DirectApproved"
+    // Legacy migration is the exception: only a historical source with legacy payments, or one already in migration.
+    private static bool CanMigrate(WcfSetupSourceDto s) =>
+        s.UtilityBillId is not null && s.ApprovedAmount is > 0m
         && (s.SettlementAuthority == SettlementAuthority.PendingCutover
-            || s.SettlementAuthority == SettlementAuthority.Legacy && s.Editable);
+            || s.SettlementAuthority == SettlementAuthority.Legacy && !s.Editable);
 
     private static string StateLabel(WcfSetupSourceDto s) => s.SettlementAuthority switch
     {
         null => "No amount set",
         SettlementAuthority.Canonical => "Active",
-        SettlementAuthority.PendingCutover => "Activation in progress",
+        SettlementAuthority.PendingCutover => "Migration in progress",
         _ when s.ApprovedAmount is null => "No amount set",
-        _ when !s.Editable => "Legacy settlement",
-        _ => "Not yet active"
+        _ when !s.Editable => "Historical record",
+        _ => "Prepared"
     };
 
     private static string StateClass(WcfSetupSourceDto s) => s.SettlementAuthority switch
