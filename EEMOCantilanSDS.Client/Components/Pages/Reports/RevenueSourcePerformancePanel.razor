@@ -51,10 +51,10 @@
                     <tbody>
                         <tr class="rsp-group">
                             <th scope="rowgroup" colspan="2">@group.Label</th>
-                            <td class="rsp-num">@Money(group.Collected)</td>
+                            <td class="rsp-num">@(CrossGroupScope ? "" : Money(group.Collected))</td>
                             <td colspan="3"></td>
                         </tr>
-                        @foreach (var row in _data.Rows.Where(r => r.GroupKey == group.Key))
+                        @foreach (var row in _data.Rows.Where(r => r.GroupKey == group.Key && RowVisible(r)))
                         {
                             var open = _open.Contains(row.Key);
                             var facility = FacilityOf(row);
@@ -110,8 +110,8 @@
                 }
                 <tfoot>
                     <tr class="rsp-total">
-                        <th scope="row" colspan="2">Total — all sources</th>
-                        <td class="rsp-num">@Money(VisibleTotal)</td>
+                        <th scope="row" colspan="2">@TotalLabel</th>
+                        <td class="rsp-num">@(CrossGroupScope ? "—" : Money(VisibleTotal))</td>
                         <td colspan="3"></td>
                     </tr>
                 </tfoot>
@@ -140,13 +140,34 @@
     private string PeriodLabel => Month is { } m
         ? $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}" : Year.ToString(CultureInfo.InvariantCulture);
 
+    // All sources by default; a facility-backed / non-facility split cuts across the groups, so it lists rows only and
+    // states no subtotal (money totals stay the server's group and statement totals, never re-added here).
     private IReadOnlyList<(string Value, string Label)> GroupOptions =>
-        new[] { ("all", "All sources") }.Concat(_data?.Groups.Select(g => (g.Key, g.Label)) ?? []).ToList();
+        new[] { ("all", "All sources"), ("facilities", "Facilities only"), ("operations", "Non-facility operations") }
+            .Concat(_data?.Groups.Select(g => (g.Key, g.Label)) ?? []).ToList();
+
+    private bool CrossGroupScope => _group is "facilities" or "operations";
+
+    private bool RowVisible(RevenueSourcePerformanceRowDto row) => _group switch
+    {
+        "facilities" => row.Facility is not null,
+        "operations" => row.Facility is null,
+        _ => true
+    };
 
     private IEnumerable<RevenueSourceGroupDto> VisibleGroups =>
-        _data?.Groups.Where(g => _group == "all" || g.Key == _group) ?? [];
+        _data?.Groups.Where(g => (_group is "all" || CrossGroupScope || g.Key == _group)
+            && _data.Rows.Any(r => r.GroupKey == g.Key && RowVisible(r))) ?? [];
 
-    private decimal VisibleTotal => VisibleGroups.Sum(g => g.Collected);
+    private decimal VisibleTotal => _group == "all" ? _data?.TotalCollected ?? 0m : VisibleGroups.Sum(g => g.Collected);
+
+    private string TotalLabel => _group switch
+    {
+        "all" => "Total — all sources",
+        "facilities" => "Facility-backed sources",
+        "operations" => "Non-facility operations",
+        _ => "Total — " + (_data?.Groups.FirstOrDefault(g => g.Key == _group)?.Label ?? "selected group")
+    };
 
     protected override async Task OnParametersSetAsync()
     {

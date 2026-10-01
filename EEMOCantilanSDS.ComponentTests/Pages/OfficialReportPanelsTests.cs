@@ -400,4 +400,34 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal("/operations/landing-berthing/report", detail.QuerySelector("a.rsp-link")!.GetAttribute("href"));
         }, Timeout);
     }
+
+    [Fact]
+    public void SourcePerformance_DefaultsToAllSources_AndCanNarrowToFacilitiesWithoutReaddingMoney()
+    {
+        var rows = new[]
+        {
+            Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT"),
+            Source("RENT_TCC", "Tampak Commercial Center (TCC)", "RENT", RevenueSourceModel.RecurringObligation, 900m, null, FacilityCode.TCC, "OR"),
+        };
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10,
+                [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 900m)],
+                rows, 1000m, [], DateTime.UtcNow)));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10));
+
+        cut.WaitForAssertion(() => Assert.Contains("All sources", cut.Find(".rsp-filter").TextContent), Timeout);
+        Assert.Equal(2, cut.FindAll("tr.rsp-row").Count);
+
+        cut.Find(".rsp-filter .fh-dd-trigger").Click();
+        cut.FindAll(".rsp-filter .fh-dd-item").Single(i => i.TextContent.Contains("Facilities only")).Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(cut.FindAll("tr.rsp-row"));
+            Assert.Contains("Tampak Commercial Center", row.TextContent);
+            // A cross-group scope lists rows only; the server's totals are not re-added on the client.
+            Assert.Contains("—", cut.Find("tr.rsp-total").TextContent);
+        }, Timeout);
+    }
 }
