@@ -5,72 +5,70 @@
 @using EEMOCantilanSDS.Application.Command.Revenue.CreateRevenueClassification
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRevenueClassificationsApiClient RevenueApi
 
 <PageTitle>@Branding.OfficeAcronym — Revenue Setup</PageTitle>
 
-<div class="rev-page">
-    <header class="rev-header">
-        <nav class="rev-breadcrumb" aria-label="Breadcrumb">
-            <a href="/settings">Settings</a>
-            <span aria-hidden="true">/</span>
-            <span aria-current="page">Revenue Setup</span>
-        </nav>
-        <div class="rev-heading-row">
-            <div>
-                <h1>Revenue Setup</h1>
-                <p>Configure how this municipality identifies and documents revenue.</p>
-            </div>
-            <button class="rev-button rev-button-primary" type="button" @onclick="OpenCreate">
+@* A revenue source is a stable identity (its internal reference) plus an append-only series of effective-dated
+   policies (display name, instrument, description). The register is the working surface; a source's details,
+   history and changes open in a right-side drawer so the register never shifts. The layout owns <main>. *@
+<div class="v3-page rev-page">
+    <WorkspaceHeader Title="Revenue Setup" Parent="Settings" ParentHref="/settings"
+                     Subtitle="Revenue source identities and their effective-dated policies">
+        <Actions>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenCreate">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Add revenue source
             </button>
-        </div>
-    </header>
+        </Actions>
+    </WorkspaceHeader>
 
     @if (!string.IsNullOrWhiteSpace(_feedback))
     {
-        <div class="rev-feedback @(_feedbackIsError ? "is-error" : "is-success")" role="status" aria-live="polite">
+        <div class="v3-notice rev-feedback @(_feedbackIsError ? "v3-notice-error" : "is-success")" role="status" aria-live="polite">
             <span>@_feedback</span>
             <button type="button" aria-label="Dismiss message" @onclick="DismissFeedback">×</button>
         </div>
     }
 
-    <section class="rev-register" aria-labelledby="rev-register-title">
-        <div class="rev-register-heading">
-            <div>
-                <h2 id="rev-register-title">Revenue sources</h2>
-                <p>Stable internal identities with the policy effective for the selected date.</p>
-            </div>
-        </div>
+    <section class="v3-panel rev-register" aria-labelledby="rev-register-title">
+        <header class="v3-panel-header">
+            <h2 id="rev-register-title">Revenue sources</h2>
+            @if (!_loading && _loadError is null)
+            {
+                <span class="v3-panel-meta">@SourceCountText · policies as of @DateText(_asOf)</span>
+            }
+        </header>
 
-        <div class="rev-toolbar">
-            <label class="rev-search">
-                <span>Search revenue sources</span>
-                <input type="search" @bind="_search" placeholder="Name or internal reference" />
+        <div class="v3-toolbar rev-toolbar">
+            <label class="v3-search rev-search">
+                <span class="v3-sr-only">Search revenue sources</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" @bind="_search" placeholder="Search name or internal reference" />
             </label>
-            <label class="rev-filter">
-                <span>Status</span>
-                <select @bind="_statusFilter" aria-label="Filter by status">
-                    <option value="All">All</option>
-                    <option value="Active">Active</option>
-                    <option value="Retired">Retired</option>
-                </select>
-            </label>
-            <label class="rev-asof">
-                <span>View as of</span>
-                <input type="date" value="@DateText(_asOf)" @onchange="OnAsOfChanged" aria-label="View revenue policies as of date" />
-            </label>
-            <button class="rev-button rev-button-secondary" type="button" @onclick="ResetAsOf" disabled="@(_asOf == PhilippineTime.Today)">Today</button>
+            <select class="v3-select rev-filter" @bind="_statusFilter" aria-label="Filter by status">
+                <option value="All">All statuses</option>
+                <option value="Active">Active</option>
+                <option value="Retired">Retired</option>
+            </select>
+            <div class="rev-asof">
+                <label class="v3-period">
+                    <span>View as of</span>
+                    <input class="v3-input" type="date" value="@DateText(_asOf)" @onchange="OnAsOfChanged" aria-label="View revenue policies as of date" />
+                </label>
+                <button class="v3-btn" type="button" @onclick="ResetAsOf" disabled="@(_asOf == PhilippineTime.Today)">Today</button>
+            </div>
         </div>
 
         @if (_loading)
         {
-            <div class="rev-table-wrap" aria-label="Loading revenue sources" aria-busy="true">
-                <table class="rev-table">
-                    <caption class="sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
-                    <thead><tr><th>Revenue source</th><th>Instrument</th><th>Effective from</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+            <div class="v3-table-wrap" aria-label="Loading revenue sources" aria-busy="true">
+                <table class="v3-table rev-table">
+                    <caption class="v3-sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
+                    <thead><tr><th>Revenue source</th><th>Instrument</th><th>Policy effective</th><th>Status</th><th><span class="v3-sr-only">Actions</span></th></tr></thead>
                     <tbody>
                         @for (var row = 0; row < 5; row++)
                         {
@@ -85,7 +83,7 @@
             <div class="rev-state" role="alert">
                 <h3>Couldn’t load revenue setup</h3>
                 <p>@_loadError</p>
-                <button class="rev-button rev-button-primary" type="button" @onclick="LoadAsync">Try again</button>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="LoadAsync">Try again</button>
             </div>
         }
         else if (_classifications.Count == 0)
@@ -93,7 +91,7 @@
             <div class="rev-state">
                 <h3>No revenue sources configured yet.</h3>
                 <p>Add a source when its stable internal identity and initial policy are approved.</p>
-                <button class="rev-button rev-button-primary" type="button" @onclick="OpenCreate">Add revenue source</button>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenCreate">Add revenue source</button>
             </div>
         }
         else if (!VisibleClassifications.Any())
@@ -105,16 +103,16 @@
         }
         else
         {
-            <div class="rev-table-wrap">
-                <table class="rev-table">
-                    <caption class="sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
+            <div class="v3-table-wrap" role="region" aria-label="Revenue sources" tabindex="0">
+                <table class="v3-table rev-table">
+                    <caption class="v3-sr-only">Revenue source configuration as of @DateText(_asOf)</caption>
                     <thead>
                         <tr>
                             <th scope="col">Revenue source</th>
                             <th scope="col">Instrument</th>
-                            <th scope="col">Effective from</th>
+                            <th scope="col">Policy effective</th>
                             <th scope="col">Status</th>
-                            <th scope="col"><span class="sr-only">Actions</span></th>
+                            <th scope="col"><span class="v3-sr-only">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -125,8 +123,21 @@
                                     <div class="rev-source-name">@(item.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(item))</div>
                                     <div class="rev-source-code"><span>Internal reference</span> <code>@item.SemanticCode</code></div>
                                 </td>
-                                <td>@(item.EffectivePolicy is null ? NoCurrentPolicyLabel(item) : InstrumentLabel(item.EffectivePolicy.PermittedInstrumentType))</td>
-                                <td>@(item.EffectivePolicy is null ? "—" : DateText(item.EffectivePolicy.EffectiveDate))</td>
+                                <td>
+                                    @if (item.EffectivePolicy is null)
+                                    {
+                                        <span class="v3-muted">@NoCurrentPolicyLabel(item)</span>
+                                    }
+                                    else if (InstrumentCode(item.EffectivePolicy.PermittedInstrumentType) is { } instrumentCode)
+                                    {
+                                        <InstrumentChip Instrument="@instrumentCode" ShowName="true" />
+                                    }
+                                    else
+                                    {
+                                        <span class="v3-muted">@InstrumentLabel(item.EffectivePolicy.PermittedInstrumentType)</span>
+                                    }
+                                </td>
+                                <td class="rev-date">@(item.EffectivePolicy is null ? "—" : DateText(item.EffectivePolicy.EffectiveDate))</td>
                                 <td>
                                     @if (!item.IsActive)
                                     {
@@ -146,7 +157,8 @@
                                     }
                                 </td>
                                 <td class="rev-actions-cell">
-                                    <button class="rev-text-button" type="button" @onclick="() => ManageAsync(item)">Manage</button>
+                                    <button class="v3-btn v3-btn-sm rev-manage" type="button" @onclick="() => ManageAsync(item)"
+                                            aria-label="@($"Manage {item.EffectivePolicy?.DisplayName ?? item.SemanticCode}")">Manage</button>
                                 </td>
                             </tr>
                         }
@@ -155,179 +167,232 @@
             </div>
         }
     </section>
-
-    @if (_selected is not null)
-    {
-        <section class="rev-detail" aria-labelledby="rev-detail-title">
-            <div class="rev-detail-heading">
-                <div>
-                    <div class="rev-overline">Revenue source details</div>
-                    <h2 id="rev-detail-title">@(_selected.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(_selected))</h2>
-                    <p class="rev-detail-reference">Internal reference <code>@_selected.SemanticCode</code></p>
-                </div>
-                <div class="rev-detail-actions">
-                    @if (_selected.IsActive)
-                    {
-                        <button class="rev-button rev-button-secondary" type="button" @onclick="OpenPolicy">Schedule policy change</button>
-                        <button class="rev-button rev-button-quiet-danger" type="button" @onclick="OpenRetire">Retire source</button>
-                    }
-                    <button class="rev-button rev-button-secondary" type="button" @onclick="CloseDetails">Close details</button>
-                </div>
-            </div>
-
-            <div class="rev-detail-grid">
-                <div class="rev-detail-item"><span>Status</span><strong>@(_selected.IsActive ? "Active" : "Retired")</strong></div>
-                <div class="rev-detail-item"><span>Instrument as of @DateText(_asOf)</span><strong>@(_selected.EffectivePolicy is null ? NoCurrentPolicyLabel(_selected) : InstrumentLabel(_selected.EffectivePolicy.PermittedInstrumentType))</strong></div>
-                <div class="rev-detail-item"><span>Policy effective from</span><strong>@(_selected.EffectivePolicy is null ? "No policy effective yet" : DateText(_selected.EffectivePolicy.EffectiveDate))</strong></div>
-                <div class="rev-detail-item rev-detail-description"><span>Description</span><strong>@(string.IsNullOrWhiteSpace(_selected.EffectivePolicy?.Description) ? "No description" : _selected.EffectivePolicy!.Description)</strong></div>
-            </div>
-
-            <div class="rev-history-heading">
-                <div><h3>Policy history</h3><p>Versions are retained and cannot be edited.</p></div>
-            </div>
-            @if (_historyLoading)
-            {
-                <div class="rev-history-loading" aria-busy="true">Loading policy history…</div>
-            }
-            else if (_historyError is not null)
-            {
-                <div class="rev-inline-error" role="alert">
-                    <span>@_historyError</span>
-                    <button class="rev-text-button" type="button" @onclick="() => LoadHistoryAsync(_selected.Id)">Try again</button>
-                </div>
-            }
-            else if (_history.Count == 0)
-            {
-                <p class="rev-history-empty">No policy versions have been configured.</p>
-            }
-            else
-            {
-                <div class="rev-table-wrap rev-history-table-wrap">
-                    <table class="rev-table rev-history-table">
-                        <caption class="sr-only">Immutable policy history, newest version first</caption>
-                        <thead>
-                            <tr><th scope="col">Effective date</th><th scope="col">Display name</th><th scope="col">Instrument</th><th scope="col">Description</th><th scope="col">Version state</th><th scope="col">Added by</th><th scope="col">Added at</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var policy in _history)
-                            {
-                                <tr>
-                                    <td>@DateText(policy.EffectiveDate)</td>
-                                    <td class="rev-history-name">@policy.DisplayName</td>
-                                    <td>@InstrumentLabel(policy.PermittedInstrumentType)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(policy.Description) ? "—" : policy.Description)</td>
-                                    <td><span class="rev-status @HistoryStatusClass(policy)">@HistoryStatus(policy)</span></td>
-                                    <td>@(string.IsNullOrWhiteSpace(policy.CreatedBy) ? "Not recorded" : policy.CreatedBy)</td>
-                                    <td>@CreatedAtText(policy.CreatedAt)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </section>
-    }
 </div>
 
-@if (_modal != RevenueModal.None)
+@if (_modal == RevenueModal.Create)
 {
-    <div class="rev-modal-backdrop" @onclick="CloseModal">
-        <section class="rev-modal" role="dialog" aria-modal="true" aria-labelledby="rev-modal-title" @onclick:stopPropagation="true">
-            <button class="rev-modal-close" type="button" aria-label="Close dialog" @onclick="CloseModal" disabled="@_mutating">×</button>
-            @if (_modal == RevenueModal.Create)
-            {
-                <div class="rev-modal-heading">
-                    <div class="rev-overline">Revenue configuration</div>
-                    <h2 id="rev-modal-title">Add revenue source</h2>
-                    <p>Create a stable internal identity and its initial effective-dated policy.</p>
-                </div>
-                <form class="rev-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
-                    <label class="rev-field">
-                        <span>Revenue source name <b aria-hidden="true">*</b></span>
-                        <input @bind="_createName" maxlength="160" required autocomplete="off" />
-                    </label>
-                    <label class="rev-field">
-                        <span>Effective date <b aria-hidden="true">*</b></span>
-                        <input type="date" value="@_createDate" @onchange="OnCreateDateChanged" min="@DateText(PhilippineTime.Today)" required />
-                    </label>
-                    <label class="rev-field">
-                        <span>Accountable instrument</span>
-                        <select @bind="_createInstrument">
-                            <option value="">Not configured</option>
-                            <option value="OfficialReceipt">Official Receipt</option>
-                            <option value="CashTicket">Cash Ticket</option>
-                        </select>
-                    </label>
-                    <label class="rev-field">
-                        <span>Description <small>(optional)</small></span>
-                        <textarea @bind="_createDescription" maxlength="500" rows="3"></textarea>
-                    </label>
-                    <label class="rev-field">
-                        <span>Internal reference <b aria-hidden="true">*</b></span>
-                        <input @bind="_createCode" maxlength="80" minlength="2" pattern="[A-Z][A-Z0-9_]{1,79}" required autocomplete="off" />
-                        <small>Stable StallTrack reference. This is not an official accounting code and cannot be changed after creation. Use 2–80 uppercase letters, digits, or underscores, starting with a letter.</small>
-                    </label>
-                    @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
-                    <div class="rev-modal-actions">
-                        <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
-                        <button class="rev-button rev-button-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Create revenue source")</button>
+    @* Create: identity first (permanent), then the initial policy (the first appended version). *@
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseModal">
+        <section class="v3-modal v3-drawer rev-modal" role="dialog" aria-modal="true" aria-labelledby="rev-modal-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="rev-modal-title">Add revenue source</h2>
+                <button class="rev-modal-close" type="button" aria-label="Close" @onclick="CloseModal" disabled="@_mutating">×</button>
+            </header>
+            <form class="rev-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+                <div class="v3-modal-body">
+                    <div class="v3-drawer-section">
+                        <h3>Source identity</h3>
+                        <label class="v3-field rev-field">
+                            <span>Internal reference <b aria-hidden="true">*</b></span>
+                            <input id="rev-create-code" @ref="_dialogFocus" @bind="_createCode" maxlength="80" minlength="2" pattern="[A-Z][A-Z0-9_]{1,79}" required autocomplete="off" aria-describedby="rev-create-code-hint" />
+                            <small id="rev-create-code-hint">Permanent StallTrack reference, not an official accounting code. 2–80 uppercase letters, digits or underscores, starting with a letter.</small>
+                        </label>
                     </div>
-                </form>
-            }
-            else if (_modal == RevenueModal.Policy)
-            {
-                <div class="rev-modal-heading">
-                    <div class="rev-overline">Immutable policy history</div>
-                    <h2 id="rev-modal-title">Schedule policy change</h2>
-                    <p>This creates a new version. Existing policy history will remain unchanged.</p>
-                </div>
-                <form class="rev-form" @onsubmit="AppendPolicyAsync" @onsubmit:preventDefault>
-                    <label class="rev-field">
-                        <span>Revenue source</span>
-                        <input value="@(_selected?.EffectivePolicy?.DisplayName ?? _selected?.SemanticCode)" readonly />
-                    </label>
-                    <label class="rev-field">
-                        <span>New display name <b aria-hidden="true">*</b></span>
-                        <input @bind="_policyName" maxlength="160" required autocomplete="off" />
-                    </label>
-                    <label class="rev-field">
-                        <span>Effective date <b aria-hidden="true">*</b></span>
-                        <input type="date" value="@_policyDate" @onchange="OnPolicyDateChanged" min="@DateText(PhilippineTime.Today)" required />
-                    </label>
-                    <label class="rev-field">
-                        <span>Accountable instrument</span>
-                        <select @bind="_policyInstrument">
-                            <option value="">Not configured</option>
-                            <option value="OfficialReceipt">Official Receipt</option>
-                            <option value="CashTicket">Cash Ticket</option>
-                        </select>
-                    </label>
-                    <label class="rev-field">
-                        <span>Description <small>(optional)</small></span>
-                        <textarea @bind="_policyDescription" maxlength="500" rows="3"></textarea>
-                    </label>
-                    @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
-                    <div class="rev-modal-actions">
-                        <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
-                        <button class="rev-button rev-button-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Add policy version")</button>
+                    <div class="v3-drawer-section">
+                        <h3>Initial policy</h3>
+                        <div class="rev-field-pair">
+                            <label class="v3-field rev-field">
+                                <span>Revenue source name <b aria-hidden="true">*</b></span>
+                                <input id="rev-create-name" @bind="_createName" maxlength="160" required autocomplete="off" />
+                            </label>
+                            <label class="v3-field rev-field">
+                                <span>Effective date <b aria-hidden="true">*</b></span>
+                                <input id="rev-create-date" type="date" value="@_createDate" @onchange="OnCreateDateChanged" min="@DateText(PhilippineTime.Today)" required />
+                            </label>
+                        </div>
+                        <label class="v3-field rev-field">
+                            <span>Accountable instrument</span>
+                            <select @bind="_createInstrument">
+                                <option value="">Not configured</option>
+                                <option value="OfficialReceipt">Official Receipt</option>
+                                <option value="CashTicket">Cash Ticket</option>
+                            </select>
+                        </label>
+                        <label class="v3-field rev-field">
+                            <span>Description <small>(optional)</small></span>
+                            <textarea @bind="_createDescription" maxlength="500" rows="3"></textarea>
+                        </label>
                     </div>
-                </form>
-            }
-            else if (_modal == RevenueModal.Retire)
-            {
-                <div class="rev-modal-heading">
-                    <div class="rev-overline">Confirm retirement</div>
-                    <h2 id="rev-modal-title">Retire revenue source?</h2>
-                    <p><strong>@(_selected?.EffectivePolicy?.DisplayName ?? (_selected is null ? string.Empty : NoCurrentPolicyLabel(_selected)))</strong> will no longer be active configuration. Its identity and policy history will be retained.</p>
+                    @if (_modalError is not null) { <div class="v3-notice v3-notice-error rev-inline-error" role="alert">@_modalError</div> }
                 </div>
-                @if (_modalError is not null) { <div class="rev-inline-error" role="alert">@_modalError</div> }
-                <div class="rev-modal-actions">
-                    <button class="rev-button rev-button-secondary" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
-                    <button class="rev-button rev-button-danger" type="button" @onclick="RetireAsync" disabled="@_mutating">@(_mutating ? "Retiring…" : "Retire source")</button>
+                <div class="v3-modal-footer rev-modal-actions">
+                    <button class="v3-btn" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
+                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Create revenue source")</button>
                 </div>
-            }
+            </form>
         </section>
     </div>
+}
+else if (_selected is { } source)
+{
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="OnDrawerBackdrop">
+        @if (_modal == RevenueModal.Policy)
+        {
+            @* A policy change appends a version; the identity above it and every earlier version stay unchanged. *@
+            <section class="v3-modal v3-drawer v3-drawer-wide rev-modal" role="dialog" aria-modal="true" aria-labelledby="rev-modal-title"
+                     @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+                <header class="v3-modal-header">
+                    <h2 id="rev-modal-title">Schedule policy change</h2>
+                    <button class="rev-modal-close" type="button" aria-label="Back to source details" @onclick="CloseModal" disabled="@_mutating">×</button>
+                </header>
+                <form class="rev-form" @onsubmit="AppendPolicyAsync" @onsubmit:preventDefault>
+                    <div class="v3-modal-body">
+                        <div class="v3-drawer-section">
+                            <h3>Source identity</h3>
+                            <dl class="v3-facts rev-facts">
+                                <div><dt>Revenue source</dt><dd>@(source.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(source))</dd></div>
+                                <div><dt>Internal reference</dt><dd><code class="rev-code">@source.SemanticCode</code></dd></div>
+                            </dl>
+                        </div>
+                        <div class="v3-drawer-section">
+                            <h3>New policy version</h3>
+                            <p class="rev-hint">Adds a version from the effective date. Existing policy history remains unchanged.</p>
+                            <div class="rev-field-pair">
+                                <label class="v3-field rev-field">
+                                    <span>Display name <b aria-hidden="true">*</b></span>
+                                    <input id="rev-policy-name" @ref="_dialogFocus" @bind="_policyName" maxlength="160" required autocomplete="off" />
+                                </label>
+                                <label class="v3-field rev-field">
+                                    <span>Effective date <b aria-hidden="true">*</b></span>
+                                    <input id="rev-policy-date" type="date" value="@_policyDate" @onchange="OnPolicyDateChanged" min="@DateText(PhilippineTime.Today)" required />
+                                </label>
+                            </div>
+                            <label class="v3-field rev-field">
+                                <span>Accountable instrument</span>
+                                <select @bind="_policyInstrument">
+                                    <option value="">Not configured</option>
+                                    <option value="OfficialReceipt">Official Receipt</option>
+                                    <option value="CashTicket">Cash Ticket</option>
+                                </select>
+                            </label>
+                            <label class="v3-field rev-field">
+                                <span>Description <small>(optional)</small></span>
+                                <textarea @bind="_policyDescription" maxlength="500" rows="3"></textarea>
+                            </label>
+                        </div>
+                        @if (_modalError is not null) { <div class="v3-notice v3-notice-error rev-inline-error" role="alert">@_modalError</div> }
+                    </div>
+                    <div class="v3-modal-footer rev-modal-actions">
+                        <button class="v3-btn" type="button" @onclick="CloseModal" disabled="@_mutating">Cancel</button>
+                        <button class="v3-btn v3-btn-primary" type="submit" disabled="@_mutating">@(_mutating ? "Saving…" : "Add policy version")</button>
+                    </div>
+                </form>
+            </section>
+        }
+        else
+        {
+            <section class="v3-modal v3-drawer v3-drawer-wide rev-drawer" role="dialog" aria-modal="true" aria-labelledby="rev-detail-title"
+                     @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+                <header class="v3-modal-header rev-drawer-header">
+                    <div class="rev-drawer-identity">
+                        <h2 id="rev-detail-title">@(source.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(source))</h2>
+                        <p class="rev-detail-reference">Internal reference <code>@source.SemanticCode</code></p>
+                    </div>
+                    <button class="rev-modal-close" type="button" aria-label="Close details" @onclick="CloseDetails" @ref="_drawerFocus">×</button>
+                </header>
+                <div class="v3-modal-body">
+                    <div class="v3-drawer-section">
+                        <h3>Policy in effect on @DateText(_asOf)</h3>
+                        <dl class="v3-facts rev-facts">
+                            <div><dt>Status</dt><dd>@(source.IsActive ? "Active" : "Retired")</dd></div>
+                            <div>
+                                <dt>Instrument</dt>
+                                <dd>@(source.EffectivePolicy is null ? NoCurrentPolicyLabel(source) : InstrumentLabel(source.EffectivePolicy.PermittedInstrumentType))</dd>
+                            </div>
+                            <div><dt>Effective from</dt><dd>@(source.EffectivePolicy is null ? "No policy effective yet" : DateText(source.EffectivePolicy.EffectiveDate))</dd></div>
+                            <div class="rev-fact-description">
+                                <dt>Description</dt>
+                                <dd>@(string.IsNullOrWhiteSpace(source.EffectivePolicy?.Description) ? "No description" : source.EffectivePolicy!.Description)</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="v3-drawer-section">
+                        <div class="rev-history-heading">
+                            <h3>Policy history</h3>
+                            <p>Versions are retained and cannot be edited.</p>
+                        </div>
+                        @if (_historyLoading)
+                        {
+                            <p class="rev-history-note" aria-busy="true">Loading policy history…</p>
+                        }
+                        else if (_historyError is not null)
+                        {
+                            <div class="v3-notice v3-notice-error v3-notice-row rev-inline-error" role="alert">
+                                <span>@_historyError</span>
+                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => LoadHistoryAsync(source.Id)">Try again</button>
+                            </div>
+                        }
+                        else if (_history.Count == 0)
+                        {
+                            <p class="rev-history-note">No policy versions have been configured.</p>
+                        }
+                        else
+                        {
+                            <div class="v3-table-wrap rev-history-wrap" role="region" aria-label="Policy history" tabindex="0">
+                                <table class="v3-table rev-history-table">
+                                    <caption class="v3-sr-only">Immutable policy history, newest version first</caption>
+                                    <thead>
+                                        <tr><th scope="col">Effective</th><th scope="col">Policy</th><th scope="col">Instrument</th><th scope="col">Version</th><th scope="col">Added</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var policy in _history)
+                                        {
+                                            <tr>
+                                                <td class="rev-date">@DateText(policy.EffectiveDate)</td>
+                                                <td>
+                                                    <span class="rev-history-name">@policy.DisplayName</span>
+                                                    @if (!string.IsNullOrWhiteSpace(policy.Description))
+                                                    {
+                                                        <span class="v3-block">@policy.Description</span>
+                                                    }
+                                                </td>
+                                                <td>@InstrumentLabel(policy.PermittedInstrumentType)</td>
+                                                <td><span class="rev-status @HistoryStatusClass(policy)">@HistoryStatus(policy)</span></td>
+                                                <td>
+                                                    @(string.IsNullOrWhiteSpace(policy.CreatedBy) ? "Not recorded" : policy.CreatedBy)
+                                                    <span class="v3-block">@CreatedAtText(policy.CreatedAt)</span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+                @if (source.IsActive)
+                {
+                    <footer class="v3-modal-footer rev-drawer-footer">
+                        <button class="v3-btn rev-button-quiet-danger" type="button" @onclick="OpenRetire">Retire source</button>
+                        <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenPolicy">Schedule policy change</button>
+                    </footer>
+                }
+            </section>
+        }
+    </div>
+
+    @if (_modal == RevenueModal.Retire)
+    {
+        <div class="v3-modal-backdrop rev-confirm-backdrop" role="presentation" @onclick="CloseModal">
+            <section class="v3-modal rev-modal rev-confirm" role="alertdialog" aria-modal="true" aria-labelledby="rev-modal-title" aria-describedby="rev-retire-text"
+                     @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+                <header class="v3-modal-header">
+                    <h2 id="rev-modal-title">Retire revenue source?</h2>
+                    <button class="rev-modal-close" type="button" aria-label="Close" @onclick="CloseModal" disabled="@_mutating">×</button>
+                </header>
+                <div class="v3-modal-body">
+                    <p id="rev-retire-text" class="rev-confirm-text"><strong>@(source.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(source))</strong> will no longer be active configuration. Its identity and policy history will be retained.</p>
+                    @if (_modalError is not null) { <div class="v3-notice v3-notice-error rev-inline-error" role="alert">@_modalError</div> }
+                </div>
+                <div class="v3-modal-footer rev-modal-actions">
+                    <button class="v3-btn" type="button" @onclick="CloseModal" disabled="@_mutating" @ref="_dialogFocus">Cancel</button>
+                    <button class="v3-btn rev-button-danger" type="button" @onclick="RetireAsync" disabled="@_mutating">@(_mutating ? "Retiring…" : "Retire source")</button>
+                </div>
+            </section>
+        </div>
+    }
 }
 
 @code {
@@ -356,6 +421,9 @@
     private string _policyDate = DateText(PhilippineTime.Today);
     private string? _policyDescription;
     private RevenueInstrumentType? _policyInstrument;
+    private ElementReference _dialogFocus;
+    private ElementReference _drawerFocus;
+    private bool _focusPending;
 
     private IEnumerable<RevenueClassificationDto> VisibleClassifications =>
         _classifications
@@ -366,7 +434,30 @@
             .OrderBy(item => item.EffectivePolicy?.DisplayName ?? item.SemanticCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.SemanticCode, StringComparer.OrdinalIgnoreCase);
 
+    private string SourceCountText
+    {
+        get
+        {
+            var visible = VisibleClassifications.Count();
+            var noun = _classifications.Count == 1 ? "source" : "sources";
+            return visible == _classifications.Count ? $"{visible} {noun}" : $"{visible} of {_classifications.Count} {noun}";
+        }
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // Moves keyboard focus into a drawer or dialog when it opens, and back to the drawer when a dialog closes.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusPending) return;
+        _focusPending = false;
+        try
+        {
+            if (_modal != RevenueModal.None) await _dialogFocus.FocusAsync();
+            else if (_selected is not null) await _drawerFocus.FocusAsync();
+        }
+        catch { /* the surface closed before focus could move */ }
+    }
 
     private async Task LoadAsync()
     {
@@ -431,6 +522,7 @@
     private async Task ManageAsync(RevenueClassificationDto item)
     {
         _selected = item;
+        _focusPending = true;
         await LoadHistoryAsync(item.Id);
     }
 
@@ -620,6 +712,7 @@
     {
         _modalError = null;
         _modal = modal;
+        _focusPending = true;
     }
 
     private void CloseModal()
@@ -627,9 +720,23 @@
         if (_mutating) return;
         _modalError = null;
         _modal = RevenueModal.None;
+        _focusPending = true;
     }
 
     private void CloseDetails() => _selected = null;
+
+    // Outside a form the backdrop closes the details drawer; inside the policy form it returns to the details.
+    private void OnDrawerBackdrop()
+    {
+        if (_modal == RevenueModal.None) CloseDetails();
+        else CloseModal();
+    }
+
+    private void OnDialogKey(KeyboardEventArgs args)
+    {
+        if (args.Key != "Escape" || _mutating) return;
+        OnDrawerBackdrop();
+    }
 
     private void SetFeedback(string message)
     {
@@ -659,6 +766,13 @@
         RevenueInstrumentType.OfficialReceipt => "Official Receipt",
         RevenueInstrumentType.CashTicket => "Cash Ticket",
         _ => "Not configured"
+    };
+
+    private static string? InstrumentCode(RevenueInstrumentType? instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "OR",
+        RevenueInstrumentType.CashTicket => "CT",
+        _ => null
     };
 
     private static string NoCurrentPolicyLabel(RevenueClassificationDto item) =>
