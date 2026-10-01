@@ -543,3 +543,60 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+
+/* Direct-entry flow additions (2026-10-01). */
+.wcf-option-state {
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+    .wcf-option-state.due {
+        color: var(--mobile-navy);
+    }
+
+    .wcf-option-state.open {
+        color: var(--mobile-blue);
+    }
+
+    .wcf-option-state.pending {
+        color: var(--mobile-warning);
+    }
+
+    .wcf-option-state.quiet {
+        color: var(--mobile-text-secondary);
+    }
+
+.wcf-payor {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.wcf-change {
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+    .wcf-change:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+    }
+
+.v3-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}

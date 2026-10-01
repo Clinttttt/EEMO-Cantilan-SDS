@@ -12,11 +12,10 @@
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
-@* Water Consumption Fee as its own utility operation (IA-053), for any collector holding the WCF assignment — an NPM
-   facility is not required. The obligation, its approved amount and outstanding balance, the Cash Ticket policy and this
-   collector's custody are all the server's; the collector chooses an open obligation, states the amount received (never
-   more than outstanding) and issues the next assigned Cash Ticket. The issue is durably queued with the ticket's identity
-   BEFORE it is reported, exactly as the market stall sheet does it. No reading, cubic metre or rate exists here. *@
+@* Water Consumption Fee (WCF): Cash Ticket, direct amount, Collector Mobile. The collector picks an eligible source — the
+   payor and stall come from the server, never typed — then either collects against an office-prepared amount (which they
+   cannot change) or, when none was prepared, states the Water amount being collected. Classification, instrument and
+   period are the server's. The issue is durably queued with its ticket, source and amount BEFORE it is reported. *@
 <div class="page-shell">
     <div class="header">
         <div class="header-eyebrow">Utility operation</div>
@@ -26,7 +25,7 @@
             </button>
             <div class="header-title-block">
                 <div class="header-title">Water Consumption Fee</div>
-                <div class="header-sub">WCF · Cash Ticket</div>
+                <div class="header-sub">Cash Ticket · Direct amount · @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</div>
             </div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -35,7 +34,7 @@
     <div class="content">
         @if (_loading)
         {
-            <LoadingState Text="Loading Water obligations…" />
+            <LoadingState Text="Loading Water sources…" />
         }
         else if (_capability is not { IsCollectible: true })
         {
@@ -44,61 +43,99 @@
         }
         else if (_loadFailed)
         {
-            <div class="menu-state-card" role="alert">Water obligations could not be loaded. Retry while online.</div>
+            <div class="menu-state-card" role="alert">Water sources could not be loaded. Retry while online.</div>
             <button class="btn-primary op-back" type="button" @onclick="LoadAsync">Try again</button>
         }
-        else if (_obligations.Count == 0)
+        else if (_recorded is { } done)
         {
-            <section class="op-form op-form-empty" role="status" aria-label="No outstanding Water obligations">
-                <span class="op-form-badge">✓</span>
-                <div>
-                    <div class="op-form-title">No outstanding WCF obligations</div>
-                    <p class="op-form-note">There are no Water Consumption Fee balances open for collection through @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</p>
+            @* After a durable save: state exactly what happened, and never claim a server post that has not happened. *@
+            <section class="op-facts" aria-label="Recorded">
+                <div class="op-facts-main">
+                    <span class="op-facts-key">@(done.Synced ? "Recorded" : "Saved on device · waiting to sync")</span>
+                    <span class="op-facts-amount">@Money(done.Amount)</span>
                 </div>
+                <dl class="op-facts-grid">
+                    <div><dt>Cash Ticket</dt><dd>@done.DocumentNumber</dd></div>
+                    <div><dt>Payor</dt><dd>@done.Payor</dd></div>
+                </dl>
             </section>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="op-message" role="status">@_message</div>
+            }
+            <button class="op-cta" type="button" @onclick="CollectAnother">Collect another</button>
         }
         else
         {
-            @* 1 — Which obligation: chosen from the server's open list, never typed. *@
-            <section class="op-entry" aria-labelledby="wcf-pick-title">
-                <h2 id="wcf-pick-title" class="op-section-title">Water obligation</h2>
-                <ul class="wcf-list" role="listbox" aria-label="Open Water obligations">
-                    @foreach (var option in _obligations)
-                    {
-                        var selected = option.UtilityBillId == Selected?.UtilityBillId;
-                        <li>
-                            <button type="button" role="option" aria-selected="@(selected ? "true" : "false")"
-                                    class="wcf-option @(selected ? "selected" : "")" @onclick="() => Select(option)">
-                                <span class="wcf-option-main">
-                                    <span class="wcf-option-name">@(option.PayerNameSnapshot ?? $"Stall {option.StallNo}")</span>
-                                    <span class="wcf-option-sub">@option.FacilityName · Stall @option.StallNo · @PeriodOf(option)</span>
-                                </span>
-                                <span class="wcf-option-amount">@Money(option.OutstandingAmount)</span>
-                            </button>
-                        </li>
-                    }
-                </ul>
-            </section>
-
-            @if (Selected is { } quote)
+            @if (Selected is null)
             {
-                @* 2 — What the office approved: system-provided, read-only. *@
-                <section class="op-facts" aria-label="Approved Water obligation">
+                <section class="op-entry" aria-labelledby="wcf-pick-title">
+                    <h2 id="wcf-pick-title" class="op-section-title">Payor / source</h2>
+                    <label class="form-field">
+                        <span class="v3-sr-only">Search payor or stall</span>
+                        <input class="form-input" type="search" placeholder="Search payor or stall" @bind="_search" @bind:event="oninput" />
+                    </label>
+                    @if (_sources.Count == 0)
+                    {
+                        <p class="op-form-note">No eligible Water sources for @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</p>
+                    }
+                    else if (!Filtered.Any())
+                    {
+                        <p class="op-form-note">No payor or stall matches “@_search”.</p>
+                    }
+                    else
+                    {
+                        <ul class="wcf-list" role="listbox" aria-label="Water sources">
+                            @foreach (var option in Filtered)
+                            {
+                                var queued = IsQueued(option);
+                                <li>
+                                    <button type="button" role="option" aria-selected="false" class="wcf-option" @onclick="() => Select(option)">
+                                        <span class="wcf-option-main">
+                                            <span class="wcf-option-name">@(option.PayerName ?? $"Stall {option.StallNo}")</span>
+                                            <span class="wcf-option-sub">Stall @option.StallNo@(string.IsNullOrWhiteSpace(option.Section) ? "" : $" · {option.Section}")</span>
+                                        </span>
+                                        <span class="wcf-option-state @StateClass(option, queued)">@StateLabel(option, queued)</span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+            else
+            {
+                var source = Selected;
+                var queued = IsQueued(source);
+
+                <section class="op-facts" aria-label="Selected Water source">
                     <div class="op-facts-main">
-                        <span class="op-facts-key">Outstanding</span>
-                        <span class="op-facts-amount">@Money(quote.OutstandingAmount)</span>
+                        <span class="op-facts-key">Stall @source.StallNo@(string.IsNullOrWhiteSpace(source.Section) ? "" : $" · {source.Section}")</span>
+                        <span class="wcf-payor">@(source.PayerName ?? "Payor not named")</span>
                     </div>
                     <dl class="op-facts-grid">
-                        <div><dt>Approved amount</dt><dd>@Money(quote.AssessedAmount)</dd></div>
-                        <div><dt>Previously settled</dt><dd>@Money(quote.CumulativeSettledEvidence)</dd></div>
-                        <div><dt>Billing period</dt><dd>@PeriodOf(quote)</dd></div>
-                        <div><dt>Business date</dt><dd>@Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                        <div><dt>Billing period</dt><dd>@PeriodOf(source)</dd></div>
+                        @if (source.PreparedAmount is { } prepared)
+                        {
+                            <div><dt>Office-prepared amount</dt><dd>@Money(prepared)</dd></div>
+                            <div><dt>Previously settled</dt><dd>@Money(source.SettledAmount)</dd></div>
+                            <div><dt>Outstanding</dt><dd>@Money(source.OutstandingAmount)</dd></div>
+                        }
                     </dl>
+                    <button type="button" class="wcf-change" @onclick="() => _selectedStall = null">Change payor</button>
                 </section>
 
                 @if (Sync.HasStorageFault)
                 {
                     <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not issue a Cash Ticket until it is healthy.</div>
+                }
+                else if (queued)
+                {
+                    <div class="menu-state-card" role="status">A Water collection for this source is saved on this device and waiting to sync.</div>
+                }
+                else if (!source.CanCollect && !source.CanEnterDirect)
+                {
+                    <div class="menu-state-card" role="status">@NotCollectibleReason(source)</div>
                 }
                 else if (NextTicket is null)
                 {
@@ -113,28 +150,31 @@
                 else
                 {
                     <section class="op-entry" aria-labelledby="wcf-amount-title">
-                        <h2 id="wcf-amount-title" class="op-section-title">Collection details</h2>
+                        <h2 id="wcf-amount-title" class="op-section-title">Water amount</h2>
                         <label class="form-field">
-                            <span class="form-label">Amount received</span>
+                            <span class="form-label">@(source.CanCollect ? "Amount to collect" : "Collection amount")</span>
                             <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
-                                   max="@quote.OutstandingAmount.ToString(CultureInfo.InvariantCulture)"
+                                   max="@(source.CanCollect ? source.OutstandingAmount.ToString(CultureInfo.InvariantCulture) : null)"
                                    placeholder="0.00" @bind="_amount" @bind:event="oninput" />
                         </label>
+                        <p class="op-form-note">
+                            @(source.CanCollect
+                                ? "Collected against the office-prepared amount; the prepared amount itself does not change."
+                                : "Direct amount entered at collection.")
+                        </p>
                     </section>
 
-                    @* 3 — The Cash Ticket: resolved for the collector, not picked from a list. *@
                     <section class="op-form" aria-labelledby="wcf-ct-title">
                         <div class="op-form-head">
                             <span class="op-form-badge">CT</span>
                             <div class="op-form-headtext">
                                 <h2 id="wcf-ct-title" class="op-form-title">Next assigned Cash Ticket</h2>
-                                <span class="op-form-ready">Ready · assigned to you</span>
+                                <span class="op-form-ready">Assigned to @Session.CollectorName</span>
                             </div>
                         </div>
                         <div class="op-form-serial" aria-label="Cash Ticket number">@NextTicket.DocumentNumber</div>
-                        <p class="op-form-note">This ticket will be issued when you record the collection.</p>
                         <dl class="op-form-custody">
-                            <div><dt>Remaining assigned</dt><dd>@UsableTickets.Count</dd></div>
+                            <div><dt>Remaining assigned</dt><dd>@UsableTickets.Count.ToString("N0", CultureInfo.InvariantCulture)</dd></div>
                             <div><dt>Range on hand</dt><dd>@NextAccountableDocument.RangeLabel(UsableTickets)</dd></div>
                         </dl>
                         @if (UsableTickets.Count > 1)
@@ -144,7 +184,7 @@
                             @if (_showTickets)
                             {
                                 <ul class="op-form-list" role="listbox" aria-label="Assigned Cash Tickets">
-                                    @foreach (var ticket in UsableTickets)
+                                    @foreach (var ticket in UsableTickets.Take(50))
                                     {
                                         var isNext = ticket.DocumentId == NextTicket.DocumentId;
                                         <li>
@@ -163,20 +203,20 @@
 
                     <div class="op-action">
                         <button class="op-cta" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
-                            @(_saving ? "Saving…" : "Record and issue Cash Ticket")
+                            @(_saving ? "Saving…" : CanCapture ? $"Record {Money(_amount)} and issue {NextTicket.DocumentNumber}" : "Record and issue Cash Ticket")
                         </button>
-                        @if (!CanCapture && !_saving && DisabledReason(quote) is { } why)
+                        @if (!CanCapture && !_saving && DisabledReason(source) is { } why)
                         {
                             <p class="op-action-why">@why</p>
                         }
                     </div>
                 }
             }
-        }
 
-        @if (!string.IsNullOrWhiteSpace(_message))
-        {
-            <div class="op-message" role="status">@_message</div>
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="op-message" role="status">@_message</div>
+            }
         }
     </div>
 
@@ -184,22 +224,32 @@
 </div>
 
 @code {
+    private sealed record Recorded(decimal Amount, string DocumentNumber, string Payor, bool Synced);
+
     private CollectorOperationCapabilityDto? _capability;
-    private List<WcfObligationQuoteDto> _obligations = [];
+    private List<WcfMobileSourceDto> _sources = [];
     private IReadOnlyList<CashTicketDocumentDto> _tickets = [];
+    private IReadOnlyList<PendingOperation> _queue = [];
     private readonly HashSet<Guid> _locallyIssued = [];
-    private Guid? _selectedBillId;
+    private Guid? _selectedStall;
     private Guid? _ticketId;
     private decimal _amount;
+    private string _search = string.Empty;
     private bool _loading = true;
     private bool _loadFailed;
     private bool _saving;
     private bool _showTickets;
     private string? _message;
+    private Recorded? _recorded;
 
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
 
-    private WcfObligationQuoteDto? Selected => _obligations.FirstOrDefault(x => x.UtilityBillId == _selectedBillId);
+    private WcfMobileSourceDto? Selected => _sources.FirstOrDefault(x => x.StallId == _selectedStall);
+
+    private IEnumerable<WcfMobileSourceDto> Filtered => _sources.Where(x => string.IsNullOrWhiteSpace(_search)
+        || (x.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+        || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || x.Section.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
     // The collector's assigned tickets still usable on this device, in serial order (a queued issue keeps its ticket).
     private IReadOnlyList<CashTicketDocumentDto> UsableTickets =>
@@ -207,18 +257,20 @@
 
     private CashTicketDocumentDto? NextTicket => NextAccountableDocument.Resolve(UsableTickets, _ticketId);
 
-    private bool CanCapture => Selected is { CanCollectCanonical: true, OutstandingAmount: > 0m } quote
+    private bool CanCapture => Selected is { } source
+        && (source.CanCollect || source.CanEnterDirect)
+        && !IsQueued(source)
         && _capability is { IsCollectible: true }
         && NextTicket is not null
         && _amount > 0m
-        && _amount <= quote.OutstandingAmount
+        && (!source.CanCollect || _amount <= source.OutstandingAmount)
         && decimal.Round(_amount, 2, MidpointRounding.ToZero) == _amount
         && !Sync.HasStorageFault
         && !_saving;
 
-    private string? DisabledReason(WcfObligationQuoteDto quote) =>
-        _amount <= 0m ? "Enter the amount received to continue."
-        : _amount > quote.OutstandingAmount ? $"The amount cannot exceed the outstanding {Money(quote.OutstandingAmount)}."
+    private string? DisabledReason(WcfMobileSourceDto source) =>
+        _amount <= 0m ? "Enter the Water amount to continue."
+        : source.CanCollect && _amount > source.OutstandingAmount ? $"The amount cannot exceed the outstanding {Money(source.OutstandingAmount)}."
         : decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
         : null;
 
@@ -226,10 +278,39 @@
     {
         CollectorOperationCapabilityStatus.NotAssigned => "Water collection is not assigned to you. Ask the office to assign it.",
         CollectorOperationCapabilityStatus.AssignedButInactive => "Your account is not active. Contact the office.",
-        CollectorOperationCapabilityStatus.PendingCutover => "No Water obligation is active for Mobile collection yet. The office activates each one in Water Accounts.",
+        CollectorOperationCapabilityStatus.PendingCutover => "Water Mobile collection has not been enabled by the office yet.",
         CollectorOperationCapabilityStatus.NeedsPolicy => "No approved Water collection policy is in effect today.",
         CollectorOperationCapabilityStatus.NeedsDocument => "You hold no assigned Cash Ticket. Request Cash Tickets from the office.",
         _ => "Water collection eligibility could not be verified. Retry while online."
+    };
+
+    // A source with a capture already waiting on this device is not offered again until it syncs.
+    private bool IsQueued(WcfMobileSourceDto source) => _queue.Any(x =>
+        x.Kind == OfflineOperationKind.WcfCollection
+        && x.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed
+        && ((source.UtilityBillId is { } bill && x.UtilityBillId == bill)
+            || (x.StallId == source.StallId && x.BillingYear == source.BillingYear && x.BillingMonth == source.BillingMonth)));
+
+    private static string StateLabel(WcfMobileSourceDto s, bool queued) => queued ? "Waiting to sync" : s.State switch
+    {
+        WcfSourceState.NoAmount => "No amount prepared",
+        WcfSourceState.Prepared => $"{Money(s.OutstandingAmount)} outstanding",
+        WcfSourceState.Settled => "Settled",
+        _ => "Office review"
+    };
+
+    private static string StateClass(WcfMobileSourceDto s, bool queued) => queued ? "pending" : s.State switch
+    {
+        WcfSourceState.Prepared => "due",
+        WcfSourceState.NoAmount => "open",
+        _ => "quiet"
+    };
+
+    private static string NotCollectibleReason(WcfMobileSourceDto s) => s.State switch
+    {
+        WcfSourceState.Settled => "Nothing is outstanding for this source this period.",
+        WcfSourceState.NeedsOffice => "This source has historical Water records the office must review first.",
+        _ => "This source cannot be collected on Mobile yet."
     };
 
     protected override async Task OnInitializedAsync()
@@ -255,20 +336,16 @@
                 : null;
             if (_capability is { IsCollectible: true })
             {
-                var obligations = await MobileApi.GetWcfObligationsAsync(Today.Year, Today.Month);
+                var sources = await MobileApi.GetWcfSourcesAsync(Today.Year, Today.Month);
                 var tickets = await MobileApi.GetAvailableCashTicketsAsync();
-                _loadFailed = !obligations.IsSuccess || obligations.Value is null || !tickets.IsSuccess || tickets.Value is null;
-                _obligations = obligations.Value?
-                    .Where(x => x.OutstandingAmount > 0m && x.CanCollectCanonical)
-                    .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth).ThenBy(x => x.StallNo)
-                    .ToList() ?? [];
+                _loadFailed = !sources.IsSuccess || sources.Value is null || !tickets.IsSuccess || tickets.Value is null;
+                _sources = sources.Value?.ToList() ?? [];
                 _tickets = tickets.Value ?? [];
+                _queue = await Sync.GetAllAsync();
                 _locallyIssued.Clear();
-                foreach (var queued in await Sync.GetAllAsync())
+                foreach (var queued in _queue)
                     if (queued.Kind == OfflineOperationKind.WcfCollection && queued.AccountableDocumentId is { } documentId)
                         _locallyIssued.Add(documentId);
-                if (Selected is null && _obligations.FirstOrDefault() is { } first)
-                    Select(first);
                 if (_ticketId is { } chosen && !UsableTickets.Any(x => x.DocumentId == chosen))
                     _ticketId = null;
             }
@@ -281,62 +358,74 @@
         finally { _loading = false; }
     }
 
-    private void Select(WcfObligationQuoteDto quote)
+    private void Select(WcfMobileSourceDto source)
     {
-        _selectedBillId = quote.UtilityBillId;
-        // The outstanding balance is offered as the amount; the collector may record less when that is what was paid.
-        _amount = quote.OutstandingAmount;
+        _selectedStall = source.StallId;
+        _message = null;
+        // A prepared amount offers its outstanding balance; a direct entry starts empty — the collector states the amount.
+        _amount = source.CanCollect ? source.OutstandingAmount : 0m;
+    }
+
+    private void CollectAnother()
+    {
+        _recorded = null;
+        _selectedStall = null;
+        _message = null;
     }
 
     private async Task CaptureAsync()
     {
-        if (!CanCapture || Selected is not { } quote || NextTicket is not { } ticket)
+        if (!CanCapture || Selected is not { } source || NextTicket is not { } ticket)
         {
             _message = Sync.HasStorageFault
                 ? "Local queue storage is not healthy. Do not issue a Cash Ticket."
-                : "Refresh the Water obligation and assigned Cash Tickets, then enter an amount within the outstanding balance.";
+                : "Refresh the Water source and assigned Cash Tickets, then enter a valid amount.";
             return;
         }
 
         _saving = true;
         _message = null;
+        var amount = _amount;
+        var payor = source.PayerName ?? $"Stall {source.StallNo}";
         var operationId = Guid.NewGuid();
+        var prepared = source.CanCollect;
         var operation = new PendingOperation
         {
             ClientOperationId = operationId,
             Kind = OfflineOperationKind.WcfCollection,
             PayloadVersion = 1,
             BusinessDate = Today,
-            UtilityBillId = quote.UtilityBillId,
-            ReceivedAmount = _amount,
-            WaterSourceVersion = quote.WaterSourceVersion,
+            // A prepared obligation is collected by its UtilityBill identity; a direct entry by source and period.
+            UtilityBillId = prepared ? source.UtilityBillId : null,
+            WaterSourceVersion = prepared ? source.WaterSourceVersion : null,
+            StallId = prepared ? null : source.StallId,
+            BillingYear = prepared ? null : source.BillingYear,
+            BillingMonth = prepared ? null : source.BillingMonth,
+            ReceivedAmount = amount,
             AccountableDocumentId = ticket.DocumentId,
             DocumentNumber = ticket.DocumentNumber,
             IssuedAtUtc = DateTime.UtcNow,
             FacilityLabel = "WCF",
-            Title = quote.PayerNameSnapshot ?? $"Stall {quote.StallNo}",
-            Detail = $"WCF · {quote.BillingYear}-{quote.BillingMonth:00} · CT {ticket.DocumentNumber}",
-            Amount = _amount
+            Title = payor,
+            Detail = $"WCF · {source.BillingYear}-{source.BillingMonth:00} · CT {ticket.DocumentNumber}",
+            Amount = amount
         };
 
         try
         {
-            // This durable local write binds the physical ticket to its immutable operation before this screen reports the
-            // issue as safely captured or starts synchronization.
+            // The durable local write binds the physical ticket, source and amount to one operation before anything is
+            // reported or synchronized.
             await Sync.EnqueueIssuedDocumentAsync(operation);
             _locallyIssued.Add(ticket.DocumentId);
-            _message = "Cash Ticket issue saved on this device. The ticket is unavailable for reuse.";
             if (Sync.IsOnline)
                 await Sync.SyncNowAsync(force: true);
             var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
-            if (result?.LocalStatus == PendingLocalStatus.Synced || result is null)
-                _message = $"Cash Ticket {ticket.DocumentNumber} recorded for {Money(_amount)}.";
-            else if (result.LocalStatus == PendingLocalStatus.ReconciliationRequired)
-                _message = "RECONCILIATION REQUIRED. Keep this physical Cash Ticket; office review is required.";
-            else
-                _message = "Cash Ticket issue is durably queued and awaiting synchronization.";
+            var synced = result is null || result.LocalStatus == PendingLocalStatus.Synced;
+            _recorded = new Recorded(amount, ticket.DocumentNumber, payor, synced);
+            _message = result?.LocalStatus == PendingLocalStatus.ReconciliationRequired
+                ? "RECONCILIATION REQUIRED. Keep this physical Cash Ticket; office review is required."
+                : null;
             _ticketId = null;
-            _selectedBillId = null;
             await LoadAsync();
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
@@ -346,8 +435,8 @@
         finally { _saving = false; }
     }
 
-    private static string PeriodOf(WcfObligationQuoteDto quote) =>
-        new DateOnly(quote.BillingYear, quote.BillingMonth, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private static string PeriodOf(WcfMobileSourceDto source) =>
+        new DateOnly(source.BillingYear, source.BillingMonth, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
 
