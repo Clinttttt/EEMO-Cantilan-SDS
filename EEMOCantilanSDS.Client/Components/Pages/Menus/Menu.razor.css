@@ -361,183 +361,6 @@
     margin-top: 2px;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   DASHBOARD HERO BANNER (vs-hero)
-   Copied from Vendor_razor.css so Menu page
-   has the same dark hero component
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-.vs-hero {
-    position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 28px 32px 20px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 32px;
-    overflow: hidden;
-    flex-wrap: wrap;
-}
-
-    .vs-hero::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        right: -40px;
-        width: 220px;
-        height: 220px;
-        background: radial-gradient(circle, rgba(200,168,75,.15) 0%, transparent 70%);
-        pointer-events: none;
-    }
-
-.vs-hero-left {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    flex: 1 1 260px;
-}
-
-.vs-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200,168,75,.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-    .vs-hero-icon svg {
-        width: 26px;
-        height: 26px;
-        stroke: var(--gold);
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-    .vs-hero-icon img {
-        width: 100%;
-        height: 100%;
-        border-radius: 12px;
-        object-fit: contain;
-        background: #fff;
-    }
-
-.vs-hero-eyebrow {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 4px;
-}
-
-.vs-hero-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    line-height: 1.2;
-}
-
-.vs-hero-sub {
-    font-size: 13px;
-    color: rgba(255,255,255,.55);
-    margin-top: 3px;
-}
-
-.vs-hero-stats {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.vs-hero-stat {
-    padding: 0 24px;
-    text-align: center;
-}
-
-    .vs-hero-stat:first-child {
-        padding-left: 0;
-    }
-
-.vs-hero-val {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-}
-
-.vs-hero-key {
-    font-size: 11px;
-    color: rgba(255,255,255,.5);
-    margin-top: 3px;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-}
-
-.vs-hero-sub2 {
-    font-size: 11px;
-    color: rgba(255,255,255,.4);
-    margin-top: 3px;
-}
-
-.vs-hero-divider {
-    width: 1px;
-    height: 36px;
-    background: rgba(255,255,255,.12);
-    flex-shrink: 0;
-}
-
-.vs-hero-progress {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: rgba(255,255,255,.1);
-}
-
-.vs-hero-progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--gold), var(--gold-light));
-    border-radius: 0 2px 2px 0;
-    transition: width .5s ease;
-}
-
-@media (max-width: 1100px) {
-    .vs-hero-title {
-        font-size: 18px;
-    }
-
-    .vs-hero-val {
-        font-size: 18px;
-    }
-
-    .vs-hero-stat {
-        padding: 0 14px;
-    }
-}
-
-@media (max-width: 900px) {
-    .vs-hero {
-        padding: 20px;
-        gap: 16px;
-    }
-}
-
-@media (max-width: 600px) {
-    .vs-hero {
-        padding: 16px;
-        gap: 12px;
-    }
-
-    .vs-hero-title {
-        font-size: 16px;
-    }
-}
-
 /* Dashboard "Revenue by Facility" report-action tabs */
 .section-header-actions {
     display: flex;
@@ -610,46 +433,12 @@ a.dashboard-report-tab:hover {
     .dashboard-report-tab { flex: 1; padding: 0 10px; }
 }
 
-
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    RESPONSIVE — dashboard (mobile/tablet â‰¤768px)
    Desktop (â‰¥769px) is untouched: these rules only exist below the breakpoint.
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 768px) {
-    /* Hero: stack the identity block over a clean 2Ã—2 stat grid. No vertical dividers, and the tiny
-       sub-detail lines are hidden on mobile for a calmer, more readable summary. */
-    .vs-hero {
-        flex-direction: column;
-        align-items: stretch;
-        flex-wrap: nowrap;
-        gap: 18px;
-        padding: 16px 16px 18px;
-    }
-
-    .vs-hero-left {
-        flex: none;
-        gap: 14px;
-    }
-
-    .vs-hero-stats {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px 10px;
-        width: 100%;
-        flex: none;
-    }
-
-    .vs-hero-stat {
-        min-width: 0;
-        padding: 0;
-        text-align: left;
-    }
-
-    .vs-hero-divider { display: none; }
-    .vs-hero-icon { display: none; }
-    .vs-hero-sub2 { display: none; }
-
-    /* Report shortcut tabs scroll horizontally instead of overflowing the row. */
+/* Report shortcut tabs scroll horizontally instead of overflowing the row. */
     .section-header-actions { width: 100%; }
 
     .dashboard-report-tabs {
@@ -688,73 +477,10 @@ a.dashboard-report-tab:hover {
     }
 }
 
-
-
 /* ══════════════════════════════════════════════════════════════
    V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
    Light identity band / drawer headers; civic-blue interaction; readable secondary text.
    ══════════════════════════════════════════════════════════════ */
-.vs-hero {
-    padding: 20px 24px 22px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--elevation-1);
-}
-
-    .vs-hero::before,
-    .vs-hero::after {
-        display: none;
-    }
-
-.vs-hero-icon {
-    border-color: transparent;
-    background: var(--accent-soft);
-}
-
-    .vs-hero-icon svg {
-        stroke: var(--navy) !important;
-    }
-
-.vs-hero-eyebrow {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-title,
-.vs-hero-val {
-    color: var(--navy);
-}
-
-.vs-hero-val {
-    font-variant-numeric: tabular-nums;
-}
-
-.vs-hero-sub,
-.vs-hero-sub2 {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.vs-hero-divider {
-    background: var(--border);
-}
-
-.vs-hero-progress {
-    height: 3px;
-    background: var(--surface-muted);
-}
-
-.vs-hero-progress-fill {
-    background: var(--accent);
-}
-
 
 /* Non-status tag: neutral, not gold (V3). */
 .dashboard-report-soon {
@@ -762,63 +488,83 @@ a.dashboard-report-tab:hover {
     color: var(--text-secondary);
     box-shadow: inset 0 0 0 1px var(--border);
 }
-.vs-scope-note {
-    margin: 10px 2px 18px;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    color: var(--text-secondary);
-}
 
-/* ── Dashboard hero, V3 (2026-10-01): ONE civic-blue surface. Identity and figures share the same band — no split
-      background — with white text, translucent separators and a light icon tile. Compact height; solid colour only. ── */
-.vs-hero {
-    padding: 18px 24px;
-    border: 0;
+/* ── Facility snapshot, V3 (2026-10-02): a pale civic-blue supporting surface that relates to the hero without
+      competing with it. White figure tiles inside; civic-blue progress; no gold gradient or lift on hover. ── */
+.facility-card {
+    border-color: var(--border-blue-subtle);
     border-radius: 10px;
-    background: var(--civic-panel);
+    background: var(--surface-blue-subtle);
     box-shadow: none;
 }
 
-.vs-hero-left {
-    padding: 0;
-    background: transparent;
-}
-
-.vs-hero-icon {
-    border: 1px solid rgba(255, 255, 255, 0.22);
-    background: rgba(255, 255, 255, 0.12);
-}
-
-    .vs-hero-icon svg {
-        stroke: #ffffff !important;
+    .facility-card::before {
+        display: none;
     }
 
-.vs-hero-eyebrow {
-    color: rgba(255, 255, 255, 0.78);
+    .facility-card:hover {
+        border-color: var(--accent);
+        box-shadow: var(--elevation-1);
+        transform: none;
+    }
+
+    .facility-card.has-alert {
+        border-color: var(--border-blue-subtle);
+    }
+
+.facility-card-icon {
+    border: 1px solid var(--border-blue-subtle);
+    background: var(--surface);
 }
 
-.vs-hero-title,
-.vs-hero-val {
-    color: #ffffff;
+.fac-model-tag {
+    background: var(--accent-soft);
+    color: var(--accent-hover);
 }
 
-.vs-hero-sub,
-.vs-hero-sub2 {
-    color: rgba(255, 255, 255, 0.78);
+.fac-stat {
+    border: 1px solid var(--border-blue-subtle);
+    background: var(--surface);
 }
 
-.vs-hero-key {
-    color: rgba(255, 255, 255, 0.88);
+.fac-stat-val {
+    font-variant-numeric: tabular-nums;
 }
 
-.vs-hero-divider {
-    background: rgba(255, 255, 255, 0.22);
+.fac-stat-key {
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-weight: 500;
+    color: var(--text-tertiary);
 }
 
-.vs-hero-progress {
-    background: rgba(255, 255, 255, 0.18);
+.facility-progress-bar {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border-blue-subtle);
 }
 
-.vs-hero-progress-fill {
-    background: #ffffff;
+.facility-progress-fill {
+    background: var(--accent);
 }
+
+@media (prefers-reduced-motion: reduce) {
+    .facility-card,
+    .facility-progress-fill {
+        transition: none;
+    }
+}
+
+.facility-card-btn {
+    border-color: var(--border-blue-subtle);
+    color: var(--accent-hover);
+}
+
+    .facility-card-btn:hover {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+    }
+
+    .facility-card-btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }

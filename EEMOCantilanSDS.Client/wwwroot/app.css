@@ -50,6 +50,8 @@
     --civic-panel-deep: #163c6b;
     /* A very light blue tint for context bands and information surfaces on a white page. */
     --surface-blue-subtle: #f3f7fd;
+    /* Hairline for a pale-blue supporting surface (Facility Snapshot cards and similar). */
+    --border-blue-subtle: #d8e3f2;
     --accent-ring: rgba(31, 95, 191, .35);
     --elevation-1: 0 1px 2px rgba(13, 33, 55, .04);
 }
