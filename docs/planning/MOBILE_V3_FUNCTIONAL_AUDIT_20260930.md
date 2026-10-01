@@ -63,3 +63,10 @@ Collection, one `LANDING_BERTHING` line, no correction, no remittance). Reports 
 Authority: canonical facts are the Position's facts, so Position and the report cannot state two canonical totals. Legacy
 PaymentRecord money is skipped once its row is canonical. Business date: `Collection.BusinessDate`, whole month, inclusive.
 "Payor accounts" (was "Payees") counts facility accounts in scope plus registered Payors; a walk-up ticket never adds one.
+
+## WCF direct Mobile collection (2026-10-01, IA-054)
+
+`/wcf`: searchable eligible sources (payor and stall from the server) with plain states — No amount prepared, ₱ outstanding,
+Settled, Office review. Prepared amount: read-only, amount to collect up to outstanding. No prepared amount: the collector
+enters the Water amount. Next assigned Cash Ticket automatically; durable enqueue before reporting; a source with a capture
+waiting to sync is locked on the device. Capability is Ready on the enabled operation, not on a prepared row.

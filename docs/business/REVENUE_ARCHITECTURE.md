@@ -347,3 +347,15 @@ Phase 0 existed to disposition the following independent correctness findings be
 - **Slaughter update rates — FIXED.** Update resolves canonical tenant effective-dated rates using the transaction/activity date, consistent with create. Existing custom-animal behavior remains on its separate rate path.
 
 These dispositions do not implement RevenueClassification, Collection, CollectionLine, CollectionAllocation, ReceivableObligation, AccountableDocument, Cash Ticket/accountable forms, or RevenueTarget. They also do not complete the unresolved Arrears qualification/recovery/reporting work in Phase 5B. Those capabilities remain target architecture; the separately deployed one-month Delinquent rule does not complete them.
+
+### WCF direct entry and prospective authority (IA-054, 2026-10-01)
+
+- The WCF source remains the stall/month `UtilityBill` Water part (NPM is source context). No parallel WCF financial source.
+- One `CollectorOperationActivations` row per tenant records WCF Mobile enablement (effective from, activated at/by) and is audited.
+- A Water part with no legacy settlement becomes canonical at its first collection after enablement, through the existing
+  `CollectionSettlementCutover` record (opening: the assessment, nothing settled), inside the posting's single unit of work.
+  Its evidence records the activation, the amount origin (`OfficePrepared` or `CollectorDirectEntry`), the actor and the
+  `ClientOperationId`. A part with legacy settlement keeps the explicit, attested legacy-migration cutover.
+- A direct entry establishes the Water amount on the one bill for the source and current period (creating the bill only when
+  none exists, never touching Electricity) and posts the Collection, its WCF line and the Cash Ticket consumption atomically
+  and idempotently; an existing prepared amount refuses the entry (Cash Ticket held for reconciliation).

@@ -391,3 +391,4 @@ Do not distract staff with these during the presentation sprint unless they beco
 ---
 
 This rulebook should be updated immediately whenever EEMO answers one of the remaining open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+- IA-054 (2026-10-01): WCF direct Mobile entry. Head/Admin may prepare a WCF amount in advance; when none is prepared, the authorized collector enters the Water amount directly on Mobile for an eligible source (Cash Ticket, direct amount, no meter). A prepared amount always takes precedence. WCF Mobile collection is enabled once per tenant after server-checked readiness; new WCF activity is then canonical prospectively, while historical legacy Water money stays legacy.

@@ -714,6 +714,24 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Add Vendor, NPM Reports, ECF / WCF pages and the utility bill dialog present the approved-amount model; a new utility bill defaults to the direct approved basis.
 - **REVISIT CONDITION:** A tenant that genuinely bills by meter (the basis remains configurable per bill).
 
+### IA-054 - WCF direct Mobile entry and one-time Mobile enablement (Clint, 2026-10-01)
+
+- **ID:** IA-054
+- **SUBJECT:** Routine Water Consumption Fee collection and how WCF becomes collectible on Collector Mobile
+- **STATUS:** CONFIRMED (Clint direction, WCF DIRECT MOBILE COLLECTION and WCF ONE-STEP ACTIVATION briefs)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION (narrows IA-053 for WCF)
+- **DECISION / QUESTION:**
+  - WCF is Cash Ticket and a direct amount; no meter, reading, cubic metre or rate is used.
+  - Head/Admin MAY prepare a WCF amount in advance (optional). When none is prepared for a source and the current period, an authorized collector (WCF operation assignment; no NPM facility assignment) enters the Water amount directly on Mobile for an eligible source selected from the server. Classification, instrument and period stay server-controlled; payor identity comes from the source, never typed text.
+  - An office-prepared amount takes precedence and is never overwritten by a direct entry; a conflicting direct entry is refused with the issued Cash Ticket held for office review.
+  - WCF Mobile collection is enabled ONCE per tenant (operation level), by Head/Admin, after the server derives readiness (WCF policy = Cash Ticket, an active assigned collector, Cash Ticket custody, nothing awaiting review). "One tap" means automatic validation, not bypassing controls: the server re-checks at commit, activation is idempotent and audited, and no office attestation, evidence reference, app version or device checkbox is asked for.
+  - After enablement, new WCF activity is canonical prospectively: a Water part with no legacy settlement becomes canonical at its first collection (direct or prepared) in the same transaction as the Collection. Historical Water records with legacy settlement stay legacy and are unchanged; migrating one is the exceptional, attested legacy-migration review.
+  - Cash Ticket custody, remittance, Monthly Income classification, ECF and Payor identity rules are unchanged.
+- **RATIONALE:** Per-row Save → Activate → six-item attestation for every payor and month was migration machinery applied to routine work; field staff need to record the amount actually collected.
+- **EVIDENCE / SOURCE:** Clint's WCF briefs of 2026-10-01; runtime review with collector Bobby Mercado.
+- **IMPACT:** `CollectorOperationActivations` (one additive table: tenant, operation, effective from, activated at/by); WCF post accepts a source + period for a direct amount; WCF capability is Ready on the operation, not on a prepared row; Web WCF shows a Collector Mobile status with one Enable action; Water Accounts is optional preparation plus legacy migration.
+- **REVISIT CONDITION:** A tenant whose policy requires prior office approval of every Water amount.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
@@ -741,3 +759,5 @@ The following interpretations must not be reintroduced:
 - `current Revenue Setup = authoritative classified cash reporting` — **SUPERSEDED**. Configuration exists; production report cutover has not occurred.
 - `OR field = AccountableDocument lifecycle` — **SUPERSEDED** as an architectural assumption.
 - `retired collector remittance = approved future remittance design` — **SUPERSEDED**. Any future workflow requires renewed approval.
+- `a collector never states the WCF amount` (IA-053) — **SUPERSEDED for WCF by IA-054**: with no office-prepared amount, an authorized collector enters the direct Water amount; a prepared amount still takes precedence.
+- `every new WCF obligation needs its own cutover / Activate for Mobile` — **SUPERSEDED by IA-054**: WCF is enabled once per tenant; per-source cutover remains only for historical legacy money.

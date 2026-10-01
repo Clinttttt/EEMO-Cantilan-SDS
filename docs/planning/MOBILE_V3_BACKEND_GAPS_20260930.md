@@ -77,3 +77,13 @@ governed sync payload with `VehicleClassCode`. Mobile cannot record or void a re
 - No obligation: capability stays Ready when collectible sources exist but nothing is owed, and the page says
   "No outstanding WCF obligations"; with no active source at all it is "Pending activation", never an authorization fault.
 - Tests: `WcfEndToEndReadinessTests` (PostgreSQL), capability/Today's Work unit tests, WCF Accounts component tests.
+
+## RESOLVED 2026-10-01 - WCF direct Mobile entry and one-time enablement (IA-054)
+- Routine WCF no longer needs per-row Save → Activate → attestation. Head/Admin enables WCF Mobile collection once (server-
+  derived readiness, idempotent, audited); collectors then collect office-prepared amounts or enter the amount directly.
+- Endpoints: `GET api/wcf-collections/mobile-sources`, `GET api/wcf-collections/mobile-status`,
+  `POST api/wcf-collections/mobile-status/enable`; `POST api/wcf-collections/mobile-collections` accepts `StallId` +
+  `BillingYear` + `BillingMonth` for a direct amount (queued offline with the same fields).
+- Remaining: the legacy NPM utility dialog still writes Water readings as before; after enablement, a Water amount it sets
+  with no legacy settlement is simply collected (and converted) on Mobile. Device app version is not tracked server-side, so
+  it is not part of readiness.
