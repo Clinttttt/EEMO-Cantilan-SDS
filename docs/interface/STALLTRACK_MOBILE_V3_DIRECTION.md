@@ -42,3 +42,14 @@ Not done: removal of the legacy palette variables (unmigrated rules still use th
 - **Motion**: opacity fade only (≤0.24 s); `prefers-reduced-motion` removes it and slows the indicator.
 - **Assets**: the only launch image is `stalltrack-seal.png`, which Login already needs; the 148 KB background WebP was
   removed from the app and the Bagong Pilipinas logo is no longer loaded at start (the asset itself is kept).
+
+## Selection controls (2026-10-01)
+
+- One shared control, `Components/Shared/MobileChoice.razor`, replaces every native `<select>` on Collector Mobile: vehicle
+  class (Transportation), approved animal (Slaughterhouse, new and edit), and the stall's Water period (market sheet).
+- 48px trigger stating label, current choice and a read-only detail (the server's approved rate or outstanding amount);
+  the list opens inline in the page flow, so it never clips off-screen or covers the bottom navigation; the selected row
+  carries a check and "Selected" text; civic-blue focus/selected state; disabled, error and empty states.
+- Short two-way choices stay option cards (Vegetable/Fruit Whole payment | Daily collection). Long lists (payors, stalls,
+  sources) use a searchable list, never a dropdown (WCF `/wcf`).
+- No rate or amount is typed in a selector; edit flows keep a historical value as a labelled read-only choice.

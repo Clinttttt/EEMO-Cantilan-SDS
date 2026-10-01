@@ -1,0 +1,170 @@
+/* Mobile V3 choice control: the input language (surface, border, radius, focus) with a list that opens in place. */
+.mc {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.mc-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.mc-trigger {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+    color: var(--mobile-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .mc-trigger:focus-visible {
+        outline: 2px solid var(--mobile-focus);
+        outline-offset: 2px;
+    }
+
+.mc.open .mc-trigger {
+    border-color: var(--mobile-blue);
+    box-shadow: inset 0 0 0 1px var(--mobile-blue);
+}
+
+.mc.disabled .mc-trigger {
+    background: var(--mobile-canvas);
+    color: var(--mobile-text-secondary);
+    cursor: not-allowed;
+}
+
+.mc.has-error .mc-trigger {
+    border-color: var(--mobile-error, #a23b3b);
+}
+
+.mc-value,
+.mc-option-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mc-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+}
+
+.mc-detail {
+    font-size: 13px;
+    color: var(--mobile-text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.mc-placeholder {
+    font-size: 15px;
+    color: var(--mobile-text-secondary);
+}
+
+.mc-chevron {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: var(--mobile-text-secondary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.15s ease;
+}
+
+.mc.open .mc-chevron {
+    transform: rotate(180deg);
+}
+
+.mc-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 288px;
+    overflow-y: auto;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+}
+
+    .mc-list li + li {
+        border-top: 1px solid var(--mobile-border);
+    }
+
+.mc-option {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .mc-option .mc-option-main {
+        flex: 1 1 auto;
+    }
+
+    .mc-option.selected {
+        background: var(--mobile-blue-subtle);
+    }
+
+    .mc-option:focus-visible {
+        outline: 2px solid var(--mobile-focus);
+        outline-offset: -2px;
+    }
+
+.mc-check {
+    width: 16px;
+    flex: 0 0 16px;
+    font-weight: 700;
+    color: var(--mobile-blue);
+}
+
+.mc-empty {
+    padding: 12px 14px;
+    border: 1px dashed var(--mobile-border);
+    border-radius: 12px;
+    font-size: 13px;
+    color: var(--mobile-text-secondary);
+}
+
+.mc-error {
+    margin: 0;
+    font-size: 12px;
+    color: var(--mobile-error, #a23b3b);
+}
+
+.mc-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mc-chevron {
+        transition: none;
+    }
+}

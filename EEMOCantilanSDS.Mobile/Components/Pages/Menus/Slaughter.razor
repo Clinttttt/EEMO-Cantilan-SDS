@@ -197,14 +197,9 @@
             @if (UseCustomAnimal)
             {
                 <div class="or-number-wrap">
-                    <label class="form-label" for="slh-approved-animal">Approved animal</label>
-                    <select id="slh-approved-animal" class="form-input" value="@CustomAnimalType" @onchange="OnApprovedAnimalChanged">
-                        <option value="">Select an approved animal</option>
-                        @foreach (var a in ApprovedAnimals)
-                        {
-                            <option value="@a.AnimalName">@a.AnimalName</option>
-                        }
-                    </select>
+                    <MobileChoice Label="Approved animal" Placeholder="Select an approved animal"
+                                  EmptyText="No approved animals are available. Ask the office to approve slaughter animals."
+                                  Options="@AnimalChoices" Value="@CustomAnimalType" ValueChanged="SelectApprovedAnimal" />
                     @if (CustomRate is > 0)
                     {
                         <div class="form-label" style="margin-top:12px;">Approved rate per head: @FormatCurrency(CustomRate.Value)</div>
@@ -372,18 +367,9 @@
             @if (EditUseCustom)
             {
                 <div class="or-number-wrap">
-                    <label class="form-label" for="slh-edit-approved-animal">Approved animal</label>
-                    <select id="slh-edit-approved-animal" class="form-input" value="@EditCustomType" @onchange="OnEditApprovedAnimalChanged">
-                        <option value="">Select an approved animal</option>
-                        @if (!string.IsNullOrWhiteSpace(EditCustomType) && ApprovedAnimals.All(a => !string.Equals(a.AnimalName, EditCustomType, StringComparison.OrdinalIgnoreCase)))
-                        {
-                            <option value="@EditCustomType">@EditCustomType (recorded rate)</option>
-                        }
-                        @foreach (var a in ApprovedAnimals)
-                        {
-                            <option value="@a.AnimalName">@a.AnimalName</option>
-                        }
-                    </select>
+                    <MobileChoice Label="Approved animal" Placeholder="Select an approved animal"
+                                  EmptyText="No approved animals are available. Ask the office to approve slaughter animals."
+                                  Options="@EditAnimalChoices" Value="@EditCustomType" ValueChanged="SelectEditApprovedAnimal" />
                     @if (EditCustomRate is > 0)
                     {
                         <div class="form-label" style="margin-top:12px;">Rate per head: @FormatCurrency(EditCustomRate.Value)</div>
@@ -515,17 +501,29 @@
         (Collection?.ApprovedAnimals ?? Array.Empty<SlaughterAnimalRateDto>()).Where(a => a.IsActive).ToList();
 
     // The rate is the office's approved rate for the chosen animal; the collector never types an animal name or a rate.
-    private void OnApprovedAnimalChanged(ChangeEventArgs e)
+    // Each approved animal with its approved rate per head as read-only detail; no rate is typed for a new entry.
+    private IReadOnlyList<MobileChoice.Choice> AnimalChoices =>
+        ApprovedAnimals.Select(a => new MobileChoice.Choice(a.AnimalName, a.AnimalName, $"{FormatCurrency(a.RatePerHead)} per head")).ToList();
+
+    // Editing keeps a historical animal that is no longer approved as its own, clearly labelled choice: history stays historical.
+    private IReadOnlyList<MobileChoice.Choice> EditAnimalChoices =>
+        (!string.IsNullOrWhiteSpace(EditCustomType)
+            && ApprovedAnimals.All(a => !string.Equals(a.AnimalName, EditCustomType, StringComparison.OrdinalIgnoreCase))
+                ? new[] { new MobileChoice.Choice(EditCustomType, EditCustomType, "recorded rate") }
+                : [])
+        .Concat(AnimalChoices).ToList();
+
+    private void SelectApprovedAnimal(string value)
     {
-        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == (e.Value?.ToString() ?? string.Empty));
+        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == value);
         CustomAnimalType = match?.AnimalName ?? string.Empty;
         CustomRate = match?.RatePerHead;
         SheetError = null;
     }
 
-    private void OnEditApprovedAnimalChanged(ChangeEventArgs e)
+    private void SelectEditApprovedAnimal(string value)
     {
-        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == (e.Value?.ToString() ?? string.Empty));
+        var match = ApprovedAnimals.FirstOrDefault(a => a.AnimalName == value);
         if (match is not null) { EditCustomType = match.AnimalName; EditCustomRate = match.RatePerHead; }
         EditError = null;
     }

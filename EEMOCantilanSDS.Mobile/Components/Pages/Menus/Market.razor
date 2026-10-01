@@ -612,15 +612,10 @@
                             }
                             else
                             {
-                                <label class="misc-wcf-source-label">
-                                    <span>Water obligation · oldest outstanding periods first</span>
-                                    <select class="form-input" @bind="SelectedWcfBillId">
-                                        @foreach (var quote in WcfObligationsForSelectedStall)
-                                        {
-                                            <option value="@quote.UtilityBillId">@quote.BillingYear-@quote.BillingMonth.ToString("00") · @FormatPeso(quote.OutstandingAmount) due</option>
-                                        }
-                                    </select>
-                                </label>
+                                <MobileChoice Label="Water period · oldest outstanding first"
+                                              EmptyText="No outstanding Water periods for this stall."
+                                              Options="@WcfPeriodChoices" Value="@SelectedWcfBillId?.ToString()"
+                                              ValueChanged="@(v => SelectedWcfBillId = Guid.TryParse(v, out var id) ? id : null)" />
                                 <div class="misc-util-state">@SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00") · @FormatPeso(SelectedWcfQuote.OutstandingAmount) outstanding</div>
                                 @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
                                 {
@@ -916,6 +911,13 @@
         ? Array.Empty<WcfObligationQuoteDto>()
         : WcfObligations.Where(x => x.StallId == SelectedStall.StallId && x.OutstandingAmount > 0m)
             .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth).ToList();
+
+    // Each outstanding Water period of the stall, with its outstanding amount as read-only detail.
+    private IReadOnlyList<MobileChoice.Choice> WcfPeriodChoices => WcfObligationsForSelectedStall
+        .Select(q => new MobileChoice.Choice(q.UtilityBillId.ToString(),
+            new DateTime(q.BillingYear, q.BillingMonth, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+            $"{FormatPeso(q.OutstandingAmount)} due"))
+        .ToList();
 
     private WcfObligationQuoteDto? SelectedWcfQuote => SelectedWcfBillId is { } billId
         ? WcfObligationsForSelectedStall.FirstOrDefault(x => x.UtilityBillId == billId)

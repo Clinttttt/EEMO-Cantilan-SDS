@@ -114,16 +114,13 @@
                         {
                             @* The collector states the vehicle class; the server's approved rate for it is the amount. A class with no
                                rate in force is never offered, and no price can be typed. *@
-                            <label class="form-field">
-                                <span class="form-label">Vehicle class</span>
-                                <select class="form-input" @bind="_vehicleClass" aria-label="Vehicle class">
-                                    <option value="">Select vehicle class</option>
-                                    @foreach (var vehicle in terms.VehicleClasses ?? [])
-                                    {
-                                        <option value="@vehicle.Code">@vehicle.Name · @Money(vehicle.Amount)</option>
-                                    }
-                                </select>
-                            </label>
+                            <MobileChoice Label="Vehicle class" Placeholder="Select vehicle class"
+                                          EmptyText="No active vehicle classes are available. Ask the office to set the approved rates."
+                                          Options="@VehicleChoices(terms)" Value="@_vehicleClass" ValueChanged="@(v => _vehicleClass = v)" />
+                            @if (SelectedVehicleClass is { } chosenClass)
+                            {
+                                <p class="op-form-note">Approved rate @Money(chosenClass.Amount) · set by the office, not editable here.</p>
+                            }
                         }
                         else if (terms.Basis != GovernedServiceBasis.FixedAmount)
                         {
@@ -489,6 +486,10 @@
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
 
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+
+    // Each class with its server-approved rate as read-only detail; a class with no rate in force is never offered.
+    private static IReadOnlyList<MobileChoice.Choice> VehicleChoices(GovernedServiceTermsDto terms) =>
+        (terms.VehicleClasses ?? []).Select(v => new MobileChoice.Choice(v.Code, v.Name, Money(v.Amount))).ToList();
 
     private static string ModeLabel(GovernedServiceMode? mode) =>
         mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
