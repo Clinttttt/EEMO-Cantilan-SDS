@@ -98,3 +98,16 @@ Year and Print / Save as PDF (browser, A4 landscape via `stalltrackPrint.landsca
 Exactly-once relationship: Official Monthly Income, interactive Monthly Income, Revenue Source Performance and the Financial
 Summary all read the same server statement; Collection Activity, operation reports and collector reports read the same
 posted Collections. A Landing/Berthing CT therefore appears once in each.
+
+## Controls and scope — 2026-10-01 consistency pass
+
+- **Monthly | Annual** is one joined segmented control (shared border, single radius, internal divider, no seam).
+- **Year · Month · Facility / Source Analysis** form one joined group at the same height. Each keeps its own value; the
+  analysis scope defaults to **All sources** and narrows only the facility figures of Summary, Receivables and Trends.
+- The section strip is a quiet sticky band under the page header on long reports (static in print).
+- Revenue Source Performance has its own scope: All sources (default), Facilities only, Non-facility operations, or one
+  analytic group. A cross-group scope lists rows only and states no subtotal: money totals stay the server's.
+- The Dashboard shows the same Revenue Source Performance register (one source list, shared truth); its hero figures are
+  labelled as facility figures because the dashboard reader is facility-scoped.
+- Collection Activity (`/collections/activity`) reads the legacy facility feed only; it says so and points to the
+  Collections register for operation, utility and space-rental collections. A combined activity feed remains a backend gap.
