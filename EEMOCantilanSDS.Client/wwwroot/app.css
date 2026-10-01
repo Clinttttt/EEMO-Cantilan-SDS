@@ -3591,3 +3591,9 @@ body .setup-root .login-network-icon {
 body .setup-root .login-network-arrow {
     color: var(--accent);
 }
+
+/* FocusOnNavigate (Routes.razor) moves focus to each page's h1 (tabindex -1) so screen readers announce the page. The
+   heading is not an interactive control, so it draws no focus box. */
+h1[tabindex="-1"]:focus {
+    outline: none;
+}
