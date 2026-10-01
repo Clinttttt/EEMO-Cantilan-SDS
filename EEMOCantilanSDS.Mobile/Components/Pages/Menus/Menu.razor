@@ -250,7 +250,10 @@
         if (!item.CanOpen)
             return;
 
-        if (item.Target == WorkTarget.Operation && item.OperationCode is not null)
+        // WCF has its own page (a utility operation, IA-053); every other operation opens the governed collection page.
+        if (item.Target == WorkTarget.Operation && item.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf)
+            Navigation.NavigateTo("/wcf", forceLoad: false);
+        else if (item.Target == WorkTarget.Operation && item.OperationCode is not null)
             Navigation.NavigateTo($"/operation/{Uri.EscapeDataString(item.OperationCode)}", forceLoad: false);
         else if (item.Target == WorkTarget.Facility)
         {

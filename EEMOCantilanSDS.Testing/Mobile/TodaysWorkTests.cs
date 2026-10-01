@@ -78,13 +78,14 @@ public class TodaysWorkTests
     }
 
     [Fact]
-    public void Ready_WCF_is_listed_as_available_but_is_collected_from_the_stall_sheet_not_its_own_page()
+    public void Ready_WCF_opens_its_own_collection_page_so_an_operation_only_collector_can_collect_it()
     {
         var work = Build([Op(CollectorOperationCodes.Wcf, CollectorOperationCapabilityStatus.Ready)]);
 
         var item = Assert.Single(work.Available);
-        Assert.False(item.CanOpen);
-        Assert.Equal(WorkTarget.None, item.Target);
+        Assert.True(item.CanOpen);
+        Assert.Equal(WorkTarget.Operation, item.Target);
+        Assert.Equal(CollectorOperationCodes.Wcf, item.OperationCode);
     }
 
     [Fact]

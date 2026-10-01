@@ -63,8 +63,9 @@ public static class TodaysWorkBuilder
             var ready = op.Status == CollectorOperationCapabilityStatus.Ready && op.IsCollectible;
             if (ready)
             {
-                // WCF is collected from a stall in the market sheet, so it has no page of its own to open.
-                var opens = op.OperationCode != CollectorOperationCodes.Wcf && GovernedServiceCatalog.Find(op.OperationCode) is not null;
+                // WCF is a utility operation (IA-053) with its own collection page, so an operation-only collector can open it;
+                // a collector who also holds the market can still collect it from the stall sheet.
+                var opens = op.OperationCode == CollectorOperationCodes.Wcf || GovernedServiceCatalog.Find(op.OperationCode) is not null;
                 available.Add(new WorkItem(op.Name, "Ready to collect", opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode));
             }
             else if (op.Status == CollectorOperationCapabilityStatus.NeedsDocument)
