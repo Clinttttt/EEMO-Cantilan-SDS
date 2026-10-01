@@ -59,26 +59,29 @@
             <button type="button" class="rpp @(ActiveTab == "Monthly" ? "on" : "")" aria-pressed="@(ActiveTab == "Monthly" ? "true" : "false")" @onclick='() => SetTab("Monthly")'>Monthly</button>
             <button type="button" class="rpp @(ActiveTab == "Annual" ? "on" : "")" aria-pressed="@(ActiveTab == "Annual" ? "true" : "false")" @onclick='() => SetTab("Annual")'>Annual</button>
         </div>
-
-        <div class="rpt-tool">
-            <FhSelect Caption="Year" Value="@SelectedYear" Options="@YearOptions" ValueChanged="OnYearChanged" />
-        </div>
-
-        @if (ActiveTab == "Monthly" && SelectedYear != "all")
-        {
+        @* One joined scope control: the period values, then the facility / source analysis scope. Each segment keeps its own
+           value and handler; only the grouping is shared. *@
+        <div class="rpt-toolgroup" role="group" aria-label="Analysis scope">
             <div class="rpt-tool">
-                <FhSelect Caption="Month" Value="@SelectedMonth" Options="@MonthOptions" ValueChanged="OnMonthChanged" />
+                <FhSelect Caption="Year" Value="@SelectedYear" Options="@YearOptions" ValueChanged="OnYearChanged" />
             </div>
-        }
 
-        @if (!IsOfficialTab)
-        {
-            @* Facility analysis is secondary: it narrows the facility figures of Summary, Receivables and Trends, never the official
-               Monthly Income, which follows the office rows. *@
-            <div class="rpt-tool rpt-tool-source">
-                <FhSelect Caption="Facility analysis" Value="@SelectedFacility" Options="@FacilitySelectOptions" ValueChanged="SelectFacility" />
-            </div>
-        }
+            @if (ActiveTab == "Monthly" && SelectedYear != "all")
+            {
+                <div class="rpt-tool">
+                    <FhSelect Caption="Month" Value="@SelectedMonth" Options="@MonthOptions" ValueChanged="OnMonthChanged" />
+                </div>
+            }
+
+            @if (!IsOfficialTab)
+            {
+                @* Facility / source analysis is secondary: it narrows the facility figures of Summary, Receivables and Trends,
+                   never the official Monthly Income, which follows the office rows. Every source is in the Summary register. *@
+                <div class="rpt-tool rpt-tool-source">
+                    <FhSelect Caption="Facility / Source Analysis" Value="@SelectedFacility" Options="@FacilitySelectOptions" ValueChanged="SelectFacility" />
+                </div>
+            }
+        </div>
 
         <div class="rpt-toolbar-end">
             @if (Loading && Model is not null && !IsOfficialTab)
@@ -1222,7 +1225,7 @@
 
     // The same choices as the old chips, as one compact select: "All facilities" plus each configured facility.
     private IReadOnlyList<(string Value, string Label)> FacilitySelectOptions =>
-        FacilityOptions.Select(o => (o.Code, o.Code == "All" ? "All facilities" : o.Label)).ToList();
+        FacilityOptions.Select(o => (o.Code, o.Code == "All" ? "All sources" : o.Label)).ToList();
 
     // Authoritative scope labels (fall back to selection before/while loading).
     private string PeriodLabel => Model?.PeriodLabel

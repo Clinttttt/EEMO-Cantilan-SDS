@@ -2880,3 +2880,79 @@
         font-variant-numeric: tabular-nums;
     }
 }
+
+/* ── V3 consistency (2026-10-01): one control grammar for the report scope ──
+   The period values and the facility / source analysis scope form one joined group — one border, one radius, internal
+   dividers only — at the same height as the Monthly | Annual control beside it. */
+.rpt-toolgroup {
+    display: inline-flex;
+    align-items: stretch;
+    align-self: flex-end;
+    overflow: visible;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+    .rpt-toolgroup .rpt-tool {
+        display: flex;
+        min-width: 120px;
+    }
+
+    .rpt-toolgroup .rpt-tool-source {
+        min-width: 220px;
+    }
+
+    .rpt-toolgroup .rpt-tool + .rpt-tool {
+        border-left: 1px solid var(--border);
+    }
+
+    .rpt-toolgroup ::deep .fh-dd,
+    .rpt-toolgroup ::deep .fh-dd-trigger {
+        width: 100%;
+    }
+
+    .rpt-toolgroup ::deep .fh-dd-trigger {
+        min-height: 44px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .rpt-toolgroup .rpt-tool:first-child ::deep .fh-dd-trigger {
+        border-radius: 7px 0 0 7px;
+    }
+
+    .rpt-toolgroup .rpt-tool:last-child ::deep .fh-dd-trigger {
+        border-radius: 0 7px 7px 0;
+    }
+
+    .rpt-toolgroup ::deep .fh-dd-trigger:hover,
+    .rpt-toolgroup ::deep .fh-dd-trigger.open {
+        background: var(--accent-soft);
+        box-shadow: none;
+    }
+
+    .rpt-toolgroup ::deep .fh-dd-trigger:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+    }
+
+.rpt-seg .rpp {
+    min-height: 44px;
+}
+
+/* The section strip stays reachable on long reports: a quiet sticky band under the page header, not the whole toolbar. */
+.rpt-nav {
+    position: sticky;
+    top: var(--topbar-h);
+    z-index: 20;
+    background: var(--canvas);
+}
+
+@media print {
+    .rpt-nav {
+        position: static;
+    }
+}
