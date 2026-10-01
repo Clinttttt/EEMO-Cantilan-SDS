@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IWcfCollectionsApiClient WcfApi
+@inject ICollectorsApiClient CollectorsApi
 
 <PageTitle>StallTrack — Water Accounts</PageTitle>
 
@@ -110,7 +111,145 @@
         </div>
         <p class="v3-panel-note">Cash Ticket numbers are recorded per collection — see Collection activity on the <a href="/operations/water-consumption-fees">WCF workspace</a>.</p>
     </section>
+
+    @* Head/Admin source entry (IA-053): the direct approved Water amount for one source and billing month, on the one
+       stall/month bill, then — once — activation for Collector Mobile through the attested cutover. Electricity on the same
+       bill is never changed here. No reading, cubic metre or rate is asked for. *@
+    <section class="v3-panel wcfs" aria-labelledby="wcfs-title" aria-busy="@(_setupLoading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="wcfs-title">Set up Water obligations — @PeriodLabel</h2>
+            <span class="v3-panel-meta">Direct approved amount · Cash Ticket · collected on Collector Mobile once active</span>
+        </header>
+
+        @if (_setupMessage is not null)
+        {
+            <p class="v3-notice v3-notice-row @(_setupFailed ? "v3-notice-error" : "")" role="status">@_setupMessage</p>
+        }
+
+        <div class="v3-table-wrap" role="region" aria-label="Water sources to set up" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Water sources for @PeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Payer</th>
+                        <th scope="col">Source</th>
+                        <th scope="col" class="v3-num">Approved amount</th>
+                        <th scope="col">Mobile collection</th>
+                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var source in _sources)
+                    {
+                        var key = source.StallId;
+                        <tr>
+                            <td><span class="v3-strong">@(source.PayerName ?? "Payer not named")</span></td>
+                            <td>Stall @source.StallNo@(string.IsNullOrWhiteSpace(source.Section) ? "" : $" · {source.Section}")</td>
+                            <td class="v3-num">
+                                @if (source.Editable)
+                                {
+                                    <label class="wcfs-amount">
+                                        <span class="v3-sr-only">Approved Water amount for stall @source.StallNo</span>
+                                        <span aria-hidden="true">₱</span>
+                                        <input class="v3-input" type="number" min="0.01" step="0.01" inputmode="decimal"
+                                               value="@AmountInput(source)" @onchange="e => _amounts[key] = e.Value?.ToString() ?? string.Empty" />
+                                    </label>
+                                }
+                                else
+                                {
+                                    <span title="@source.LockedReason">@(source.ApprovedAmount is { } a ? Money(a) : "—")</span>
+                                }
+                            </td>
+                            <td><span class="wcfs-state @StateClass(source)">@StateLabel(source)</span></td>
+                            <td class="wcfs-actions">
+                                @if (source.Editable)
+                                {
+                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => SaveAsync(source)">Save</button>
+                                }
+                                @if (CanActivate(source))
+                                {
+                                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" disabled="@_busy" @onclick="() => OpenActivationAsync(source)">Activate for Mobile</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (_sources.Count == 0)
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="5">
+                                @if (_setupLoading) { <span role="status">Loading Water sources…</span> }
+                                else if (_setupFailed && _setupMessage is not null) { <span>Water sources are unavailable.</span> }
+                                else { <span>No stall has an occupant answering for @PeriodLabel.</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="v3-panel-note">An amount can be revised until settlement or activation begins. Activation is one obligation at a time and needs the office's attested checklist.</p>
+    </section>
 </div>
+
+@if (_activating is { } target)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseActivation">
+        <section class="v3-modal wcfs-modal" role="dialog" aria-modal="true" aria-labelledby="wcfs-activate-title" @onclick:stopPropagation="true">
+            <header class="v3-modal-header">
+                <h2 id="wcfs-activate-title">Activate for Mobile collection</h2>
+                <button class="wcfs-close" type="button" aria-label="Close" @onclick="CloseActivation">×</button>
+            </header>
+            <form class="v3-modal-body" id="wcfs-activate-form" @onsubmit="ActivateAsync" @onsubmit:preventDefault="true">
+                <p class="wcfs-hint">
+                    Stall @target.StallNo · @(target.PayerName ?? "Payer not named") · @PeriodLabel · @(target.ApprovedAmount is { } amt ? Money(amt) : "—").
+                    The opening position is frozen at this amount with nothing previously settled; this does not create a collection.
+                </p>
+                <fieldset class="wcfs-checks">
+                    <legend>Office attestation</legend>
+                    <label><input type="checkbox" @bind="_writersQuiesced" /> Legacy Web and Mobile writers for this source are stopped</label>
+                    <label><input type="checkbox" @bind="_queuesDrained" /> Collector device queues are synced</label>
+                    <label><input type="checkbox" @bind="_devicesComplete" /> Every collector device is accounted for</label>
+                    <label><input type="checkbox" @bind="_onlineDrained" /> No online payment is in progress for this source</label>
+                    <label><input type="checkbox" @bind="_inventoryReconciled" /> Cash Ticket inventory and custody are reconciled</label>
+                    <label><input type="checkbox" @bind="_reportsVerified" /> Collection Activity and reports were checked</label>
+                </fieldset>
+                <label class="v3-field"><span>Evidence reference</span><input required maxlength="200" @bind="_evidenceReference" placeholder="e.g. checklist or memo number" /></label>
+
+                @if (_readiness is { } readiness)
+                {
+                    @if (readiness.AffectedCollectors.Count > 0)
+                    {
+                        <fieldset class="wcfs-collectors">
+                            <legend>Collectors who can record this source</legend>
+                            @foreach (var collectorId in readiness.AffectedCollectors)
+                            {
+                                var id = collectorId;
+                                <div class="wcfs-collector">
+                                    <span class="v3-strong">@CollectorName(id)</span>
+                                    <label class="v3-field"><span>App version</span><input maxlength="64" value="@_versions.GetValueOrDefault(id)" @onchange="e => _versions[id] = e.Value?.ToString() ?? string.Empty" /></label>
+                                    <label class="wcfs-inline"><input type="checkbox" checked="@_drained.Contains(id)" @onchange="e => ToggleDrained(id, e.Value is true)" /> Device synced</label>
+                                </div>
+                            }
+                        </fieldset>
+                    }
+                    @if (readiness.BlockingReasons.Count > 0)
+                    {
+                        <ul class="wcfs-blockers" aria-label="Still blocking activation">
+                            @foreach (var reason in readiness.BlockingReasons) { <li>@reason</li> }
+                        </ul>
+                    }
+                }
+                @if (_dialogError is not null)
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CheckReadinessAsync" disabled="@_busy">Check readiness</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="wcfs-activate-form" disabled="@(_busy || string.IsNullOrWhiteSpace(_evidenceReference))">Activate</button>
+            </footer>
+        </section>
+    </div>
+}
 
 @code {
     private DateOnly _period = PhilippineTime.Today;
@@ -176,6 +315,179 @@
             _error = "Water accounts couldn't be loaded.";
         }
         finally { _loading = false; }
+        _setupFailed = false;
+        await LoadSetupAsync();
+    }
+
+    // ── Head/Admin Water source entry and activation ──────────────────────────────────────────────────────────
+    private List<WcfSetupSourceDto> _sources = [];
+    private readonly Dictionary<Guid, string> _amounts = [];
+    private bool _setupLoading = true;
+    private bool _setupFailed;
+    private string? _setupMessage;
+    private bool _busy;
+
+    private WcfSetupSourceDto? _activating;
+    private SettlementCutoverReadinessDto? _readiness;
+    private Dictionary<Guid, string> _collectorNames = [];
+    private readonly Dictionary<Guid, string> _versions = [];
+    private readonly HashSet<Guid> _drained = [];
+    private bool _writersQuiesced, _queuesDrained, _devicesComplete, _onlineDrained, _inventoryReconciled, _reportsVerified;
+    private string _evidenceReference = string.Empty;
+    private string? _dialogError;
+
+    private async Task LoadSetupAsync()
+    {
+        _setupLoading = true;
+        try
+        {
+            var result = await WcfApi.GetSetupSourcesAsync(_period.Year, _period.Month);
+            _sources = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
+            if (!result.IsSuccess) { _setupFailed = true; _setupMessage = "Water sources couldn't be loaded."; }
+        }
+        catch
+        {
+            _sources = [];
+            _setupFailed = true;
+            _setupMessage = "Water sources couldn't be loaded.";
+        }
+        finally { _setupLoading = false; }
+    }
+
+    private string AmountInput(WcfSetupSourceDto source) =>
+        _amounts.TryGetValue(source.StallId, out var typed) ? typed
+        : source.ApprovedAmount is { } a ? a.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
+
+    private async Task SaveAsync(WcfSetupSourceDto source)
+    {
+        if (!decimal.TryParse(AmountInput(source), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount) || amount <= 0m)
+        {
+            _setupFailed = true;
+            _setupMessage = $"Enter a positive approved amount for stall {source.StallNo}.";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var result = await WcfApi.EstablishObligationAsync(new WcfObligationSetupRequest(source.StallId, _period.Year, _period.Month, amount));
+            _setupFailed = !result.IsSuccess;
+            _setupMessage = result.IsSuccess
+                ? $"Stall {source.StallNo}: {Money(amount)} approved for {PeriodLabel}."
+                : result.Error ?? "The approved amount could not be saved.";
+            if (result.IsSuccess)
+            {
+                _amounts.Remove(source.StallId);
+                await LoadAsync();
+            }
+        }
+        catch
+        {
+            _setupFailed = true;
+            _setupMessage = "The approved amount could not be saved.";
+        }
+        finally { _busy = false; }
+    }
+
+    // Only a saved, unsettled, still-Legacy amount can be activated here; a source already in cutover can resume.
+    private static bool CanActivate(WcfSetupSourceDto s) =>
+        s.UtilityBillId is not null && s.ApprovedAmount is > 0m && s.ChargeBasis == "DirectApproved"
+        && (s.SettlementAuthority == SettlementAuthority.PendingCutover
+            || s.SettlementAuthority == SettlementAuthority.Legacy && s.Editable);
+
+    private static string StateLabel(WcfSetupSourceDto s) => s.SettlementAuthority switch
+    {
+        null => "No amount set",
+        SettlementAuthority.Canonical => "Active",
+        SettlementAuthority.PendingCutover => "Activation in progress",
+        _ when s.ApprovedAmount is null => "No amount set",
+        _ when !s.Editable => "Legacy settlement",
+        _ => "Not yet active"
+    };
+
+    private static string StateClass(WcfSetupSourceDto s) => s.SettlementAuthority switch
+    {
+        SettlementAuthority.Canonical => "on",
+        SettlementAuthority.PendingCutover => "pending",
+        _ => "off"
+    };
+
+    private async Task OpenActivationAsync(WcfSetupSourceDto source)
+    {
+        _activating = source;
+        _readiness = null;
+        _dialogError = null;
+        _evidenceReference = string.Empty;
+        _writersQuiesced = _queuesDrained = _devicesComplete = _onlineDrained = _inventoryReconciled = _reportsVerified = false;
+        _versions.Clear();
+        _drained.Clear();
+        try
+        {
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            if (collectors.IsSuccess && collectors.Value is not null)
+                _collectorNames = collectors.Value.ToDictionary(c => c.Id, c => c.FullName);
+        }
+        catch
+        {
+            // Names are a convenience; the ids below still identify each collector.
+        }
+        await CheckReadinessAsync();
+    }
+
+    private void CloseActivation() => _activating = null;
+
+    private void ToggleDrained(Guid id, bool on)
+    {
+        if (on) _drained.Add(id); else _drained.Remove(id);
+    }
+
+    private string CollectorName(Guid id) => _collectorNames.GetValueOrDefault(id) ?? $"Collector {id.ToString("N")[..8]}";
+
+    private SettlementCutoverReconciliationEvidence Evidence() => new(
+        _writersQuiesced, _queuesDrained, _devicesComplete, _onlineDrained, _inventoryReconciled, _reportsVerified,
+        _evidenceReference.Trim(),
+        (_readiness?.AffectedCollectors ?? []).Select(id => new CutoverCollectorEvidence(
+            id, _versions.GetValueOrDefault(id)?.Trim() ?? string.Empty, _readiness?.RequiredMobilePayloadVersion ?? 1,
+            _drained.Contains(id), DateTime.UtcNow, _evidenceReference.Trim())).ToList());
+
+    private async Task CheckReadinessAsync()
+    {
+        if (_activating?.UtilityBillId is not { } billId) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await WcfApi.GetActivationReadinessAsync(billId, string.IsNullOrWhiteSpace(_evidenceReference) ? null : Evidence());
+            if (result.IsSuccess) _readiness = result.Value;
+            else _dialogError = result.Error ?? "Readiness could not be checked.";
+        }
+        catch { _dialogError = "Readiness could not be checked."; }
+        finally { _busy = false; }
+    }
+
+    private async Task ActivateAsync()
+    {
+        if (_activating?.UtilityBillId is not { } billId) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var version = _readiness?.SourceVersion ?? 0;
+            var result = await WcfApi.ActivateAsync(new EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest(billId, version, Evidence()));
+            if (result.IsSuccess)
+            {
+                _setupFailed = false;
+                _setupMessage = $"Stall {_activating.StallNo} is active for Collector Mobile collection.";
+                _activating = null;
+                await LoadAsync();
+            }
+            else
+            {
+                _dialogError = result.Error ?? "Activation was refused.";
+                await CheckReadinessAsync();
+            }
+        }
+        catch { _dialogError = "Activation could not be completed."; }
+        finally { _busy = false; }
     }
 
     private static string Period(WcfObligationQuoteDto quote) => new DateTime(quote.BillingYear, quote.BillingMonth, 1).ToString("MMM yyyy");

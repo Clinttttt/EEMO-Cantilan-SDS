@@ -276,14 +276,14 @@
             var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
             var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
             if (owing == 0) return "No outstanding obligation returned";
-            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet";
+            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet — activate an obligation in Water Accounts";
             return $"{open} of {owing} outstanding obligation{(owing == 1 ? "" : "s")} open for field collection";
         }
     }
 
     private string StockReadiness => _tickets.Count == 0
-        ? "no Cash Tickets in office stock"
-        : $"{_tickets.Count} Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock awaiting assignment";
+        ? "no unassigned Cash Tickets remain in office stock; collector custody is managed in Accountable Forms"
+        : $"{_tickets.Count} unassigned Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock; collector custody is managed in Accountable Forms";
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
     private static string CollectionState(WcfObligationQuoteDto quote) => quote switch

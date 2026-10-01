@@ -31,6 +31,7 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
         // shows "—", which is what these tests assert.
         Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
         Services.AddSingleton(Mock.Of<IGovernedServicesApiClient>());
+        Services.AddSingleton(Mock.Of<ICollectorsApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -139,4 +140,75 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
         Guid.NewGuid(), stall, "Tenant Market", "Dry Goods", 2026, 9, 100m, 110m, 10m, 10m,
         assessed, settled, outstanding, SettlementAuthority.Canonical, null, payer,
         Guid.NewGuid(), Guid.NewGuid(), "ECF", RevenueInstrumentType.OfficialReceipt, "Metered", true, true);
+
+    // ── WCF Head/Admin source entry (IA-053): the office's own approved amount, then activation with attestation ──
+
+    private static WcfSetupSourceDto Source(decimal? amount, SettlementAuthority? authority, bool editable = true) =>
+        new(Guid.NewGuid(), "12", "Fish", "Bobby Example", amount is null ? null : Guid.NewGuid(), amount,
+            amount is null ? null : "DirectApproved", authority, 0m, editable, editable ? null : "Frozen");
+
+    private Mock<IWcfCollectionsApiClient> SetupApi(params WcfSetupSourceDto[] sources)
+    {
+        var api = new Mock<IWcfCollectionsApiClient>();
+        api.Setup(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<WcfObligationQuoteDto>>.Success([]));
+        api.Setup(x => x.GetSetupSourcesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<WcfSetupSourceDto>>.Success(sources));
+        Services.AddSingleton(api.Object);
+        return api;
+    }
+
+    [Fact]
+    public void WcfAccounts_LetsTheOfficeSetTheApprovedWaterAmount_WithNoMeterFields()
+    {
+        var source = Source(null, null);
+        var api = SetupApi(source);
+        api.Setup(x => x.EstablishObligationAsync(It.IsAny<WcfObligationSetupRequest>()))
+            .ReturnsAsync(Result<WcfSetupSourceDto>.Success(source with { ApprovedAmount = 10m }));
+
+        var cut = RenderComponent<WaterConsumptionFeesAccounts>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Bobby Example", cut.Find("section.wcfs").TextContent), Timeout);
+        var panel = cut.Find("section.wcfs").TextContent;
+        Assert.Contains("No amount set", panel);
+        foreach (var meter in new[] { "reading", "cubic", "m³", "Meter", "rate per" })
+            Assert.DoesNotContain(meter, panel, StringComparison.OrdinalIgnoreCase);
+
+        cut.Find("section.wcfs input[type='number']").Change("10");
+        cut.FindAll("section.wcfs button").Single(b => b.TextContent.Trim() == "Save").Click();
+
+        // The amount is the office's, sent as typed, for the stall and month on screen.
+        api.Verify(x => x.EstablishObligationAsync(It.Is<WcfObligationSetupRequest>(r =>
+            r.StallId == source.StallId && r.ApprovedAmount == 10m)), Times.Once);
+    }
+
+    [Fact]
+    public void WcfAccounts_OffersActivationOnlyForASavedUnsettledAmount_AndAsksForTheAttestation()
+    {
+        var notSet = Source(null, null);
+        var ready = Source(10m, SettlementAuthority.Legacy) with { StallNo = "13", PayerName = "Ana Reyes" };
+        var active = Source(10m, SettlementAuthority.Canonical, editable: false) with { StallNo = "14", PayerName = "Ben Cruz" };
+        var api = SetupApi(notSet, ready, active);
+        api.Setup(x => x.GetActivationReadinessAsync(ready.UtilityBillId!.Value, null))
+            .ReturnsAsync(Result<SettlementCutoverReadinessDto>.Failure("not checked"));
+
+        var cut = RenderComponent<WaterConsumptionFeesAccounts>();
+
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("section.wcfs tbody tr").Count), Timeout);
+        var rows = cut.FindAll("section.wcfs tbody tr");
+        Assert.DoesNotContain("Activate for Mobile", rows[0].TextContent);
+        Assert.Contains("Activate for Mobile", rows[1].TextContent);
+        Assert.DoesNotContain("Activate for Mobile", rows[2].TextContent);
+        Assert.Contains("Active", rows[2].TextContent);
+
+        rows[1].QuerySelectorAll("button").Single(b => b.TextContent.Contains("Activate for Mobile")).Click();
+        cut.WaitForAssertion(() =>
+        {
+            var dialog = cut.Find("[role='dialog']");
+            Assert.Contains("Office attestation", dialog.TextContent);
+            Assert.Equal(6, dialog.QuerySelectorAll(".wcfs-checks input[type='checkbox']").Length);
+            // Nothing is activated until the office submits the checklist.
+            api.Verify(x => x.ActivateAsync(It.IsAny<EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest>()), Times.Never);
+        }, Timeout);
+    }
 }

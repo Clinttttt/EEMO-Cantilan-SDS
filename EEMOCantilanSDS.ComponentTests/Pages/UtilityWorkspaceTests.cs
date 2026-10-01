@@ -121,7 +121,7 @@ public sealed class UtilityWorkspaceTests : TestContext
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Cash Ticket exceptions");
             Assert.Contains("1 of 1 outstanding obligation open for field collection", cut.Markup);
-            Assert.Contains("1 Cash Ticket in office stock awaiting assignment", cut.Markup);
+            Assert.Contains("1 unassigned Cash Ticket in office stock", cut.Markup);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms");
         }, Timeout);
 
@@ -137,7 +137,7 @@ public sealed class UtilityWorkspaceTests : TestContext
         var cut = RenderComponent<WaterConsumptionFees>();
 
         cut.WaitForAssertion(() =>
-            Assert.Contains("no Cash Tickets in office stock", cut.Markup), Timeout);
+            Assert.Contains("no unassigned Cash Tickets remain in office stock", cut.Markup), Timeout);
     }
 
     [Fact]
