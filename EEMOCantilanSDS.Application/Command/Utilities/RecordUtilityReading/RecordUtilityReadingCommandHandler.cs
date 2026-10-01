@@ -39,9 +39,6 @@ public class RecordUtilityReadingCommandHandler(
         var (waterPrev, waterCurr, waterRate) = waterDirect
             ? UtilityBill.DirectApprovedReadings(request.WaterApprovedAmount!.Value)
             : (request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter);
-        var elecBasis = elecDirect ? UtilityCalculationBasis.DirectApproved : UtilityCalculationBasis.Metered;
-        var waterBasis = waterDirect ? UtilityCalculationBasis.DirectApproved : UtilityCalculationBasis.Metered;
-
         var bill = await utilityRepository.GetByStallAndMonthAsync(request.StallId, request.BillingYear, request.BillingMonth, ct);
 
         // IA-055: a new assessment is a direct approved amount only. A recorded metered assessment is kept exactly as
@@ -53,6 +50,10 @@ public class RecordUtilityReadingCommandHandler(
                           request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter);
         if (refusal is not null)
             return Result<UtilityBillDto>.Failure(refusal, ResultStatus.Invalid);
+
+        // A part sent back exactly as recorded keeps its recorded basis (a direct amount is never relabelled Metered).
+        var elecBasis = UtilityBill.BasisFor(bill, CollectionSourcePart.Electricity, elecDirect, elecPrev, elecCurr, elecRate);
+        var waterBasis = UtilityBill.BasisFor(bill, CollectionSourcePart.Water, waterDirect, waterPrev, waterCurr, waterRate);
 
         if (bill is null)
         {

@@ -202,8 +202,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// Why a proposed assessment of one part must be refused under IA-055, or null when it may be recorded.
         /// <paramref name="existing"/> is the bill already on record for the stall and month (null for a new month). A direct
         /// approved amount is always permitted here (settlement and cutover freezes are checked separately). A non-direct
-        /// proposal is permitted only when it is the recorded metered assessment unchanged, or when it carries no charge
-        /// on a part that has none.
+        /// proposal is permitted only when it resubmits the part exactly as recorded (whatever its recorded basis), or when
+        /// it carries no charge on a part that has none.
         /// </summary>
         public static string? RefuseAssessment(
             UtilityBill? existing, CollectionSourcePart part, bool direct,
@@ -212,16 +212,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (part is not (CollectionSourcePart.Electricity or CollectionSourcePart.Water))
                 throw new ArgumentOutOfRangeException(nameof(part));
             if (direct) return null;
-            var utility =part == CollectionSourcePart.Electricity ? "Electricity" : "Water";
+            if (existing is not null && existing.IsUnchanged(part, previousReading, currentReading, rate)) return null;
+            var utility = part == CollectionSourcePart.Electricity ? "Electricity" : "Water";
 
             if (existing is not null && existing.HasMeteredAssessment(part))
-            {
-                var (recPrev, recCur, recRate) = existing.RecordedReadings(part);
-                return previousReading == recPrev && currentReading == recCur && rate == recRate
-                    ? null
-                    : $"{utility} for this month was assessed from meter readings, which are kept as recorded. "
-                      + "To change the amount, state it as a direct approved amount.";
-            }
+                return $"{utility} for this month was assessed from meter readings, which are kept as recorded. "
+                       + "To change the amount, state it as a direct approved amount.";
 
             var recordedCharge = existing is null ? 0m
                 : part == CollectionSourcePart.Electricity ? existing.ElecCharge : existing.WaterCharge;
@@ -230,6 +226,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             return $"{utility} is assessed as a direct approved amount. Meter readings and per-unit rates are not accepted "
                    + "for a new assessment.";
         }
+
+        /// <summary>
+        /// The basis to record for a part the writer has accepted (<see cref="RefuseAssessment"/> returned null). A direct
+        /// approved amount is DirectApproved; a part resubmitted exactly as recorded keeps its recorded basis, so an unchanged
+        /// direct amount sent back as its stored readings is never relabelled Metered; anything else is a part with no charge.
+        /// </summary>
+        public static UtilityCalculationBasis BasisFor(
+            UtilityBill? existing, CollectionSourcePart part, bool direct,
+            decimal previousReading, decimal currentReading, decimal rate)
+        {
+            if (direct) return UtilityCalculationBasis.DirectApproved;
+            if (existing is not null && existing.IsUnchanged(part, previousReading, currentReading, rate))
+                return part == CollectionSourcePart.Electricity ? existing.ElecCalculationBasis : existing.WaterCalculationBasis;
+            return UtilityCalculationBasis.Metered;
+        }
+
+        private bool IsUnchanged(CollectionSourcePart part, decimal previousReading, decimal currentReading, decimal rate) =>
+            RecordedReadings(part) == (previousReading, currentReading, rate);
 
         private (decimal Previous, decimal Current, decimal Rate) RecordedReadings(CollectionSourcePart part) =>
             part == CollectionSourcePart.Electricity

@@ -732,6 +732,21 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** `CollectorOperationActivations` (one additive table: tenant, operation, effective from, activated at/by); WCF post accepts a source + period for a direct amount; WCF capability is Ready on the operation, not on a prepared row; Web WCF shows a Collector Mobile status with one Enable action; Water Accounts is optional preparation plus legacy migration.
 - **REVISIT CONDITION:** A tenant whose policy requires prior office approval of every Water amount.
 
+### IA-055 - New ECF/WCF assessments are a direct amount only; recorded meter evidence is kept (Clint, 2026-10-01)
+
+- **ID:** IA-055
+- **SUBJECT:** Which utility assessment bases a writer may record for a new or an already-recorded month
+- **STATUS:** CONFIRMED (Clint direction; recorded as the confirmed utility rule of the backend RC-closure handoff, not an open product question)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION (narrows IA-053's "basis remains configurable per bill" for Cantilan)
+- **DECISION / QUESTION:**
+  - Current Cantilan NEW activity: WCF = Cash Ticket + direct amount; ECF = Official Receipt + direct approved amount. There is no new meter-reading, kWh, cubic-metre or per-unit-rate assessment path, and the server refuses one whatever a client sends.
+  - A part with a recorded metered assessment is historical evidence: it may be resubmitted exactly as recorded, or restated as a direct approved amount (settled/cutover freezes still apply); it is never re-read, repriced, erased or auto-converted. A part resubmitted unchanged keeps its recorded basis.
+  - The entry seed no longer carries readings or suggests a per-unit rate for a new month, and lists the bases the server will accept per part.
+  - IA-054 WCF office preparation and direct Mobile entry are unchanged.
+- **EVIDENCE / SOURCE:** Clint's utility rule as recorded in `docs/handoff/BACKEND_RC_CLOSURE_CONTINUATION.md` (2026-10-01).
+- **IMPACT:** `POST api/utilities/reading` refuses new readings/rates (Invalid); `GET api/utilities/bill` returns `AllowedElecCalculationBases` / `AllowedWaterCalculationBases`. No migration, backfill or cutover.
+- **REVISIT CONDITION:** A tenant that genuinely bills by meter (would need a tenant-level policy, not a client choice).
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
