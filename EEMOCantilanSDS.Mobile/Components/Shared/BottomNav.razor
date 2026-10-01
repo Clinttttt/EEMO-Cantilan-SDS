@@ -13,9 +13,9 @@
 
 @inject NavigationManager Navigation
 
-<div class="bottom-nav">
+<nav class="bottom-nav" aria-label="Main">
 
-    <div class="nav-item @(ActiveTab == "menu" ? "active" : "")"
+    <div class="nav-item @(ActiveTab == "menu" ? "active" : "")" role="link" aria-current="@(ActiveTab == "menu" ? "page" : null)"
          @onclick='() => GoTo("/menu")'>
         <span class="nav-icon">
             <svg viewBox="0 0 24 24">
@@ -25,7 +25,7 @@
         <span class="nav-label">Menu</span>
     </div>
 
-    <div class="nav-item @(ActiveTab == "records" ? "active" : "")"
+    <div class="nav-item @(ActiveTab == "records" ? "active" : "")" role="link" aria-current="@(ActiveTab == "records" ? "page" : null)"
          @onclick='() => GoTo("/records")'>
         <span class="nav-icon">
             <svg viewBox="0 0 24 24">
@@ -36,7 +36,7 @@
         <span class="nav-label">Records</span>
     </div>
 
-    <div class="nav-item @(ActiveTab == "reports" ? "active" : "")"
+    <div class="nav-item @(ActiveTab == "reports" ? "active" : "")" role="link" aria-current="@(ActiveTab == "reports" ? "page" : null)"
          @onclick='() => GoTo("/reports")'>
         <span class="nav-icon">
             <svg viewBox="0 0 24 24">
@@ -48,7 +48,7 @@
         <span class="nav-label">Reports</span>
     </div>
 
-    <div class="nav-item @(ActiveTab == "profile" ? "active" : "")"
+    <div class="nav-item @(ActiveTab == "profile" ? "active" : "")" role="link" aria-current="@(ActiveTab == "profile" ? "page" : null)"
          @onclick='() => GoTo("/profile")'>
         <span class="nav-icon">
             <svg viewBox="0 0 24 24">
@@ -59,7 +59,7 @@
         <span class="nav-label">Profile</span>
     </div>
 
-</div>
+</nav>
 
 @code {
 

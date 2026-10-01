@@ -170,6 +170,102 @@ public class PendingOperationStoreTests : IDisposable
         Assert.False(reader.HasStorageFault);
     }
 
+    private static PendingOperation IssuedGovernedOp(string? operationCode = "MARKET_FEES") => new()
+    {
+        ClientOperationId = Guid.NewGuid(),
+        Kind = OfflineOperationKind.GovernedService,
+        PayloadVersion = 1,
+        BusinessDate = new DateOnly(2026, 9, 30),
+        OperationCode = operationCode,
+        CollectionMode = null,
+        PayerName = "Walk-up payer",
+        Reference = "Stall 4",
+        ReceivedAmount = 30m,
+        AccountableDocumentId = Guid.NewGuid(),
+        DocumentNumber = "CT000010",
+        IssuedAtUtc = DateTime.UtcNow.AddMinutes(-2),
+        OwnerKey = "collector-a",
+        Title = "Market Fees",
+        Amount = 30m
+    };
+
+    [Fact]
+    public async Task Physically_issued_governed_document_and_its_facts_survive_a_fresh_store_instance()
+    {
+        var operation = IssuedGovernedOp();
+        await new PendingOperationStore(_dir).AddIssuedDocumentOperationAsync(operation);
+
+        var persisted = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+
+        Assert.Equal(OfflineOperationKind.GovernedService, persisted.Kind);
+        Assert.Equal("MARKET_FEES", persisted.OperationCode);
+        Assert.Equal("Walk-up payer", persisted.PayerName);
+        Assert.Equal("Stall 4", persisted.Reference);
+        Assert.Equal(operation.AccountableDocumentId, persisted.AccountableDocumentId);
+        Assert.Equal(IssuedDocumentLocalState.IssuedLocallyPendingSync, persisted.IssuedDocumentState);
+        // The wire DTO carries facts only: no rate, classification or instrument is queued from the device.
+        var dto = persisted.ToDto();
+        Assert.Equal("MARKET_FEES", dto.OperationCode);
+        Assert.Equal(30m, dto.ReceivedAmount);
+    }
+
+    [Fact]
+    public async Task Transportation_issue_needs_a_vehicle_class_and_carries_it_to_the_wire_without_a_rate()
+    {
+        var store = new PendingOperationStore(_dir);
+        var missing = IssuedGovernedOp("TRANSPORTATION");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(missing));
+        Assert.Empty(await store.GetAllAsync());
+
+        var op = IssuedGovernedOp("TRANSPORTATION");
+        op.VehicleClassCode = "TRICYCLE";
+        await store.AddIssuedDocumentOperationAsync(op);
+
+        var persisted = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+        Assert.Equal("TRICYCLE", persisted.VehicleClassCode);
+        Assert.Equal("TRICYCLE", persisted.ToDto().VehicleClassCode);
+    }
+
+    [Fact]
+    public async Task A_WCF_Cash_Ticket_is_never_available_a_second_time_and_the_wire_carries_no_meter_or_rate_facts()
+    {
+        var store = new PendingOperationStore(_dir);
+        var first = IssuedWcfOp();
+        await store.AddIssuedDocumentOperationAsync(first);
+
+        var reuse = IssuedWcfOp();
+        reuse.AccountableDocumentId = first.AccountableDocumentId;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(reuse));
+        Assert.Single(await store.GetAllAsync());
+
+        // The queued facts are the bill, the server water-source version, the amount received and the ticket: the wire type has
+        // no meter reading, cubic-meter or rate member to carry.
+        var members = typeof(SyncOfflineOperationDto).GetProperties().Select(p => p.Name).ToList();
+        Assert.DoesNotContain(members, m => m.Contains("Meter", StringComparison.OrdinalIgnoreCase)
+            || m.Contains("Cubic", StringComparison.OrdinalIgnoreCase) || m.Contains("Reading", StringComparison.OrdinalIgnoreCase)
+            || m == "Rate" || m.Contains("PerCubic", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Governed_issue_without_an_operation_or_a_second_use_of_the_same_document_is_refused()
+    {
+        var store = new PendingOperationStore(_dir);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(IssuedGovernedOp(operationCode: null)));
+        Assert.Empty(await store.GetAllAsync());
+
+        var first = IssuedGovernedOp();
+        await store.AddIssuedDocumentOperationAsync(first);
+        var reuse = IssuedGovernedOp();
+        reuse.AccountableDocumentId = first.AccountableDocumentId;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(reuse));
+        Assert.Single(await store.GetAllAsync());
+
+        // Any other kind still may not be recorded as a physically issued document.
+        var notIssuable = IssuedGovernedOp();
+        notIssuable.Kind = OfflineOperationKind.NpmDaily;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(notIssuable));
+    }
+
     [Fact]
     public async Task Corrupt_queue_keeps_a_restart_persistent_issue_block_and_preserves_evidence()
     {

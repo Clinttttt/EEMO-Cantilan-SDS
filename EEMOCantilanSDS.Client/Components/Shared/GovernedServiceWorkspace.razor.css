@@ -1,0 +1,165 @@
+/* Governed service workspace — V3. Panels, tables, facts and buttons come from the v3- layer in app.css. */
+
+.gsw-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    align-items: start;
+    gap: 20px;
+}
+
+.gsw-period {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.gsw-notice {
+    margin: 12px 20px 0;
+}
+
+.gsw-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.gsw-state {
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--surface-muted);
+}
+
+.gsw-state-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.gsw-issues {
+    margin: 14px 0 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+/* Setup facts read as a compact register: hairline dividers, aligned values. */
+.v3-facts {
+    gap: 0;
+}
+
+.v3-facts > div {
+    padding: 9px 0;
+}
+
+.v3-facts > div + div {
+    border-top: 1px solid var(--border);
+}
+
+.v3-facts > div:first-child {
+    padding-top: 0;
+}
+
+.gsw-edit {
+    width: 100%;
+    justify-content: center;
+    margin-top: 14px;
+}
+
+/* Edit form: tight vertical rhythm, full-width fields, actions on one line. */
+.gsw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.gsw-form .v3-field {
+    width: 100%;
+}
+
+.gsw-form .v3-field input,
+.gsw-form .v3-field select {
+    width: 100%;
+}
+
+.gsw-form .gsw-note {
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.gsw-form .gsw-actions {
+    margin-top: 2px;
+}
+
+.gsw-form .gsw-actions .v3-btn {
+    flex: 1 1 0;
+    justify-content: center;
+}
+
+/* Saved confirmation: a quiet success line under the button, not a boxed notice. */
+.gsw-saved {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.gsw-saved svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.gsw-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    color: var(--text);
+}
+
+.gsw-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.gsw-retry {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.v3-panel-note a {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+@media (max-width: 1100px) {
+    .gsw-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

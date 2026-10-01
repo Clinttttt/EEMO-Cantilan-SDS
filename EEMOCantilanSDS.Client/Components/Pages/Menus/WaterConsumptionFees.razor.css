@@ -62,3 +62,278 @@
 .wcf-readiness span {
     color: var(--text-secondary);
 }
+
+/* ── V3 consistency (2026-10-01): blue gives structure — a tinted context cell, a tinted channel panel and quiet
+   section bands — while data stays on white. Scoped to this page; the shared summary strip is unchanged elsewhere. ── */
+.wcf-page ::deep .ss-item:first-child {
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-readiness {
+    flex-wrap: nowrap;
+    border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+    border-left: 3px solid var(--accent);
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-readiness p {
+    flex-wrap: nowrap;
+    min-width: 0;
+}
+
+.wcf-readiness span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wcf-readiness .v3-btn {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.v3-panel-header {
+    background: var(--surface-blue-subtle);
+}
+
+.wcf-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 0;
+    color: var(--text-secondary);
+}
+
+    .wcf-empty svg {
+        width: 22px;
+        height: 22px;
+        margin-bottom: 4px;
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.6;
+    }
+
+    .wcf-empty strong {
+        color: var(--navy);
+        font-weight: 600;
+    }
+
+@media (max-width: 900px) {
+    .wcf-readiness,
+    .wcf-readiness p {
+        flex-wrap: wrap;
+    }
+
+    .wcf-readiness span {
+        white-space: normal;
+    }
+}
+
+/* ── Collector Mobile status panel (2026-10-01): status first, one action, blockers only when real, details on request. ── */
+.wcf-mobile {
+    margin: 0 0 20px;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    background: var(--surface-blue-subtle);
+}
+
+    .wcf-mobile.is-active {
+        border-left-color: var(--green);
+    }
+
+    .wcf-mobile.is-blocked {
+        border-left-color: var(--gold);
+    }
+
+.wcf-mobile-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+    .wcf-mobile-head > svg {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 auto;
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.wcf-mobile-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+    .wcf-mobile-text h2 {
+        margin: 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+.wcf-mobile-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.wcf-mobile-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.is-active .wcf-mobile-dot {
+    background: var(--green);
+}
+
+.is-blocked .wcf-mobile-dot {
+    background: var(--gold);
+}
+
+.wcf-mobile-sub {
+    margin: 2px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.wcf-mobile-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.wcf-mobile-note {
+    margin: 10px 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.wcf-blockers {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .wcf-blockers li {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 6px 10px;
+        padding: 8px 0;
+        border-top: 1px solid var(--border);
+        font-size: 0.8125rem;
+        color: var(--text);
+    }
+
+    .wcf-blockers a {
+        font-weight: 600;
+        color: var(--accent);
+    }
+
+.wcf-blocker-icon {
+    display: inline-grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--gold);
+    color: #ffffff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.wcf-details {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+}
+
+    .wcf-details summary {
+        min-height: 32px;
+        color: var(--accent);
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .wcf-details summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.wcf-checks {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .wcf-checks li {
+        padding: 4px 0;
+        color: var(--text-secondary);
+    }
+
+    .wcf-checks li strong {
+        margin-right: 6px;
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    .wcf-checks li.ok > span {
+        color: var(--green);
+    }
+
+    .wcf-checks li.warn > span {
+        color: var(--red);
+    }
+
+.wcf-confirm {
+    width: min(460px, calc(100vw - 32px));
+}
+
+.wcf-confirm-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    margin: 12px 0 0;
+    font-size: 0.875rem;
+}
+
+    .wcf-confirm-facts div {
+        display: contents;
+    }
+
+    .wcf-confirm-facts dt {
+        color: var(--text-secondary);
+    }
+
+    .wcf-confirm-facts dd {
+        margin: 0;
+        font-weight: 600;
+        color: var(--navy);
+    }
+
+@media (max-width: 900px) {
+    .wcf-mobile-head {
+        flex-wrap: wrap;
+    }
+
+    .wcf-mobile-sub {
+        white-space: normal;
+    }
+}

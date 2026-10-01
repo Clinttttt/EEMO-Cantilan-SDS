@@ -1,0 +1,173 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@inject IRemittancesApiClient Remittances
+@inject IOfficialReportsApiClient Reports
+@inject IJSRuntime JS
+
+@* The reporting counterpart of Remittance and Liquidation (IA-052): each collector's collected, remitted and unremitted pesos,
+   kept apart from the count of forms issued, spoiled, returned, remaining and awaiting review. A serial can be traced to its
+   collector, collection, revenue lines, amount and remittance. Read-only. *@
+<section class="ap" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
+    <div class="ap-print-head" aria-hidden="true"><ReportLetterhead Title="Accountability Statement" Period="@PeriodLabel" /></div>
+    <header class="ap-head">
+        <h2 id="@_titleId">Accountability · @PeriodLabel</h2>
+        <div class="ap-tools no-print">
+            <a class="v3-btn v3-btn-sm" href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">Print</button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    else if (_data is null)
+    {
+        <p role="status">Loading accountability…</p>
+    }
+    else
+    {
+        <SummaryStrip Label="Cash position" Items="Items" />
+        <div class="v3-table-wrap" role="region" aria-label="Collector accountability" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Collector</th>
+                        <th scope="col">Instrument</th>
+                        <th scope="col" class="v3-num">Assigned</th>
+                        <th scope="col" class="v3-num">Issued</th>
+                        <th scope="col" class="v3-num">Spoiled</th>
+                        <th scope="col" class="v3-num">Returned</th>
+                        <th scope="col" class="v3-num">On hand</th>
+                        <th scope="col" class="v3-num">Review</th>
+                        <th scope="col" class="v3-num">Collected</th>
+                        <th scope="col" class="v3-num">Remitted</th>
+                        <th scope="col" class="v3-num">Unremitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var collector in _data.Collectors)
+                    {
+                        var first = true;
+                        @if (collector.Forms.Count == 0)
+                        {
+                            <tr>
+                                <td class="v3-strong">@collector.CollectorName</td><td>—</td>
+                                <td class="v3-num" colspan="6"></td>
+                                <td class="v3-num">@Money(collector.Collected)</td><td class="v3-num">@Money(collector.Remitted)</td>
+                                <td class="v3-num v3-strong">@Money(collector.Unremitted)</td>
+                            </tr>
+                        }
+                        @foreach (var forms in collector.Forms)
+                        {
+                            <tr>
+                                <td class="v3-strong">@(first ? collector.CollectorName : "")</td>
+                                <td>@(forms.Instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")</td>
+                                <td class="v3-num">@forms.Assigned</td><td class="v3-num">@forms.Issued</td><td class="v3-num">@forms.Spoiled</td>
+                                <td class="v3-num">@forms.Returned</td><td class="v3-num">@forms.OnHand</td><td class="v3-num">@forms.NeedsReview</td>
+                                @if (first)
+                                {
+                                    <td class="v3-num">@Money(collector.Collected)</td><td class="v3-num">@Money(collector.Remitted)</td>
+                                    <td class="v3-num v3-strong">@Money(collector.Unremitted)</td>
+                                }
+                                else
+                                {
+                                    <td></td><td></td><td></td>
+                                }
+                            </tr>
+                            first = false;
+                        }
+                    }
+                    @if (_data.Collectors.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="11">No collector has collections or assigned forms in this period.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="ap-note">Forms are counts, not money: remaining tickets are never an amount, and remittance does not wait for them to be used. Legacy-source collections that cannot yet be covered by a remittance are listed on the Remittance &amp; Liquidation page.</p>
+    }
+
+    <form class="ap-trace no-print" aria-label="Trace a document" @onsubmit="TraceAsync" @onsubmit:preventDefault="true">
+        <label class="v3-field"><span>Trace a serial</span><input @bind="_serial" maxlength="50" placeholder="e.g. CT-000101" /></label>
+        <button class="v3-btn" type="submit" disabled="@string.IsNullOrWhiteSpace(_serial)">Trace</button>
+    </form>
+    @if (!string.IsNullOrWhiteSpace(_traceError))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_traceError</p>
+    }
+    @if (_trace is { } trace)
+    {
+        <dl class="v3-facts" aria-label="Document trace">
+            <div><dt>Document</dt><dd>@trace.DocumentNumber (@(trace.Instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket"))</dd></div>
+            <div><dt>Disposition</dt><dd>@trace.State@(trace.SpoiledReason is null ? "" : $" · {trace.SpoiledReason}")</dd></div>
+            <div><dt>Custody</dt><dd>@(trace.Custodian ?? "—")</dd></div>
+            @if (trace.Collection is { } collection)
+            {
+                <div><dt>Collection</dt><dd>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(collection.Total) · @(collection.CollectorName ?? "Office")</dd></div>
+                <div><dt>Revenue lines</dt><dd>@string.Join(" · ", collection.Lines.Select(l => $"{l.ClassificationName} {Money(l.Amount)}"))</dd></div>
+                <div><dt>Remittance</dt><dd>@(collection.RemittanceId is { } id ? $"Covered ({collection.RemittanceStatus})" : "Not yet remitted")
+                    @if (collection.RemittanceId is { } rid) { <a href="@($"/accountable-forms/remittances/{rid}")">Open remittance</a> }</dd></div>
+            }
+        </dl>
+    }
+</section>
+
+@code {
+    private readonly string _titleId = $"ap-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public string PeriodLabel { get; set; } = string.Empty;
+
+    private AccountabilityPositionDto? _data;
+    private DocumentTraceDto? _trace;
+    private string? _error;
+    private string? _traceError;
+    private bool _loading;
+    private string _serial = string.Empty;
+    private DateOnly _loadedFrom;
+    private DateOnly _loadedTo;
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Items => _data is null ? [] :
+    [
+        new("Collected", Money(_data.Collected)),
+        new("Remitted", Money(_data.Remitted)),
+        new("Unremitted", Money(_data.Unremitted), Emphasis: _data.Unremitted != 0m),
+        new("Needs review", _data.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && _loadedTo == To && _data is not null) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Remittances.GetPositionAsync(From, To);
+            if (result.IsSuccess) _data = result.Value;
+            else { _data = null; _error = "The accountability position could not be loaded."; }
+        }
+        catch { _data = null; _error = "The accountability position could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task TraceAsync()
+    {
+        _traceError = null;
+        _trace = null;
+        var result = await Reports.TraceDocumentAsync(_serial.Trim());
+        if (result.IsSuccess) _trace = result.Value;
+        else _traceError = result.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
+            ? "No document with that number exists in this office." : "The document could not be traced.";
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

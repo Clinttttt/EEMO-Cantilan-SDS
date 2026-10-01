@@ -49,6 +49,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasPrecision(18, 2);
 
             // Additive weighing evidence. Existing DailyCollection rows remain unchanged and read null.
+            builder.Property(x => x.FishFeeRatePerKilo).HasPrecision(18, 2);
+            builder.Property(x => x.FishFeeRateEffectiveDate);
+            builder.Property(x => x.FishFeeAmountFrozen).HasPrecision(18, 2);
             builder.Property(x => x.MeatKilos).HasPrecision(18, 2);
             builder.Property(x => x.MeatFeeRatePerKilo).HasPrecision(18, 2);
             builder.Property(x => x.MeatFeeRateEffectiveDate);

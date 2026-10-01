@@ -73,8 +73,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Payer</th>
-                            <th scope="col">Meter</th>
-                            <th scope="col" class="v3-num">Due</th>
+                            <th scope="col" class="v3-num">Approved amount</th>
                             <th scope="col" class="v3-num">Settled</th>
                             <th scope="col" class="v3-num">Outstanding</th>
                             <th scope="col"><span class="v3-sr-only">Collection</span></th>
@@ -88,7 +87,6 @@
                                     <span class="v3-strong">@PayerLabel(quote)</span>
                                     <span class="v3-block">@SourceContext(quote)</span>
                                 </td>
-                                <td class="ecf-meter">@MeterBasis(quote)</td>
                                 <td class="v3-num">@Money(quote.AssessedAmount)</td>
                                 <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                                 <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
@@ -558,8 +556,6 @@
     private static string SourceContext(EcfObligationQuoteDto quote) =>
         $"{quote.FacilityName} · Stall {quote.StallNo}{(string.IsNullOrWhiteSpace(quote.Section) ? string.Empty : $" · {quote.Section}")} · {MonthName(quote.BillingMonth)} {quote.BillingYear}";
 
-    private static string MeterBasis(EcfObligationQuoteDto quote) =>
-        $"{quote.Consumption:N2} kWh × PHP {quote.RatePerKwh:N2}";
 
     private static string Money(decimal amount) => $"₱{amount:N2}";
     private static string ShortId(Guid id) => id.ToString("N")[..8].ToUpperInvariant();
@@ -570,6 +566,6 @@
     private static string SnapshotSummary(string? snapshot)
     {
         if (string.IsNullOrWhiteSpace(snapshot)) return "Snapshot unavailable";
-        return "Meter reading, rate and period recorded with this collection";
+        return "Approved amount and period recorded with this collection";
     }
 }

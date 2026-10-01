@@ -49,6 +49,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateTime? PaidAt { get; private set; }
         public string? Remarks { get; private set; }
         public Guid? ClientOperationId { get; private set; }
+        public UtilityCalculationBasis ElecCalculationBasis { get; private set; } = UtilityCalculationBasis.Metered;
+        public UtilityCalculationBasis WaterCalculationBasis { get; private set; } = UtilityCalculationBasis.Metered;
         public SettlementAuthority ElectricitySettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
         public SettlementAuthority WaterSettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
         public long ElectricitySourceVersion { get; private set; } = 1;
@@ -159,6 +161,34 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                     || ElectricitySettlementAuthorityState != SettlementAuthority.Legacy))
                 || (waterChanged && (WaterStatus != PaymentStatus.Unpaid
                     || WaterSettlementAuthorityState != SettlementAuthority.Legacy));
+        }
+
+        /// <summary>The (previous, current, rate) that store a direct approved amount as exactly one unit.</summary>
+        public static (decimal Previous, decimal Current, decimal Rate) DirectApprovedReadings(decimal approvedAmount) =>
+            (0m, 1m, approvedAmount);
+
+        /// <summary>
+        /// True when changing a utility's basis would change a settled or cutover utility: a receipted charge must not
+        /// silently change how it was assessed.
+        /// </summary>
+        public bool WouldChangeSettledBasis(UtilityCalculationBasis elec, UtilityCalculationBasis water) =>
+            (elec != ElecCalculationBasis && (ElecStatus != PaymentStatus.Unpaid
+                || ElectricitySettlementAuthorityState != SettlementAuthority.Legacy))
+            || (water != WaterCalculationBasis && (WaterStatus != PaymentStatus.Unpaid
+                || WaterSettlementAuthorityState != SettlementAuthority.Legacy));
+
+        /// <summary>Records how each part was assessed. The readings/rate must already carry the matching values.</summary>
+        public void SetCalculationBasis(UtilityCalculationBasis elec, UtilityCalculationBasis water)
+        {
+            if (elec == ElecCalculationBasis && water == WaterCalculationBasis) return;
+            if (WouldChangeSettledBasis(elec, water))
+                throw new InvalidOperationException("A settled or cutover utility keeps the basis it was assessed on.");
+            var electricityChanged = elec != ElecCalculationBasis;
+            var waterChanged = water != WaterCalculationBasis;
+            ElecCalculationBasis = elec;
+            WaterCalculationBasis = water;
+            if (electricityChanged) ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+            if (waterChanged) WaterSourceVersion = checked(WaterSourceVersion + 1);
         }
 
         /// <summary>Admin edits the readings/rates (charges recompute automatically; payment untouched).</summary>

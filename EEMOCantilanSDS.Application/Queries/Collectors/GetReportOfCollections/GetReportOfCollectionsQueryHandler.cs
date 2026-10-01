@@ -108,7 +108,19 @@ public class GetReportOfCollectionsQueryHandler(
             data.UtilityBilled,
             data.UtilityCollected,
             data.UtilityOutstanding,
-            lines.Where(l => AnswersForAPeriodBefore(l, request.From)).Sum(l => l.Amount)));
+            lines.Where(l => AnswersForAPeriodBefore(l, request.From)).Sum(l => l.Amount),
+            (data.OperationCollections ?? [])
+                .Select(o => new ReportOperationCollectionDto(o.DocumentNumber,
+                    PhilippineTime.ToPhilippineTime(o.TakenAtUtc), o.BusinessDate, o.OperationName,
+                    o.Instrument switch
+                    {
+                        Domain.Enums.RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+                        Domain.Enums.RevenueInstrumentType.CashTicket => "Cash Ticket",
+                        _ => null
+                    },
+                    o.PayerName, o.Reference, o.Amount))
+                .ToList(),
+            (data.OperationCollections ?? []).Sum(o => o.Amount)));
     }
 
     /// <summary>A payor is a person at a space: one holder of two stalls owes two lines, as the office reads them.</summary>

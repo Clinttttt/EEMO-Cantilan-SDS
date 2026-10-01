@@ -109,7 +109,7 @@ public class FinancialReportClaimsTests
         // A section is either hidden by the screen-only class (it must exist for the export) or rendered only when open.
         foreach (var key in keys)
             Assert.True(
-                markup.Contains($@"SectionOff(""{key}"")") || markup.Contains($@"SectionShown(""{key}"")"),
+                markup.Contains($@"SectionOff(""{key}"")") || markup.Contains($@"SectionShown(""{key}"")") || markup.Contains($@"=> ""{key}"""),
                 $"the '{key}' tab marks no section");
     }
 
@@ -362,7 +362,7 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         // Beside the period, not in a sub-line: the rule is wanted when a figure is questioned, not on every reading.
-        Assert.Contains("Revenue by Facility — @PeriodLabel<span class=\"rpt-rule-wrap no-print\">", markup);
+        Assert.Contains("Facility performance — @PeriodLabel<span class=\"rpt-rule-wrap no-print\">", markup);
         Assert.Contains("_facilityRuleOpen", markup);
 
         // Reachable by keyboard and announced: a bare glyph would state the rule to no one who needs it read out.
@@ -503,7 +503,8 @@ public class FinancialReportClaimsTests
         // page rather than growing a page control the feed cannot support correctly.
         var markup = ReadReport(string.Empty);
 
-        Assert.Contains("Collection register — @PeriodLabel", markup);
+        // Named for what it is beside the official register: the legacy-source facility records of the period.
+        Assert.Contains("Legacy-source collections — @PeriodLabel", markup);
         Assert.DoesNotContain("Recent Collection Records</div>", markup);
         Assert.Contains(@"href=""/transactions""", markup);
     }

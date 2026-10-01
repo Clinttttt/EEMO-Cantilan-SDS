@@ -31,7 +31,8 @@ public record SlaughterTransactionDto(
     decimal RatePerHead,
     decimal TotalAmount,
     string? ORNumber,
-    DateOnly TransactionDate
+    DateOnly TransactionDate,
+    SlaughterFeeComponentsDto? Components = null
 );
 
 public record SlaughterOverviewDto(
@@ -48,7 +49,9 @@ public record SlaughterOverviewDto(
     // been configured at all was quoted Cantilan's ordinance. An animal an office does not price is not offered.
     decimal? HogRatePerHead = null,
     decimal? LargeRatePerHead = null,
-    SlaughterAnimalLabelsDto? Labels = null
+    SlaughterAnimalLabelsDto? Labels = null,
+    // The Head/Admin-approved custom animals a collector may select (IA-050). A collector never types a rate.
+    IReadOnlyList<SlaughterAnimalRateDto>? ApprovedAnimals = null
 );
 
 public record OwnerTransactionGroupDto(
@@ -101,4 +104,18 @@ public record TransactionDateGroupDto(
     DateOnly TransactionDate,
     string? ORNumber,
     IReadOnlyList<SlaughterTransactionDto> Transactions
+);
+
+/// <summary>
+/// The fee components stored with the transaction when it was recorded. Presentation only: it itemizes the rate that was
+/// already charged and never re-prices it. A component that does not apply to the animal is null.
+/// </summary>
+public record SlaughterFeeComponentsDto(
+    decimal SlaughterFee,
+    decimal? SlaughterPermit,
+    decimal AntemortemFee,
+    decimal? PostmortemFee,
+    decimal TableCharge,
+    decimal? EntranceFee,
+    decimal? LivestockFee
 );

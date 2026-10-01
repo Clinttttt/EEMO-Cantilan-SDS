@@ -2,6 +2,7 @@
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
@@ -62,6 +63,23 @@ public sealed class CachingMobileApiClient(
     // Capability is day-scoped (business date, custody, settlement authority) and cleared after every write, so a Cash
     // Ticket used by the last capture is not still reported as held. Offline, the last answer for today stands; the
     // posting endpoint revalidates every gate on sync.
+    // An offline REVIEW view like the other records: read-through, and deliberately not cleared by a write.
+    public Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to) =>
+        ReadThroughAsync($"records|operations|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetOperationRecordsAsync(from, to));
+
+    public Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode) =>
+        ReadThroughAsync($"operations|terms|{operationCode}|{mode}|{Today}", () => inner.GetOperationTermsAsync(operationCode, mode));
+
+    // Custody changes with every issue, and "operations" is cleared after every write, so a used document is not offered again.
+    public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
+        ReadThroughAsync($"operations|documents|{operationCode}|{mode}|{Today}", () => inner.GetOperationDocumentsAsync(operationCode, mode));
+
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
+        ReadThroughAsync($"position|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyPositionAsync(from, to));
+
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to) =>
+        ReadThroughAsync($"my-collections|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyCollectionsAsync(from, to));
+
     public Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         ReadThroughAsync($"operations|capabilities|{Today}", inner.GetOperationCapabilitiesAsync);
 
@@ -77,6 +95,9 @@ public sealed class CachingMobileApiClient(
 
     public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
         ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
+
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth) =>
+        ReadThroughAsync($"wcf|sources|{billingYear}|{billingMonth}", () => inner.GetWcfSourcesAsync(billingYear, billingMonth));
 
     public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         ReadThroughAsync($"wcf|obligations|{throughYear}|{throughMonth}", () => inner.GetWcfObligationsAsync(throughYear, throughMonth));

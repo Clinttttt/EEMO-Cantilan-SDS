@@ -46,6 +46,35 @@ public class RecordSlaughterCommandHandlerTests
 
     private static RecordSlaughterCommand HogCommand() =>
         new("Owner A", new DateOnly(2026, 6, 9), "OR-1", AnimalType.Hog, null, 2, null);
+    private static RecordSlaughterCommand OtherCommand(string animal, decimal? rate) =>
+        new("Owner A", new DateOnly(2026, 6, 9), "OR-2", AnimalType.Other, animal, 2, rate);
+
+    [Fact]
+    public async Task Collector_CanRecordOnlyAnApprovedCustomAnimal_AtItsApprovedRate()
+    {
+        var collector = CollectorWith(FacilityCode.SLH);
+        var (handler, repo) = Build(collector, "Collector", collector.Id);
+        repo.Setup(r => r.GetApprovedCustomAnimalsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new[]
+        {
+            new EEMOCantilanSDS.Application.Dtos.Slaughterhouse.SlaughterAnimalRateDto(Guid.NewGuid(), "Goat", 120m, true)
+        });
+        var added = new List<SlaughterTransaction>();
+        repo.Setup(r => r.AddAsync(It.IsAny<SlaughterTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<SlaughterTransaction, CancellationToken>((t, _) => added.Add(t)).Returns(Task.CompletedTask);
+
+        var unapproved = await handler.Handle(OtherCommand("Sheep", 90m), CancellationToken.None);
+        var repriced = await handler.Handle(OtherCommand("Goat", 999m), CancellationToken.None);
+        Assert.False(unapproved.IsSuccess);
+        Assert.False(repriced.IsSuccess);
+        Assert.Empty(added);
+
+        // The collector may omit the rate, or send the approved one; either way the server's rate is what is charged.
+        var omitted = await handler.Handle(OtherCommand("goat", null), CancellationToken.None);
+        var exact = await handler.Handle(OtherCommand("Goat", 120m), CancellationToken.None);
+        Assert.True(omitted.IsSuccess, omitted.Error);
+        Assert.True(exact.IsSuccess, exact.Error);
+        Assert.All(added, t => Assert.Equal((120m, "Goat"), (t.RatePerHead, t.CustomAnimalType)));
+    }
 
     [Fact]
     public async Task Collector_NotAssignedToSlh_IsForbidden()

@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
@@ -58,6 +59,24 @@ public class RecordSlaughterCommandHandler(
         if (perHeadKey is { } required && perHeadRate is null)
             return Result<bool>.Failure(FeeRateMessages.NotStated(required));
 
+        // A collector never invents a slaughter rate (IA-050): an unusual animal is recorded only as an animal the Head or
+        // an Admin has approved, at that approved per-head rate.
+        SlaughterAnimalRateDto? approvedCustom = null;
+        if (request.AnimalType == AnimalType.Other)
+        {
+            var approved = await slaughterRepository.GetApprovedCustomAnimalsAsync(ct) ?? [];
+            approvedCustom = approved.FirstOrDefault(a => a.IsActive
+                && string.Equals(a.AnimalName, request.CustomAnimalType?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (approvedCustom is null)
+                return Result<bool>.Failure(
+                    $"'{request.CustomAnimalType}' is not an approved slaughter animal. The Head or an Admin must approve it, with its rate, before it can be recorded.",
+                    ResultStatus.Invalid);
+            if (request.CustomRate is { } typed && typed != approvedCustom.RatePerHead)
+                return Result<bool>.Failure(
+                    $"The approved rate for {approvedCustom.AnimalName} is ₱{approvedCustom.RatePerHead:N2} per head. A different rate cannot be entered here.",
+                    ResultStatus.Invalid);
+        }
+
         SlaughterTransaction transaction = request.AnimalType switch
         {
             AnimalType.Hog => SlaughterTransaction.CreateHog(
@@ -85,9 +104,9 @@ public class RecordSlaughterCommandHandler(
                 facility.Id,
                 collectorId,
                 request.OwnerName,
-                request.CustomAnimalType!,
+                approvedCustom!.AnimalName,
                 request.NumberOfHeads,
-                request.CustomRate!.Value,
+                approvedCustom.RatePerHead,
                 request.ORNumber,
                 request.TransactionDate,
                 recordedBy),

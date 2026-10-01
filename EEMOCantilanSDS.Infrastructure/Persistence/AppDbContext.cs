@@ -140,6 +140,18 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }
         public DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; set; }
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; set; }
+        public DbSet<GovernedService> GovernedServices { get; set; }
+        public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
+        public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
+        public DbSet<ObligationAccount> ObligationAccounts { get; set; }
+        public DbSet<ObligationRate> ObligationRates { get; set; }
+        public DbSet<ObligationPeriod> ObligationPeriods { get; set; }
+        public DbSet<VehicleClass> VehicleClasses { get; set; }
+        public DbSet<VehicleClassRate> VehicleClassRates { get; set; }
+        public DbSet<CollectionRemittance> CollectionRemittances { get; set; }
+        public DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; set; }
+        public DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

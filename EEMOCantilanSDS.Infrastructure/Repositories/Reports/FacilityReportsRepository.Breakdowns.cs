@@ -77,6 +77,14 @@ public partial class FacilityReportsRepository
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
             ? dc.FishKilos.Value * _npmFishRate
             : 0m);
+        // Fish weighing money frozen at collection time (IA-049). Kilos on rows without frozen evidence - every earlier daily
+        // row, and all kilos recorded with a monthly payment - are reported as kilos without rate evidence, never priced.
+        var fishFrozenAmount = collectableDailyCollections.Sum(dc => dc.FishFeeAmountFrozen ?? 0m);
+        var fishKilosWithoutFrozenRate = collectableDailyCollections
+                .Where(dc => dc.FishKilos > 0m && dc.FishFeeAmountFrozen is null).Sum(dc => dc.FishKilos ?? 0m)
+            + periodPaymentRecords
+                .Where(pr => pr.Status == PaymentStatus.Paid && IsWholeBillingMonthSelected(pr, startDate, endDate))
+                .Sum(pr => pr.FishKilos ?? 0m);
         var weightMeasureFromCollections = collectableMeatWeighingCollections.Sum(dc => dc.MeatFeeAmount);
         var meatKilosFromCollections = collectableMeatWeighingCollections.Sum(dc => dc.MeatKilos ?? 0m);
 
@@ -153,7 +161,9 @@ public partial class FacilityReportsRepository
             ExpectedDayRecords: expectedDayRecords,
             WeightMeasureAmount: weightMeasureFromCollections,
             MeatKilos: meatKilosFromCollections,
-            MeatWeightMeasureAmount: weightMeasureFromCollections
+            MeatWeightMeasureAmount: weightMeasureFromCollections,
+            FishWeightMeasureFrozenAmount: fishFrozenAmount,
+            FishKilosWithoutFrozenRate: fishKilosWithoutFrozenRate
         );
     }
 

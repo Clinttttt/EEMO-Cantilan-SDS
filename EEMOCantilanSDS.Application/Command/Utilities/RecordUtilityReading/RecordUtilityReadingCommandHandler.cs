@@ -30,14 +30,25 @@ public class RecordUtilityReadingCommandHandler(
 
         var actor = currentUser.Username ?? "Admin";
 
+        // A direct approved amount is stored as one unit at that amount, so the charge stays exact everywhere it is read.
+        var elecDirect = request.ElecApprovedAmount.HasValue;
+        var waterDirect = request.WaterApprovedAmount.HasValue;
+        var (elecPrev, elecCurr, elecRate) = elecDirect
+            ? UtilityBill.DirectApprovedReadings(request.ElecApprovedAmount!.Value)
+            : (request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh);
+        var (waterPrev, waterCurr, waterRate) = waterDirect
+            ? UtilityBill.DirectApprovedReadings(request.WaterApprovedAmount!.Value)
+            : (request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter);
+        var elecBasis = elecDirect ? UtilityCalculationBasis.DirectApproved : UtilityCalculationBasis.Metered;
+        var waterBasis = waterDirect ? UtilityCalculationBasis.DirectApproved : UtilityCalculationBasis.Metered;
+
         var bill = await utilityRepository.GetByStallAndMonthAsync(request.StallId, request.BillingYear, request.BillingMonth, ct);
         if (bill is null)
         {
             bill = UtilityBill.Create(
                 request.StallId, request.BillingYear, request.BillingMonth,
-                request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
-                request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter,
-                actor);
+                elecPrev, elecCurr, elecRate, waterPrev, waterCurr, waterRate, actor);
+            bill.SetCalculationBasis(elecBasis, waterBasis);
             await utilityRepository.AddAsync(bill, ct);
         }
         else
@@ -45,16 +56,13 @@ public class RecordUtilityReadingCommandHandler(
             // Once a utility is settled or has entered cutover, its assessment facts are frozen. A converted
             // source must not be changed through this legacy assessment writer; the still-Legacy utility part
             // on the same bill remains independently editable.
-            if (bill.WouldChangeSettledReadings(
-                    request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
-                    request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter))
+            if (bill.WouldChangeSettledReadings(elecPrev, elecCurr, elecRate, waterPrev, waterCurr, waterRate)
+                || bill.WouldChangeSettledBasis(elecBasis, waterBasis))
                 return Result<UtilityBillDto>.Failure(
                     "Readings can't be changed for a settled or cutover utility source. Resolve the source through its approved workflow first.", ResultStatus.Conflict);
 
-            bill.UpdateReadings(
-                request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
-                request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter,
-                request.Remarks, actor);
+            bill.UpdateReadings(elecPrev, elecCurr, elecRate, waterPrev, waterCurr, waterRate, request.Remarks, actor);
+            bill.SetCalculationBasis(elecBasis, waterBasis);
         }
 
         await unitOfWork.SaveChangesAsync(ct);

@@ -90,7 +90,7 @@
             <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M13 2L6 14h6l-1 8 7-12h-6l1-8z" />
             </svg>
-            <span>Utility Billing</span>
+            <span>Related utilities</span>
         </button>
     </div>
     <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
@@ -315,17 +315,18 @@ else if (ShowUtilityBilling)
         <div class="utility-billing-board">
             <section class="utility-hero">
                 <div>
-                    <div class="utility-eyebrow">END-OF-MONTH CONSUMPTION BILLING</div>
-                    <h2>Electricity &amp; Water Billing Reports</h2>
+                    <div class="utility-eyebrow">RELATED UTILITIES · CONTEXT FOR NPM OCCUPANTS</div>
+                    <h2>Electricity (ECF) and water (WCF) for NPM stalls</h2>
+                    <p class="utility-context-note">Separate utility operations, not part of stall rent. Approved amounts are set and collected in <a href="/operations/ecf">Electricity (ECF)</a> and <a href="/operations/water-consumption-fees">Water (WCF)</a>; this view is read-only.</p>
                 </div>
                 <div class="utility-preview-pill">@CurrentDate.ToString("MMMM yyyy")</div>
             </section>
 
             <div class="utility-summary-grid">
                 <div class="utility-summary-card">
-                    <span>Total Utility Due</span>
+                    <span>Utility assessed</span>
                     <strong>&#8369;@UtilityTotalDue.ToString("N2")</strong>
-                    <small>Electricity and water charges only</small>
+                    <small>ECF and WCF, separate from stall rent</small>
                 </div>
                 <div class="utility-summary-card">
                     <span>Unpaid Utilities</span>
@@ -363,13 +364,13 @@ else if (ShowUtilityBilling)
                         <button type="button" class="utility-secondary-btn"
                                 disabled="@(StatementRows.Count == 0)"
                                 title="@(StatementRows.Count == 0
-                                          ? "No utility bill has been recorded for the payors shown, so there is nothing to state yet."
+                                          ? "No utility bill is recorded for the payors shown, so there is nothing to state yet."
                                           : $"Statement of account for {StatementRows.Count} payor{(StatementRows.Count == 1 ? "" : "s")}"
                                             + (UnbilledOnScreen > 0
-                                               ? $"; {UnbilledOnScreen} on screen have no reading recorded and are left out."
+                                               ? $"; {UnbilledOnScreen} on screen have no utility bill recorded and are left out."
                                                : ""))"
                                 @onclick="ShowUtilityStatementsView">
-                            Generate Billing Statement@(StatementRows.Count > 0 ? $" ({StatementRows.Count})" : "")
+                            Statements of account@(StatementRows.Count > 0 ? $" ({StatementRows.Count})" : "")
                         </button>
                     </div>
                 </div>
@@ -381,8 +382,8 @@ else if (ShowUtilityBilling)
                                 <th>Stall</th>
                                 <th>Payor</th>
                                 <th>Section</th>
-                                <th>Electricity Reading</th>
-                                <th>Water Reading</th>
+                                <th>Electricity (ECF)</th>
+                                <th>Water (WCF)</th>
                                 <th>Utility Due</th>
                                 <th>Status</th>
                             </tr>
@@ -397,29 +398,29 @@ else if (ShowUtilityBilling)
                                         <span class="utility-payor-note">@row.Note</span>
                                     </td>
                                     <td>@SectionDisplay(row.Section)</td>
-                                    @* Only the utilities this stall is metered for. A stall billed for water
-                                       alone has no electricity meter, so a reading and a status there would be
+                                    @* Only the utilities this stall has service for. A stall billed for water
+                                       alone has no electricity service, so an amount and a status there would be
                                        reporting on a service the vendor does not have. *@
                                     <td>
                                         @if (row.HasElectricity)
                                         {
-                                            <span class="utility-reading">@row.ElectricPrevious.ToString("N0") to @row.ElectricCurrent.ToString("N0") kWh</span>
-                                            <small>&#8369;@row.ElectricAmount.ToString("N2") due</small>
+                                            <span class="utility-reading">&#8369;@row.ElectricAmount.ToString("N2")</span>
+                                            <small>Official Receipt</small>
                                         }
                                         else
                                         {
-                                            <span class="utility-na">Not metered</span>
+                                            <span class="utility-na">No service</span>
                                         }
                                     </td>
                                     <td>
                                         @if (row.HasWater)
                                         {
-                                            <span class="utility-reading">@row.WaterPrevious.ToString("N0") to @row.WaterCurrent.ToString("N0") cu.m</span>
-                                            <small>&#8369;@row.WaterAmount.ToString("N2") due</small>
+                                            <span class="utility-reading">&#8369;@row.WaterAmount.ToString("N2")</span>
+                                            <small>Cash Ticket</small>
                                         }
                                         else
                                         {
-                                            <span class="utility-na">Not metered</span>
+                                            <span class="utility-na">No service</span>
                                         }
                                     </td>
                                     <td class="utility-due">&#8369;@row.TotalDue.ToString("N2")</td>
@@ -465,6 +466,7 @@ else if (ShowUtilityBilling)
                         }
                         else
                         {
+                            <p class="utility-hist-note">Readings, consumption and rates below are <strong>historical reading evidence</strong> kept with older bills. Current ECF and WCF use the approved amount; readings are not required and never reprice a recorded charge.</p>
                             <div class="utility-hist-wrap">
                                 <table class="utility-hist-table">
                                     <thead>
@@ -536,7 +538,7 @@ else if (ShowUtilityStatements)
            else - the same rule the signature strip's edit pencils follow. *@
         <div class="statement-actions no-print">
             <button type="button" class="utility-secondary-btn" @onclick="CloseUtilityStatements">
-                Back to billing
+                Back to related utilities
             </button>
 
             @* The same search and section filter as the billing table, bound to the same fields - so a section the
@@ -578,7 +580,7 @@ else if (ShowUtilityStatements)
             <section class="print-report-sheet">
                 <p class="print-empty">
                     No utility bill has been recorded for @CurrentDate.ToString("MMMM yyyy")@(_utilSection == "All" ? "" : $" in {SectionDisplay(_utilSection)}")@(string.IsNullOrWhiteSpace(_utilSearch) ? "" : $" matching \"{_utilSearch}\"").
-                    A statement can only be issued once a reading is entered.
+                    A statement can only be issued once the bill is recorded.
                 </p>
             </section>
         }
@@ -612,8 +614,8 @@ else if (ShowUtilityStatements)
                 @if (UnbilledOnScreen > 0)
                 {
                     <div class="statement-excluded-note">
-                        Not included: @UnbilledOnScreen payor@(UnbilledOnScreen == 1 ? "" : "s") with no meter reading recorded for
-                        this period. A statement cannot be issued until the reading is entered.
+                        Not included: @UnbilledOnScreen payor@(UnbilledOnScreen == 1 ? "" : "s") with no utility bill recorded for
+                        this period. A statement cannot be issued until the bill is recorded.
                     </div>
                 }
 
@@ -642,8 +644,8 @@ else if (ShowUtilityStatements)
                                    reads as an address on a printed government form. A utility the stall has no meter
                                    for prints as a dash rather than a nought, which would read as "used nothing"
                                    instead of "not metered". *@
-                                <td>@(row.HasElectricity ? $"{row.ElecConsumption:N2} kWh × ₱{row.ElecRatePerKwh:N2}" : "—")</td>
-                                <td>@(row.HasWater ? $"{row.WaterConsumption:N2} cu.m × ₱{row.WaterRatePerCubicMeter:N2}" : "—")</td>
+                                <td>@(row.HasElectricity ? $"₱{row.ElecCharge:N2}" : "—")</td>
+                                <td>@(row.HasWater ? $"₱{row.WaterCharge:N2}" : "—")</td>
                                 <td class="statement-amount">&#8369;@row.TotalCharge.ToString("N2")</td>
                                 <td class="statement-amount">&#8369;@((row.TotalCharge - row.BalanceDue).ToString("N2"))</td>
                                 <td class="statement-amount">&#8369;@row.BalanceDue.ToString("N2")</td>
@@ -690,52 +692,43 @@ else if (ShowUtilityStatements)
                         <thead>
                             <tr>
                                 <th>Charge</th>
-                                <th>Previous</th>
-                                <th>Current</th>
-                                <th>Consumption</th>
-                                <th>Rate</th>
+                                <th>Instrument</th>
                                 <th class="statement-amount">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @* Only the utilities this stall is metered for. A line reading zero for a utility the
+                            @* Only the utilities this stall has service for. A line of zero for a utility the
                                stall does not have would invite the payor to query a charge that was never made. *@
                             @if (row.HasElectricity)
                             {
                                 <tr>
-                                    <td>Electricity</td>
-                                    <td>@row.ElecPreviousReading.ToString("N2")</td>
-                                    <td>@row.ElecCurrentReading.ToString("N2")</td>
-                                    <td>@row.ElecConsumption.ToString("N2") kWh</td>
-                                    <td>&#8369;@row.ElecRatePerKwh.ToString("N2") / kWh</td>
+                                    <td>Electricity Consumption Fee (ECF)</td>
+                                    <td>Official Receipt</td>
                                     <td class="statement-amount">&#8369;@row.ElecCharge.ToString("N2")</td>
                                 </tr>
                             }
                             @if (row.HasWater)
                             {
                                 <tr>
-                                    <td>Water</td>
-                                    <td>@row.WaterPreviousReading.ToString("N2")</td>
-                                    <td>@row.WaterCurrentReading.ToString("N2")</td>
-                                    <td>@row.WaterConsumption.ToString("N2") cu.m</td>
-                                    <td>&#8369;@row.WaterRatePerCubicMeter.ToString("N2") / cu.m</td>
+                                    <td>Water Consumption Fee (WCF)</td>
+                                    <td>Cash Ticket</td>
                                     <td class="statement-amount">&#8369;@row.WaterCharge.ToString("N2")</td>
                                 </tr>
                             }
                         </tbody>
                         <tfoot>
                             <tr class="statement-total">
-                                <td colspan="5">Total charges for the period</td>
+                                <td colspan="2">Total charges for the period</td>
                                 <td class="statement-amount">&#8369;@row.TotalCharge.ToString("N2")</td>
                             </tr>
                             @* Paid is stated as the bill computes it - total less balance - so the statement can never
                                disagree with the receipt the office already issued. *@
                             <tr>
-                                <td colspan="5">Less payments received</td>
+                                <td colspan="2">Less payments received</td>
                                 <td class="statement-amount">&#8369;@((row.TotalCharge - row.BalanceDue).ToString("N2"))</td>
                             </tr>
                             <tr class="statement-balance">
-                                <td colspan="5">Amount due</td>
+                                <td colspan="2">Amount due</td>
                                 <td class="statement-amount">&#8369;@row.BalanceDue.ToString("N2")</td>
                             </tr>
                         </tfoot>
@@ -1899,7 +1892,7 @@ else
             r.HasBill
                 ? (r.Status == "Paid" ? "Settled for the period"
                    : r.BalanceDue > 0 ? $"Balance \u20b1{r.BalanceDue:N2}" : "Recorded")
-                : "No reading recorded yet",
+                : "No utility bill recorded yet",
             r.ElecStatus, r.WaterStatus,
             r.HasElectricity, r.HasWater))
         .ToList();
@@ -1931,10 +1924,10 @@ else
     //
     // Filtered the same way as the table, so "generate" means the payors the office is looking at.
     //
-    // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no reading entered has no
+    // UNBILLED STALLS ARE EXCLUDED, and that is the important rule here. A stall with no utility bill recorded has no
     // charge, and a statement for it would state an amount due of nought - a false statement over the office's own
     // letterhead, and one a payor could reasonably wave at a later bill. The count of those left out is stated on the
-    // Generate Billing Statement button's tooltip, so the exclusion is a decision the office can see rather than a
+    // Statements of account button's tooltip, so the exclusion is a decision the office can see rather than a
     // payor going missing quietly.
     IReadOnlyList<UtilityRegisterRowDto> StatementRows =>
         (UtilityRegister?.Rows ?? Array.Empty<UtilityRegisterRowDto>())

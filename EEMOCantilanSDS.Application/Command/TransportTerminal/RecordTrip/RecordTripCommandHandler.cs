@@ -18,7 +18,8 @@ public class RecordTripCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
+    ITenantContext tenantContext,
+    Common.Revenue.TransportationCollectionAuthority? transportationAuthority = null) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
 {
     public async Task<Result<TrmTripDto>> Handle(RecordTripCommand request, CancellationToken ct)
     {
@@ -59,6 +60,11 @@ public class RecordTripCommandHandler(
         var tripBusinessDate = occurredAt.Kind == DateTimeKind.Utc
             ? PhilippineTime.ToPhilippineTime(occurredAt)
             : occurredAt;
+        if (transportationAuthority is not null
+            && await transportationAuthority.IsCanonicalAsync(DateOnly.FromDateTime(tripBusinessDate), ct))
+            return Result<TrmTripDto>.Failure(
+                "Transportation is collected on the canonical Cash Ticket workflow. The legacy trip record is closed for new collections; earlier trips remain unchanged.",
+                ResultStatus.Conflict);
         if (rateSnapshot.ResolveOrNull(FeeRateKey.TrmPerTrip, DateOnly.FromDateTime(tripBusinessDate)) is not { } tripFee)
             return Result<TrmTripDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.TrmPerTrip));
 

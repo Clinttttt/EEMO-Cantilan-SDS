@@ -117,22 +117,63 @@ public class UpdateSlaughterCommandHandlerTests
         });
     }
 
+    private static void Approve(Mock<ISlaughterRepository> repo, string name, decimal rate) =>
+        repo.Setup(r => r.GetApprovedCustomAnimalsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { new EEMOCantilanSDS.Application.Dtos.Slaughterhouse.SlaughterAnimalRateDto(Guid.NewGuid(), name, rate, true) });
+
     [Fact]
-    public async Task Update_PreservesCustomAnimalRateWithoutRequiringCanonicalRateRows()
+    public async Task Update_RecordsAnApprovedCustomAnimalAtItsApprovedRate_WithoutRequiringCanonicalRateRows()
     {
-        var (handler, _, added, _) = Build(Resolver());
+        var (handler, repo, added, _) = Build(Resolver());
+        Approve(repo, "Goat", 252m);
 
         var result = await handler.Handle(new UpdateSlaughterCommand(
-            "Owner A", ActivityDate, "OR-CUSTOM", [new(AnimalType.Other, "Goat", 2, 252m)]),
+            "Owner A", ActivityDate, "OR-CUSTOM", [new(AnimalType.Other, "goat", 2, 252m)]),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         var transaction = Assert.Single(added);
-        Assert.Equal(AnimalType.Other, transaction.AnimalType);
-        Assert.Equal("Goat", transaction.CustomAnimalType);
+        Assert.Equal("Goat", transaction.CustomAnimalType);   // the approved spelling, not the typed one
         Assert.Equal(252m, transaction.RatePerHead);
         Assert.Equal(504m, transaction.TotalAmount);
     }
+
+    [Fact]
+    public async Task Update_RefusesACustomAnimalNobodyApproved_AndADifferentRateForAnApprovedOne()
+    {
+        var (handler, repo, added, _) = Build(Resolver());
+
+        var unapproved = await handler.Handle(new UpdateSlaughterCommand(
+            "Owner A", ActivityDate, "OR-1", [new(AnimalType.Other, "Goat", 2, 252m)]), CancellationToken.None);
+        Assert.False(unapproved.IsSuccess);
+        Assert.Contains("not an approved slaughter animal", unapproved.Error);
+
+        Approve(repo, "Goat", 252m);
+        var repriced = await handler.Handle(new UpdateSlaughterCommand(
+            "Owner A", ActivityDate, "OR-1", [new(AnimalType.Other, "Goat", 2, 100m)]), CancellationToken.None);
+        Assert.False(repriced.IsSuccess);
+        Assert.Contains("approved rate", repriced.Error);
+        Assert.Empty(added);
+    }
+
+    [Fact]
+    public async Task Update_SavesAHistoricalCustomLineBackUnchanged_WithoutRewritingItsRate()
+    {
+        var (handler, repo, added, _) = Build(Resolver());
+        var facility = Guid.NewGuid();
+        var historical = SlaughterTransaction.CreateCustomAnimal(
+            facility, null, "Owner A", "Sheep", 1, 180m, "OR-OLD", ActivityDate);
+        repo.Setup(r => r.GetTransactionsByOwnerDateORAsync(
+                It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<SlaughterTransaction>)new[] { historical });
+
+        var result = await handler.Handle(new UpdateSlaughterCommand(
+            "Owner A", ActivityDate, "OR-OLD", [new(AnimalType.Other, "Sheep", 1, 180m)]), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(180m, Assert.Single(added).RatePerHead);
+    }
+
 
     [Fact]
     public async Task Update_UsesOnlyTheCurrentMunicipalityRates()

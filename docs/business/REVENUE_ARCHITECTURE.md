@@ -118,7 +118,7 @@ The existing singular-instrument implementation is therefore insufficient as the
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
 - Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market. Cantilan Lot Rental uses OR; Kanmanggay Space Rental also uses OR.
 - When qualifying old/lapsed Arrears are paid, the collection reports under the dedicated **Arrears** revenue classification while retaining the originating facility/obligation reference for traceability.
-- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Cash Ticket remittance is triggered when the assigned CT range/batch is consumed; do not resurrect the retired partial-remittance workflow as a substitute.
+- RCD-style collection classification and full accountability are in scope; a Treasury approval workflow is not. Remittance and accountable-form custody are separate ledgers (IA-052): CT money may be remitted while unused tickets remain assigned, and a remittance never creates revenue. Remittance covers whole authoritative collections exactly once; it is not the retired date-range workflow and adds no Treasury approval process.
 
 ## 5. Target domain components
 
@@ -175,7 +175,7 @@ Existing specialized module rows remain historical evidence. Additive adapters l
 |---|---|
 | PaymentRecord | Remains the monthly obligation/status projection during transition. It is not one receipt. Existing rows and OR values remain historical evidence. After cutover, new money-received history comes from Collection and allocations; do not destructively reconstruct installments that were never stored. |
 | DailyCollection | Remains authoritative for NPM daily marks, amount, business date, absence and RentGoal month-end adjustment. A later adapter may link its captured money to Collection/classified lines without moving month calculation into the generic ledger. |
-| UtilityBill | Remains authoritative for the existing NPM/stall-bound utility assessment/balance records. New payment events can link to it. Treat it as a legacy/current specialized source adapter, not proof that all future ECF/WCF must belong to NPM. Future utility subjects may require an additive generalized source/context model. Existing utility totals or receipt fields do not justify invented installment detail. |
+| UtilityBill | Remains authoritative for the existing NPM/stall-bound utility assessment/balance records; its current basis is a direct approved amount (IA-053), and legacy reading fields are kept only as historical evidence that never reprices a recorded charge. New payment events can link to it. Treat it as a legacy/current specialized source adapter, not proof that all future ECF/WCF must belong to NPM. Future utility subjects may require an additive generalized source/context model. Existing utility totals or receipt fields do not justify invented installment detail. |
 | TpmAttendance | Remains the Tabo-an market-day activity/source. Future collections classify the resulting revenue and use the tenant's configured Official Receipt policy. |
 | TrmTrip | Remains historical trip activity. Future transport/parking design moves toward vehicle-class, effective-rate and Cash Ticket semantics. Do not infer a historical vehicle class or turn an old OR value into a CT serial. |
 | SlaughterTransaction | Remains the per-animal activity and preserves known package breakdown. Future collection/document links expose approved classifications/add-ons without replacing the activity model. |
@@ -347,3 +347,15 @@ Phase 0 existed to disposition the following independent correctness findings be
 - **Slaughter update rates — FIXED.** Update resolves canonical tenant effective-dated rates using the transaction/activity date, consistent with create. Existing custom-animal behavior remains on its separate rate path.
 
 These dispositions do not implement RevenueClassification, Collection, CollectionLine, CollectionAllocation, ReceivableObligation, AccountableDocument, Cash Ticket/accountable forms, or RevenueTarget. They also do not complete the unresolved Arrears qualification/recovery/reporting work in Phase 5B. Those capabilities remain target architecture; the separately deployed one-month Delinquent rule does not complete them.
+
+### WCF direct entry and prospective authority (IA-054, 2026-10-01)
+
+- The WCF source remains the stall/month `UtilityBill` Water part (NPM is source context). No parallel WCF financial source.
+- One `CollectorOperationActivations` row per tenant records WCF Mobile enablement (effective from, activated at/by) and is audited.
+- A Water part with no legacy settlement becomes canonical at its first collection after enablement, through the existing
+  `CollectionSettlementCutover` record (opening: the assessment, nothing settled), inside the posting's single unit of work.
+  Its evidence records the activation, the amount origin (`OfficePrepared` or `CollectorDirectEntry`), the actor and the
+  `ClientOperationId`. A part with legacy settlement keeps the explicit, attested legacy-migration cutover.
+- A direct entry establishes the Water amount on the one bill for the source and current period (creating the bill only when
+  none exists, never touching Electricity) and posts the Collection, its WCF line and the Cash Ticket consumption atomically
+  and idempotently; an existing prepared amount refuses the entry (Cash Ticket held for reconciliation).

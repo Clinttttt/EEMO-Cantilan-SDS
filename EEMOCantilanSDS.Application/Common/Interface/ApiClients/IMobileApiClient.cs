@@ -16,6 +16,21 @@ public interface IMobileApiClient
 
     /// <summary>Read-only: which assigned non-facility operations are collectible now (GET api/Mobile/operations/capabilities).</summary>
     Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync();
+
+    /// <summary>Read-only: the signed-in collector's own money and form position for a period (GET api/Mobile/position).</summary>
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to);
+
+    /// <summary>Read-only: the signed-in collector's own canonical collections for a period (GET api/Mobile/records/collections).</summary>
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to);
+
+    /// <summary>Documents of the instrument this governed operation (and mode) resolves to that this collector holds (GET api/governed-services/{code}/documents).</summary>
+    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode);
+
+    /// <summary>The approved terms in force today for an assigned governed operation (GET api/governed-services/{code}/terms).</summary>
+    Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode);
+
+    /// <summary>This collector's posted governed-operation collections for a period (GET api/governed-services/records).</summary>
+    Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to);
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);
@@ -52,6 +67,9 @@ public interface IMobileApiClient
     Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
     Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
     Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth);
+
+    /// <summary>Eligible WCF sources for a billing period, each with its prepared, settled and outstanding Water amounts.</summary>
+    Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth);
     Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
     Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);

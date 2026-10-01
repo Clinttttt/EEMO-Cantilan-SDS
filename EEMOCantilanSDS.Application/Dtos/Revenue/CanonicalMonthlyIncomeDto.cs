@@ -69,4 +69,7 @@ public sealed record CanonicalMonthlyIncomeSourceDto(
     string? SourcePart,
     decimal GrossOriginalCollected,
     decimal CorrectionEffect,
-    decimal NetCollected);
+    decimal NetCollected,
+    // How this source is reported (IA-050): CanonicalAlways, CanonicalAfterRowCutover or LegacyOnly. Null for a rent line, whose
+    // allocations carry the source.
+    string? ReportingAuthority = null);

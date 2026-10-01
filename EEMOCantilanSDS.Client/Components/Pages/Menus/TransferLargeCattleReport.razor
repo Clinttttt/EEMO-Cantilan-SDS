@@ -1,0 +1,13 @@
+@page "/operations/transfer-large-cattle/report"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Constants
+
+<PageTitle>StallTrack — Transfer Large Cattle Report</PageTitle>
+
+@* Transfer Large Cattle report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+   month's governed collections, all read from the server. The layout owns the <main> landmark. *@
+<GovernedOperationReport OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" ParentHref="/operations/transfer-large-cattle"
+                         RowKey="TRANSFER_LARGE_CATTLE" Classification="Transfer Large Cattle" Instruments="@(new[] { "OR" })"
+                         InstrumentFact="Official Receipt" IdPrefix="tlcr" Basis="An Official Receipt at the direct approved amount per transfer (IA-049)." />

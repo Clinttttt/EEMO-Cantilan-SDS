@@ -74,6 +74,18 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorStallLink> PayorStallLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; }
+        DbSet<GovernedService> GovernedServices { get; }
+        DbSet<GovernedServiceSetting> GovernedServiceSettings { get; }
+        DbSet<PenaltyDefinition> PenaltyDefinitions { get; }
+        DbSet<ObligationAccount> ObligationAccounts { get; }
+        DbSet<ObligationRate> ObligationRates { get; }
+        DbSet<ObligationPeriod> ObligationPeriods { get; }
+        DbSet<VehicleClass> VehicleClasses { get; }
+        DbSet<VehicleClassRate> VehicleClassRates { get; }
+        DbSet<CollectionRemittance> CollectionRemittances { get; }
+        DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; }
+        DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

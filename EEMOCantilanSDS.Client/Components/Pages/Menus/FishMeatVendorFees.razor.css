@@ -1,22 +1,5 @@
 /* Fish / Meat Vendor Fees — V3. Shared panels/tables/buttons come from the v3- layer in app.css. */
 
-.fm-unavailable {
-    padding: 40px 20px;
-}
-
-.fm-unavailable strong {
-    color: var(--text);
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
-.fm-unavailable p {
-    max-width: 34rem;
-    margin: 0 0 6px;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-}
-
 .fm-related {
     display: flex;
     flex-wrap: wrap;

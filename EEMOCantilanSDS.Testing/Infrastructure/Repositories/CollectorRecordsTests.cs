@@ -469,4 +469,37 @@ public class CollectorRecordsTests : RepositoryTestBase
         Assert.Contains(records, r => r.PayorName == "Juan (current)");
     }
 
+
+    [Fact]
+    public async Task CollectorReport_ACutOverRentRow_IsLeftToItsCanonicalCollection_AndNotCountedAgainFromLegacyFields()
+    {
+        // IA-050: once a PaymentRecord's settlement authority is canonical, its status and partial amount are a compatibility
+        // projection of a canonical Collection. The Mobile report adds that Collection from the canonical facts, so the legacy
+        // reader must not also count the row — otherwise the same rent is stated twice.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+        var monthStart = new DateOnly(Today.Year, Today.Month, 1);
+
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var legacyStall = Stall.Create(facility.Id, "C-1", 2400m, ApplicableFees.BaseRental);
+        var convertedStall = Stall.Create(facility.Id, "C-2", 2400m, ApplicableFees.BaseRental);
+        var legacyContract = Contract.Create(legacyStall.Id, "Legacy Payor", null, new DateOnly(2025, 1, 1), 3, 2400m);
+        var convertedContract = Contract.Create(convertedStall.Id, "Converted Payor", null, new DateOnly(2025, 1, 1), 3, 2400m);
+        var legacyPayment = PaymentRecord.Create(legacyStall.Id, Today.Year, Today.Month, 2400m);
+        legacyPayment.UpdateStatus(PaymentStatus.Partial, 1000m, null, "tester", me);
+        var convertedPayment = PaymentRecord.Create(convertedStall.Id, Today.Year, Today.Month, 2400m);
+        convertedPayment.UpdateStatus(PaymentStatus.Partial, 700m, null, "tester", me);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.SettlementAuthorityState))!
+            .SetValue(convertedPayment, SettlementAuthority.Canonical);
+
+        ctx.AddRange(facility, legacyStall, convertedStall, legacyContract, convertedContract, legacyPayment, convertedPayment);
+        await ctx.SaveChangesAsync();
+
+        var report = await new CollectorRepository(ctx).GetCollectorReportAsync(
+            me, [FacilityCode.TCC], monthStart, Today, CancellationToken.None);
+
+        Assert.Equal(1000m, report.Totals.CollectedAmount);
+        var only = Assert.Single(report.Transactions);
+        Assert.Equal("Legacy Payor", only.PayorName);
+    }
 }

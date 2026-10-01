@@ -45,14 +45,99 @@
 
     <SummaryStrip Label="WCF position" Items="SummaryItems" />
 
-    <div class="wcf-readiness" aria-label="Field collection readiness">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
-        <p>
-            <strong>Collected on Collector Mobile</strong>
-            <span>@SettlementReadiness · @StockReadiness</span>
-        </p>
-        <a class="v3-btn v3-btn-sm" href="/accountable-forms">Manage Accountable Forms</a>
-    </div>
+    @* Collector Mobile, status first: one state, one action, blockers only when they exist, details on request. Every
+       readiness fact is derived by the server; nothing here is attested or typed by the office. *@
+    <section class="wcf-mobile @MobileClass" aria-labelledby="wcf-mobile-title">
+        <div class="wcf-mobile-head">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
+            <div class="wcf-mobile-text">
+                <h2 id="wcf-mobile-title">Collector Mobile</h2>
+                <p class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>@MobileStateLabel</p>
+                <p class="wcf-mobile-sub">Cash Ticket · Direct amount · @SettlementReadiness · @StockReadiness</p>
+            </div>
+            <div class="wcf-mobile-actions">
+                @if (_mobile is { Active: false, ReadyToEnable: true })
+                {
+                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="() => _confirming = true">Enable Mobile Collection</button>
+                }
+                <a class="v3-btn v3-btn-sm" href="/operations/water-consumption-fees/accounts">Prepare amounts</a>
+                <a class="v3-btn v3-btn-sm" href="/accountable-forms">Accountable Forms</a>
+            </div>
+        </div>
+
+        @if (_mobileError is not null)
+        {
+            <p class="v3-notice v3-notice-error" role="alert">@_mobileError</p>
+        }
+
+        @if (_mobile is { Active: true } active)
+        {
+            <p class="wcf-mobile-note">Collectors record Water Consumption Fees on Mobile with their assigned Cash Tickets@(active.EffectiveFrom is { } from ? $" since {from:MMM d, yyyy}" : ""). When no amount is prepared, the collector enters it at collection.</p>
+        }
+        else if (_mobile is { Blockers.Count: > 0 } blocked)
+        {
+            <ul class="wcf-blockers" aria-label="Needs attention">
+                @foreach (var blocker in blocked.Blockers)
+                {
+                    <li>
+                        <span class="wcf-blocker-icon" aria-hidden="true">!</span>
+                        <span><strong>@blocker.Title</strong> — @blocker.Detail</span>
+                        @if (blocker.ActionHref is { } href)
+                        {
+                            <a href="@href">@blocker.ActionLabel</a>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_mobile is { } status)
+        {
+            <details class="wcf-details">
+                <summary>View readiness details</summary>
+                <ul class="wcf-checks">
+                    @foreach (var check in status.Checks)
+                    {
+                        <li class="@(check.Ok ? "ok" : "warn")"><span aria-hidden="true">@(check.Ok ? "✓" : "!")</span> <strong>@check.Title</strong> @check.Detail</li>
+                    }
+                    @foreach (var collector in status.Collectors)
+                    {
+                        <li class="@(collector.Ready ? "ok" : "warn")">
+                            <span aria-hidden="true">@(collector.Ready ? "✓" : "!")</span>
+                            <strong>@collector.Name</strong>
+                            @(collector.Active ? $"{collector.CashTicketsHeld:N0} Cash Tickets in custody" : "Inactive")@(collector.CashTicketsInReview > 0 ? $" · {collector.CashTicketsInReview} in review" : "")
+                        </li>
+                    }
+                </ul>
+                @if (status.HistoricalWaterRecords > 0)
+                {
+                    <p class="wcf-mobile-note">@status.HistoricalWaterRecords historical Water record@(status.HistoricalWaterRecords == 1 ? "" : "s") stay on the legacy path and are not changed. <a href="/operations/water-consumption-fees/accounts">Review in Water Accounts</a></p>
+                }
+            </details>
+        }
+    </section>
+
+    @if (_confirming)
+    {
+        <div class="v3-modal-backdrop" role="presentation" @onclick="() => _confirming = false">
+            <section class="v3-modal wcf-confirm" role="dialog" aria-modal="true" aria-labelledby="wcf-confirm-title" @onclick:stopPropagation="true">
+                <header class="v3-modal-header">
+                    <h2 id="wcf-confirm-title">Enable WCF Mobile collection?</h2>
+                </header>
+                <div class="v3-modal-body">
+                    <p>Collectors assigned to Water Consumption Fee will be able to record new WCF collections using their assigned Cash Tickets.</p>
+                    <dl class="wcf-confirm-facts">
+                        <div><dt>Amount method</dt><dd>Direct amount</dd></div>
+                        <div><dt>Historical Water records</dt><dd>Not changed</dd></div>
+                    </dl>
+                </div>
+                <footer class="v3-modal-footer">
+                    <button class="v3-btn" type="button" @onclick="() => _confirming = false">Cancel</button>
+                    <button class="v3-btn v3-btn-primary" type="button" disabled="@_enabling" @onclick="EnableAsync">Enable Mobile Collection</button>
+                </footer>
+            </section>
+        </div>
+    }
 
     <section class="v3-panel" aria-labelledby="wcf-obligations-title">
         <header class="v3-panel-header">
@@ -75,7 +160,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Payer</th>
-                        <th scope="col">Period · meter</th>
+                        <th scope="col">Period</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Previously settled</th>
                         <th scope="col" class="v3-num">Outstanding</th>
@@ -90,7 +175,7 @@
                                 <span class="v3-strong">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</span>
                                 <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
                             </td>
-                            <td>@Period(quote.BillingYear, quote.BillingMonth)<span class="v3-block">@quote.Consumption.ToString("N2") m³ × PHP @quote.RatePerCubicMeter.ToString("N2")</span></td>
+                            <td>@Period(quote.BillingYear, quote.BillingMonth)</td>
                             <td class="v3-num">@Money(quote.AssessedAmount)</td>
                             <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                             <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
@@ -111,7 +196,11 @@
                                 }
                                 else
                                 {
-                                    <span>No WCF obligations through @ThroughPeriodLabel.</span>
+                                    <span class="wcf-empty">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
+                                        <strong>No outstanding WCF obligations</strong>
+                                        <span>There are no Water Consumption Fee balances through @ThroughPeriodLabel. Set one up in <a href="/operations/water-consumption-fees/accounts">Water Accounts</a>.</span>
+                                    </span>
                                 }
                             </td>
                         </tr>
@@ -147,7 +236,7 @@
                                             <li>
                                                 <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
                                                 <span class="v3-muted">@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) + " obligation" : "WCF obligation")</span>
-                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Meter reading and rate recorded with this collection" : line.CalculationSnapshot)</span>
+                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Approved amount and period recorded with this collection" : line.CalculationSnapshot)</span>
                                             </li>
                                         }
                                     </ul>
@@ -263,6 +352,69 @@
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _busy = false; }
+        await LoadMobileStatusAsync();
+    }
+
+    // ── Collector Mobile status (server-derived readiness; one-time, idempotent enable) ─────────────────────────────
+    private WcfMobileStatusDto? _mobile;
+    private string? _mobileError;
+    private bool _confirming;
+    private bool _enabling;
+
+    private string MobileStateLabel => _mobile switch
+    {
+        null => "Status unavailable",
+        { Active: true } => "Active",
+        { ReadyToEnable: true } => "Ready to enable",
+        _ => "Needs attention"
+    };
+
+    private string MobileClass => _mobile switch
+    {
+        { Active: true } => "is-active",
+        { ReadyToEnable: true } => "is-ready",
+        null => "",
+        _ => "is-blocked"
+    };
+
+    private async Task LoadMobileStatusAsync()
+    {
+        try
+        {
+            var status = await WcfApi.GetMobileStatusAsync();
+            _mobile = status is { IsSuccess: true, Value: { } value } ? value : null;
+        }
+        catch
+        {
+            _mobile = null;
+        }
+    }
+
+    private async Task EnableAsync()
+    {
+        _enabling = true;
+        _mobileError = null;
+        try
+        {
+            var result = await WcfApi.EnableMobileAsync();
+            if (result is { IsSuccess: true, Value: { } value })
+            {
+                _mobile = value;
+                _confirming = false;
+            }
+            else
+            {
+                // The server re-checked readiness at commit time; show what it found and refresh the status.
+                _mobileError = result?.Error ?? "WCF Mobile collection could not be enabled.";
+                _confirming = false;
+                await LoadMobileStatusAsync();
+            }
+        }
+        catch
+        {
+            _mobileError = "WCF Mobile collection could not be enabled.";
+        }
+        finally { _enabling = false; }
     }
 
     // Mobile readiness from server truth only: settlement authority on the returned obligations, and the office's
@@ -275,15 +427,15 @@
         {
             var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
             var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
-            if (owing == 0) return "No outstanding obligation returned";
-            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet";
-            return $"{open} of {owing} outstanding obligation{(owing == 1 ? "" : "s")} open for field collection";
+            if (owing == 0) return "No outstanding obligations";
+            if (open == 0) return "Not yet active for Mobile — activate in Water Accounts";
+            return $"{open} of {owing} open for collection";
         }
     }
 
     private string StockReadiness => _tickets.Count == 0
-        ? "no Cash Tickets in office stock"
-        : $"{_tickets.Count} Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock awaiting assignment";
+        ? "No unassigned CTs in office"
+        : $"{_tickets.Count} unassigned CT{(_tickets.Count == 1 ? "" : "s")} in office";
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
     private static string CollectionState(WcfObligationQuoteDto quote) => quote switch

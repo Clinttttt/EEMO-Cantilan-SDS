@@ -49,6 +49,17 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
         [FromBody] AddEcfDraftLineRequest request, CancellationToken ct) =>
         HandleResponse(await composer.AddEcfLineAsync(request, ct));
 
+    /// <summary>Adds one approved penalty to the current OR draft; the server resolves the definition and validates the amount.</summary>
+    [HttpPost("drafts/penalty-lines")]
+    public async Task<ActionResult<EcfCollectionDraftDto>> AddPenaltyLine(
+        [FromBody] AddPenaltyDraftLineRequest request, CancellationToken ct) =>
+        HandleResponse(await composer.AddPenaltyLineAsync(request, ct));
+
+    [HttpPost("drafts/obligation-allocations")]
+    public async Task<ActionResult<EcfCollectionDraftDto>> AddObligationAllocation(
+        [FromBody] AddObligationDraftAllocationRequest request, CancellationToken ct) =>
+        HandleResponse(await composer.AddObligationAllocationAsync(request, ct));
+
     [HttpPost("drafts/rent-allocations")]
     public async Task<ActionResult<EcfCollectionDraftDto>> AddRentAllocation(
         [FromBody] AddRentDraftAllocationRequest request, CancellationToken ct) =>

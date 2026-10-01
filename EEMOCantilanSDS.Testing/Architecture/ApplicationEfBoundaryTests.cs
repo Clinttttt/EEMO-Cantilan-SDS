@@ -109,6 +109,10 @@ public class ApplicationEfBoundaryTests
         // posted Collection lines and their linked corrections, grouped by stable classification identity. It writes
         // nothing and no production report consumes it yet.
         "GetCanonicalMonthlyIncomeQueryHandler.cs",
+        "GetOfficialMonthlyIncomeQueryHandler.cs",
+        // Revenue source performance: its money is the official statement above; it reads posted Collections only to count
+        // transactions, documents and collectors per statement row, and the classification policies for their instruments.
+        "GetRevenueSourcePerformanceQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",
@@ -155,6 +159,12 @@ public class ApplicationEfBoundaryTests
         // The WCF operation adapter and accountable-form custody workflow require one tenant-scoped tracked
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",
+        // One Water obligation's activation for Mobile: reads its UtilityBill and frozen cutover row to resume each step of
+        // the existing SettlementCutoverWorkflow; it writes nothing itself.
+        "WcfActivationWorkflow.cs",
+        // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
+        // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
+        "WcfMobileCollectionWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
         // permission rows. It carries no money, source, document or policy state.
@@ -162,6 +172,19 @@ public class ApplicationEfBoundaryTests
         // Read-only Mobile capability derivation: one collector's permissions checked against the same source,
         // authorization, policy and CT-custody facts the WCF workflow enforces. It writes nothing and grants nothing.
         "GetCollectorOperationCapabilitiesQueryHandler.cs",
+        // Governed configurable services (IA-044): tenant-bound setup versions and the one focused Mobile writer, which
+        // posts only through CanonicalCollectionPostingCoordinator and revalidates authorization, policy and custody.
+        "GovernedServiceWorkflow.cs",
+        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
+        // a fine is collected only through the Composer, which revalidates the definition version at review and post.
+        "PenaltyDefinitionWorkflow.cs",
+        "ObligationWorkflow.cs",
+        "VehicleClassWorkflow.cs",
+        "RemittanceWorkflow.cs",
+        "CollectionsReportWorkflow.cs",
+        "TransportationCollectionAuthority.cs",
+        "ApprovedSlaughterAnimalWorkflow.cs",
+        "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
         // outstanding allocations, posting/document exceptions, online attempts, and affected
         // collectors inside the same serializable transaction used to freeze or activate it.

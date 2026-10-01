@@ -1,0 +1,444 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IObligationsApiClient ObligationsApi
+@inject IEcfCollectionsApiClient CollectionsApi
+
+@* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
+   rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
+   still owed. Money is never recorded here: it is collected on an Official Receipt in Current Collection, and the
+   balance is only what canonical allocations say. *@
+<div class="obw-layout">
+    <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="@_accountsTitleId">@Name accounts</h2>
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    @if (!_opening)
+                    {
+                        <button class="v3-btn v3-btn-sm" type="button" @onclick="OpenForm">Open account</button>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="obw-retry" role="alert">
+                <p class="v3-notice v3-notice-error">@_error</p>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+
+        <div class="v3-table-wrap" role="region" aria-label="@($"{Name} accounts")" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Payor</th>
+                        <th scope="col">@SubjectNoun</th>
+                        <th scope="col" class="v3-num">@AmountHeading</th>
+                        <th scope="col" class="v3-num">Assessed</th>
+                        <th scope="col" class="v3-num">Collected</th>
+                        <th scope="col" class="v3-num">Remaining</th>
+                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var account in _accounts)
+                    {
+                        <tr>
+                            <td class="v3-strong">@(account.PayerName ?? "—")</td>
+                            <td>@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
+                            {<span class="v3-block">@LotLabel(account)</span>}
+                            else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
+                            <td class="v3-num">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
+                            <td class="v3-num">@Money(account.AssessedToDate)</td>
+                            <td class="v3-num">@Money(account.CollectedToDate)</td>
+                            <td class="v3-num v3-strong">@Money(account.OutstandingToDate)</td>
+                            <td class="obw-actions">
+                                <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
+                                        @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
+                                <AuthorizeView Roles="SuperAdmin">
+                                    <Authorized>
+                                        @if (account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(account)">Change amount</button>
+                                        }
+                                        @if (account.ActiveTo is null)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">End</button>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                        @if (_selected == account.Id)
+                        {
+                            <tr class="obw-register-row">
+                                <td colspan="7">
+                                    <table class="v3-table obw-register" aria-label="@($"{account.SubjectLabel} periods")">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Period</th>
+                                                <th scope="col" class="v3-num">Assessed</th>
+                                                <th scope="col" class="v3-num">Collected</th>
+                                                <th scope="col" class="v3-num">Remaining</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var period in _register)
+                                            {
+                                                <tr>
+                                                    <td>@PeriodLabel(account, period)</td>
+                                                    <td class="v3-num">@Money(period.AssessedAmount)</td>
+                                                    <td class="v3-num">@Money(period.SettledAmount)</td>
+                                                    <td class="v3-num v3-strong">@Money(period.OutstandingAmount)</td>
+                                                </tr>
+                                            }
+                                            @if (_register.Count == 0)
+                                            {
+                                                <tr><td class="v3-empty" colspan="4">@(_registerLoading ? "Loading periods…" : "No period is billable yet.")</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    @if (_accounts.Count == 0)
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="7">
+                                @if (_loading) { <span role="status">Loading accounts…</span> }
+                                else if (_error is not null) { <span>Accounts are unavailable.</span> }
+                                else { <span>No @Name account has been opened yet.</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (_accounts.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="3"><strong>Total</strong></td>
+                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.AssessedToDate))</td>
+                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.CollectedToDate))</td>
+                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.OutstandingToDate))</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        <p class="v3-panel-note">
+            Collected on an Official Receipt in <a href="/collections/current">Current Collection</a>; any amount up to the
+            remaining balance may be paid, and the obligation is unchanged by how it is paid.
+        </p>
+    </section>
+
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            @if (_opening)
+            {
+                <aside class="v3-panel" aria-labelledby="@_formTitleId">
+                    <header class="v3-panel-header"><h2 id="@_formTitleId">Open @Name account</h2></header>
+                    <form class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
+                        @if (Kind == ObligationKind.FishMeatVendorFee)
+                        {
+                            <label class="v3-field">
+                                <span>NPM Fish / Meat stall</span>
+                                <select @bind="_stallId" required>
+                                    <option value="">Choose a stall</option>
+                                    @foreach (var stall in _stalls.Where(x => !x.HasAccount))
+                                    {
+                                        <option value="@stall.StallId" disabled="@(stall.PayorId is null)">
+                                            @stall.StallNo · @stall.Section · @(stall.PayerName ?? "occupant not linked to a Payor")
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+                            <p class="obw-note">The Payor is the one linked to the stall's occupant in NPM. A stall without a linked Payor cannot be opened.</p>
+                        }
+                        else
+                        {
+                            <label class="v3-field">
+                                <span>Find Business Payor</span>
+                                <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Name" />
+                            </label>
+                            <label class="v3-field">
+                                <span>Payor</span>
+                                <select @bind="_payorId" required>
+                                    <option value="">Choose a Payor</option>
+                                    @foreach (var payor in _payors)
+                                    {
+                                        <option value="@payor.PayorId">@payor.DisplayName</option>
+                                    }
+                                </select>
+                            </label>
+                            <label class="v3-field">
+                                <span>@SubjectNoun</span>
+                                <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
+                            </label>
+                        }
+
+                        @if (Kind == ObligationKind.FiestaArawLotRental)
+                        {
+                            <label class="v3-field">
+                                <span>Event</span>
+                                <select @bind="_lotEvent">
+                                    <option value="@LotRentalEvent.Fiesta">Fiesta</option>
+                                    <option value="@LotRentalEvent.Araw">Araw</option>
+                                </select>
+                            </label>
+                            <label class="v3-field">
+                                <span>Event date</span>
+                                <input class="v3-input" type="date" required @bind="_eventDate" />
+                            </label>
+                        }
+                        else
+                        {
+                            <label class="v3-field">
+                                <span>Starts (month)</span>
+                                <input class="v3-input" type="month" required aria-label="Starts (month)" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                            </label>
+                        }
+                        <label class="v3-field">
+                            <span>@(Kind == ObligationKind.FiestaArawLotRental ? "Approved lot amount (₱)" : "Approved monthly amount (₱)")</span>
+                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(_formError))
+                        {
+                            <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                        }
+                        <div class="obw-form-actions">
+                            <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
+                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Open account</button>
+                        </div>
+                    </form>
+                </aside>
+            }
+            else if (_rateFor is not null)
+            {
+                <aside class="v3-panel" aria-labelledby="@_formTitleId">
+                    <header class="v3-panel-header"><h2 id="@_formTitleId">Change approved amount</h2></header>
+                    <form class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
+                        <p class="obw-note">@_rateFor.SubjectLabel. The new amount applies from the month you choose; periods already assessed keep their amount.</p>
+                        <label class="v3-field">
+                            <span>Effective from (month)</span>
+                            <input class="v3-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
+                        </label>
+                        <label class="v3-field">
+                            <span>Approved monthly amount (₱)</span>
+                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(_formError))
+                        {
+                            <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                        }
+                        <div class="obw-form-actions">
+                            <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
+                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save amount</button>
+                        </div>
+                    </form>
+                </aside>
+            }
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_saved))
+{
+    <p class="v3-notice" role="status">@_saved</p>
+}
+
+@code {
+    private readonly string _accountsTitleId = $"obw-a-{Guid.NewGuid():N}";
+    private readonly string _formTitleId = $"obw-f-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public ObligationKind Kind { get; set; }
+
+    /// <summary>The line's name as the Monthly Income sheet shows it.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    /// <summary>What an account is for: Stall, Space or Lot.</summary>
+    [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
+
+    private string AmountHeading => Kind == ObligationKind.FiestaArawLotRental ? "Approved amount" : "Approved monthly";
+
+    private List<ObligationAccountDto> _accounts = [];
+    private List<ObligationQuoteDto> _register = [];
+    private List<VendorFeeStallDto> _stalls = [];
+    private List<CollectionPayorDto> _payors = [];
+    private bool _loading = true;
+    private bool _registerLoading;
+    private string? _error;
+    private Guid? _selected;
+
+    private bool _opening;
+    private ObligationAccountDto? _rateFor;
+    private bool _saving;
+    private string? _formError;
+    private string? _saved;
+    private string _payorSearch = string.Empty;
+    private string _payorId = string.Empty;
+    private string _stallId = string.Empty;
+    private string _subject = string.Empty;
+    private LotRentalEvent _lotEvent = LotRentalEvent.Fiesta;
+    private DateOnly _eventDate = PhilippineTime.Today;
+    private string _startMonth = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    private string _rateMonth = PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    private decimal? _amount;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await ObligationsApi.GetAccountsAsync(Kind);
+            if (result.IsSuccess) _accounts = result.Value?.ToList() ?? [];
+            else { _accounts = []; _error = $"{Name} accounts couldn't be loaded."; }
+        }
+        catch { _accounts = []; _error = $"{Name} accounts couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task ToggleRegisterAsync(Guid accountId)
+    {
+        if (_selected == accountId) { _selected = null; return; }
+        _selected = accountId;
+        _register = [];
+        _registerLoading = true;
+        try
+        {
+            var result = await ObligationsApi.GetRegisterAsync(accountId);
+            _register = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
+        }
+        catch { _register = []; }
+        finally { _registerLoading = false; }
+    }
+
+    private async Task OpenForm()
+    {
+        _formError = null; _saved = null; _rateFor = null;
+        _payorSearch = _payorId = _stallId = _subject = string.Empty;
+        _payors = [];
+        _amount = null;
+        _opening = true;
+        if (Kind == ObligationKind.FishMeatVendorFee)
+        {
+            try
+            {
+                var stalls = await ObligationsApi.GetVendorStallsAsync();
+                _stalls = stalls.IsSuccess ? stalls.Value?.ToList() ?? [] : [];
+                if (!stalls.IsSuccess) _formError = "The NPM Fish and Meat stalls couldn't be loaded.";
+            }
+            catch { _stalls = []; _formError = "The NPM Fish and Meat stalls couldn't be loaded."; }
+        }
+    }
+
+    private void OpenRate(ObligationAccountDto account)
+    {
+        _formError = null; _saved = null; _opening = false;
+        _rateFor = account;
+        _amount = account.CurrentAmount;
+    }
+
+    private void CloseForm() { _opening = false; _rateFor = null; _formError = null; }
+
+    private async Task SearchPayorsAsync()
+    {
+        if (_payorSearch.Trim().Length < 2) { _payors = []; return; }
+        try
+        {
+            var result = await CollectionsApi.SearchCollectionPayorsAsync(_payorSearch.Trim());
+            _payors = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
+        }
+        catch { _payors = []; }
+    }
+
+    private static bool TryMonthStart(string value, out DateOnly month)
+    {
+        month = default;
+        return DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out month);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_saving) return;
+        _formError = null;
+        var isLot = Kind == ObligationKind.FiestaArawLotRental;
+        if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
+        DateOnly start;
+        if (isLot) start = _eventDate;
+        else if (!TryMonthStart(_startMonth, out start)) { _formError = "Choose the month the account starts."; return; }
+        Guid? stallId = null;
+        var payorId = Guid.Empty;
+        if (Kind == ObligationKind.FishMeatVendorFee)
+        {
+            if (!Guid.TryParse(_stallId, out var parsedStall)) { _formError = "Choose an NPM Fish or Meat stall."; return; }
+            stallId = parsedStall;
+        }
+        else if (!Guid.TryParse(_payorId, out payorId)) { _formError = "Choose a Business Payor."; return; }
+
+        _saving = true;
+        try
+        {
+            var subject = Kind == ObligationKind.FishMeatVendorFee
+                ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
+                : _subject;
+            var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
+                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value));
+            if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
+            _opening = false;
+            _saved = $"{Name} account opened.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveRateAsync()
+    {
+        if (_saving || _rateFor is null) return;
+        _formError = null;
+        if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
+        if (!TryMonthStart(_rateMonth, out var effective)) { _formError = "Choose the month the amount takes effect."; return; }
+        _saving = true;
+        try
+        {
+            var result = await ObligationsApi.SetRateAsync(_rateFor.Id, new SetObligationRateRequest(effective, _amount!.Value));
+            if (!result.IsSuccess) { _formError = result.Error ?? "The amount could not be saved."; return; }
+            _rateFor = null;
+            _saved = "Approved amount saved. It applies from its effective month.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CloseAsync(Guid accountId)
+    {
+        _saved = null;
+        var result = await ObligationsApi.CloseAccountAsync(accountId, new CloseObligationAccountRequest(PhilippineTime.Today));
+        if (!result.IsSuccess) { _error = result.Error ?? "The account could not be ended."; return; }
+        _saved = "Account ended. Its assessed periods and collections are unchanged.";
+        await LoadAsync();
+    }
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+
+    private static string LotLabel(ObligationAccountDto account) =>
+        $"{account.Event} · {account.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    private static string PeriodLabel(ObligationAccountDto account, ObligationQuoteDto period) =>
+        account.Kind == ObligationKind.FiestaArawLotRental
+            ? period.PeriodStart.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+            : period.PeriodStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+}

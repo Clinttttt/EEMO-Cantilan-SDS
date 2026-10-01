@@ -103,7 +103,7 @@
 }
 .set-card-icon svg { width: 19px; height: 19px; }
 .set-card-titles { flex: 1; min-width: 0; }
-.set-card-title { font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.set-card-title { font-size: 14.5px; font-weight: 700; color: var(--navy); }
 .set-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
 /* ── Facility rules table ── */
@@ -181,7 +181,7 @@
     /* Same gap the card grid leaves, so the state never sits flush against the Session card below it. */
     margin-bottom: 18px;
 }
-.set-state-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.set-state-title { font-size: 15px; font-weight: 700; color: var(--navy); }
 .set-state-text { font-size: 13px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }
 .set-spinner {
     width: 34px; height: 34px;
@@ -461,4 +461,10 @@
 
 .vs-hero-progress-fill {
     background: var(--accent);
+}
+
+/* V3 consistency: one quiet civic-blue icon tile for every settings card (status colour stays on the status itself). */
+.set-card-icon {
+    background: var(--accent-soft);
+    color: var(--civic-panel);
 }

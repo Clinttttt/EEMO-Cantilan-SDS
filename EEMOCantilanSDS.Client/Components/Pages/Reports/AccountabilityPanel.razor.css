@@ -1,0 +1,55 @@
+/* Accountability report — V3. Tables, facts and buttons come from the v3- layer in app.css. */
+
+.ap {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.ap-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+.ap-head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.ap-tools {
+    display: flex;
+    gap: 8px;
+}
+
+.ap-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.ap-trace {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ap-print-head {
+    display: none;
+}
+
+@media print {
+    .ap-print-head {
+        display: block;
+    }
+
+    .ap-tools,
+    .ap-trace {
+        display: none;
+    }
+}

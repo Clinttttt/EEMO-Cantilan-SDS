@@ -6,6 +6,7 @@ public class RecordUtilityReadingCommandValidator : AbstractValidator<RecordUtil
 {
     private const decimal MaxReading = 100_000_000m;
     private const decimal MaxRate = 10_000m;
+    private const decimal MaxApprovedAmount = 1_000_000m;
 
     public RecordUtilityReadingCommandValidator()
     {
@@ -27,6 +28,8 @@ public class RecordUtilityReadingCommandValidator : AbstractValidator<RecordUtil
             .WithMessage("Water current reading cannot be less than the previous reading.");
         RuleFor(x => x.WaterRatePerCubicMeter).GreaterThanOrEqualTo(0).LessThanOrEqualTo(MaxRate);
 
+        RuleFor(x => x.ElecApprovedAmount).GreaterThanOrEqualTo(0).LessThanOrEqualTo(MaxApprovedAmount).When(x => x.ElecApprovedAmount.HasValue);
+        RuleFor(x => x.WaterApprovedAmount).GreaterThanOrEqualTo(0).LessThanOrEqualTo(MaxApprovedAmount).When(x => x.WaterApprovedAmount.HasValue);
         RuleFor(x => x.Remarks).MaximumLength(500);
     }
 }

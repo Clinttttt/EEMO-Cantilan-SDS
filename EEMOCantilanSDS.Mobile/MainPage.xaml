@@ -3,9 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:EEMOCantilanSDS.Mobile"
              xmlns:components="clr-namespace:EEMOCantilanSDS.Mobile.Components"
-             x:Class="EEMOCantilanSDS.Mobile.MainPage">
+             x:Class="EEMOCantilanSDS.Mobile.MainPage"
+             BackgroundColor="#eef3f9">
 
-    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
+    <!-- The page and web view share the Mobile V3 canvas (#eef3f9, the mobile-canvas token) with the native splash, so the
+         hand-over from splash to the first web paint shows no white or dark flash, in light or dark system mode. -->
+    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" BackgroundColor="#eef3f9">
         <BlazorWebView.RootComponents>
             <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
         </BlazorWebView.RootComponents>

@@ -1,0 +1,254 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficialReportsApiClient Api
+@inject IJSRuntime JS
+
+@* The official Monthly Income statement (IA-051) laid out like the office's own sheet: Annual Target, the months, Total/YTD
+   and Percentage, with the office rows lettered under their groups — never the facilities. Each figure is authoritative
+   legacy cash before a source's cutover plus authoritative canonical cash after it, counted once, on the server. A
+   remittance never changes it. No target is invented: without one, the target and percentage cells show a dash and a
+   single legend says why. The legacy / canonical split is a reconciliation detail, not a second official figure. *@
+<section class="mi" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
+    <div class="mi-print-head" aria-hidden="true">
+        <ReportLetterhead Title="@($"Monthly Income {Year}")" Period="@PeriodLabel" />
+    </div>
+
+    <header class="mi-doc">
+        <div class="mi-doc-id">
+            <p class="mi-doc-office">@Branding.OfficeName · Municipality of @Branding.Municipality</p>
+            <h2 id="@_titleId" class="mi-doc-title">Monthly Income @Year</h2>
+            <p class="mi-doc-period">@PeriodLabel@(Annual ? "" : " · with year to date")</p>
+        </div>
+        <div class="mi-doc-tools no-print">
+            @if (_data is not null)
+            {
+                <span class="mi-doc-generated">Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</span>
+            }
+            @* The final statement is its own document; Print here prints this working view. *@
+            <a class="v3-btn v3-btn-sm v3-btn-primary" href="@OfficialUrl">Official Monthly Income</a>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print this view
+            </button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    else if (_data is null)
+    {
+        <p class="mi-state" role="status">Loading the Monthly Income…</p>
+    }
+    else
+    {
+        @if (!_data.TargetsConfigured)
+        {
+            <p class="mi-legend">Annual targets are not configured, so the target and percentage columns show “—”. Percentage is year-to-date actual ÷ annual target, not collection efficiency.</p>
+        }
+
+        <div class="mi-scroll @(Annual ? "mi-annual" : "mi-monthly")" role="region" aria-label="Monthly Income statement" tabindex="0">
+            @{ _letter = 0; }
+            <table class="mi-table">
+                <caption class="v3-sr-only">Official Monthly Income by revenue line</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="mi-line">Monthly Income @Year</th>
+                        <th scope="col" class="mi-num mi-target">Annual target</th>
+                        @if (Annual)
+                        {
+                            @foreach (var name in MonthNames)
+                            {
+                                <th scope="col" class="mi-num">@name</th>
+                            }
+                        }
+                        else
+                        {
+                            <th scope="col" class="mi-num">@MonthNames[_data.Month!.Value - 1]</th>
+                            @if (_split)
+                            {
+                                <th scope="col" class="mi-num mi-recon-col">Legacy</th>
+                                <th scope="col" class="mi-num mi-recon-col">Canonical</th>
+                            }
+                        }
+                        <th scope="col" class="mi-num mi-ytd">@(Annual ? "Total" : "YTD")</th>
+                        <th scope="col" class="mi-num">%</th>
+                    </tr>
+                </thead>
+                @foreach (var group in _data.Groups)
+                {
+                    var official = group.Key != OfficialMonthlyIncomeStructure.Pending;
+                    <tbody class="@(official ? "" : "mi-pending")">
+                        <tr class="mi-group"><th scope="rowgroup" colspan="@ColumnCount">@group.Label.ToUpperInvariant()</th></tr>
+                        @foreach (var row in group.Rows)
+                        {
+                            var letter = official ? NextLetter() : null;
+                            <tr>
+                                <th scope="row" class="mi-line">
+                                    @if (letter is not null) { <span class="mi-letter" aria-hidden="true">@letter.</span> }
+                                    @row.Label
+                                    @if (_split && row.Authority is "Mixed" or "Canonical") { <span class="mi-tag">@row.Authority</span> }
+                                </th>
+                                <td class="mi-num mi-target">@(row.AnnualTarget is { } t ? Amount(t) : "—")</td>
+                                @if (Annual)
+                                {
+                                    @foreach (var cell in row.Months)
+                                    {
+                                        <td class="mi-num">@Cell(cell.Total)</td>
+                                    }
+                                }
+                                else
+                                {
+                                    <td class="mi-num">@Cell(row.Months[_data.Month!.Value - 1].Total)</td>
+                                    @if (_split)
+                                    {
+                                        <td class="mi-num mi-recon-col">@Cell(row.Months[_data.Month!.Value - 1].Legacy)</td>
+                                        <td class="mi-num mi-recon-col">@Cell(row.Months[_data.Month!.Value - 1].Canonical)</td>
+                                    }
+                                }
+                                <td class="mi-num mi-ytd">@Cell(Through(row.Months))</td>
+                                <td class="mi-num mi-pct">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                            </tr>
+                        }
+                        <tr class="mi-subtotal">
+                            <th scope="row" class="mi-line">Subtotal — @group.Label</th>
+                            <td class="mi-num mi-target"></td>
+                            @if (Annual)
+                            {
+                                @foreach (var cell in group.MonthTotals)
+                                {
+                                    <td class="mi-num">@Cell(cell.Total)</td>
+                                }
+                            }
+                            else
+                            {
+                                <td class="mi-num">@Cell(group.MonthTotals[_data.Month!.Value - 1].Total)</td>
+                                @if (_split)
+                                {
+                                    <td class="mi-num mi-recon-col">@Cell(group.MonthTotals[_data.Month!.Value - 1].Legacy)</td>
+                                    <td class="mi-num mi-recon-col">@Cell(group.MonthTotals[_data.Month!.Value - 1].Canonical)</td>
+                                }
+                            }
+                            <td class="mi-num mi-ytd">@Cell(Through(group.MonthTotals))</td>
+                            <td class="mi-num"></td>
+                        </tr>
+                    </tbody>
+                }
+                <tfoot>
+                    <tr class="mi-total">
+                        <th scope="row" class="mi-line">TOTAL INCOME</th>
+                        <td class="mi-num mi-target"></td>
+                        @if (Annual)
+                        {
+                            @foreach (var cell in _data.MonthTotals)
+                            {
+                                <td class="mi-num">@Cell(cell.Total)</td>
+                            }
+                        }
+                        else
+                        {
+                            <td class="mi-num">@Cell(_data.MonthTotals[_data.Month!.Value - 1].Total)</td>
+                            @if (_split)
+                            {
+                                <td class="mi-num mi-recon-col">@Cell(_data.MonthTotals[_data.Month!.Value - 1].Legacy)</td>
+                                <td class="mi-num mi-recon-col">@Cell(_data.MonthTotals[_data.Month!.Value - 1].Canonical)</td>
+                            }
+                        }
+                        <td class="mi-num mi-ytd">@Cell(Through(_data.MonthTotals))</td>
+                        <td class="mi-num"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <ul class="mi-notes">
+            @if (HasPendingAmounts)
+            {
+                <li>Total income includes the lines awaiting an approved official grouping, listed separately above.</li>
+            }
+            @foreach (var note in _data.Notes.Where(n => _data.TargetsConfigured || !n.StartsWith("No annual target", StringComparison.Ordinal)))
+            {
+                <li>@note</li>
+            }
+            <li>Prepared from posted collections and authoritative source records; this statement does not replace the office's signed report.</li>
+        </ul>
+
+        @* Reconciliation is for audit: it shows how each figure splits between legacy cash before a source's cutover and
+           canonical cash after it. The normal statement shows one authoritative amount. *@
+        @if (!Annual)
+        {
+            <details class="mi-recon no-print">
+                <summary>Reconciliation details</summary>
+                <label class="mi-check"><input type="checkbox" checked="@_split" @onchange="e => _split = e.Value is true" /> Show legacy / canonical split</label>
+                <p>Each figure is legacy cash recorded before a source's cutover plus canonical cash after it, counted once. The split is for reconciliation only; the statement's official figure is their sum.</p>
+            </details>
+        }
+    }
+</section>
+
+@code {
+    private readonly string _titleId = $"mi-{Guid.NewGuid():N}";
+    private static readonly string[] MonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>The selected month for the focused view, or null for the full Jan-Dec annual statement.</summary>
+    [Parameter] public int? Month { get; set; }
+
+    private OfficialMonthlyIncomeDto? _data;
+    private string? _error;
+    private bool _loading;
+    private bool _split;
+    private int _loadedYear;
+    private int? _loadedMonth;
+    private int _letter;
+
+    private bool Annual => _data is { Month: null };
+    private string OfficialUrl => $"/reports/monthly-income/official?year={Year.ToString(CultureInfo.InvariantCulture)}";
+    private int ColumnCount => Annual ? 16 : (_split ? 7 : 5);
+    private string PeriodLabel => Month is { } m
+        ? $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}" : $"January to December {Year}";
+
+    private bool HasPendingAmounts => _data?.Groups.Any(g => g.Key == OfficialMonthlyIncomeStructure.Pending
+        && g.MonthTotals.Any(c => c.Total != 0m)) == true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedYear == Year && _loadedMonth == Month && _data is not null) return;
+        _loadedYear = Year;
+        _loadedMonth = Month;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetMonthlyIncomeAsync(Year, Month);
+            if (result.IsSuccess) _data = result.Value;
+            else { _data = null; _error = "The Monthly Income could not be loaded."; }
+        }
+        catch { _data = null; _error = "The Monthly Income could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    // Row letters run on across the official groups, as on the office sheet (a. Market Fees ... r. Fines).
+
+    private string NextLetter()
+    {
+        var index = _letter++;
+        return index < 26 ? ((char)('a' + index)).ToString() : (index + 1).ToString(CultureInfo.InvariantCulture);
+    }
+
+    // Year to date through the selected month, or the whole year in the annual statement.
+    private decimal Through(IReadOnlyList<MonthlyIncomeCellDto> months) =>
+        months.Take(Annual || _data?.Month is null ? 12 : _data.Month.Value).Sum(x => x.Total);
+
+    private static string Cell(decimal amount) => amount == 0m ? "—" : amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    private static string Amount(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+}

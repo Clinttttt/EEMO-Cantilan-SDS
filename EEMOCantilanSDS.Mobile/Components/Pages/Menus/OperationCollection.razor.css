@@ -1,0 +1,477 @@
+.op-back {
+    margin-top: 12px;
+}
+
+.op-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.op-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    cursor: pointer;
+}
+
+.op-mode input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.op-mode.selected {
+    border-color: var(--accent, #1f5fbf);
+    box-shadow: inset 0 0 0 1px var(--accent, #1f5fbf);
+}
+
+.op-mode.disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.op-mode:focus-within {
+    outline: 2px solid var(--accent, #1f5fbf);
+    outline-offset: 2px;
+}
+
+.op-mode-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.op-mode-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.op-terms {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.op-terms > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+}
+
+.op-terms span {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.op-terms strong {
+    font-size: 13px;
+    color: var(--navy);
+}
+
+.op-record {
+    cursor: default;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Mobile V3 collection workspace: system facts, collector entry,
+   accountable form, one action, this month.
+   ═══════════════════════════════════════════════════════════════ */
+.op-section-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text-secondary);
+}
+
+/* 1. Approved terms: system-provided and read-only. */
+.op-facts {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--mobile-blue-deep);
+    color: #ffffff;
+}
+
+.op-facts-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.op-facts-key {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.op-facts-amount {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.op-facts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+    margin: 12px 0 0;
+}
+
+.op-facts-grid dt {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.op-facts-grid dd {
+    margin: 2px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.op-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 20px;
+    margin-right: 4px;
+    padding: 0 5px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* 2. Collector entry. */
+.op-entry {
+    margin-bottom: 14px;
+    padding: 14px 16px 4px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 14px;
+    background: var(--mobile-surface);
+}
+
+.op-entry .form-field {
+    display: block;
+    margin-bottom: 12px;
+}
+
+.op-entry .form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text);
+}
+
+.form-optional {
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
+}
+
+/* 3. Accountable form card. */
+.op-form {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--mobile-blue) 28%, var(--mobile-border));
+    border-radius: 14px;
+    background: var(--mobile-blue-subtle);
+}
+
+.op-form-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.op-form-badge {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--mobile-blue-deep);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.op-form-badge.warn {
+    background: var(--mobile-warning-subtle);
+    color: var(--mobile-warning);
+    font-size: 18px;
+}
+
+.op-form-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+}
+
+.op-form-ready {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--mobile-success);
+}
+
+.op-form-serial {
+    margin: 12px 0 4px;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.op-form-note {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--mobile-text-secondary);
+}
+
+.op-form-custody {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--mobile-blue) 18%, var(--mobile-border));
+}
+
+.op-form-custody div {
+    display: contents;
+}
+
+.op-form-custody dt {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.op-form-custody dd {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.op-form-change {
+    min-height: 44px;
+    margin-top: 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-blue);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.op-form-list {
+    max-height: 220px;
+    margin: 4px 0 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+}
+
+.op-form-list li + li {
+    border-top: 1px solid var(--mobile-border);
+}
+
+.op-form-option {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-text);
+    font: inherit;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.op-form-option.selected {
+    font-weight: 700;
+    color: var(--mobile-navy);
+}
+
+.op-form-option-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mobile-blue);
+}
+
+.op-form-empty {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border-color: color-mix(in srgb, var(--mobile-warning) 30%, var(--mobile-border));
+    background: var(--mobile-warning-subtle);
+}
+
+.op-form-empty .op-form-title {
+    margin-bottom: 4px;
+}
+
+/* 4. One confident action. */
+.op-action {
+    margin-bottom: 18px;
+}
+
+.op-cta {
+    width: 100%;
+    min-height: 54px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--mobile-blue);
+    color: #ffffff;
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.op-cta:active:not(:disabled) {
+    background: var(--mobile-blue-deep);
+}
+
+.op-cta:disabled {
+    background: var(--mobile-border);
+    color: var(--mobile-text-secondary);
+    cursor: not-allowed;
+}
+
+.op-cta:focus-visible,
+.op-form-change:focus-visible,
+.op-form-option:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: 2px;
+}
+
+.op-action-why {
+    margin: 8px 2px 0;
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.op-message {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--mobile-blue);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--mobile-text);
+}
+
+/* 5. This month: a compact register. */
+.op-month-title {
+    margin-top: 6px;
+}
+
+.op-records {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+}
+
+.op-record-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+}
+
+.op-record-row + .op-record-row {
+    border-top: 1px solid var(--mobile-border);
+}
+
+.op-record-main,
+.op-record-side {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.op-record-side {
+    align-items: flex-end;
+}
+
+.op-record-doc {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.op-record-sub {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.op-record-amount {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.op-record-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--mobile-warning);
+}
+
+.op-record-status.ok {
+    color: var(--mobile-success);
+}
+
+/* Mode choice in the same language. */
+.op-mode {
+    min-height: 56px;
+    border-radius: 12px;
+    border-color: var(--mobile-border);
+    background: var(--mobile-surface);
+}
+
+.op-mode.selected {
+    border-color: var(--mobile-blue);
+    box-shadow: inset 0 0 0 1px var(--mobile-blue);
+    background: var(--mobile-blue-subtle);
+}

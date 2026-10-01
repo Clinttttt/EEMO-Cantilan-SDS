@@ -102,7 +102,8 @@ else
     [Parameter] public EventCallback OnBack { get; set; }
 
     // ── Computed ──────────────────────────────────────────────────────────────
-    string Today => DateTime.Now.ToString("MMM d, yyyy");
+    // The server's business date is authoritative; the device clock is only the fallback before the menu has loaded.
+    string Today => (Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now)).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
 
     string Greeting => DateTime.Now.Hour switch
     {

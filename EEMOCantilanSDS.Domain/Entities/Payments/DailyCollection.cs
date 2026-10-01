@@ -39,8 +39,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public Guid? ClientOperationId { get; private set; }
 
         public decimal? FishKilos { get; private set; }
+        // Legacy read-time figure: kilos x a rate that is NOT the rate in force on the collection date. It is kept only so
+        // existing reports read exactly as before; the authoritative Weight & Measure amount is FishFeeAmountFrozen.
         public decimal? FishFeeAmount => FishKilos.HasValue 
             ? FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0;
+        /// <summary>
+        /// Frozen Fish weighing evidence (IA-049): the rate and its effective date resolved at collection time, and the
+        /// amount they produced. All three are null on rows collected before this evidence existed - those stay
+        /// unresolved and are never re-priced from today's rate - or where the office had stated no Fish rate.
+        /// </summary>
+        public decimal? FishFeeRatePerKilo { get; private set; }
+        public DateOnly? FishFeeRateEffectiveDate { get; private set; }
+        public decimal? FishFeeAmountFrozen { get; private set; }
         /// <summary>Optional NPM Meat weighing quantity recorded with this paid daily collection.</summary>
         public decimal? MeatKilos { get; private set; }
         /// <summary>The rate evidence resolved for this source event; null on rows without Meat weighing.</summary>
@@ -80,7 +90,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string updatedBy = "System",
             decimal? meatKilos = null,
             decimal? meatFeeRatePerKilo = null,
-            DateOnly? meatFeeRateEffectiveDate = null)
+            DateOnly? meatFeeRateEffectiveDate = null,
+            decimal? fishFeeRatePerKilo = null,
+            DateOnly? fishFeeRateEffectiveDate = null)
         {
             if (meatKilos is < 0m)
                 throw new ArgumentOutOfRangeException(nameof(meatKilos));
@@ -90,11 +102,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 throw new ArgumentException("Meat rate evidence cannot be effective after the collection date.", nameof(meatFeeRateEffectiveDate));
             if (!meatKilos.HasValue && (meatFeeRatePerKilo.HasValue || meatFeeRateEffectiveDate.HasValue))
                 throw new ArgumentException("Meat rate evidence requires a Meat kilos source fact.", nameof(meatFeeRatePerKilo));
+            // Fish weighing evidence: all-or-nothing, tied to recorded kilos, and never effective after the collection date.
+            if (fishFeeRatePerKilo.HasValue != fishFeeRateEffectiveDate.HasValue)
+                throw new ArgumentException("Fish rate evidence needs both the rate and its effective date.", nameof(fishFeeRatePerKilo));
+            if (fishFeeRatePerKilo.HasValue && (fishFeeRatePerKilo <= 0m || fishKilos is not > 0m))
+                throw new ArgumentException("Fish rate evidence requires positive Fish kilos and a positive rate.", nameof(fishFeeRatePerKilo));
+            if (fishFeeRateEffectiveDate > CollectionDate)
+                throw new ArgumentException("Fish rate evidence cannot be effective after the collection date.", nameof(fishFeeRateEffectiveDate));
             IsPaid = true;
             IsAbsent = false;
             ORNumber = orNumber;
             CollectorId = collectorId;
             FishKilos = fishKilos;
+            FishFeeRatePerKilo = fishFeeRatePerKilo;
+            FishFeeRateEffectiveDate = fishFeeRateEffectiveDate;
+            FishFeeAmountFrozen = fishFeeRatePerKilo.HasValue ? fishKilos!.Value * fishFeeRatePerKilo.Value : null;
             MeatKilos = meatKilos;
             MeatFeeRatePerKilo = meatFeeRatePerKilo;
             MeatFeeRateEffectiveDate = meatFeeRateEffectiveDate;
@@ -109,6 +131,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            FishFeeRatePerKilo = null;
+            FishFeeRateEffectiveDate = null;
+            FishFeeAmountFrozen = null;
             MeatKilos = null;
             MeatFeeRatePerKilo = null;
             MeatFeeRateEffectiveDate = null;
@@ -129,6 +154,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            FishFeeRatePerKilo = null;
+            FishFeeRateEffectiveDate = null;
+            FishFeeAmountFrozen = null;
             MeatKilos = null;
             MeatFeeRatePerKilo = null;
             MeatFeeRateEffectiveDate = null;

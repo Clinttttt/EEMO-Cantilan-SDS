@@ -120,13 +120,29 @@ public sealed class UtilityWorkspaceTests : TestContext
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Cash Ticket exceptions");
-            Assert.Contains("1 of 1 outstanding obligation open for field collection", cut.Markup);
-            Assert.Contains("1 Cash Ticket in office stock awaiting assignment", cut.Markup);
+            Assert.Contains("1 of 1 open for collection", cut.Markup);
+            Assert.Contains("1 unassigned CT in office", cut.Markup);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms");
         }, Timeout);
 
         api.Verify(x => x.PostAsync(It.IsAny<WcfCollectionPostRequest>()), Times.Never);
         api.Verify(x => x.GetBooksAsync(), Times.Never);
+    }
+
+    [Fact]
+    public void Wcf_PresentsTheDirectApprovedCashTicketOperation_WithNoMeterWording()
+    {
+        Services.AddSingleton(WcfApi([], [Ticket()]).Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Cash Ticket", cut.Markup);
+            Assert.Contains("No outstanding WCF obligations", cut.Markup);
+            foreach (var meter in new[] { "meter", "cubic", "m³", "consumption ×" })
+                Assert.DoesNotContain(meter, cut.Find("table").TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
     }
 
     [Fact]
@@ -137,7 +153,7 @@ public sealed class UtilityWorkspaceTests : TestContext
         var cut = RenderComponent<WaterConsumptionFees>();
 
         cut.WaitForAssertion(() =>
-            Assert.Contains("no Cash Tickets in office stock", cut.Markup), Timeout);
+            Assert.Contains("No unassigned CTs in office", cut.Markup), Timeout);
     }
 
     [Fact]
@@ -151,7 +167,7 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Canonical settlement is not active for any listed obligation", cut.Markup);
+            Assert.Contains("Not yet active for Mobile", cut.Markup);
             Assert.DoesNotContain("available for field collection", cut.Markup);
         }, Timeout);
     }
@@ -167,6 +183,84 @@ public sealed class UtilityWorkspaceTests : TestContext
         api.Setup(x => x.GetActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(Result<IReadOnlyList<EcfCollectionActivityDto>>.Success(Array.Empty<EcfCollectionActivityDto>()));
         return api;
+    }
+
+    // ── WCF Mobile collection: one operation-level enable, readiness derived by the server ──
+
+    private static WcfMobileStatusDto Status(bool active = false, params WcfReadinessItemDto[] blockers) => new(
+        active, active ? new DateOnly(2026, 10, 1) : null, active ? DateTime.UtcNow : null, active ? "head" : null,
+        !active && blockers.Length == 0, blockers,
+        [new WcfReadinessItemDto("POLICY", "Water policy", "Cash Ticket · direct amount", true, null, null)],
+        [new WcfCollectorReadinessDto(Guid.NewGuid(), "Bobby Mercado", true, blockers.Length == 0 ? 4999 : 0, 0, blockers.Length == 0)],
+        0);
+
+    [Fact]
+    public void WcfMobile_ReadyToEnable_OffersOneAction_AndAsksTheOfficeToTypeNothing()
+    {
+        var api = WcfApi([], [Ticket()]);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status()));
+        api.Setup(x => x.EnableMobileAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(active: true)));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Ready to enable", cut.Find("section.wcf-mobile").TextContent), Timeout);
+        var panel = cut.Find("section.wcf-mobile");
+        // No attestation checklist, evidence reference, app-version input or separate readiness check.
+        Assert.Empty(panel.QuerySelectorAll("input"));
+        Assert.DoesNotContain("Check readiness", cut.Markup);
+        Assert.DoesNotContain("Evidence reference", cut.Markup);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable Mobile Collection").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Historical Water records", cut.Find("[role='dialog']").TextContent), Timeout);
+        Assert.Empty(cut.Find("[role='dialog']").QuerySelectorAll("input"));
+        cut.Find("[role='dialog'] .v3-btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+        }, Timeout);
+        api.Verify(x => x.EnableMobileAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void WcfMobile_Blocked_ShowsOnlyTheRealBlocker_WithItsAction()
+    {
+        var api = WcfApi([], []);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(false,
+            new WcfReadinessItemDto("CASH_TICKETS", "Cash Ticket custody", "Cash Tickets have not been assigned to Bobby Mercado.",
+                false, "Manage Accountable Forms", "/accountable-forms"))));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Needs attention", cut.Find("section.wcf-mobile").TextContent);
+            var blocker = Assert.Single(cut.FindAll(".wcf-blockers li"));
+            Assert.Contains("Bobby Mercado", blocker.TextContent);
+            Assert.Equal("/accountable-forms", blocker.QuerySelector("a")!.GetAttribute("href"));
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Enable Mobile Collection");
+        }, Timeout);
+    }
+
+    [Fact]
+    public void WcfMobile_Active_StatesItPlainly_WithNoEnableAction()
+    {
+        var api = WcfApi([], [Ticket()]);
+        api.Setup(x => x.GetMobileStatusAsync()).ReturnsAsync(Result<WcfMobileStatusDto>.Success(Status(active: true)));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Enable Mobile Collection");
+            foreach (var technical in new[] { "Canonical", "Settlement authority", "Pending cutover", "cutover" })
+                Assert.DoesNotContain(technical, cut.Find("section.wcf-mobile").TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
     }
 
     private static Mock<IWcfCollectionsApiClient> WcfApi(

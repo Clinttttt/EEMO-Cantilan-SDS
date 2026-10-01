@@ -1,20 +1,320 @@
 @page "/operations/fines"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
-@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IPenaltiesApiClient PenaltiesApi
 
 <PageTitle>StallTrack — Fines</PageTitle>
 
-@* Fines is one Monthly Income line with its own revenue classification (Penalties/Fines, Official Receipt). StallTrack
-   has no writer for it yet, so this page shows the policy and records nothing. Where Fines belongs on the sheet is an
-   open question for Core Brain (see the integration gaps doc). The layout owns the <main> landmark. *@
-<div class="v3-page">
+@* Fines / Penalties is one Monthly Income line with its own classification, always on an Official Receipt (IA-049). A
+   fine is collected only from an approved definition, added to an OR in Current Collection beside the rent or ECF item it
+   relates to; the register below is a read of the canonical posted lines. Nothing on this page records money. The layout
+   owns the <main> landmark. *@
+<div class="v3-page fn-page">
     <WorkspaceHeader Parent="Operations" Title="Fines">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+        <Actions>
+            <a class="v3-btn" href="/collections/current">Current Collection</a>
+        </Actions>
     </WorkspaceHeader>
 
-    <UnrecordedOperation Name="Fines"
-                         Detail="Fines will appear here once their collection is activated."
-                         SemanticCode="@RevenueClassificationCodes.PenaltiesAndFines" />
+    <section class="v3-panel" aria-labelledby="fn-defs-title" aria-busy="@(_loadingDefinitions ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fn-defs-title">Approved penalties</h2>
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    @if (!_editing)
+                    {
+                        <button class="v3-btn v3-btn-sm" type="button" @onclick="OpenEditor">Define penalty</button>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </header>
+
+        @if (_definitionsError is not null)
+        {
+            <div class="v3-notice v3-notice-error fn-notice" role="alert">
+                <span>@_definitionsError</span>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadDefinitionsAsync">Try again</button>
+            </div>
+        }
+
+        <div class="v3-table-wrap" role="region" aria-label="Approved penalties" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Approved penalty definitions in force today</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Penalty</th>
+                        <th scope="col">Applies to</th>
+                        <th scope="col">Amount rule</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Effective</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in _definitions)
+                    {
+                        <tr>
+                            <td><span class="v3-strong">@d.DisplayName</span><span class="v3-block">@d.Code</span></td>
+                            <td>@(d.AppliesTo ?? "—")</td>
+                            <td>@Rule(d)</td>
+                            <td>@(d.IsActive ? "Active" : "Retired")</td>
+                            <td>@d.EffectiveDate.ToString("MMM d, yyyy")</td>
+                        </tr>
+                    }
+                    @if (_definitions.Count == 0)
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="5">
+                                @if (_loadingDefinitions) { <span role="status">Loading penalties…</span> }
+                                else if (_definitionsError is not null) { <span>Penalties are unavailable.</span> }
+                                else { <span>No penalty has been approved yet. Fines cannot be collected until the Head defines one.</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <AuthorizeView Roles="SuperAdmin">
+            <Authorized>
+                @if (_editing)
+                {
+                    <form class="fn-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" aria-label="Define a penalty">
+                        <div class="v3-form-grid">
+                            <label class="v3-field"><span>Code</span><input required maxlength="40" placeholder="LATE_PAYMENT" @bind="_code" /></label>
+                            <label class="v3-field"><span>Name</span><input required maxlength="120" @bind="_name" /></label>
+                        </div>
+                        <div class="v3-form-grid">
+                            <label class="v3-field"><span>Applies to (optional)</span><input maxlength="80" @bind="_appliesTo" /></label>
+                            <label class="v3-field"><span>Effective from</span><input type="date" required @bind="_effective" /></label>
+                        </div>
+                        <div class="v3-form-grid">
+                            <label class="v3-field">
+                                <span>Amount rule</span>
+                                <select @bind="_basis">
+                                    <option value="@GovernedServiceBasis.FixedAmount">Fixed approved amount</option>
+                                    <option value="@GovernedServiceBasis.DirectApprovedAmount">Manually approved amount</option>
+                                </select>
+                            </label>
+                            @if (_basis == GovernedServiceBasis.FixedAmount)
+                            {
+                                <label class="v3-field"><span>Amount (₱)</span><input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" /></label>
+                            }
+                            else
+                            {
+                                <label class="v3-field"><span>Ceiling (₱, optional)</span><input type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
+                            }
+                        </div>
+                        <label class="fn-check"><input type="checkbox" @bind="_active" /> Active for new fines</label>
+                        @if (!string.IsNullOrWhiteSpace(_saveError))
+                        {
+                            <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
+                        }
+                        <p class="fn-note">Saving adds a new version from its effective date. Earlier versions and fines already collected are never changed.</p>
+                        <div class="fn-actions">
+                            <button class="v3-btn" type="button" @onclick="CloseEditor">Cancel</button>
+                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save penalty</button>
+                        </div>
+                    </form>
+                }
+            </Authorized>
+        </AuthorizeView>
+        @if (!string.IsNullOrWhiteSpace(_saved))
+        {
+            <p class="v3-notice fn-notice" role="status">@_saved</p>
+        }
+    </section>
+
+    <section class="v3-panel" aria-labelledby="fn-register-title" aria-busy="@(_loadingRegister ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fn-register-title">Fines collected</h2>
+            <label class="fn-period">
+                <span>Month</span>
+                <input class="v3-input" type="month" aria-label="Collection month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+        </header>
+
+        @if (_registerError is not null)
+        {
+            <p class="v3-notice v3-notice-error fn-notice" role="alert">@_registerError</p>
+        }
+
+        <div class="v3-table-wrap" role="region" aria-label="Fines collected" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Fines collected in @PeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Payor</th>
+                        <th scope="col">Origin</th>
+                        <th scope="col">Penalty</th>
+                        <th scope="col">OR</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _register)
+                    {
+                        <tr>
+                            <td>@row.BusinessDate.ToString("MMM d, yyyy")</td>
+                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)</td>
+                            <td>@(string.IsNullOrWhiteSpace(row.Origin) ? "—" : row.Origin)</td>
+                            <td>@row.PenaltyName</td>
+                            <td class="v3-strong">@row.DocumentNumber</td>
+                            <td>@row.Status</td>
+                            <td class="v3-num v3-strong">₱@row.Amount.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (_register.Count == 0)
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="7">
+                                @if (_loadingRegister) { <span role="status">Loading fines…</span> }
+                                else if (_registerError is not null) { <span>Fines are unavailable.</span> }
+                                else { <span>No fines were collected in @PeriodLabel.</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (_register.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="6"><strong>Total for @PeriodLabel</strong></td>
+                            <td class="v3-num v3-strong">₱@_register.Where(x => x.Status == "Posted").Sum(x => x.Amount).ToString("N2")</td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        <p class="v3-panel-note">
+            A fine is added to an Official Receipt in <a href="/collections/current">Current Collection</a>, beside the rent or ECF
+            item it relates to. This register reads the posted lines; it records nothing.
+        </p>
+    </section>
 </div>
+
+@code {
+    private List<PenaltyDefinitionDto> _definitions = [];
+    private string? _definitionsError;
+    private bool _loadingDefinitions = true;
+
+    private List<PenaltyRegisterRowDto> _register = [];
+    private string? _registerError;
+    private bool _loadingRegister = true;
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private string PeriodLabel => _month.ToString("MMMM yyyy");
+
+    private bool _editing;
+    private bool _saving;
+    private string? _saveError;
+    private string? _saved;
+    private string _code = string.Empty;
+    private string _name = string.Empty;
+    private string? _appliesTo;
+    private DateOnly _effective = PhilippineTime.Today;
+    private GovernedServiceBasis _basis = GovernedServiceBasis.FixedAmount;
+    private decimal? _fixedAmount;
+    private decimal? _ceiling;
+    private bool _active = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDefinitionsAsync();
+        await LoadRegisterAsync();
+    }
+
+    private async Task LoadDefinitionsAsync()
+    {
+        _loadingDefinitions = true;
+        _definitionsError = null;
+        try
+        {
+            var result = await PenaltiesApi.GetDefinitionsAsync();
+            if (result.IsSuccess) _definitions = result.Value?.ToList() ?? [];
+            else { _definitions = []; _definitionsError = "Approved penalties couldn't be loaded."; }
+        }
+        catch { _definitions = []; _definitionsError = "Approved penalties couldn't be loaded."; }
+        finally { _loadingDefinitions = false; }
+    }
+
+    private async Task LoadRegisterAsync()
+    {
+        _loadingRegister = true;
+        _registerError = null;
+        try
+        {
+            var result = await PenaltiesApi.GetRegisterAsync(_month, _month.AddMonths(1).AddDays(-1));
+            if (result.IsSuccess) _register = result.Value?.ToList() ?? [];
+            else { _register = []; _registerError = "Fines couldn't be loaded."; }
+        }
+        catch { _register = []; _registerError = "Fines couldn't be loaded."; }
+        finally { _loadingRegister = false; }
+    }
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", out var parsed))
+        {
+            _month = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadRegisterAsync();
+        }
+    }
+
+    private void OpenEditor()
+    {
+        _saveError = null;
+        _saved = null;
+        _code = string.Empty;
+        _name = string.Empty;
+        _appliesTo = null;
+        _effective = PhilippineTime.Today;
+        _basis = GovernedServiceBasis.FixedAmount;
+        _fixedAmount = null;
+        _ceiling = null;
+        _active = true;
+        _editing = true;
+    }
+
+    private void CloseEditor() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var result = await PenaltiesApi.DefineAsync(new DefinePenaltyRequest(
+                _code.Trim(), _name.Trim(), _appliesTo, _effective, _basis,
+                _basis == GovernedServiceBasis.FixedAmount ? _fixedAmount : null,
+                _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null, _active));
+            if (!result.IsSuccess)
+            {
+                _saveError = result.Error ?? "The penalty could not be saved.";
+                return;
+            }
+            _editing = false;
+            _saved = "Penalty saved. It applies from its effective date.";
+            await LoadDefinitionsAsync();
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string Rule(PenaltyDefinitionDto d) => d.Basis switch
+    {
+        GovernedServiceBasis.FixedAmount => $"Fixed · ₱{d.FixedAmount:N2}",
+        _ => d.MaximumAmount is { } ceiling ? $"Manually approved · up to ₱{ceiling:N2}" : "Manually approved · no ceiling set"
+    };
+}

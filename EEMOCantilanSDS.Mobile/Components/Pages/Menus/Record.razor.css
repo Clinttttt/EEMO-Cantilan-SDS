@@ -223,8 +223,8 @@
     flex: 1;
     border: none;
     border-radius: 10px;
-    background: var(--navy-primary);
-    color: var(--gold-light);
+    background: var(--mobile-blue);
+    color: #ffffff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13.5px;
     font-weight: 600;

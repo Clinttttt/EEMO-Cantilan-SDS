@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 <!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
@@ -41,7 +42,7 @@
             <div class="profile-info">
                 <div class="profile-name">@CollectorName</div>
                 <div class="profile-role">Revenue Collector</div>
-                <div class="profile-org">EEMO · Cantilan, Surigao del Sur</div>
+                <div class="profile-org">@Session.BrandingOffice · @Session.BrandingMunicipalityLine</div>
             </div>
             <div class="profile-edit-btn" @onclick="OpenEdit">
                 <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -98,7 +99,7 @@
                 </div>
             </div>
 
-            <div class="profile-row" style="border-bottom:none;">
+            <div class="profile-row" >
                 <div class="profile-row-icon">
                     <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 </div>
@@ -132,6 +133,47 @@
             }
         </div>
 
+        <!-- Assigned Operations: server-reported status; assignment alone is not collectibility -->
+        @if (Operations.Count > 0)
+        {
+            <div class="group-spacer"></div>
+            <div class="section-label">
+                Assigned Operations
+                <span class="section-count">@Operations.Count</span>
+            </div>
+
+            <div class="profile-group">
+                @foreach (var (op, index) in Operations.Select((o, i) => (o, i)))
+                {
+                    <div class="profile-row @(index == Operations.Count - 1 ? "no-border" : "")">
+                        <div class="profile-row-info">
+                            <div class="profile-row-val">@op.Name</div>
+                            <div class="profile-row-label">@EEMOCantilanSDS.Mobile.Presentation.CapabilityWording.For(op.Status)</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Device: sync and where to see position -->
+        <div class="group-spacer"></div>
+        <div class="section-label">This Device</div>
+
+        <div class="profile-group">
+            <div class="profile-row">
+                <div class="profile-row-info">
+                    <div class="profile-row-label">Sync</div>
+                    <div class="profile-row-val">@SyncStatusText</div>
+                </div>
+            </div>
+            <div class="profile-row no-border" role="button" tabindex="0" @onclick='() => GoTo("/reports")'>
+                <div class="profile-row-info">
+                    <div class="profile-row-label">Position and forms</div>
+                    <div class="profile-row-val">Collected, remitted, unremitted and forms on hand</div>
+                </div>
+            </div>
+        </div>
+
         <!-- App Settings -->
         <div class="group-spacer"></div>
         <div class="section-label">App Settings</div>
@@ -150,7 +192,7 @@
                 </div>
             </div>
 
-            <div class="profile-row" style="border-bottom:none;">
+            <div class="profile-row" >
                 <div class="profile-row-icon">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M4.93 4.93l1.41 1.41M21 12h-2M5 12H3M12 21v-2M12 5V3"/></svg>
                 </div>
@@ -366,6 +408,7 @@
             AvatarSrc            = await Session.GetProfilePhotoAsync() ?? string.Empty;
 
             await LoadProfileAsync();
+            await LoadOperationsAsync();
         }
         catch (HttpRequestException)
         {
@@ -399,6 +442,28 @@
             StateHasChanged();
         }
     }
+
+    // ── Assigned operations (server capability status) and device sync ──
+    IReadOnlyList<CollectorOperationCapabilityDto> Operations = Array.Empty<CollectorOperationCapabilityDto>();
+
+    async Task LoadOperationsAsync()
+    {
+        try
+        {
+            var result = await Api.GetOperationCapabilitiesAsync();
+            if (result.IsSuccess && result.Value is not null)
+                Operations = result.Value.Operations.Where(o => o.IsAssigned).ToList();
+        }
+        catch
+        {
+            // Offline/failed — the section is simply omitted rather than shown empty.
+        }
+        StateHasChanged();
+    }
+
+    string SyncStatusText =>
+        (Sync.IsOnline ? "Online" : "Offline")
+        + (Sync.PendingCount > 0 ? $" · {Sync.PendingCount} waiting to sync" : " · Nothing waiting");
 
     void BuildFacilityList()
     {
@@ -598,7 +663,7 @@
         width: 58px;
         height: 58px;
         border-radius: 50%;
-        background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
+        background: var(--mobile-blue);
         border: 2px solid var(--gold-primary);
         display: flex;
         align-items: center;
@@ -634,7 +699,7 @@
 
         .profile-avatar-overlay svg {
             width: 18px; height: 18px;
-            stroke: #e8cc76;
+            stroke: #ffffff;
             fill: none;
             stroke-width: 1.8;
             stroke-linecap: round;
@@ -642,17 +707,17 @@
         }
 
     .profile-avatar-initials {
-        font-family: 'EB Garamond', serif;
+        font-family: 'DM Sans', sans-serif;
         font-size: 20px;
         font-weight: 600;
-        color: var(--gold-light);
+        color: #ffffff;
         letter-spacing: 1px;
     }
 
     .profile-info { flex: 1; min-width: 0; }
 
     .profile-name {
-        font-family: 'EB Garamond', serif;
+        font-family: 'DM Sans', sans-serif;
         font-size: 18px;
         font-weight: 600;
         color: var(--navy-primary);
@@ -744,11 +809,11 @@
     .profile-row-info { flex: 1; min-width: 0; }
 
     .profile-row-label {
-        font-size: 9px;
+        font-size: 12px;
         font-weight: 600;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        color: var(--text-muted);
+        
+        
+        color: var(--mobile-text-secondary);
         margin-bottom: 2px;
     }
 
@@ -782,7 +847,7 @@
         cursor: pointer;
     }
 
-        .toggle-switch.on { background: var(--navy-primary); }
+        .toggle-switch.on { background: var(--mobile-blue); }
 
     .toggle-thumb {
         position: absolute;
@@ -815,7 +880,7 @@
         justify-content: center;
         gap: 9px;
         padding: 15px;
-        background: var(--navy-primary);
+        background: var(--mobile-blue);
         color: var(--error-red-bg);
         font-family: 'DM Sans', sans-serif;
         font-size: 13px;
@@ -833,7 +898,7 @@
             position: absolute;
             top: 0; left: 0; right: 0;
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(200,168,75,0.3), transparent);
+            background: var(--mobile-border);
         }
 
         .signout-btn:active { opacity: 0.82; }
@@ -854,7 +919,7 @@
         width: 15px; height: 15px;
         border-radius: 50%;
         border: 2px solid rgba(232,204,118,0.35);
-        border-top-color: var(--gold-light);
+        border-top-color: #ffffff;
         animation: eemo-spin 0.7s linear infinite;
         flex-shrink: 0;
     }
@@ -903,7 +968,7 @@
         width: 58px;
         height: 58px;
         border-radius: 50%;
-        background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
+        background: var(--mobile-blue);
         border: 2px solid var(--gold-primary);
         display: flex;
         align-items: center;
@@ -937,8 +1002,8 @@
         gap: 5px;
         padding: 6px 12px;
         border-radius: 8px;
-        background: var(--navy-primary);
-        color: var(--gold-light);
+        background: var(--mobile-blue);
+        color: #ffffff;
         font-family: 'DM Sans', sans-serif;
         font-size: 11px;
         font-weight: 600;
@@ -951,7 +1016,7 @@
 
         .edit-avatar-choose svg {
             width: 13px; height: 13px;
-            stroke: var(--gold-light);
+            stroke: #ffffff;
             fill: none;
             stroke-width: 2;
             stroke-linecap: round;

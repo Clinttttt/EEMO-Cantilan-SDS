@@ -1,0 +1,236 @@
+/* Remittance & Liquidation — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.rm-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Filters sit on one quiet surface, like the other V3 toolbars, with Apply aligned to the inputs. */
+.rm-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.rm-filters .v3-btn[type="submit"] {
+    margin-left: auto;
+}
+
+.rm-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px 20px;
+}
+
+.rm-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.rm-breakdown h3 {
+    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.rm-note,
+.rm-scope {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.rm-forms {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8125rem;
+}
+
+.rm-legacy {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.rm-diff {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rm-diff-flag {
+    color: var(--danger, #b42318);
+    font-weight: 600;
+}
+
+.rm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rm-print-head {
+    display: none;
+}
+
+@media print {
+    .rm-print-head {
+        display: block;
+    }
+
+    .rm-filters,
+    .rm-actions,
+    .rm-form {
+        display: none;
+    }
+}
+
+/* ── Multi-collector New Remittance ── */
+.rm-collectors {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.rm-collectors legend {
+    margin-bottom: 8px;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.rm-collector-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.rm-pick {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.rm-pick:hover {
+    border-color: var(--border-strong);
+}
+
+.rm-pick.is-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.rm-pick input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.rm-pick:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.rm-draft {
+    display: grid;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.rm-draft-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 16px;
+}
+
+.rm-draft-head h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.rm-draft-head span {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rm-breakdown {
+    display: grid;
+    gap: 8px;
+    max-width: 32rem;
+}
+
+.rm-wide {
+    flex: 1 1 16rem;
+}
+
+.rm-batch-total {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.rm-batch-total > div {
+    display: grid;
+    gap: 2px;
+    padding: 10px 14px;
+}
+
+.rm-batch-total > div + div {
+    border-left: 1px solid var(--border);
+}
+
+.rm-batch-total dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.rm-batch-total dd {
+    margin: 0;
+    color: var(--navy);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+@media (max-width: 640px) {
+    .rm-batch-total {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rm-batch-total > div:nth-child(3) {
+        border-left: 0;
+    }
+}

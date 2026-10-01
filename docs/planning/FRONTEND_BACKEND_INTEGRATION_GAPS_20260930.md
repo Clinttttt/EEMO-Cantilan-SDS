@@ -153,3 +153,35 @@ omitting the facilities; no fallback facility catalog is used.
 - Unit suite: 2277/2277 passed (run alone).
 - Component suite: 579/580 before the date fix; `RevenueSetupTests.AsOfDate_ReloadsRegisterWithRequestedBusinessDate` hard-coded 2026-09-30, which is today, so it collided with the initial "today" load — made date-independent.
 - **Pre-existing failure (not this slice):** `VendorRegistryTerminologyTests.TpmPageRetainsTemporaryVendorTerminology` expects "Vendor Attendance / Vendor Name / Add Vendor" in `TPM.razor`; those strings were already gone at baseline `024556fd` (Tabo rewrite `cca17c16`). Needs a Core Brain terminology decision before the test or page changes.
+
+## Additional gaps recorded at the operational functionalization checkpoint
+
+BACKEND GAP: Market Fees / Landing report pages
+- current behavior: the report pages still print "—" because the Monthly Income source is not cut over (CB-06).
+- required behavior: read canonical operation collections once the cutover is authorized.
+- why the UI cannot truthfully implement it: showing canonical totals beside legacy reports would create two authorities.
+- exact frontend contract needed: a Monthly Income reader endpoint declared authoritative for the period.
+
+BACKEND GAP: Slaughterhouse custom animal rate
+- current behavior: `RecordSlaughterCommandHandler` accepts a collector-typed `CustomRate` for AnimalType.Other.
+- required behavior: an approved rate or Head-approved amount ceiling (policy needed from Clint).
+- why the UI cannot truthfully implement it: inventing the governance would fabricate a financial rule.
+- exact frontend contract needed: an approved definition list for non-standard animals, if approved.
+
+Other notes: Fish reads for legacy rows remain read-time priced (unchanged); a penalty-only OR is not permitted; collector totals rollup across legacy and operation collections is undecided.
+
+## Final completion gaps (Mobile V3 dependencies and remaining backend work)
+
+BACKEND GAP: Collector Mobile Transportation
+- current behavior: the server exposes vehicle classes with rates in force in the governed-service terms and accepts `VehicleClassCode` on the governed sync payload; the legacy Mobile trip screen is unchanged.
+- required behavior: Mobile V3 offers the class list, shows the approved rate, and posts the class with the physically issued Cash Ticket.
+- why the UI cannot truthfully implement it now: keep the service `MobileEnabled=false` until then, or a collector without a class would have a physically issued CT quarantined.
+- exact frontend contract needed: `GET terms` -> `VehicleClasses[{Code,Name,Amount}]`; sync `GovernedService` op with `VehicleClassCode`.
+
+BACKEND GAP: Collector Mobile Slaughterhouse custom animal
+- current behavior: the server refuses an animal the Head/Admin has not approved and any rate other than the approved one; Mobile still shows typed animal and rate inputs.
+- required behavior: Mobile selects from `GET api/slaughter/animal-rates` and shows the approved rate read-only.
+
+BACKEND GAP: mixed-period official Monthly Income
+- current behavior: the canonical reader is canonical-only and lists each source's reporting authority; legacy classified totals are not merged.
+- required behavior: an assembled official view that adds legacy money only for sources whose authority is legacy for that period and canonical money only where canonical, using `CollectionSourceAuthorityMap`.

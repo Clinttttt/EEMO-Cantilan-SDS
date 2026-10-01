@@ -111,7 +111,8 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             AssertFacilityLink(cut, FacilityCode.BBQ, "/facility/bbq");
             AssertFacilityLink(cut, FacilityCode.ICE, "/facility/ice");
             AssertFacilityLink(cut, FacilityCode.SLH, "/facility/slh");
-            AssertFacilityLink(cut, FacilityCode.TRM, "/facility/trm");
+            // Transportation is a Cash Ticket workspace (IA-050); the legacy trip pages stay on the TRM facility route below.
+            AssertFacilityLink(cut, FacilityCode.TRM, "/operations/transportation");
             AssertFacilityLink(cut, FacilityCode.TPM, "/facility/tpm");
             AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/tcr");
             AssertFacilityLink(cut, FacilityCode.Custom2, "/facility/tc2");
@@ -227,7 +228,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             Assert.DoesNotContain("Cash Ticket", tabo.TextContent);
 
             // IA-046: whole payment uses OR, a daily transaction uses CT.
-            var vegetable = Row(cut, "Vegetable / Fruits");
+            var vegetable = Row(cut, "Vegetable | Fruits");
             Assert.Contains("Official Receipt", vegetable.TextContent);
             Assert.Contains("Cash Ticket", vegetable.TextContent);
             Assert.Contains("Whole payment: Official Receipt", vegetable.TextContent);
@@ -235,6 +236,8 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
             Assert.Contains("Cash Ticket", Row(cut, "Market Fees").TextContent);
             Assert.Contains("Official Receipt", Row(cut, "Kanmanggay").TextContent);
+            Assert.Contains("Official Receipt", Row(cut, "Transfer Large Cattle").TextContent); // IA-049
+            Assert.DoesNotContain("Cash Ticket", Row(cut, "Transfer Large Cattle").TextContent);
         }, Timeout);
     }
 
@@ -247,23 +250,24 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Empty(Row(cut, "Arrears").QuerySelectorAll("a"));
-            Assert.Contains("No workspace yet", Row(cut, "Arrears").TextContent);
+            // Arrears now has its own workspace and report over the existing receivables.
+            Assert.Equal("/operations/arrears", LinkOf(cut, "Arrears"));
+            Assert.Contains("/operations/arrears/report", Row(cut, "Arrears").InnerHtml);
             Assert.DoesNotContain("None in StallTrack", cut.Markup);
 
             Assert.Equal("/operations/transfer-large-cattle", LinkOf(cut, "Transfer Large Cattle"));
-            Assert.Equal("/operations/vegetable-fruit", LinkOf(cut, "Vegetable / Fruits"));
+            Assert.Equal("/operations/vegetable-fruit", LinkOf(cut, "Vegetable | Fruits"));
             Assert.Equal("/operations/kanmanggay", LinkOf(cut, "Kanmanggay"));
-            Assert.Equal("/operations/fiesta-araw", LinkOf(cut, "Lot Rental — Fiesta / Araw"));
+            Assert.Equal("/operations/fiesta-araw", LinkOf(cut, "Fiesta | Araw"));
             Assert.Equal("/operations/fines", LinkOf(cut, "Fines"));
             Assert.Equal("/operations/market-fees", LinkOf(cut, "Market Fees"));
             Assert.Equal("/operations/ecf", LinkOf(cut, "Electricity Consumption Fees"));
             Assert.Equal("ECF", Row(cut, "Electricity Consumption Fees").QuerySelector(":scope > a .ops-row-code")?.TextContent);
             Assert.Equal("WCF", Row(cut, "Water Consumption Fees").QuerySelector(":scope > a .ops-row-code")?.TextContent);
             Assert.Equal("/operations/water-consumption-fees", LinkOf(cut, "Water Consumption Fees"));
-            Assert.Equal("/operations/landing-berthing", LinkOf(cut, "Landing / Berthing"));
-            Assert.Equal("/operations/fish-meat-vendor-fees", LinkOf(cut, "Fish / Meat Vendor Fees"));
-            Assert.Equal("/operations/weight-and-measure", LinkOf(cut, "Weight & Measure / Registration"));
+            Assert.Equal("/operations/landing-berthing", LinkOf(cut, "Landing | Berthing"));
+            Assert.Equal("/operations/fish-meat-vendor-fees", LinkOf(cut, "Fish | Meat Vendor Fees"));
+            Assert.Equal("/operations/weight-and-measure", LinkOf(cut, "Weight & Measure | Registration"));
             Assert.Equal("/facility/tpm", LinkOf(cut, "Tabo"));
 
             // The detail card offers only existing related pages.

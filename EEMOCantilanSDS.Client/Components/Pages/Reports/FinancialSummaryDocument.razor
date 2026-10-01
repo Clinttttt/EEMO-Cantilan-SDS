@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject IReportsApiClient ReportsApi
+@inject IOfficialReportsApiClient OfficialReports
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
@@ -94,10 +95,58 @@ else
                         </table>
                     </section>
 
-                    @* 2 — recurring rent can remain unpaid across periods; a service fee cannot. Derived from the headline, so the two
+                    @* 2 — the official Monthly Income, by the office's own groups: the same server statement the Monthly Income
+                         tab shows, as a snapshot (group subtotals only). The full row-by-row statement prints from that tab. *@
+                    <section class="doc-sec">
+                        <h2 class="doc-sec-title">II. Monthly Income by official group</h2>
+                        @if (Income is null)
+                        {
+                            <p class="doc-note">The official Monthly Income could not be read for this period, so it is not stated here.</p>
+                        }
+                        else
+                        {
+                            <table class="doc-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Official group</th>
+                                        @if (Income.Month is { } incomeMonth)
+                                        {
+                                            <th scope="col" class="doc-num">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(incomeMonth)</th>
+                                        }
+                                        <th scope="col" class="doc-num">@(Income.Month is null ? "Year" : "Year to date")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var group in Income.Groups)
+                                    {
+                                        <tr>
+                                            <th scope="row">@group.Label</th>
+                                            @if (Income.Month is { } m)
+                                            {
+                                                <td class="doc-num">@Money(group.MonthTotals[m - 1].Total)</td>
+                                            }
+                                            <td class="doc-num">@Money(IncomeThrough(group.MonthTotals))</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="doc-row-strong">
+                                        <th scope="row">Total income</th>
+                                        @if (Income.Month is { } tm)
+                                        {
+                                            <td class="doc-num">@Money(Income.MonthTotals[tm - 1].Total)</td>
+                                        }
+                                        <td class="doc-num">@Money(IncomeThrough(Income.MonthTotals))</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </section>
+
+                    @* 3 — recurring rent can remain unpaid across periods; a service fee cannot. Derived from the headline, so the two
                          halves always add back to it. *@
                     <section class="doc-sec">
-                        <h2 class="doc-sec-title">II. Collection by model</h2>
+                        <h2 class="doc-sec-title">III. Collection by model</h2>
                         <table class="doc-table">
                             <thead>
                                 <tr>
@@ -137,7 +186,7 @@ else
                     @* 3 — four scopes of the same word "outstanding", which are never added together. The document says so
                          rather than leaving a reader to total a column that must not be totalled. *@
                     <section class="doc-sec">
-                        <h2 class="doc-sec-title">III. Outstanding position</h2>
+                        <h2 class="doc-sec-title">IV. Outstanding position</h2>
                         <table class="doc-table">
                             <thead>
                                 <tr>
@@ -176,7 +225,7 @@ else
                     @if (AgingBands.Count > 1)
                     {
                         <section class="doc-sec">
-                            <h2 class="doc-sec-title">IV. Receivable aging</h2>
+                            <h2 class="doc-sec-title">V. Receivable aging</h2>
                             <table class="doc-table">
                                 <thead>
                                     <tr>
@@ -212,7 +261,7 @@ else
                     @if (Model.Trend.Count > 0)
                     {
                         <section class="doc-sec">
-                            <h2 class="doc-sec-title">V. Period comparison</h2>
+                            <h2 class="doc-sec-title">VI. Period comparison</h2>
                             <table class="doc-table">
                                 <thead>
                                     <tr>
@@ -258,7 +307,7 @@ else
 
                     @* 6 — the operating detail: what each facility collected, what it owes, and on what basis it is billed. *@
                     <section class="doc-sec">
-                        <h2 class="doc-sec-title">VI. Revenue by facility</h2>
+                        <h2 class="doc-sec-title">VII. Facility performance</h2>
                         <table class="doc-table">
                             <thead>
                                 <tr>
@@ -297,7 +346,7 @@ else
 
                     @* 7 — delinquent accounts based on the confirmed one-month rule. Arrears is not classified by age. *@
                     <section class="doc-sec doc-sec-break">
-                        <h2 class="doc-sec-title">VII. Accounts needing follow-up</h2>
+                        <h2 class="doc-sec-title">VIII. Accounts needing follow-up</h2>
                         <table class="doc-table">
                             <tbody>
                                 <tr>
@@ -331,7 +380,7 @@ else
                     @if (Model.Misc is { Rows.Count: > 0 } misc)
                     {
                         <section class="doc-sec">
-                            <h2 class="doc-sec-title">VIII. Miscellaneous — electricity and water</h2>
+                            <h2 class="doc-sec-title">IX. Miscellaneous — electricity and water</h2>
                             <table class="doc-table">
                                 <thead>
                                     <tr>
@@ -461,8 +510,30 @@ else
             await Task.Delay(250 * (attempt + 1));
         }
 
+        // The official Monthly Income snapshot. Not for an all-time sheet: the statement is a calendar year. A failed read
+        // leaves the section saying so rather than stating zeroes.
+        if (!AllTimeParam)
+        {
+            try
+            {
+                var income = await OfficialReports.GetMonthlyIncomeAsync(Year, Month);
+                Income = income is { IsSuccess: true } ? income.Value : null;
+            }
+            catch
+            {
+                Income = null;
+            }
+        }
+
         Loading = false;
     }
+
+    private EEMOCantilanSDS.Application.Dtos.Revenue.OfficialMonthlyIncomeDto? Income;
+
+    // Year to date through the statement's month, or the whole year for an annual sheet — the same rule as the Monthly
+    // Income tab, applied to the server's own month totals.
+    private decimal IncomeThrough(IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.MonthlyIncomeCellDto> months) =>
+        months.Take(Income?.Month ?? 12).Sum(x => x.Total);
 
     private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 

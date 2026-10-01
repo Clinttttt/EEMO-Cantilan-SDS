@@ -28,7 +28,23 @@ public sealed record CollectorCollectionsData(
     int OfficeReceipts,
     decimal UtilityBilled,
     decimal UtilityCollected,
-    decimal UtilityOutstanding = 0m);
+    decimal UtilityOutstanding = 0m,
+    /// <summary>
+    /// Canonical collections of governed operations (Market Fees, Landing/Berthing, ...) that this collector took. They have
+    /// no facility, so they are stated apart and never folded into a facility total.
+    /// </summary>
+    IReadOnlyList<CollectorOperationCollection>? OperationCollections = null);
+
+public sealed record CollectorOperationCollection(
+    string DocumentNumber,
+    DateTime TakenAtUtc,
+    DateOnly BusinessDate,
+    string OperationCode,
+    string OperationName,
+    RevenueInstrumentType? Instrument,
+    string? PayerName,
+    string? Reference,
+    decimal Amount);
 
 /// <param name="FeeDay">The day an NPM daily fee answers for, which is not the day it was taken when arrears are settled.</param>
 /// <param name="BilledMonth">
@@ -45,7 +61,9 @@ public sealed record CollectorCollectionLine(
     decimal Amount,
     DateOnly? FeeDay,
     DateOnly? BilledMonth,
-    DateOnly? BusinessDate = null);
+    DateOnly? BusinessDate = null,
+    // True when the line is read from a posted canonical Collection; false for a legacy source row (IA-052 coverage).
+    bool IsCanonical = false);
 
 public sealed record CollectorAbsenceLine(
     DateOnly Day,

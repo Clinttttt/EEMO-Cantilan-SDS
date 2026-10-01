@@ -24,7 +24,8 @@ public sealed class CollectorOperationAssignmentWorkflow(
         (CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),
         (CollectorOperationCodes.LandingBerthing, "Landing / Berthing"),
         (CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle"),
-        (CollectorOperationCodes.MarketFees, "Market Fees")
+        (CollectorOperationCodes.MarketFees, "Market Fees"),
+        (CollectorOperationCodes.Transportation, "Transportation / Parking")
     ];
 
     public async Task<Result<IReadOnlyList<CollectorOperationAssignmentDto>>> ListAsync(

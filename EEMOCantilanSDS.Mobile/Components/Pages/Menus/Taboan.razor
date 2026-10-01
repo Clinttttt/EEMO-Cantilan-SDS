@@ -15,25 +15,23 @@
 
 <div class="page-shell">
     <div class="header">
-        <div class="header-eyebrow">Tabo-an Public Market</div>
         <div class="header-row">
             <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
             <div class="header-title-block">
-                <div class="header-title">Tabo-an Market</div>
-                <div class="header-sub">TPM@(Collection is not null ? $" - ₱{Collection.VendorFee:N0} per Vendor ({MarketLabel})" : " - per Vendor")</div>
+                <div class="header-title">@FacilityTitle</div>
+                <div class="header-sub">@(Collection is null ? "Market day" : Collection.IsMarketDay ? $"Market day open · {MarketLabel}" : $"Not a market day · showing {MarketLabel}")</div>
             </div>
-            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
     </div>
 
     <div class="date-strip">
         <div class="date-strip-left">Collector: <span>@Session.CollectorName</span></div>
-        <button class="collection-month-pill" type="button">
+        <div class="collection-month-pill" aria-label="Market date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
             @MarketLabel
-        </button>
+        </div>
     </div>
 
     <div class="content">
@@ -55,14 +53,20 @@
                 </div>
             }
 
-            <div class="summary-strip">
-                <div class="summary-item">
-                    <div class="summary-value">@FormatCurrency(Collection.CollectedAmount)</div>
-                    <div class="summary-key">Collected</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">@Collection.VendorCount</div>
-                    <div class="summary-key">Vendors</div>
+            <div class="npm-context" aria-label="Market day position">
+                <div class="npm-context-figures">
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@FormatCurrency(Collection.CollectedAmount)</div>
+                        <div class="npm-figure-key">Collected</div>
+                    </div>
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@Collection.VendorCount</div>
+                        <div class="npm-figure-key">Vendors</div>
+                    </div>
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@FormatCurrency(Collection.VendorFee)</div>
+                        <div class="npm-figure-key">Tabo vendor fee</div>
+                    </div>
                 </div>
             </div>
 
@@ -76,7 +80,7 @@
 
             <div class="search-wrap">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" placeholder="Search vendor or goods" @bind="SearchQuery" @bind:event="oninput" />
+                <input type="text" placeholder="Search vendor or goods" aria-label="Search vendor or goods" @bind="SearchQuery" @bind:event="oninput" />
             </div>
 
             <div class="section-label">Vendor Attendance</div>
@@ -158,7 +162,7 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Add Vendor</div>
-            <div class="sheet-sub">Register a vendor for @MarketLabel. The @(Collection is not null ? $"₱{Collection.VendorFee:N0} " : "")fee is collected on entry.</div>
+            <div class="sheet-sub">Register a vendor for @MarketLabel. The @(Collection is not null ? $"₱{Collection.VendorFee:N0} " : "")Tabo vendor fee is collected on entry.</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Vendor name</div>
@@ -229,7 +233,7 @@
                     <div class="receipt-gov">Republic of the Philippines</div>
                     <div class="receipt-org">@Session.BrandingOffice</div>
                     <div class="receipt-muni">@Session.BrandingMunicipalityLine</div>
-                    <div class="receipt-doc">Tabo-an Public Market</div>
+                    <div class="receipt-doc">@FacilityTitle</div>
                 </div>
                 <div class="receipt-divider"></div>
                 <div class="receipt-meta">
@@ -241,7 +245,7 @@
                 </div>
                 <div class="receipt-divider"></div>
                 <div class="receipt-total-row receipt-grand">
-                    <span>Vendor Fee</span>
+                    <span>Tabo vendor fee</span>
                     <span>&#8369;@SelectedAttendance.Fee.ToString("N2")</span>
                 </div>
                 <div class="receipt-divider dashed"></div>
@@ -250,7 +254,7 @@
                         <span>Collected by</span>
                         <strong>@Session.CollectorName</strong>
                     </div>
-                    <div class="receipt-note">This acknowledges receipt of the Tabo-an Public Market vendor fee. Keep for your records.</div>
+                    <div class="receipt-note">Acknowledgement of this collection on your device. It does not replace the pre-numbered Official Receipt.</div>
                 </div>
             </div>
             <div class="receipt-close-row">
@@ -385,7 +389,7 @@
         catch
         {
             // The HTTP layer throws on a connection failure/timeout; keep the retry path safe and unstuck.
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
         }
         finally
         {
@@ -401,6 +405,10 @@
             || a.Goods.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
         .OrderBy(a => a.IsPaid)
         .ThenBy(a => a.VendorName);
+
+    // The facility's own name from the tenant's menu; never a hard-coded market name.
+    private string FacilityTitle =>
+        Session.Menu?.Facilities.FirstOrDefault(f => f.Code == FacilityCode.TPM)?.Name ?? "Market";
 
     private string MarketLabel =>
         (Collection?.MarketDate ?? DateOnly.FromDateTime(DateTime.Now)).ToString("MMM dd, yyyy", CultureInfo.InvariantCulture);

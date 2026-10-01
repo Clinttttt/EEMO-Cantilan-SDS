@@ -61,10 +61,31 @@ public class UtilityBillModalLockTests : TestContext
             .Add(c => c.HasWater, water));
     }
 
+    /// <summary>
+    /// Switches one utility to the legacy reading-based entry. V3 opens a new month as a direct approved amount, so the
+    /// reading behaviour these tests protect is only reached when the clerk unticks "Approved amount, no meter reading".
+    /// </summary>
+    private static void UseReadings(IRenderedComponent<UtilityBillModal> cut, string meter)
+    {
+        var toggle = cut.Find($"[data-meter='{meter}'] .ub-direct-toggle input");
+        if (toggle.HasAttribute("checked")) toggle.Change(false);
+    }
+
+    [Fact]
+    public void ANewMonth_OpensAsADirectApprovedAmount_NotAMeterReading()
+    {
+        var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
+
+        // V3: the approved amount is the financial basis; readings are not required.
+        Assert.True(cut.Find("[data-meter='water'] .ub-direct-toggle input").HasAttribute("checked"));
+        Assert.Contains("Approved amount", cut.Find("[data-meter='water']").TextContent);
+    }
+
     [Fact]
     public void PreviousReading_IsStated_NotAnInput_UntilTheClerkAsks()
     {
         var cut = RenderModal(Seed(), elec: false);   // water only, to keep one meter in the assertions
+        UseReadings(cut, "water");
 
         // Previous is a stated figure; Current and Rate remain inputs.
         var locked = cut.Find("[data-meter='water'] .ub-locked");
@@ -147,6 +168,7 @@ public class UtilityBillModalLockTests : TestContext
         // though it had already been read — and a clerk who overwrote it with the month's CONSUMPTION was
         // refused for a reading that had "gone backwards".
         var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
+        UseReadings(cut, "water");
 
         // Previous is the figure carried forward, stated rather than typed.
         Assert.Contains("56.00", cut.Find("[data-meter='water'] .ub-locked .ub-locked-value").TextContent);
@@ -175,6 +197,7 @@ public class UtilityBillModalLockTests : TestContext
     public void AReadingBelowTheLastOne_IsRefusedWithTheFigureItMustClear()
     {
         var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
+        UseReadings(cut, "water");
 
         cut.FindAll("[data-meter='water'] .ub-grid3 input")[0].Input("44");   // the current reading, bound on input
         cut.Find(".ub-save").Click();

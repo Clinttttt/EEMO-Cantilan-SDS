@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.SetSlaughterAnimalLabels;
+using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -20,4 +21,7 @@ public interface ISlaughterApiClient
     Task<Result<ClientProfileDto>> GetClientProfileAsync(string ownerName);
     Task<Result<SlaughterAnimalLabelsDto>> GetAnimalLabelsAsync();
     Task<Result<bool>> SetAnimalLabelsAsync(SetSlaughterAnimalLabelsCommand command);
+    Task<Result<IReadOnlyList<SlaughterAnimalRateDto>>> GetAnimalRatesAsync(bool activeOnly);
+    Task<Result<SlaughterAnimalRateDto>> SaveApprovedAnimalAsync(SaveApprovedSlaughterAnimalRequest request);
+    Task<Result<SlaughterAnimalRateDto>> SetApprovedAnimalActiveAsync(Guid id, bool isActive);
 }

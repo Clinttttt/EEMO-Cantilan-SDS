@@ -142,12 +142,25 @@
             @if (UseCustomAnimal)
             {
                 <div class="slh-animal-input" @onclick:stopPropagation="true">
-                    <label>Animal Type</label>
-                    <input type="text" placeholder="e.g. Goat, Sheep" @bind="TransactionForm.CustomAnimalType" />
-                    <label>Number of Heads</label>
-                    <input type="number" min="1" @bind="TransactionForm.CustomHeads" />
-                    <label>Rate per Head (₱)</label>
-                    <input type="number" min="0" step="0.01" @bind="TransactionForm.CustomRate" />
+                    @if (ApprovedAnimals is { Count: > 0 })
+                    {
+                        <label>Approved animal</label>
+                        <select value="@TransactionForm.CustomAnimalType" @onchange="SelectApprovedAnimal" aria-label="Approved animal">
+                            <option value="">Choose an approved animal</option>
+                            @foreach (var animal in ApprovedAnimals)
+                            {
+                                <option value="@animal.AnimalName">@animal.AnimalName</option>
+                            }
+                        </select>
+                        <label>Number of Heads</label>
+                        <input type="number" min="1" @bind="TransactionForm.CustomHeads" />
+                        <label>Approved rate per Head (₱)</label>
+                        <input type="number" readonly value="@TransactionForm.CustomRate" aria-label="Approved rate per head" />
+                    }
+                    else
+                    {
+                        <p class="slh-approved-note" role="status">No other animal has been approved yet. The Head or an Admin approves an animal, with its rate, before it can be recorded here.</p>
+                    }
                 </div>
             }
         </div>
@@ -226,6 +239,9 @@
     public decimal? HogRate { get; set; }
     [Parameter] public SlaughterAnimalLabelsDto Labels { get; set; } = new("Hog", "Carabao", "Cow");
 
+    // The Head/Admin-approved custom animals (IA-050). A rate is selected with the animal, never typed.
+    [Parameter] public IReadOnlyList<SlaughterAnimalRateDto>? ApprovedAnimals { get; set; }
+
     [Parameter]
     public decimal? LargeRate { get; set; }
 
@@ -270,6 +286,14 @@
             };
             UseCustomAnimal = false;
         }
+    }
+
+    private void SelectApprovedAnimal(ChangeEventArgs args)
+    {
+        var name = args.Value?.ToString() ?? string.Empty;
+        var match = ApprovedAnimals?.FirstOrDefault(x => x.AnimalName == name);
+        TransactionForm.CustomAnimalType = match?.AnimalName ?? string.Empty;
+        TransactionForm.CustomRate = match?.RatePerHead ?? 0m;
     }
 
     private void ToggleCustomAnimal()

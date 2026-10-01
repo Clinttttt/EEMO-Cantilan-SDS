@@ -415,7 +415,11 @@ public partial class CollectorRepository
                 d.ORNumber,
                 d.IsAdmin)));
 
-            transactions.AddRange(periodNpmPaymentRecords.Select(p =>
+            // A converted row's legacy fields are a compatibility projection: its canonical Collection is the one record of that
+            // money and is added by the report handler, so it is not counted here as well (IA-050).
+            transactions.AddRange(periodNpmPaymentRecords
+                .Where(p => CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.PaymentRecord, p.SettlementAuthorityState))
+                .Select(p =>
             {
                 var stall = npmStallsById[p.StallId];
                 var contract = stall.Contracts
@@ -550,11 +554,15 @@ public partial class CollectorRepository
                     p.FishKilos,
                     p.PartialAmount,
                     IsAdmin = p.CollectorId == null,
-                    When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
+                    When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt,
+                    p.SettlementAuthorityState
                 })
                 .ToListAsync(cancellationToken);
 
-            transactions.AddRange(monthlyRows.Select(p =>
+            // Converted rent is counted once, from its canonical Collection (added by the report handler), never again here.
+            transactions.AddRange(monthlyRows
+                .Where(p => CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.PaymentRecord, p.SettlementAuthorityState))
+                .Select(p =>
             {
                 var fullAmount = p.BaseRentalAmount
                     + p.ElecAmount.GetValueOrDefault()

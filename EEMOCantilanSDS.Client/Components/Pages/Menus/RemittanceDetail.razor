@@ -1,0 +1,180 @@
+@page "/accountable-forms/remittances/{Id:guid}"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IRemittancesApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>StallTrack — Remittance</PageTitle>
+
+@* The history of one remittance (IA-052): what it covered, what was expected, what was turned over, and the difference.
+   A recorded remittance is never edited; a mistake is voided with a reason. The layout owns the <main> landmark. *@
+<div class="v3-page rm-page">
+    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/accountable-forms/remittances" Title="Remittance"
+                     Subtitle="@Subtitle">
+        <Actions>
+            <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
+        </Actions>
+    </WorkspaceHeader>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    @if (_detail is null && _error is null)
+    {
+        <p role="status">Loading remittance…</p>
+    }
+    @if (_detail is { } d)
+    {
+        <div class="rm-print-head" aria-hidden="true"><ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel(d)" /></div>
+
+        <SummaryStrip Label="Remittance" Items="Summary(d)" />
+
+        <section class="v3-panel" aria-labelledby="rd-facts-title">
+            <header class="v3-panel-header">
+                <h2 id="rd-facts-title">Details</h2>
+                <span class="v3-panel-meta">@StatusLabel(d)</span>
+            </header>
+            <dl class="v3-facts" aria-label="Remittance details">
+                <div><dt>Collector</dt><dd>@d.Row.CollectorName</dd></div>
+                <div><dt>Coverage period</dt><dd>@PeriodLabel(d)</dd></div>
+                <div><dt>Instrument</dt><dd>@InstrumentLabel(d.Row.Instrument)</dd></div>
+                <div><dt>Documents covered</dt><dd>@(d.FirstDocumentNumber is null ? "—" : $"{d.FirstDocumentNumber} to {d.LastDocumentNumber}")</dd></div>
+                <div><dt>Reference</dt><dd>@(d.Row.Reference ?? "—")</dd></div>
+                <div><dt>Recorded by</dt><dd>@d.RecordedBy · @d.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
+                @if (!string.IsNullOrWhiteSpace(d.Remarks))
+                {
+                    <div><dt>Remarks</dt><dd>@d.Remarks</dd></div>
+                }
+                @if (d.Row.Status == RemittanceStatus.Voided)
+                {
+                    <div><dt>Voided</dt><dd>@d.VoidReason · @d.VoidedBy</dd></div>
+                }
+            </dl>
+        </section>
+
+        <section class="v3-panel" aria-labelledby="rd-break-title">
+            <header class="v3-panel-header"><h2 id="rd-break-title">Collection breakdown</h2></header>
+            <div class="v3-table-wrap" role="region" aria-label="Collection breakdown" tabindex="0">
+                <table class="v3-table">
+                    <tbody>
+                        @foreach (var line in d.Breakdown)
+                        {
+                            <tr><td>@line.Name</td><td class="v3-num">@Money(line.Amount)</td></tr>
+                        }
+                    </tbody>
+                    <tfoot><tr><td><strong>Total collected</strong></td><td class="v3-num v3-strong">@Money(d.Row.ExpectedAmount)</td></tr></tfoot>
+                </table>
+            </div>
+        </section>
+
+        <section class="v3-panel" aria-labelledby="rd-cols-title">
+            <header class="v3-panel-header"><h2 id="rd-cols-title">Collections covered</h2></header>
+            <div class="v3-table-wrap" role="region" aria-label="Collections covered" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr><th scope="col">Date</th><th scope="col">Document</th><th scope="col">Payer</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var collection in d.Collections)
+                        {
+                            <tr>
+                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td class="v3-strong">@(collection.DocumentNumber ?? "—")</td>
+                                <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
+                                <td class="v3-num">@Money(collection.NetAmount)</td>
+                                <td>@(collection.CorrectedAfterRemittance ? "Corrected after this remittance: review" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        @if (d.Row.Status == RemittanceStatus.Recorded)
+        {
+            <section class="v3-panel" aria-labelledby="rd-void-title">
+                <header class="v3-panel-header"><h2 id="rd-void-title">Void this remittance</h2></header>
+                <form class="rm-form" aria-label="Void remittance" @onsubmit="VoidAsync" @onsubmit:preventDefault="true">
+                    <p class="rm-note">A recorded remittance is never edited. Voiding it, with a reason, frees its collections so the correct record can cover them. Nothing about the collections themselves changes.</p>
+                    <label class="v3-field"><span>Reason</span><input required maxlength="300" @bind="_reason" /></label>
+                    @if (!string.IsNullOrWhiteSpace(_voidError)) { <p class="v3-notice v3-notice-error" role="alert">@_voidError</p> }
+                    <div class="rm-actions"><button class="v3-btn" type="submit" disabled="@(_saving || string.IsNullOrWhiteSpace(_reason))">Void remittance</button></div>
+                </form>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private RemittanceDetailDto? _detail;
+    private string? _error;
+    private string? _voidError;
+    private string _reason = string.Empty;
+    private bool _saving;
+
+    private string? Subtitle => _detail is null ? null
+        : $"{_detail.Row.CollectorName} · {_detail.Row.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _error = null;
+        try
+        {
+            var result = await Api.GetDetailAsync(Id);
+            if (result.IsSuccess) _detail = result.Value;
+            else _error = result.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
+                ? "This remittance was not found." : "The remittance could not be loaded.";
+        }
+        catch { _error = "The remittance could not be loaded."; }
+    }
+
+    private async Task VoidAsync()
+    {
+        if (_saving || string.IsNullOrWhiteSpace(_reason)) return;
+        _saving = true;
+        _voidError = null;
+        try
+        {
+            var result = await Api.VoidAsync(Id, new VoidRemittanceRequest(_reason.Trim()));
+            if (!result.IsSuccess) { _voidError = result.Error ?? "The remittance could not be voided."; return; }
+            _detail = result.Value;
+            _reason = string.Empty;
+        }
+        catch (Exception ex) { _voidError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Summary(RemittanceDetailDto d) =>
+    [
+        new("Expected (collected)", Money(d.Row.ExpectedAmount)),
+        new("Remitted", Money(d.Row.RemittedAmount)),
+        new("Difference", Money(d.Row.DifferenceAmount), Emphasis: d.Row.DifferenceAmount != 0m),
+        new("Collections covered", d.Row.CollectionCount.ToString(CultureInfo.InvariantCulture)),
+    ];
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    private static string PeriodLabel(RemittanceDetailDto d) =>
+        $"{d.PeriodFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {d.PeriodTo.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    private static string InstrumentLabel(RevenueInstrumentType? instrument) => instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "Official Receipt",
+        RevenueInstrumentType.CashTicket => "Cash Ticket",
+        _ => "OR and CT"
+    };
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+
+    private static string StatusLabel(RemittanceDetailDto d) => d.Row.Status == RemittanceStatus.Voided ? "Voided"
+        : d.NeedsReview ? "Needs review" : "Recorded";
+}

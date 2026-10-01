@@ -92,3 +92,151 @@
         transition: none;
     }
 }
+
+/* Instrument switch: the selected type reads as the civic-blue active state. */
+.af-switch > .v3-btn[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.af-switch > .v3-btn[aria-pressed="true"]:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+/* ── Batch assignment drawer ── */
+.af-facts {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    font-size: 0.8125rem;
+}
+
+.af-facts > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 12px;
+}
+
+.af-facts > div + div {
+    border-top: 1px solid var(--border);
+}
+
+.af-facts dt {
+    color: var(--text-secondary);
+}
+
+.af-facts dd {
+    margin: 0;
+    color: var(--navy);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.af-facts .af-facts-total {
+    background: var(--surface);
+    border-radius: 0 0 8px 8px;
+}
+
+.af-start {
+    max-width: 14rem;
+}
+
+.af-batch {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.af-batch-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 6.5rem minmax(9rem, auto) 32px;
+    align-items: end;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.af-batch-range {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 9px;
+    font-size: 0.8125rem;
+}
+
+.af-batch-range > span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.af-batch-range strong {
+    color: var(--navy);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.af-row-remove {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-tertiary);
+    font-size: 1.125rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.af-row-remove:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    color: var(--red);
+}
+
+.af-row-remove:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+.af-row-remove:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.af-add-row {
+    justify-self: start;
+}
+
+.af-footer-total {
+    margin-right: auto;
+    align-self: center;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+    .af-batch-row {
+        grid-template-columns: 6.5rem minmax(0, 1fr) 32px;
+    }
+
+    .af-batch-collector {
+        grid-column: 1 / -1;
+    }
+}

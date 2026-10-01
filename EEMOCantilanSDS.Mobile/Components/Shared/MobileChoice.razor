@@ -1,0 +1,91 @@
+@* One Mobile V3 selection control for short, mutually exclusive lists (vehicle class, approved animal, a stall's Water
+   period). Not a native <select>: a 48px trigger that states the label, the current choice and its read-only detail (an
+   approved rate, an outstanding amount), opening an inline list in the page flow — so it never floats off-screen or over
+   the bottom navigation. The selected row is marked by a check and the word "Selected", not by colour alone. It formats
+   and decides nothing: values, names and details come from the page (and so from the server); no amount is typed here. *@
+<div class="mc @(_open ? "open" : "") @(Disabled ? "disabled" : "") @(string.IsNullOrWhiteSpace(Error) ? "" : "has-error")">
+    <span class="mc-label" id="@_labelId">@Label</span>
+
+    @if (Options.Count == 0)
+    {
+        <div class="mc-empty" role="status">@EmptyText</div>
+    }
+    else
+    {
+        <button type="button" class="mc-trigger" aria-haspopup="listbox" aria-expanded="@(_open ? "true" : "false")"
+                aria-labelledby="@($"{_labelId} {_valueId}")" disabled="@Disabled" @onclick="Toggle">
+            <span class="mc-value" id="@_valueId">
+                @if (Current is { } current)
+                {
+                    <span class="mc-name">@current.Name</span>
+                    @if (!string.IsNullOrWhiteSpace(current.Detail))
+                    {
+                        <span class="mc-detail">@current.Detail</span>
+                    }
+                }
+                else
+                {
+                    <span class="mc-placeholder">@Placeholder</span>
+                }
+            </span>
+            <svg class="mc-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+        </button>
+
+        @if (_open)
+        {
+            <ul class="mc-list" role="listbox" aria-labelledby="@_labelId">
+                @foreach (var option in Options)
+                {
+                    var selected = option.Value == Value;
+                    <li>
+                        <button type="button" role="option" aria-selected="@(selected ? "true" : "false")"
+                                class="mc-option @(selected ? "selected" : "")" @onclick="() => PickAsync(option.Value)">
+                            <span class="mc-check" aria-hidden="true">@(selected ? "✓" : "")</span>
+                            <span class="mc-option-main">
+                                <span class="mc-name">@option.Name</span>
+                                @if (selected) { <span class="mc-sr">Selected</span> }
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(option.Detail))
+                            {
+                                <span class="mc-detail">@option.Detail</span>
+                            }
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <p class="mc-error" role="alert">@Error</p>
+    }
+</div>
+
+@code {
+    /// <summary>One choice: its stable value, its name, and an optional read-only detail such as an approved rate.</summary>
+    public sealed record Choice(string Value, string Name, string? Detail = null);
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<Choice> Options { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "Select";
+    [Parameter] public string EmptyText { get; set; } = "Nothing is available to choose.";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Error { get; set; }
+
+    private readonly string _labelId = $"mc-l-{Guid.NewGuid():N}";
+    private readonly string _valueId = $"mc-v-{Guid.NewGuid():N}";
+    private bool _open;
+
+    private Choice? Current => Options.FirstOrDefault(x => x.Value == Value);
+
+    private void Toggle() => _open = !_open;
+
+    private async Task PickAsync(string value)
+    {
+        _open = false;
+        await ValueChanged.InvokeAsync(value);
+    }
+}

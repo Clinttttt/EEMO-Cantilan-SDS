@@ -28,7 +28,7 @@ public class ReportPageTests : TestContext
     /// render assertions deterministic without slowing the passing path (they return as soon as they pass).
     /// </summary>
     private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(10);
-    private static FinancialReportDto SampleReport() => new(
+    internal static FinancialReportDto SampleReport() => new(
         PeriodLabel: "March 2026",
         ScopeLabel: "All facilities",
         Frequency: "Monthly",
@@ -97,6 +97,8 @@ public class ReportPageTests : TestContext
         // both fall back gracefully (Cantilan defaults / all facilities) so no data is needed to render.
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton(Mock.Of<IRemittancesApiClient>());
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         this.AddTestAuthorization().SetAuthorized("Head");
@@ -114,6 +116,50 @@ public class ReportPageTests : TestContext
     {
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".rpt-sec-tab")), RenderTimeout);
         cut.FindAll(".rpt-sec-tab").Single(t => t.TextContent.Trim() == label).Click();
+    }
+
+    [Fact]
+    public void TheSixReportSectionsExist_InOneCompactSectionStrip()
+    {
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() =>
+        {
+            var tabs = cut.FindAll("nav.rpt-nav .rpt-sec-tab").Select(t => t.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { "Summary", "Monthly Income", "Collections", "Accountability", "Receivables", "Trends & Targets" }, tabs);
+            // The oversized filter panel is gone.
+            Assert.Empty(cut.FindAll(".rpt-filter-panel"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void TheFacilityFilter_NarrowsAnalysisOnly_NeverTheOfficialMonthlyIncome()
+    {
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() => Assert.Contains("Facility / Source Analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+
+        OpenSection(cut, "Monthly Income");
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Facility / Source Analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+
+        OpenSection(cut, "Trends & Targets");
+        cut.WaitForAssertion(() => Assert.Contains("Facility / Source Analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+    }
+
+    [Fact]
+    public void TheExportLabel_NamesTheDocumentItOpens_AndOnlyWhereItExists()
+    {
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Export Financial Summary", cut.Find(".rpt-toolbar").TextContent);
+            Assert.DoesNotContain("Export Summary PDF", cut.Markup);
+        }, RenderTimeout);
+
+        // The official statements print themselves; the toolbar offers no export it cannot back.
+        OpenSection(cut, "Collections");
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Export", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
     }
 
     [Fact]
@@ -201,7 +247,7 @@ public class ReportPageTests : TestContext
                 })
         });
 
-        OpenSection(cut, "Misc");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
 
@@ -239,7 +285,7 @@ public class ReportPageTests : TestContext
                 })
         });
 
-        OpenSection(cut, "Misc");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
 
@@ -269,7 +315,7 @@ public class ReportPageTests : TestContext
         // facility table follows for a facility with nothing billed: state it, do not draw noughts.
         var cut = RenderReport(SampleReport());   // the sample carries no Misc
 
-        OpenSection(cut, "Misc");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
 
@@ -285,7 +331,7 @@ public class ReportPageTests : TestContext
         // element's absence would be asserting the opposite of how it works.
         var cut = RenderReport(SampleReport());
 
-        OpenSection(cut, "By facility");
+        OpenSection(cut, "Trends & Targets");
 
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".rpt-rule-mark")), RenderTimeout);
 
@@ -313,7 +359,7 @@ public class ReportPageTests : TestContext
     {
         var cut = RenderReport(SampleReport());
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {
@@ -352,7 +398,7 @@ public class ReportPageTests : TestContext
         Assert.Null(roundTripped.ArrearsOutstandingTotal);
 
         var cut = RenderReport(roundTripped);
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {
@@ -386,7 +432,7 @@ public class ReportPageTests : TestContext
     {
         var cut = RenderReport(SampleReport());
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {
@@ -428,7 +474,7 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(dto);
 
-        OpenSection(cut, "Records");
+        OpenSection(cut, "Collections");
 
         cut.WaitForAssertion(() =>
         {
@@ -452,7 +498,7 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(dto);
 
-        OpenSection(cut, "Records");
+        OpenSection(cut, "Collections");
 
         cut.WaitForAssertion(() =>
         {
@@ -467,7 +513,7 @@ public class ReportPageTests : TestContext
     {
         var cut = RenderReport(SampleReport());
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".attn-search input")), RenderTimeout);
 
@@ -502,7 +548,7 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(report);
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {
@@ -528,7 +574,7 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(report);
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {
@@ -545,7 +591,7 @@ public class ReportPageTests : TestContext
         // disregard it on the one report where it matters.
         var cut = RenderReport(SampleReport());
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() => Assert.Contains("Rosa Magbanua", cut.Markup), RenderTimeout);
         Assert.Empty(cut.FindAll(".attn-capped"));
@@ -558,7 +604,7 @@ public class ReportPageTests : TestContext
 
         var cut = RenderReport(report);
 
-        OpenSection(cut, "Follow-up");
+        OpenSection(cut, "Receivables");
 
         cut.WaitForAssertion(() =>
         {

@@ -11,7 +11,7 @@
 }
 
 .back-btn {
-    background: rgba(200, 168, 75, 0.14);
+    background: transparent;
 }
 
 .collection-month-pill {
@@ -20,9 +20,9 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 700;
-    color: #e8cc76;
-    background: rgba(200, 168, 75, 0.14);
-    border: 1px solid rgba(200, 168, 75, 0.34);
+    color: var(--mobile-navy);
+    background: var(--mobile-blue-subtle);
+    border: 1px solid var(--mobile-border);
     padding: 7px 12px;
     border-radius: 999px;
     letter-spacing: 0.2px;
@@ -31,7 +31,7 @@
 .collection-month-pill svg {
     width: 13px;
     height: 13px;
-    stroke: #e8cc76;
+    stroke: var(--mobile-blue);
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
@@ -43,7 +43,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 18px;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.06);
+    box-shadow: none;
 }
 
 .state-card.error {
@@ -70,12 +70,13 @@
     min-height: 44px;
     border-radius: 12px;
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-weight: 800;
 }
 
 .month-banner {
-    background: #0d2137;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
     border-radius: 14px;
     padding: 16px;
     margin-bottom: 14px;
@@ -85,7 +86,7 @@
     gap: 16px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 10px 28px rgba(13, 33, 55, 0.16);
+    box-shadow: none;
 }
 
 .month-banner::after {
@@ -93,29 +94,29 @@
     position: absolute;
     inset: auto 0 0;
     height: 2px;
-    background: #c8a84b;
+    background: var(--mobile-blue);
 }
 
 .month-banner-label {
     font-size: 9px;
     letter-spacing: 2px;
-    color: rgba(255, 255, 255, 0.52);
+    color: var(--mobile-text-secondary);
     text-transform: uppercase;
     font-weight: 700;
     margin-bottom: 5px;
 }
 
 .month-banner-month {
-    font-family: "EB Garamond", serif;
+    
     font-size: 21px;
     font-weight: 700;
-    color: #fff;
+    color: var(--mobile-navy);
     line-height: 1;
 }
 
 .month-banner-date {
     margin-top: 7px;
-    color: rgba(255, 255, 255, 0.62);
+    color: var(--mobile-text-secondary);
     font-size: 11px;
 }
 
@@ -129,21 +130,21 @@
 }
 
 .month-banner-val {
-    font-family: "EB Garamond", serif;
+    
     font-size: 22px;
     font-weight: 700;
-    color: #e8cc76;
+    color: var(--mobile-navy);
     margin-right: 4px;
 }
 
 .month-banner-key {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.58);
+    color: var(--mobile-text-secondary);
 }
 
 .month-progress-wrap {
     height: 6px;
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--mobile-border);
     border-radius: 999px;
     overflow: hidden;
 }
@@ -151,7 +152,7 @@
 .month-progress-fill {
     height: 100%;
     min-width: 6px;
-    background: #c8a84b;
+    background: var(--mobile-blue);
     border-radius: 999px;
     transition: width 0.25s ease;
 }
@@ -181,7 +182,7 @@
 .seg-filter-btn.active {
     background: #fff;
     color: var(--navy-primary);
-    box-shadow: 0 1px 3px rgba(13, 33, 55, 0.12);
+    box-shadow: none;
 }
 
 .section-label {
@@ -198,7 +199,7 @@
     width: 100%;
     display: flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--mobile-surface);
     border: 1px solid #d7e0ea;
     border-radius: 14px;
     margin-bottom: 11px;
@@ -238,7 +239,7 @@
 
 .tx-amount {
     color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 17px; font-weight: 700; line-height: 1; flex-shrink: 0;
 }
 
@@ -269,7 +270,7 @@
 .tx-badge.badge-paid { color: var(--paid-green); background: var(--paid-green-bg); }
 .tx-badge.badge-partial { color: #8a6d1b; background: rgba(200,168,75,.16); }
 .tx-badge.badge-unpaid { color: var(--error-red); background: var(--error-red-bg); }
-.tx-badge.badge-queued { color: var(--gold-light); background: var(--navy-primary); }
+.tx-badge.badge-queued { color: #ffffff; background: var(--mobile-blue); }
 
 .tx-pending {
     font-size: 11.5px; font-weight: 700;
@@ -298,7 +299,7 @@
 .tx-action-view:active { background: var(--bg-page); }
 
 .tx-action-collect {
-    color: #fff; background: var(--navy-primary); border: 1px solid var(--navy-primary);
+    color: #fff; background: var(--mobile-blue); border: 1px solid var(--navy-primary);
 }
 .tx-action-collect svg { stroke: #fff; }
 .tx-action-collect:active { opacity: .9; }
@@ -491,7 +492,7 @@
 
 .btn-confirm {
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
 }
 
 .btn-cancel:disabled,
@@ -605,7 +606,7 @@
     margin-top: 14px;
     padding: 16px;
     border-radius: 14px;
-    background: #0d2137;
+    background: var(--mobile-blue);
     text-align: center;
 }
 
@@ -622,13 +623,13 @@
     font-size: 30px;
     font-weight: 600;
     letter-spacing: 0.18em;
-    color: #e8cc76;
+    color: #ffffff;
 }
 
 .btn-copy {
     border: 1px solid rgba(232, 204, 118, 0.5);
     background: transparent;
-    color: #e8cc76;
+    color: #ffffff;
     padding: 7px 18px;
     border-radius: 999px;
     font: inherit;
@@ -656,3 +657,185 @@
 
 /* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
 /* Seal is an in-flow flex child of .header-row (eemo.css .header-logo); no right-reserve needed. */
+
+/* ── Mobile V3 register rows: flat divider rows instead of elevated cards ── */
+.tx-card {
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    transition: none;
+    min-height: 56px;
+}
+
+.tx-card:active {
+    transform: none;
+    box-shadow: none;
+    background: var(--mobile-blue-subtle);
+}
+
+.tx-card:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
+}
+
+.section-label {
+    margin: 16px 4px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-owner {
+    font-size: 15px;
+}
+
+.tx-tag,
+.tx-or {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-badge {
+    font-size: 12px;
+}
+
+.tx-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Mobile V3 collection sheet: compact options, reliable touch heights ── */
+.status-option {
+    padding: 12px;
+    border-radius: 10px;
+    border-width: 1px;
+    margin-bottom: 8px;
+    min-height: 56px;
+}
+
+.status-option-label {
+    font-size: 15px;
+}
+
+.status-option-sub {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.form-input {
+    min-height: 48px;
+    font-size: 16px;
+}
+
+.btn-confirm,
+.btn-cancel {
+    min-height: 48px;
+    font-size: 15px;
+}
+
+.btn-confirm:disabled {
+    opacity: 0.5;
+}
+/* ── NPM context strip and sticky tools ── */
+.npm-context {
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    padding: 10px 14px 12px;
+    margin-bottom: 10px;
+}
+
+.npm-context-figures {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.npm-figure {
+    min-width: 0;
+}
+
+.npm-figure-value {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.npm-figure-key {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.npm-context .month-progress-wrap {
+    margin-top: 10px;
+}
+
+.npm-tools {
+    position: sticky;
+    top: -14px;
+    z-index: 5;
+    margin: 0 -14px 6px;
+    padding: 8px 14px 4px;
+    background: var(--mobile-canvas);
+}
+
+.form-hint-weighing {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    margin-top: 4px;
+}
+
+
+.tx-amount-cap {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
+}
+
+/* Server obligation / paid / remaining, aligned for a quick read of a partial payment */
+.money-rows {
+    margin: 0 0 12px;
+    padding: 0;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.money-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 14px;
+}
+
+.money-row + .money-row {
+    border-top: 1px solid var(--mobile-border);
+}
+
+.money-row dt {
+    font-size: 14px;
+    color: var(--mobile-text-secondary);
+    margin: 0;
+}
+
+.money-row dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.money-row.strong dt {
+    color: var(--mobile-text);
+    font-weight: 600;
+}
+
+.money-row.strong dd {
+    font-size: 17px;
+}

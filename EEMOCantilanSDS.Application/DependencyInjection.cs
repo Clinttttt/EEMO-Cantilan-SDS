@@ -40,8 +40,20 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.EcfCollectionWorkflow>();
             services.AddScoped<Common.Revenue.WcfCollectionWorkflow>();
             services.AddScoped<Common.Revenue.SettlementCutoverWorkflow>();
+            services.AddScoped<Common.Revenue.WcfActivationWorkflow>();
+            services.AddScoped<Common.Revenue.WcfMobileCollectionWorkflow>();
             services.AddScoped<Common.Revenue.AccountableFormCustodyWorkflow>();
             services.AddScoped<Common.Revenue.CollectorOperationAssignmentWorkflow>();
+            services.AddScoped<Common.Revenue.GovernedServiceWorkflow>();
+            services.AddScoped<Common.Revenue.PenaltyDefinitionWorkflow>();
+            services.AddScoped<Common.Revenue.ObligationWorkflow>();
+            services.AddScoped<Common.Revenue.VehicleClassWorkflow>();
+            services.AddScoped<Common.Revenue.RemittanceWorkflow>();
+            services.AddScoped<Common.Interface.Persistence.ICollectorCollectionFacts>(
+                sp => sp.GetRequiredService<Common.Revenue.RemittanceWorkflow>());
+            services.AddScoped<Common.Revenue.CollectionsReportWorkflow>();
+            services.AddScoped<Common.Revenue.TransportationCollectionAuthority>();
+            services.AddScoped<Common.Slaughterhouse.ApprovedSlaughterAnimalWorkflow>();
 
             return services;
         }

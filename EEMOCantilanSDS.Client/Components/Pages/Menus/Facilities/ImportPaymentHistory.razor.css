@@ -29,7 +29,7 @@
     stroke-linejoin: round;
 }
 
-/* ── Hero ── */
+/* ── Hero (V3: light surface, navy text, civic-blue step state) ── */
 .iph-hero {
     display: flex;
     align-items: center;
@@ -37,9 +37,11 @@
     flex-wrap: wrap;
     margin: 18px 0 16px;
     padding: 20px 24px;
+    border: 1px solid var(--border);
     border-radius: 14px;
-    background: var(--navy);
-    color: #fff;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+    color: var(--navy);
 }
 
 .iph-hero-icon {
@@ -50,7 +52,8 @@
     height: 54px;
     flex: 0 0 54px;
     border-radius: 12px;
-    background: rgba(255, 255, 255, .1);
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
 .iph-hero-icon svg {
@@ -73,12 +76,13 @@
     margin: 2px 0 0;
     font-size: 21px;
     font-weight: 700;
+    color: var(--navy);
 }
 
 .iph-hero-sub {
     margin: 3px 0 0;
     font-size: 13px;
-    opacity: .8;
+    color: var(--text-secondary);
 }
 
 .iph-steps {
@@ -94,7 +98,7 @@
     gap: 8px;
     font-size: 12.5px;
     font-weight: 600;
-    color: rgba(255, 255, 255, .45);
+    color: var(--text-tertiary);
 }
 
 .iph-step-no {
@@ -106,26 +110,32 @@
     justify-content: center;
     font-size: 11.5px;
     font-weight: 700;
-    background: rgba(255, 255, 255, .12);
+    background: var(--bg-icon);
+    color: var(--text-secondary);
 }
 
 .iph-step.is-active {
-    color: #fff;
-}
-
-.iph-step.is-active .iph-step-no {
-    background: var(--gold);
     color: var(--navy);
 }
 
+.iph-step.is-active .iph-step-no {
+    background: var(--accent);
+    color: var(--surface);
+}
+
 .iph-step.is-done {
-    color: rgba(255, 255, 255, .75);
+    color: var(--text-secondary);
+}
+
+.iph-step.is-done .iph-step-no {
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
 .iph-step-line {
     width: 26px;
     height: 1px;
-    background: rgba(255, 255, 255, .2);
+    background: var(--border-strong);
 }
 
 /* ── Card ── */

@@ -99,15 +99,19 @@
         <SlaughterRecordModal ShowModal="ShowRecordModal"
                               HogRate="@Overview?.HogRatePerHead"
                               LargeRate="@Overview?.LargeRatePerHead"
+                              ApprovedAnimals="@Overview?.ApprovedAnimals"
                               Labels="@AnimalLabels"
                               OnClose="CloseRecordModal"
                               OnSubmit="SubmitSlaughterRecord"
                               ErrorMessage="@ErrorMessage" />
 
+        <SlaughterApprovedAnimals OnChanged="LoadData" />
+
         <!-- ADD TRANSACTION MODAL -->
         <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
                                       HogRate="@Overview?.HogRatePerHead"
                                       LargeRate="@Overview?.LargeRatePerHead"
+                                      ApprovedAnimals="@Overview?.ApprovedAnimals"
                                       Labels="@AnimalLabels"
                                       OwnerName="@SelectedOwnerName"
                                       TransactionDate="@SelectedTransactionDate"
@@ -318,7 +322,7 @@
                                 }
                             </td>
                             <td>@totalHeads</td>
-                            <td>@(hasMultipleAnimals ? "—" : "₱" + firstTransaction.RatePerHead.ToString("N0"))</td>
+                            <td title="@ItemizedFees(firstTransaction.Components)">@(hasMultipleAnimals ? "—" : "₱" + firstTransaction.RatePerHead.ToString("N0"))</td>
                             <td>₱@totalAmount.ToString("N0")</td>
                             <td><span class="mono">@ownerGroup.ORNumber</span></td>
                             <td>
@@ -350,6 +354,10 @@
                                             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                                             @GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType)
                                         </div>
+                                        @if (ItemizedFees(transaction.Components) is { Length: > 0 } itemized)
+                                        {
+                                            <div class="detail-fee-items" aria-label="Fee components">@itemized</div>
+                                        }
                                     </td>
                                     <td>@transaction.NumberOfHeads</td>
                                     <td>₱@transaction.RatePerHead.ToString("N0")</td>
@@ -487,6 +495,20 @@
     private string SelectedOwnerName { get; set; } = string.Empty;
     private DateTime SelectedTransactionDate { get; set; } = PhilippineTime.Now;
     private string SelectedORNumber { get; set; } = string.Empty;
+    // Stored components of the rate already charged; shown, never recomputed or edited.
+    private static string ItemizedFees(SlaughterFeeComponentsDto? c)
+    {
+        if (c is null) return string.Empty;
+        var parts = new List<string> { $"Slaughter fee ₱{c.SlaughterFee:N2}" };
+        if (c.SlaughterPermit is { } permit) parts.Add($"Permit ₱{permit:N2}");
+        parts.Add($"Antemortem ₱{c.AntemortemFee:N2}");
+        if (c.PostmortemFee is { } post) parts.Add($"Postmortem ₱{post:N2}");
+        parts.Add($"Table ₱{c.TableCharge:N2}");
+        if (c.EntranceFee is { } entrance) parts.Add($"Entrance ₱{entrance:N2}");
+        if (c.LivestockFee is { } livestock) parts.Add($"Livestock ₱{livestock:N2}");
+        return string.Join(" · ", parts);
+    }
+
     private SlaughterTransactionDto? SelectedEntry { get; set; }
     private List<SlaughterTransactionDto> SelectedGroupEntries { get; set; } = new();
     private List<object> SelectedGroupEntriesAsObjects => SelectedGroupEntries.Cast<object>().ToList();

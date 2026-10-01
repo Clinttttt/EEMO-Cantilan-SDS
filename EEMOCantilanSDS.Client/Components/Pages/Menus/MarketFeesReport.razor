@@ -2,59 +2,12 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
-@using EEMOCantilanSDS.Domain.Common
-@inject IJSRuntime JS
+@using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Market Fees Report</PageTitle>
 
-@* Printable Market Fees report. StallTrack does not yet hold Market Fees collections, an approved annual target or
-   classified monthly income, so every figure is shown as unavailable ("—") rather than typed into the page. Earlier
-   versions carried hard-coded office-sheet figures and sample section totals; those are not system data and would
-   print for every municipality. The layout owns the <main> landmark. *@
-<div class="v3-page">
-    <div class="no-print">
-        <WorkspaceHeader Parent="Market Fees" ParentHref="/operations/market-fees" Title="Market Fees Report">
-            <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
-            <Actions>
-                <label class="v3-period">
-                    <span>Fiscal year</span>
-                    <select class="v3-select mfr-year" aria-label="Fiscal year" @bind="_year">
-                        @for (var year = PhilippineTime.Today.Year; year >= PhilippineTime.Today.Year - 2; year--)
-                        {
-                            <option value="@year">@year</option>
-                        }
-                    </select>
-                </label>
-                <div class="v3-btn-group" role="group" aria-label="Report actions">
-                    <button class="v3-btn" type="button" @onclick="PrintAsync">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
-                        Print
-                    </button>
-                </div>
-            </Actions>
-        </WorkspaceHeader>
-    </div>
-
-    <article class="v3-report-sheet print-report-sheet" aria-labelledby="mfr-title">
-        <ReportLetterhead Title="Market Fees Report" Period="@($"Fiscal year {_year}")">
-            <Facts>
-                <div><dt>Classification</dt><dd>Market Fees</dd></div>
-                <div><dt>Instrument</dt><dd>Cash Ticket</dd></div>
-            </Facts>
-        </ReportLetterhead>
-        <h2 id="mfr-title" class="v3-sr-only">Market Fees report for fiscal year @_year</h2>
-
-        <MonthlyIncomeUnavailable Classification="Market Fees" Year="_year" HeadingId="mfr-official" />
-
-        <section class="v3-report-section" aria-labelledby="mfr-basis">
-            <h3 id="mfr-basis">Basis</h3>
-            <p class="v3-report-note">Market Fees is one Monthly Income line. It does not include ECF, WCF, Tabo, Fish / Meat Vendor Fees, Landing / Berthing, Transportation Fees, Weight &amp; Measure, Transfer Large Cattle or Ice Plant, which are reported as their own lines.</p>
-        </section>
-    </article>
-</div>
-
-@code {
-    private int _year = PhilippineTime.Today.Year;
-
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
-}
+@* Market Fees report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+   month's governed collections, all read from the server. The layout owns the <main> landmark. *@
+<GovernedOperationReport OperationCode="@CollectorOperationCodes.MarketFees" Name="Market Fees" ParentHref="/operations/market-fees"
+                         RowKey="MARKET_FEES" Classification="Market Fees" Instruments="@(new[] { "CT" })"
+                         InstrumentFact="Cash Ticket" IdPrefix="mfr" Basis="Market Fees is one Monthly Income line. It does not include ECF, WCF, Tabo, Fish / Meat Vendor Fees, Landing / Berthing, Transportation or rent." />

@@ -83,7 +83,8 @@ public sealed class CollectorOperationAssignmentWorkflowTests
             CollectorOperationCodes.VegetableFruitSpaceRental,
             CollectorOperationCodes.LandingBerthing,
             CollectorOperationCodes.TransferLargeCattle,
-            CollectorOperationCodes.MarketFees
+            CollectorOperationCodes.MarketFees,
+            CollectorOperationCodes.Transportation
         }, catalog.Select(x => x.Code));
         Assert.DoesNotContain(catalog, x => x.Code == RevenueClassificationCodes.WeightAndMeasure);
         Assert.DoesNotContain(catalog, x => x.Code == RevenueClassificationCodes.FishMeatVendorFee);

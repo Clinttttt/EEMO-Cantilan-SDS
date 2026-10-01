@@ -45,6 +45,23 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 
+    public async Task<Result<IReadOnlyList<GovernedServiceRecordDto>>> GetOperationRecordsAsync(DateOnly from, DateOnly to) =>
+        await GetAsync<IReadOnlyList<GovernedServiceRecordDto>>($"api/governed-services/records?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+
+    public async Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode) =>
+        await GetAsync<GovernedServiceTermsDto>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/terms{(mode is { } m ? $"?mode={m}" : string.Empty)}");
+
+    public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
+        await GetAsync<IReadOnlyList<CashTicketDocumentDto>>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/documents{(mode is { } m ? $"?mode={m}" : string.Empty)}");
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>($"api/Mobile/position?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>($"api/Mobile/records/collections?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+
     public async Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         await GetAsync<CollectorOperationCapabilitiesDto>("api/Mobile/operations/capabilities");
 
@@ -68,6 +85,9 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
         await PostAsync<RecordMobileUtilityPaymentRequest, bool>("api/Mobile/npm-utility/pay", request);
+
+    public async Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth) =>
+        await GetAsync<IReadOnlyList<WcfMobileSourceDto>>($"api/wcf-collections/mobile-sources?billingYear={billingYear}&billingMonth={billingMonth}");
 
     public async Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         await GetAsync<IReadOnlyList<WcfObligationQuoteDto>>($"api/wcf-collections/obligations?throughYear={throughYear}&throughMonth={throughMonth}");

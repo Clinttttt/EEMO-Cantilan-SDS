@@ -259,7 +259,7 @@
 }
 
 .payee-total {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -431,7 +431,7 @@
 .detail-row-name { font-size: 12.5px; font-weight: 600; color: var(--navy-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .detail-row-sub { font-size: 9.5px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .detail-row-amt { text-align: right; flex-shrink: 0; }
-.detail-amt-val { font-family: 'EB Garamond', serif; font-size: 14px; font-weight: 600; color: var(--navy-primary); }
+.detail-amt-val { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; color: var(--navy-primary); }
 .detail-amt-val.paid { color: var(--paid-green); }
 .detail-amt-val.due { color: var(--error-red); }
 .detail-amt-bal { font-size: 9px; color: var(--text-muted); margin-top: 1px; }
@@ -444,3 +444,94 @@
 .detail-tag.status-delinquent { background: var(--error-red-bg); color: var(--error-red); }
 
 .detail-empty { text-align: center; color: var(--text-muted); font-size: 12px; padding: 30px 12px; }
+
+/* ── Waiting to sync: device money stated beside the server's report, never inside it ── */
+.pending-strip {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    margin: 0 0 14px;
+    padding: 10px 13px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--mobile-warning, #b7791f);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.pending-strip-key {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pending-strip-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy-primary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.pending-strip-note {
+    grid-column: 1 / -1;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ── Where the money came from: a compact register, one row per classification or facility ── */
+.src-list {
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+}
+
+.src-row,
+.src-walkup {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    padding: 11px 13px;
+}
+
+.src-row + .src-row {
+    border-top: 1px solid var(--border);
+}
+
+.src-name {
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.src-amt {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.src-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.src-walkup {
+    margin: 0 0 14px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: var(--bg-page);
+}
+
+.rpt-block-note {
+    margin: 4px 0 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}

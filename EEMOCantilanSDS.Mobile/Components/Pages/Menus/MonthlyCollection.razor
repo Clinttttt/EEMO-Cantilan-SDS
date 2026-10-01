@@ -20,25 +20,23 @@
 
 <div class="page-shell">
     <div class="header">
-        <div class="header-eyebrow">Monthly Collections</div>
         <div class="header-row">
             <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
             <div class="header-title-block">
                 <div class="header-title">@(Collection?.FacilityName ?? FacilityTitle)</div>
-                <div class="header-sub">@FacilityCodeUpper - Monthly Stall Rental</div>
+                <div class="header-sub">Monthly billing · @MonthLabel</div>
             </div>
-            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
     </div>
 
     <div class="date-strip">
         <div class="date-strip-left">Collector: <span>@Session.CollectorName</span></div>
-        <button class="collection-month-pill" type="button">
+        <div class="collection-month-pill" aria-label="Collection period">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
             @MonthLabel
-        </button>
+        </div>
     </div>
 
     <div class="content">
@@ -52,41 +50,31 @@
         }
         else if (Collection is not null)
         {
-            <div class="summary-strip">
-                <div class="summary-item">
-                    <div class="summary-value">@FormatCurrency(Collection.CollectedAmount)</div>
-                    <div class="summary-key">Collected</div>
+            @* One context strip for the month: what was collected, what remains, and how many accounts are paid. *@
+            <div class="npm-context" aria-label="Month position">
+                <div class="npm-context-figures">
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@FormatCurrency(Collection.CollectedAmount)</div>
+                        <div class="npm-figure-key">Collected</div>
+                    </div>
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@FormatCurrency(Collection.OutstandingAmount)</div>
+                        <div class="npm-figure-key">Outstanding</div>
+                    </div>
+                    <div class="npm-figure">
+                        <div class="npm-figure-value">@Collection.PaidCount of @Collection.TotalStalls</div>
+                        <div class="npm-figure-key">Paid in full</div>
+                    </div>
                 </div>
-                <div class="summary-item">
-                    <div class="summary-value">@Collection.PaidCount</div>
-                    <div class="summary-key">Paid</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">@(Collection.PartialCount + Collection.UnpaidCount)</div>
-                    <div class="summary-key">Pending</div>
+                <div class="month-progress-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@PaidPercent" aria-label="Share of accounts paid in full">
+                    <div class="month-progress-fill" style="width:@PaidPercent%"></div>
                 </div>
             </div>
 
-            <div class="month-banner">
-                <div class="month-banner-left">
-                    <div class="month-banner-label">Collection Period</div>
-                    <div class="month-banner-month">@MonthLabel</div>
-                    <div class="month-banner-date">Outstanding: @FormatCurrency(Collection.OutstandingAmount)</div>
-                </div>
-                <div class="month-banner-right">
-                    <div class="month-banner-stat">
-                        <span class="month-banner-val">@Collection.PaidCount</span>
-                        <span class="month-banner-key">of @Collection.TotalStalls paid</span>
-                    </div>
-                    <div class="month-progress-wrap">
-                        <div class="month-progress-fill" style="width:@PaidPercent%"></div>
-                    </div>
-                </div>
-            </div>
-
+            <div class="npm-tools">
             <div class="search-wrap">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
+                <input type="text" placeholder="Search stall no. or name" aria-label="Search stall or payor" @bind="SearchQuery" @bind:event="oninput" />
             </div>
 
             <div class="seg-filter">
@@ -96,6 +84,7 @@
                         @tab
                     </button>
                 }
+            </div>
             </div>
 
             @if (!FilteredStalls.Any())
@@ -115,7 +104,7 @@
                         <div class="tx-body">
                             <div class="tx-top">
                                 <span class="tx-owner">@stall.PayorName</span>
-                                <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)</span>
+                                <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)<span class="tx-amount-cap"> / month</span></span>
                             </div>
 
                             <div class="tx-meta">
@@ -130,7 +119,7 @@
                                 }
                                 @if (stall.Status == PaymentStatus.Partial)
                                 {
-                                    <span class="tx-meta-sep">·</span><span>Balance @FormatCurrency(stall.Balance)</span>
+                                    <span class="tx-meta-sep">·</span><span>Paid @FormatCurrency(stall.AmountPaid) · Remaining @FormatCurrency(stall.Balance)</span>
                                 }
                             </div>
 
@@ -209,9 +198,16 @@
                 <div class="preview-num">@SelectedStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@SelectedStall.PayorName</div>
-                    <div class="preview-detail">Monthly rental - @FormatCurrency(SelectedStall.MonthlyRate)</div>
+                    <div class="preview-detail">@MonthLabel · monthly billing</div>
                 </div>
             </div>
+
+            @* The server's own figures for this account and month: obligation, what has been paid, and what remains. *@
+            <dl class="money-rows" aria-label="Monthly obligation">
+                <div class="money-row"><dt>Monthly obligation</dt><dd>@FormatCurrency(SelectedStall.MonthlyRate)</dd></div>
+                <div class="money-row"><dt>Paid</dt><dd>@FormatCurrency(SelectedStall.AmountPaid)</dd></div>
+                <div class="money-row strong"><dt>Remaining</dt><dd>@FormatCurrency(SelectedStall.Balance)</dd></div>
+            </dl>
 
             <button class="status-option @(SelectedStatus == PaymentStatus.Paid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
                 <div class="status-option-icon paid-icon-sm">
@@ -247,7 +243,7 @@
                     <div class="form-label">Amount collected</div>
                     <div class="fish-input-row">
                         <span>₱</span>
-                        <input class="form-input" type="number" min="0" step="0.01" placeholder="0" @bind="PartialAmount" @bind:event="oninput" />
+                        <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Amount collected" @bind="PartialAmount" @bind:event="oninput" />
                     </div>
                     <div class="form-hint">Must be greater than 0 and less than @FormatCurrency(SelectedStall.MonthlyRate).</div>
                 </div>
@@ -348,7 +344,7 @@
                         <span>Collected by</span>
                         <strong>@Session.CollectorName</strong>
                     </div>
-                    <div class="receipt-note">This acknowledges receipt of the monthly stall rental stated above. Keep for your records.</div>
+                    <div class="receipt-note">Acknowledgement of this payment on your device. It does not replace the pre-numbered Official Receipt.</div>
                 </div>
             </div>
             @if (SelectedStall.Status == PaymentStatus.Partial && SelectedStall.Balance > 0)
@@ -843,7 +839,7 @@
         catch
         {
             // The HTTP layer throws on a connection failure/timeout; keep the retry path safe and unstuck.
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
         }
         finally
         {

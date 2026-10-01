@@ -1,0 +1,111 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IOfficialReportsApiClient OfficialReports
+
+@* One operation's row of the official Monthly Income for a fiscal year, read from the same server statement the Financial
+   Reports tab shows: Annual target, Jan–Dec, Total, %. Nothing is computed here. When the statement cannot be read, or the
+   line has no row, every cell is "—" (no figure available — not zero) and a note says why. No target is ever invented. *@
+<section class="v3-report-section" aria-labelledby="@HeadingId">
+    <h3 id="@HeadingId">Monthly income — fiscal year @Year</h3>
+    <div class="v3-table-wrap">
+        <table class="v3-report-table">
+            <thead>
+                <tr>
+                    <th scope="col">Classification</th>
+                    <th scope="col" class="v3-num">Annual target</th>
+                    @foreach (var month in Months)
+                    {
+                        <th scope="col" class="v3-num">@month</th>
+                    }
+                    <th scope="col" class="v3-num">Total</th>
+                    <th scope="col" class="v3-num">%</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th scope="row">@Classification</th>
+                    @if (_row is { } row)
+                    {
+                        <td class="v3-num">@(row.AnnualTarget is { } t ? Amount(t) : "—")</td>
+                        @foreach (var cell in row.Months)
+                        {
+                            <td class="v3-num">@Cell(cell.Total)</td>
+                        }
+                        <td class="v3-num v3-strong">@Cell(row.Total.Total)</td>
+                        <td class="v3-num">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < Months.Length + 3; i++)
+                        {
+                            <td class="v3-num">—</td>
+                        }
+                    }
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="v3-report-note">@Note</p>
+</section>
+
+@code {
+    private static readonly string[] Months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    /// <summary>The line's name as the report states it.</summary>
+    [Parameter, EditorRequired] public string Classification { get; set; } = string.Empty;
+
+    /// <summary>The official statement's row key (OfficialMonthlyIncomeStructure), e.g. MARKET_FEES, ECF, WCF, ARREARS.</summary>
+    [Parameter, EditorRequired] public string RowKey { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>Id of the section heading, so the page (and its tests) can address this section.</summary>
+    [Parameter, EditorRequired] public string HeadingId { get; set; } = string.Empty;
+
+    private OfficialMonthlyIncomeRowDto? _row;
+    private bool _failed;
+    private bool _loaded;
+    private int _loadedYear;
+    private bool _targetsConfigured;
+
+    private string Note => _row is not null
+        ? (_targetsConfigured ? "Figures are the server's official Monthly Income for this line. — means no amount was recorded."
+            : "Figures are the server's official Monthly Income for this line. — means no amount was recorded; annual targets are not configured, so target and % are not shown.")
+        : _failed || !_loaded
+            ? "— means no figure is available in StallTrack; it is not zero. The official Monthly Income could not be read for this report."
+            : $"— means no figure is available in StallTrack; it is not zero. This line has no row in the {Year} statement.";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded && _loadedYear == Year) return;
+        _loadedYear = Year;
+        _row = null;
+        _failed = false;
+        try
+        {
+            var result = await OfficialReports.GetMonthlyIncomeAsync(Year, null);
+            if (result is { IsSuccess: true, Value: { } statement })
+            {
+                _targetsConfigured = statement.TargetsConfigured;
+                _row = statement.Groups.SelectMany(g => g.Rows).FirstOrDefault(r => r.Key == RowKey);
+            }
+            else
+            {
+                _failed = true;
+            }
+        }
+        catch
+        {
+            _failed = true;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private static string Cell(decimal amount) => amount == 0m ? "—" : amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    private static string Amount(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);
+}

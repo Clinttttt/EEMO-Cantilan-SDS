@@ -29,37 +29,11 @@ public sealed class LandingBerthingTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        // Operation reports read the official Monthly Income and the governed-activity register; an unanswered read
+        // shows "—", which is what these tests assert.
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        Services.AddSingleton(Mock.Of<IGovernedServicesApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
-    }
-
-    [Fact]
-    public void Workspace_ShowsTheLandingBerthingPolicy_AndHoldsNoSampleRowsOrEntryForms()
-    {
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(x => x.GetClassificationsAsync(It.IsAny<DateOnly?>())).ReturnsAsync(
-            Result<IReadOnlyList<RevenueClassificationDto>>.Success(new[]
-            {
-                Classification(RevenueClassificationCodes.MarketFees, "Market Fees"),
-                Classification(RevenueClassificationCodes.LandingBerthing, "Landing / Berthing"),
-            }));
-        Services.AddSingleton(api.Object);
-
-        var cut = RenderComponent<LandingBerthing>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Empty(cut.FindAll("main"));
-            var policy = cut.Find("aside").TextContent;
-            Assert.Contains("Landing / Berthing", policy);
-            Assert.DoesNotContain("Market Fees", policy);
-            Assert.Contains("Cash Ticket", policy);
-            Assert.Contains("aren't recorded in StallTrack yet", cut.Markup);
-
-            Assert.Empty(cut.FindAll("form"));
-            Assert.Empty(cut.FindAll("input"));
-            Assert.Empty(cut.FindAll("[role='dialog']"));
-            AssertNoRetiredContent(cut);
-        }, Timeout);
     }
 
     [Fact]

@@ -6,6 +6,8 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
 @inject EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor Connectivity
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@using EEMOCantilanSDS.Mobile.Presentation
 @implements IDisposable
 
 <div class="page-shell">
@@ -37,7 +39,11 @@
             }
         </div>
 
-        @if (IsLoading)
+        @if (ActiveReportType == PositionTab)
+        {
+            <CollectorPositionPanel From="PositionFrom" To="PositionTo" />
+        }
+        else if (IsLoading)
         {
             <LoadingState Text="Loading your reports…" />
         }
@@ -57,12 +63,23 @@
                         <span class="stat-val">@TotalTransactions</span>
                         <span class="stat-key">Transactions</span>
                     </div>
+                    @* Payor accounts in scope (facility stalls/vendors) plus registered Payors on canonical collections. A
+                       walk-up Cash Ticket has no Payor and is never counted as one. *@
                     <div class="total-banner-stat">
                         <span class="stat-val">@PayeeCount</span>
-                        <span class="stat-key">Payees</span>
+                        <span class="stat-key">Payor accounts</span>
                     </div>
                 </div>
             </div>
+
+            @if (Pending.WaitingCount > 0)
+            {
+                <div class="pending-strip" role="status">
+                    <span class="pending-strip-key">Waiting to sync</span>
+                    <span class="pending-strip-val">@Pending.WaitingCount · &#8369;@Pending.WaitingAmount.ToString("N0")</span>
+                    <span class="pending-strip-note">Saved on this device. Not in these totals until the server posts it.</span>
+                </div>
+            }
 
             @if (ActiveReportType == PrimaryReportTab)
             {
@@ -87,7 +104,7 @@
                                 </div>
                                 <div class="day-info">
                                     <div class="day-label">@GetDayLabel(day.PeriodDate)</div>
-                                    <div class="day-meta">@day.TransactionCount entries from @day.PayeeCount payees</div>
+                                    <div class="day-meta">@EntryMeta(day.TransactionCount, day.PayeeCount)</div>
                                 </div>
                                 <div class="day-amount-col">
                                     <div class="day-amount">&#8369;@day.CollectedAmount.ToString("N0")</div>
@@ -114,7 +131,7 @@
                                 </div>
                                 <div class="day-info">
                                     <div class="day-label">@month.PeriodDate.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy")</div>
-                                    <div class="day-meta">@month.TransactionCount entries from @month.PayeeCount payees</div>
+                                    <div class="day-meta">@EntryMeta(month.TransactionCount, month.PayeeCount)</div>
                                 </div>
                                 <div class="day-amount-col">
                                     <div class="day-amount">&#8369;@month.CollectedAmount.ToString("N0")</div>
@@ -123,6 +140,31 @@
                             </div>
                         }
                     }
+                }
+
+                @* Where the period's money came from, as the server classified it. Canonical collections are stated by their
+                   revenue classification; legacy records by the facility that recorded them, labelled as such. *@
+                @if (Breakdown.Count > 0)
+                {
+                    <div class="section-label">By classification</div>
+                    <ul class="src-list">
+                        @foreach (var b in ClassificationBreakdown)
+                        {
+                            <li class="src-row">
+                                <span class="src-name">@b.Label</span>
+                                <span class="src-meta">@Plural(b.TransactionCount, "collection")</span>
+                                <span class="src-amt">&#8369;@b.Amount.ToString("N0")</span>
+                            </li>
+                        }
+                        @foreach (var b in FacilityBreakdown)
+                        {
+                            <li class="src-row">
+                                <span class="src-name">@b.Label</span>
+                                <span class="src-meta">Facility records · @Plural(b.TransactionCount, "entry", "entries")</span>
+                                <span class="src-amt">&#8369;@b.Amount.ToString("N0")</span>
+                            </li>
+                        }
+                    </ul>
                 }
             }
 
@@ -148,7 +190,7 @@
                     }
                 </div>
 
-                @if (!FilteredPayees.Any())
+                @if (!FilteredPayees.Any() && NamedPayors.Count == 0 && UnnamedCount == 0)
                 {
                     @EmptyState("No payee collections recorded for this period.")
                 }
@@ -191,6 +233,34 @@
                         </div>
                     }
                 }
+
+                @* Registered Payors on operation collections, by their explicit link only — never matched from typed text. *@
+                @if (NamedPayors.Count > 0)
+                {
+                    <div class="section-label">Registered payors · operations</div>
+                    <ul class="src-list">
+                        @foreach (var p in NamedPayors.Where(p => string.IsNullOrWhiteSpace(PayeeSearch)
+                                     || p.PayorName.Contains(PayeeSearch, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            <li class="src-row">
+                                <span class="src-name">@p.PayorName</span>
+                                <span class="src-meta">@Plural(p.TransactionCount, "collection")</span>
+                                <span class="src-amt">&#8369;@p.Amount.ToString("N0")</span>
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @* Walk-up Cash Tickets carry no Payor. They are in every total above and are stated here once, not ranked as a
+                   person — the payer text on a ticket is evidence, not an identity. *@
+                @if (UnnamedCount > 0)
+                {
+                    <div class="src-walkup" role="note">
+                        <span class="src-name">Walk-up · no registered payor</span>
+                        <span class="src-meta">@Plural(UnnamedCount, "collection") · included in totals</span>
+                        <span class="src-amt">&#8369;@UnnamedTotal.ToString("N0")</span>
+                    </div>
+                }
             }
 
             @if (ActiveReportType == "Summary")
@@ -219,7 +289,7 @@
                         </button>
                     }
                     @* "Still owed" is money not yet taken, which a paid-on-service round has no notion of. *@
-                    @if (!ScopeIsPaidOnService)
+                    @if (HasFacilityAccounts && !ScopeIsPaidOnService)
                     {
                         <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("outstanding"))">
                             <span class="rpt-tile-value">&#8369;@Outstanding.ToString("N0")</span>
@@ -233,6 +303,8 @@
                    These four counts partition the SAME people, so they belong in one block rather than as four rows a reader has to
                    recognise as related. "Payees served" is their total, so it heads the block instead of being a seventh row that
                    restates it. Each cell still opens its own list, as each row did. *@
+                @if (HasFacilityAccounts)
+                {
                 <div class="rpt-block">
                     @* ── One state, stated once ──
                        A paid-on-service round can only report "fully paid", so the block says it in its own heading and the
@@ -247,9 +319,9 @@
                         <button type="button" class="rpt-block-head rpt-block-head-tap" @onclick="@(() => OpenDetail("paid"))">
                             <span class="rpt-block-title">Payors</span>
                             <span class="rpt-block-total">
-                                @(PaidPayorCount == PayeeCount
+                                @(PaidPayorCount == FacilityPayeeCount
                                     ? $"{PaidPayorCount} fully paid"
-                                    : $"{PaidPayorCount} of {PayeeCount} fully paid")
+                                    : $"{PaidPayorCount} of {FacilityPayeeCount} fully paid")
                             </span>
                         </button>
                     }
@@ -257,7 +329,7 @@
                     {
                         <div class="rpt-block-head">
                             <span class="rpt-block-title">Payors</span>
-                            <span class="rpt-block-total">@PayeeCount served</span>
+                            <span class="rpt-block-total">@FacilityPayeeCount served</span>
                         </div>
                         <div class="rpt-grid">
                             <button type="button" class="rpt-cell" @onclick="@(() => OpenDetail("paid"))">
@@ -279,6 +351,23 @@
                         </div>
                     }
                 </div>
+                }
+
+                @* Operation collections (Market Fees, Landing/Berthing, …) are paid at the point of service: no account, no
+                   balance. Their count and money are stated as such, beside — never inside — the facility payor block. *@
+                @if ((ReportData?.Totals.CanonicalTransactionCount ?? 0) > 0)
+                {
+                    <div class="rpt-block">
+                        <div class="rpt-block-head">
+                            <span class="rpt-block-title">Posted collections</span>
+                            <span class="rpt-block-total">@Plural(ReportData!.Totals.CanonicalTransactionCount, "collection") · &#8369;@ReportData.Totals.CanonicalCollectedAmount.ToString("N0")</span>
+                        </div>
+                        @if (UnnamedCount > 0)
+                        {
+                            <p class="rpt-block-note">@Plural(UnnamedCount, "walk-up ticket") without a registered payor, counted in the totals.</p>
+                        }
+                    </div>
+                }
 
                 @* "Recorded transactions" was removed on 2026-09-11. The banner at the top of this page states the same
                    @TotalTransactions, and the banner is outside the tab strip so it is on screen whatever tab is open — the line
@@ -374,7 +463,19 @@
                 @switch (SelectedDetailCard)
                 {
                     case "collected":
-                        @if (Transactions.Count == 0)
+                        @foreach (var b in ClassificationBreakdown)
+                        {
+                            <div class="detail-row">
+                                <div class="detail-row-main">
+                                    <div class="detail-row-name">@b.Label</div>
+                                    <div class="detail-row-sub">Posted · @Plural(b.TransactionCount, "collection")</div>
+                                </div>
+                                <div class="detail-row-amt">
+                                    <div class="detail-amt-val">&#8369;@b.Amount.ToString("N0")</div>
+                                </div>
+                            </div>
+                        }
+                        @if (Transactions.Count == 0 && !ClassificationBreakdown.Any())
                         {
                             @DetailEmpty("No collections recorded for this period.")
                         }
@@ -585,9 +686,16 @@
     bool WeeklyReportMode =>
         AssignedFacilities.Count > 0 && AssignedFacilities.All(code => code == FacilityCode.TPM);
 
-    IReadOnlyList<string> ReportTypes => new[] { PrimaryReportTab, "Per Payee", "Summary" };
+    const string PositionTab = "Position";
 
-    DateTime PeriodDate => DateTime.Now.AddMonths(PeriodOffset);
+    IReadOnlyList<string> ReportTypes => new[] { PositionTab, PrimaryReportTab, "Per Payee", "Summary" };
+
+    // The position is the collector's own server-derived figure for the month on screen.
+    DateOnly PositionFrom => new(PeriodDate.Year, PeriodDate.Month, 1);
+    DateOnly PositionTo => new(PeriodDate.Year, PeriodDate.Month, DateTime.DaysInMonth(PeriodDate.Year, PeriodDate.Month));
+
+    // The server's business date decides which month is "this month"; the device clock is only the fallback.
+    DateTime PeriodDate => (Session.Menu?.Today.ToDateTime(TimeOnly.MinValue) ?? DateTime.Now).AddMonths(PeriodOffset);
     bool CanGoNext => PeriodOffset < 0;
 
     string PeriodTitle => PeriodOffset == 0
@@ -598,9 +706,10 @@
         $"{new DateTime(PeriodDate.Year, PeriodDate.Month, 1):MMM d} - " +
         $"{new DateTime(PeriodDate.Year, PeriodDate.Month, DateTime.DaysInMonth(PeriodDate.Year, PeriodDate.Month)):MMM d, yyyy}";
 
+    // A collector with operations but no facility still has a report: their own posted collections.
     string ScopeLabel => AssignedFacilityItems.Count switch
     {
-        0 => "No assigned facility",
+        0 => "Your collections",
         1 => AssignedFacilityItems[0].Name,
         _ => $"{AssignedFacilityItems.Count} assigned facilities"
     };
@@ -619,13 +728,14 @@
                 return;
             }
 
-            ActiveReportType = PrimaryReportTab;
+            ActiveReportType = PositionTab;
             await LoadOrRefreshReportAsync();
+            await LoadPendingAsync();
             Connectivity.ConnectivityRestored += OnConnectivityRestored;
         }
         catch (HttpRequestException)
         {
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
             IsLoading = false;
         }
     }
@@ -650,6 +760,22 @@
         }
     }
 
+    // What this device still holds for the server. Read from the local queue only — it is stated beside the report and is
+    // never added to it, because a collection is collected when the server posts it, not when the device captures it.
+    PendingSyncSummary Pending = PendingSyncSummary.None;
+
+    async Task LoadPendingAsync()
+    {
+        try
+        {
+            Pending = PendingSyncSummary.From(await Sync.GetAllAsync());
+        }
+        catch
+        {
+            Pending = PendingSyncSummary.None;
+        }
+    }
+
     // Quiet background refresh — updates the data + cache without flashing the loading state. A transient
     // failure keeps the cached view (no error banner over good cached data).
     async Task RefreshReportAsync()
@@ -667,6 +793,8 @@
                 // the "Couldn't load reports" screen staying stuck after connectivity returns.
                 ErrorMessage = string.Empty;
                 IsLoading = false;
+                // A sync that ran meanwhile moves money from "waiting" into the report; restate both together.
+                await LoadPendingAsync();
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -725,7 +853,7 @@
         catch
         {
             // The HTTP layer throws on a connection failure/timeout; keep period nav + retry safe and unstuck.
-            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
         }
         finally
         {
@@ -815,6 +943,28 @@
         string.IsNullOrWhiteSpace(stallNo) ? code.ToString() : $"{code} · Stall {stallNo}";
 
     RenderFragment DetailEmpty(string message) =>@<div class="detail-empty">@message</div>;
+
+    // Where the money came from, as the server classified it: canonical collections by revenue classification, legacy
+    // records by the facility that recorded them. Two bases, never merged into one list of "classifications".
+    IReadOnlyList<MobileReportBreakdownDto> Breakdown => ReportData?.Breakdown ?? Array.Empty<MobileReportBreakdownDto>();
+    IEnumerable<MobileReportBreakdownDto> ClassificationBreakdown => Breakdown.Where(b => b.IsClassification);
+    IEnumerable<MobileReportBreakdownDto> FacilityBreakdown => Breakdown.Where(b => !b.IsClassification);
+    IReadOnlyList<MobileReportNamedPayorDto> NamedPayors => ReportData?.NamedPayors ?? Array.Empty<MobileReportNamedPayorDto>();
+    decimal UnnamedTotal => ReportData?.Totals.UnnamedCollectedAmount ?? 0m;
+    int UnnamedCount => ReportData?.Totals.UnnamedTransactionCount ?? 0;
+    // Facility accounts (stalls, vendors) only exist where a facility is in scope; an operations-only round has none.
+    bool HasFacilityAccounts => ReportFacilities.Count > 0;
+    // The facility accounts alone — the population the Paid / Part paid / Not collected cells partition.
+    int FacilityPayeeCount => Math.Max(0, PayeeCount - NamedPayors.Count);
+
+    static string Plural(int count, string one, string? many = null) =>
+        $"{count} {(count == 1 ? one : many ?? one + "s")}";
+
+    // A period row states its events and, where any exist, the payors behind them. A walk-up ticket adds no payor.
+    static string EntryMeta(int transactions, int payors) =>
+        payors > 0
+            ? $"{Plural(transactions, "collection")} · {Plural(payors, "payor")}"
+            : Plural(transactions, "collection");
 
     decimal GrandTotal => ReportData?.Totals.CollectedAmount ?? 0m;
     // Split of the grand total: what this collector personally collected vs what the office/admin recorded.

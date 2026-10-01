@@ -39,7 +39,10 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         // Account / payor / stall management
         typeof(AdminUser), typeof(CollectorUser), typeof(PayorUser),
         typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink),
-        typeof(CollectorOperationAssignment),
+        typeof(CollectorOperationAssignment), typeof(GovernedService), typeof(GovernedServiceSetting), typeof(PenaltyDefinition),
+        typeof(ObligationAccount), typeof(ObligationRate), typeof(ObligationPeriod),
+        typeof(VehicleClass), typeof(VehicleClassRate),
+        typeof(CollectionRemittance), typeof(CollectionRemittanceCoverage), typeof(AccountableFormSpoilage),
         // The occupancy itself. Stall was audited but Contract was not, so the facts that DECIDE what a payor
         // owes - who the lessee is, the rent, the term, the effectivity date, whether it was terminated - could
         // be changed with nothing recorded. A register whose figures can move without a trace is not a record

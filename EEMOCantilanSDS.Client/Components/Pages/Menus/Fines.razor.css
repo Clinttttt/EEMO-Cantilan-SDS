@@ -1,0 +1,52 @@
+/* Fines — V3. Panels, tables and forms come from the v3- layer in app.css. */
+
+.fn-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.fn-notice {
+    margin: 12px 20px 0;
+}
+
+.fn-period {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.fn-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--border);
+}
+
+.fn-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+}
+
+.fn-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.fn-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.v3-panel-note a {
+    color: var(--accent);
+    font-weight: 600;
+}

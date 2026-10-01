@@ -43,6 +43,17 @@ public static class TenantBackupTableNames
         ["PayorStallLinks"] = "Payor–stall links",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",
+        ["GovernedServices"] = "Governed services",
+        ["GovernedServiceSettings"] = "Governed service settings",
+        ["PenaltyDefinitions"] = "Penalty definitions",
+        ["ObligationAccounts"] = "Obligation accounts",
+        ["ObligationRates"] = "Obligation rates",
+        ["ObligationPeriods"] = "Obligation periods",
+        ["VehicleClasses"] = "Vehicle classes",
+        ["VehicleClassRates"] = "Vehicle class rates",
+        ["CollectionRemittances"] = "Collection remittances",
+        ["CollectionRemittanceCoverages"] = "Remittance coverage",
+        ["AccountableFormSpoilages"] = "Spoiled form records",
     };
 
     public static string Display(string table)

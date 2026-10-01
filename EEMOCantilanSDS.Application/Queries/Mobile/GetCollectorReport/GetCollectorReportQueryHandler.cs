@@ -12,6 +12,9 @@ public class GetCollectorReportQueryHandler(
     // Both, and honestly so: this one loads the collector's account to know their assigned facilities, then reads their
     // report. The account lookup is not a projection and the projection is not an account.
     ICollectorMobileQueries mobileQueries,
+    // The collector's posted canonical Collections (governed operations, obligations, penalties, converted rent and
+    // utilities): the same facts their Position sums, so the report and the Position cannot disagree.
+    ICollectorCollectionFacts canonicalFacts,
     ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
 {
     public async Task<Result<MobileCollectorReportDto>> Handle(GetCollectorReportQuery request, CancellationToken ct)
@@ -50,6 +53,13 @@ public class GetCollectorReportQueryHandler(
             effectiveEnd,
             ct);
 
-        return Result<MobileCollectorReportDto>.Success(report);
+        // Canonical money is selected by its own Philippine business date over the whole selected month, inclusive — the
+        // date the collection answers for, never a sync or device timestamp. A failed read is a failed report, never ₱0.
+        var canonical = await canonicalFacts.GetMyCollectionsAsync(monthStart, monthEnd, ct);
+        if (!canonical.IsSuccess || canonical.Value is null)
+            return Result<MobileCollectorReportDto>.Failure(
+                canonical.Error ?? "Your posted collections could not be read.", canonical.Status);
+
+        return Result<MobileCollectorReportDto>.Success(CollectorReportComposer.Compose(report, canonical.Value));
     }
 }

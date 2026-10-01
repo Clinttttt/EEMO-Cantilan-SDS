@@ -337,6 +337,52 @@
                 </div>
             }
 
+            @if (r.OperationCollections is { Count: > 0 } operationRows)
+            {
+                <!-- ══ Governed operations belong to no facility: stated apart, never folded into a facility total ══ -->
+                <div class="print-section-block">
+                    <div class="print-section-heading">Operation Collections</div>
+                    <div class="print-table-wrap">
+                        <table class="print-status-table" aria-label="Operation collections">
+                            <thead>
+                                <tr class="cr-gap-row"><td colspan="6"></td></tr>
+                                <tr>
+                                    <th>Document</th>
+                                    <th>Date</th>
+                                    <th>Operation</th>
+                                    <th>Payer / reference</th>
+                                    <th>Instrument</th>
+                                    <th class="cr-num">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var o in operationRows)
+                                {
+                                    <tr>
+                                        <td>@o.DocumentNumber</td>
+                                        <td>@o.BusinessDate.ToString("MMM d, yyyy")</td>
+                                        <td>@o.OperationName</td>
+                                        <td>@(string.IsNullOrWhiteSpace(o.PayerName) ? "—" : o.PayerName)@(string.IsNullOrWhiteSpace(o.Reference) ? "" : " · " + o.Reference)</td>
+                                        <td>@(o.InstrumentLabel ?? "—")</td>
+                                        <td class="cr-num">&#8369;@o.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="5"><strong>Total operation collections</strong></td>
+                                    <td class="cr-num"><strong>&#8369;@r.OperationCollected.ToString("N2")</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <p class="cr-note">
+                        These are canonical collections of operations that belong to no facility. They are stated here
+                        separately and are not included in the facility totals or Total Collected above.
+                    </p>
+                </div>
+            }
+
             @* The sheet's closing. Kept as one block so the note and the signatures are never split across a page break, and
                so they are never left alone on a page of their own.
 

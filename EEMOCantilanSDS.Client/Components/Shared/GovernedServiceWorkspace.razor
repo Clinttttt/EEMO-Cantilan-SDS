@@ -1,0 +1,358 @@
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IGovernedServicesApiClient GovernedApi
+
+@* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
+   Collection itself happens on Collector Mobile with an assigned document; nothing here records money. Every figure is
+   the server's; a service without an approved amount rule says so and produces no Collection. *@
+<div class="gsw-layout">
+    <section class="v3-panel" aria-labelledby="@_activityTitleId" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="@_activityTitleId">Collections</h2>
+            <label class="gsw-period">
+                <span>Month</span>
+                <input class="v3-input" type="month" aria-label="Collection month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            </label>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(_activityError))
+        {
+            <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
+        }
+
+        <div class="v3-table-wrap" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Document</th>
+                        <th scope="col">Payer / reference</th>
+                        <th scope="col">Collector</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _activity)
+                    {
+                        <tr>
+                            <td>@row.BusinessDate.ToString("MMM d, yyyy")</td>
+                            <td class="v3-strong">@row.DocumentNumber<span class="v3-block">@InstrumentLabel(row)</span></td>
+                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)@if (!string.IsNullOrWhiteSpace(row.Reference)) {<span class="v3-block">@row.Reference</span>}</td>
+                            <td>@(row.CollectorName ?? "—")</td>
+                            <td>@row.Disposition</td>
+                            <td class="v3-num v3-strong">@Money(row.Amount)</td>
+                        </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr>
+                            <td class="v3-empty" colspan="6">
+                                @if (_loading) { <span role="status">Loading collections…</span> }
+                                else if (_activityError is not null) { <span>Collections are unavailable.</span> }
+                                else if (_definition is { State: not GovernedServiceSetupState.Active })
+                                {
+                                    <span>Nothing has been collected: @Name is not active yet.</span>
+                                }
+                                else { <span>No @Name collections were recorded in @PeriodLabel.</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (_activity.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="5"><strong>Total for @PeriodLabel</strong></td>
+                            <td class="v3-num v3-strong">@Money(_activity.Sum(x => x.Amount))</td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        <p class="v3-panel-note">
+            Recorded by assigned collectors on Collector Mobile.
+            <a href="/collectors">Collectors</a> assigns the operation; <a href="/accountable-forms">Accountable Forms</a> holds document custody.
+        </p>
+    </section>
+
+    <aside class="v3-panel" aria-labelledby="@_setupTitleId">
+        <header class="v3-panel-header">
+            <h2 id="@_setupTitleId">Setup</h2>
+            @if (_definition is { } state)
+            {
+                <span class="gsw-state gsw-state-@(state.State.ToString().ToLowerInvariant())">@StateLabel(state.State)</span>
+            }
+        </header>
+        <div class="v3-panel-body">
+            @if (_definitionError is not null)
+            {
+                <div class="gsw-retry" role="alert">
+                    <p class="gsw-note">@_definitionError</p>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadDefinitionAsync">Try again</button>
+                </div>
+            }
+            else if (_definition is null)
+            {
+                <p class="gsw-note" role="status">Loading setup…</p>
+            }
+            else
+            {
+                <dl class="v3-facts" aria-label="Approved setup">
+                    <div><dt>Amount rule</dt><dd>@BasisLabel(_definition)</dd></div>
+                    @foreach (var instrument in _definition.Instruments)
+                    {
+                        <div>
+                            <dt>@(instrument.Mode is null ? "Instrument" : ModeLabel(instrument.Mode.Value))</dt>
+                            <dd>@(instrument.Instrument is { } i ? InstrumentName(i) : "Not approved")</dd>
+                        </div>
+                    }
+                    <div><dt>Collector Mobile</dt><dd>@(_definition.MobileEnabled ? "Enabled" : "Not enabled")</dd></div>
+                    <div><dt>Effective since</dt><dd>@(_definition.EffectiveDate?.ToString("MMM d, yyyy") ?? "—")</dd></div>
+                </dl>
+                @if (_definition.SetupIssues.Count > 0)
+                {
+                    <ul class="gsw-issues" aria-label="What is still needed">
+                        @foreach (var issue in _definition.SetupIssues)
+                        {
+                            <li>@issue</li>
+                        }
+                    </ul>
+                }
+
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        @if (!_editing)
+                        {
+                            <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
+                                @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
+                            </button>
+                        }
+                        else
+                        {
+                            <form class="gsw-form" id="@_formId" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                                <label class="v3-field">
+                                    <span>Effective from</span>
+                                    <input type="date" required @bind="_effective" />
+                                </label>
+                                @if (_definition.AllowedBases.Count > 1)
+                                {
+                                    <label class="v3-field">
+                                        <span>Amount rule</span>
+                                        <select @bind="_basis">
+                                            @foreach (var basis in _definition.AllowedBases)
+                                            {
+                                                <option value="@basis">@BasisName(basis)</option>
+                                            }
+                                        </select>
+                                    </label>
+                                }
+                                @if (_basis == GovernedServiceBasis.FixedAmount)
+                                {
+                                    <label class="v3-field">
+                                        <span>Approved amount (₱)</span>
+                                        <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
+                                    </label>
+                                }
+                                else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
+                                {
+                                    <label class="v3-field">
+                                        <span>Ceiling per transaction (₱, optional)</span>
+                                        <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
+                                    </label>
+                                }
+                                else
+                                {
+                                    <p class="gsw-note">The amount is the approved rate of the vehicle class the collector selects. Set the classes and rates below.</p>
+                                }
+                                <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
+                                <label class="gsw-check"><input type="checkbox" @bind="_mobile" /> Collector Mobile may record it</label>
+                                @if (!string.IsNullOrWhiteSpace(_saveError))
+                                {
+                                    <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
+                                }
+                                <p class="gsw-note">A new version applies from its effective date. Collections already posted keep the rule they used.</p>
+                                <div class="gsw-actions">
+                                    <button class="v3-btn" type="button" @onclick="CloseEditor">Cancel</button>
+                                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save amount rule</button>
+                                </div>
+                            </form>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+                @if (!string.IsNullOrWhiteSpace(_saved))
+                {
+                    <p class="gsw-saved" role="status">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><polyline points="20 6 9 17 4 12" /></svg>
+                        <span>@_saved</span>
+                    </p>
+                }
+            }
+        </div>
+    </aside>
+</div>
+
+@code {
+    private readonly string _activityTitleId = $"gsw-a-{Guid.NewGuid():N}";
+    private readonly string _setupTitleId = $"gsw-s-{Guid.NewGuid():N}";
+    private readonly string _formId = $"gsw-f-{Guid.NewGuid():N}";
+
+    /// <summary>The operation identity (CollectorOperationCodes), e.g. MARKET_FEES.</summary>
+    [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
+
+    /// <summary>The line's name as the Monthly Income sheet shows it.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    private GovernedServiceDefinitionDto? _definition;
+    private string? _definitionError;
+    private List<GovernedServiceActivityDto> _activity = [];
+    private string? _activityError;
+    private bool _loading = true;
+
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private string PeriodLabel => _month.ToString("MMMM yyyy");
+
+    private bool _editing;
+    private bool _saving;
+    private string? _saveError;
+    private string? _saved;
+    private DateOnly _effective = PhilippineTime.Today;
+    private GovernedServiceBasis _basis = GovernedServiceBasis.DirectApprovedAmount;
+    private decimal? _fixedAmount;
+    private decimal? _ceiling;
+    private bool _enabled = true;
+    private bool _mobile = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDefinitionAsync();
+        await LoadActivityAsync();
+    }
+
+    private async Task LoadDefinitionAsync()
+    {
+        _definitionError = null;
+        try
+        {
+            var result = await GovernedApi.GetDefinitionsAsync();
+            if (!result.IsSuccess)
+            {
+                _definitionError = "The service setup couldn't be loaded.";
+                return;
+            }
+            _definition = result.Value?.FirstOrDefault(x => x.OperationCode == OperationCode);
+            if (_definition is null) _definitionError = "This service is not available for this office.";
+        }
+        catch { _definitionError = "The service setup couldn't be loaded."; }
+    }
+
+    private async Task LoadActivityAsync()
+    {
+        _loading = true;
+        _activityError = null;
+        try
+        {
+            var to = _month.AddMonths(1).AddDays(-1);
+            var result = await GovernedApi.GetActivityAsync(OperationCode, _month, to);
+            if (result.IsSuccess) _activity = result.Value?.ToList() ?? [];
+            else { _activity = []; _activityError = "Collections couldn't be loaded."; }
+        }
+        catch { _activity = []; _activityError = "Collections couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", out var parsed))
+        {
+            _month = parsed;
+            _monthInput = parsed.ToString("yyyy-MM");
+            await LoadActivityAsync();
+        }
+    }
+
+    private void OpenEditor()
+    {
+        _saveError = null;
+        _saved = null;
+        _effective = PhilippineTime.Today;
+        var current = _definition!;
+        _basis = current.Basis ?? current.AllowedBases[0];
+        _fixedAmount = current.FixedAmount;
+        _ceiling = current.MaximumAmount;
+        _enabled = current.State != GovernedServiceSetupState.Disabled;
+        _mobile = current.Basis is null || current.MobileEnabled;
+        _editing = true;
+    }
+
+    private void CloseEditor() => _editing = false;
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _definition is null) return;
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var request = new ConfigureGovernedServiceRequest(
+                _effective, _basis,
+                _basis == GovernedServiceBasis.FixedAmount ? _fixedAmount : null,
+                _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null,
+                _enabled, _mobile);
+            var result = await GovernedApi.ConfigureAsync(OperationCode, request);
+            if (!result.IsSuccess)
+            {
+                _saveError = result.Error ?? "The amount rule could not be saved.";
+                return;
+            }
+            _definition = result.Value;
+            _editing = false;
+            _saved = "Amount rule saved. It applies from its effective date.";
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+
+    private static string StateLabel(GovernedServiceSetupState state) => state switch
+    {
+        GovernedServiceSetupState.Active => "Active",
+        GovernedServiceSetupState.Disabled => "Disabled",
+        _ => "Setup required"
+    };
+
+    private static string BasisName(GovernedServiceBasis basis) => basis switch
+    {
+        GovernedServiceBasis.FixedAmount => "Fixed approved amount",
+        GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
+        _ => "Direct approved amount"
+    };
+
+    private static string BasisLabel(GovernedServiceDefinitionDto d) => d.Basis switch
+    {
+        GovernedServiceBasis.FixedAmount => $"Fixed · {Money(d.FixedAmount ?? 0m)}",
+        GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
+        GovernedServiceBasis.DirectApprovedAmount => d.MaximumAmount is { } ceiling
+            ? $"Direct approved amount · up to {Money(ceiling)}" : "Direct approved amount · no ceiling set",
+        _ => "Not set up"
+    };
+
+    private static string ModeLabel(GovernedServiceMode mode) => mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
+
+    private static string InstrumentName(RevenueInstrumentType instrument) =>
+        instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
+
+    private static string InstrumentLabel(GovernedServiceActivityDto row) => row.Instrument switch
+    {
+        { } i when row.Mode is { } m => $"{InstrumentName(i)} · {ModeLabel(m)}",
+        { } i => InstrumentName(i),
+        _ => string.Empty
+    };
+}

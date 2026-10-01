@@ -320,7 +320,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-024
 - **SUBJECT:** Any future remittance workflow
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** SUPERSEDED IN PART by IA-052 (the CT-exhaustion trigger and "no partial remittance" wording are withdrawn; remittance is a separate ledger)
 - **TYPE:** BUSINESS DECISION GATE
 - **DECISION / QUESTION:** Keep remittance out of the current product until a complete accountable workflow is implemented. One key operating rule is now confirmed: a Cash Ticket assignment is remitted/accounted for when its assigned batch/range has been fully consumed; normal partial remittance is not allowed. A simple `Remitted = Yes/No` flag is still insufficient. The future design must still define covered amount, date, accountable officer, recipient/acknowledgement, deposit/cashier context, reconciliation states, correction/void behavior, and any Treasury handoff that is actually in scope.
 - **RATIONALE:** The prior partial workflow was built and retired because the office found no usable value in it. Current EEMO clarification establishes the CT-exhaustion trigger, while office accountable-form evidence shows that remittance remains an amount-and-accountability process, not merely a boolean collection status.
@@ -615,6 +615,123 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** Operations keeps a separate Utility Operations section. NPM may expose contextual utility links for its occupants but must not own global ECF/WCF navigation or reporting. Existing UtilityBill rows remain valid and must not be destructively rewritten; future non-NPM utility subjects should be handled additively through an appropriate generalized source/context model or adapter. Do not hard-code PHP 10 or direct ECF amounts into UI markup; resolve approved effective configuration/policy.
 - **REVISIT CONDITION:** Revisit only if EEMO later restricts utilities to a specific facility or supplies a superseding utility-assessment/rate policy.
 
+### IA-049 - Operational functionalization rulings (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-049
+- **SUBJECT:** Instrument, basis, channel and receipt rules for the remaining Monthly Income operations, and the itemized OR model
+- **STATUS:** CONFIRMED (Clint / Core Brain direction for the operational functionalization program; recorded from the task brief, not a new EEMO staff interview)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Itemized OR:** one physical OR may carry several OR-compatible classified lines for one payer context (for example NPM rent + ECF + Fish/Meat Vendor Fee + Weight & Measure + Penalty). Each line keeps its own revenue classification. **OR and CT are never mixed on one physical document**; a visit that also needs CT-based lines uses separate Cash Tickets.
+  - **Billing basis is not payment cadence.** Monthly-obligation sources (NPM, TCC, NCC, BBQ, Ice Plant where configured, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly obligation; ₱30/day style payments are installments/allocations against it and never a daily billing model.
+  - **Fish/Meat Vendor Fee != NPM stall rent != Weight & Measure.** Vendor Fee is its own OR classification with a monthly-style goal (about PHP 900, commonly collected as PHP 30 installments) resolved from effective configuration. NPM remains the source authority for Fish/Meat vendor context; no second vendor registry.
+  - **Weight & Measure** = OR, quantity x approved effective rate, frozen (quantity, rate, effective date, amount) at collection time for new rows. Historical Fish rows without frozen evidence stay unresolved.
+  - **ECF** = OR, current basis direct approved amount. **WCF** = CT, current approved rate PHP 10 through effective configuration (not hard-coded).
+  - **Vegetable / Fruit** (temporary open-space rental, not permanent NPM tenancy): the transaction mode resolves the instrument - whole payment = OR, daily transaction = CT; the collector chooses the mode, never the instrument.
+  - **Market Fees** = CT, **Landing / Berthing** = CT, both direct field transactions on Collector Mobile using an approved fixed amount or, only where the approved operation definition enables it, a direct approved amount. **Transfer Large Cattle** = **OR** (supersedes the unresolved instrument in IA-044/IA-048 wording), Collector Mobile, occasional, direct approved amount, deliberately simple (no livestock registry).
+  - **Transportation / TRM** target = CT at approved vehicle-class effective-dated rates; historical `TrmTrip` money and the existing legacy OR workflow stay readable and are not relabelled.
+  - **Kanmanggay** = Space Rental, OR, monthly per space. **Fiesta / Araw lot rental** = OR, temporary/event lot rental; Aug 15 and Oct 16 are event dates, not billing dates.
+  - **Fines / Penalties** = OR under their own classification, created only from approved penalty definitions; never a free-text line with a collector-typed amount.
+  - **Ice Plant** behaves like a monthly-obligation source but keeps its own classification/report line; it is not BBQ or Stall Rent.
+  - **Slaughterhouse** keeps its specialized workflow, OR, controlled rates and transparent itemization (ante mortem, post mortem, slaughter fee and approved add-ons on the OR detail); reports still roll up to Slaughterhouse. No arbitrary collector-entered rates.
+  - **OR custody** must exist before any new Mobile OR writer is activated; a collector may use only documents assigned to that collector.
+- **RATIONALE:** Removes the remaining "unresolved instrument" and "not recorded yet" wording once a writer is genuinely functional, while keeping every amount, instrument and classification server-resolved from approved policy.
+- **EVIDENCE / SOURCE:** Clint / Core Brain task brief of 2026-09-30 (highest precedence for this program); IA-044, IA-045, IA-046, IA-048; [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md) sections 9-13.
+- **IMPACT:** Supersedes the "collection disabled until the instrument is confirmed" statements for Transfer Large Cattle. Does **not** activate any source, cut over any report, backfill history or publish an APK. Where a rule above would create double billing or invent an amount (for example the Fish/Meat Vendor Fee versus the existing NPM Fish/Meat daily fee, or a collector-typed Slaughterhouse custom rate) the affected slice stays blocked pending an explicit answer, recorded in [OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md](../planning/OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md).
+- **REVISIT CONDITION:** Any newer EEMO staff ruling on the operations above.
+
+### IA-050 - Grill-me rulings for the operational functionalization pass (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-050
+- **SUBJECT:** Resolution of the ten open policy questions left by IA-049
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "blocked pending an answer" wording in IA-049 IMPACT)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Fish/Meat Vendor Fee** is an additional, separate obligation from NPM Stall Rental and from Weight & Measure; one vendor may owe all three. Classification Fish/Meat Vendor Fees, OR, monthly goal, flexible cadence (PHP 30/day installments supported), effective-configured amount (not eternal constants), not part of BaseRentalAmount. **The existing NPM `DailyFee`/`DailyCollection` history is never reclassified as Vendor Fee**, and rows are not rewritten because amounts resemble PHP 30; a distinct Vendor Fee obligation/source is introduced prospectively.
+  - **Ice Plant** = OR, own classification (ICE_PLANT), monthly obligation with effective-configured amount (about PHP 1,000 working figure), partial/daily installments and remaining balance allowed. Not Stall Rental. No ice inventory, bag/kg sales or manufacturing workflow.
+  - **WCF** is not meter x rate. It is Cash Ticket + direct approved amount on Collector Mobile, the approved office amount (PHP 10 working figure) coming from effective policy, never hard-coded in Razor/Mobile. If the policy allows DirectApproved the collector may state the amount; classification and instrument stay server-controlled. No cubic-meter assumption. Historical UtilityBill/WCF evidence is preserved.
+  - **ECF** = OR + direct approved amount; no meter or kWh x rate. It reuses the existing authoritative ECF/utility source (payor/source identity, period, approved amount, collected, balance, status, calculation basis, optional reference). It may share an itemized OR. Web and Mobile capture must converge on one source and never create duplicate assessments; collectors do not enter arbitrary ECF rates.
+  - **Transportation / TRM**: target policy CT at approved vehicle-class effective-dated rates is confirmed, but **no cutover effective date is authorized**. Nothing may invent or backdate one; legacy TRM evidence stays intact; new CT architecture may exist inactive/shadow-ready. Status: TARGET CONFIRMED, CUTOVER DATE NOT AUTHORIZED.
+  - **Kanmanggay** = Space Rental, monthly per space, OR, Business Payor identity, lightweight Space Rental account (payor, space identifier, active period, effective monthly approved rate, monthly obligations, settlement history). Not BBQ, not a permanent NPM stall/contract. Partial and installment settlement supported.
+  - **Slaughterhouse**: collector-entered arbitrary CustomRate is not the target. Head/Admin manage approved definitions, packages and add-ons (effective-dated); the collector selects approved definitions only; receipt/detail stays itemized; Monthly Income still aggregates under Slaughterhouse. Historical CustomRate evidence is preserved.
+  - **Fiesta / Araw** = Space Rental group, operation Lot Rental - Fiesta/Araw, OR, temporary event lot rental (event dates Aug 15 / Oct 16 are event dates, not billing dates). Head/Admin approve event, lot, amount, payor, period and availability; the collector never invents the lot amount; never a permanent stall tenancy.
+  - **Collector totals** cover all real collections attributable to the collector from legacy or canonical sources, **counted exactly once** through explicit source coverage / cutover authority: legacy is authoritative before a source cutover, canonical after it, shadow/reconciled representations are comparison only. Applies to Collector Records, Collector Report of Collections, Collection Activity and Monthly Income.
+  - **CB-06 Monthly Income cutover is NOT authorized.** The canonical reader remains shadow/readiness only until every line has coverage mapping, reconciliation is understood, no double counting remains, corrections are right, opening settlement is not current cash, unresolved history is safely handled, totals reconcile with the office's Monthly Income, and Core Brain/Clint explicitly authorize it.
+  - Locked reminders: Market Fees/Landing/Transfer Large Cattle/Vegetable-Fruit/Fines as in IA-049; monthly sources (NPM, TCC, NCC, BBQ, Ice Plant, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly billing basis regardless of installment cadence.
+- **RATIONALE:** Removes the remaining policy gates so the sources can be built on server-resolved configuration without inventing amounts, instruments or classifications.
+- **EVIDENCE / SOURCE:** Clint / Core Brain GRILL-ME ANSWERS of 2026-09-30.
+- **IMPACT:** Only two gates remain: TRM cutover date and CB-06. A NEW contradiction that could change money, document identity, classification or historical meaning must be grilled again.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling; the TRM cutover date or CB-06 authorization.
+
+### IA-051 - Final Transportation and Monthly Income go-live rulings (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-051
+- **SUBJECT:** Transportation / TRM cutover and the Monthly Income (CB-06) cutover authority
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "cutover date not authorized" wording in IA-050 for TRM and CB-06)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - **Transportation / TRM** is a day-to-day **Cash Ticket** collection on Collector Mobile at an approved vehicle-class, effective-dated rate. There is no unresolved question about a historical OR-to-CT date. The technical cutover takes effect when the approved production release containing the canonical Transportation workflow goes live: before it, legacy TRM history is preserved unchanged; after it, all new Transportation collections use the canonical CT workflow. Old TRM rows are never rewritten, old OR fields never converted to CT, no old CT numbers invented, history never re-priced, and missing vehicle classes never inferred.
+  - **Monthly Income cutover (CB-06)** is **authorized prospectively at the approved production go-live, source by source, with exactly-once coverage.** When the release ships and a source is activated, new financial events for that source use canonical Collection / CollectionLine / Allocation / AccountableDocument / PostingOperation and the Monthly Income and reporting paths use those rows. No arbitrary historical date is chosen and no old money is backfilled. Pre-go-live legacy stays the historical authority; post-go-live canonical is the authority for activated sources; a mixed period combines legacy pre-cutover and canonical post-cutover collections exactly once, and shadow or compatibility rows are comparison only and never add money.
+  - The release itself establishes the real go-live boundary; this session does not deploy.
+- **RATIONALE:** Removes the last two gates. Activation is per source (a row's settlement authority, or the Head enabling a new service), which is what makes a mixed period countable exactly once.
+- **EVIDENCE / SOURCE:** Clint / Core Brain FINAL FUNCTIONALIZATION PASS direction of 2026-09-30.
+- **IMPACT:** `CollectionSourceAuthorityMap` is the single decision of which representation is authoritative per source kind. The Head enabling the Transportation service is the Transportation boundary and closes the legacy trip writer from that date.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling.
+
+### IA-052 - Accountable-form custody and cash remittance are separate ledgers (Clint / Core Brain, 2026-09-30)
+
+- **ID:** IA-052
+- **SUBJECT:** Cash Ticket remittance timing, the four ledgers, and remittance coverage
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the CT-exhaustion trigger in IA-024, the Rulebook section 5 and the Revenue Architecture wording)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - Accountable-form inventory and cash remittance are related but distinct. A collector may keep unused forms while remitting the money collected with forms already issued (for example 10,000 assigned, 725 used, 9,275 on hand, PHP 20,000 collected and PHP 20,000 remitted). Remittance is **not** blocked by remaining stock. The eventual complete accountability of a batch (issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions) is tracked separately and never treated as a peso figure.
+  - Four ledgers, never collapsed: (1) accountable-form ledger (physical stock and custody); (2) collection ledger (Collection/CollectionLine/Allocation/PostingOperation); (3) remittance ledger (money already collected and turned over); (4) reporting projections (RCD, Monthly Income, collector totals, targets, accountability).
+  - **A remittance never creates revenue.** It covers whole, already-posted authoritative Collections attributable to the collector. A Collection is actively covered by at most one remittance (exactly once, database-enforced). The expected amount is derived from the covered collections and frozen at recording; the remitted amount is typed; a shortfall is a visible difference and needs review; an amount above the expected is refused (the office's 2026-08-25 answer). Source collections are never adjusted and no other collection is manufactured.
+  - Head and Administrators record a remittance; a mistake is voided with a reason, which frees its collections. History is append-only. A retried request with the same operation id does not create a second remittance.
+  - StallTrack records operational accountability only. It invents no Treasurer role, approval chain, bank-deposit workflow or general-ledger integration; a reference or acknowledgement number is optional evidence.
+  - Legacy-authoritative collections (pre-cutover sources with no canonical Collection) cannot be covered exactly and are reported apart as outside structured remittance until their source goes canonical; nothing is manufactured for them.
+  - Physical form states: In Office, Assigned, Issued/Consumed, Spoiled/Cancelled (a blank form, recorded with reason, actor and time, never revenue, never returned to stock), Returned (an unused assigned form back to office custody through an auditable event, never revenue), Needs Review. An issued/consumed serial never becomes available again.
+- **RATIONALE:** Tickets are consumed per payer while cash is turned over on its own schedule; tying them made the process unusable and hid the real accountability.
+- **EVIDENCE / SOURCE:** Clint / Core Brain ACCOUNTABILITY, REMITTANCE and FINANCIAL REPORTING program brief of 2026-09-30; IMPLEMENTATION_HISTORY.md (retired 2026-08-25 remittance, whose office answers still hold).
+- **IMPACT:** Supersedes IA-024's exhaustion trigger. Remittance is buildable; no Treasury workflow is.
+- **REVISIT CONDITION:** Any newer EEMO staff ruling on remittance or Treasury handoff.
+
+### IA-053 - ECF and WCF are utility operations settled against a direct approved amount (Clint / Core Brain, 2026-10-01)
+
+- **ID:** IA-053
+- **SUBJECT:** NPM / utility ownership and the utility financial basis in the active V3 UI
+- **STATUS:** CONFIRMED (Clint / Core Brain direction; applies the 2026-09-27 Head direction recorded in Rulebook Q2)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - ECF (Official Receipt) and WCF (Cash Ticket) are broader utility operations with their own revenue classifications. They are not components of NPM stall rent, vendor registration or the base rental; NPM is only the subject/context of a utility obligation.
+  - The current Cantilan financial basis is a **direct approved amount** set by an authorized office workflow. Meter readings, consumption and per-unit rates are not required financial evidence for new workflows, and a collector never chooses the amount.
+  - A stall's Electricity / Water service flags are non-financial context (they list the space in the utility register); they never enter the base rental or whole-year figure.
+  - Historical UtilityBill readings and reading-based amounts are preserved unchanged as legacy evidence; they are never used to reprice a recorded charge. No backfill, conversion or source activation follows from this.
+  - One authoritative financial path per source: NPM screens show related utilities read-only and link to the ECF / WCF workspaces; they are not a second utility writer.
+- **RATIONALE:** The office settles utilities at approved amounts; showing meter billing as the active workflow contradicted that and made utilities look like part of rent.
+- **EVIDENCE / SOURCE:** Clint / Core Brain NPM UTILITY DECOUPLING brief of 2026-10-01; Rulebook Q2 (2026-09-27 Head direction).
+- **IMPACT:** Add Vendor, NPM Reports, ECF / WCF pages and the utility bill dialog present the approved-amount model; a new utility bill defaults to the direct approved basis.
+- **REVISIT CONDITION:** A tenant that genuinely bills by meter (the basis remains configurable per bill).
+
+### IA-054 - WCF direct Mobile entry and one-time Mobile enablement (Clint, 2026-10-01)
+
+- **ID:** IA-054
+- **SUBJECT:** Routine Water Consumption Fee collection and how WCF becomes collectible on Collector Mobile
+- **STATUS:** CONFIRMED (Clint direction, WCF DIRECT MOBILE COLLECTION and WCF ONE-STEP ACTIVATION briefs)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION (narrows IA-053 for WCF)
+- **DECISION / QUESTION:**
+  - WCF is Cash Ticket and a direct amount; no meter, reading, cubic metre or rate is used.
+  - Head/Admin MAY prepare a WCF amount in advance (optional). When none is prepared for a source and the current period, an authorized collector (WCF operation assignment; no NPM facility assignment) enters the Water amount directly on Mobile for an eligible source selected from the server. Classification, instrument and period stay server-controlled; payor identity comes from the source, never typed text.
+  - An office-prepared amount takes precedence and is never overwritten by a direct entry; a conflicting direct entry is refused with the issued Cash Ticket held for office review.
+  - WCF Mobile collection is enabled ONCE per tenant (operation level), by Head/Admin, after the server derives readiness (WCF policy = Cash Ticket, an active assigned collector, Cash Ticket custody, nothing awaiting review). "One tap" means automatic validation, not bypassing controls: the server re-checks at commit, activation is idempotent and audited, and no office attestation, evidence reference, app version or device checkbox is asked for.
+  - After enablement, new WCF activity is canonical prospectively: a Water part with no legacy settlement becomes canonical at its first collection (direct or prepared) in the same transaction as the Collection. Historical Water records with legacy settlement stay legacy and are unchanged; migrating one is the exceptional, attested legacy-migration review.
+  - Cash Ticket custody, remittance, Monthly Income classification, ECF and Payor identity rules are unchanged.
+- **RATIONALE:** Per-row Save → Activate → six-item attestation for every payor and month was migration machinery applied to routine work; field staff need to record the amount actually collected.
+- **EVIDENCE / SOURCE:** Clint's WCF briefs of 2026-10-01; runtime review with collector Bobby Mercado.
+- **IMPACT:** `CollectorOperationActivations` (one additive table: tenant, operation, effective from, activated at/by); WCF post accepts a source + period for a direct amount; WCF capability is Ready on the operation, not on a prepared row; Web WCF shows a Collector Mobile status with one Enable action; Water Accounts is optional preparation plus legacy migration.
+- **REVISIT CONDITION:** A tenant whose policy requires prior office approval of every Water amount.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
@@ -642,3 +759,5 @@ The following interpretations must not be reintroduced:
 - `current Revenue Setup = authoritative classified cash reporting` — **SUPERSEDED**. Configuration exists; production report cutover has not occurred.
 - `OR field = AccountableDocument lifecycle` — **SUPERSEDED** as an architectural assumption.
 - `retired collector remittance = approved future remittance design` — **SUPERSEDED**. Any future workflow requires renewed approval.
+- `a collector never states the WCF amount` (IA-053) — **SUPERSEDED for WCF by IA-054**: with no office-prepared amount, an authorized collector enters the direct Water amount; a prepared amount still takes precedence.
+- `every new WCF obligation needs its own cutover / Activate for Mobile` — **SUPERSEDED by IA-054**: WCF is enabled once per tenant; per-source cutover remains only for historical legacy money.

@@ -18,6 +18,8 @@ public sealed class AccountableFormAssignmentConfiguration : IEntityTypeConfigur
         builder.Property(x => x.AssignedAtUtc).IsRequired();
         builder.Property(x => x.ReturnedAtUtc);
         builder.Property(x => x.ReturnedByActorId).HasMaxLength(100);
+        builder.Property(x => x.TransferredFromUserId);
+        builder.Property(x => x.TransferReason).HasMaxLength(AccountableFormAssignment.MaxReasonLength);
         builder.Property(x => x.CreatedAt).IsRequired();
         builder.Property(x => x.CreatedBy).HasMaxLength(100);
         builder.Property(x => x.UpdatedAt);

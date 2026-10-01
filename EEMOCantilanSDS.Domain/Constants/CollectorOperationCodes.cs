@@ -11,7 +11,8 @@ public static class CollectorOperationCodes
     public const string LandingBerthing = "LANDING_BERTHING";
     public const string TransferLargeCattle = "TRANSFER_LARGE_CATTLE";
     public const string MarketFees = "MARKET_FEES";
+    public const string Transportation = "TRANSPORTATION";
 
     public static bool IsSupported(string? code) => code is
-        Wcf or VegetableFruitSpaceRental or LandingBerthing or TransferLargeCattle or MarketFees;
+        Wcf or VegetableFruitSpaceRental or LandingBerthing or TransferLargeCattle or MarketFees or Transportation;
 }

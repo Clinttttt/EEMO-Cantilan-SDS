@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Mobile.Models;
@@ -99,6 +100,22 @@ public sealed class PendingOperation
     public DateTime? IssuedAtUtc { get; set; }
     public IssuedDocumentLocalState? IssuedDocumentState { get; set; }
 
+    // Governed configurable service facts (Kind = GovernedService). No rate, classification or instrument is stored:
+    // those are resolved by the server from approved configuration.
+    public string? OperationCode { get; set; }
+    public GovernedServiceMode? CollectionMode { get; set; }
+    public string? PayerName { get; set; }
+    public string? Reference { get; set; }
+
+    // Transportation / Parking only (IA-030, IA-050): the stable vehicle class the collector selected. The amount is the server's
+    // approved rate for that class, so no price is ever stored or trusted here.
+    public string? VehicleClassCode { get; set; }
+
+    // ── WCF direct entry: the selected source (StallId above) and its billing period. The amount the collector stated is
+    //    ReceivedAmount; the ticket is AccountableDocumentId. All four stay bound to one ClientOperationId across restarts.
+    public int? BillingYear { get; set; }
+    public int? BillingMonth { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -163,5 +180,12 @@ public sealed class PendingOperation
         AccountableDocumentId,
         DocumentNumber,
         IssuedAtUtc,
-        MeatKilos);
+        MeatKilos,
+        OperationCode,
+        CollectionMode,
+        PayerName,
+        Reference,
+        VehicleClassCode,
+        BillingYear,
+        BillingMonth);
 }

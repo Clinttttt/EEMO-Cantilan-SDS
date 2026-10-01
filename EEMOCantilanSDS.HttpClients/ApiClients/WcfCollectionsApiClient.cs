@@ -14,6 +14,25 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
         GetAsync<IReadOnlyList<CashTicketDocumentDto>>("api/wcf-collections/cash-tickets/available");
 
+    public Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(int billingYear, int billingMonth) =>
+        GetAsync<IReadOnlyList<WcfSetupSourceDto>>(
+            $"api/wcf-collections/setup-sources?billingYear={billingYear}&billingMonth={billingMonth}");
+
+    public Task<Result<WcfSetupSourceDto>> EstablishObligationAsync(WcfObligationSetupRequest request) =>
+        PostAsync<WcfObligationSetupRequest, WcfSetupSourceDto>("api/wcf-collections/obligations", request);
+
+    public Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence) =>
+        PostAsync<WcfActivationReadinessRequest, SettlementCutoverReadinessDto>("api/wcf-collections/activation-readiness", new(utilityBillId, evidence));
+
+    public Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest request) =>
+        PostAsync<EEMOCantilanSDS.Application.Common.Revenue.WcfActivationRequest, SettlementCutoverOutcomeDto>("api/wcf-collections/activations", request);
+
+    public Task<Result<WcfMobileStatusDto>> GetMobileStatusAsync() =>
+        GetAsync<WcfMobileStatusDto>("api/wcf-collections/mobile-status");
+
+    public Task<Result<WcfMobileStatusDto>> EnableMobileAsync() =>
+        PostAsync<WcfMobileStatusDto>("api/wcf-collections/mobile-status/enable");
+
     public Task<Result<WcfCollectionOutcomeDto>> PostAsync(WcfCollectionPostRequest request) =>
         PostAsync<WcfCollectionPostRequest, WcfCollectionOutcomeDto>("api/wcf-collections/collections", request);
 
@@ -32,4 +51,13 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
 
     public Task<Result<int>> AssignCashTicketsAsync(AssignAccountableFormRangeRequest request) =>
         PostAsync<AssignAccountableFormRangeRequest, int>("api/accountable-forms/cash-tickets/assign", request);
+
+    public Task<Result<int>> AssignOfficialReceiptsAsync(AssignAccountableFormRangeRequest request) =>
+        PostAsync<AssignAccountableFormRangeRequest, int>("api/accountable-forms/official-receipts/assign", request);
+
+    public Task<Result<int>> AssignBatchAsync(AssignAccountableFormBatchRequest request) =>
+        PostAsync<AssignAccountableFormBatchRequest, int>("api/accountable-forms/assign-batch", request);
+
+    public Task<Result<int>> TransferAsync(TransferAccountableFormsRequest request) =>
+        PostAsync<TransferAccountableFormsRequest, int>("api/accountable-forms/transfer", request);
 }

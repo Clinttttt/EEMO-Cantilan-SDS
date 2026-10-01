@@ -61,7 +61,7 @@
         </ReportLetterhead>
         <h2 id="wcfr-title" class="v3-sr-only">Water Consumption Fees report through @PeriodLabel</h2>
 
-        <MonthlyIncomeUnavailable Classification="WCF" Year="_period.Year" HeadingId="wcfr-official" />
+        <OperationMonthlyIncome Classification="Water Consumption Fees / WCF" RowKey="WCF" Year="_period.Year" HeadingId="wcfr-official" />
 
         <section class="v3-report-section" aria-labelledby="wcfr-position">
             <h3 id="wcfr-position">Obligation position — through @PeriodLabel</h3>
@@ -71,7 +71,7 @@
                         <tr>
                             <th scope="col" class="v3-num">Obligations</th>
                             <th scope="col" class="v3-num">With balance</th>
-                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Approved amount</th>
                             <th scope="col" class="v3-num">Previously settled</th>
                             <th scope="col" class="v3-num">Outstanding</th>
                         </tr>
@@ -97,9 +97,7 @@
                         <tr>
                             <th scope="col">Payer / stall</th>
                             <th scope="col">Period</th>
-                            <th scope="col" class="v3-num">Consumption</th>
-                            <th scope="col" class="v3-num">Rate</th>
-                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Approved amount</th>
                             <th scope="col" class="v3-num">Previously settled</th>
                             <th scope="col" class="v3-num">Outstanding</th>
                         </tr>
@@ -110,8 +108,6 @@
                             <tr>
                                 <td>@Payer(quote)<span class="v3-block">@Source(quote)</span></td>
                                 <td>@Period(quote)</td>
-                                <td class="v3-num">@quote.Consumption.ToString("N2") m³</td>
-                                <td class="v3-num">₱@quote.RatePerCubicMeter.ToString("N2")</td>
                                 <td class="v3-num">@Money(quote.AssessedAmount)</td>
                                 <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                                 <td class="v3-num">@Money(quote.OutstandingAmount)</td>
@@ -119,14 +115,14 @@
                         }
                         @if (!_quotes.Any())
                         {
-                            <tr><td colspan="7" class="v3-report-note">@(_loading ? "Loading obligations…" : _error is not null ? "Obligations are unavailable." : $"No WCF obligations through {PeriodLabel}.")</td></tr>
+                            <tr><td colspan="5" class="v3-report-note">@(_loading ? "Loading obligations…" : _error is not null ? "Obligations are unavailable." : $"No WCF obligations through {PeriodLabel}.")</td></tr>
                         }
                     </tbody>
                     @if (_quotes.Any())
                     {
                         <tfoot>
                             <tr>
-                                <th scope="row" colspan="4">Total · @_quotes.Count obligation@(_quotes.Count == 1 ? "" : "s")</th>
+                                <th scope="row" colspan="2">Total · @_quotes.Count obligation@(_quotes.Count == 1 ? "" : "s")</th>
                                 <td class="v3-num">@Money(TotalAssessed)</td>
                                 <td class="v3-num">@Money(TotalSettled)</td>
                                 <td class="v3-num">@Money(TotalOutstanding)</td>
@@ -212,13 +208,13 @@
             Csv("Date prepared", PhilippineTime.Now.ToString("yyyy-MM-dd")),
             Csv("Annual target", "not available"),
             string.Empty,
-            Csv("Payer", "Facility", "Stall", "Area", "Period", "Consumption (m3)", "Rate", "Assessed", "Previously settled", "Outstanding"),
+            Csv("Payer", "Facility", "Stall", "Area", "Period", "Approved amount", "Previously settled", "Outstanding"),
         };
         rows.AddRange(OrderedQuotes.Select(x => Csv(
             Payer(x), x.FacilityName, x.StallNo, x.Section, Period(x),
-            x.Consumption.ToString("0.00"), x.RatePerCubicMeter.ToString("0.00"),
+
             x.AssessedAmount.ToString("0.00"), x.CumulativeSettledEvidence.ToString("0.00"), x.OutstandingAmount.ToString("0.00"))));
-        rows.Add(Csv("Total", "", "", "", "", "", "",
+        rows.Add(Csv("Total", "", "", "", "",
             TotalAssessed.ToString("0.00"), TotalSettled.ToString("0.00"), TotalOutstanding.ToString("0.00")));
         return string.Join("\r\n", rows);
     }

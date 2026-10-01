@@ -539,25 +539,25 @@
                             @if (!string.IsNullOrEmpty(Form.SelectedSection))
                             {
                                 <div class="avm-util-divider"></div>
-                                <div class="avm-sublabel">Utility Charges</div>
+                                <div class="avm-sublabel">Utility service</div>
+                                <div class="avm-section-note">Electricity (ECF) and water (WCF) are separate utility operations, assessed and collected apart from stall rental. Marking a service lists this space in that utility's register; it creates no charge.</div>
 
-                                @* A space with no meters has no utility charges to show. Stating that — rather than
-                                   presenting two empty boxes — keeps the form an account of what this payor is billed
-                                   for, while still allowing the office to add a charge when a meter is installed.
-                                   Choosing to add one opens the two controls; ticking one and saving is what puts the
-                                   charge on the stall, which is then what the meter-reading dialog offers. *@
+                                @* Utility service is context, not a rental charge (V3): the stall's ApplicableFees flags only list the
+                                   space in the ECF / WCF utility register, whose approved amounts are set and collected in those
+                                   operations. Nothing here enters the base rental or the whole-year figure. A space with no
+                                   service says so plainly instead of showing two empty toggles. *@
                                 @if (IsEditing && !_showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
                                 {
                                     <div class="avm-util-none">
-                                        <span>No utility charges on this space.</span>
-                                        <button type="button" class="avm-util-add" @onclick="() => _showUtilityCharges = true">Add a utility charge</button>
+                                        <span>No utility service recorded for this space.</span>
+                                        <button type="button" class="avm-util-add" @onclick="() => _showUtilityCharges = true">Record a utility service</button>
                                     </div>
                                 }
                                 else
                                 {
                                 @if (IsEditing && _showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
                                 {
-                                    <div class="avm-section-note">Tick the service this space is metered for, then save. Nothing is charged until you do.</div>
+                                    <div class="avm-section-note">Mark the service this space uses, then save. No charge is created.</div>
                                 }
                                 @* Each service is one control, and a control must answer to the keyboard: a button
                                    with aria-pressed, so Tab reaches it and Space/Enter toggles it. It was a div
@@ -573,8 +573,8 @@
                                         </svg>
                                     </span>
                                     <span class="avm-fee-text">
-                                        <span class="avm-fee-title">Electricity</span>
-                                        <span class="avm-fee-sub">Monthly billing — amount varies per reading</span>
+                                        <span class="avm-fee-title">Electricity service</span>
+                                        <span class="avm-fee-sub">Listed in the Electricity (ECF) register · Official Receipt</span>
                                     </span>
                                     <span class="avm-fee-mark" aria-hidden="true">
                                         @if (Form.FeeTypes.Contains("Electricity"))
@@ -594,8 +594,8 @@
                                         </svg>
                                     </span>
                                     <span class="avm-fee-text">
-                                        <span class="avm-fee-title">Water</span>
-                                        <span class="avm-fee-sub">Monthly billing — amount varies per reading</span>
+                                        <span class="avm-fee-title">Water service</span>
+                                        <span class="avm-fee-sub">Listed in the Water (WCF) register · Cash Ticket</span>
                                     </span>
                                     <span class="avm-fee-mark" aria-hidden="true">
                                         @if (Form.FeeTypes.Contains("Water"))
@@ -622,7 +622,7 @@
                             }
                             else
                             {
-                                <div class="avm-section-note">Select a section above to configure utility charges.</div>
+                                <div class="avm-section-note">Select a section above to record utility service.</div>
                             }
                         }
 

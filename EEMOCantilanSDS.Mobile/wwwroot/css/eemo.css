@@ -18,21 +18,39 @@
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url('DMSans-Regular.ttf') format('truetype');
+    src: url('../fonts/DMSans-Regular.ttf') format('truetype');
 }
 @font-face {
     font-family: 'DM Sans';
     font-style: normal;
     font-weight: 500;
     font-display: swap;
-    src: url('DMSans-Medium.ttf') format('truetype');
+    src: url('../fonts/DMSans-Medium.ttf') format('truetype');
 }
 @font-face {
     font-family: 'DM Sans';
     font-style: normal;
     font-weight: 600;
     font-display: swap;
-    src: url('DMSans-SemiBold.ttf') format('truetype');
+    src: url('../fonts/DMSans-SemiBold.ttf') format('truetype');
+}
+/* No bold file is bundled: 700 maps to SemiBold so the WebView never synthesizes a smeared faux-bold. */
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/DMSans-SemiBold.ttf') format('truetype');
+}
+
+/* One typeface for the whole app. app.css still names Helvetica; this file loads after it. */
+html,
+body,
+button,
+input,
+select,
+textarea {
+    font-family: 'DM Sans', system-ui, sans-serif;
 }
 
 
@@ -99,7 +117,7 @@
     --gold-primary: #c8a84b; /* accents, icons, divider line */
     --gold-light: #e8cc76; /* text on dark navy */
     /* Surfaces */
-    --bg-page: #f0f4f8; /* page / app background */
+    --bg-page: #eef3f9; /* page / app background */
     --bg-card: #ffffff; /* cards, nav, sheets */
     --bg-icon: #eef2f6; /* icon containers, stall number bg */
     --border: #dde4ea; /* card borders, dividers */
@@ -114,6 +132,26 @@
     --paid-green-bg: #e6f4ef; /* paid pill background */
     --error-red: #8b3a3a; /* form error text */
     --error-red-bg: #fdf0f0; /* form error background */
+    /* Mobile V3 semantic tokens. New and restyled surfaces use these; the legacy palette above remains for
+       pages not yet migrated and is removed only once unused. */
+    --mobile-canvas: #eef3f9;
+    --mobile-blue-deep: #174a86;
+    --mobile-surface: #ffffff;
+    --mobile-surface-subtle: #f8fafc;
+    --mobile-border: #dfe5ec;
+    --mobile-text: #0d2137;
+    --mobile-text-secondary: #526579;
+    --mobile-blue: #1f5fa8;
+    --mobile-blue-subtle: #e8f0f9;
+    --mobile-navy: #0d2137;
+    --mobile-gold: #b8942f;
+    --mobile-danger: #a12b2b;
+    --mobile-danger-subtle: #fbeeee;
+    --mobile-success: #23684f;
+    --mobile-success-subtle: #e6f4ef;
+    --mobile-warning: #8a5a00;
+    --mobile-warning-subtle: #fdf3dd;
+    --mobile-focus: #1f5fa8;
 }
 
 /* 1. Minimal reset & environment hints (safe and small) */
@@ -191,60 +229,36 @@ html, body, #app {
 
 
 /* ─────────────────────────────────────────────
-   3. HEADER
-   Component: AppHeader.razor
-   ──────────────────────────────────────────
-   HOME variant  (IsSubPage=false):
-     .eemo-header + .header-logo-row
-     + .header-gov-label + .header-seal
-     + .header-org-name + .header-org-sub
-
-   SUB-PAGE variant (IsSubPage=true):
-     .eemo-header + .header-eyebrow
-     + .header-back-row + .header-back-btn
-     + .header-page-title + .header-page-sub
+   3. HEADER + DATE STRIP (Mobile V3)
+   Light, compact, identity in small type. Used by AppHeader.razor
+   and by the sub-pages that render the same markup.
+   Semantic tokens (--mobile-*) are defined in section 0.
 ───────────────────────────────────────────── */
 .eemo-header {
-    background: var(--navy-primary);
-    padding: calc(env(safe-area-inset-top, 20px) + 20px) 24px 20px;
+    background: var(--mobile-surface);
+    border-bottom: 1px solid var(--mobile-border);
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
     position: relative;
     flex-shrink: 0;
 }
 
-    /* gold gradient line at the bottom of every header */
-    .eemo-header::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
-    }
-
-/* ── Home variant ── */
+/* Home variant: seal + tenant identity */
 .header-gov-label {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 9px;
-    font-weight: 500;
-    letter-spacing: 3px;
-    color: var(--gold-primary);
-    text-transform: uppercase;
-    margin-bottom: 10px;
+    display: none;
 }
 
 .header-logo-row {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
 }
 
 .header-seal {
-    width: 52px;
-    height: 52px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
-    border: 1.5px solid var(--gold-primary);
+    background: var(--mobile-surface-subtle);
+    border: 1px solid var(--mobile-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -261,47 +275,47 @@ html, body, #app {
 
 .header-text {
     flex: 1;
+    min-width: 0;
 }
 
 .header-org-name {
-    font-family: 'EB Garamond', serif;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--mobile-navy);
     line-height: 1.2;
-    letter-spacing: 0.2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .header-org-sub {
-    font-size: 10px;
-    color: var(--text-muted);
-    margin-top: 2px;
-    letter-spacing: 0.3px;
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-/* ── Sub-page variant ── */
+/* Sub-page variant: small context line, back, title */
 .header-eyebrow {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 500;
-    letter-spacing: 2.5px;
-    color: var(--gold-primary);
-    text-transform: uppercase;
-    margin-bottom: 8px;
+    color: var(--mobile-text-secondary);
+    margin-bottom: 4px;
 }
 
 .header-back-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .header-back-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: rgba(200,168,75,0.12);
-    border: 1px solid rgba(200,168,75,0.28);
+    width: 44px;
+    height: 44px;
+    margin-left: -10px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -309,10 +323,14 @@ html, body, #app {
     flex-shrink: 0;
 }
 
+    .header-back-btn:active {
+        background: var(--mobile-blue-subtle);
+    }
+
     .header-back-btn svg {
-        width: 16px;
-        height: 16px;
-        stroke: var(--gold-primary);
+        width: 20px;
+        height: 20px;
+        stroke: var(--mobile-blue);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -321,87 +339,62 @@ html, body, #app {
 
 .header-title-block {
     flex: 1;
+    min-width: 0;
 }
 
 .header-page-title {
-    font-family: 'EB Garamond', serif;
     font-size: 17px;
     font-weight: 600;
-    color: #ffffff;
-    line-height: 1.15;
+    color: var(--mobile-navy);
+    line-height: 1.2;
 }
 
 .header-page-sub {
-    font-size: 10px;
-    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
     margin-top: 2px;
 }
 
-
-/* ─────────────────────────────────────────────
-   4. DATE / GREETING STRIP
-   Component: AppHeader.razor
-   ──────────────────────────────────────────
-   .date-strip   → sub-pages: Market, Records, Reports
-   .greeting-bar → home page: Index.razor (menu)
-───────────────────────────────────────────── */
-
-/* Sub-page date strip */
-.date-strip {
-    background: var(--navy-secondary);
-    padding: 10px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.date-strip-left {
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.4);
-}
-
-    .date-strip-left span {
-        color: var(--gold-light);
-        font-weight: 500;
-    }
-
-.date-pill {
-    font-size: 10px;
-    color: rgba(255,255,255,0.35);
-    background: var(--navy-primary);
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--navy-accent);
-}
-
-/* Home greeting bar */
+/* Sub-page date strip + home greeting bar: one quiet line under the header */
+.date-strip,
 .greeting-bar {
-    background: var(--navy-secondary);
-    padding: 12px 24px;
+    background: var(--mobile-surface-subtle);
+    border-bottom: 1px solid var(--mobile-border);
+    padding: 8px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     flex-shrink: 0;
 }
 
+.date-strip-left,
 .greeting-text {
-    font-size: 11.5px;
-    color: var(--text-muted);
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
+    .date-strip-left span,
     .greeting-text span {
-        color: var(--gold-light);
-        font-weight: 500;
+        color: var(--mobile-navy);
+        font-weight: 600;
     }
 
+.date-pill,
 .date-badge {
-    font-size: 10px;
-    color: var(--text-subtle);
-    background: var(--navy-primary);
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--navy-accent);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--mobile-navy);
+    background: var(--mobile-surface);
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--mobile-border);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 
@@ -490,7 +483,7 @@ html, body, #app {
     }
 
 .summary-value {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -765,9 +758,9 @@ html, body, #app {
     }
 
     .filter-tab.active {
-        background: var(--navy-primary);
-        color: var(--gold-light);
-        border-color: var(--navy-primary);
+        background: var(--mobile-blue);
+        color: #ffffff;
+        border-color: var(--mobile-blue);
         font-weight: 700;
         /* Keep the right border on active so the next chip doesn't bleed into it */
         border-right-width: 1px;
@@ -858,7 +851,7 @@ html, body, #app {
     align-items: center;
     gap: 12px;
     padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     border-bottom: 2px solid var(--gold-primary);
 }
 
@@ -868,7 +861,7 @@ html, body, #app {
     height: 34px;
     border-radius: 9px;
     border: 1px solid var(--navy-accent);
-    background: var(--navy-secondary);
+    background: rgba(255, 255, 255, 0.16);
     color: var(--gold-primary);
     display: flex;
     align-items: center;
@@ -1053,7 +1046,7 @@ html, body, #app {
 }
 
 .sheet-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
@@ -1098,11 +1091,11 @@ html, body, #app {
     padding: 13px;
     border-radius: 12px;
     border: none;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
-    color: var(--gold-light);
+    color: #ffffff;
     cursor: pointer;
     text-align: center;
     transition: opacity 0.15s;
@@ -1212,7 +1205,7 @@ html, body, #app {
     }
 
 .empty-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: var(--text-primary);
@@ -1266,8 +1259,8 @@ html, body, #app {
     display: block;
     border: none;
     border-radius: 10px;
-    background: var(--navy-primary);
-    color: var(--gold-light);
+    background: var(--mobile-blue);
+    color: #ffffff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13.5px;
     font-weight: 600;
@@ -1532,7 +1525,7 @@ html, body, #app {
 }
 
 .record-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 700;
     color: var(--text-primary);
@@ -1595,7 +1588,7 @@ html, body, #app {
 
     /* amount row — larger green value */
     .detail-val.amount-val {
-        font-family: 'EB Garamond', serif;
+        font-family: 'DM Sans', sans-serif;
         font-size: 16px;
         font-weight: 600;
         color: var(--paid-green);
@@ -1661,7 +1654,7 @@ html, body, #app {
 }
 
 .period-title {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1704,9 +1697,10 @@ html, body, #app {
         box-shadow: 0 1px 4px rgba(13,33,55,0.08);
     }
 
-/* Grand total navy banner */
+/* Grand total banner (light V3) */
 .total-banner {
-    background: var(--navy-primary);
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
     border-radius: 12px;
     padding: 16px 18px;
     margin-bottom: 14px;
@@ -1725,23 +1719,23 @@ html, body, #app {
         left: 0;
         right: 0;
         height: 2px;
-        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+        background: var(--mobile-blue);
     }
 
 .total-banner-label {
     font-size: 9px;
     letter-spacing: 2px;
-    color: rgba(255,255,255,0.45);
+    color: var(--mobile-text-secondary);
     text-transform: uppercase;
     font-weight: 500;
     margin-bottom: 4px;
 }
 
 .total-banner-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 28px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--mobile-navy);
     line-height: 1;
 }
 
@@ -1758,15 +1752,15 @@ html, body, #app {
     }
 
 .stat-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
-    color: var(--gold-light);
+    color: var(--mobile-navy);
 }
 
 .stat-key {
     font-size: 8.5px;
-    color: rgba(255,255,255,0.4);
+    color: var(--mobile-text-secondary);
     letter-spacing: 0.5px;
     display: block;
     text-transform: uppercase;
@@ -1774,7 +1768,7 @@ html, body, #app {
 
 /* right-side section total (gold text) */
 .section-total {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 13px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1876,7 +1870,7 @@ html, body, #app {
 }
 
 .facility-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 17px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1894,7 +1888,7 @@ html, body, #app {
 
 .facility-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--gold-primary), var(--gold-light));
+    background: var(--mobile-blue);
     border-radius: 2px;
     transition: width 0.4s ease;
 }
@@ -1920,7 +1914,7 @@ html, body, #app {
         top: 0;
         bottom: 0;
         width: 3px;
-        background: var(--navy-primary);
+        background: var(--mobile-blue);
     }
 
 .day-date-block {
@@ -1937,7 +1931,7 @@ html, body, #app {
 }
 
 .day-date-num {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 15px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -1975,7 +1969,7 @@ html, body, #app {
 }
 
 .day-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2003,7 +1997,7 @@ html, body, #app {
 }
 
 .sheet-stat-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 17px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2039,38 +2033,30 @@ html, body, #app {
      .add-temp-row .add-temp-icon
 ───────────────────────────────────────────── */
 
-/* ── Market header (direct markup, not AppHeader) ── */
+/* ── Sub-page header (direct markup, not AppHeader) — Mobile V3: light, compact ── */
 .header {
-    background: var(--navy-primary);
-    padding: calc(env(safe-area-inset-top, 20px) + 16px) 24px 16px;
+    background: var(--mobile-surface);
+    border-bottom: 1px solid var(--mobile-border);
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
     position: relative;
     flex-shrink: 0;
 }
 
-    .header::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
-    }
-
 .header-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding-right: 66px; /* reserve room for the absolutely-positioned .header-logo seal */
+    gap: 8px;
+    padding-right: 48px; /* reserve room for the absolutely-positioned .header-logo seal */
 }
 
-/* back chevron button */
+/* back chevron button: 44px touch target, no chrome */
 .back-btn {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: rgba(200,168,75,0.12);
-    border: 1px solid rgba(200,168,75,0.28);
+    width: 44px;
+    height: 44px;
+    margin-left: -10px;
+    border-radius: 10px;
+    background: transparent;
+    border: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2078,10 +2064,14 @@ html, body, #app {
     flex-shrink: 0;
 }
 
+    .back-btn:active {
+        background: var(--mobile-blue-subtle);
+    }
+
     .back-btn svg {
-        width: 16px;
-        height: 16px;
-        stroke: var(--gold-primary);
+        width: 20px;
+        height: 20px;
+        stroke: var(--mobile-blue);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -2089,35 +2079,31 @@ html, body, #app {
     }
 
 .header-title {
-    font-family: 'EB Garamond', serif;
     font-size: 17px;
     font-weight: 600;
-    color: #ffffff;
-    line-height: 1.15;
+    color: var(--mobile-navy);
+    line-height: 1.2;
 }
 
 .header-sub {
-    font-size: 10px;
-    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
     margin-top: 2px;
 }
 
-/* Municipality seal — right-aligned in the header (letterhead style). Absolutely positioned so it NEVER
-   affects header height/spacing. It is centred within the CONTENT box (eyebrow + title row) by pinning to
-   the header's exact padding edges and letting auto margins centre a fixed-height box — this excludes the
-   safe-area top padding from the centring, so it sits neither high (on the eyebrow) nor low (on the title).
-   Anchored to .header (which is position:relative); .header-row must NOT be positioned. */
+/* Tenant seal, right-aligned. Absolutely positioned so it never affects header height. */
 .header-logo {
     position: absolute;
-    top: calc(env(safe-area-inset-top, 20px) + 16px); /* = .header padding-top */
-    bottom: 16px;                                      /* = .header padding-bottom */
-    right: 24px;                                       /* = .header padding-right */
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    bottom: 10px;
+    right: 16px;
     margin: auto 0;
-    width: 54px;
-    height: 54px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     object-fit: contain;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--mobile-border);
+    background: var(--mobile-surface-subtle);
 }
 
 /* ── Confirm sheet stall preview card ── */
@@ -2133,7 +2119,7 @@ html, body, #app {
 
 /* large stall number in the preview card */
 .preview-num {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2257,7 +2243,7 @@ html, body, #app {
 }
 
 .stall-num-val {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2318,7 +2304,7 @@ html, body, #app {
 }
 
 .stall-amount {
-    font-family: 'EB Garamond', serif;
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: var(--navy-primary);
@@ -2551,4 +2537,81 @@ input[type="date"],
 select,
 textarea {
     font-size: 16px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE V3 — BRAND BAND
+   A flat civic-blue header across every screen so the app is not an all-white
+   field: white title and identity on the band, a light-blue context strip under it.
+   No gradient, no glow. Loaded last so it overrides the earlier header rules.
+═══════════════════════════════════════════════════════════════ */
+.eemo-header,
+.header {
+    background: var(--mobile-blue-deep);
+    border-bottom: 0;
+}
+
+.eemo-header .header-org-name,
+.eemo-header .header-page-title,
+.header .header-title {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.eemo-header .header-org-sub,
+.eemo-header .header-page-sub,
+.eemo-header .header-eyebrow,
+.header .header-sub,
+.header .header-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.eemo-header .header-seal {
+    background: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.eemo-header .header-back-btn svg,
+.header .back-btn svg {
+    stroke: #ffffff;
+}
+
+.eemo-header .header-back-btn:active,
+.header .back-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.header .header-logo {
+    border-color: rgba(255, 255, 255, 0.9);
+    background: #ffffff;
+}
+
+/* Context strip under the band */
+.date-strip,
+.greeting-bar {
+    background: var(--mobile-blue-subtle);
+    border-bottom: 1px solid color-mix(in srgb, var(--mobile-blue) 14%, var(--mobile-border));
+}
+
+.date-strip-left span,
+.greeting-text span {
+    color: var(--mobile-blue-deep);
+}
+
+.date-pill,
+.date-badge {
+    border-color: color-mix(in srgb, var(--mobile-blue) 22%, var(--mobile-border));
+    color: var(--mobile-blue-deep);
+}
+
+/* Page headers that also carry a pill on the band (collection month) */
+.header .collection-month-pill {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.header .collection-month-pill svg {
+    stroke: #ffffff;
 }

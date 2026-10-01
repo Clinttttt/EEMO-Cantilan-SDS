@@ -1,0 +1,231 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@inject IOfficialReportsApiClient Api
+@inject IJSRuntime JS
+
+@* The Collections register (IA-052): every classified line of a posted collection, with the RCD-style summary derived from the
+   same rows. Transactions first, report second: no total is typed and none is computed in the browser. One document can
+   appear on several rows; opening a row shows the one parent document, itemized. Legacy-authoritative sources stay in their
+   own registers below until their source goes canonical. *@
+<section class="cr" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
+    <div class="cr-print-head" aria-hidden="true"><ReportLetterhead Title="Collections Register" Period="@PeriodLabel" /></div>
+    <header class="cr-head">
+        <h2 id="@_titleId">Collections · @PeriodLabel</h2>
+        <div class="cr-tools no-print">
+            <label class="v3-field"><span>Instrument</span>
+                <select @bind="_instrument" @bind:after="LoadAsync">
+                    <option value="">OR and CT</option>
+                    <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
+                    <option value="@((int)RevenueInstrumentType.CashTicket)">Cash Ticket</option>
+                </select>
+            </label>
+            @if (_data is { Summary.Count: > 0 } withSummary)
+            {
+                <label class="v3-field"><span>Revenue line</span>
+                    <select @bind="_classification" @bind:after="LoadAsync">
+                        <option value="">All lines</option>
+                        @foreach (var line in _summaryOptions)
+                        {
+                            <option value="@line.ClassificationId">@line.ClassificationName</option>
+                        }
+                    </select>
+                </label>
+            }
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">Print</button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    else if (_data is null)
+    {
+        <p role="status">Loading collections…</p>
+    }
+    else
+    {
+        <div class="cr-panel">
+            <h3>Report of collections · by revenue line</h3>
+            <table class="v3-table" aria-label="Collections by revenue line">
+                <thead>
+                    <tr>
+                        <th scope="col">Revenue line</th>
+                        <th scope="col" class="v3-num">Documents</th>
+                        <th scope="col">Serials</th>
+                        <th scope="col" class="v3-num">Collected</th>
+                        <th scope="col" class="v3-num">Corrections</th>
+                        <th scope="col" class="v3-num">Net</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in _data.Summary)
+                    {
+                        <tr>
+                            <td>@line.ClassificationName</td>
+                            <td class="v3-num">@line.DocumentCount</td>
+                            <td>@(line.FirstDocumentNumber is null ? "—" : line.FirstDocumentNumber == line.LastDocumentNumber ? line.FirstDocumentNumber : $"{line.FirstDocumentNumber} – {line.LastDocumentNumber}")</td>
+                            <td class="v3-num">@Money(line.Gross)</td>
+                            <td class="v3-num">@(line.CorrectionEffect == 0m ? "—" : Money(line.CorrectionEffect))</td>
+                            <td class="v3-num v3-strong">@Money(line.Net)</td>
+                        </tr>
+                    }
+                    @if (_data.Summary.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="6">No canonical collection was posted in this period.</td></tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="3"><strong>Total</strong></td><td class="v3-num">@Money(_data.Gross)</td><td class="v3-num">@(_data.CorrectionEffect == 0m ? "—" : Money(_data.CorrectionEffect))</td><td class="v3-num v3-strong">@Money(_data.Net)</td></tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="cr-panel">
+            <h3>Register</h3>
+            <div class="v3-table-wrap" role="region" aria-label="Collections register" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Document</th>
+                            <th scope="col">Instrument</th>
+                            <th scope="col">Payor</th>
+                            <th scope="col">Collector</th>
+                            <th scope="col">Revenue line</th>
+                            <th scope="col">Operation / source</th>
+                            <th scope="col" class="v3-num">Amount</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ Guid? previousCollection = null; }
+                        @foreach (var row in _data.Rows)
+                        {
+                            @* One physical document, several revenue lines: the document facts are stated once, on its first line,
+                               and the lines that follow are indented under it — never three rows that read as three receipts. *@
+                            var continuation = previousCollection == row.CollectionId;
+                            previousCollection = row.CollectionId;
+                            <tr class="@(continuation ? "cr-cont" : "cr-doc")">
+                                @if (continuation)
+                                {
+                                    <td colspan="5" class="cr-cont-cell"><span class="v3-sr-only">Same document @row.DocumentNumber:</span></td>
+                                }
+                                else
+                                {
+                                    <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@(row.DocumentNumber ?? "—")</button></td>
+                                    <td>@(row.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
+                                    <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
+                                    <td>@(row.CollectorName ?? "Office")</td>
+                                }
+                                <td>@row.ClassificationName</td>
+                                <td>@row.SourceLabel</td>
+                                <td class="v3-num">@Money(row.Amount)</td>
+                                <td>@row.Status</td>
+                            </tr>
+                        }
+                        @if (_data.Rows.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="9">No collection matches these filters.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_data.RowsTruncated)
+            {
+                <p class="cr-note">The register shows the newest 2,000 rows; the summary above covers the whole period.</p>
+            }
+        </div>
+    }
+
+    @if (_document is { } doc)
+    {
+        <aside class="cr-panel cr-doc" aria-label="Collection document">
+            <header class="cr-doc-head">
+                <h3>@doc.PayorName@(string.IsNullOrWhiteSpace(doc.PayorName) ? "Collection" : "") · @(doc.DocumentNumber ?? "no document")</h3>
+                <button class="v3-btn v3-btn-sm no-print" type="button" @onclick="() => _document = null">Close</button>
+            </header>
+            <p class="cr-note">@(doc.Instrument switch { RevenueInstrumentType.OfficialReceipt => "Official Receipt", RevenueInstrumentType.CashTicket => "Cash Ticket", _ => "Document" })
+                · @doc.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                · @(doc.CollectorName ?? "Office")
+                @(doc.DocumentState is null ? "" : $"· {doc.DocumentState}")
+                @(doc.RemittanceId is null ? "· not yet remitted" : $"· covered by a remittance ({doc.RemittanceStatus})")</p>
+            <table class="v3-table" aria-label="Document lines">
+                <tbody>
+                    @foreach (var line in doc.Lines)
+                    {
+                        <tr>
+                            <td>@line.ClassificationName<span class="v3-block cr-note">@line.SourceLabel</span>
+                                @foreach (var detail in line.Details) { <span class="v3-block cr-note">@detail</span> }</td>
+                            <td class="v3-num">@Money(line.Amount)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot><tr><td><strong>Total</strong></td><td class="v3-num v3-strong">@Money(doc.Total)</td></tr></tfoot>
+            </table>
+        </aside>
+    }
+</section>
+
+@code {
+    private readonly string _titleId = $"cr-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public string PeriodLabel { get; set; } = string.Empty;
+
+    private CollectionsRegisterDto? _data;
+    private List<CollectionsSummaryLineDto> _summaryOptions = [];
+    private CollectionDocumentDto? _document;
+    private string? _error;
+    private bool _loading;
+    private string _instrument = string.Empty;
+    private string _classification = string.Empty;
+    private DateOnly _loadedFrom;
+    private DateOnly _loadedTo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && _loadedTo == To && _data is not null) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        _classification = string.Empty;
+        _document = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetCollectionsAsync(From, To, null,
+                int.TryParse(_instrument, out var i) ? (RevenueInstrumentType)i : null,
+                Guid.TryParse(_classification, out var c) ? c : null);
+            if (result.IsSuccess)
+            {
+                _data = result.Value;
+                if (_classification == string.Empty) _summaryOptions = _data!.Summary.ToList();
+            }
+            else { _data = null; _error = "The collections could not be loaded."; }
+        }
+        catch { _data = null; _error = "The collections could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task OpenAsync(Guid collectionId)
+    {
+        var result = await Api.GetCollectionAsync(collectionId);
+        _document = result.IsSuccess ? result.Value : null;
+        if (!result.IsSuccess) _error = "That collection could not be opened.";
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

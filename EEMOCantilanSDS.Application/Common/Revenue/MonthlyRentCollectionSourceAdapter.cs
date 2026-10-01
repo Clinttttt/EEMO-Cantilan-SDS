@@ -131,18 +131,24 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
             .Select(x => new { x.StallId, x.BillingYear, x.BillingMonth })
             .ToListAsync(ct);
         var exceptionKeys = exceptions.Select(x => (x.StallId, x.BillingYear, x.BillingMonth)).ToHashSet();
-        var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.MunicipalityId == tenantId && x.SemanticCode == RevenueClassificationCodes.PermanentStallRent
-            && x.IsActive, ct);
-        var policy = classification is null ? null : await db.RevenueClassificationPolicies.AsNoTracking()
-            .Where(x => x.MunicipalityId == tenantId
-                && x.RevenueClassificationId == classification.Id
-                && x.BusinessContext == RevenuePolicyContext.Default
-                && x.EffectiveDate <= businessDate)
-            .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
-        if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
-            throw new InvalidOperationException("Permanent Stall Rent has no effective Official Receipt policy for this tenant.");
-        var policyFacts = new RentPolicyFacts(classification, policy);
+        // Each monthly-rental facility resolves its own classification (Ice Plant is not Permanent Stall Rent, IA-050).
+        var policyCache = new Dictionary<string, RentPolicyFacts>();
+        async Task<RentPolicyFacts> PolicyForAsync(FacilityCode facility)
+        {
+            var code = RevenueClassificationCodes.ForMonthlyRental(facility);
+            if (policyCache.TryGetValue(code, out var cached)) return cached;
+            var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.MunicipalityId == tenantId && x.SemanticCode == code && x.IsActive, ct);
+            var policy = classification is null ? null : await db.RevenueClassificationPolicies.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenantId
+                    && x.RevenueClassificationId == classification.Id
+                    && x.BusinessContext == RevenuePolicyContext.Default
+                    && x.EffectiveDate <= businessDate)
+                .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
+            if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
+                throw new InvalidOperationException($"{code} has no effective Official Receipt policy for this tenant.");
+            return policyCache[code] = new RentPolicyFacts(classification, policy);
+        }
         var quotes = new List<RentObligationQuoteDto>();
         var periods = stalls.SelectMany(stall => stall.Contracts
                 .Where(contract => contract.PayorId == payorId && contract.DurationYears > 0)
@@ -170,7 +176,7 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
                 continue;
             records.TryGetValue((stall.Id, period.Year, period.Month), out var record);
             var facts = await BuildFacts(tenantId, record, stall, occupancy.Contract,
-                period.Year, period.Month, businessDate, ct, policyFacts);
+                period.Year, period.Month, businessDate, ct, await PolicyForAsync(stall.Facility!.Code));
             if (facts.Quote.OutstandingAmount > 0m) quotes.Add(facts.Quote);
         }
         return quotes;
@@ -187,8 +193,9 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
         CancellationToken ct,
         RentPolicyFacts? policyFacts = null)
     {
+        var classificationCode = RevenueClassificationCodes.ForMonthlyRental(stall.Facility!.Code);
         var classification = policyFacts?.Classification ?? await db.RevenueClassifications.SingleOrDefaultAsync(x =>
-            x.MunicipalityId == tenantId && x.SemanticCode == RevenueClassificationCodes.PermanentStallRent
+            x.MunicipalityId == tenantId && x.SemanticCode == classificationCode
             && x.IsActive, ct);
         var policy = policyFacts?.Policy ?? (classification is null ? null : await db.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == tenantId

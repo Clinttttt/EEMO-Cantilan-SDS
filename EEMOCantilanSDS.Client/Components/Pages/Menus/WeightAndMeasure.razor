@@ -66,7 +66,6 @@
                         <th scope="col">Occupant</th>
                         <th scope="col">Category</th>
                         <th scope="col" class="v3-num">Kilos weighed</th>
-                        <th scope="col">Amount</th>
                         <th scope="col"><span class="v3-sr-only">Source</span></th>
                     </tr>
                 </thead>
@@ -80,7 +79,6 @@
                             </td>
                             <td>Fish</td>
                             <td class="v3-num v3-strong">@Kilos(row.FishKilos)</td>
-                            <td class="wm-unresolved">@FishRateUnavailable</td>
                             <td class="wm-source">
                                 <a class="wm-source-link" href="/profile/npm/@row.StallId">Open NPM source</a>
                             </td>
@@ -89,7 +87,7 @@
                     @if (!FilteredFishRows.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="5">
+                            <td class="v3-empty" colspan="4">
                                 @if (_loading)
                                 {
                                     <span role="status">Loading weighing records…</span>
@@ -112,7 +110,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="v3-panel-note">Fish weighing recorded kilos only. No rate or amount was frozen with those collections, so the amount stays unresolved — it is not re-priced from today's rate. OR numbers stay with the collections in NPM.</p>
+        <p class="v3-panel-note">Fish collected from now on freezes its kilos, rate and amount with the collection. Earlier rows recorded kilos only, so their amount stays unresolved — it is never re-priced from today's rate. OR numbers stay with the collections in NPM.</p>
     </section>
 
     <section class="v3-panel" aria-labelledby="wm-meat-title" aria-busy="@(_loading ? "true" : "false")">
@@ -170,18 +168,18 @@
         || Occupant(x).Contains(_search, StringComparison.OrdinalIgnoreCase)
         || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
-    // Server evidence only. Meat weighing money is the amount frozen on each collection (MeatWeightMeasureAmount).
-    // Fish weighing kept kilos only: the report's FishFeeAmount is kilos × the rate in force when the report is read,
-    // not money frozen with the collection, so it is not shown as collected — the amount is unresolved.
-    private const string FishRateUnavailable = "Rate evidence unavailable";
-
+    // Server evidence only. Weighing money is the amount frozen on each collection (Meat: MeatWeightMeasureAmount; Fish:
+    // FishWeightMeasureFrozenAmount, for rows collected after Fish rate evidence began to be frozen). The report's own
+    // FishFeeAmount is kilos × the rate in force when it is READ, so it is never shown as collected. Fish kilos with no
+    // frozen rate (earlier rows, monthly-payment kilos) are stated as kilos without rate evidence — unresolved, not priced.
     private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
     [
         new("Month", PeriodLabel),
         new("Meat weighing (frozen)", _report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.MeatWeightMeasureAmount) : "—", Emphasis: true),
+        new("Fish weighing (frozen)", _report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—", Emphasis: true),
         new("Meat kilos weighed", _report?.FeeTypeBreakdown is { } meat ? Kilos(meat.MeatKilos) : "—"),
         new("Fish kilos weighed", _report is null ? "—" : Kilos(FishRows.Sum(x => x.FishKilos))),
-        new("Fish weighing amount", _report is null ? "—" : FishRows.Any() ? FishRateUnavailable : Money(0m)),
+        new("Fish kilos without rate evidence", _report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—"),
     ];
 
     protected override async Task OnInitializedAsync()

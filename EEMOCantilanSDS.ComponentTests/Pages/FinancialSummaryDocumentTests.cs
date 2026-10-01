@@ -97,6 +97,7 @@ public class FinancialSummaryDocumentTests : TestContext
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         // The signature strip at the foot of the sheet reads the office's signatories.
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         this.AddTestAuthorization().SetAuthorized("Head");
@@ -121,7 +122,7 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.Contains("Outstanding position", sheet);
         Assert.Contains("Receivable aging", sheet);
         Assert.Contains("Period comparison", sheet);
-        Assert.Contains("Revenue by facility", sheet);
+        Assert.Contains("Facility performance", sheet);
         Assert.Contains("Accounts needing follow-up", sheet);
         Assert.Contains("Miscellaneous", sheet);
 
@@ -132,9 +133,12 @@ public class FinancialSummaryDocumentTests : TestContext
 
         // Named in filing order, so a sheet quoted in a meeting can be pointed at by section.
         var titles = cut.FindAll(".doc-sec-title").Select(t => t.TextContent.Trim()).ToList();
-        Assert.Equal(8, titles.Count);
+        Assert.Equal(9, titles.Count);
         Assert.StartsWith("I.", titles[0]);
-        Assert.StartsWith("VIII.", titles[7]);
+        Assert.StartsWith("IX.", titles[8]);
+        // The official Monthly Income snapshot sits beside the collection position, ahead of the facility analysis.
+        Assert.Equal("II. Monthly Income by official group", titles[1]);
+        Assert.Equal("VII. Facility performance", titles[6]);
     }
 
     [Fact]
@@ -179,7 +183,7 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.Contains("18%", position);
 
         // Paid on service is SLH 1,230 + TPM 420 = 1,650; recurring is the remainder of the headline, 1,099.
-        var model = cut.FindAll(".doc-sec")[1].TextContent;
+        var model = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Collection by model")).TextContent;
         Assert.Contains("₱1,650", model);
         Assert.Contains("₱1,099", model);
 

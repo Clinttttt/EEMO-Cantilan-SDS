@@ -1,5 +1,6 @@
 @page "/operations/fish-meat-vendor-fees"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -10,8 +11,9 @@
    financial view of the separate Fish / Meat Vendor Fee obligation. Stall rent, Fish / Meat Vendor Fee and Weight &
    Measure are three different charges even when one person owes all three.
 
-   The server does not yet expose a Fish / Meat Vendor Fee obligation, so the register states that plainly. Nothing
-   is derived from stall rent or any other figure. It adds no vendor, stall, collector, payment or weighing action. *@
+   It reads the obligation accounts (IA-050): each is anchored to an NPM Fish/Meat stall and takes its Payor from that
+   stall's linked occupancy. Nothing is derived from stall rent or NPM daily-fee history. It adds no vendor, stall,
+   collector, payment or weighing action; money is collected on an Official Receipt in Current Collection. *@
 <div class="v3-page fm-page">
     <WorkspaceHeader Parent="Operations" Title="Fish / Meat Vendor Fees" Subtitle="Vendor fee obligations for NPM Fish and Meat vendors">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
@@ -23,40 +25,7 @@
         </Actions>
     </WorkspaceHeader>
 
-    <section class="v3-panel" aria-labelledby="fm-register-title">
-        <header class="v3-panel-header">
-            <h2 id="fm-register-title">Vendor fee obligations</h2>
-            <span class="v3-panel-meta">Not yet available</span>
-        </header>
-        <div class="v3-table-wrap" role="region" aria-label="Fish / Meat Vendor Fee obligations" tabindex="0">
-            <table class="v3-table">
-                <thead>
-                    <tr>
-                        <th scope="col">Vendor / Payor</th>
-                        <th scope="col">NPM source</th>
-                        <th scope="col">Period</th>
-                        <th scope="col" class="v3-num">Assessed</th>
-                        <th scope="col" class="v3-num">Collected</th>
-                        <th scope="col" class="v3-num">Balance</th>
-                        <th scope="col">OR</th>
-                        <th scope="col">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="v3-empty fm-unavailable" colspan="8">
-                            <div class="v3-empty-block" role="status">
-                                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                                <strong>Fish / Meat Vendor Fee obligations aren't available yet</strong>
-                                <p>The vendors are managed in @NpmName. Their separate vendor fee will be listed here once StallTrack records it — it is not taken from stall rent.</p>
-                                <a class="v3-btn v3-btn-sm" href="/facility/npm">Open @NpmName</a>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </section>
+    <ObligationWorkspace Kind="ObligationKind.FishMeatVendorFee" Name="Fish / Meat Vendor Fee" SubjectNoun="Stall" />
 
     <aside class="fm-related" aria-label="Related charges">
         <p><strong>Separate charges.</strong> Stall rent, the Fish / Meat Vendor Fee and Weight &amp; Measure are billed and reported separately, even for the same vendor.</p>

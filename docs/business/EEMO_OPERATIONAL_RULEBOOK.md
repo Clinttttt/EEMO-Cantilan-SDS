@@ -112,8 +112,8 @@ Working operating model:
 2. Tickets are issued to individual payers as collections occur.
 3. Ticket usage decreases the remaining accountable stock.
 4. Collections are reported by revenue category.
-5. When the assigned Cash Ticket stock/range is consumed, the officer remits/accounts for the full covered amount.
-6. Partial remittance is not considered a valid normal workflow.
+5. Collected money may be remitted while unused tickets remain on hand. Accountable-form custody and cash remittance are related but distinct (IA-052): the collector remits the money collected with the tickets already issued, and the unused tickets stay under the collector's accountable custody.
+6. A shortfall against the collected amount is recorded as a visible difference for review; a remittance never exceeds what was collected (the office's 2026-08-25 answer) and never creates revenue.
 
 Future StallTrack support should therefore be capable of representing:
 
@@ -127,7 +127,7 @@ Future StallTrack support should therefore be capable of representing:
 
 Do not reduce this to a boolean `Remitted = Yes/No`.
 
-Remittance is triggered when the assigned Cash Ticket range/batch is fully consumed. Do not model routine remittance while accountable CT stock remains unconsumed.
+Remittance is **not** triggered by, or blocked by, exhaustion of the assigned Cash Ticket range (IA-052). Complete accountability of a physical batch remains issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions, tracked separately from the money.
 ## 6. Cash Ticket payer identity
 
 For transactional Cash Ticket collections, payor identity is **optional**, not universally mandatory.
@@ -268,7 +268,7 @@ Collectors never configure these rules. Collector Mobile may show an operation o
 
 If the operation later proves to require specialized approval, assessment, regulatory, lifecycle, or reconciliation behavior, promote it to a specialized source domain while preserving the canonical Collection model and existing posted history.
 
-**Transfer Large Cattle** is the first explicit use of this pattern. Its operation shell/directory may be designed now, but collection remains disabled until EEMO confirms and authorized setup records the exact trigger, fee/calculation basis, instrument, and required regulatory/reference details.
+**Transfer Large Cattle** is the first explicit use of this pattern. Current direction (Clint / Core Brain, 2026-09-30, IA-049): **Official Receipt**, Collector Mobile, occasional, **direct approved amount**, kept intentionally simple (business date, payer/owner, concise reference, approved amount, assigned OR). It stays **Setup Required** and non-collectible until authorized setup records its approved amount rule and an OR policy is effective; no livestock registry or certificate system is built.
 
 See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 
@@ -309,8 +309,8 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 - whether Fish/Meat Vendor Fee is OR;
 - whether Penalties/Fines are itemized on OR;
 - whether CT payor name may be optional;
-- whether partial remittance is allowed in the normal workflow;
-- whether Cash Ticket remittance is triggered before the assigned range is consumed — normal remittance waits until the assigned CT range/batch is exhausted;
+- whether partial remittance is allowed in the normal workflow - a remittance covers whole collections; a shortfall against them is a visible difference, never an adjusted collection (IA-052);
+- whether Cash Ticket remittance is triggered before the assigned range is consumed - it is not blocked by remaining stock; remittance and form custody are separate ledgers (IA-052);
 - whether current transportation vehicle-rate evidence is usable for V2 planning;
 - whether the Monthly Income sheet is the formal reporting grouping — it is; the board remains valid working/tally evidence;
 - whether Fish/Meat Vendor Fee and Weight & Measure are separate charges — they are;
@@ -344,6 +344,7 @@ See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthl
 - The Head stated **WCF = PHP 10** for the current office workflow.
 - "Direct amount" never means arbitrary collector authority: the amount/rate must come from approved office policy/configuration and should remain effective/configurable rather than hard-coded into UI markup.
 - ECF/WCF remain separate revenue/utility operations from stall rent.
+- IA-053 (2026-10-01): ECF/WCF are broader utility operations; NPM may be the source/context subject but never owns them. Meter readings are not required financial evidence for new current workflows; historical reading fields are preserved only as legacy evidence and never reprice a recorded charge.
 - Fiesta/Araw temporary electricity may still carry its own event/context detail; do not silently assume it is an NPM stall utility.
 
 This direct Cantilan clarification supersedes the earlier IA-047 interim metered/shared/fixed presentation hypothesis for the current demo/target workflow. Keep the underlying architecture flexible enough to preserve approved source/basis evidence if EEMO later supplies a meter/bill/rate schedule.
@@ -372,8 +373,8 @@ System handling remains governed by IA-044 / ADR-006:
 - the operation may be exposed as a specialized/configurable transfer workflow;
 - the amount must come from approved/configured office policy, never arbitrary collector input;
 - Philippine regulatory references may guide optional ownership, animal, certificate, transferor/transferee and verification fields;
-- OR-oriented presentation from Philippine regulatory precedent may be retained until Cantilan supplies a different accountable-instrument rule;
-- exact Cantilan fee schedule, accountable form/reference, and mandatory local attestations remain configurable rather than hard-coded.
+- **instrument = Official Receipt** (confirmed by Clint / Core Brain 2026-09-30, IA-049; no longer a Philippine-precedent placeholder);
+- exact Cantilan fee schedule and any mandatory local attestations remain configurable rather than hard-coded.
 
 See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md) and [Interim Philippine Reference Basis](../evidence/2026-09-27_interim_philippine_reference_basis.md).
 
@@ -390,3 +391,4 @@ Do not distract staff with these during the presentation sprint unless they beco
 ---
 
 This rulebook should be updated immediately whenever EEMO answers one of the remaining open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+- IA-054 (2026-10-01): WCF direct Mobile entry. Head/Admin may prepare a WCF amount in advance; when none is prepared, the authorized collector enters the Water amount directly on Mobile for an eligible source (Cash Ticket, direct amount, no meter). A prepared amount always takes precedence. WCF Mobile collection is enabled once per tenant after server-checked readiness; new WCF activity is then canonical prospectively, while historical legacy Water money stays legacy.

@@ -11,7 +11,7 @@
 }
 
 .back-btn {
-    background: rgba(200, 168, 75, 0.14);
+    background: transparent;
 }
 
 .collection-month-pill {
@@ -20,9 +20,9 @@
     gap: 6px;
     font-size: 11px;
     font-weight: 700;
-    color: #e8cc76;
-    background: rgba(200, 168, 75, 0.14);
-    border: 1px solid rgba(200, 168, 75, 0.34);
+    color: var(--mobile-navy);
+    background: var(--mobile-blue-subtle);
+    border: 1px solid var(--mobile-border);
     padding: 7px 12px;
     border-radius: 999px;
 }
@@ -30,7 +30,7 @@
 .collection-month-pill svg {
     width: 13px;
     height: 13px;
-    stroke: #e8cc76;
+    stroke: var(--mobile-blue);
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
@@ -39,7 +39,7 @@
 
 .notice-card {
     background: rgba(200, 168, 75, 0.1);
-    border: 1px solid rgba(200, 168, 75, 0.34);
+    border: 1px solid var(--mobile-border);
     border-radius: 12px;
     padding: 12px 14px;
     margin-bottom: 12px;
@@ -53,7 +53,7 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 18px;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.06);
+    box-shadow: none;
 }
 
 .state-card.error {
@@ -80,7 +80,7 @@
     min-height: 44px;
     border-radius: 12px;
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     font-weight: 800;
 }
 
@@ -89,7 +89,7 @@
     min-height: 50px;
     margin: 4px 0 6px;
     border-radius: 14px;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
     color: #fff;
     font-size: 14px;
     font-weight: 800;
@@ -97,7 +97,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.18);
+    box-shadow: none;
 }
 
 .record-cta svg {
@@ -132,7 +132,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     text-align: left;
-    box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
+    box-shadow: none;
 }
 
 .stall-row:disabled {
@@ -200,7 +200,7 @@
 
 .stall-amount {
     color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 14px;
     font-weight: 600;
     line-height: 1;
@@ -378,7 +378,7 @@
 
 .btn-confirm {
     color: #fff;
-    background: var(--navy-primary);
+    background: var(--mobile-blue);
 }
 
 .btn-cancel:disabled,
@@ -402,7 +402,7 @@
     font-size: 14px;
     font-weight: 700;
     color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
+    font-family: "DM Sans", sans-serif;
 }
 
 
@@ -413,7 +413,7 @@
     width: 100%;
     display: flex;
     align-items: stretch;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--mobile-surface);
     border-radius: 14px;
     border: 1px solid #d7e0ea;
     margin-bottom: 11px;
@@ -431,7 +431,7 @@
                 0 3px 7px rgba(13, 33, 55, 0.06);
 }
 
-.tx-left-bar { width: 4px; flex-shrink: 0; background: var(--navy-primary); }
+.tx-left-bar { width: 4px; flex-shrink: 0; background: var(--mobile-blue); }
 
 .tx-body { flex: 1; padding: 9px 10px; min-width: 0; }
 
@@ -516,8 +516,8 @@
 }
 
 .tx-badge.badge-queued {
-    color: #e8cc76;
-    background: var(--navy-primary);
+    color: #ffffff;
+    background: var(--mobile-blue);
 }
 
 .tx-card-queued {
@@ -531,3 +531,134 @@
 
 /* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
 /* Seal is an in-flow flex child of .header-row (eemo.css .header-logo); no right-reserve needed. */
+
+/* ── Mobile V3 register rows: flat divider rows instead of elevated cards ── */
+.tx-card {
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
+    transition: none;
+    min-height: 56px;
+}
+
+.tx-card:active {
+    transform: none;
+    box-shadow: none;
+    background: var(--mobile-blue-subtle);
+}
+
+.tx-card:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
+}
+
+.section-label {
+    margin: 16px 4px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-owner {
+    font-size: 15px;
+}
+
+.tx-tag,
+.tx-or {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.tx-badge {
+    font-size: 12px;
+}
+
+.tx-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Mobile V3 collection sheet: compact options, reliable touch heights ── */
+.status-option {
+    padding: 12px;
+    border-radius: 10px;
+    border-width: 1px;
+    margin-bottom: 8px;
+    min-height: 56px;
+}
+
+.status-option-label {
+    font-size: 15px;
+}
+
+.status-option-sub {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.form-input {
+    min-height: 48px;
+    font-size: 16px;
+}
+
+.btn-confirm,
+.btn-cancel {
+    min-height: 48px;
+    font-size: 15px;
+}
+
+.btn-confirm:disabled {
+    opacity: 0.5;
+}
+/* ── NPM context strip and sticky tools ── */
+.npm-context {
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    padding: 10px 14px 12px;
+    margin-bottom: 10px;
+}
+
+.npm-context-figures {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.npm-figure {
+    min-width: 0;
+}
+
+.npm-figure-value {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.npm-figure-key {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.npm-context .month-progress-wrap {
+    margin-top: 10px;
+}
+
+.npm-tools {
+    position: sticky;
+    top: -14px;
+    z-index: 5;
+    margin: 0 -14px 6px;
+    padding: 8px 14px 4px;
+    background: var(--mobile-canvas);
+}
+
+.form-hint-weighing {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    margin-top: 4px;
+}

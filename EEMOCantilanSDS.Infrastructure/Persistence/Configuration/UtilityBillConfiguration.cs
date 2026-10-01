@@ -20,6 +20,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.BillingMonth).IsRequired();
 
             builder.Property(x => x.ElecStatus).IsRequired().HasConversion<int>();
+            builder.Property(x => x.ElecCalculationBasis).IsRequired().HasConversion<int>().HasDefaultValue(UtilityCalculationBasis.Metered);
+            builder.Property(x => x.WaterCalculationBasis).IsRequired().HasConversion<int>().HasDefaultValue(UtilityCalculationBasis.Metered);
             builder.Property(x => x.WaterStatus).IsRequired().HasConversion<int>();
             builder.Property(x => x.ElectricitySettlementAuthorityState)
                 .HasConversion<int>().HasDefaultValue(SettlementAuthority.Legacy).IsRequired().IsConcurrencyToken();

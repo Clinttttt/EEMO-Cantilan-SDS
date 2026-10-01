@@ -30,7 +30,9 @@ public record UtilityBillDto(
     decimal BalanceDue,
     string? ElecORNumber,
     string? WaterORNumber,
-    string? Remarks)
+    string? Remarks,
+    string ElecCalculationBasis = "Metered",
+    string WaterCalculationBasis = "Metered")
 {
     public static UtilityBillDto From(UtilityBill b) => new(
         b.Id, b.StallId, b.BillingYear, b.BillingMonth,
@@ -39,5 +41,6 @@ public record UtilityBillDto(
         b.WaterPreviousReading, b.WaterCurrentReading, b.WaterRatePerCubicMeter, b.WaterConsumption, b.WaterCharge,
         b.WaterStatus.ToString(), b.WaterPartialAmount, b.WaterBalanceDue,
         b.TotalCharge, b.Status.ToString(), b.AmountPaid, b.BalanceDue,
-        b.ElecORNumber, b.WaterORNumber, b.Remarks);
+        b.ElecORNumber, b.WaterORNumber, b.Remarks,
+        b.ElecCalculationBasis.ToString(), b.WaterCalculationBasis.ToString());
 }
