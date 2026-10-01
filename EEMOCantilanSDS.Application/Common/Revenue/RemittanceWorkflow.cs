@@ -22,7 +22,7 @@ public sealed class RemittanceWorkflow(
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
     ICollectorReportQueries? legacyQueries = null,
-    IClock? clock = null)
+    IClock? clock = null) : ICollectorCollectionFacts
 {
     private const string Origin = "WebRemittance";
     private const int IntentVersion = 1;
@@ -189,6 +189,35 @@ public sealed class RemittanceWorkflow(
         return Result<CollectorPositionDto>.Success(mine);
     }
 
+    /// <summary>
+    /// The signed-in collector's posted Collections for a business-date range, each net of its corrections, from the same facts
+    /// the position above sums. The Mobile report reads its canonical side here so its totals and the Position's agree.
+    /// </summary>
+    public async Task<Result<IReadOnlyList<CollectorCollectionFactDto>>> GetMyCollectionsAsync(
+        DateOnly from, DateOnly to, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId
+            || collectorId == Guid.Empty)
+            return Result<IReadOnlyList<CollectorCollectionFactDto>>.Forbidden();
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
+            return Result<IReadOnlyList<CollectorCollectionFactDto>>.Forbidden();
+        if (Validate(from, to) is { } problem)
+            return Result<IReadOnlyList<CollectorCollectionFactDto>>.Failure(problem, ResultStatus.Invalid);
+
+        var facts = await LoadCollectionFactsAsync(tenantId, collectorId, from, to, null, ct);
+        var payorIds = facts.Where(x => x.PayorId is not null).Select(x => x.PayorId!.Value).Distinct().ToArray();
+        var payorNames = payorIds.Length == 0 ? [] : await db.Payors.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && payorIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+        IReadOnlyList<CollectorCollectionFactDto> rows = facts
+            .OrderBy(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal)
+            .Select(x => new CollectorCollectionFactDto(x.CollectionId, x.BusinessDate, x.DocumentNumber, x.Instrument,
+                x.PayorId, x.PayorId is { } id ? payorNames.GetValueOrDefault(id) : null, x.Net, x.Lines))
+            .ToList();
+        return Result<IReadOnlyList<CollectorCollectionFactDto>>.Success(rows);
+    }
+
     private async Task<Result<AccountabilityPositionDto>> BuildPositionAsync(
         Guid tenantId, Guid? onlyCollector, DateOnly from, DateOnly to, CancellationToken ct)
     {
@@ -239,7 +268,7 @@ public sealed class RemittanceWorkflow(
     private sealed record CollectionFact(
         Guid CollectionId, Guid? CollectorId, DateOnly BusinessDate, string? DocumentNumber, RevenueInstrumentType? Instrument,
         string? PayerName, decimal Net, IReadOnlyList<RemittanceBreakdownDto> Lines, bool Covered, Guid? CoveringRemittanceId,
-        bool CorrectedAfterRemittance);
+        bool CorrectedAfterRemittance, Guid? PayorId = null);
 
     /// <summary>The Collections a collector could still remit: posted, in scope, money left after corrections, not actively covered.</summary>
     private async Task<IReadOnlyList<RemittanceCollectionDto>> EligibleAsync(
@@ -256,7 +285,7 @@ public sealed class RemittanceWorkflow(
         var collections = db.Collections.AsNoTracking().Where(x =>
             x.MunicipalityId == tenantId && x.CollectorId != null && x.BusinessDate >= from && x.BusinessDate <= to);
         if (collectorId is { } c) collections = collections.Where(x => x.CollectorId == c);
-        var list = await collections.Select(x => new { x.Id, x.CollectorId, x.BusinessDate, x.PayerName, x.TotalAmount, x.RecordedAtUtc })
+        var list = await collections.Select(x => new { x.Id, x.CollectorId, x.BusinessDate, x.PayerName, x.PayorId, x.TotalAmount, x.RecordedAtUtc })
             .ToListAsync(ct);
         if (list.Count == 0) return [];
         var ids = list.Select(x => x.Id).ToArray();
@@ -304,7 +333,7 @@ public sealed class RemittanceWorkflow(
                 && myCorrections.Any(x => x.RecordedAtUtc > at);
             facts.Add(new CollectionFact(collection.Id, collection.CollectorId, collection.BusinessDate,
                 document?.DocumentNumber, document?.InstrumentType, collection.PayerName, net, myLines, isCovered,
-                isCovered ? cover!.RemittanceId : null, after));
+                isCovered ? cover!.RemittanceId : null, after, collection.PayorId));
         }
         return facts;
     }

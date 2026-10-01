@@ -406,4 +406,152 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var forms = Assert.Single(Assert.Single((await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!.Collectors).Forms);
         Assert.Equal((10, 3, 1, 3, 0, 3, 10), (forms.Assigned, forms.Issued, forms.Spoiled, forms.Returned, forms.NeedsReview, forms.OnHand, forms.AccountedFor));
     }
+
+    // ── The collector's report facts: the canonical side of the Mobile report, exactly once (IA-050 / IA-052) ──
+
+    private static readonly DateOnly MonthStart = new(Today.Year, Today.Month, 1);
+    private static readonly DateOnly MonthEnd = MonthStart.AddMonths(1).AddDays(-1);
+
+    private RemittanceWorkflow AsCollector(AppDbContext ctx, World w) =>
+        new(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id));
+
+    [SkippableFact]
+    public async Task APostedLandingTicket_IsInTheCollectorsMonth_Once_NetOfNothing_AndAgreesWithRecordsAndPosition()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("rpt");
+        await PostAsync(w, 0, CollectorOperationCodes.LandingBerthing, 50m);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var facts = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!;
+        var fact = Assert.Single(facts);
+        Assert.Equal((Today, w.Documents[0].DocumentNumber, 50m), (fact.BusinessDate, fact.DocumentNumber, fact.NetAmount));
+        Assert.Equal("Landing/Berthing", Assert.Single(fact.Lines).Name);
+        // The walk-up payer text is evidence, never an identity.
+        Assert.Null(fact.PayorId);
+        Assert.Null(fact.PayorName);
+
+        // Records shows the same Collection; the report counts it once; Position states the same money.
+        var records = (await new GovernedServiceWorkflow(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id))
+            .GetCollectorRecordsAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(fact.CollectionId, Assert.Single(records).CollectionId);
+        var position = (await AsCollector(ctx, w).GetMyPositionAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(facts.Sum(x => x.NetAmount), position.Collected);
+
+        // The month before does not contain it: selection is by business date, inclusive, with no UTC shift.
+        var before = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart.AddMonths(-1), MonthStart.AddDays(-1))).Value!;
+        Assert.Empty(before);
+        var onlyThatDay = (await AsCollector(ctx, w).GetMyCollectionsAsync(Today, Today)).Value!;
+        Assert.Single(onlyThatDay);
+    }
+
+    [SkippableFact]
+    public async Task ARetriedClientOperation_IsOneCollection_AndOneReportContribution()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("retry");
+        var operationId = Guid.NewGuid();
+        var doc = w.Documents[0];
+        var request = new GovernedServicePostRequest(1, operationId, CollectorOperationCodes.LandingBerthing, Today, 50m, null,
+            "Walk-up", null, doc.Id, doc.DocumentNumber, DateTime.UtcNow.AddMinutes(-1));
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await using var post = db.CreateContext(w.Tenant.Id);
+            var result = await new GovernedServiceWorkflow(post, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id))
+                .PostMobileAsync(request);
+            Assert.True(result.IsSuccess, result.Error);
+        }
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var facts = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(50m, Assert.Single(facts).NetAmount);
+    }
+
+    [SkippableFact]
+    public async Task MarketFeesAndLanding_AddUp_ByClassification_AndARemittanceAddsNoRevenue()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("mix");
+        await PostAsync(w, 0, CollectorOperationCodes.MarketFees, 30m);
+        await PostAsync(w, 1, CollectorOperationCodes.LandingBerthing, 50m);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var facts = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(80m, facts.Sum(x => x.NetAmount));
+        Assert.Equal(["Landing/Berthing", "Market Fees"], facts.SelectMany(x => x.Lines).Select(l => l.Name).Order());
+
+        var before = (await AsCollector(ctx, w).GetMyPositionAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal((80m, 0m, 80m), (before.Collected, before.Remitted, before.Unremitted));
+        Assert.True((await Remit(ctx, w).RecordAsync(Request(w, 80m))).IsSuccess);
+
+        var after = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(80m, after.Sum(x => x.NetAmount));     // remittance never adds or removes collected revenue
+        var position = (await AsCollector(ctx, w).GetMyPositionAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal((80m, 80m, 0m), (position.Collected, position.Remitted, position.Unremitted));
+    }
+
+    [SkippableFact]
+    public async Task ACollectorReadsOnlyTheirOwnCollections_InTheirOwnTenant()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("own");
+        var other = await SeedAsync("theirs");
+        await PostAsync(w, 0, CollectorOperationCodes.LandingBerthing, 50m);
+        await PostAsync(other, 0, CollectorOperationCodes.LandingBerthing, 50m);
+        await PostAsync(other, 1, CollectorOperationCodes.MarketFees, 30m);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        Assert.Equal(50m, (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!.Sum(x => x.NetAmount));
+
+        // An office role, or a token whose tenant claim disagrees with the resolved tenant, reads nothing.
+        var office = await Remit(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd);
+        Assert.Equal(ResultStatus.Forbidden, office.Status);
+        var crossed = await new RemittanceWorkflow(ctx, new Caller(w.Collector.Id, other.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id))
+            .GetMyCollectionsAsync(MonthStart, MonthEnd);
+        Assert.Equal(ResultStatus.Forbidden, crossed.Status);
+    }
+
+    [SkippableFact]
+    public async Task TheMobileReport_StatesAPostedLandingTicket_InTotalsMonthAndClassification_WithoutInventingAPayee()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("mobrpt");
+        await PostAsync(w, 0, CollectorOperationCodes.LandingBerthing, 50m);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var caller = new Caller(w.Collector.Id, w.Tenant.Id, "Collector");
+        var repository = new EEMOCantilanSDS.Infrastructure.Repositories.CollectorRepository(ctx);
+        var handler = new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport.GetCollectorReportQueryHandler(
+            repository, repository, AsCollector(ctx, w), caller, new EEMOCantilanSDS.Infrastructure.Time.SystemClock());
+
+        var result = await handler.Handle(
+            new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport.GetCollectorReportQuery(null, Today.Year, Today.Month),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        var report = result.Value!;
+        Assert.Equal((50m, 1), (report.Totals.CollectedAmount, report.Totals.TransactionCount));
+        var month = Assert.Single(report.Periods);
+        Assert.Equal((MonthStart, 50m, 1), (month.PeriodDate, month.CollectedAmount, month.TransactionCount));
+        var line = Assert.Single(report.Breakdown!);
+        Assert.Equal(("Landing/Berthing", true, 50m), (line.Label, line.IsClassification, line.Amount));
+        Assert.Equal(0, report.Totals.PayeeCount);
+        Assert.Equal((50m, 1), (report.Totals.UnnamedCollectedAmount, report.Totals.UnnamedTransactionCount));
+
+        // Position, Records and the report agree on the one Collection.
+        var position = (await AsCollector(ctx, w).GetMyPositionAsync(MonthStart, MonthEnd)).Value!;
+        Assert.Equal(report.Totals.CanonicalCollectedAmount, position.Collected);
+
+        // The previous month is unaffected.
+        var previous = MonthStart.AddMonths(-1);
+        var before = await handler.Handle(
+            new EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport.GetCollectorReportQuery(null, previous.Year, previous.Month),
+            CancellationToken.None);
+        Assert.Equal(0m, before.Value!.Totals.CollectedAmount);
+    }
 }

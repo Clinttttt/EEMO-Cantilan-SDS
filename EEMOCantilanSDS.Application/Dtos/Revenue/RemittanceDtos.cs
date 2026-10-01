@@ -113,3 +113,17 @@ public sealed record SpoilFormRequest(Guid AccountableDocumentId, string Reason,
 public sealed record SpoiledFormDto(
     Guid AccountableDocumentId, string DocumentNumber, RevenueInstrumentType Instrument, string Reason, string? Note,
     string ActorName, DateTime RecordedAtUtc, Guid? CustodianUserId);
+
+/// <summary>
+/// One posted Collection the signed-in collector took, net of corrections, with its classification lines. The named Payor is
+/// read only through the Collection's explicit Payor link; the frozen payer text is evidence and never an identity.
+/// </summary>
+public sealed record CollectorCollectionFactDto(
+    Guid CollectionId,
+    DateOnly BusinessDate,
+    string? DocumentNumber,
+    RevenueInstrumentType? Instrument,
+    Guid? PayorId,
+    string? PayorName,
+    decimal NetAmount,
+    IReadOnlyList<RemittanceBreakdownDto> Lines);

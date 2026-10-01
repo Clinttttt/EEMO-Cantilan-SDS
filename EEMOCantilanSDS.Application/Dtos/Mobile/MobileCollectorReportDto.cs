@@ -22,7 +22,18 @@ public sealed record MobileCollectorReportDto(
     // Electricity & water billing for the reporting month — kept SEPARATE from the collection totals
     // above (utilities are a distinct meter-based charge, not the stall/daily fee). Null when the
     // collector's facilities don't include NPM or no utility bill exists for the month.
-    MobileReportUtilitySummaryDto? Utility = null);
+    MobileReportUtilitySummaryDto? Utility = null,
+    // Where the collected money came from: canonical Collections by their CollectionLine classification, legacy rows by the
+    // facility that recorded them. Two bases, labelled as such — a facility is never presented as a classification.
+    IReadOnlyList<MobileReportBreakdownDto>? Breakdown = null,
+    // Canonical collections linked to a registered Business Payor (explicit PayorId only, never matched from typed text).
+    IReadOnlyList<MobileReportNamedPayorDto>? NamedPayors = null);
+
+/// <param name="IsClassification">True for a canonical revenue classification; false for a legacy facility source.</param>
+public sealed record MobileReportBreakdownDto(string Label, bool IsClassification, decimal Amount, int TransactionCount);
+
+/// <summary>A registered Payor's canonical collections in the period.</summary>
+public sealed record MobileReportNamedPayorDto(Guid PayorId, string PayorName, decimal Amount, int TransactionCount);
 
 /// <summary>Miscellaneous (electricity &amp; water) billing summary for the reporting month.</summary>
 public sealed record MobileReportUtilitySummaryDto(
@@ -85,7 +96,13 @@ public sealed record MobileReportTotalsDto(
     // (CollectorId == null) rather than by this collector — so the mobile can show "collected by you"
     // (CollectedAmount − OfficeCollectedAmount) with "recorded at office" as a separate line.
     decimal OfficeCollectedAmount = 0m,
-    int OfficeTransactionCount = 0);
+    int OfficeTransactionCount = 0,
+    // Of the CollectedAmount/TransactionCount above, the part read from posted canonical Collections (net of corrections).
+    decimal CanonicalCollectedAmount = 0m,
+    int CanonicalTransactionCount = 0,
+    // Canonical collections with no registered Payor (walk-up Cash Tickets). Counted in the totals, never as a payee.
+    decimal UnnamedCollectedAmount = 0m,
+    int UnnamedTransactionCount = 0);
 
 public sealed record MobileReportFacilitySummaryDto(
     FacilityCode FacilityCode,
