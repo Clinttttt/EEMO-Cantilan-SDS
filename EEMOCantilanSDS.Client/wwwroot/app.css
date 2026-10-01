@@ -44,6 +44,12 @@
     --accent: #1f5fbf;
     --accent-hover: #194f9f;
     --accent-soft: #eaf1fb;
+    /* Civic-blue identity surfaces (login panel, identity bands): a deep and a slightly lighter step of the same blue.
+       White text on either meets WCAG AA. Used for identity only, never behind data tables. */
+    --civic-panel: #1d4c86;
+    --civic-panel-deep: #163c6b;
+    /* A very light blue tint for context bands and information surfaces on a white page. */
+    --surface-blue-subtle: #f3f7fd;
     --accent-ring: rgba(31, 95, 191, .35);
     --elevation-1: 0 1px 2px rgba(13, 33, 55, .04);
 }

@@ -11,29 +11,20 @@
 }
 
 /* ── Civic identity panel ─────────────────────────────────────────────── */
-.setup-left {
-    width: clamp(355px, 38.2vw, 580px);
-    background-color: #0b2846;
-    background-image:
-        linear-gradient(180deg, rgba(6, 27, 49, 0.84) 0%, rgba(7, 31, 56, 0.91) 58%, rgba(5, 24, 44, 0.97) 100%),
-        url('/images/eemo_image.png');
-    background-position: center;
-    background-size: cover;
-}
-
-/* Non-default LGUs: neutral navy backdrop only — the building photo carries Cantilan-specific signage,
-   so it must not appear behind another municipality's branding. */
+/* V3: a civic-blue identity panel — two tonal steps of one blue, no photograph, no glow. The same panel serves every
+   municipality, so no LGU's signage ever sits behind another's branding. */
+.setup-left,
 .setup-left--neutral {
-    background-image:
-        linear-gradient(180deg, rgba(6, 27, 49, 0.92) 0%, rgba(7, 31, 56, 0.95) 58%, rgba(5, 24, 44, 0.99) 100%);
+    width: clamp(355px, 38.2vw, 580px);
+    background-color: var(--civic-panel);
+    background-image: linear-gradient(180deg, var(--civic-panel) 0%, var(--civic-panel-deep) 100%);
 }
 
+/* A quiet structural band behind the seals instead of a decorative pattern. */
 .setup-left::before {
     z-index: 0;
-    background:
-        radial-gradient(circle at 50% 18%, rgba(212, 175, 55, 0.13), transparent 34%),
-        linear-gradient(115deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 44px);
-    background-size: auto, 62px 62px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 42%);
+    background-size: auto;
 }
 
 .setup-left-inner {
@@ -70,7 +61,7 @@
     overflow: hidden;
     background: #fff;
     border: 1px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06), 0 14px 30px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08), 0 6px 16px rgba(6, 22, 44, 0.18);
 }
 
 .government-logo-card img {
@@ -109,27 +100,29 @@
 }
 
 .setup-brand-title {
-    color: #e4bf52;
-    font-size: clamp(52px, 5vw, 68px);
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    margin-left: 0.1em;
-    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.22);
+    color: #ffffff;
+    font-size: clamp(34px, 3.2vw, 44px);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-left: 0.08em;
+    text-transform: uppercase;
 }
 
 .setup-brand-sub {
-    color: rgba(255, 255, 255, 0.78);
-    font-size: 16px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 15px;
     font-weight: 400;
-    line-height: 1.55;
+    line-height: 1.5;
 }
 
+/* The one gold accent: a short municipal rule between the government lines and the system name. */
 .login-panel-divider {
-    width: 112px;
+    display: block;
+    width: 32px;
     height: 2px;
-    margin: 12px 0 2px;
-    background: #d6ac37;
-    border-radius: 99px;
+    margin: 2px auto 10px;
+    background: var(--gold);
+    border-radius: 2px;
 }
 
 .login-secure-access {
@@ -196,8 +189,8 @@
     padding: clamp(28px, 5vh, 60px) clamp(26px, 5.2vw, 92px);
     overflow-y: auto;
     box-sizing: border-box;
-    background-color: #eef2f7;
-    background-image: linear-gradient(135deg, #fbfcfe 0%, #e9edf3 100%);
+    background-color: var(--canvas);
+    background-image: none;
 }
 
 .setup-right::before {
@@ -325,7 +318,7 @@
 }
 
 .form-input::placeholder { color: #8193ae; }
-.form-input:focus { border-color: #315f8d; box-shadow: 0 0 0 4px rgba(49, 95, 141, 0.12); }
+.form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); outline: none; }
 .form-input:disabled { background: #f3f6f9; }
 
 .form-input-icon { position: absolute; top: 50%; left: 16px; width: 20px; height: 20px; transform: translateY(-50%); stroke: #7287a2; pointer-events: none; }
@@ -343,15 +336,15 @@
     margin-top: 3px;
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: 10px;
-    background: linear-gradient(180deg, #1c3252 0%, #16263c 100%);
-    box-shadow: 0 7px 16px rgba(13, 42, 71, 0.16);
+    background: var(--civic-panel);
+    box-shadow: 0 1px 2px rgba(13, 33, 55, 0.12);
     font-size: 15.5px;
     font-weight: 700;
 }
 
 .setup-submit svg { width: 20px; height: 20px; }
-.setup-submit:hover:not(:disabled) { background: linear-gradient(180deg, #16263c 0%, #0f1d30 100%); box-shadow: 0 10px 22px rgba(13, 42, 71, 0.23); }
-.setup-submit:focus-visible { outline: 3px solid #e4bf52; outline-offset: 3px; }
+.setup-submit:hover:not(:disabled) { background: var(--civic-panel-deep); box-shadow: 0 2px 6px rgba(13, 33, 55, 0.16); }
+.setup-submit:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 2px; }
 .setup-submit-locked { background: rgba(139, 58, 58, 0.14) !important; color: var(--red) !important; box-shadow: none; }
 .setup-submit-locked svg { stroke: var(--red) !important; }
 
