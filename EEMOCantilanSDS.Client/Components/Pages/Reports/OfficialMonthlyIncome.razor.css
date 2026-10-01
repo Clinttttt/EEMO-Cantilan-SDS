@@ -1,12 +1,14 @@
-/* Official Monthly Income — a document on a quiet canvas: a thin action bar, then the sheet. */
+/* Official Monthly Income — a document on the V3 workspace: a thin action bar, then the sheet at the workspace width. */
+.omi-page {
+    gap: 16px;
+}
+
 .omi-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
     gap: 12px;
-    max-width: 1480px;
-    margin: 0 auto 16px;
 }
 
 .omi-back {
@@ -37,14 +39,10 @@
 }
 
 .omi-state {
-    max-width: 1480px;
-    margin: 24px auto;
     color: var(--text-secondary);
 }
 
 .omi-review {
-    max-width: 1480px;
-    margin: 0 auto 16px;
     padding: 10px 14px;
     border: 1px solid var(--border);
     border-left: 3px solid var(--gold);
@@ -56,26 +54,30 @@
 }
 
 .omi-sheet {
-    max-width: 1480px;
-    margin: 0 auto;
     padding: 28px 28px 24px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--surface);
 }
 
-/* Letterhead: seal beside the three government lines, as on the office sheet. */
+/* Letterhead, as on the office sheet: seal, the three government lines, the Bagong Pilipinas mark — one centred row. */
 .omi-head {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 20px;
 }
 
-.omi-seal {
-    width: 64px;
-    height: 64px;
+.omi-seal,
+.omi-bp {
+    width: 72px;
+    height: 72px;
+    flex: none;
     object-fit: contain;
+}
+
+.omi-head-text {
+    text-align: center;
 }
 
 .omi-head-text p {
@@ -92,28 +94,13 @@
 }
 
 .omi-office {
-    margin: 12px 0 0;
+    margin: 12px 0 18px;
     text-align: center;
-    font-size: 1rem;
+    font-size: 1.0625rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--navy);
-}
-
-.omi-title {
-    margin: 6px 0 0;
-    text-align: center;
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.omi-period {
-    margin: 2px 0 18px;
-    text-align: center;
-    font-size: 0.8125rem;
-    color: var(--text-secondary);
 }
 
 .omi-scroll {
@@ -127,16 +114,27 @@
 
 .omi-table {
     width: 100%;
-    min-width: 1280px;
-    border-collapse: collapse;
-    font-size: 0.78125rem;
+    min-width: 1240px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
     color: var(--text);
 }
 
+    /* Separate borders (right and bottom per cell) so the sticky line column keeps its rule while scrolling. */
     .omi-table th,
     .omi-table td {
-        padding: 6px 8px;
-        border: 1px solid var(--border-strong);
+        padding: 5px 7px;
+        border-right: 1px solid var(--border-strong);
+        border-bottom: 1px solid var(--border-strong);
+    }
+
+    .omi-table tr > :first-child {
+        border-left: 1px solid var(--border-strong);
+    }
+
+    .omi-table thead th {
+        border-top: 1px solid var(--border-strong);
     }
 
     .omi-table thead th {
@@ -146,23 +144,36 @@
         text-transform: uppercase;
         letter-spacing: 0.03em;
         color: var(--navy);
-        vertical-align: bottom;
+        line-height: 1.25;
+        text-align: center;
+        vertical-align: middle;
     }
 
+/* The line column stays in view while the months scroll on a narrower screen. */
 .omi-line {
-    min-width: 240px;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 220px;
+    background: var(--surface);
     text-align: left;
     font-weight: 500;
+}
+
+.omi-table thead .omi-line {
+    z-index: 2;
+    background: var(--surface-muted);
+    text-align: left;
+}
+
+.omi-grand .omi-line {
+    background: var(--surface-muted);
 }
 
 .omi-num {
     text-align: right;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-}
-
-.omi-table thead .omi-num {
-    text-align: right;
 }
 
 .omi-letter {
@@ -173,6 +184,8 @@
 
 .omi-section th,
 .omi-group th {
+    position: sticky;
+    left: 0;
     text-align: left;
     font-weight: 700;
     text-transform: uppercase;
@@ -205,7 +218,8 @@
 
 .omi-grand th,
 .omi-grand td {
-    border-top: 2px solid var(--navy);
+    border-top: 1px solid var(--navy);
+    border-bottom: 2px solid var(--navy);
     font-weight: 700;
     background: var(--surface-muted);
 }
@@ -218,14 +232,38 @@
     color: var(--text-secondary);
 }
 
-/* Paper: A4 landscape via the print helper; the sheet loses its screen frame and the table its scroll. */
+/* Paper: A4 landscape via the print helper (10 mm × 12 mm padding leaves 273 mm). Fixed column widths share that line
+   among all sixteen columns, so Total and Percentage are never clipped, and one year fits one sheet. */
 @media print {
+    .omi-page {
+        gap: 0;
+    }
+
     .omi-sheet {
-        max-width: none;
         margin: 0;
         padding: 0;
         border: 0;
         border-radius: 0;
+    }
+
+    .omi-head {
+        gap: 5mm;
+    }
+
+    .omi-seal,
+    .omi-bp {
+        width: 17mm;
+        height: 17mm;
+    }
+
+    .omi-head-text p {
+        font-size: 9pt;
+        line-height: 1.3;
+    }
+
+    .omi-office {
+        margin: 2.5mm 0 3mm;
+        font-size: 10.5pt;
     }
 
     .omi-scroll {
@@ -233,14 +271,28 @@
     }
 
     .omi-table {
+        width: 100%;
         min-width: 0;
-        font-size: 8.5pt;
+        table-layout: fixed;
+        font-size: 6.4pt;
+        letter-spacing: -0.01em;
     }
 
         .omi-table th,
         .omi-table td {
-            padding: 3px 5px;
+            padding: 0.8mm 0.8mm;
+            overflow: hidden;
         }
+
+        .omi-table thead th {
+            padding: 1mm 0.6mm;
+            font-size: 5.8pt;
+            letter-spacing: 0;
+        }
+
+    .omi-section th {
+        font-size: 6.6pt;
+    }
 
         .omi-table thead {
             display: table-header-group;
@@ -251,8 +303,26 @@
             break-inside: avoid;
         }
 
-    .omi-line {
+    .omi-col-line { width: 31mm; }
+    .omi-col-wide { width: 18mm; }
+    .omi-col-month { width: 16mm; }
+    .omi-col-pct { width: 13.6mm; }
+
+    .omi-line,
+    .omi-section th,
+    .omi-group th {
+        position: static;
         min-width: 0;
+    }
+
+    .omi-group th {
+        padding-left: 1.6mm;
+    }
+
+    .omi-notes {
+        margin-top: 2.5mm;
+        font-size: 6.5pt;
+        line-height: 1.4;
     }
 
     .omi-group th,
