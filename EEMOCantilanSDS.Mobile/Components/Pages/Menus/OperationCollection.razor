@@ -7,6 +7,7 @@
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @using EEMOCantilanSDS.Mobile.Services
+@using EEMOCantilanSDS.Mobile.Presentation
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
@@ -58,114 +59,176 @@
                 </div>
             }
 
-            @if (Variant is null || !Variant.Available)
+            @if (Variant?.Terms is null)
             {
                 <div class="menu-state-card" role="status">@(Variant?.Note ?? "Choose a collection mode.")</div>
             }
             else
             {
-                var terms = Variant.Terms!;
-                <div class="op-terms" aria-label="Approved terms">
-                    <div><span>Receipt</span><strong>@InstrumentName(terms.Instrument)</strong></div>
-                    <div>
-                        <span>Amount</span>
-                        <strong>@AmountRule(terms)</strong>
+                var terms = Variant.Terms;
+                var instrument = InstrumentName(terms.Instrument);
+                var shortCode = terms.Instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT";
+
+                @* 1 — What the office approved: system-provided, never edited here. *@
+                <section class="op-facts" aria-label="Approved terms">
+                    <div class="op-facts-main">
+                        <span class="op-facts-key">@(terms.Basis switch
+                        {
+                            GovernedServiceBasis.FixedAmount => "Approved amount",
+                            GovernedServiceBasis.VehicleClassRate => "Approved rate",
+                            _ => "Amount rule"
+                        })</span>
+                        <span class="op-facts-amount">@AmountHeadline(terms)</span>
                     </div>
-                </div>
+                    <dl class="op-facts-grid">
+                        <div><dt>Receipt</dt><dd><span class="op-chip">@shortCode</span> @instrument</dd></div>
+                        <div><dt>Business date</dt><dd>@Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                        @if (_mode is { } activeMode)
+                        {
+                            <div><dt>Mode</dt><dd>@ModeLabel(activeMode)</dd></div>
+                        }
+                    </dl>
+                </section>
 
                 @if (Sync.HasStorageFault)
                 {
                     <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not issue a document until it is healthy.</div>
                 }
+                else if (NextDocument is null)
+                {
+                    @* No assigned form: nothing to collect with, and nothing to pick from. *@
+                    <section class="op-form op-form-empty" role="status" aria-label="@($"No assigned {instrument}")">
+                        <span class="op-form-badge warn">!</span>
+                        <div>
+                            <div class="op-form-title">No assigned @instrument available</div>
+                            <p class="op-form-note">Ask the office to assign @(shortCode == "CT" ? "a Cash Ticket" : "an Official Receipt") range before collecting this operation.</p>
+                        </div>
+                    </section>
+                }
                 else
                 {
-                    @if (terms.Basis == GovernedServiceBasis.VehicleClassRate)
-                    {
-                        @* The collector states the vehicle class; the server's approved rate for it is the amount. A class with no
-                           rate in force is never offered, and no price can be typed. *@
+                    @* 2 — What the collector enters. *@
+                    <section class="op-entry" aria-labelledby="op-entry-title">
+                        <h2 id="op-entry-title" class="op-section-title">Collection details</h2>
+                        @if (terms.Basis == GovernedServiceBasis.VehicleClassRate)
+                        {
+                            @* The collector states the vehicle class; the server's approved rate for it is the amount. A class with no
+                               rate in force is never offered, and no price can be typed. *@
+                            <label class="form-field">
+                                <span class="form-label">Vehicle class</span>
+                                <select class="form-input" @bind="_vehicleClass" aria-label="Vehicle class">
+                                    <option value="">Select vehicle class</option>
+                                    @foreach (var vehicle in terms.VehicleClasses ?? [])
+                                    {
+                                        <option value="@vehicle.Code">@vehicle.Name · @Money(vehicle.Amount)</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+                        else if (terms.Basis != GovernedServiceBasis.FixedAmount)
+                        {
+                            <label class="form-field">
+                                <span class="form-label">Amount received</span>
+                                <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
+                                       max="@(terms.MaximumAmount?.ToString(CultureInfo.InvariantCulture))"
+                                       placeholder="0.00" @bind="_amount" @bind:event="oninput" />
+                            </label>
+                        }
                         <label class="form-field">
-                            <span class="form-label">Vehicle class</span>
-                            <select class="form-input" @bind="_vehicleClass" aria-label="Vehicle class">
-                                <option value="">Select vehicle class</option>
-                                @foreach (var vehicle in terms.VehicleClasses ?? [])
-                                {
-                                    <option value="@vehicle.Code">@vehicle.Name · @Money(vehicle.Amount)</option>
-                                }
-                            </select>
+                            <span class="form-label">Payer <span class="form-optional">optional</span></span>
+                            <input class="form-input" type="text" maxlength="200" placeholder="Name as given by the payer" @bind="_payer" @bind:event="oninput" />
                         </label>
                         <label class="form-field">
-                            <span class="form-label">Approved rate</span>
-                            <input class="form-input mono-input" type="text" readonly aria-readonly="true"
-                                   value="@(SelectedVehicleClass is { } chosen ? Money(chosen.Amount) : "Select a vehicle class")" />
+                            <span class="form-label">Reference <span class="form-optional">optional</span></span>
+                            <input class="form-input" type="text" maxlength="200" placeholder="Short note for the record" @bind="_reference" @bind:event="oninput" />
                         </label>
-                    }
-                    else
-                    {
-                    <label class="form-field">
-                        <span class="form-label">@(terms.Basis == GovernedServiceBasis.FixedAmount ? "Approved amount" : "Amount received")</span>
-                        @if (terms.Basis == GovernedServiceBasis.FixedAmount)
+                    </section>
+
+                    @* 3 — The accountable form: resolved for the collector, not picked from a list. *@
+                    <section class="op-form" aria-labelledby="op-form-title">
+                        <div class="op-form-head">
+                            <span class="op-form-badge">@shortCode</span>
+                            <div class="op-form-headtext">
+                                <h2 id="op-form-title" class="op-form-title">Next assigned @instrument</h2>
+                                <span class="op-form-ready">Ready · assigned to you</span>
+                            </div>
+                        </div>
+                        <div class="op-form-serial" aria-label="@($"{instrument} number")">@NextDocument.DocumentNumber</div>
+                        <p class="op-form-note">This @(shortCode == "CT" ? "ticket" : "receipt") will be issued when you record the collection.</p>
+                        <dl class="op-form-custody">
+                            <div><dt>Remaining assigned</dt><dd>@UsableDocuments.Count</dd></div>
+                            <div><dt>Range on hand</dt><dd>@NextAccountableDocument.RangeLabel(UsableDocuments)</dd></div>
+                        </dl>
+                        @if (UsableDocuments.Count > 1)
                         {
-                            <input class="form-input mono-input" type="text" readonly value="@Money(terms.FixedAmount ?? 0m)" aria-readonly="true" />
-                        }
-                        else
-                        {
-                            <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
-                                   max="@(terms.MaximumAmount?.ToString(CultureInfo.InvariantCulture))"
-                                   placeholder="Amount received" @bind="_amount" @bind:event="oninput" />
-                        }
-                    </label>
-                    }
-                    <label class="form-field">
-                        <span class="form-label">Payer (optional)</span>
-                        <input class="form-input" type="text" maxlength="200" placeholder="Name as given by the payer" @bind="_payer" @bind:event="oninput" />
-                    </label>
-                    <label class="form-field">
-                        <span class="form-label">Reference (optional)</span>
-                        <input class="form-input" type="text" maxlength="200" placeholder="Short note for the record" @bind="_reference" @bind:event="oninput" />
-                    </label>
-                    <label class="form-field">
-                        <span class="form-label">@InstrumentName(terms.Instrument) number</span>
-                        <select class="form-input" @bind="_documentId">
-                            <option value="">Select your assigned @InstrumentName(terms.Instrument)</option>
-                            @foreach (var document in AvailableDocuments)
+                            <button type="button" class="op-form-change" aria-expanded="@(_showDocuments ? "true" : "false")"
+                                    @onclick="() => _showDocuments = !_showDocuments">
+                                @(_showDocuments ? "Hide assigned forms" : $"Change {(shortCode == "CT" ? "ticket" : "receipt")}")
+                            </button>
+                            @if (_showDocuments)
                             {
-                                <option value="@document.DocumentId">@document.DocumentNumber</option>
+                                <ul class="op-form-list" role="listbox" aria-label="@($"Assigned {instrument}s")">
+                                    @foreach (var document in UsableDocuments)
+                                    {
+                                        var isNext = document.DocumentId == NextDocument.DocumentId;
+                                        <li>
+                                            <button type="button" role="option" aria-selected="@(isNext ? "true" : "false")"
+                                                    class="op-form-option @(isNext ? "selected" : "")"
+                                                    @onclick="() => ChooseDocument(document.DocumentId)">
+                                                <span>@document.DocumentNumber</span>
+                                                @if (isNext) { <span class="op-form-option-tag">Will issue</span> }
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
                             }
-                        </select>
-                    </label>
-                    <button class="btn-primary" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
-                        Record and issue @InstrumentName(terms.Instrument)
-                    </button>
-                    <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</div>
+                        }
+                    </section>
+
+                    @* 4 — One action. *@
+                    <div class="op-action">
+                        <button class="op-cta" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
+                            @(_saving ? "Saving…" : $"Record and issue {instrument}")
+                        </button>
+                        @if (!CanCapture && !_saving && DisabledReason(terms) is { } why)
+                        {
+                            <p class="op-action-why">@why</p>
+                        }
+                    </div>
                 }
             }
 
             @if (!string.IsNullOrWhiteSpace(_message))
             {
-                <div class="menu-state-card" role="status">@_message</div>
+                <div class="op-message" role="status">@_message</div>
             }
 
-            <div class="section-label">This month</div>
+            <h2 class="op-section-title op-month-title">This month</h2>
             @if (_recordsFailed)
             {
                 <div class="menu-state-card">Your collections could not be loaded. Retry while online.</div>
             }
             else if (_records.Count == 0)
             {
-                <div class="menu-state-card">No collections recorded for this operation this month.</div>
+                <div class="menu-state-card">Nothing recorded yet for this operation this month.</div>
             }
             else
             {
-                @foreach (var record in _records)
-                {
-                    <div class="menu-card op-record">
-                        <div class="card-info">
-                            <div class="card-title">@record.DocumentNumber · @Money(record.Amount)</div>
-                            <div class="card-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</div>
-                        </div>
-                        <div class="card-status @(record.Disposition == "Posted" ? "open" : "soon")">@record.Disposition</div>
-                    </div>
-                }
+                <ul class="op-records">
+                    @foreach (var record in _records)
+                    {
+                        <li class="op-record-row">
+                            <div class="op-record-main">
+                                <span class="op-record-doc">@record.DocumentNumber</span>
+                                <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
+                            </div>
+                            <div class="op-record-side">
+                                <span class="op-record-amount">@Money(record.Amount)</span>
+                                <span class="op-record-status @(record.Disposition == "Posted" ? "ok" : "")">@record.Disposition</span>
+                            </div>
+                        </li>
+                    }
+                </ul>
             }
         }
     </div>
@@ -202,11 +265,38 @@
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
     private ModeOption? Variant => _variants.FirstOrDefault(v => v.Mode == _mode);
 
-    private IEnumerable<CashTicketDocumentDto> AvailableDocuments =>
-        (Variant?.Documents ?? []).Where(d => !_locallyIssued.Contains(d.DocumentId));
+    // The assigned forms still usable on this device, in serial order: anything already issued here (including an issue
+    // waiting in the offline queue) is excluded, so it can never be offered twice.
+    private IReadOnlyList<CashTicketDocumentDto> UsableDocuments =>
+        NextAccountableDocument.Usable(Variant?.Documents ?? [], _locallyIssued);
 
-    private CashTicketDocumentDto? SelectedDocument => _documentId is { } id
-        ? AvailableDocuments.FirstOrDefault(d => d.DocumentId == id) : null;
+    // The form to issue: the next in serial order, unless the collector deliberately chose another assigned one.
+    private CashTicketDocumentDto? NextDocument => NextAccountableDocument.Resolve(UsableDocuments, _documentId);
+
+    private CashTicketDocumentDto? SelectedDocument => NextDocument;
+
+    private bool _showDocuments;
+
+    private void ChooseDocument(Guid documentId)
+    {
+        _documentId = documentId;
+        _showDocuments = false;
+    }
+
+    // Why the primary action is unavailable, in the collector's terms.
+    private string? DisabledReason(GovernedServiceTermsDto terms) =>
+        terms.Basis == GovernedServiceBasis.VehicleClassRate && SelectedVehicleClass is null ? "Select the vehicle class to continue."
+        : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && _amount <= 0m ? "Enter the amount received to continue."
+        : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && terms.MaximumAmount is { } cap && _amount > cap ? $"The amount cannot exceed {Money(cap)}."
+        : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
+        : null;
+
+    private static string AmountHeadline(GovernedServiceTermsDto terms) => terms.Basis switch
+    {
+        GovernedServiceBasis.FixedAmount => Money(terms.FixedAmount ?? 0m),
+        GovernedServiceBasis.VehicleClassRate => "By vehicle class",
+        _ => terms.MaximumAmount is { } ceiling ? $"As charged · up to {Money(ceiling)}" : "As charged",
+    };
 
     private VehicleClassTermDto? SelectedVehicleClass => Variant?.Terms is { Basis: GovernedServiceBasis.VehicleClassRate } t
         ? t.VehicleClasses?.FirstOrDefault(v => v.Code == _vehicleClass) : null;
@@ -296,7 +386,7 @@
             foreach (var queued in await Sync.GetAllAsync())
                 if (queued.Kind == OfflineOperationKind.GovernedService && queued.AccountableDocumentId is { } id)
                     _locallyIssued.Add(id);
-            if (_documentId is { } selected && !AvailableDocuments.Any(d => d.DocumentId == selected))
+            if (_documentId is { } selected && !UsableDocuments.Any(d => d.DocumentId == selected))
                 _documentId = null;
 
             await LoadRecordsAsync();

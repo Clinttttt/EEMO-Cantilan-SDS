@@ -1006,3 +1006,95 @@
 .btn-confirm:disabled {
     opacity: 0.5;
 }
+
+/* WCF: the next assigned Cash Ticket, resolved for the collector. */
+.wcf-ticket {
+    margin: 8px 0;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--mobile-blue) 28%, var(--mobile-border));
+    border-radius: 12px;
+    background: var(--mobile-blue-subtle);
+}
+
+.wcf-ticket-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wcf-ticket-badge {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--mobile-blue-deep);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.wcf-ticket-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+}
+
+.wcf-ticket-count {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.wcf-ticket-serial {
+    margin: 8px 0 2px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.wcf-ticket-note {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.wcf-ticket-change {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-blue);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.wcf-ticket-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+}
+
+.wcf-ticket-option {
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    background: transparent;
+    text-align: left;
+    font: inherit;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+
+.wcf-ticket-option.selected {
+    font-weight: 700;
+    color: var(--mobile-navy);
+}

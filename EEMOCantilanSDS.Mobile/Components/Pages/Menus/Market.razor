@@ -639,13 +639,42 @@
                                 else
                                 {
                                     <input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="Amount received" aria-label="Water amount received" @bind="WcfReceivedAmount" @bind:event="oninput" />
-                                    <select class="form-input" @bind="SelectedWcfDocumentId">
-                                        <option value="">Select assigned Cash Ticket</option>
-                                        @foreach (var ticket in AvailableWcfTickets)
-                                        {
-                                            <option value="@ticket.DocumentId">@ticket.DocumentNumber</option>
-                                        }
-                                    </select>
+                                    @if (SelectedWcfTicket is { } nextTicket)
+                                    {
+                                        @* The next assigned Cash Ticket is resolved for the collector; changing it is secondary. *@
+                                        <div class="wcf-ticket" aria-label="Next assigned Cash Ticket">
+                                            <div class="wcf-ticket-head">
+                                                <span class="wcf-ticket-badge">CT</span>
+                                                <span class="wcf-ticket-title">Next assigned Cash Ticket</span>
+                                                <span class="wcf-ticket-count">@AvailableWcfTickets.Count left</span>
+                                            </div>
+                                            <div class="wcf-ticket-serial">@nextTicket.DocumentNumber</div>
+                                            <div class="wcf-ticket-note">This ticket will be issued when you record the collection.</div>
+                                            @if (AvailableWcfTickets.Count > 1)
+                                            {
+                                                <button type="button" class="wcf-ticket-change" aria-expanded="@(_showWcfTickets ? "true" : "false")"
+                                                        @onclick="() => _showWcfTickets = !_showWcfTickets">@(_showWcfTickets ? "Hide assigned tickets" : "Change ticket")</button>
+                                                @if (_showWcfTickets)
+                                                {
+                                                    <div class="wcf-ticket-list" role="listbox" aria-label="Assigned Cash Tickets">
+                                                        @foreach (var ticket in AvailableWcfTickets)
+                                                        {
+                                                            var isNext = ticket.DocumentId == nextTicket.DocumentId;
+                                                            <button type="button" role="option" aria-selected="@(isNext ? "true" : "false")"
+                                                                    class="wcf-ticket-option @(isNext ? "selected" : "")"
+                                                                    @onclick="() => { SelectedWcfDocumentId = ticket.DocumentId; _showWcfTickets = false; }">
+                                                                @ticket.DocumentNumber@(isNext ? " · will issue" : "")
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="misc-empty" role="status">No assigned Cash Ticket available. Ask the office to assign a Cash Ticket range before collecting water.</div>
+                                    }
                                     <button class="btn-primary" type="button" disabled="@(!CanCaptureWcf)" @onclick="CaptureWcfAsync">Record and issue Cash Ticket</button>
                                     <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture). Obligation period: @SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00").</div>
                                 }
@@ -892,14 +921,16 @@
         ? WcfObligationsForSelectedStall.FirstOrDefault(x => x.UtilityBillId == billId)
         : null;
 
-    private IReadOnlyList<CashTicketDocumentDto> AvailableWcfTickets => WcfTickets
-        .Where(x => x.State == AccountableDocumentState.Assigned
-            && !LocallyIssuedWcfDocuments.Contains(x.DocumentId))
-        .ToList();
+    // The collector's assigned tickets still usable on this device, in serial order (a queued issue keeps its ticket).
+    private IReadOnlyList<CashTicketDocumentDto> AvailableWcfTickets =>
+        EEMOCantilanSDS.Mobile.Presentation.NextAccountableDocument.Usable(
+            WcfTickets.Where(x => x.State == AccountableDocumentState.Assigned), LocallyIssuedWcfDocuments);
 
-    private CashTicketDocumentDto? SelectedWcfTicket => SelectedWcfDocumentId is { } id
-        ? AvailableWcfTickets.FirstOrDefault(x => x.DocumentId == id)
-        : null;
+    // The next ticket in serial order, unless the collector deliberately chose another assigned one.
+    private CashTicketDocumentDto? SelectedWcfTicket =>
+        EEMOCantilanSDS.Mobile.Presentation.NextAccountableDocument.Resolve(AvailableWcfTickets, SelectedWcfDocumentId);
+
+    private bool _showWcfTickets;
 
     // Server-derived: assignment, authorization, policy, custody and settlement authority for the WCF operation.
     // Null means the capability could not be read (never "assume collectible").
