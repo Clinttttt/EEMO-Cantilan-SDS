@@ -120,8 +120,8 @@ public sealed class UtilityWorkspaceTests : TestContext
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Cash Ticket exceptions");
-            Assert.Contains("1 of 1 outstanding obligation open for field collection", cut.Markup);
-            Assert.Contains("1 unassigned Cash Ticket in office stock", cut.Markup);
+            Assert.Contains("1 of 1 open for collection", cut.Markup);
+            Assert.Contains("1 unassigned CT in office", cut.Markup);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms");
         }, Timeout);
 
@@ -137,7 +137,7 @@ public sealed class UtilityWorkspaceTests : TestContext
         var cut = RenderComponent<WaterConsumptionFees>();
 
         cut.WaitForAssertion(() =>
-            Assert.Contains("no unassigned Cash Tickets remain in office stock", cut.Markup), Timeout);
+            Assert.Contains("No unassigned CTs in office", cut.Markup), Timeout);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Canonical settlement is not active for any listed obligation", cut.Markup);
+            Assert.Contains("Not yet active for Mobile", cut.Markup);
             Assert.DoesNotContain("available for field collection", cut.Markup);
         }, Timeout);
     }

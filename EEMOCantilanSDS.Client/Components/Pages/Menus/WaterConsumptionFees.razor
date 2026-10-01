@@ -75,7 +75,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Payer</th>
-                        <th scope="col">Period · meter</th>
+                        <th scope="col">Period</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Previously settled</th>
                         <th scope="col" class="v3-num">Outstanding</th>
@@ -275,15 +275,15 @@
         {
             var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
             var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
-            if (owing == 0) return "No outstanding obligation returned";
-            if (open == 0) return "Canonical settlement is not active for any listed obligation, so Mobile cannot issue WCF Cash Tickets yet — activate an obligation in Water Accounts";
-            return $"{open} of {owing} outstanding obligation{(owing == 1 ? "" : "s")} open for field collection";
+            if (owing == 0) return "No outstanding obligations";
+            if (open == 0) return "Not yet active for Mobile — activate in Water Accounts";
+            return $"{open} of {owing} open for collection";
         }
     }
 
     private string StockReadiness => _tickets.Count == 0
-        ? "no unassigned Cash Tickets remain in office stock; collector custody is managed in Accountable Forms"
-        : $"{_tickets.Count} unassigned Cash Ticket{(_tickets.Count == 1 ? "" : "s")} in office stock; collector custody is managed in Accountable Forms";
+        ? "No unassigned CTs in office"
+        : $"{_tickets.Count} unassigned CT{(_tickets.Count == 1 ? "" : "s")} in office";
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
     private static string CollectionState(WcfObligationQuoteDto quote) => quote switch
