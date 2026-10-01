@@ -240,3 +240,32 @@
         grid-column: 1 / -1;
     }
 }
+
+/* ── Action rail ──
+   WorkspaceHeader's actions container shrinks to its content, so the rail claims its own full-width row; the two
+   groups then split left/right with auto margin. Form navigation stays left, custody and money-side actions sit
+   right with Assign last. Both groups wrap deliberately on narrow widths. */
+.af-page ::deep .wh-actions {
+    flex: 1 1 100%;
+}
+
+.af-bar {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+}
+
+.af-nav,
+.af-admin {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.af-admin {
+    margin-left: auto;
+    justify-content: flex-end;
+}
