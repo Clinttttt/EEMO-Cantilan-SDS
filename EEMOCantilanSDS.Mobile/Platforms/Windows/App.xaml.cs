@@ -31,7 +31,7 @@ namespace EEMOCantilanSDS.Mobile.WinUI
             double scale = dpi / 96.0; // 96 DPI = 100% scale
 
             appWindow.Resize(new SizeInt32((int)Math.Round(360 * scale), (int)Math.Round(800 * scale)));
-            appWindow.Title = "EEMO Mobile [Windows Debug]";
+            appWindow.Title = "MEEDO Mobile [Windows Debug]";
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]

@@ -66,7 +66,7 @@ A user-facing visit/work session that may result in more than one Collection whe
 A visible user-confirmed allocation of a payment amount to specific obligations or periods. StallTrack may suggest an allocation, but it must not silently decide the final allocation without confirmed policy.
 
 ## Utility Operation Scope
-ECF and WCF are broader EEMO Utility Operations, not globally owned by the NPM facility. An NPM stall may be one utility service subject/context, but NPM must not be the architectural parent of every ECF/WCF assessment. Existing NPM-bound UtilityBill rows remain valid legacy/current source evidence. Target generalization must be additive and preserve those records rather than rewriting them.
+ECF and WCF are broader MEEDO Utility Operations, not globally owned by the NPM facility. An NPM stall may be one utility service subject/context, but NPM must not be the architectural parent of every ECF/WCF assessment. Existing NPM-bound UtilityBill rows remain valid legacy/current source evidence. Target generalization must be additive and preserve those records rather than rewriting them.
 
 ## Partial Utility Payment
 A valid partial settlement of an ECF or WCF obligation that leaves the exact remaining balance outstanding.

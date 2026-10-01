@@ -64,7 +64,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             logger.LogInformation("MFA enrollment started for {Username}", user.Username);
 
             // The issuer is the label the user sees in their authenticator app. Data-driven per LGU from the
-            // municipality registry ("EEMO Cantilan", "CEEO Carmen", …) rather than the opaque tenant code,
+            // municipality registry ("MEEDO Cantilan", "CEEO Carmen", …) rather than the opaque tenant code,
             // so every LGU reads correctly. Falls back to the platform name if the registry lookup fails.
             var municipality = await municipalityRepo.GetByIdAsync(user.MunicipalityId, ct);
             var issuer = BuildIssuer(municipality);
@@ -140,7 +140,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
         }
 
         /// <summary>
-        /// The authenticator-app label for an LGU: office acronym + municipality ("EEMO Cantilan"). Purely
+        /// The authenticator-app label for an LGU: office acronym + municipality ("MEEDO Cantilan"). Purely
         /// data-driven from the registry so each LGU reads correctly, degrading to whichever part exists and
         /// finally to the platform name.
         /// </summary>

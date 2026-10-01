@@ -6,11 +6,11 @@ namespace EEMOCantilanSDS.Domain.Constants
     /// </summary>
     public static class OfficeProfile
     {
-        public const string Office = "Economic Enterprise & Management Office";
+        public const string Office = "Municipal Economic Enterprises Development Office";
         public const string Municipality = "Cantilan";
         public const string Province = "Surigao del Sur";
         public const string SystemName = "StallTrack — Revenue Collection System";
-        public const string ReceiptsIssuedBy = "EEMO · Municipality of Cantilan";
+        public const string ReceiptsIssuedBy = "MEEDO · Municipality of Cantilan";
     }
 
     /// <summary>Static application identity.</summary>

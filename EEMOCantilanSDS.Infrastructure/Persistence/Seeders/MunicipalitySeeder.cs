@@ -21,8 +21,8 @@ public static class MunicipalitySeeder
             Municipality.Create(
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
                 tenantCode: "cantilan-sds",
-                officeName: "Economic Enterprise & Management Office",
-                officeAcronym: "EEMO",
+                officeName: "Municipal Economic Enterprises Development Office",
+                officeAcronym: "MEEDO",
                 isDefault: true),
 
             Municipality.Create("CARRASCAL", "Carrascal", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "carrascal"),
