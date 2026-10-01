@@ -60,9 +60,9 @@
                 </label>
                 <select class="v3-select" aria-label="Filter by area" @bind="_areaFilter">
                     <option value="">All areas</option>
-                    @foreach (var section in Sections)
+                    @foreach (var area in Sections)
                     {
-                        <option value="@section">@section</option>
+                        <option value="@area">@area</option>
                     }
                 </select>
             </div>

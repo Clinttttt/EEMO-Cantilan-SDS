@@ -262,47 +262,47 @@
                             <div class="breakdown-card">
                                 <h4 class="breakdown-title">Section Revenue</h4>
                                 <div class="breakdown-list">
-                                    @foreach (var section in MockSectionData)
+                                    @foreach (var sectionRow in MockSectionData)
                                     {
                                         <div class="breakdown-item">
                                             <div class="breakdown-label">
-                                                <span class="section-dot" style="background: @section.Color"></span>
-                                                @section.Name
+                                                <span class="section-dot" style="background: @sectionRow.Color"></span>
+                                                @sectionRow.Name
                                             </div>
-                                            <div class="breakdown-value">₱@section.Revenue.ToString("N2")</div>
+                                            <div class="breakdown-value">₱@sectionRow.Revenue.ToString("N2")</div>
                                             <div class="breakdown-bar">
-                                                <div class="bar-fill" style="width: @ClampPercent(section.Percentage)%; background: @section.Color"></div>
+                                                <div class="bar-fill" style="width: @ClampPercent(sectionRow.Percentage)%; background: @sectionRow.Color"></div>
                                             </div>
                                         </div>
                                     }
                                 </div>
                                 <div class="section-rate-panel">
                                     <div class="mini-panel-title">Collection Rate by Section</div>
-                                    @foreach (var section in MockSectionData)
+                                    @foreach (var sectionRow in MockSectionData)
                                     {
                                         <div class="mini-metric-row">
-                                            <span>@GetShortSectionName(section.Name)</span>
+                                            <span>@GetShortSectionName(sectionRow.Name)</span>
                                             <div class="mini-meter">
-                                                <div class="mini-meter-fill" style="width: @ClampPercent(section.Percentage)%; background: @section.Color"></div>
+                                                <div class="mini-meter-fill" style="width: @ClampPercent(sectionRow.Percentage)%; background: @sectionRow.Color"></div>
                                             </div>
-                                            <strong>@FormatPercentage(section.Percentage)</strong>
+                                            <strong>@FormatPercentage(sectionRow.Percentage)</strong>
                                         </div>
                                     }
                                 </div>
                                 <div class="section-status-panel">
                                     <div class="mini-panel-title">Stall Status per Section</div>
-                                    @foreach (var section in MockSectionData)
+                                    @foreach (var sectionRow in MockSectionData)
                                     {
                                         <div class="section-status-row">
-                                            <span>@GetShortSectionName(section.Name) - @section.TotalStalls stalls</span>
-                                            <strong>@section.ActiveStalls active</strong>
-                                            @if (section.ClosedStalls > 0)
+                                            <span>@GetShortSectionName(sectionRow.Name) - @sectionRow.TotalStalls stalls</span>
+                                            <strong>@sectionRow.ActiveStalls active</strong>
+                                            @if (sectionRow.ClosedStalls > 0)
                                             {
-                                                <small>@section.ClosedStalls closed</small>
+                                                <small>@sectionRow.ClosedStalls closed</small>
                                             }
-                                            @if (section.NoContractStalls > 0)
+                                            @if (sectionRow.NoContractStalls > 0)
                                             {
-                                                <small>@section.NoContractStalls no contract</small>
+                                                <small>@sectionRow.NoContractStalls no contract</small>
                                             }
                                         </div>
                                     }
