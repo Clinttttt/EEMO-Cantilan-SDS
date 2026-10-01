@@ -47,64 +47,11 @@ public sealed class RemittanceWorkflow(
     public Task<Result<RemittanceDetailDto>> RecordAsync(RecordRemittanceRequest request, CancellationToken ct = default) =>
         Run<RemittanceDetailDto>(async actor =>
         {
-            if (request.ClientOperationId == Guid.Empty)
-                return Result<RemittanceDetailDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
-            if (Validate(request.From, request.To) is { } problem)
-                return Result<RemittanceDetailDto>.Failure(problem, ResultStatus.Invalid);
-            if (request.RemittanceDate > BusinessToday)
-                return Result<RemittanceDetailDto>.Failure("A remittance cannot be dated in the future.", ResultStatus.Invalid);
-            if (request.Instrument is { } i && i is not (RevenueInstrumentType.OfficialReceipt or RevenueInstrumentType.CashTicket))
-                return Result<RemittanceDetailDto>.Failure("Choose an Official Receipt or Cash Ticket scope.", ResultStatus.Invalid);
-            if (!await CollectorExistsAsync(actor.TenantId, request.CollectorId, ct))
-                return Result<RemittanceDetailDto>.NotFound();
-
-            var fingerprint = Fingerprint(actor, request);
-            var prior = await db.CollectionRemittances.AsNoTracking().SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.ClientOperationId == request.ClientOperationId, ct);
-            if (prior is not null)
-                return prior.IntentFingerprint == fingerprint
-                    ? await DetailAsync(actor.TenantId, prior.Id, ct)
-                    : Result<RemittanceDetailDto>.Failure(
-                        "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different remittance.", ResultStatus.Conflict);
-
-            var eligible = await EligibleAsync(actor.TenantId, request.CollectorId, request.From, request.To, request.Instrument, ct);
-            IReadOnlyList<RemittanceCollectionDto> chosen;
-            if (request.CollectionIds is { Count: > 0 } ids)
-            {
-                var wanted = ids.Distinct().ToHashSet();
-                chosen = eligible.Where(x => wanted.Contains(x.CollectionId)).ToList();
-                if (chosen.Count != wanted.Count)
-                    return Result<RemittanceDetailDto>.Failure(
-                        "A selected collection is not available to remit: it is not this collector's, is outside the period or instrument, has no money left after corrections, or is already covered by a remittance.",
-                        ResultStatus.Conflict);
-            }
-            else chosen = eligible;
-            if (chosen.Count == 0)
-                return Result<RemittanceDetailDto>.Failure("There is no unremitted collection in this scope.", ResultStatus.Conflict);
-
-            var expected = chosen.Sum(x => x.NetAmount);
-            if (request.AmountRemitted <= 0m || decimal.Round(request.AmountRemitted, 2) != request.AmountRemitted)
-                return Result<RemittanceDetailDto>.Failure("Enter the remitted amount in whole centavos.", ResultStatus.Invalid);
-            if (request.AmountRemitted > expected)
-                return Result<RemittanceDetailDto>.Failure(
-                    $"The remitted amount cannot exceed what was collected (₱{expected:N2}).", ResultStatus.Invalid);
-
-            CollectionRemittance remittance;
-            try
-            {
-                remittance = CollectionRemittance.Record(actor.TenantId, request.CollectorId, request.RemittanceDate,
-                    request.From, request.To, request.Instrument, expected, request.AmountRemitted, chosen.Count,
-                    request.Reference, request.Remarks, request.ClientOperationId, fingerprint, actor.Username,
-                    actor.ActorId, UtcNow);
-            }
-            catch (ArgumentException ex)
-            {
-                return Result<RemittanceDetailDto>.Failure(ex.Message, ResultStatus.Invalid);
-            }
-            db.CollectionRemittances.Add(remittance);
-            foreach (var collection in chosen)
-                db.CollectionRemittanceCoverages.Add(
-                    CollectionRemittanceCoverage.Cover(actor.TenantId, remittance.Id, collection.CollectionId, collection.NetAmount));
+            var prepared = await PrepareAsync(actor, request, ct);
+            if (prepared.Failure is { } failure) return failure;
+            if (prepared.PriorId is { } priorId) return await DetailAsync(actor.TenantId, priorId, ct);
+            var remittance = prepared.Remittance!;
+            var fingerprint = remittance.IntentFingerprint;
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException)
             {
@@ -119,6 +66,126 @@ public sealed class RemittanceWorkflow(
             }
             return await DetailAsync(actor.TenantId, remittance.Id, ct);
         }, ct);
+
+    /// <summary>
+    /// Records one independent remittance per collector in a single save: each keeps its own collector, collections,
+    /// amount, reference and ClientOperationId, and each collection is still covered at most once. Either every new record
+    /// is saved or none is; a retry with the same operation identities returns the records already saved.
+    /// </summary>
+    public Task<Result<IReadOnlyList<RemittanceDetailDto>>> RecordBatchAsync(RecordRemittanceBatchRequest request, CancellationToken ct = default) =>
+        Run<IReadOnlyList<RemittanceDetailDto>>(async actor =>
+        {
+            var items = request.Remittances ?? [];
+            if (items.Count == 0 || items.Count > MaximumRemittancesPerBatch)
+                return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
+                    $"Record between 1 and {MaximumRemittancesPerBatch} collectors' remittances at once.", ResultStatus.Invalid);
+            if (items.Select(x => x.CollectorId).Distinct().Count() != items.Count
+                || items.Select(x => x.ClientOperationId).Distinct().Count() != items.Count)
+                return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
+                    "Each collector appears once in a batch, each with its own operation identity.", ResultStatus.Invalid);
+            var ids = new List<Guid>(items.Count);
+            foreach (var item in items)
+            {
+                var prepared = await PrepareAsync(actor, item, ct);
+                if (prepared.Failure is { } failure)
+                {
+                    db.ChangeTracker.Clear();
+                    var name = (await CollectorNamesAsync(actor.TenantId, [item.CollectorId], ct)).GetValueOrDefault(item.CollectorId, "A collector");
+                    return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
+                        $"{name}: {failure.Error} Nothing was recorded.", failure.Status);
+                }
+                ids.Add(prepared.PriorId ?? prepared.Remittance!.Id);
+            }
+            try { await db.SaveChangesAsync(ct); }
+            catch (DbUpdateException)
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
+                    "A collection was remitted by another record while these were being saved. Nothing was recorded; reload and review again.",
+                    ResultStatus.Conflict);
+            }
+            var details = new List<RemittanceDetailDto>(ids.Count);
+            foreach (var id in ids)
+            {
+                var detail = await DetailAsync(actor.TenantId, id, ct);
+                if (!detail.IsSuccess) return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(detail.Error ?? "A remittance could not be read back.", detail.Status);
+                details.Add(detail.Value!);
+            }
+            return Result<IReadOnlyList<RemittanceDetailDto>>.Success(details);
+        }, ct);
+
+    private const int MaximumRemittancesPerBatch = 50;
+
+    /// <summary>The outcome of checking one remittance request: a failure, an identical earlier record, or a new tracked record.</summary>
+    private sealed record PreparedRemittance(Result<RemittanceDetailDto>? Failure, Guid? PriorId, CollectionRemittance? Remittance);
+
+    /// <summary>
+    /// Validates one request against posted collections and adds the new remittance and its coverage to the context
+    /// without saving. A request already recorded with the same intent resolves to that record (idempotent retry).
+    /// </summary>
+    private async Task<PreparedRemittance> PrepareAsync(Actor actor, RecordRemittanceRequest request, CancellationToken ct)
+    {
+        static PreparedRemittance Fail(string error, ResultStatus status) =>
+            new(Result<RemittanceDetailDto>.Failure(error, status), null, null);
+
+        if (request.ClientOperationId == Guid.Empty)
+            return Fail("A valid ClientOperationId is required.", ResultStatus.Invalid);
+        if (Validate(request.From, request.To) is { } problem)
+            return Fail(problem, ResultStatus.Invalid);
+        if (request.RemittanceDate > BusinessToday)
+            return Fail("A remittance cannot be dated in the future.", ResultStatus.Invalid);
+        if (request.Instrument is { } i && i is not (RevenueInstrumentType.OfficialReceipt or RevenueInstrumentType.CashTicket))
+            return Fail("Choose an Official Receipt or Cash Ticket scope.", ResultStatus.Invalid);
+        if (!await CollectorExistsAsync(actor.TenantId, request.CollectorId, ct))
+            return new(Result<RemittanceDetailDto>.NotFound(), null, null);
+
+        var fingerprint = Fingerprint(actor, request);
+        var prior = await db.CollectionRemittances.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.TenantId && x.ClientOperationId == request.ClientOperationId, ct);
+        if (prior is not null)
+            return prior.IntentFingerprint == fingerprint
+                ? new(null, prior.Id, null)
+                : Fail("IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different remittance.", ResultStatus.Conflict);
+
+        var eligible = await EligibleAsync(actor.TenantId, request.CollectorId, request.From, request.To, request.Instrument, ct);
+        IReadOnlyList<RemittanceCollectionDto> chosen;
+        if (request.CollectionIds is { Count: > 0 } ids)
+        {
+            var wanted = ids.Distinct().ToHashSet();
+            chosen = eligible.Where(x => wanted.Contains(x.CollectionId)).ToList();
+            if (chosen.Count != wanted.Count)
+                return Fail(
+                    "A selected collection is not available to remit: it is not this collector's, is outside the period or instrument, has no money left after corrections, or is already covered by a remittance.",
+                    ResultStatus.Conflict);
+        }
+        else chosen = eligible;
+        if (chosen.Count == 0)
+            return Fail("There is no unremitted collection in this scope.", ResultStatus.Conflict);
+
+        var expected = chosen.Sum(x => x.NetAmount);
+        if (request.AmountRemitted <= 0m || decimal.Round(request.AmountRemitted, 2) != request.AmountRemitted)
+            return Fail("Enter the remitted amount in whole centavos.", ResultStatus.Invalid);
+        if (request.AmountRemitted > expected)
+            return Fail($"The remitted amount cannot exceed what was collected (₱{expected:N2}).", ResultStatus.Invalid);
+
+        CollectionRemittance remittance;
+        try
+        {
+            remittance = CollectionRemittance.Record(actor.TenantId, request.CollectorId, request.RemittanceDate,
+                request.From, request.To, request.Instrument, expected, request.AmountRemitted, chosen.Count,
+                request.Reference, request.Remarks, request.ClientOperationId, fingerprint, actor.Username,
+                actor.ActorId, UtcNow);
+        }
+        catch (ArgumentException ex)
+        {
+            return Fail(ex.Message, ResultStatus.Invalid);
+        }
+        db.CollectionRemittances.Add(remittance);
+        foreach (var collection in chosen)
+            db.CollectionRemittanceCoverages.Add(
+                CollectionRemittanceCoverage.Cover(actor.TenantId, remittance.Id, collection.CollectionId, collection.NetAmount));
+        return new(null, null, remittance);
+    }
 
     public Task<Result<RemittanceDetailDto>> VoidAsync(Guid id, VoidRemittanceRequest request, CancellationToken ct = default) =>
         Run<RemittanceDetailDto>(async actor =>

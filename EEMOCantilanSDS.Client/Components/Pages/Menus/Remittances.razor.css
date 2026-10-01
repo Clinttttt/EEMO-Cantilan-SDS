@@ -94,3 +94,143 @@
         display: none;
     }
 }
+
+/* ── Multi-collector New Remittance ── */
+.rm-collectors {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.rm-collectors legend {
+    margin-bottom: 8px;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.rm-collector-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.rm-pick {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.rm-pick:hover {
+    border-color: var(--border-strong);
+}
+
+.rm-pick.is-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.rm-pick input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.rm-pick:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.rm-draft {
+    display: grid;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.rm-draft-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 16px;
+}
+
+.rm-draft-head h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.rm-draft-head span {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.rm-breakdown {
+    display: grid;
+    gap: 8px;
+    max-width: 32rem;
+}
+
+.rm-wide {
+    flex: 1 1 16rem;
+}
+
+.rm-batch-total {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.rm-batch-total > div {
+    display: grid;
+    gap: 2px;
+    padding: 10px 14px;
+}
+
+.rm-batch-total > div + div {
+    border-left: 1px solid var(--border);
+}
+
+.rm-batch-total dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.rm-batch-total dd {
+    margin: 0;
+    color: var(--navy);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+@media (max-width: 640px) {
+    .rm-batch-total {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rm-batch-total > div:nth-child(3) {
+        border-left: 0;
+    }
+}

@@ -18,6 +18,9 @@ public sealed class RemittancesApiClient(HttpClient http) : HandleResponse(http)
     public Task<Result<RemittanceDetailDto>> RecordAsync(RecordRemittanceRequest request) =>
         PostAsync<RecordRemittanceRequest, RemittanceDetailDto>("api/remittances", request);
 
+    public Task<Result<IReadOnlyList<RemittanceDetailDto>>> RecordBatchAsync(RecordRemittanceBatchRequest request) =>
+        PostAsync<RecordRemittanceBatchRequest, IReadOnlyList<RemittanceDetailDto>>("api/remittances/batch", request);
+
     public Task<Result<RemittanceDetailDto>> VoidAsync(Guid id, VoidRemittanceRequest request) =>
         PostAsync<VoidRemittanceRequest, RemittanceDetailDto>($"api/remittances/{id}/void", request);
 

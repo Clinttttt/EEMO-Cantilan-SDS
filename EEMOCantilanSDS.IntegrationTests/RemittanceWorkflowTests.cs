@@ -609,4 +609,122 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var after = (await register.Handle(new(Today.Year, Today.Month), CancellationToken.None)).Value!;
         Assert.Equal(month.TotalCollected, after.TotalCollected);
     }
+
+    // ── Several collectors at once: independent records, one save (multi-collector New Remittance) ──
+
+    /// <summary>Adds a second collector to the tenant with their own Cash Ticket book and three posted collections (₱110).</summary>
+    private async Task<CollectorUser> AddSecondCollectorWithCollectionsAsync(World w)
+    {
+        var ben = CollectorUser.Create("Ben Cruz", "C-02", $"pg-{Guid.NewGuid():N}"[..14], null, null, new HashedPassword("h"), w.Tenant.Id);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Add(ben);
+            await setup.SaveChangesAsync();
+        }
+        List<AccountableDocument> documents;
+        await using (var ctx = db.CreateContext(w.Tenant.Id))
+        {
+            ctx.Add(CollectorOperationAssignment.Assign(w.Tenant.Id, ben.Id, CollectorOperationCodes.MarketFees, "head"));
+            ctx.Add(CollectorOperationAssignment.Assign(w.Tenant.Id, ben.Id, CollectorOperationCodes.LandingBerthing, "head"));
+            await ctx.SaveChangesAsync();
+            var custody = new AccountableFormCustodyWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "SuperAdmin"), new FixedTenant(w.Tenant.Id));
+            var book = (await custody.ReceiveAsync(new ReceiveAccountableFormBookRequest(
+                RevenueInstrumentType.CashTicket, "CT book B", "CTB", 1, 5, 6))).Value!;
+            Assert.True((await custody.AssignRangeAsync(new AssignAccountableFormRangeRequest(book.BookId, ben.Id, 1, 5))).IsSuccess);
+            documents = await ctx.AccountableDocuments.Where(x => x.FormBookId == book.BookId).OrderBy(x => x.SerialNumber).ToListAsync();
+        }
+        var asBen = w with { Collector = ben, Documents = documents };
+        await PostThreeAsync(asBen);
+        return ben;
+    }
+
+    private static RecordRemittanceRequest RequestFor(Guid collectorId, decimal amount, string reference, Guid? operationId = null) => new(
+        operationId ?? Guid.NewGuid(), collectorId, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, null, amount, reference, null);
+
+    [SkippableFact]
+    public async Task ABatchRecordsOneIndependentRemittancePerCollector_EachCoveringOnlyTheirCollections_AndNoRevenue()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("batch");
+        await PostThreeAsync(w);
+        var ben = await AddSecondCollectorWithCollectionsAsync(w);
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var collectionsBefore = await ctx.Collections.CountAsync();
+        var (anaOp, benOp) = (Guid.NewGuid(), Guid.NewGuid());
+        var request = new RecordRemittanceBatchRequest([
+            RequestFor(w.Collector.Id, 110m, "ACK-A", anaOp),
+            RequestFor(ben.Id, 100m, "ACK-B", benOp)]);
+
+        var result = await Remit(ctx, w).RecordBatchAsync(request);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(2, result.Value!.Count);
+        var rows = await ctx.CollectionRemittances.AsNoTracking().ToListAsync();
+        Assert.Equal(2, rows.Count);
+        var ana = rows.Single(x => x.CollectorId == w.Collector.Id);
+        var benRow = rows.Single(x => x.CollectorId == ben.Id);
+        Assert.Equal((110m, "ACK-A"), (ana.RemittedAmount, ana.Reference));
+        Assert.Equal((100m, 10m, "ACK-B"), (benRow.RemittedAmount, benRow.ExpectedAmount - benRow.RemittedAmount, benRow.Reference));
+        // Every collection is covered exactly once, by its own collector's record; no collection or revenue was created.
+        var coverage = await ctx.CollectionRemittanceCoverages.AsNoTracking().ToListAsync();
+        Assert.Equal(6, coverage.Count);
+        Assert.Equal(6, coverage.Select(x => x.CollectionId).Distinct().Count());
+        Assert.Equal(collectionsBefore, await ctx.Collections.CountAsync());
+
+        // A retry with the same identities returns the same records and writes nothing new.
+        await using var retryCtx = db.CreateContext(w.Tenant.Id);
+        var retry = await Remit(retryCtx, w).RecordBatchAsync(request);
+        Assert.True(retry.IsSuccess, retry.Error);
+        Assert.Equal(result.Value.Select(x => x.Row.Id).Order(), retry.Value!.Select(x => x.Row.Id).Order());
+        Assert.Equal(2, await retryCtx.CollectionRemittances.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task ABatchWithOneInvalidCollector_RecordsNothing_AndNamesTheCollector()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("batchbad");
+        await PostThreeAsync(w);
+        var ben = await AddSecondCollectorWithCollectionsAsync(w);
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+
+        var overpaid = await Remit(ctx, w).RecordBatchAsync(new RecordRemittanceBatchRequest([
+            RequestFor(w.Collector.Id, 110m, "ACK-A"),
+            RequestFor(ben.Id, 500m, "ACK-B")]));
+        Assert.False(overpaid.IsSuccess);
+        Assert.Contains("Ben Cruz", overpaid.Error);
+        Assert.Contains("Nothing was recorded", overpaid.Error);
+
+        // The same collector twice is refused before any check, and Ana's otherwise valid remittance was not saved.
+        var twice = await Remit(ctx, w).RecordBatchAsync(new RecordRemittanceBatchRequest([
+            RequestFor(w.Collector.Id, 50m, "X"), RequestFor(w.Collector.Id, 60m, "Y")]));
+        Assert.False(twice.IsSuccess);
+        await using var check = db.CreateContext(w.Tenant.Id);
+        Assert.Equal(0, await check.CollectionRemittances.CountAsync());
+        Assert.Equal(0, await check.CollectionRemittanceCoverages.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task ABatchRacingASingleRemittanceForTheSameCollections_NeverCoversACollectionTwice()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("batchrace");
+        await PostThreeAsync(w);
+        var ben = await AddSecondCollectorWithCollectionsAsync(w);
+        await using var first = db.CreateContext(w.Tenant.Id);
+        await using var second = db.CreateContext(w.Tenant.Id);
+
+        var results = await Task.WhenAll(
+            Remit(first, w).RecordBatchAsync(new RecordRemittanceBatchRequest([
+                RequestFor(w.Collector.Id, 110m, "B-A"), RequestFor(ben.Id, 110m, "B-B")])).ContinueWith(t => t.Result.IsSuccess),
+            Remit(second, w).RecordAsync(RequestFor(ben.Id, 110m, "S-B")).ContinueWith(t => t.Result.IsSuccess));
+
+        Assert.Contains(true, results);
+        await using var check = db.CreateContext(w.Tenant.Id);
+        var active = await check.CollectionRemittanceCoverages.AsNoTracking().Where(x => x.IsActive).ToListAsync();
+        Assert.Equal(active.Count, active.Select(x => x.CollectionId).Distinct().Count());
+    }
 }

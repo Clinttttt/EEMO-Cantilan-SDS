@@ -28,6 +28,12 @@ public sealed class RemittancesController(ISender sender, RemittanceWorkflow wor
         [FromBody] RecordRemittanceRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.RecordAsync(request, ct));
 
+    /// <summary>Records one independent remittance per collector in a single all-or-nothing save.</summary>
+    [HttpPost("batch")]
+    public async Task<ActionResult<IReadOnlyList<RemittanceDetailDto>>> RecordBatchAsync(
+        [FromBody] RecordRemittanceBatchRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.RecordBatchAsync(request, ct));
+
     [HttpPost("{id:guid}/void")]
     public async Task<ActionResult<RemittanceDetailDto>> VoidAsync(
         Guid id, [FromBody] VoidRemittanceRequest request, CancellationToken ct) =>

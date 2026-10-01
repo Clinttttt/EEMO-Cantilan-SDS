@@ -41,6 +41,9 @@ public sealed record RecordRemittanceRequest(
     string? Reference,
     string? Remarks);
 
+/// <summary>Several collectors' remittances recorded together; each stays its own record with its own operation identity.</summary>
+public sealed record RecordRemittanceBatchRequest(IReadOnlyList<RecordRemittanceRequest> Remittances);
+
 public sealed record VoidRemittanceRequest(string Reason);
 
 public sealed record RemittanceRowDto(

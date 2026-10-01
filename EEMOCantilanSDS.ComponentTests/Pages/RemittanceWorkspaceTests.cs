@@ -113,7 +113,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance").Click();
         var form = "form[aria-label='New remittance']";
-        cut.Find($"{form} select").Change(CollectorId.ToString());
+        cut.Find($"{form} .rm-collector-picks input").Change(true);
         cut.FindAll($"{form} button").Single(b => b.TextContent.Trim() == "Show collections").Click();
 
         cut.WaitForAssertion(() =>
@@ -180,6 +180,66 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("couldn't be loaded", cut.Find("[role='alert']").TextContent);
             Assert.Empty(cut.FindAll("dl[aria-label='Cash position']"));
         }, Timeout);
+    }
+
+    [Fact]
+    public void SeveralCollectors_EachGetTheirOwnSectionAmountAndReference_AndAreRecordedAsOneBatch()
+    {
+        var benId = Guid.NewGuid();
+        var collectors = new Mock<ICollectorsApiClient>();
+        collectors.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(new[]
+        {
+            new CollectorListDto(CollectorId, "Ana Reyes", "ana@example.test", "C-001", [], 0m, 0, null, true),
+            new CollectorListDto(benId, "Ben Cruz", "ben@example.test", "C-002", [], 0m, 0, null, true),
+        }));
+        Services.AddSingleton(collectors.Object);
+        ServePosition(Position());
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
+        var benCollection = Guid.NewGuid();
+        _api.Setup(x => x.GetScopeAsync(benId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(new RemittanceScopeDto(benId, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), null,
+                [new RemittanceCollectionDto(benCollection, new DateOnly(2026, 9, 5), "CT-000201", RevenueInstrumentType.CashTicket, null, 40m,
+                    [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 40m)])],
+                40m, [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 40m)], "CT-000201", "CT-000201")));
+        RecordRemittanceBatchRequest? sent = null;
+        _api.Setup(x => x.RecordBatchAsync(It.IsAny<RecordRemittanceBatchRequest>()))
+            .Callback<RecordRemittanceBatchRequest>(r => sent = r)
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceDetailDto>>.Success([Detail(80m, 80m), Detail(40m, 35m)]));
+
+        var cut = RenderComponent<Remittances>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance").Click();
+        var form = "form[aria-label='New remittance']";
+        cut.FindAll($"{form} .rm-collector-picks input")[0].Change(true);
+        cut.FindAll($"{form} .rm-collector-picks input")[1].Change(true);
+        cut.FindAll($"{form} button").Single(b => b.TextContent.Trim() == "Show collections").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("section.rm-draft").Count), Timeout);
+        Assert.Contains("Ana Reyes", cut.FindAll("section.rm-draft")[0].TextContent);
+        Assert.Contains("Ben Cruz", cut.FindAll("section.rm-draft")[1].TextContent);
+        cut.FindAll("section.rm-draft")[1].QuerySelector("input[type='number']")!.Change("35");
+        cut.FindAll("section.rm-draft")[1].QuerySelectorAll(".rm-form-row input")[1].Change("ACK-B");
+        var total = cut.Find("dl[aria-label='Batch total']").TextContent;
+        Assert.Contains("₱120.00", total);
+        Assert.Contains("₱115.00", total);
+        Assert.Contains("₱5.00", total);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record 2 remittances").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal(2, sent!.Remittances.Count);
+            var ana = sent.Remittances.Single(x => x.CollectorId == CollectorId);
+            var ben = sent.Remittances.Single(x => x.CollectorId == benId);
+            Assert.Equal((80m, (string?)null), (ana.AmountRemitted, ana.Reference));
+            Assert.Equal((35m, (string?)"ACK-B"), (ben.AmountRemitted, ben.Reference));
+            Assert.Equal(new[] { benCollection }, ben.CollectionIds);
+            Assert.NotEqual(ana.ClientOperationId, ben.ClientOperationId);
+            Assert.Contains("2 remittances recorded, one per collector", cut.Markup);
+        }, Timeout);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
     }
 
     private static RemittanceDetailDto Detail(decimal expected, decimal remitted) => new(
