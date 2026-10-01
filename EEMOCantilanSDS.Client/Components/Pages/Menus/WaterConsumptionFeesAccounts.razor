@@ -127,7 +127,7 @@
         }
 
         <div class="v3-table-wrap" role="region" aria-label="Water sources to set up" tabindex="0">
-            <table class="v3-table">
+            <table class="v3-table wcfs-table">
                 <caption class="v3-sr-only">Water sources for @PeriodLabel</caption>
                 <thead>
                     <tr>
@@ -162,14 +162,16 @@
                             </td>
                             <td><span class="wcfs-state @StateClass(source)">@StateLabel(source)</span></td>
                             <td class="wcfs-actions">
-                                @if (source.Editable)
-                                {
-                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => SaveAsync(source)">Save</button>
-                                }
-                                @if (CanMigrate(source))
-                                {
-                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => OpenActivationAsync(source)">Review legacy migration</button>
-                                }
+                                <div class="wcfs-action-group">
+                                    @if (source.Editable)
+                                    {
+                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => SaveAsync(source)">Save</button>
+                                    }
+                                    @if (CanMigrate(source))
+                                    {
+                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => OpenActivationAsync(source)">Review legacy migration</button>
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }
