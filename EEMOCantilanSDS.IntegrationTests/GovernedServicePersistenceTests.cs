@@ -142,7 +142,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
 
         // A fixed-amount version without an amount, and a direct version carrying a fixed amount, both violate the shape.
         await using var raw = db.CreateContext(tenant.Id);
-        foreach (var (basis, fixedAmount) in new[] { (1, "NULL"), (2, "30.00"), (1, "0"), (3, "5.00"), (4, "NULL") })
+        foreach (var (basis, fixedAmount) in new[] { (1, "NULL"), (2, "30.00"), (1, "0"), (3, "5.00"), (4, "5.00"), (5, "NULL") })
         {
             var sql = $"""
                 INSERT INTO "GovernedServiceSettings"

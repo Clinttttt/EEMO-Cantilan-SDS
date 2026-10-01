@@ -22,11 +22,17 @@ public static class GovernedServiceCatalog
     private static readonly GovernedServiceBasis[] Both =
         [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount];
 
+    // Services whose office may collect more than one approved fee under the same classification (Market Fees: e.g. a
+    // comfort room at a named location; Transfer Large Cattle: more than one approved amount). The option is selected,
+    // never typed; classification and instrument stay the service's.
+    private static readonly GovernedServiceBasis[] BothOrOptions =
+        [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption];
+
     public static readonly IReadOnlyList<Entry> All =
     [
-        new(CollectorOperationCodes.MarketFees, "Market Fees", RevenueClassificationCodes.MarketFees, false, Both),
+        new(CollectorOperationCodes.MarketFees, "Market Fees", RevenueClassificationCodes.MarketFees, false, BothOrOptions),
         new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, Both),
-        new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, Both),
+        new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, BothOrOptions),
         // A whole payment and a daily transaction are different amounts under different instruments; one fixed amount
         // cannot describe both, so this service records an approved direct amount (with an optional ceiling).
         new(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental",
@@ -132,6 +138,208 @@ public sealed class GovernedServiceWorkflow(
             .Select(x => new VehicleClassTermDto(x.Class.Code, x.Class.DisplayName, x.Rate!.Amount)).ToList();
     }
 
+    /// <summary>"Comfort Room — Transport Terminal": the option's name with its location, when it has one.</summary>
+    private static string FeeOptionLabel(GovernedServiceFeeOption option) =>
+        string.IsNullOrWhiteSpace(option.Location) || option.DisplayName.Contains(option.Location, StringComparison.OrdinalIgnoreCase)
+            ? option.DisplayName
+            : $"{option.DisplayName} — {option.Location}";
+
+    /// <summary>The fee options offered on a date that have an approved rule in force then. An option without one is not offered.</summary>
+    private async Task<IReadOnlyList<FeeOptionTermDto>> CurrentFeeOptionTermsAsync(Guid tenantId, Guid serviceId, DateOnly date, CancellationToken ct)
+    {
+        var options = (await db.GovernedServiceFeeOptions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct))
+            .Where(x => x.IsOfferedOn(date)).ToList();
+        if (options.Count == 0) return [];
+        var ids = options.Select(x => x.Id).ToArray();
+        var rates = (await db.GovernedServiceFeeOptionRates.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.FeeOptionId)).ToListAsync(ct)).ToLookup(x => x.FeeOptionId);
+        return options.Select(o => (Option: o, Rate: GovernedServiceFeeOptionRate.Resolve(rates[o.Id], date)))
+            .Where(x => x.Rate is not null)
+            .OrderBy(x => FeeOptionLabel(x.Option), StringComparer.OrdinalIgnoreCase)
+            .Select(x => new FeeOptionTermDto(x.Option.Id, x.Option.DisplayName, x.Option.Location, x.Rate!.Basis,
+                x.Rate.FixedAmount, x.Rate.MaximumAmount)).ToList();
+    }
+
+    // ── Approved fee options (Head configures; Head/Admin read) ─────────────────────────────────────────
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (actor.Role == "Collector") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            var entry = GovernedServiceCatalog.Find(operationCode);
+            if (entry is null || !entry.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption))
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("This service has no fee options.", ResultStatus.NotFound);
+            var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+            if (service is null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service.Id, ct));
+        }, ct);
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(
+        string operationCode, AddFeeOptionRequest request, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            var entry = GovernedServiceCatalog.Find(operationCode);
+            if (entry is null || !entry.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption))
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("This service has no fee options.", ResultStatus.NotFound);
+            if (EffectiveDateProblem(request.EffectiveDate) is { } dateProblem)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(dateProblem, ResultStatus.Invalid);
+            var service = await db.GovernedServices.SingleOrDefaultAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+            try
+            {
+                if (service is null)
+                {
+                    service = GovernedService.Create(actor.TenantId, entry.Code, actor.Username, UtcNow);
+                    db.GovernedServices.Add(service);
+                }
+                var option = GovernedServiceFeeOption.Create(actor.TenantId, service.Id, request.DisplayName, request.Code,
+                    request.Location, request.Description, actor.Username, UtcNow);
+                var name = option.DisplayName;
+                var location = option.Location;
+                if (await db.GovernedServiceFeeOptions.AnyAsync(x => x.MunicipalityId == actor.TenantId
+                        && x.GovernedServiceId == service.Id && x.DisplayName == name && x.Location == location, ct))
+                {
+                    db.ChangeTracker.Clear();
+                    return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("A fee option with this name and location already exists.", ResultStatus.Conflict);
+                }
+                db.GovernedServiceFeeOptions.Add(option);
+                db.GovernedServiceFeeOptionRates.Add(GovernedServiceFeeOptionRate.Create(actor.TenantId, option.Id, request.EffectiveDate,
+                    request.Basis, request.FixedAmount, request.MaximumAmount, actor.Username, UtcNow));
+            }
+            catch (ArgumentException ex)
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(ex.Message, ResultStatus.Invalid);
+            }
+            await db.SaveChangesAsync(ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service.Id, ct));
+        }, ct);
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> ScheduleFeeOptionRateAsync(
+        string operationCode, Guid feeOptionId, ScheduleFeeOptionRateRequest request, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: false, ct);
+            if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
+            // A new rule applies from today or later: a rule already in force (and every amount posted under it) is never rewritten.
+            if (request.EffectiveDate < BusinessToday || EffectiveDateProblem(request.EffectiveDate) is not null)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                    "Schedule the change from today or a later date (not more than a year ahead).", ResultStatus.Invalid);
+            if (option!.RetiredFrom is { } retired && request.EffectiveDate >= retired)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("The option is retired from that date.", ResultStatus.Conflict);
+            if (await db.GovernedServiceFeeOptionRates.AnyAsync(x => x.MunicipalityId == actor.TenantId
+                    && x.FeeOptionId == option.Id && x.EffectiveDate == request.EffectiveDate, ct))
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                    "A rule is already scheduled for that date. Choose another date.", ResultStatus.Conflict);
+            try
+            {
+                db.GovernedServiceFeeOptionRates.Add(GovernedServiceFeeOptionRate.Create(actor.TenantId, option.Id, request.EffectiveDate,
+                    request.Basis, request.FixedAmount, request.MaximumAmount, actor.Username, UtcNow));
+            }
+            catch (ArgumentException ex)
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(ex.Message, ResultStatus.Invalid);
+            }
+            await db.SaveChangesAsync(ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
+        }, ct);
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(
+        string operationCode, Guid feeOptionId, RetireFeeOptionRequest request, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: true, ct);
+            if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
+            try { option!.Retire(request.FromDate, BusinessToday, actor.Username); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(ex.Message, ResultStatus.Invalid);
+            }
+            await db.SaveChangesAsync(ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
+        }, ct);
+
+    /// <summary>
+    /// Posted money of one service in a business-date period, by the fee option recorded on each line (the frozen snapshot,
+    /// never the option's current name or amount). The sum equals the service's total: each line is counted once.
+    /// </summary>
+    public Task<Result<IReadOnlyList<FeeOptionTotalDto>>> GetFeeOptionTotalsAsync(
+        string operationCode, DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        Run<IReadOnlyList<FeeOptionTotalDto>>(async actor =>
+        {
+            if (actor.Role == "Collector") return Result<IReadOnlyList<FeeOptionTotalDto>>.Forbidden();
+            var entry = GovernedServiceCatalog.Find(operationCode);
+            if (entry is null) return Result<IReadOnlyList<FeeOptionTotalDto>>.Failure("Unknown service.", ResultStatus.NotFound);
+            if (from > to || to.DayNumber - from.DayNumber > 366)
+                return Result<IReadOnlyList<FeeOptionTotalDto>>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
+            var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+            if (service is null) return Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]);
+            var lines = await (
+                from line in db.CollectionLines.AsNoTracking()
+                join collection in db.Collections.AsNoTracking()
+                    on new { line.MunicipalityId, Id = line.CollectionId } equals new { collection.MunicipalityId, collection.Id }
+                where line.MunicipalityId == actor.TenantId && line.SourceKind == CollectionSourceKind.GovernedService
+                    && line.SourceId == service.Id && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                select new { line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
+            var totals = lines.Select(x => (Facts: ReadSnapshot(x.CalculationSnapshot), x.Amount))
+                .GroupBy(x => x.Facts?.FeeOptionId)
+                .Select(g => new FeeOptionTotalDto(g.Key,
+                    g.Key is null ? $"{entry.Name} (no fee option recorded)"
+                        : g.Select(x => x.Facts?.FeeOptionName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "Fee option",
+                    g.Count(), g.Sum(x => x.Amount)))
+                .OrderByDescending(x => x.Amount).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            return Result<IReadOnlyList<FeeOptionTotalDto>>.Success(totals);
+        }, ct);
+
+    private string? EffectiveDateProblem(DateOnly date) =>
+        date < new DateOnly(2020, 1, 1) || date > BusinessToday.AddDays(366)
+            ? "Choose a realistic effective date (not more than a year ahead)." : null;
+
+    private async Task<(GovernedService? Service, GovernedServiceFeeOption? Option, string? Problem)> FindFeeOptionAsync(
+        Actor actor, string operationCode, Guid feeOptionId, bool tracked, CancellationToken ct)
+    {
+        var entry = GovernedServiceCatalog.Find(operationCode);
+        if (entry is null || !entry.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption))
+            return (null, null, "This service has no fee options.");
+        var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+        if (service is null) return (null, null, "The fee option was not found.");
+        var query = tracked ? db.GovernedServiceFeeOptions : db.GovernedServiceFeeOptions.AsNoTracking();
+        var option = await query.SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id && x.Id == feeOptionId, ct);
+        return option is null ? (service, null, "The fee option was not found.") : (service, option, null);
+    }
+
+    private async Task<IReadOnlyList<GovernedServiceFeeOptionDto>> FeeOptionDtosAsync(Guid tenantId, Guid serviceId, CancellationToken ct)
+    {
+        var today = BusinessToday;
+        var options = await db.GovernedServiceFeeOptions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct);
+        var ids = options.Select(x => x.Id).ToArray();
+        var rates = (await db.GovernedServiceFeeOptionRates.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.FeeOptionId)).ToListAsync(ct)).ToLookup(x => x.FeeOptionId);
+        return options.Select(o =>
+        {
+            var current = GovernedServiceFeeOptionRate.Resolve(rates[o.Id], today);
+            var status = !o.IsOfferedOn(today) ? "Retired"
+                : current is null ? (rates[o.Id].Any() ? "Scheduled" : "No amount rule")
+                : o.RetiredFrom is not null ? "Retiring" : "Active";
+            var history = rates[o.Id].OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.CreatedAtUtc)
+                .Select(x => new FeeOptionRateVersionDto(x.EffectiveDate, x.Basis, x.FixedAmount, x.MaximumAmount, x.CreatedBy, x.CreatedAtUtc))
+                .ToList();
+            return new GovernedServiceFeeOptionDto(o.Id, o.Code, o.DisplayName, o.Location, o.Description,
+                current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy);
+        }).OrderBy(x => x.Status == "Retired").ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Location).ToList();
+    }
+
     private async Task<GovernedServiceDefinitionDto> BuildDefinitionAsync(
         Guid tenantId, GovernedServiceCatalog.Entry entry, CancellationToken ct)
     {
@@ -164,6 +372,9 @@ public sealed class GovernedServiceWorkflow(
         if (setting?.Basis == GovernedServiceBasis.VehicleClassRate
             && (await CurrentVehicleClassTermsAsync(tenantId, today, ct)).Count == 0)
             issues.Add("No active vehicle class has an approved rate in force.");
+        if (setting?.Basis == GovernedServiceBasis.ApprovedFeeOption
+            && (await CurrentFeeOptionTermsAsync(tenantId, service!.Id, today, ct)).Count == 0)
+            issues.Add("No fee option is offered with an approved amount rule in force.");
 
         GovernedServiceSetupState state;
         if (setting is null)
@@ -241,8 +452,16 @@ public sealed class GovernedServiceWorkflow(
                     "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
             var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate
                 ? await CurrentVehicleClassTermsAsync(actor.TenantId, BusinessToday, ct) : null;
+            IReadOnlyList<FeeOptionTermDto>? optionTerms = null;
+            if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
+            {
+                optionTerms = await CurrentFeeOptionTermsAsync(actor.TenantId, service!.Id, BusinessToday, ct);
+                if (optionTerms.Count == 0)
+                    return Result<GovernedServiceTermsDto>.Failure(
+                        "No approved fee option is offered for this operation today.", ResultStatus.Conflict);
+            }
             return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, instrument, false, classTerms));
+                setting.FixedAmount, setting.MaximumAmount, instrument, false, classTerms, optionTerms));
         }, ct);
 
     // ── Mobile posting ─────────────────────────────────────────────────────────────────────────────────
@@ -358,7 +577,39 @@ public sealed class GovernedServiceWorkflow(
                 return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
                     "This service does not take a vehicle class.", ct);
 
-            if (setting.Basis != GovernedServiceBasis.VehicleClassRate && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
+            // Approved fee options: the collector selects an option the office configured; its rule in force on the business
+            // date decides the amount (a fixed amount must be matched exactly; a direct amount only where that option is
+            // configured for it). A retired or unknown option, or one without a rule, is refused — never priced by guess.
+            GovernedServiceFeeOption? feeOption = null;
+            GovernedServiceFeeOptionRate? feeRate = null;
+            if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
+            {
+                if (request.FeeOptionId is not { } optionId || optionId == Guid.Empty)
+                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_REQUIRED",
+                        "Choose the approved fee being collected.", ct);
+                feeOption = await db.GovernedServiceFeeOptions.AsNoTracking().SingleOrDefaultAsync(x =>
+                    x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id && x.Id == optionId, ct);
+                if (feeOption is null || !feeOption.IsOfferedOn(request.BusinessDate))
+                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_UNKNOWN",
+                        "This fee is not an approved, offered fee option for this operation on the business date.", ct);
+                var optionRates = await db.GovernedServiceFeeOptionRates.AsNoTracking().Where(x =>
+                    x.MunicipalityId == actor.TenantId && x.FeeOptionId == feeOption.Id).ToListAsync(ct);
+                feeRate = GovernedServiceFeeOptionRate.Resolve(optionRates, request.BusinessDate);
+                if (feeRate is null)
+                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_RATE_NOT_EFFECTIVE",
+                        "This fee option has no approved amount rule in force for the business date.", ct);
+                if (feeRate.CheckAmount(request.ReceivedAmount) is { } optionProblem)
+                    return await RecordTerminalAsync(actor, request, normalized, document, optionProblem,
+                        optionProblem == "AMOUNT_ABOVE_CEILING"
+                            ? "The amount exceeds the approved ceiling for this fee."
+                            : "The amount is not the approved amount for this fee.", ct);
+            }
+            else if (request.FeeOptionId is not null)
+                return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
+                    "This service does not take a fee option.", ct);
+
+            if (setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
+                && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
                 return await RecordTerminalAsync(actor, request, normalized, document, amountProblem,
                     amountProblem == "AMOUNT_ABOVE_CEILING"
                         ? "The amount exceeds the approved ceiling for this service."
@@ -371,7 +622,9 @@ public sealed class GovernedServiceWorkflow(
                 vehicleClass is null ? request.Reference?.Trim()
                     : string.IsNullOrWhiteSpace(request.Reference) ? vehicleClass.DisplayName : $"{vehicleClass.DisplayName} · {request.Reference.Trim()}",
                 request.PayerName?.Trim(),
-                vehicleClass?.Code, vehicleClass?.DisplayName, vehicleRate?.Id, vehicleRate?.EffectiveDate, vehicleRate?.Amount), JsonOptions);
+                vehicleClass?.Code, vehicleClass?.DisplayName, vehicleRate?.Id, vehicleRate?.EffectiveDate, vehicleRate?.Amount,
+                feeOption?.Id, feeOption is null ? null : FeeOptionLabel(feeOption), feeOption?.Code, feeRate?.Id,
+                feeRate?.EffectiveDate, feeRate?.Basis, feeRate?.FixedAmount, feeRate?.MaximumAmount), JsonOptions);
             // An immediate activity charge: an approved source identity and frozen evidence, no fabricated receivable.
             var line = new CollectionLineDraft(resolved.Classification, resolved.Policy, request.ReceivedAmount,
                 CollectionSourceKind.GovernedService, service.Id, null, snapshot, null);
@@ -504,7 +757,7 @@ public sealed class GovernedServiceWorkflow(
                 return new GovernedServiceActivityDto(collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
                     document?.DocumentNumber ?? "Document unavailable", document?.InstrumentType, facts?.Mode,
                     collection.PayerName, facts?.Reference, line.Amount,
-                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition);
+                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName);
             }).ToList();
             return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(activity);
         }, ct);
@@ -544,7 +797,8 @@ public sealed class GovernedServiceWorkflow(
                 return new GovernedServiceRecordDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.OperationCode,
                     GovernedServiceCatalog.Find(x.OperationCode)?.Name ?? x.OperationCode,
                     document?.DocumentNumber ?? "—", document?.InstrumentType, facts?.Mode, x.PayerName, facts?.Reference,
-                    x.Amount, corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted");
+                    x.Amount, corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted",
+                    facts?.FeeOptionName);
             }).ToList();
             return Result<IReadOnlyList<GovernedServiceRecordDto>>.Success(records);
         }, ct);
@@ -589,10 +843,13 @@ public sealed class GovernedServiceWorkflow(
     private static string NormalizeIntent(Actor actor, GovernedServicePostRequest request)
     {
         var json = NormalizeBaseIntent(actor, request);
-        if (string.IsNullOrWhiteSpace(request.VehicleClassCode)) return json;
-        // The class is part of the intent only when stated, so every earlier intent keeps its exact fingerprint.
+        if (string.IsNullOrWhiteSpace(request.VehicleClassCode) && request.FeeOptionId is null) return json;
+        // A class or fee option is part of the intent only when stated, so every earlier intent keeps its exact fingerprint.
         var node = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
-        node["VehicleClassCode"] = request.VehicleClassCode.Trim().ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(request.VehicleClassCode))
+            node["VehicleClassCode"] = request.VehicleClassCode.Trim().ToUpperInvariant();
+        if (request.FeeOptionId is { } optionId)
+            node["FeeOptionId"] = optionId.ToString("D");
         return node.ToJsonString(JsonOptions);
     }
 
@@ -650,5 +907,8 @@ public sealed class GovernedServiceWorkflow(
         GovernedServiceMode? Mode, RevenueInstrumentType Instrument, string ClassificationCode,
         Guid PolicyId, DateOnly PolicyEffectiveDate, string? Reference, string? PayerName,
         string? VehicleClassCode = null, string? VehicleClassName = null, Guid? VehicleClassRateId = null,
-        DateOnly? VehicleClassRateEffectiveDate = null, decimal? VehicleClassRate = null);
+        DateOnly? VehicleClassRateEffectiveDate = null, decimal? VehicleClassRate = null,
+        Guid? FeeOptionId = null, string? FeeOptionName = null, string? FeeOptionCode = null, Guid? FeeOptionRateId = null,
+        DateOnly? FeeOptionRateEffectiveDate = null, GovernedServiceBasis? FeeOptionBasis = null,
+        decimal? FeeOptionFixedAmount = null, decimal? FeeOptionMaximumAmount = null);
 }

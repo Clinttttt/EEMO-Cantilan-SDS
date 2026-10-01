@@ -1,0 +1,442 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IGovernedServicesApiClient GovernedApi
+
+@* The approved fee options of a governed service (e.g. the Market Fee definitions): each option's name, amount rule and
+   status, its effective-dated history, and what was collected under it in the period. The Head defines options and
+   schedules amounts; a change applies from its effective date and never re-prices a posted collection. Every figure is
+   the server's. Options never change the service's classification, instrument or Monthly Income line. *@
+<section class="v3-panel" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
+    <header class="v3-panel-header">
+        <h2 id="@_titleId">@Title</h2>
+        <AuthorizeView Roles="SuperAdmin">
+            <Authorized>
+                @if (_mode != FormMode.Add)
+                {
+                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="OpenAdd">Add fee type</button>
+                }
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="fod-notice" role="alert">
+            <p class="v3-notice v3-notice-error">@_error</p>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadOptionsAsync">Try again</button>
+        </div>
+    }
+
+    @if (_mode == FormMode.Add)
+    {
+        <form class="fod-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="Add a fee type">
+            <div class="fod-grid">
+                <label class="v3-field"><span>Name</span>
+                    <input class="v3-input" type="text" maxlength="120" required placeholder="e.g. Comfort Room" @bind="_name" /></label>
+                <label class="v3-field"><span>Location (optional)</span>
+                    <input class="v3-input" type="text" maxlength="80" @bind="_location" /></label>
+                <label class="v3-field"><span>Internal reference (optional)</span>
+                    <input class="v3-input" type="text" maxlength="40" @bind="_code" /></label>
+            </div>
+            @RuleFields
+            @FormFooter("Add fee type")
+        </form>
+    }
+
+    <div class="v3-table-wrap" role="region" aria-label="@Title" tabindex="0">
+        <table class="v3-table">
+            <caption class="v3-sr-only">@Title with the amount rule in force today</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Rule</th>
+                    <th scope="col" class="v3-num">Amount</th>
+                    <th scope="col">Status</th>
+                    <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var option in _options)
+                {
+                    var open = _openId == option.Id;
+                    <tr @key="option.Id">
+                        <td class="v3-strong">@option.DisplayName@if (!string.IsNullOrWhiteSpace(option.Location)) {<span class="v3-block">@option.Location</span>}</td>
+                        <td>@RuleName(option.Basis)</td>
+                        <td class="v3-num">@AmountText(option.Basis, option.Amount, option.MaximumAmount)</td>
+                        <td>
+                            <span class="fod-status fod-status-@StatusClass(option.Status)">@option.Status</span>
+                            @if (option.RetiredFrom is { } retired && option.Status != "Retired")
+                            {
+                                <span class="v3-block">until @retired.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>
+                            }
+                        </td>
+                        <td class="fod-row-actions">
+                            <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(open && _mode == FormMode.None ? "true" : "false")"
+                                    @onclick="() => ToggleHistory(option)">History</button>
+                            @if (option.Status != "Retired")
+                            {
+                                <AuthorizeView Roles="SuperAdmin">
+                                    <Authorized>
+                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenSchedule(option)">Schedule amount</button>
+                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRetire(option)">Retire</button>
+                                    </Authorized>
+                                </AuthorizeView>
+                            }
+                        </td>
+                    </tr>
+                    @if (open)
+                    {
+                        <tr class="fod-detail" @key="(option.Id, _mode)">
+                            <td colspan="5">
+                                @if (_mode == FormMode.Schedule)
+                                {
+                                    <form class="fod-inline" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="@($"Schedule a new amount for {option.DisplayName}")">
+                                        @RuleFields
+                                        @FormFooter("Schedule amount")
+                                    </form>
+                                }
+                                else if (_mode == FormMode.Retire)
+                                {
+                                    <form class="fod-inline" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="@($"Retire {option.DisplayName}")">
+                                        <div class="fod-grid">
+                                            <label class="v3-field"><span>No longer offered from</span>
+                                                <input class="v3-input" type="date" required @bind="_effective" /></label>
+                                        </div>
+                                        <p class="fod-note">Collectors stop seeing it from that date. Collections already recorded under it, and its history, are kept.</p>
+                                        @FormFooter("Retire fee type")
+                                    </form>
+                                }
+                                else
+                                {
+                                    <h3 class="fod-history-title">Amount history</h3>
+                                    <ol class="fod-history" aria-label="@($"Amount history of {option.DisplayName}")">
+                                        @foreach (var version in option.History)
+                                        {
+                                            <li>
+                                                <span class="fod-history-date">From @version.EffectiveDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>
+                                                <span>@RuleName(version.Basis)</span>
+                                                <span class="fod-history-amount">@AmountText(version.Basis, version.FixedAmount, version.MaximumAmount)</span>
+                                                <span class="fod-history-by">Set by @version.CreatedBy</span>
+                                            </li>
+                                        }
+                                        @if (option.RetiredFrom is { } retiredFrom)
+                                        {
+                                            <li>
+                                                <span class="fod-history-date">From @retiredFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>
+                                                <span>Not offered</span>
+                                                <span class="fod-history-amount">—</span>
+                                                <span class="fod-history-by">Retired by @(option.RetiredBy ?? "—")</span>
+                                            </li>
+                                        }
+                                    </ol>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                @if (_options.Count == 0)
+                {
+                    <tr>
+                        <td class="v3-empty" colspan="5">
+                            @(_loading ? "Loading fee types…" : _error is not null ? "Fee types are unavailable." : "No fee type has been defined yet.")
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_saved))
+    {
+        <p class="fod-saved" role="status">@_saved</p>
+    }
+
+    <div class="fod-totals" aria-busy="@(_totalsLoading ? "true" : "false")">
+        <h3 id="@_totalsTitleId">Collected by fee type · @PeriodLabel</h3>
+        @if (_totalsError is not null)
+        {
+            <p class="v3-notice v3-notice-error" role="alert">@_totalsError</p>
+        }
+        else if (_totals.Count == 0)
+        {
+            <p class="fod-note">@(_totalsLoading ? "Loading…" : $"Nothing was collected in {PeriodLabel}.")</p>
+        }
+        else
+        {
+            <table class="v3-table fod-totals-table" aria-labelledby="@_totalsTitleId">
+                <thead>
+                    <tr>
+                        <th scope="col">Fee type</th>
+                        <th scope="col" class="v3-num">Collections</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var total in _totals)
+                    {
+                        <tr>
+                            <td>@total.Name</td>
+                            <td class="v3-num">@total.Collections.ToString("N0", CultureInfo.InvariantCulture)</td>
+                            <td class="v3-num v3-strong">@Money(total.Amount)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td class="v3-num">@_totals.Sum(x => x.Collections).ToString("N0", CultureInfo.InvariantCulture)</td>
+                        <td class="v3-num v3-strong">@Money(_totals.Sum(x => x.Amount))</td>
+                    </tr>
+                </tfoot>
+            </table>
+        }
+    </div>
+</section>
+
+@code {
+    private enum FormMode { None, Add, Schedule, Retire }
+
+    private readonly string _titleId = $"fod-{Guid.NewGuid():N}";
+    private readonly string _totalsTitleId = $"fod-t-{Guid.NewGuid():N}";
+
+    /// <summary>The operation identity (CollectorOperationCodes), e.g. MARKET_FEES.</summary>
+    [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
+
+    [Parameter] public string Title { get; set; } = "Fee types";
+
+    /// <summary>First day of the month the drill-down covers (the workspace's selected month).</summary>
+    [Parameter, EditorRequired] public DateOnly Month { get; set; }
+
+    /// <summary>Raised after a definition changes, so the service's setup readiness can be re-read from the server.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private string PeriodLabel => Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    private List<GovernedServiceFeeOptionDto> _options = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private List<FeeOptionTotalDto> _totals = [];
+    private bool _totalsLoading = true;
+    private string? _totalsError;
+    private DateOnly? _totalsMonth;
+
+    private FormMode _mode;
+    private Guid? _openId;
+    private bool _saving;
+    private string? _formError;
+    private string? _saved;
+    private string _name = string.Empty;
+    private string? _location;
+    private string? _code;
+    private DateOnly _effective = PhilippineTime.Today;
+    private GovernedServiceBasis _basis = GovernedServiceBasis.FixedAmount;
+    private decimal? _amount;
+    private decimal? _ceiling;
+
+    protected override Task OnInitializedAsync() => LoadOptionsAsync();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_totalsMonth != Month)
+        {
+            _totalsMonth = Month;
+            await LoadTotalsAsync();
+        }
+    }
+
+    private async Task LoadOptionsAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await GovernedApi.GetFeeOptionsAsync(OperationCode);
+            if (result.IsSuccess) _options = result.Value?.ToList() ?? [];
+            else { _options = []; _error = "Fee types couldn't be loaded."; }
+        }
+        catch { _options = []; _error = "Fee types couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadTotalsAsync()
+    {
+        _totalsLoading = true;
+        _totalsError = null;
+        try
+        {
+            var result = await GovernedApi.GetFeeOptionTotalsAsync(OperationCode, Month, Month.AddMonths(1).AddDays(-1));
+            if (result.IsSuccess) _totals = result.Value?.ToList() ?? [];
+            else { _totals = []; _totalsError = "The breakdown by fee type couldn't be loaded."; }
+        }
+        catch { _totals = []; _totalsError = "The breakdown by fee type couldn't be loaded."; }
+        finally { _totalsLoading = false; }
+    }
+
+    private void ResetForm()
+    {
+        _formError = null;
+        _saved = null;
+        _name = string.Empty;
+        _location = _code = null;
+        _effective = PhilippineTime.Today;
+        _basis = GovernedServiceBasis.FixedAmount;
+        _amount = _ceiling = null;
+    }
+
+    private void OpenAdd()
+    {
+        ResetForm();
+        _openId = null;
+        _mode = FormMode.Add;
+    }
+
+    private void OpenSchedule(GovernedServiceFeeOptionDto option)
+    {
+        ResetForm();
+        _openId = option.Id;
+        _basis = option.Basis ?? GovernedServiceBasis.FixedAmount;
+        _amount = option.Basis == GovernedServiceBasis.FixedAmount ? option.Amount : null;
+        _ceiling = option.MaximumAmount;
+        _effective = PhilippineTime.Today.AddDays(1);
+        _mode = FormMode.Schedule;
+    }
+
+    private void OpenRetire(GovernedServiceFeeOptionDto option)
+    {
+        ResetForm();
+        _openId = option.Id;
+        _effective = PhilippineTime.Today.AddDays(1);
+        _mode = FormMode.Retire;
+    }
+
+    private void ToggleHistory(GovernedServiceFeeOptionDto option)
+    {
+        var closing = _openId == option.Id && _mode == FormMode.None;
+        _mode = FormMode.None;
+        _formError = null;
+        _openId = closing ? null : option.Id;
+    }
+
+    private void Cancel()
+    {
+        _mode = FormMode.None;
+        _openId = null;
+        _formError = null;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _formError = null;
+        _saved = null;
+        try
+        {
+            decimal? fixedAmount = _basis == GovernedServiceBasis.FixedAmount ? _amount : null;
+            decimal? ceiling = _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null;
+            var result = _mode switch
+            {
+                FormMode.Add => await GovernedApi.AddFeeOptionAsync(OperationCode,
+                    new AddFeeOptionRequest(_name, _code, _location, null, _effective, _basis, fixedAmount, ceiling)),
+                FormMode.Schedule => await GovernedApi.ScheduleFeeOptionRateAsync(OperationCode, _openId!.Value,
+                    new ScheduleFeeOptionRateRequest(_effective, _basis, fixedAmount, ceiling)),
+                FormMode.Retire => await GovernedApi.RetireFeeOptionAsync(OperationCode, _openId!.Value,
+                    new RetireFeeOptionRequest(_effective)),
+                _ => null
+            };
+            if (result is null) return;
+            if (!result.IsSuccess) { _formError = result.Error ?? "The change could not be saved."; return; }
+            _options = result.Value?.ToList() ?? _options;
+            _saved = _mode switch
+            {
+                FormMode.Add => "Fee type added. It is offered from its effective date.",
+                FormMode.Schedule => "Amount scheduled. It applies from its effective date; recorded collections keep their amount.",
+                _ => "Fee type retired from the chosen date. Its history is kept."
+            };
+            _mode = FormMode.None;
+            _openId = null;
+            await Changed.InvokeAsync();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private RenderFragment RuleFields => __builder =>
+    {
+        <div class="fod-grid">
+            <fieldset class="fod-rule">
+                <legend>Amount rule</legend>
+                <div class="fod-segmented">
+                    <label class="@(_basis == GovernedServiceBasis.FixedAmount ? "is-selected" : null)">
+                        <input type="radio" name="@_titleId-basis" checked="@(_basis == GovernedServiceBasis.FixedAmount)"
+                               @onchange="() => _basis = GovernedServiceBasis.FixedAmount" />
+                        Fixed amount
+                    </label>
+                    <label class="@(_basis == GovernedServiceBasis.DirectApprovedAmount ? "is-selected" : null)">
+                        <input type="radio" name="@_titleId-basis" checked="@(_basis == GovernedServiceBasis.DirectApprovedAmount)"
+                               @onchange="() => _basis = GovernedServiceBasis.DirectApprovedAmount" />
+                        Direct amount
+                    </label>
+                </div>
+            </fieldset>
+            @if (_basis == GovernedServiceBasis.FixedAmount)
+            {
+                <label class="v3-field"><span>Approved amount (₱)</span>
+                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" /></label>
+            }
+            else
+            {
+                <label class="v3-field"><span>Ceiling per transaction (₱, optional)</span>
+                    <input class="v3-input" type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
+            }
+            <label class="v3-field"><span>Effective from</span>
+                <input class="v3-input" type="date" required @bind="_effective" /></label>
+        </div>
+        <p class="fod-note">
+            @(_basis == GovernedServiceBasis.FixedAmount
+                ? "Collectors see this amount and cannot change it."
+                : "Collectors enter the amount collected for each transaction.")
+            A new amount applies from its effective date; collections already recorded keep theirs.
+        </p>
+    };
+
+    private RenderFragment FormFooter(string submitLabel) => __builder =>
+    {
+        if (!string.IsNullOrWhiteSpace(_formError))
+        {
+            <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+        }
+        <div class="fod-actions">
+            <button class="v3-btn" type="button" @onclick="Cancel">Cancel</button>
+            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">@submitLabel</button>
+        </div>
+    };
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+
+    private static string RuleName(GovernedServiceBasis? basis) => basis switch
+    {
+        GovernedServiceBasis.FixedAmount => "Fixed",
+        GovernedServiceBasis.DirectApprovedAmount => "Direct amount",
+        _ => "—"
+    };
+
+    private static string AmountText(GovernedServiceBasis? basis, decimal? amount, decimal? ceiling) => basis switch
+    {
+        GovernedServiceBasis.FixedAmount when amount is { } fixedAmount => Money(fixedAmount),
+        GovernedServiceBasis.DirectApprovedAmount => ceiling is { } max ? $"Up to {Money(max)}" : "Entered at collection",
+        _ => "—"
+    };
+
+    private static string StatusClass(string status) => status switch
+    {
+        "Active" => "active",
+        "Retired" => "retired",
+        _ => "pending"
+    };
+}

@@ -747,6 +747,23 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** `POST api/utilities/reading` refuses new readings/rates (Invalid); `GET api/utilities/bill` returns `AllowedElecCalculationBases` / `AllowedWaterCalculationBases`. No migration, backfill or cutover.
 - **REVISIT CONDITION:** A tenant that genuinely bills by meter (would need a tenant-level policy, not a client choice).
 
+### IA-056 - Market Fees (and Transfer Large Cattle) may be collected by configured fee type (Clint, 2026-10-01)
+
+- **ID:** IA-056
+- **SUBJECT:** Several approved fees collected under one governed service and one revenue classification
+- **STATUS:** CONFIRMED (Clint direction "Market Fees must support configured fee types", 2026-10-01)
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION (extends IA-044 governed configurable services; mirrors IA-050 vehicle classes)
+- **DECISION / QUESTION:**
+  - A governed service may use the amount rule "By approved fee type": the Head defines fee types (display name, optional location and internal reference) under the service. Each fee type has append-only, effective-dated amount rules: a Fixed amount, or a Direct amount (optionally with a ceiling). No other rule is offered.
+  - A collector selects a fee type; a Fixed amount is the server's and cannot be overridden; a typed amount is accepted only where the fee type's rule in force is Direct. A retired, unknown or not-yet-effective fee type is refused. The physical document of a refused post is held for reconciliation (unchanged IA-044 behavior).
+  - A fee type never changes the service's classification, accountable instrument or Monthly Income row: Market Fees stays one row (CT); the per-fee-type drill-down is read from the frozen line snapshot, so it always adds up to that row and counts each line once.
+  - A new amount applies from today or later (never retroactively); retirement is prospective; nothing is deleted, and posted lines keep the rule they used.
+  - Walk-up sales carry optional payer text only; no Payor is created.
+- **EVIDENCE / SOURCE:** Clint's "ADDITIONAL REQUIREMENT — MARKET FEES MUST SUPPORT CONFIGURED FEE TYPES" (2026-10-01).
+- **IMPACT:** Additive migration `AddGovernedServiceFeeOptions` (two tables; `GovernedServiceSettings.Basis` CHECK widened to 1–4). `GET/POST api/governed-services/{code}/fee-options`, `POST …/fee-options/{id}/rates`, `POST …/fee-options/{id}/retire`, `GET …/fee-option-totals`. Mobile sync carries `FeeOptionId`. No backfill, no cutover; existing Fixed/Direct services are unchanged until the Head switches the rule.
+- **OPEN:** CASH TICKET DENOMINATION POLICY REQUIRES OFFICE CONFIRMATION — Cash Tickets are modelled as serial-numbered documents without a printed face value; whether a fee type must match a ticket denomination is not modelled and has not been confirmed by the office.
+- **REVISIT CONDITION:** The office confirms printed CT denominations, or asks for a fee type to carry its own instrument.
+
 ## 4. Decision-gate summary
 
 The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
