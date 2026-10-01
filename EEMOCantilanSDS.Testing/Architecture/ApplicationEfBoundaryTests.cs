@@ -110,6 +110,9 @@ public class ApplicationEfBoundaryTests
         // nothing and no production report consumes it yet.
         "GetCanonicalMonthlyIncomeQueryHandler.cs",
         "GetOfficialMonthlyIncomeQueryHandler.cs",
+        // Revenue source performance: its money is the official statement above; it reads posted Collections only to count
+        // transactions, documents and collectors per statement row, and the classification policies for their instruments.
+        "GetRevenueSourcePerformanceQueryHandler.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",

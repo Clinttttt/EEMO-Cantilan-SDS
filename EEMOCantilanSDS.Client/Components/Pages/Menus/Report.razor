@@ -73,10 +73,10 @@
 
         @if (!IsOfficialTab)
         {
-            @* Facility / source is secondary analysis: it narrows Summary, Receivables and Trends, never the official
+            @* Facility analysis is secondary: it narrows the facility figures of Summary, Receivables and Trends, never the official
                Monthly Income, which follows the office rows. *@
             <div class="rpt-tool rpt-tool-source">
-                <FhSelect Caption="Facility / source" Value="@SelectedFacility" Options="@FacilitySelectOptions" ValueChanged="SelectFacility" />
+                <FhSelect Caption="Facility analysis" Value="@SelectedFacility" Options="@FacilitySelectOptions" ValueChanged="SelectFacility" />
             </div>
         }
 
@@ -336,6 +336,13 @@
         {
             <SummaryCashPosition Collected="Model.Collected" YtdCollected="Model.YtdCollected" Outstanding="Model.CurrentPeriodUnpaid"
                                  From="OfficialFrom" To="OfficialTo" />
+        }
+
+        @* Every revenue source, facility or not, with the official Monthly Income money for the period. Read only while Summary
+           is open (it has its own server read; screen-only, not a pdf-include section) and only for a calendar period. *@
+        @if (_section == "overview" && SelectedYear != "all")
+        {
+            <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" />
         }
 
         <div class="rpt-panels pdf-include@(SectionOff("overview"))">
@@ -757,7 +764,7 @@
                        questioned, not on every reading. Hover or focus shows it, a press pins it open for touch, and it
                        stays in the markup either way so the hover can work at all. Screen only. *@
                     <div class="section-title">
-                        Facility / source performance — @PeriodLabel<span class="rpt-rule-wrap no-print"><button type="button" class="rpt-rule-mark"
+                        Facility performance — @PeriodLabel<span class="rpt-rule-wrap no-print"><button type="button" class="rpt-rule-mark"
                                 @onclick="() => _facilityRuleOpen = !_facilityRuleOpen"
                                 aria-expanded="@(_facilityRuleOpen ? "true" : "false")"
                                 aria-controls="rpt-facility-rule"
@@ -769,7 +776,7 @@
                             <span class="rpt-rule-line">Fish and utilities carry no monthly bill, so they lift it. The Dashboard measures <strong>daily fees against daily fees due</strong>.</span>
                         </span></span>
                     </div>
-                    <div class="section-sub">Collection differs by facility model; unpaid/rate apply only to billed cycles</div>
+                    <div class="section-sub">Facility analysis only — every revenue source is under Summary. Unpaid and rate apply only to billed cycles</div>
                 </div>
             </div>
             <div class="rpt-table-scroll">

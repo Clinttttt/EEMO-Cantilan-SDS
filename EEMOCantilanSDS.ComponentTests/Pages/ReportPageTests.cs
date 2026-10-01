@@ -137,13 +137,13 @@ public class ReportPageTests : TestContext
     {
         var cut = RenderReport(SampleReport());
 
-        cut.WaitForAssertion(() => Assert.Contains("Facility / source", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.Contains("Facility analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
 
         OpenSection(cut, "Monthly Income");
-        cut.WaitForAssertion(() => Assert.DoesNotContain("Facility / source", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Facility analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
 
         OpenSection(cut, "Trends & Targets");
-        cut.WaitForAssertion(() => Assert.Contains("Facility / source", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.Contains("Facility analysis", cut.Find(".rpt-toolbar").TextContent), RenderTimeout);
     }
 
     [Fact]

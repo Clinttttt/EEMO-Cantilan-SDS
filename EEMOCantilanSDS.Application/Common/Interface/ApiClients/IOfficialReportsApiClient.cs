@@ -9,6 +9,9 @@ public interface IOfficialReportsApiClient
 {
     Task<Result<OfficialMonthlyIncomeDto>> GetMonthlyIncomeAsync(int year, int? month);
 
+    /// <summary>Every revenue source for the period, with the official Monthly Income money and model-aware counts.</summary>
+    Task<Result<RevenueSourcePerformanceDto>> GetSourcePerformanceAsync(int year, int? month);
+
     Task<Result<CollectionsRegisterDto>> GetCollectionsAsync(
         DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, Guid? classificationId);
 

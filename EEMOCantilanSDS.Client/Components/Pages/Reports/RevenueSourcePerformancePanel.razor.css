@@ -1,0 +1,219 @@
+/* Revenue source performance: a compact register — group rows, source rows, aligned amounts, quiet model labels. */
+.rsp {
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    overflow: hidden;
+}
+
+.rsp-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.rsp-title {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.rsp-sub {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.rsp-filter {
+    min-width: 200px;
+}
+
+.rsp-state {
+    margin: 0;
+    padding: 18px 22px;
+    color: var(--text-secondary);
+}
+
+.rsp-scroll {
+    overflow-x: auto;
+}
+
+    .rsp-scroll:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+    }
+
+.rsp-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    color: var(--text);
+}
+
+    .rsp-table thead th {
+        padding: 10px 22px;
+        background: var(--surface-muted);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .rsp-table td,
+    .rsp-table tbody th,
+    .rsp-table tfoot th {
+        padding: 10px 22px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: middle;
+    }
+
+.rsp-num {
+    text-align: right !important;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.rsp-group th,
+.rsp-group td {
+    background: var(--surface-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.rsp-source {
+    font-weight: 500;
+}
+
+.rsp-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .rsp-toggle:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 3px;
+    }
+
+.rsp-caret {
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 6px solid var(--text-tertiary);
+    transition: transform 0.15s ease;
+}
+
+.rsp-row.open .rsp-caret {
+    transform: rotate(90deg);
+}
+
+.rsp-basis {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.rsp-collected {
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.rsp-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+    .rsp-status.ok {
+        color: var(--green);
+    }
+
+    .rsp-status.warn {
+        color: var(--red);
+    }
+
+    .rsp-status.quiet {
+        color: var(--text-tertiary);
+    }
+
+.rsp-detail td {
+    padding: 4px 22px 16px 44px;
+    background: var(--surface-muted);
+}
+
+.rsp-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 24px;
+    margin: 8px 0 0;
+}
+
+    .rsp-facts dt {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .rsp-facts dd {
+        margin: 2px 0 0;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+
+.rsp-note {
+    margin: 10px 0 0;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.rsp-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+    .rsp-link:hover {
+        text-decoration: underline;
+    }
+
+    .rsp-link:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.rsp-total th,
+.rsp-total td {
+    border-top: 2px solid var(--border-strong);
+    border-bottom: 0;
+    font-weight: 700;
+    color: var(--navy);
+}

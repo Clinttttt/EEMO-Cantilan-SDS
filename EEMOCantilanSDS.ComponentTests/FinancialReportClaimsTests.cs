@@ -362,7 +362,7 @@ public class FinancialReportClaimsTests
         var css = ReadReport(".css");
 
         // Beside the period, not in a sub-line: the rule is wanted when a figure is questioned, not on every reading.
-        Assert.Contains("Facility / source performance — @PeriodLabel<span class=\"rpt-rule-wrap no-print\">", markup);
+        Assert.Contains("Facility performance — @PeriodLabel<span class=\"rpt-rule-wrap no-print\">", markup);
         Assert.Contains("_facilityRuleOpen", markup);
 
         // Reachable by keyboard and announced: a bare glyph would state the rule to no one who needs it read out.

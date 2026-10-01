@@ -1,0 +1,252 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IOfficialReportsApiClient Api
+
+@* REVENUE SOURCE PERFORMANCE — every source the office collects, facility or not.
+
+   The register's money is the server's official Monthly Income for the same period (legacy before cutover plus canonical
+   after it, once), so it can never disagree with the statement. Each source is described by its own model: a source paid
+   on service shows its activity and never an unpaid amount or a rate; a recurring obligation shows its balance and
+   coverage only where the facility register actually measures them; a receivable points to Receivables. Facility
+   analysis stays under Trends & Targets as Facility performance. *@
+<section class="rsp" aria-labelledby="rsp-title" aria-busy="@(_loading ? "true" : "false")">
+    <div class="rsp-head">
+        <div>
+            <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
+            <div class="rsp-sub">Collected is the official Monthly Income for the period; secondary figures follow each source's model</div>
+        </div>
+        <div class="rsp-filter no-print">
+            <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" RightAlign="true" />
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="rsp-state" role="alert">@_error</p>
+    }
+    else if (_data is null)
+    {
+        <p class="rsp-state" role="status">Loading revenue sources…</p>
+    }
+    else
+    {
+        <div class="rsp-scroll" role="region" aria-label="Revenue source performance" tabindex="0">
+            <table class="rsp-table">
+                <caption class="v3-sr-only">Revenue source performance for @PeriodLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Source</th>
+                        <th scope="col">Basis</th>
+                        <th scope="col" class="rsp-num">Collected</th>
+                        <th scope="col">Activity</th>
+                        <th scope="col">Position</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                @foreach (var group in VisibleGroups)
+                {
+                    <tbody>
+                        <tr class="rsp-group">
+                            <th scope="rowgroup" colspan="2">@group.Label</th>
+                            <td class="rsp-num">@Money(group.Collected)</td>
+                            <td colspan="3"></td>
+                        </tr>
+                        @foreach (var row in _data.Rows.Where(r => r.GroupKey == group.Key))
+                        {
+                            var open = _open.Contains(row.Key);
+                            var facility = FacilityOf(row);
+                            <tr class="rsp-row @(open ? "open" : "")">
+                                <th scope="row" class="rsp-source">
+                                    <button type="button" class="rsp-toggle" aria-expanded="@(open ? "true" : "false")"
+                                            aria-controls="@($"rsp-d-{row.Key}")" @onclick="() => Toggle(row.Key)">
+                                        <span class="rsp-caret" aria-hidden="true"></span>@row.Label
+                                    </button>
+                                </th>
+                                <td class="rsp-basis">@ModelLabel(row.Model)@(row.Instruments is { } i ? $" · {i}" : "")</td>
+                                <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
+                                <td>@Activity(row)</td>
+                                <td>@Position(row, facility)</td>
+                                <td><span class="rsp-status @StatusClass(row, facility)">@Status(row, facility)</span></td>
+                            </tr>
+                            @if (open)
+                            {
+                                <tr class="rsp-detail" id="@($"rsp-d-{row.Key}")">
+                                    <td colspan="6">
+                                        <dl class="rsp-facts">
+                                            <div><dt>Posted collections</dt><dd>@Money(row.CanonicalCollected)</dd></div>
+                                            @if (row.LegacyCollected != 0m)
+                                            {
+                                                <div><dt>Legacy records before cutover</dt><dd>@Money(row.LegacyCollected)</dd></div>
+                                            }
+                                            <div><dt>Transactions</dt><dd>@Count(row.TransactionCount)</dd></div>
+                                            <div><dt>Documents</dt><dd>@Count(row.DocumentCount)</dd></div>
+                                            <div><dt>Collectors</dt><dd>@Count(row.CollectorCount)</dd></div>
+                                            @if (facility is { } f && !f.PaidOnService)
+                                            {
+                                                <div><dt>Unpaid this period</dt><dd>@(f.Unpaid is { } u ? Money(u) : "—")</dd></div>
+                                                <div><dt>Paid / expected</dt><dd>@(f.ExpectedRecords > 0 ? $"{f.PaidRecords} / {f.ExpectedRecords}" : "—")</dd></div>
+                                            }
+                                        </dl>
+                                        @if (row.LegacyCollected != 0m)
+                                        {
+                                            <p class="rsp-note">Counts describe posted collections only, so they are not stated while legacy records remain in the period.</p>
+                                        }
+                                        @if (row.AwaitingPlacement)
+                                        {
+                                            <p class="rsp-note">This source has no approved official Monthly Income placement; the statement lists it apart.</p>
+                                        }
+                                        @if (LinkOf(row.Key) is { } link)
+                                        {
+                                            <a class="rsp-link" href="@link">View report →</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                }
+                <tfoot>
+                    <tr class="rsp-total">
+                        <th scope="row" colspan="2">Total — all sources</th>
+                        <td class="rsp-num">@Money(VisibleTotal)</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>The selected month, or null for the whole year.</summary>
+    [Parameter] public int? Month { get; set; }
+
+    /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
+    [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }
+
+    private RevenueSourcePerformanceDto? _data;
+    private string? _error;
+    private bool _loading;
+    private int _loadedYear;
+    private int? _loadedMonth;
+    private string _group = "all";
+    private readonly HashSet<string> _open = new(StringComparer.Ordinal);
+
+    private string PeriodLabel => Month is { } m
+        ? $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}" : Year.ToString(CultureInfo.InvariantCulture);
+
+    private IReadOnlyList<(string Value, string Label)> GroupOptions =>
+        new[] { ("all", "All sources") }.Concat(_data?.Groups.Select(g => (g.Key, g.Label)) ?? []).ToList();
+
+    private IEnumerable<RevenueSourceGroupDto> VisibleGroups =>
+        _data?.Groups.Where(g => _group == "all" || g.Key == _group) ?? [];
+
+    private decimal VisibleTotal => VisibleGroups.Sum(g => g.Collected);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedYear == Year && _loadedMonth == Month && (_data is not null || _error is not null)) return;
+        _loadedYear = Year;
+        _loadedMonth = Month;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetSourcePerformanceAsync(Year, Month);
+            if (result.IsSuccess && result.Value is not null) _data = result.Value;
+            else { _data = null; _error = "Revenue sources could not be loaded."; }
+        }
+        catch { _data = null; _error = "Revenue sources could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private void Toggle(string key)
+    {
+        if (!_open.Remove(key)) _open.Add(key);
+    }
+
+    private FinancialFacilityRowDto? FacilityOf(RevenueSourcePerformanceRowDto row) =>
+        row.Facility is { } code ? Facilities?.FirstOrDefault(f => f.Code == code) : null;
+
+    private static string ModelLabel(string model) => model switch
+    {
+        RevenueSourceModel.RecurringObligation => "Recurring obligation",
+        RevenueSourceModel.Transactional => "Paid on service",
+        RevenueSourceModel.QuantityService => "Quantity / service",
+        RevenueSourceModel.EventRental => "Event rental",
+        RevenueSourceModel.Receivable => "Receivable",
+        _ => model
+    };
+
+    private static string Activity(RevenueSourcePerformanceRowDto row)
+    {
+        if (row.Model == RevenueSourceModel.Receivable) return "—";
+        if (row.TransactionCount is not { } n) return "Includes legacy records";
+        if (n == 0) return "—";
+        var parts = new List<string> { Plural(n, "transaction") };
+        if (row.CollectorCount is { } c and > 0) parts.Add(Plural(c, "collector"));
+        return string.Join(" · ", parts);
+    }
+
+    // Balance and coverage are stated only where the facility register measures them; a paid-on-service source has none.
+    private static string Position(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility) => row.Model switch
+    {
+        RevenueSourceModel.Transactional or RevenueSourceModel.QuantityService => "Paid on service",
+        RevenueSourceModel.Receivable => "See Receivables",
+        _ when facility is { PaidOnService: false } f =>
+            string.Join(" · ", new[]
+            {
+                f.Unpaid is { } u ? $"{Money(u)} unpaid" : null,
+                f.ExpectedRecords > 0 ? $"{f.PaidRecords}/{f.ExpectedRecords} paid" : null,
+                f.RatePct is { } r && f.ExpectedRecords > 0 ? $"{r}%" : null
+            }.Where(s => s is not null)) is { Length: > 0 } text ? text : "—",
+        _ => "—"
+    };
+
+    private static string Status(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility) =>
+        facility is { PaidOnService: false, Unpaid: > 0m } && !row.AwaitingPlacement ? "Outstanding balances" : row.Status;
+
+    private static string StatusClass(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility) =>
+        Status(row, facility) switch
+        {
+            "Active" => "ok",
+            "Outstanding balances" or "Needs official placement" => "warn",
+            _ => "quiet"
+        };
+
+    private static string? LinkOf(string key) => key switch
+    {
+        "MARKET_FEES" => "/operations/market-fees/report",
+        "ECF" => "/operations/ecf/report",
+        "WCF" => "/operations/water-consumption-fees/report",
+        "TABO" => "/tpm/reports",
+        "FISH_MEAT_VENDOR_FEE" => "/operations/fish-meat-vendor-fees/report",
+        "LANDING_BERTHING" => "/operations/landing-berthing/report",
+        "TRANSPORTATION_PARKING" => "/operations/transportation/report",
+        "WEIGHT_AND_MEASURE" => "/operations/weight-and-measure",
+        "TRANSFER_LARGE_CATTLE" => "/operations/transfer-large-cattle/report",
+        "ICE_PLANT" => "/ice/reports",
+        "RENT_NPM" => "/npm/reports",
+        "RENT_NCC" => "/ncc/reports",
+        "RENT_TCC" => "/tcc/reports",
+        "RENT_BBQ" => "/bbq/reports",
+        "VEGETABLE_FRUIT_SPACE_RENTAL" => "/operations/vegetable-fruit/report",
+        "KANMANGGAY_SPACE_RENTAL" => "/operations/kanmanggay/report",
+        "FIESTA_ARAW_LOT_RENTAL" => "/operations/fiesta-araw/report",
+        "PENALTIES_AND_FINES" => "/operations/fines",
+        "SLAUGHTERHOUSE" => "/reports/slaughterhouse",
+        "ARREARS" => "/operations/arrears/report",
+        _ => null
+    };
+
+    private static string Count(int? value) => value is { } v ? v.ToString(CultureInfo.InvariantCulture) : "—";
+
+    private static string Plural(int n, string one) => $"{n} {(n == 1 ? one : one + "s")}";
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N0", CultureInfo.InvariantCulture);
+}

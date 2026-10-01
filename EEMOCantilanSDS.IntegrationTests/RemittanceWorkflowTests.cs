@@ -554,4 +554,59 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
             CancellationToken.None);
         Assert.Equal(0m, before.Value!.Totals.CollectedAmount);
     }
+
+    // ── Revenue-source performance and the official statement: the same posted money, once ──
+
+    private sealed class StatementClock : EEMOCantilanSDS.Application.Common.Interface.Time.IClock
+    {
+        public DateOnly PhilippineToday => PhilippineTime.Today;
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => PhilippineTime.Now;
+    }
+
+    [SkippableFact]
+    public async Task ALandingTicket_IsInTheStatementAndTheSourceRegister_Once_WithTransactionalFiguresOnly()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("rsp");
+        await PostAsync(w, 0, CollectorOperationCodes.LandingBerthing, 50m);
+        await PostAsync(w, 1, CollectorOperationCodes.MarketFees, 30m);
+
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var head = new Caller(w.HeadId, w.Tenant.Id, "Admin");
+        var statement = new EEMOCantilanSDS.Application.Queries.Revenue.GetOfficialMonthlyIncome.GetOfficialMonthlyIncomeQueryHandler(
+            ctx, new EEMOCantilanSDS.Infrastructure.Repositories.LegacyMonthlyIncomeReader(ctx), head, new FixedTenant(w.Tenant.Id), new StatementClock());
+        var register = new EEMOCantilanSDS.Application.Queries.Revenue.GetRevenueSourcePerformance.GetRevenueSourcePerformanceQueryHandler(
+            statement, ctx, new FixedTenant(w.Tenant.Id));
+
+        var month = (await register.Handle(new(Today.Year, Today.Month), CancellationToken.None)).Value!;
+        var landing = month.Rows.Single(r => r.Key == "LANDING_BERTHING");
+        Assert.Equal((50m, 1, 1, 1), (landing.Collected, landing.TransactionCount, landing.DocumentCount, landing.CollectorCount));
+        Assert.Equal((EEMOCantilanSDS.Application.Dtos.Revenue.RevenueSourceModel.Transactional, "Active", "CT"),
+            (landing.Model, landing.Status, landing.Instruments));
+        Assert.Null(landing.Facility);
+        Assert.Equal(30m, month.Rows.Single(r => r.Key == "MARKET_FEES").Collected);
+
+        // Every source the statement knows is listed, facility or not, and an empty source states nothing, not a rate.
+        foreach (var key in new[] { "ECF", "WCF", "TABO", "WEIGHT_AND_MEASURE", "TRANSFER_LARGE_CATTLE", "ICE_PLANT", "RENT_NPM",
+                     "RENT_NCC", "RENT_TCC", "VEGETABLE_FRUIT_SPACE_RENTAL", "KANMANGGAY_SPACE_RENTAL", "FIESTA_ARAW_LOT_RENTAL", "PENALTIES_AND_FINES", "ARREARS" })
+            Assert.Contains(month.Rows, r => r.Key == key);
+        Assert.Equal("Nothing recorded", month.Rows.Single(r => r.Key == "TRANSFER_LARGE_CATTLE").Status);
+
+        // The register's total is the statement's total for the month; the statement's year total is its months added up.
+        var year = (await statement.Handle(new(Today.Year, null), CancellationToken.None)).Value!;
+        Assert.Equal(year.MonthTotals[Today.Month - 1].Total, month.TotalCollected);
+        Assert.Equal(year.GrandTotal.Total, year.MonthTotals.Sum(c => c.Total));
+        var landingRow = year.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "LANDING_BERTHING");
+        Assert.Equal(50m, landingRow.Months[Today.Month - 1].Total);
+        Assert.Equal(landingRow.Total.Total, landingRow.Months.Sum(c => c.Total));
+        Assert.Null(landingRow.AnnualTarget);
+        Assert.Null(landingRow.Attainment);
+
+        // A remittance is not revenue: covering both tickets changes neither report.
+        Assert.True((await Remit(ctx, w).RecordAsync(Request(w, 80m))).IsSuccess);
+        var after = (await register.Handle(new(Today.Year, Today.Month), CancellationToken.None)).Value!;
+        Assert.Equal(month.TotalCollected, after.TotalCollected);
+    }
 }

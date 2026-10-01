@@ -122,7 +122,7 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.Contains("Outstanding position", sheet);
         Assert.Contains("Receivable aging", sheet);
         Assert.Contains("Period comparison", sheet);
-        Assert.Contains("Facility / source performance", sheet);
+        Assert.Contains("Facility performance", sheet);
         Assert.Contains("Accounts needing follow-up", sheet);
         Assert.Contains("Miscellaneous", sheet);
 
@@ -138,7 +138,7 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.StartsWith("IX.", titles[8]);
         // The official Monthly Income snapshot sits beside the collection position, ahead of the facility analysis.
         Assert.Equal("II. Monthly Income by official group", titles[1]);
-        Assert.Equal("VII. Facility / source performance", titles[6]);
+        Assert.Equal("VII. Facility performance", titles[6]);
     }
 
     [Fact]

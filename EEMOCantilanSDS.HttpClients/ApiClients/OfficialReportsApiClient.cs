@@ -13,6 +13,9 @@ public sealed class OfficialReportsApiClient(HttpClient http) : HandleResponse(h
     public Task<Result<OfficialMonthlyIncomeDto>> GetMonthlyIncomeAsync(int year, int? month) =>
         GetAsync<OfficialMonthlyIncomeDto>($"api/official-reports/monthly-income?year={year}" + (month is { } m ? $"&month={m}" : string.Empty));
 
+    public Task<Result<RevenueSourcePerformanceDto>> GetSourcePerformanceAsync(int year, int? month) =>
+        GetAsync<RevenueSourcePerformanceDto>($"api/official-reports/source-performance?year={year}" + (month is { } m ? $"&month={m}" : string.Empty));
+
     public Task<Result<CollectionsRegisterDto>> GetCollectionsAsync(
         DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, Guid? classificationId) =>
         GetAsync<CollectionsRegisterDto>($"api/official-reports/collections?from={D(from)}&to={D(to)}"

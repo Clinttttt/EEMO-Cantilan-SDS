@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Queries.Revenue.GetOfficialMonthlyIncome;
+using EEMOCantilanSDS.Application.Queries.Revenue.GetRevenueSourcePerformance;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -21,6 +22,11 @@ public sealed class OfficialReportsController(ISender sender, CollectionsReportW
     public async Task<ActionResult<OfficialMonthlyIncomeDto>> MonthlyIncomeAsync(
         [FromQuery] int year, [FromQuery] int? month, CancellationToken ct) =>
         HandleResponse(await Sender.Send(new GetOfficialMonthlyIncomeQuery(year, month), ct));
+
+    [HttpGet("source-performance")]
+    public async Task<ActionResult<RevenueSourcePerformanceDto>> SourcePerformanceAsync(
+        [FromQuery] int year, [FromQuery] int? month, CancellationToken ct) =>
+        HandleResponse(await Sender.Send(new GetRevenueSourcePerformanceQuery(year, month), ct));
 
     [HttpGet("collections")]
     public async Task<ActionResult<CollectionsRegisterDto>> CollectionsAsync(
