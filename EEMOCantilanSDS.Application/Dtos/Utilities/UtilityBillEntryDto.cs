@@ -21,4 +21,9 @@ public record UtilityBillEntryDto(
     string? WaterORNumber,
     // IA-050: a DirectApproved part is one approved amount (carried in the rate field) with no meter reading.
     string ElecCalculationBasis = "Metered",
-    string WaterCalculationBasis = "Metered");
+    string WaterCalculationBasis = "Metered",
+    // IA-055: the bases the server will accept for each part. ["DirectApproved"] for any part with no recorded metered
+    // assessment (every new month); ["DirectApproved", "Metered"] only for a recorded metered part, whose readings may be
+    // resubmitted unchanged or restated as a direct amount. Clients offer a reading entry only when "Metered" is listed.
+    IReadOnlyList<string>? AllowedElecCalculationBases = null,
+    IReadOnlyList<string>? AllowedWaterCalculationBases = null);

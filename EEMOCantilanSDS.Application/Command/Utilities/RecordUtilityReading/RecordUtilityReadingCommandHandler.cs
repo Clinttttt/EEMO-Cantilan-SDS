@@ -43,6 +43,17 @@ public class RecordUtilityReadingCommandHandler(
         var waterBasis = waterDirect ? UtilityCalculationBasis.DirectApproved : UtilityCalculationBasis.Metered;
 
         var bill = await utilityRepository.GetByStallAndMonthAsync(request.StallId, request.BillingYear, request.BillingMonth, ct);
+
+        // IA-055: a new assessment is a direct approved amount only. A recorded metered assessment is kept exactly as
+        // recorded (or restated as a direct amount); new readings or per-unit rates are refused here, at the writer,
+        // whatever the client offers.
+        var refusal = UtilityBill.RefuseAssessment(bill, CollectionSourcePart.Electricity, elecDirect,
+                          request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh)
+                      ?? UtilityBill.RefuseAssessment(bill, CollectionSourcePart.Water, waterDirect,
+                          request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter);
+        if (refusal is not null)
+            return Result<UtilityBillDto>.Failure(refusal, ResultStatus.Invalid);
+
         if (bill is null)
         {
             bill = UtilityBill.Create(

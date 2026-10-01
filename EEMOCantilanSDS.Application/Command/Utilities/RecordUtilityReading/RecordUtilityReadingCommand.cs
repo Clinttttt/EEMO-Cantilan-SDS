@@ -4,7 +4,11 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityReading;
 
-/// <summary>Admin records/updates an NPM stall's meter readings and per-bill rates for a billing month.</summary>
+/// <summary>
+/// Admin records/updates an NPM stall's utility assessment for a billing month. Under IA-055 a new assessment is a direct
+/// approved amount (<see cref="ElecApprovedAmount"/> / <see cref="WaterApprovedAmount"/>); the reading/rate arguments are
+/// accepted only to resubmit a recorded metered assessment unchanged, or as zeros for a utility that carries no charge.
+/// </summary>
 public record RecordUtilityReadingCommand(
     Guid StallId,
     int BillingYear,
