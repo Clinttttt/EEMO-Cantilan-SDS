@@ -426,3 +426,44 @@
             border-top: 1px solid var(--border);
         }
 }
+
+/* ── Action rail groups (2026-10-02 follow-up): form type + registration on the left; custody, remittance and the
+      primary Assign / Allocate pushed to the right edge of the same row by margin-left:auto. Below a laptop width the
+      two groups wrap deliberately (the right group stays right-aligned) instead of cramping their labels. ── */
+.af-page ::deep .wh-actions {
+    justify-content: flex-start;
+    align-items: center;
+    overflow-x: visible;
+}
+
+.af-rail-left,
+.af-rail-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
+.af-rail-right {
+    margin-left: auto;
+}
+
+@media (max-width: 1380px) {
+    .af-page ::deep .wh-actions {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+}
+
+@media (max-width: 720px) {
+    .af-rail-left,
+    .af-rail-right {
+        max-width: 100%;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .af-rail-right {
+        margin-left: 0;
+    }
+}

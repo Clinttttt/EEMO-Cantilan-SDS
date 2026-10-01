@@ -21,39 +21,44 @@
     <WorkspaceHeader Title="Accountable Forms" Subtitle="Physical inventory and collector custody">
         <Meta><InstrumentChip Instrument="@Chip" ShowName="true" /></Meta>
         <Actions>
-            @* OR and CT are separate physical documents with separate books and custody; they are never mixed. *@
-            <div class="v3-btn-group af-switch" role="group" aria-label="Accountable form type">
-                <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.CashTicket ? "true" : "false")"
-                        @onclick="() => SelectInstrument(RevenueInstrumentType.CashTicket)">Cash Tickets</button>
-                <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.OfficialReceipt ? "true" : "false")"
-                        @onclick="() => SelectInstrument(RevenueInstrumentType.OfficialReceipt)">Official Receipts</button>
+            @* Two groups on one rail: the form type and book registration on the left; custody and remittance on the
+               right, ending in the primary Assign / Allocate. *@
+            <div class="af-rail-left">
+                @* OR and CT are separate physical documents with separate books and custody; they are never mixed. *@
+                <div class="v3-btn-group af-switch" role="group" aria-label="Accountable form type">
+                    <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.CashTicket ? "true" : "false")"
+                            @onclick="() => SelectInstrument(RevenueInstrumentType.CashTicket)">Cash Tickets</button>
+                    <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.OfficialReceipt ? "true" : "false")"
+                            @onclick="() => SelectInstrument(RevenueInstrumentType.OfficialReceipt)">Official Receipts</button>
+                </div>
+                <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Register received book
+                </button>
             </div>
-            <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                Register received book
-            </button>
-            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !Books.Any())">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
-                Assign / Allocate
-            </button>
-            @* Custody follow-ups and the money-side page, joined like the form-type switch. *@
-            <div class="v3-btn-group af-followups" role="group" aria-label="Custody and remittance">
-                <button class="v3-btn" type="button" @onclick="OpenTransfer" disabled="@(_busy || !Books.Any())">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
-                    Transfer
+            <div class="af-rail-right">
+                <div class="v3-btn-group af-followups" role="group" aria-label="Custody and remittance">
+                    <a class="v3-btn" href="/accountable-forms/remittances">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
+                        Remittance &amp; Liquidation
+                    </a>
+                    <button class="v3-btn" type="button" @onclick="OpenTransfer" disabled="@(_busy || !Books.Any())">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
+                        Transfer
+                    </button>
+                    <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
+                        Return unused
+                    </button>
+                    <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9.5" y1="12.5" x2="14.5" y2="17.5" /><line x1="14.5" y1="12.5" x2="9.5" y2="17.5" /></svg>
+                        Record spoiled form
+                    </button>
+                </div>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !Books.Any())">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></svg>
+                    Assign / Allocate
                 </button>
-                <button class="v3-btn" type="button" @onclick="OpenReturn" disabled="@(_busy || !Books.Any())">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" /></svg>
-                    Return unused
-                </button>
-                <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9.5" y1="12.5" x2="14.5" y2="17.5" /><line x1="14.5" y1="12.5" x2="9.5" y2="17.5" /></svg>
-                    Record spoiled form
-                </button>
-                <a class="v3-btn" href="/accountable-forms/remittances">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></svg>
-                    Remittance &amp; Liquidation
-                </a>
             </div>
         </Actions>
     </WorkspaceHeader>
