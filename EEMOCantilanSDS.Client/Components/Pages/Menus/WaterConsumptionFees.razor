@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Services
 @inject IWcfCollectionsApiClient WcfApi
 
 <PageTitle>StallTrack — Water Consumption Fees</PageTitle>
@@ -95,20 +96,27 @@
         {
             <details class="wcf-details">
                 <summary>View readiness details</summary>
-                <ul class="wcf-checks">
+                <ul class="wcf-checks" aria-label="Readiness checks">
                     @foreach (var check in status.Checks)
                     {
-                        <li class="@(check.Ok ? "ok" : "warn")"><span aria-hidden="true">@(check.Ok ? "✓" : "!")</span> <strong>@check.Title</strong> @check.Detail</li>
-                    }
-                    @foreach (var collector in status.Collectors)
-                    {
-                        <li class="@(collector.Ready ? "ok" : "warn")">
-                            <span aria-hidden="true">@(collector.Ready ? "✓" : "!")</span>
-                            <strong>@collector.Name</strong>
-                            @(collector.Active ? $"{collector.CashTicketsHeld:N0} Cash Tickets in custody" : "Inactive")@(collector.CashTicketsInReview > 0 ? $" · {collector.CashTicketsInReview} in review" : "")
+                        <li class="@(check.Ok ? "ok" : "warn")">
+                            <span class="wcf-check-mark" aria-hidden="true">@(check.Ok ? "✓" : "!")</span>
+                            <span class="wcf-check-text"><strong>@check.Title</strong><span>@(check.Ok ? "Ready" : "Needs attention") · @check.Detail</span></span>
                         </li>
                     }
                 </ul>
+                @if (status.Collectors.Count > 0)
+                {
+                    <ul class="wcf-checks wcf-collectors" aria-label="Assigned collectors">
+                        @foreach (var collector in status.Collectors)
+                        {
+                            <li class="@(collector.Ready ? "ok" : "warn")">
+                                <span class="wcf-check-mark" aria-hidden="true">@(collector.Ready ? "✓" : "!")</span>
+                                <span class="wcf-check-text"><strong>@collector.Name</strong><span>@(collector.Active ? $"{collector.CashTicketsHeld:N0} Cash Tickets in custody" : "Inactive")@(collector.CashTicketsInReview > 0 ? $" · {collector.CashTicketsInReview} in review" : "")</span></span>
+                            </li>
+                        }
+                    </ul>
+                }
                 @if (status.HistoricalWaterRecords > 0)
                 {
                     <p class="wcf-mobile-note">@status.HistoricalWaterRecords historical Water record@(status.HistoricalWaterRecords == 1 ? "" : "s") stay on the legacy path and are not changed. <a href="/operations/water-consumption-fees/accounts">Review in Water Accounts</a></p>
@@ -228,18 +236,23 @@
                             <td>@item.Disposition</td>
                             <td class="v3-num v3-strong">@Money(item.TotalAmount)</td>
                             <td>
-                                <details class="v3-details">
+                                <details class="v3-details wcf-item-details">
                                     <summary>@item.ItemCount item@(item.ItemCount == 1 ? "" : "s")</summary>
-                                    <ul>
-                                        @foreach (var line in item.Lines)
-                                        {
-                                            <li>
-                                                <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
-                                                <span class="v3-muted">@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) + " obligation" : "WCF obligation")</span>
-                                                <span class="v3-muted">@(string.IsNullOrWhiteSpace(line.CalculationSnapshot) ? "Approved amount and period recorded with this collection" : line.CalculationSnapshot)</span>
-                                            </li>
-                                        }
-                                    </ul>
+                                    @foreach (var line in item.Lines)
+                                    {
+                                        <dl class="wcf-facts">
+                                            <dt>Source</dt><dd>@SourceNames.For("WCF", line.ClassificationName)</dd>
+                                            <dt>Payer</dt><dd>@(item.PayerName ?? "Not recorded")</dd>
+                                            @if (StallOf(line) is { } stall)
+                                            {
+                                                <dt>Stall</dt><dd>@stall</dd>
+                                            }
+                                            <dt>Billing period</dt><dd>@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) : "Not recorded")</dd>
+                                            <dt>Approved amount</dt><dd>@Money(line.Amount)</dd>
+                                            <dt>Cash Ticket</dt><dd>@item.DocumentNumber</dd>
+                                            <dt>Status</dt><dd>@item.Disposition</dd>
+                                        </dl>
+                                    }
                                 </details>
                             </td>
                         </tr>
@@ -353,6 +366,30 @@
         catch (Exception ex) { _error = ex.Message; }
         finally { _busy = false; }
         await LoadMobileStatusAsync();
+    }
+
+    // The stall number recorded in the collection's stored source evidence, for display only. The evidence itself (and its
+    // identifiers and schema) is never shown: it stays in the record and the Audit Trail.
+    private static string? StallOf(WcfCollectionActivityLineDto line)
+    {
+        foreach (var json in line.AllocationSnapshots.Append(line.CalculationSnapshot))
+        {
+            if (string.IsNullOrWhiteSpace(json)) continue;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                foreach (var property in doc.RootElement.EnumerateObject())
+                    if (property.Name.Equals("stallNo", StringComparison.OrdinalIgnoreCase)
+                        && property.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                        && !string.IsNullOrWhiteSpace(property.Value.GetString()))
+                        return property.Value.GetString();
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // Not structured evidence: nothing to show.
+            }
+        }
+        return null;
     }
 
     // ── Collector Mobile status (server-derived readiness; one-time, idempotent enable) ─────────────────────────────
