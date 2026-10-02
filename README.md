@@ -1,9 +1,9 @@
-# StallTrack — EEMO Revenue Collection System
+# StallTrack — MEEDO Revenue Collection System
 
 Multi-tenant revenue collection platform for LGU-managed economic enterprises. Each municipality is a tenant
 with its own facilities, fee rates, users, branding and data, isolated inside one database and one deployment.
 
-**Reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur.
+**Reference tenant:** Municipal Economic Enterprises Development Office (MEEDO), Municipality of Cantilan, Surigao del Sur.
 **Status:** in production — web portal, API and Android collector app are live.
 
 ---

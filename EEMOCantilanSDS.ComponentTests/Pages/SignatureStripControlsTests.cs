@@ -35,8 +35,8 @@ public class SignatureStripControlsTests : TestContext
         var branding = new BrandingState(Mock.Of<IMunicipalitiesApiClient>());
         branding.Apply(new MunicipalityBrandingDto(
             Code: "CANTILAN", TenantCode: "cantilan", Name: "Cantilan", Province: "Surigao del Sur",
-            OfficeName: "Economic Enterprise & Management Office", SealPath: null,
-            Status: "Active", IsActive: true, OfficeAcronym: "EEMO", Address: null,
+            OfficeName: "Municipal Economic Enterprises Development Office", SealPath: null,
+            Status: "Active", IsActive: true, OfficeAcronym: "MEEDO", Address: null,
             ReportSignatories: stored));
 
         Services.AddSingleton(branding);

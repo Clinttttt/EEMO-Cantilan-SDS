@@ -4,6 +4,8 @@ This directory is the permanent, tool-neutral source of project knowledge for St
 
 `AGENTS.md` is the concise entry point for coding agents. This directory contains the durable product, architecture, security, interface, business, testing, operational, and decision material those agents and human maintainers must follow.
 
+> **Office rename.** The office is now the Municipal Economic Enterprises Development Office (MEEDO). Historical records in this directory (decision registry, evidence, meeting notes) may retain the former EEMO terminology and are intentionally not rewritten. Technical identifiers such as the `EEMOCantilanSDS.*` projects/namespaces are unchanged.
+
 ## Authority and conflict handling
 
 Use this precedence when sources disagree:

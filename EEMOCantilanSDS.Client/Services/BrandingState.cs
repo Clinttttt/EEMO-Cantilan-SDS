@@ -12,8 +12,8 @@ namespace EEMOCantilanSDS.Client.Services;
 public class BrandingState(IMunicipalitiesApiClient api)
 {
     // Fallback defaults == the strings the UI currently hardcodes.
-    public const string DefaultOfficeName = "Economic Enterprise & Management Office";
-    public const string DefaultOfficeAcronym = "EEMO";
+    public const string DefaultOfficeName = "Municipal Economic Enterprises Development Office";
+    public const string DefaultOfficeAcronym = "MEEDO";
     public const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
 
     /// <summary>
@@ -89,8 +89,8 @@ public class BrandingState(IMunicipalitiesApiClient api)
     /// build this LGU's per-account webhook URL.</summary>
     public string TenantCode => _branding?.TenantCode ?? string.Empty;
 
-    public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);    // A set acronym wins; Cantilan falls back to EEMO; any other LGU without an acronym falls back to its
-    // own municipality name (never "EEMO").
+    public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);    // A set acronym wins; Cantilan falls back to MEEDO; any other LGU without an acronym falls back to its
+    // own municipality name (never "MEEDO").
     public string OfficeAcronym =>
         !string.IsNullOrWhiteSpace(_branding?.OfficeAcronym) ? _branding!.OfficeAcronym!
         : IsDefaultTenant ? DefaultOfficeAcronym : Municipality;

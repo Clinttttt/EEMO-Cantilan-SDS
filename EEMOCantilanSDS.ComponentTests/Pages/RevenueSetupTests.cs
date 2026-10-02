@@ -554,7 +554,7 @@ public sealed class RevenueSetupTests : TestContext
         else
         {
             Assert.Empty(revenueLinks);
-            Assert.Contains("Managed by the EEMO Head", cut.Markup);
+            Assert.Contains("Managed by the MEEDO Head", cut.Markup);
             Assert.Contains("aria-disabled=\"true\"", cut.Markup);
         }
     }
@@ -629,7 +629,7 @@ public sealed class RevenueSetupTests : TestContext
         var settings = new Mock<ISettingsApiClient>();
         settings.Setup(api => api.GetSystemSettingsAsync()).ReturnsAsync(Result<SystemSettingsDto>.Success(
             new SystemSettingsDto(
-                new OfficeProfileDto("EEMO", "Cantilan", "Surigao del Sur", "StallTrack", "EEMO Head"),
+                new OfficeProfileDto("MEEDO", "Cantilan", "Surigao del Sur", "StallTrack", "MEEDO Head"),
                 new SecurityPolicyDto(15, 7, 5, 15, ["SuperAdmin", "Admin"]),
                 new CollectionRulesDto(1, 12, 3, "Asia/Manila"),
                 new SystemInfoDto("StallTrack", "1.0", "Test", "Asia/Manila", DateTime.UtcNow),
