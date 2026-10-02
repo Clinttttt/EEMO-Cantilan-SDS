@@ -16,6 +16,10 @@ public interface IRemittancesApiClient
     Task<Result<RemittanceDetailDto>> VoidAsync(Guid id, VoidRemittanceRequest request);
     Task<Result<IReadOnlyList<RemittanceRowDto>>> GetRegisterAsync(
         DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, RemittanceStatus? status);
+    /// <summary>The register with a multi-collector submission shown as one row (GET api/remittances/history).</summary>
+    Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetHistoryAsync(
+        DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, RemittanceStatus? status);
+    Task<Result<RemittanceSubmissionDto>> GetSubmissionAsync(Guid submissionId);
     Task<Result<RemittanceDetailDto>> GetDetailAsync(Guid id);
     Task<Result<AccountabilityPositionDto>> GetPositionAsync(DateOnly from, DateOnly to);
     Task<Result<int>> ReturnUnusedAsync(ReturnUnusedFormsRequest request);

@@ -31,6 +31,16 @@ public sealed class RemittancesApiClient(HttpClient http) : HandleResponse(http)
             + (instrument is { } i ? $"&instrument={(int)i}" : string.Empty)
             + (status is { } s ? $"&status={(int)s}" : string.Empty));
 
+    public Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetHistoryAsync(
+        DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, RemittanceStatus? status) =>
+        GetAsync<IReadOnlyList<RemittanceHistoryRowDto>>($"api/remittances/history?from={D(from)}&to={D(to)}"
+            + (collectorId is { } c ? $"&collectorId={c}" : string.Empty)
+            + (instrument is { } i ? $"&instrument={(int)i}" : string.Empty)
+            + (status is { } s ? $"&status={(int)s}" : string.Empty));
+
+    public Task<Result<RemittanceSubmissionDto>> GetSubmissionAsync(Guid submissionId) =>
+        GetAsync<RemittanceSubmissionDto>($"api/remittances/submissions/{submissionId}");
+
     public Task<Result<RemittanceDetailDto>> GetDetailAsync(Guid id) =>
         GetAsync<RemittanceDetailDto>($"api/remittances/{id}");
 
