@@ -1,6 +1,7 @@
 @page "/collections/current"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Common
@@ -11,7 +12,7 @@
 
 <PageTitle>StallTrack — Current Collection</PageTitle>
 
-<main class="cc-page">
+<div class="cc-page">
     <nav class="cc-breadcrumb" aria-label="Breadcrumb">
         <a href="/operations">Operations</a><span aria-hidden="true">/</span>
         <span aria-current="page">Current Collection</span>
@@ -156,7 +157,7 @@
                     {
                         <article class="cc-line">
                         <div class="cc-line-head">
-                            <strong>@line.ClassificationName</strong>
+                            <strong>@SourceNames.Name(line.ClassificationName)</strong>
                             <b>@Money(line.Amount)</b>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(line.CalculationDetail))
@@ -293,7 +294,7 @@
                                         <ul>
                                             @foreach (var line in activity.Lines)
                                             {
-                                                <li><strong>@line.ClassificationName</strong> · @Money(line.Amount)
+                                                <li><strong>@SourceNames.Name(line.ClassificationName)</strong> · @Money(line.Amount)
                                                     @if (!string.IsNullOrWhiteSpace(line.CalculationDetail))
                                                     {
                                                         <small class="cc-activity-detail">@line.CalculationDetail</small>
@@ -314,7 +315,8 @@
             </div>
         }
     </section>
-</main>
+</div>
+
 
 @code {
     private EcfCollectionDraftDto? _draft;

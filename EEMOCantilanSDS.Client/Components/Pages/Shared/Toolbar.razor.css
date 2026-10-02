@@ -283,3 +283,29 @@
         min-width: auto;
     }
 }
+
+/* ── V3 (2026-10-02): the toolbar's groups never squeeze into each other. Search flexes; the filter rail, the page's
+      middle links and the actions keep their natural size, and the links + actions sit to the right. When a facility's
+      groups exceed the width they wrap as whole groups onto a second line rather than overlapping. ── */
+.toolbar-unified {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+.search-box {
+    flex: 1 1 220px;
+}
+
+.filter-tabs-inline,
+.toolbar-middle,
+.toolbar-actions {
+    flex: none;
+}
+
+.toolbar-middle {
+    margin-left: auto;
+}
+
+    .toolbar-middle + .toolbar-actions {
+        margin-left: 0;
+    }

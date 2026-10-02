@@ -168,6 +168,137 @@ public sealed class AccountableFormCustodyWorkflow(
     }
 
     /// <summary>
+    /// Automatic allocation: the server lays out each collector's units from the book's UNASSIGNED, IN-OFFICE units only, in
+    /// serial order, so the office never does range arithmetic. Units already held by a collector, issued, consumed,
+    /// spoiled or awaiting review are never touched; a gap among them simply splits a collector's share into several
+    /// contiguous runs. Redistribution of units a collector already holds is a Transfer, never an allocation.
+    /// Preview changes nothing. Commit recomputes the plan from current custody and assigns only when it equals the
+    /// previewed plan, in one save guarded by each unit's concurrency token, so two concurrent commits cannot both
+    /// assign a unit: every unit has exactly one custodian.
+    /// </summary>
+    public Task<Result<AutoAllocatePlanDto>> AutoAllocateAsync(AutoAllocateFormsRequest request, CancellationToken ct = default) =>
+        Run(async actor =>
+    {
+        var shares = request.Shares ?? [];
+        if (request.FormBookId == Guid.Empty || shares.Count == 0 || shares.Count > MaximumLinesPerBatch
+            || shares.Any(x => x.CollectorId == Guid.Empty || x.Quantity is < 1))
+            return Result<AutoAllocatePlanDto>.Failure("Choose at least one collector, with a quantity of at least 1 when one is given.", ResultStatus.Invalid);
+        if (shares.Select(x => x.CollectorId).Distinct().Count() != shares.Count)
+            return Result<AutoAllocatePlanDto>.Failure("Each collector can appear once in an allocation.", ResultStatus.Invalid);
+        if (shares.Any(x => x.Quantity is null) && shares.Any(x => x.Quantity is not null))
+            return Result<AutoAllocatePlanDto>.Failure("Use either an even share for everyone or a quantity for everyone.", ResultStatus.Invalid);
+
+        var book = await db.AccountableFormBooks.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == actor.TenantId && x.Id == request.FormBookId, ct);
+        if (book is null) return Result<AutoAllocatePlanDto>.Failure("The accountable-form book was not found in this tenant.", ResultStatus.NotFound);
+        if (book.InstrumentType != request.InstrumentType
+            || book.InstrumentType is not (RevenueInstrumentType.CashTicket or RevenueInstrumentType.OfficialReceipt))
+            return Result<AutoAllocatePlanDto>.Failure(
+                $"The selected book holds {InstrumentName(book.InstrumentType)}s, not {InstrumentName(request.InstrumentType)}s.", ResultStatus.Invalid);
+
+        var collectorIds = shares.Select(x => x.CollectorId).ToArray();
+        var collectors = await db.CollectorUsers.AsNoTracking()
+            .Where(x => x.MunicipalityId == actor.TenantId && collectorIds.Contains(x.Id) && x.IsActive)
+            .Select(x => new { x.Id, x.FullName, x.Username }).ToListAsync(ct);
+        if (collectors.Count != collectorIds.Length)
+            return Result<AutoAllocatePlanDto>.Failure("Every collector must be an active collector in this tenant.", ResultStatus.Invalid);
+
+        // Tracked: on commit these same rows are assigned, and their concurrency tokens guard the save.
+        var inOffice = await db.AccountableDocuments.Where(x =>
+                x.MunicipalityId == actor.TenantId && x.FormBookId == book.Id && x.InstrumentType == book.InstrumentType
+                && x.State == AccountableDocumentState.InOffice)
+            .OrderBy(x => x.SerialNumber).ToListAsync(ct);
+        var unit = InstrumentName(book.InstrumentType);
+        if (inOffice.Count == 0)
+            return Result<AutoAllocatePlanDto>.Failure(
+                $"No unassigned {unit}s are in office in this book. To give a collector {unit}s another collector holds, transfer the unused {unit}s.",
+                ResultStatus.Conflict);
+
+        int[] quantities;
+        if (shares.All(x => x.Quantity is null))
+        {
+            // Even: every in-office unit, split as evenly as possible; the first collectors take the remainder.
+            var each = inOffice.Count / shares.Count;
+            var extra = inOffice.Count % shares.Count;
+            if (each == 0)
+                return Result<AutoAllocatePlanDto>.Failure(
+                    $"Only {inOffice.Count:N0} {unit}{(inOffice.Count == 1 ? " is" : "s are")} in office — fewer than one each for {shares.Count} collectors.",
+                    ResultStatus.Conflict);
+            quantities = shares.Select((_, i) => each + (i < extra ? 1 : 0)).ToArray();
+        }
+        else
+        {
+            quantities = shares.Select(x => x.Quantity!.Value).ToArray();
+            var requested = quantities.Sum(x => (long)x);
+            if (requested > MaximumUnitsPerRequest)
+                return Result<AutoAllocatePlanDto>.Failure($"Allocate at most {MaximumUnitsPerRequest:N0} units at a time.", ResultStatus.Invalid);
+            if (requested > inOffice.Count)
+                return Result<AutoAllocatePlanDto>.Failure(
+                    $"{requested:N0} {unit}s were requested but only {inOffice.Count:N0} are unassigned in office. Lower the quantities, or transfer unused {unit}s from a collector.",
+                    ResultStatus.Conflict);
+        }
+
+        var names = collectors.ToDictionary(x => x.Id, x => string.IsNullOrWhiteSpace(x.FullName) ? x.Username ?? "Collector" : x.FullName!);
+        var plan = new List<(AutoAllocateShare Share, List<AccountableDocument> Units)>();
+        var cursor = 0;
+        for (var i = 0; i < shares.Count; i++)
+        {
+            plan.Add((shares[i], inOffice.GetRange(cursor, quantities[i])));
+            cursor += quantities[i];
+        }
+        var lines = plan.Select(p => new AutoAllocatePlanLine(p.Share.CollectorId, names[p.Share.CollectorId], p.Units.Count, Runs(p.Units)))
+            .ToList();
+        var inOfficeAfter = inOffice.Count - cursor;
+
+        if (!request.Commit)
+            return Result<AutoAllocatePlanDto>.Success(new AutoAllocatePlanDto(book.Id, book.InstrumentType, inOffice.Count, inOfficeAfter, lines, false));
+
+        if (request.ExpectedPlan is not { } expected || !SamePlan(expected, lines))
+            return Result<AutoAllocatePlanDto>.Failure(
+                $"{unit} custody changed since the preview. Nothing was assigned; review the new allocation and confirm again.",
+                ResultStatus.Conflict);
+
+        var now = UtcNow;
+        foreach (var (share, units) in plan)
+            foreach (var document in units)
+            {
+                document.AssignTo(share.CollectorId, actor.Username);
+                db.AccountableFormAssignments.Add(AccountableFormAssignment.Assign(document, share.CollectorId, actor.ActorId, now, actor.Username));
+            }
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException)
+        {
+            return Result<AutoAllocatePlanDto>.Failure(
+                $"Another change assigned some of these {unit}s at the same time. Nothing was assigned; reload and review.",
+                ResultStatus.Conflict);
+        }
+        return Result<AutoAllocatePlanDto>.Success(new AutoAllocatePlanDto(book.Id, book.InstrumentType, inOffice.Count, inOfficeAfter, lines, true));
+    }, ct);
+
+    /// <summary>Consecutive serials grouped into contiguous runs.</summary>
+    private static IReadOnlyList<SerialRangeDto> Runs(IReadOnlyList<AccountableDocument> units)
+    {
+        var runs = new List<SerialRangeDto>();
+        var i = 0;
+        while (i < units.Count)
+        {
+            var j = i;
+            while (j + 1 < units.Count && units[j + 1].SerialNumber == units[j].SerialNumber + 1) j++;
+            runs.Add(new SerialRangeDto(units[i].SerialNumber, units[j].SerialNumber, units[i].DocumentNumber, units[j].DocumentNumber));
+            i = j + 1;
+        }
+        return runs;
+    }
+
+    private static bool SamePlan(IReadOnlyList<AutoAllocatePlanLine> expected, IReadOnlyList<AutoAllocatePlanLine> actual) =>
+        expected.Count == actual.Count
+        && expected.Zip(actual).All(pair => pair.First.CollectorId == pair.Second.CollectorId
+            && pair.First.Quantity == pair.Second.Quantity
+            && pair.First.Ranges.Count == pair.Second.Ranges.Count
+            && pair.First.Ranges.Zip(pair.Second.Ranges).All(r =>
+                r.First.FirstSerialNumber == r.Second.FirstSerialNumber && r.First.LastSerialNumber == r.Second.LastSerialNumber));
+
+    /// <summary>
     /// Moves assigned, unused units of ONE book from the collector who holds them to another active collector, with a
     /// reason. It closes the current custody interval and opens the new one in one save, so history reads from, to, range,
     /// by, at and why. Every unit in the range must be held by the same collector; an issued, consumed, spoiled or

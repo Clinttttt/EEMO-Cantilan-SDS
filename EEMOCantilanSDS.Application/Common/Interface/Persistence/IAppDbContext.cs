@@ -83,6 +83,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<ObligationPeriod> ObligationPeriods { get; }
         DbSet<VehicleClass> VehicleClasses { get; }
         DbSet<VehicleClassRate> VehicleClassRates { get; }
+        DbSet<GovernedServiceFeeOption> GovernedServiceFeeOptions { get; }
+        DbSet<GovernedServiceFeeOptionRate> GovernedServiceFeeOptionRates { get; }
         DbSet<CollectionRemittance> CollectionRemittances { get; }
         DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; }
         DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; }

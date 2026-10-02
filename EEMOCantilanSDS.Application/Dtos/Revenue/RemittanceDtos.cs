@@ -58,7 +58,46 @@ public sealed record RemittanceRowDto(
     decimal DifferenceAmount,
     string? Reference,
     RemittanceStatus Status,
-    DateTime RecordedAtUtc);
+    DateTime RecordedAtUtc,
+    Guid? SubmissionId = null);
+
+/// <summary>One collector's independent remittance inside a History row.</summary>
+public sealed record RemittanceHistoryMemberDto(
+    Guid RemittanceId, Guid CollectorId, string CollectorName, int CollectionCount,
+    decimal ExpectedAmount, decimal RemittedAmount, decimal DifferenceAmount, RemittanceStatus Status);
+
+/// <summary>
+/// One History row: a single remittance, or the remittances saved together from one multi-collector submission. Members stay
+/// separate financial records; the row's figures are only their sums. Members are in the order the submission was made.
+/// </summary>
+public sealed record RemittanceHistoryRowDto(
+    Guid? SubmissionId,
+    Guid PrimaryRemittanceId,
+    DateOnly RemittanceDate,
+    RevenueInstrumentType? Instrument,
+    int CollectionCount,
+    decimal ExpectedAmount,
+    decimal RemittedAmount,
+    decimal DifferenceAmount,
+    string StatusLabel,
+    DateTime RecordedAtUtc,
+    string? Reference,
+    IReadOnlyList<RemittanceHistoryMemberDto> Members);
+
+/// <summary>A multi-collector submission's report: every collector's own remittance in submission order, and the combined totals.</summary>
+public sealed record RemittanceSubmissionDto(
+    Guid SubmissionId,
+    DateOnly RemittanceDate,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    RevenueInstrumentType? Instrument,
+    string RecordedBy,
+    int CollectionCount,
+    decimal ExpectedAmount,
+    decimal RemittedAmount,
+    decimal DifferenceAmount,
+    string StatusLabel,
+    IReadOnlyList<RemittanceDetailDto> Remittances);
 
 public sealed record RemittanceDetailDto(
     RemittanceRowDto Row,

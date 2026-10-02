@@ -2138,3 +2138,50 @@ TABLE
     .detail-header .eemo-modal-close:hover {
         background: var(--surface-hover);
     }
+
+/* ── Registry toolbar (V3): one calm row — facility and status on the left, search filling the middle, count and the
+      single primary action grouped at the right. Hairline borders, modest radius, no heavy outlines. ── */
+.vs-toolbar-unified {
+    gap: 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.vs-toolbar-unified .fac-trigger {
+    min-width: 200px;
+    padding: 7px 12px;
+    border-width: 1px;
+    border-radius: 8px;
+}
+
+.vs-toolbar-unified .filter-tabs-inline {
+    gap: 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+
+.vs-toolbar-unified .filter-tab {
+    padding: 5px 12px;
+    border-radius: 6px;
+}
+
+.vs-toolbar-unified .search-box {
+    flex: 1 1 200px;
+    min-width: 160px;
+    max-width: none;
+}
+
+.vs-toolbar-unified .vs-actions-compact {
+    gap: 12px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border);
+}
+
+.vs-toolbar-unified .vs-count-label {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+}

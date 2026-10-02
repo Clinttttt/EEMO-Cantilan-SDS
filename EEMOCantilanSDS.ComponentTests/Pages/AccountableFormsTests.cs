@@ -108,7 +108,7 @@ public sealed class AccountableFormsTests : TestContext
         var cut = RenderComponent<AccountableForms>();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        OpenSpecificSerials(cut);
         var selects = cut.Find("[role='dialog']").QuerySelectorAll("select");
         selects[0].Change(BookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
@@ -164,7 +164,7 @@ public sealed class AccountableFormsTests : TestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Official Receipts").Click();
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Official Receipts").Click();
+        OpenSpecificSerials(cut);
         cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(OrBookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("2");
@@ -217,7 +217,7 @@ public sealed class AccountableFormsTests : TestContext
         var cut = RenderComponent<AccountableForms>();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        OpenSpecificSerials(cut);
         var dialog = cut.Find("[role='dialog']");
 
         Assert.Contains("isn't available to this account", dialog.TextContent);
@@ -233,7 +233,7 @@ public sealed class AccountableFormsTests : TestContext
 
         var cut = RenderComponent<AccountableForms>();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        OpenSpecificSerials(cut);
         cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(BookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(SecondCollectorId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("input")[0].Change("101");
@@ -259,7 +259,7 @@ public sealed class AccountableFormsTests : TestContext
 
         var cut = RenderComponent<AccountableForms>();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign Cash Tickets").Click();
+        OpenSpecificSerials(cut);
         cut.Find("[role='dialog']").QuerySelectorAll("select")[0].Change(BookId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("select")[1].Change(CollectorId.ToString());
         cut.Find("[role='dialog']").QuerySelectorAll("input")[1].Change("1");
@@ -312,6 +312,67 @@ public sealed class AccountableFormsTests : TestContext
     private static readonly Guid SecondCollectorId = Guid.NewGuid();
     private static readonly Guid OrBookId = Guid.NewGuid();
 
+    [Fact]
+    public void AutoAllocate_PreviewsTheServerPlan_ThenConfirmsExactlyThatPlan()
+    {
+        var api = FormsApi();
+        var plan = new AutoAllocatePlanDto(BookId, RevenueInstrumentType.CashTicket, 3, 0,
+        [
+            new AutoAllocatePlanLine(CollectorId, "Ana Reyes", 2, [new SerialRangeDto(103, 104, "CT000103", "CT000104")]),
+            new AutoAllocatePlanLine(SecondCollectorId, "Ben Cruz", 1, [new SerialRangeDto(105, 105, "CT000105", "CT000105")])
+        ], false);
+        api.Setup(x => x.AutoAllocateAsync(It.Is<AutoAllocateFormsRequest>(r => !r.Commit)))
+            .ReturnsAsync(Result<AutoAllocatePlanDto>.Success(plan));
+        api.Setup(x => x.AutoAllocateAsync(It.Is<AutoAllocateFormsRequest>(r => r.Commit)))
+            .ReturnsAsync(Result<AutoAllocatePlanDto>.Success(plan with { Committed = true }));
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi(withSecond: true).Object);
+
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign / Allocate").Click();
+
+        // Custody first, then collectors; no serial arithmetic is asked for.
+        Assert.Contains("In office", cut.Find("dl.af-custody").TextContent);
+        cut.FindAll(".af-auto-collectors input[type='checkbox']")[0].Change(true);
+        cut.FindAll(".af-auto-collectors input[type='checkbox']")[1].Change(true);
+        cut.Find("#af-assign-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("CT000103 – CT000104", cut.Find("table.af-plan").TextContent), Timeout);
+        cut.Find("#af-assign-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("Allocated 3 Cash Tickets to 2 collectors", cut.Markup), Timeout);
+        api.Verify(x => x.AutoAllocateAsync(It.Is<AutoAllocateFormsRequest>(r =>
+            r.Commit && r.ExpectedPlan == plan.Lines && r.Shares.All(s => s.Quantity == null) && r.Shares.Count == 2)), Times.Once);
+        api.Verify(x => x.AssignBatchAsync(It.IsAny<AssignAccountableFormBatchRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void WithNothingInOffice_TheDrawerSaysSo_AndOffersTransferInsteadOfAnAssignmentForm()
+    {
+        var api = new Mock<IWcfCollectionsApiClient>();
+        var held = new AccountableFormBookDto(BookId, RevenueInstrumentType.CashTicket, "Book CT-1", "CT", 101, 103,
+        [
+            new CashTicketDocumentDto(Guid.NewGuid(), "CT000101", AccountableDocumentState.Consumed, null, 101),
+            new CashTicketDocumentDto(Guid.NewGuid(), "CT000102", AccountableDocumentState.Assigned, CollectorId, 102),
+            new CashTicketDocumentDto(Guid.NewGuid(), "CT000103", AccountableDocumentState.Assigned, CollectorId, 103),
+        ]);
+        api.Setup(x => x.GetBooksAsync()).ReturnsAsync(Result<IReadOnlyList<AccountableFormBookDto>>.Success([held]));
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi(withSecond: true).Object);
+
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign / Allocate").Click();
+
+        var dialog = cut.Find("[role='dialog']");
+        Assert.Contains("No unassigned Cash Tickets are currently in office.", dialog.TextContent);
+        Assert.Empty(dialog.QuerySelectorAll("input[type='number']"));
+        Assert.DoesNotContain(dialog.QuerySelectorAll("button"), b => b.TextContent.Trim() is "Preview allocation" or "Assign Cash Tickets");
+        dialog.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Transfer unused tickets").Click();
+        Assert.Contains("Transfer Cash Tickets", cut.Find("[role='dialog'] h2").TextContent);
+    }
+
     private static Mock<IWcfCollectionsApiClient> FormsApi(bool withOrBook = false)
     {
         var api = new Mock<IWcfCollectionsApiClient>();
@@ -359,4 +420,11 @@ public sealed class AccountableFormsTests : TestContext
 
     private static CashTicketDocumentDto Doc(long serial, AccountableDocumentState state, Guid? assignedTo = null) =>
         new(Guid.NewGuid(), $"CT{serial:000000}", state, assignedTo, serial);
+
+    /// <summary>Opens Assign / Allocate on the page's only book and switches to the advanced specific-serials path.</summary>
+    private static void OpenSpecificSerials(IRenderedComponent<AccountableForms> cut)
+    {
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Assign / Allocate").Click();
+        cut.FindAll("[role='dialog'] button").Single(b => b.TextContent.Trim() == "Specific serials").Click();
+    }
 }

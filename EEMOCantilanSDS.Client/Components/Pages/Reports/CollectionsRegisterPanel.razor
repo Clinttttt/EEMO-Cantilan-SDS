@@ -1,3 +1,4 @@
+@using EEMOCantilanSDS.Client.Services
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
@@ -29,7 +30,7 @@
                         <option value="">All lines</option>
                         @foreach (var line in _summaryOptions)
                         {
-                            <option value="@line.ClassificationId">@line.ClassificationName</option>
+                            <option value="@line.ClassificationId">@SourceNames.Name(line.ClassificationName)</option>
                         }
                     </select>
                 </label>
@@ -66,7 +67,7 @@
                     @foreach (var line in _data.Summary)
                     {
                         <tr>
-                            <td>@line.ClassificationName</td>
+                            <td>@SourceNames.Name(line.ClassificationName)</td>
                             <td class="v3-num">@line.DocumentCount</td>
                             <td>@(line.FirstDocumentNumber is null ? "—" : line.FirstDocumentNumber == line.LastDocumentNumber ? line.FirstDocumentNumber : $"{line.FirstDocumentNumber} – {line.LastDocumentNumber}")</td>
                             <td class="v3-num">@Money(line.Gross)</td>
@@ -124,7 +125,7 @@
                                     <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
                                     <td>@(row.CollectorName ?? "Office")</td>
                                 }
-                                <td>@row.ClassificationName</td>
+                                <td>@SourceNames.Name(row.ClassificationName)</td>
                                 <td>@row.SourceLabel</td>
                                 <td class="v3-num">@Money(row.Amount)</td>
                                 <td>@row.Status</td>
@@ -161,7 +162,7 @@
                     @foreach (var line in doc.Lines)
                     {
                         <tr>
-                            <td>@line.ClassificationName<span class="v3-block cr-note">@line.SourceLabel</span>
+                            <td>@SourceNames.Name(line.ClassificationName)<span class="v3-block cr-note">@line.SourceLabel</span>
                                 @foreach (var detail in line.Details) { <span class="v3-block cr-note">@detail</span> }</td>
                             <td class="v3-num">@Money(line.Amount)</td>
                         </tr>

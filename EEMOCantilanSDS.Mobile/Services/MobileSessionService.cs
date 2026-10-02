@@ -27,11 +27,11 @@ public sealed class MobileSessionService(
 
     /// <summary>Revenue office label for headers/receipts.</summary>
     public string BrandingOffice =>
-        !string.IsNullOrWhiteSpace(Branding?.OfficeName) ? Branding!.OfficeName! : "Economic Enterprise & Management Office";
+        !string.IsNullOrWhiteSpace(Branding?.OfficeName) ? Branding!.OfficeName! : "Municipal Economic Enterprises Development Office";
 
     /// <summary>Short office acronym (compact labels).</summary>
     public string BrandingOfficeAcronym =>
-        !string.IsNullOrWhiteSpace(Branding?.OfficeAcronym) ? Branding!.OfficeAcronym! : "EEMO";
+        !string.IsNullOrWhiteSpace(Branding?.OfficeAcronym) ? Branding!.OfficeAcronym! : "MEEDO";
 
     /// <summary>"Municipality of {Name}, {Province}" line for headers/receipts.</summary>
     public string BrandingMunicipalityLine

@@ -48,6 +48,15 @@ public sealed class CollectionRemittance : BaseEntity, IMunicipalityOwned
     public string RecordedByActorId { get; private set; } = string.Empty;
     public int CollectionCount { get; private set; }
 
+    /// <summary>
+    /// Non-financial grouping only: remittances saved from one multi-collector submission share this id so History can show
+    /// them as one action. It carries no money and never merges the independent records; null for a single-collector action.
+    /// </summary>
+    public Guid? SubmissionId { get; private set; }
+
+    /// <summary>The 1-based position of this collector in the submission as it was made (the deterministic display order).</summary>
+    public int? SubmissionSequence { get; private set; }
+
     private CollectionRemittance() { }
 
     public bool NeedsReview => Status == RemittanceStatus.Recorded && DifferenceAmount != 0m;
@@ -56,7 +65,8 @@ public sealed class CollectionRemittance : BaseEntity, IMunicipalityOwned
         Guid municipalityId, Guid collectorId, DateOnly remittanceDate, DateOnly periodFrom, DateOnly periodTo,
         RevenueInstrumentType? instrument, decimal expectedAmount, decimal remittedAmount, int collectionCount,
         string? reference, string? remarks, Guid clientOperationId, string intentFingerprint,
-        string recordedBy, string recordedByActorId, DateTime recordedAtUtc)
+        string recordedBy, string recordedByActorId, DateTime recordedAtUtc,
+        Guid? submissionId = null, int? submissionSequence = null)
     {
         if (municipalityId == Guid.Empty || collectorId == Guid.Empty)
             throw new ArgumentException("A tenant and a collector are required.");
@@ -74,6 +84,8 @@ public sealed class CollectionRemittance : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("The recording actor is required.");
         if (recordedAtUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("The recording time must be UTC.", nameof(recordedAtUtc));
+        if ((submissionId is null) != (submissionSequence is null) || submissionId == Guid.Empty || submissionSequence is <= 0)
+            throw new ArgumentException("A submission id and its sequence are given together.");
         var note = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
         var remark = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
         if (note?.Length > 100 || remark?.Length > 500)
@@ -98,7 +110,9 @@ public sealed class CollectionRemittance : BaseEntity, IMunicipalityOwned
             RecordedAtUtc = recordedAtUtc,
             RecordedBy = recordedBy.Trim(),
             RecordedByActorId = recordedByActorId.Trim(),
-            CollectionCount = collectionCount
+            CollectionCount = collectionCount,
+            SubmissionId = submissionId,
+            SubmissionSequence = submissionSequence
         };
     }
 

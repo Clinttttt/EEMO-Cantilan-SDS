@@ -121,6 +121,9 @@ public sealed class CollectionRemittanceConfiguration : IEntityTypeConfiguration
         // One durable operation identity per tenant: a retry can never create a second remittance.
         builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId }).IsUnique();
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectorId, x.RemittanceDate });
+        // Grouping only: a submission's members are found together; a collector appears once and in one position per submission.
+        builder.HasIndex(x => new { x.MunicipalityId, x.SubmissionId, x.CollectorId }).IsUnique().HasFilter("\"SubmissionId\" IS NOT NULL");
+        builder.HasIndex(x => new { x.MunicipalityId, x.SubmissionId, x.SubmissionSequence }).IsUnique().HasFilter("\"SubmissionId\" IS NOT NULL");
 
         builder.HasOne<Municipality>().WithMany()
             .HasForeignKey(x => x.MunicipalityId)

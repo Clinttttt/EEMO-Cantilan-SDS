@@ -25,7 +25,7 @@ public class TodaysWorkTests
         var item = Assert.Single(work.Available);
         Assert.True(item.CanOpen);
         Assert.Equal(WorkTarget.Operation, item.Target);
-        Assert.Equal("Ready to collect", item.Status);
+        Assert.Equal("Ready", item.Status);
         Assert.Empty(work.AssignedUnavailable);
     }
 
@@ -123,7 +123,10 @@ public class TodaysWorkTests
         var open = Assert.Single(work.Available);
         Assert.Equal("New Public Market", open.Name);
         Assert.True(open.CanOpen);
-        Assert.Equal("Slaughterhouse", Assert.Single(work.AssignedUnavailable).Name);
+        Assert.Equal("Ready", open.Status);                       // the group already says "Available now"
+        var blocked = Assert.Single(work.AssignedUnavailable);
+        Assert.Equal("Slaughterhouse", blocked.Name);
+        Assert.Equal("Not available yet", blocked.Status);        // a blocked row keeps its real reason
         Assert.DoesNotContain(work.Available.Concat(work.AssignedUnavailable), x => x.Name == "Tabo-an");
     }
 }

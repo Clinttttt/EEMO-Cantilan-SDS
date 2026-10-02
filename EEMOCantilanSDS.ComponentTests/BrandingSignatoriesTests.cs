@@ -22,8 +22,8 @@ public class BrandingSignatoriesTests
         var state = new BrandingState(Mock.Of<IMunicipalitiesApiClient>());
         state.Apply(new MunicipalityBrandingDto(
             Code: "CANTILAN", TenantCode: "cantilan", Name: "Cantilan", Province: "Surigao del Sur",
-            OfficeName: "Economic Enterprise & Management Office", SealPath: null,
-            Status: "Active", IsActive: true, OfficeAcronym: "EEMO", Address: null,
+            OfficeName: "Municipal Economic Enterprises Development Office", SealPath: null,
+            Status: "Active", IsActive: true, OfficeAcronym: "MEEDO", Address: null,
             ReportSignatories: reportSignatories));
 
         return state;

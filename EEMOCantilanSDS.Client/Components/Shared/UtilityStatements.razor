@@ -1,0 +1,181 @@
+@using EEMOCantilanSDS.Client.Services
+@inject BrandingState Branding
+@using System.Globalization
+@using EEMOCantilanSDS.Domain.Common
+
+@* Statements of account for one utility (ECF or WCF): a register on screen, one statement per payor and space on paper.
+   Every figure is the server's obligation read (assessed, settled, outstanding) handed in by the owning workspace; this
+   component calculates and records nothing, and a statement is evidence for the payor, never a receipt. *@
+<section class="us" aria-labelledby="@_titleId">
+    <div class="us-screen no-print">
+        <SummaryStrip Label="@($"{UtilityCode} statements")" Items="Summary" />
+
+        <div class="v3-panel">
+            <header class="v3-panel-header">
+                <h2 id="@_titleId">Statements</h2>
+                <span class="v3-panel-meta">@Visible.Count of @Groups.Count · @PeriodLabel</span>
+            </header>
+            <div class="v3-toolbar" aria-label="Statement filters">
+                <label class="v3-search">
+                    <span class="v3-sr-only">Search statements</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search payor, stall or area" aria-label="Search statements"
+                           @bind="_search" @bind:event="oninput" />
+                </label>
+                <label class="us-check"><input type="checkbox" @bind="_balanceOnly" /> With balance only</label>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="() => PrintAsync(null)" disabled="@(Visible.Count == 0)">Print statements</button>
+            </div>
+            <div class="v3-table-wrap" role="region" aria-label="@($"{UtilityCode} statement register")" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Payor</th>
+                            <th scope="col">Space</th>
+                            <th scope="col" class="v3-num">Assessed</th>
+                            <th scope="col" class="v3-num">Paid</th>
+                            <th scope="col" class="v3-num">Balance</th>
+                            <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in Visible)
+                        {
+                            <tr @key="group.Key">
+                                <td class="v3-strong">@group.Payor</td>
+                                <td>@group.Space</td>
+                                <td class="v3-num">@Money(group.Assessed)</td>
+                                <td class="v3-num">@Money(group.Settled)</td>
+                                <td class="v3-num v3-strong">@Money(group.Outstanding)</td>
+                                <td class="us-action">
+                                    <button class="v3-btn v3-btn-sm" type="button" aria-label="@($"Print statement for {group.Payor}, {group.Space}")"
+                                            @onclick="() => PrintAsync(group.Key)">Print</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (Visible.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="6">@(Lines.Count == 0 ? $"No {UtilityCode} charges were assessed for {PeriodLabel}." : "No statement matches the filter.")</td></tr>
+                        }
+                    </tbody>
+                    @if (Visible.Count > 0)
+                    {
+                        <tfoot>
+                            <tr>
+                                <td colspan="2"><strong>Total · @Visible.Count statement@(Visible.Count == 1 ? "" : "s")</strong></td>
+                                <td class="v3-num">@Money(Visible.Sum(g => g.Assessed))</td>
+                                <td class="v3-num">@Money(Visible.Sum(g => g.Settled))</td>
+                                <td class="v3-num v3-strong">@Money(Visible.Sum(g => g.Outstanding))</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @* On paper: one statement per payor and space, each on its own sheet. *@
+    <div class="us-sheets" aria-hidden="true">
+        @foreach (var group in ToPrint)
+        {
+            <article class="us-sheet" @key="group.Key">
+                <ReportLetterhead Title="@($"Statement of Account — {UtilityName}")" Period="@PeriodLabel">
+                    <Facts>
+                        <div><dt>Payor</dt><dd>@group.Payor</dd></div>
+                        <div><dt>Space</dt><dd>@group.Space</dd></div>
+                    </Facts>
+                </ReportLetterhead>
+                <table class="us-table">
+                    <thead>
+                        <tr><th scope="col">Billing month</th><th scope="col">Instrument</th><th scope="col" class="us-num">Assessed</th><th scope="col" class="us-num">Paid</th><th scope="col" class="us-num">Balance</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in group.Lines)
+                        {
+                            <tr>
+                                <td>@(new DateOnly(line.Year, line.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))</td>
+                                <td>@InstrumentName</td>
+                                <td class="us-num">@Money(line.Assessed)</td>
+                                <td class="us-num">@Money(line.Settled)</td>
+                                <td class="us-num">@Money(line.Outstanding)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><th scope="row" colspan="2">Total</th><td class="us-num">@Money(group.Assessed)</td><td class="us-num">@Money(group.Settled)</td><td class="us-num"><strong>@Money(group.Outstanding)</strong></td></tr>
+                    </tfoot>
+                </table>
+                <p class="us-note">@(group.Outstanding <= 0m
+                    ? "Settled in full. This statement is issued for the payor's record."
+                    : $"Please settle at the {Branding.OfficeAcronym} Office. Present this statement when paying.")</p>
+                <SignatureStrip />
+            </article>
+        }
+    </div>
+</section>
+
+@code {
+    private readonly string _titleId = $"us-{Guid.NewGuid():N}";
+    private string _search = string.Empty;
+    private bool _balanceOnly;
+    private string? _only;
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    /// <summary>Short utility code shown in headings, e.g. ECF.</summary>
+    [Parameter, EditorRequired] public string UtilityCode { get; set; } = string.Empty;
+
+    /// <summary>Full name printed on the statement, e.g. Electricity Consumption Fee (ECF).</summary>
+    [Parameter, EditorRequired] public string UtilityName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string InstrumentName { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string PeriodLabel { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<StatementLine> Lines { get; set; } = [];
+
+    /// <summary>One billing month of one space, exactly as the obligation read states it.</summary>
+    public sealed record StatementLine(
+        Guid StallId, string StallNo, string Section, string Payor, int Year, int Month,
+        decimal Assessed, decimal Settled, decimal Outstanding);
+
+    private sealed record Group(string Key, string Payor, string Space, string Section, IReadOnlyList<StatementLine> Lines)
+    {
+        public decimal Assessed => Lines.Sum(x => x.Assessed);
+        public decimal Settled => Lines.Sum(x => x.Settled);
+        public decimal Outstanding => Lines.Sum(x => x.Outstanding);
+    }
+
+    private List<Group> Groups => Lines
+        .GroupBy(x => (x.StallId, x.Payor))
+        .Select(g => new Group($"{g.Key.StallId}|{g.Key.Payor}", g.Key.Payor,
+            $"{g.First().StallNo}{(string.IsNullOrWhiteSpace(g.First().Section) ? "" : $" · {g.First().Section}")}",
+            g.First().Section, g.OrderBy(x => x.Year).ThenBy(x => x.Month).ToList()))
+        .OrderBy(g => g.Payor, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Space, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    private List<Group> Visible => Groups.Where(g =>
+        (!_balanceOnly || g.Outstanding > 0m)
+        && (string.IsNullOrWhiteSpace(_search)
+            || g.Payor.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || g.Space.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    private IEnumerable<Group> ToPrint => _only is null ? Visible : Groups.Where(g => g.Key == _only);
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Summary =>
+    [
+        new("Period", PeriodLabel),
+        new("Assessed", Money(Lines.Sum(x => x.Assessed))),
+        new("Paid", Money(Lines.Sum(x => x.Settled))),
+        new("Balance", Money(Lines.Sum(x => x.Outstanding)), Emphasis: true),
+    ];
+
+    private async Task PrintAsync(string? key)
+    {
+        _only = key;
+        StateHasChanged();
+        await Task.Delay(60);   // let the sheets render before the print dialog captures them
+        try { await JS.InvokeVoidAsync("print"); } catch (JSException) { }
+        _only = null;
+    }
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}

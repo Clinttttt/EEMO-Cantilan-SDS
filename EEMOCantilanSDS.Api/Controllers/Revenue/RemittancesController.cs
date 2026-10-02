@@ -45,6 +45,17 @@ public sealed class RemittancesController(ISender sender, RemittanceWorkflow wor
         [FromQuery] RevenueInstrumentType? instrument, [FromQuery] RemittanceStatus? status, CancellationToken ct) =>
         HandleResponse(await workflow.GetRegisterAsync(from, to, collectorId, instrument, status, ct));
 
+    /// <summary>The register with multi-collector submissions shown as one row (members stay independent records).</summary>
+    [HttpGet("history")]
+    public async Task<ActionResult<IReadOnlyList<RemittanceHistoryRowDto>>> HistoryAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] Guid? collectorId,
+        [FromQuery] RevenueInstrumentType? instrument, [FromQuery] RemittanceStatus? status, CancellationToken ct) =>
+        HandleResponse(await workflow.GetHistoryAsync(from, to, collectorId, instrument, status, ct));
+
+    [HttpGet("submissions/{submissionId:guid}")]
+    public async Task<ActionResult<RemittanceSubmissionDto>> SubmissionAsync(Guid submissionId, CancellationToken ct) =>
+        HandleResponse(await workflow.GetSubmissionAsync(submissionId, ct));
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<RemittanceDetailDto>> DetailAsync(Guid id, CancellationToken ct) =>
         HandleResponse(await workflow.GetDetailAsync(id, ct));

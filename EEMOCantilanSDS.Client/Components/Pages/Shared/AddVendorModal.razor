@@ -540,7 +540,6 @@
                             {
                                 <div class="avm-util-divider"></div>
                                 <div class="avm-sublabel">Utility service</div>
-                                <div class="avm-section-note">Electricity (ECF) and water (WCF) are separate utility operations, assessed and collected apart from stall rental. Marking a service lists this space in that utility's register; it creates no charge.</div>
 
                                 @* Utility service is context, not a rental charge (V3): the stall's ApplicableFees flags only list the
                                    space in the ECF / WCF utility register, whose approved amounts are set and collected in those
@@ -563,47 +562,7 @@
                                    with aria-pressed, so Tab reaches it and Space/Enter toggles it. It was a div
                                    with a click handler and a checkbox held out of the tab order, which left the
                                    whole "add a utility charge" flow impossible without a mouse. *@
-                                <!-- Electricity -->
-                                <button type="button" class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
-                                        aria-pressed="@(Form.FeeTypes.Contains("Electricity") ? "true" : "false")"
-                                        @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
-                                    <span class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                                        </svg>
-                                    </span>
-                                    <span class="avm-fee-text">
-                                        <span class="avm-fee-title">Electricity service</span>
-                                        <span class="avm-fee-sub">Listed in the Electricity (ECF) register · Official Receipt</span>
-                                    </span>
-                                    <span class="avm-fee-mark" aria-hidden="true">
-                                        @if (Form.FeeTypes.Contains("Electricity"))
-                                        {
-                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </span>
-                                </button>
-
-                                <!-- Water -->
-                                <button type="button" class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
-                                        aria-pressed="@(Form.FeeTypes.Contains("Water") ? "true" : "false")"
-                                        @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
-                                    <span class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                                        </svg>
-                                    </span>
-                                    <span class="avm-fee-text">
-                                        <span class="avm-fee-title">Water service</span>
-                                        <span class="avm-fee-sub">Listed in the Water (WCF) register · Cash Ticket</span>
-                                    </span>
-                                    <span class="avm-fee-mark" aria-hidden="true">
-                                        @if (Form.FeeTypes.Contains("Water"))
-                                        {
-                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </span>
-                                </button>
+                                @UtilityToggles(false)
                                 }
 
                                 <!-- Section fee — only when this LGU actually charges one for the section.
@@ -622,7 +581,10 @@
                             }
                             else
                             {
-                                <div class="avm-section-note">Select a section above to record utility service.</div>
+                                @* No section yet: the services are shown but unavailable, with a short inline reason. *@
+                                <div class="avm-util-divider"></div>
+                                <div class="avm-sublabel">Utility service <span class="avm-util-hint">Choose a section first</span></div>
+                                @UtilityToggles(true)
                             }
                         }
 
@@ -708,6 +670,51 @@
 }
 
 @code {
+    /// <summary>The Electricity and Water service toggles; unavailable (not hidden) until a section is chosen.</summary>
+    private RenderFragment UtilityToggles(bool disabled) => @<text>
+                <!-- Electricity -->
+                <button type="button" class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
+                        aria-pressed="@(Form.FeeTypes.Contains("Electricity") ? "true" : "false")" disabled="@disabled"
+                        @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
+                    <span class="avm-fee-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                    </span>
+                    <span class="avm-fee-text">
+                        <span class="avm-fee-title">Electricity service</span>
+                        <span class="avm-fee-sub">ECF · Official Receipt</span>
+                    </span>
+                    <span class="avm-fee-mark" aria-hidden="true">
+                        @if (Form.FeeTypes.Contains("Electricity"))
+                        {
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                        }
+                    </span>
+                </button>
+
+                <!-- Water -->
+                <button type="button" class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
+                        aria-pressed="@(Form.FeeTypes.Contains("Water") ? "true" : "false")" disabled="@disabled"
+                        @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
+                    <span class="avm-fee-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                        </svg>
+                    </span>
+                    <span class="avm-fee-text">
+                        <span class="avm-fee-title">Water service</span>
+                        <span class="avm-fee-sub">WCF · Cash Ticket</span>
+                    </span>
+                    <span class="avm-fee-mark" aria-hidden="true">
+                        @if (Form.FeeTypes.Contains("Water"))
+                        {
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                        }
+                    </span>
+                </button>
+    </text>;
+
 
     // ── Parameters ────────────────────────────────────────────────────────────
 

@@ -263,6 +263,33 @@ public sealed class UtilityWorkspaceTests : TestContext
         }, Timeout);
     }
 
+    [Fact]
+    public void WcfActivity_ShowsReadableFacts_NeverTheStoredJsonEvidence()
+    {
+        var api = WcfApi([], [Ticket()]);
+        const string evidence = "{\"schemaVersion\":1,\"municipalityId\":\"6b8e1a52-0000-0000-0000-000000000001\",\"utilityBillId\":\"6b8e1a52-0000-0000-0000-000000000002\",\"stallNo\":\"F-12\",\"billingYear\":2026,\"billingMonth\":9,\"ratePerCubicMeter\":0}";
+        api.Setup(x => x.GetActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<WcfCollectionActivityDto>>.Success(
+            [
+                new WcfCollectionActivityDto(Guid.NewGuid(), new DateOnly(2026, 10, 1), DateTime.UtcNow, "CT000101", "Maria Santos",
+                    120m, 1, "Posted",
+                    [new WcfCollectionActivityLineDto("WCF", 120m, 2026, 9, "UtilityBill / Water", evidence, [evidence])])
+            ]));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var facts = cut.Find("dl.wcf-facts").TextContent;
+            Assert.Contains("F-12", facts);
+            Assert.Contains("Water (WCF)", facts);
+            Assert.Contains("CT000101", facts);
+            foreach (var technical in new[] { "schemaVersion", "municipalityId", "utilityBillId", "ratePerCubicMeter", "{", "6b8e1a52" })
+                Assert.DoesNotContain(technical, cut.Markup);
+        }, Timeout);
+    }
+
     private static Mock<IWcfCollectionsApiClient> WcfApi(
         IReadOnlyList<WcfObligationQuoteDto>? quotes = null, IReadOnlyList<CashTicketDocumentDto>? tickets = null)
     {

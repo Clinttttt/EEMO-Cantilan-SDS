@@ -40,6 +40,15 @@ public sealed class AccountableFormsController(
         [FromBody] AssignAccountableFormBatchRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.AssignBatchAsync(request, ct));
 
+    /// <summary>
+    /// Previews or commits an automatic allocation of one book's unassigned, in-office units across collectors
+    /// (custody only; a commit re-validates custody against the confirmed preview).
+    /// </summary>
+    [HttpPost("auto-allocate")]
+    public async Task<ActionResult<AutoAllocatePlanDto>> AutoAllocateAsync(
+        [FromBody] AutoAllocateFormsRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.AutoAllocateAsync(request, ct));
+
     /// <summary>Moves assigned, unused units from one collector to another with a recorded reason (custody only).</summary>
     [HttpPost("transfer")]
     public async Task<ActionResult<int>> TransferAsync(

@@ -240,3 +240,230 @@
         grid-column: 1 / -1;
     }
 }
+
+/* ── V3 (2026-10-02): one horizontal action rail. The identity sits above it; on a narrower window the rail scrolls
+      sideways inside itself rather than wrapping into a second ragged row. Buttons keep their full tap size. ── */
+.af-page {
+    min-width: 0;
+}
+
+.af-page ::deep .wh,
+.af-page ::deep .wh-row,
+.af-page ::deep .wh-identity {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.af-page ::deep .wh-row {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.af-page ::deep .wh-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+}
+
+    .af-page ::deep .wh-actions > * {
+        flex: none;
+    }
+
+    .af-page ::deep .wh-actions .v3-btn {
+        padding-inline: 11px;
+        white-space: nowrap;
+    }
+
+.af-page ::deep .wh-actions {
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Below a wide desktop the icons give way so the eight actions keep one line; the labels carry the meaning. */
+@media (max-width: 1600px) {
+    .af-page ::deep .wh-actions .v3-btn > svg {
+        display: none;
+    }
+}
+
+/* Custody of the selected book, before anything else in the drawer. */
+.af-custody {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 12px 0 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+    .af-custody > div {
+        padding: 8px 10px;
+        border-left: 1px solid var(--border);
+    }
+
+        .af-custody > div:first-child {
+            border-left: 0;
+        }
+
+    .af-custody dt {
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+    }
+
+    .af-custody dd {
+        margin: 2px 0 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--navy);
+        font-variant-numeric: tabular-nums;
+    }
+
+.af-custody-office {
+    background: var(--accent-soft);
+}
+
+.af-empty-office {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface-blue-subtle);
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+    .af-empty-office p {
+        margin: 0 0 10px;
+    }
+
+.af-mode {
+    margin-top: 12px;
+}
+
+    .af-mode > .v3-btn[aria-pressed="true"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
+    }
+
+.af-auto-collectors {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+    .af-auto-collectors li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 40px;
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+    }
+
+.af-check {
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    cursor: pointer;
+}
+
+    .af-check input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+    }
+
+.af-auto-qty {
+    width: 110px;
+    margin: 0;
+}
+
+.af-strategy {
+    display: grid;
+    gap: 4px;
+    margin: 12px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+    .af-strategy legend {
+        margin-bottom: 4px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+.af-plan {
+    margin-top: 4px;
+}
+
+.af-muted {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 640px) {
+    .af-custody {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+        .af-custody > div:nth-child(4) {
+            border-left: 0;
+        }
+
+        .af-custody > div:nth-child(n + 4) {
+            border-top: 1px solid var(--border);
+        }
+}
+
+/* ── Action rail groups (2026-10-02 follow-up): form type + registration on the left; custody, remittance and the
+      primary Assign / Allocate pushed to the right edge of the same row by margin-left:auto. Below a laptop width the
+      two groups wrap deliberately (the right group stays right-aligned) instead of cramping their labels. ── */
+.af-page ::deep .wh-actions {
+    justify-content: flex-start;
+    align-items: center;
+    overflow-x: visible;
+}
+
+.af-rail-left,
+.af-rail-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+}
+
+.af-rail-right {
+    margin-left: auto;
+}
+
+@media (max-width: 1380px) {
+    .af-page ::deep .wh-actions {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+}
+
+@media (max-width: 720px) {
+    .af-rail-left,
+    .af-rail-right {
+        max-width: 100%;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .af-rail-right {
+        margin-left: 0;
+    }
+}

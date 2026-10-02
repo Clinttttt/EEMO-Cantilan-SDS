@@ -122,7 +122,7 @@ public class InitiateOnlinePaymentCommandHandler(
             new CreateCheckoutSessionRequest(
                 amount,
                 reference,
-                $"EEMO online payment · {record.PeriodKey}",
+                $"MEEDO online payment · {record.PeriodKey}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);
@@ -208,8 +208,8 @@ public class InitiateOnlinePaymentCommandHandler(
         // A part-month payment says how many days it covers, so the line on the gateway and on the office's own record
         // reads as what it is rather than as a month settled short.
         var description = request.Days is { } paidDays
-            ? $"EEMO online payment · NPM daily · {periodKey} · {paidDays} {(paidDays == 1 ? "day" : "days")}"
-            : $"EEMO online payment · NPM daily · {periodKey}";
+            ? $"MEEDO online payment · NPM daily · {periodKey} · {paidDays} {(paidDays == 1 ? "day" : "days")}"
+            : $"MEEDO online payment · NPM daily · {periodKey}";
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionRequest(
                 payable.Amount,
@@ -274,7 +274,7 @@ public class InitiateOnlinePaymentCommandHandler(
             new CreateCheckoutSessionRequest(
                 amount,
                 reference,
-                $"EEMO online payment · NPM utilities · {periodKey}",
+                $"MEEDO online payment · NPM utilities · {periodKey}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);
@@ -342,7 +342,7 @@ public class InitiateOnlinePaymentCommandHandler(
             new CreateCheckoutSessionRequest(
                 quote.Amount,
                 reference,
-                $"EEMO online payment · NPM fish · {day:yyyy-MM-dd}",
+                $"MEEDO online payment · NPM fish · {day:yyyy-MM-dd}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);
@@ -440,7 +440,7 @@ public class InitiateOnlinePaymentCommandHandler(
             new CreateCheckoutSessionRequest(
                 amount,
                 reference,
-                $"EEMO online payment · NPM fish · {periodKey} · {declarations.Count} days",
+                $"MEEDO online payment · NPM fish · {periodKey} · {declarations.Count} days",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

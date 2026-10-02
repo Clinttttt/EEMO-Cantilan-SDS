@@ -26,8 +26,8 @@ public class SignatureStripLoadOrderTests : TestContext
 {
     private static MunicipalityBrandingDto Branding(string? signatories) => new(
         Code: "CANTILAN", TenantCode: "cantilan", Name: "Cantilan", Province: "Surigao del Sur",
-        OfficeName: "Economic Enterprise & Management Office", SealPath: null,
-        Status: "Active", IsActive: true, OfficeAcronym: "EEMO", Address: null,
+        OfficeName: "Municipal Economic Enterprises Development Office", SealPath: null,
+        Status: "Active", IsActive: true, OfficeAcronym: "MEEDO", Address: null,
         ReportSignatories: signatories);
 
     /// <summary>Renders the strip while the branding call is still in flight, then lets it complete.</summary>

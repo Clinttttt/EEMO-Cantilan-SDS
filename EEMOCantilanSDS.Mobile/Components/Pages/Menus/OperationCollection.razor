@@ -76,6 +76,7 @@
                         {
                             GovernedServiceBasis.FixedAmount => "Approved amount",
                             GovernedServiceBasis.VehicleClassRate => "Approved rate",
+                            GovernedServiceBasis.ApprovedFeeOption => "Fee type",
                             _ => "Amount rule"
                         })</span>
                         <span class="op-facts-amount">@AmountHeadline(terms)</span>
@@ -120,6 +121,58 @@
                             @if (SelectedVehicleClass is { } chosenClass)
                             {
                                 <p class="op-form-note">Approved rate @Money(chosenClass.Amount) · set by the office, not editable here.</p>
+                            }
+                        }
+                        else if (terms.Basis == GovernedServiceBasis.ApprovedFeeOption)
+                        {
+                            @* The collector selects one approved fee type. A fixed type's amount is the office's and is shown
+                               read-only; only a direct-amount type takes a typed amount. Retired or unpriced types are never
+                               offered, and no fee name can be typed. *@
+                            var feeOptions = terms.FeeOptions ?? [];
+                            @if (feeOptions.Count == 0)
+                            {
+                                <div class="menu-state-card" role="status">No fee type is available today. Ask the office to set the approved fee types.</div>
+                            }
+                            else if (feeOptions.Count <= MaxFeeCards)
+                            {
+                                <div class="op-fees" role="radiogroup" aria-label="Fee type">
+                                    @foreach (var fee in feeOptions)
+                                    {
+                                        var chosen = fee.Id == _feeOption;
+                                        <label class="op-mode op-fee @(chosen ? "selected" : "")" @key="fee.Id">
+                                            <input type="radio" name="op-fee" checked="@chosen" @onchange="() => SelectFeeOption(fee.Id)" />
+                                            <span class="op-mode-title">@fee.Name</span>
+                                            @if (!string.IsNullOrWhiteSpace(fee.Location))
+                                            {
+                                                <span class="op-mode-sub">@fee.Location</span>
+                                            }
+                                            <span class="op-fee-amount">@FeeAmountText(fee)</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <MobileChoice Label="Fee type" Placeholder="Select fee type"
+                                              Options="@FeeChoices(terms)" Value="@(_feeOption?.ToString())"
+                                              ValueChanged="@(v => SelectFeeOption(Guid.TryParse(v, out var id) ? id : null))" />
+                            }
+                            @if (SelectedFeeOption is { Basis: GovernedServiceBasis.FixedAmount } fixedFee)
+                            {
+                                <div class="op-fee-fixed" aria-label="Amount">
+                                    <span class="form-label">Amount</span>
+                                    <span class="op-fee-fixed-value">@Money(fixedFee.Amount ?? 0m)</span>
+                                    <span class="op-form-note">Approved by the office · not editable here.</span>
+                                </div>
+                            }
+                            else if (SelectedFeeOption is { Basis: GovernedServiceBasis.DirectApprovedAmount } directFee)
+                            {
+                                <label class="form-field">
+                                    <span class="form-label">Amount received</span>
+                                    <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
+                                           max="@(directFee.MaximumAmount?.ToString(CultureInfo.InvariantCulture))"
+                                           placeholder="0.00" @bind="_amount" @bind:event="oninput" />
+                                </label>
                             }
                         }
                         else if (terms.Basis != GovernedServiceBasis.FixedAmount)
@@ -256,6 +309,19 @@
     private string? _reference;
     private Guid? _documentId;
     private string _vehicleClass = string.Empty;
+    private Guid? _feeOption;
+
+    // Up to this many approved fee types show as cards; more use the searchable sheet.
+    private const int MaxFeeCards = 6;
+
+    private FeeOptionTermDto? SelectedFeeOption => Variant?.Terms is { Basis: GovernedServiceBasis.ApprovedFeeOption } t
+        ? t.FeeOptions?.FirstOrDefault(f => f.Id == _feeOption) : null;
+
+    private void SelectFeeOption(Guid? id)
+    {
+        _feeOption = id;
+        _amount = 0m;
+    }
 
     private string Title => _entry?.Name ?? "Operation";
     private string Subtitle => _entry is { ModeAware: true } ? "Choose whole payment or daily transaction" : "Field collection";
@@ -283,6 +349,10 @@
     // Why the primary action is unavailable, in the collector's terms.
     private string? DisabledReason(GovernedServiceTermsDto terms) =>
         terms.Basis == GovernedServiceBasis.VehicleClassRate && SelectedVehicleClass is null ? "Select the vehicle class to continue."
+        : terms.Basis == GovernedServiceBasis.ApprovedFeeOption && SelectedFeeOption is null ? "Select the fee type to continue."
+        : SelectedFeeOption is { Basis: GovernedServiceBasis.DirectApprovedAmount } && _amount <= 0m ? "Enter the amount received to continue."
+        : SelectedFeeOption is { Basis: GovernedServiceBasis.DirectApprovedAmount, MaximumAmount: { } feeCap } && _amount > feeCap ? $"The amount cannot exceed {Money(feeCap)}."
+        : SelectedFeeOption is { Basis: GovernedServiceBasis.DirectApprovedAmount } && decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
         : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && _amount <= 0m ? "Enter the amount received to continue."
         : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && terms.MaximumAmount is { } cap && _amount > cap ? $"The amount cannot exceed {Money(cap)}."
         : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
@@ -292,6 +362,7 @@
     {
         GovernedServiceBasis.FixedAmount => Money(terms.FixedAmount ?? 0m),
         GovernedServiceBasis.VehicleClassRate => "By vehicle class",
+        GovernedServiceBasis.ApprovedFeeOption => "By fee type",
         _ => terms.MaximumAmount is { } ceiling ? $"As charged · up to {Money(ceiling)}" : "As charged",
     };
 
@@ -300,6 +371,13 @@
 
     private decimal ExpectedAmount => Variant?.Terms is { Basis: GovernedServiceBasis.VehicleClassRate }
         ? SelectedVehicleClass?.Amount ?? 0m
+        : Variant?.Terms is { Basis: GovernedServiceBasis.ApprovedFeeOption }
+        ? SelectedFeeOption switch
+        {
+            { Basis: GovernedServiceBasis.FixedAmount } fixedFee => fixedFee.Amount ?? 0m,
+            { Basis: GovernedServiceBasis.DirectApprovedAmount } => _amount,
+            _ => 0m
+        }
         : Variant?.Terms is { Basis: GovernedServiceBasis.FixedAmount } fixedTerms
         ? fixedTerms.FixedAmount ?? 0m : _amount;
 
@@ -308,7 +386,9 @@
         && SelectedDocument is not null && ExpectedAmount > 0m
         && decimal.Round(ExpectedAmount, 2, MidpointRounding.ToZero) == ExpectedAmount
         && (t.Basis != GovernedServiceBasis.DirectApprovedAmount || t.MaximumAmount is not { } ceiling || ExpectedAmount <= ceiling)
-        && (t.Basis != GovernedServiceBasis.VehicleClassRate || SelectedVehicleClass is not null);
+        && (t.Basis != GovernedServiceBasis.VehicleClassRate || SelectedVehicleClass is not null)
+        && (t.Basis != GovernedServiceBasis.ApprovedFeeOption || SelectedFeeOption is { } fee
+            && (fee.Basis != GovernedServiceBasis.DirectApprovedAmount || fee.MaximumAmount is not { } feeCeiling || ExpectedAmount <= feeCeiling));
 
     protected override async Task OnInitializedAsync()
     {
@@ -412,6 +492,7 @@
         _documentId = null;
         _amount = 0m;
         _vehicleClass = string.Empty;
+        _feeOption = null;
         _message = null;
     }
 
@@ -440,13 +521,14 @@
             PayerName = string.IsNullOrWhiteSpace(_payer) ? null : _payer.Trim(),
             Reference = string.IsNullOrWhiteSpace(_reference) ? null : _reference.Trim(),
             VehicleClassCode = terms.Basis == GovernedServiceBasis.VehicleClassRate ? _vehicleClass : null,
+            FeeOptionId = terms.Basis == GovernedServiceBasis.ApprovedFeeOption ? SelectedFeeOption?.Id : null,
             ReceivedAmount = amount,
             AccountableDocumentId = document.DocumentId,
             DocumentNumber = document.DocumentNumber,
             IssuedAtUtc = DateTime.UtcNow,
             FacilityLabel = Title,
             Title = string.IsNullOrWhiteSpace(_payer) ? Title : _payer!.Trim(),
-            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")}{(SelectedVehicleClass is { } vc ? " · " + vc.Name : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
+            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")}{(SelectedVehicleClass is { } vc ? " · " + vc.Name : "")}{(SelectedFeeOption is { } fo ? " · " + fo.Name : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
             Amount = amount
         };
 
@@ -468,6 +550,7 @@
                 _message = $"{InstrumentName(terms.Instrument)} issue is durably queued and awaiting synchronization.";
             _amount = 0m;
             _vehicleClass = string.Empty;
+            _feeOption = null;
             _documentId = null;
             _payer = null;
             _reference = null;
@@ -491,6 +574,15 @@
     private static IReadOnlyList<MobileChoice.Choice> VehicleChoices(GovernedServiceTermsDto terms) =>
         (terms.VehicleClasses ?? []).Select(v => new MobileChoice.Choice(v.Code, v.Name, Money(v.Amount))).ToList();
 
+    private static string FeeAmountText(FeeOptionTermDto fee) => fee.Basis == GovernedServiceBasis.FixedAmount
+        ? Money(fee.Amount ?? 0m)
+        : fee.MaximumAmount is { } ceiling ? $"Enter amount · up to {Money(ceiling)}" : "Enter amount";
+
+    // Each approved fee type with its rule as read-only detail; a retired or unpriced type is never offered.
+    private static IReadOnlyList<MobileChoice.Choice> FeeChoices(GovernedServiceTermsDto terms) =>
+        (terms.FeeOptions ?? []).Select(f => new MobileChoice.Choice(f.Id.ToString(),
+            string.IsNullOrWhiteSpace(f.Location) ? f.Name : $"{f.Name} · {f.Location}", FeeAmountText(f))).ToList();
+
     private static string ModeLabel(GovernedServiceMode? mode) =>
         mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
 
@@ -501,6 +593,7 @@
     {
         GovernedServiceBasis.FixedAmount => $"{Money(terms.FixedAmount ?? 0m)} (fixed)",
         GovernedServiceBasis.VehicleClassRate => "Approved rate by vehicle class",
+        GovernedServiceBasis.ApprovedFeeOption => "Approved amount by fee type",
         _ => terms.MaximumAmount is { } ceiling ? $"As charged, up to {Money(ceiling)}" : "As charged"
     };
 

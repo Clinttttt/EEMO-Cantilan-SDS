@@ -111,6 +111,10 @@ public sealed class PendingOperation
     // approved rate for that class, so no price is ever stored or trusted here.
     public string? VehicleClassCode { get; set; }
 
+    // Approved fee option services (e.g. Market Fees): the fee option the collector selected. No amount rule is stored or
+    // trusted here; the server resolves the option's rule in force on the business date.
+    public Guid? FeeOptionId { get; set; }
+
     // ── WCF direct entry: the selected source (StallId above) and its billing period. The amount the collector stated is
     //    ReceivedAmount; the ticket is AccountableDocumentId. All four stay bound to one ClientOperationId across restarts.
     public int? BillingYear { get; set; }
@@ -187,5 +191,6 @@ public sealed class PendingOperation
         Reference,
         VehicleClassCode,
         BillingYear,
-        BillingMonth);
+        BillingMonth,
+        FeeOptionId);
 }

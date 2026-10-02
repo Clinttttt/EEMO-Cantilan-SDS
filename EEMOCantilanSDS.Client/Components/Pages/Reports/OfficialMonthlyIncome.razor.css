@@ -224,19 +224,14 @@
     background: var(--surface-muted);
 }
 
-.omi-notes {
-    margin: 14px 0 0;
-    padding-left: 18px;
-    font-size: 0.75rem;
-    line-height: 1.55;
-    color: var(--text-secondary);
-}
-
-/* Paper: A4 landscape via the print helper (10 mm × 12 mm padding leaves 273 mm). Fixed column widths share that line
-   among all sixteen columns, so Total and Percentage are never clipped, and one year fits one sheet. */
+/* Paper: A4 landscape via the print helper (body padding 10 mm × 12 mm leaves 273 × 190 mm). ONE sheet for the full
+   standard statement: a slim letterhead, a line column wide enough that line names stay on one line (wrapped names were
+   what pushed Fines and the totals onto a second page), month columns sized to their amounts, and compact rows. The
+   type stays at a legible 7 pt (6 pt column headings). Column widths sum to 268.2 mm, inside the printable line. */
 @media print {
     .omi-page {
         gap: 0;
+        padding: 0;
     }
 
     .omi-sheet {
@@ -247,23 +242,23 @@
     }
 
     .omi-head {
-        gap: 5mm;
+        gap: 4mm;
     }
 
     .omi-seal,
     .omi-bp {
-        width: 17mm;
-        height: 17mm;
+        width: 14mm;
+        height: 14mm;
     }
 
     .omi-head-text p {
-        font-size: 9pt;
-        line-height: 1.3;
+        font-size: 8.5pt;
+        line-height: 1.25;
     }
 
     .omi-office {
-        margin: 2.5mm 0 3mm;
-        font-size: 10.5pt;
+        margin: 1.5mm 0 2.5mm;
+        font-size: 10pt;
     }
 
     .omi-scroll {
@@ -274,25 +269,22 @@
         width: 100%;
         min-width: 0;
         table-layout: fixed;
-        font-size: 6.4pt;
-        letter-spacing: -0.01em;
+        font-size: 7pt;
+        line-height: 1.25;
     }
 
         .omi-table th,
         .omi-table td {
-            padding: 0.8mm 0.8mm;
+            padding: 0.9mm 0.7mm;
             overflow: hidden;
         }
 
         .omi-table thead th {
-            padding: 1mm 0.6mm;
-            font-size: 5.8pt;
+            padding: 1mm 0.5mm;
+            font-size: 6pt;
             letter-spacing: 0;
+            white-space: normal;
         }
-
-    .omi-section th {
-        font-size: 6.6pt;
-    }
 
         .omi-table thead {
             display: table-header-group;
@@ -303,10 +295,14 @@
             break-inside: avoid;
         }
 
-    .omi-col-line { width: 31mm; }
-    .omi-col-wide { width: 18mm; }
-    .omi-col-month { width: 16mm; }
-    .omi-col-pct { width: 13.6mm; }
+    .omi-section th {
+        font-size: 7pt;
+    }
+
+    .omi-col-line { width: 54mm; }
+    .omi-col-wide { width: 17mm; }
+    .omi-col-month { width: 14.1mm; }
+    .omi-col-pct { width: 11mm; }
 
     .omi-line,
     .omi-section th,
@@ -317,12 +313,6 @@
 
     .omi-group th {
         padding-left: 1.6mm;
-    }
-
-    .omi-notes {
-        margin-top: 2.5mm;
-        font-size: 6.5pt;
-        line-height: 1.4;
     }
 
     .omi-group th,

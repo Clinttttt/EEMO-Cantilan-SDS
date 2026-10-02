@@ -2109,6 +2109,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("SubmissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("SubmissionSequence")
+                        .HasColumnType("integer");
+
                     b.Property<string>("VoidReason")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
@@ -2126,6 +2132,14 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("MunicipalityId", "CollectorId", "RemittanceDate");
+
+                    b.HasIndex("MunicipalityId", "SubmissionId", "CollectorId")
+                        .IsUnique()
+                        .HasFilter("\"SubmissionId\" IS NOT NULL");
+
+                    b.HasIndex("MunicipalityId", "SubmissionId", "SubmissionSequence")
+                        .IsUnique()
+                        .HasFilter("\"SubmissionId\" IS NOT NULL");
 
                     b.ToTable("CollectionRemittances", null, t =>
                         {
@@ -2312,6 +2326,108 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceFeeOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("GovernedServiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RetiredBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly?>("RetiredFrom")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "GovernedServiceId", "Code")
+                        .IsUnique()
+                        .HasFilter("\"Code\" IS NOT NULL");
+
+                    b.ToTable("GovernedServiceFeeOptions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GovernedServiceFeeOptions_Code", "\"Code\" IS NULL OR \"Code\" ~ '^[A-Z][A-Z0-9_]{1,39}$'");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceFeeOptionRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Basis")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FeeOptionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("FixedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("MaximumAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "FeeOptionId", "EffectiveDate");
+
+                    b.ToTable("GovernedServiceFeeOptionRates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GovernedServiceFeeOptionRates_AmountShape", "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)))");
+
+                            t.HasCheckConstraint("CK_GovernedServiceFeeOptionRates_Basis", "\"Basis\" IN (1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceSetting", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2358,9 +2474,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.ToTable("GovernedServiceSettings", null, t =>
                         {
-                            t.HasCheckConstraint("CK_GovernedServiceSettings_AmountShape", "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)) OR (\"Basis\" = 3 AND \"FixedAmount\" IS NULL AND \"MaximumAmount\" IS NULL))");
+                            t.HasCheckConstraint("CK_GovernedServiceSettings_AmountShape", "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)) OR (\"Basis\" IN (3, 4) AND \"FixedAmount\" IS NULL AND \"MaximumAmount\" IS NULL))");
 
-                            t.HasCheckConstraint("CK_GovernedServiceSettings_Basis", "\"Basis\" IN (1, 2, 3)");
+                            t.HasCheckConstraint("CK_GovernedServiceSettings_Basis", "\"Basis\" IN (1, 2, 3, 4)");
                         });
                 });
 
@@ -4559,6 +4675,26 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceFeeOption", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedService", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "GovernedServiceId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceFeeOptionRate", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedServiceFeeOption", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "FeeOptionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

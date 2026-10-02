@@ -1,6 +1,7 @@
 @page "/operations/ecf"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
@@ -24,6 +25,10 @@
                 <a class="v3-btn" href="/operations/ecf/accounts">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
                     Accounts
+                </a>
+                <a class="v3-btn" href="/operations/ecf/statements">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                    Statements
                 </a>
                 <a class="v3-btn" href="/operations/ecf/report">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
@@ -186,7 +191,7 @@
                             {
                                 <li>
                                     <div class="ecf-line-head">
-                                        <span>@line.ClassificationName</span>
+                                        <span>@SourceNames.Name(line.ClassificationName)</span>
                                         <span class="ecf-line-amount">@Money(line.Amount)</span>
                                     </div>
                                     @foreach (var allocation in line.Allocations ?? [])
@@ -255,7 +260,7 @@
                                         @foreach (var line in activity.Lines)
                                         {
                                             <li>
-                                                <span><strong>@line.ClassificationName</strong> — @Money(line.Amount)</span>
+                                                <span><strong>@SourceNames.Name(line.ClassificationName)</strong> — @Money(line.Amount)</span>
                                                 <span class="v3-muted">@MonthName(line.BillingMonth) @line.BillingYear · @line.Allocation</span>
                                                 <span class="v3-muted">@SnapshotSummary(line.CalculationSnapshot)</span>
                                             </li>

@@ -47,11 +47,6 @@
     }
     else
     {
-        @if (!_data.TargetsConfigured)
-        {
-            <p class="mi-legend">Annual targets are not configured, so the target and percentage columns show “—”. Percentage is year-to-date actual ÷ annual target, not collection efficiency.</p>
-        }
-
         <div class="mi-scroll @(Annual ? "mi-annual" : "mi-monthly")" role="region" aria-label="Monthly Income statement" tabindex="0">
             @{ _letter = 0; }
             <table class="mi-table">

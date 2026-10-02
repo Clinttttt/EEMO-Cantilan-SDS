@@ -465,8 +465,8 @@
     // Whether the seal shown actually belongs to the municipality named beside it. False only when an LGU has no seal of
     // its own, in which case the slot is left out rather than filled with StallTrack's mark under the LGU's name.
     bool HasOwnSeal => SealPath != NeutralSealPath;
-    string OfficeAcronym = "EEMO";
-    string OfficeName = "Economic Enterprise and Management Office";
+    string OfficeAcronym = "MEEDO";
+    string OfficeName = "Municipal Economic Enterprises Development Office";
     // True for Cantilan (the default LGU) or before any LGU resolves — keeps Cantilan's building-photo
     // backdrop byte-for-byte. Set false for any other LGU so its panel uses a neutral backdrop instead of
     // Cantilan's building photo (which carries "Municipality of Cantilan" signage).
@@ -562,8 +562,8 @@
             : isCantilan ? DefaultSealPath : NeutralSealPath;
         MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
         OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
-            : isCantilan ? "EEMO" : MunicipalityName;
-        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+            : isCantilan ? "MEEDO" : MunicipalityName;
+        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Municipal Economic Enterprises Development Office" : b.OfficeName;
     }
 
     // Snapshot the resolved branding so it survives the prerender → interactive handoff (no Cantilan flash).
@@ -589,8 +589,8 @@
         _isDefaultBrand = true;
         SealPath = DefaultSealPath;
         MunicipalityName = "Cantilan";
-        OfficeAcronym = "EEMO";
-        OfficeName = "Economic Enterprise and Management Office";
+        OfficeAcronym = "MEEDO";
+        OfficeName = "Municipal Economic Enterprises Development Office";
     }
 
     protected override async Task OnInitializedAsync()

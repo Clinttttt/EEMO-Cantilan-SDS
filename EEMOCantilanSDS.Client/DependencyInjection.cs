@@ -138,6 +138,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IFacilitiesApiClient, FacilitiesApiClient>(configuration);
             service.AddApiHttpClient<IDashboardApiClient, DashboardApiClient>(configuration);
             service.AddApiHttpClient<ITransactionsApiClient, TransactionsApiClient>(configuration);
+            service.AddApiHttpClient<ICollectionActivityApiClient, CollectionActivityApiClient>(configuration);
             service.AddApiHttpClient<IPayorApiClient, PayorApiClient>(configuration);
             service.AddApiHttpClient<IOnlinePaymentsApiClient, OnlinePaymentsApiClient>(configuration);
             service.AddApiHttpClient<IAuditApiClient, AuditApiClient>(configuration);

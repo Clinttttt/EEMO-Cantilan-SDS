@@ -43,10 +43,22 @@ public sealed class RemittanceWorkspaceTests : TestContext
         Services.AddSingleton(_api.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        _api.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
-                It.IsAny<RevenueInstrumentType?>(), It.IsAny<RemittanceStatus?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success([]));
+        ServeHistory();
     }
+
+    private void ServeHistory(params RemittanceHistoryRowDto[] rows) =>
+        _api.Setup(x => x.GetHistoryAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
+                It.IsAny<RevenueInstrumentType?>(), It.IsAny<RemittanceStatus?>()))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceHistoryRowDto>>.Success(rows));
+
+    private static RemittanceHistoryMemberDto Member(string name, decimal expected = 100m, decimal remitted = 100m,
+        RemittanceStatus status = RemittanceStatus.Recorded) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), name, 2, expected, remitted, expected - remitted, status);
+
+    private static RemittanceHistoryRowDto HistoryRow(string status = "Recorded", params RemittanceHistoryMemberDto[] members) => new(
+        members.Length > 1 ? Guid.NewGuid() : null, members[0].RemittanceId, new DateOnly(2026, 10, 2), null,
+        members.Sum(x => x.CollectionCount), members.Sum(x => x.ExpectedAmount), members.Sum(x => x.RemittedAmount),
+        members.Sum(x => x.DifferenceAmount), status, DateTime.UtcNow, null, members);
 
     private static AccountabilityPositionDto Position(decimal collected = 20000m, decimal remitted = 20000m, int onHand = 9275) => new(
         new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), collected, remitted, collected - remitted, 0, 0m,
@@ -90,11 +102,20 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("₱20,000.00", summary);
             Assert.Contains("Unremitted", summary);
             var row = Assert.Single(cut.FindAll("[aria-label='Collector position'] tbody tr"));
-            Assert.Contains("725 issued", row.TextContent);
-            Assert.Contains("9275 on hand", row.TextContent);
+            Assert.Contains("9,275", row.TextContent);          // CT on hand: a count, grouped like one
+            Assert.DoesNotContain("assigned ·", row.TextContent); // no audit sentence in the register row
             // Remaining tickets are never presented as an amount of money.
             Assert.DoesNotContain("₱9,275", cut.Markup);
-            Assert.Contains("does not wait for them to be used", cut.Markup);
+            Assert.DoesNotContain("Legacy-authoritative collections cannot be covered exactly", cut.Markup);
+        }, Timeout);
+
+        // The full counts are one click away, not permanently in the table.
+        cut.FindAll("[aria-label='Collector position'] button").Single(b => b.TextContent.Contains("View accountability")).Click();
+        cut.WaitForAssertion(() =>
+        {
+            var forms = cut.Find("table[aria-label='Form accountability for Ana Reyes']").TextContent;
+            Assert.Contains("10,000", forms);
+            Assert.Contains("725", forms);
         }, Timeout);
     }
 
@@ -118,18 +139,25 @@ public sealed class RemittanceWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var breakdown = cut.Find("[aria-label='Collection breakdown']").TextContent;
-            Assert.Contains("Market Fees", breakdown);
-            Assert.Contains("Landing/Berthing", breakdown);
-            Assert.Contains("₱80.00", breakdown);
-            Assert.Contains("Nothing here is retyped", cut.Markup);
+            var table = cut.Find("[aria-label='Collections to cover for Ana Reyes']").TextContent;
+            Assert.Contains("Market Fees", table);
+            Assert.Contains("Landing/Berthing", table);
+            Assert.Contains("Revenue source", table);
+            Assert.Contains("₱80.00", table);
+            Assert.DoesNotContain("Nothing here is retyped", cut.Markup);
         }, Timeout);
 
         // A shortfall stays visible as a difference and is flagged for review; an excess is called out.
         cut.Find($"{form} input[type='number']").Change("70");
-        cut.WaitForAssertion(() => Assert.Contains("Difference ₱10.00", cut.Find("p.rm-diff").TextContent), Timeout);
+        cut.WaitForAssertion(() =>
+        {
+            var reconcile = cut.Find("dl.rm-reconcile").TextContent;
+            Assert.Contains("₱10.00", reconcile);
+            Assert.Contains("Short · for review", reconcile);
+        }, Timeout);
         cut.Find($"{form} input[type='number']").Change("90");
-        cut.WaitForAssertion(() => Assert.Contains("cannot exceed", cut.Find("p.rm-diff").TextContent), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("Over expected", cut.Find("dl.rm-reconcile").TextContent), Timeout);
+        Assert.True(cut.Find($"{form} button[type='submit']").HasAttribute("disabled"));
         cut.Find($"{form} input[type='number']").Change("70");
         cut.Find(form).Submit();
 
@@ -144,17 +172,11 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void HistoryListsRemittances_WithTheirDifference_AndLinksToTheirDetail()
+    public void HistoryListsRemittances_WithTheirDifference_AndLinksToTheirViewAndPrint()
     {
         ServePosition(Position());
-        var id = Guid.NewGuid();
-        _api.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
-                It.IsAny<RevenueInstrumentType?>(), It.IsAny<RemittanceStatus?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success(new[]
-            {
-                new RemittanceRowDto(id, new DateOnly(2026, 9, 30), CollectorId, "Ana Reyes", RevenueInstrumentType.CashTicket, 3,
-                    110m, 100m, 10m, "ACK-1", RemittanceStatus.Recorded, DateTime.UtcNow)
-            }));
+        var ana = Member("Ana Reyes", 110m, 100m);
+        ServeHistory(HistoryRow("Needs review", ana));
 
         var cut = RenderComponent<Remittances>();
 
@@ -163,7 +185,86 @@ public sealed class RemittanceWorkspaceTests : TestContext
             var row = Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr"));
             Assert.Contains("₱10.00", row.TextContent);
             Assert.Contains("Needs review", row.TextContent);
-            Assert.Equal($"/accountable-forms/remittances/{id}", row.QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal($"/accountable-forms/remittances/{ana.RemittanceId}", row.QuerySelector("a")!.GetAttribute("href"));
+            var actions = row.QuerySelectorAll(".rm-row-action a").Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).ToList();
+            Assert.Equal(("View", $"/accountable-forms/remittances/{ana.RemittanceId}"), actions[0]);
+            Assert.Equal(("Print", $"/accountable-forms/remittances/{ana.RemittanceId}?print=1"), actions[1]);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void OneCollectorShowsTheFullNameOnly_TwoShowPlusOne_ThreeShowPlusTwo_AndThePlusOpensTheWholeList()
+    {
+        ServePosition(Position());
+        var one = HistoryRow("Recorded", Member("Bobby Mercado", 313m, 313m));
+        var two = HistoryRow("Recorded", Member("Bobby Mercado", 313m, 313m), Member("Cian Consigna", 200m, 200m));
+        var three = HistoryRow("Recorded", Member("Bobby Mercado", 313m, 313m), Member("Cian Consigna", 200m, 200m), Member("Dina Dela Cruz", 100m, 100m));
+        ServeHistory(one, two, three);
+
+        var cut = RenderComponent<Remittances>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("[aria-label='Remittance history'] tbody tr");
+            Assert.Equal(3, rows.Count);
+            Assert.Equal("Bobby Mercado", rows[0].QuerySelector(".rm-collector-cell")!.TextContent.Trim());
+            Assert.Empty(rows[0].QuerySelectorAll(".rm-more"));
+            Assert.Equal("+1", rows[1].QuerySelector(".rm-more")!.TextContent.Trim());
+            Assert.StartsWith("Bobby Mercado", rows[1].QuerySelector(".rm-collector-cell")!.TextContent.Trim());
+            Assert.DoesNotContain("Cian Consigna", rows[1].TextContent);     // never concatenated into the cell
+            Assert.Equal("+2", rows[2].QuerySelector(".rm-more")!.TextContent.Trim());
+            Assert.Contains("₱513.00", rows[1].TextContent);                  // the sum of the two independent records
+            // A submission opens its own report; a single remittance opens its own.
+            Assert.Equal($"/accountable-forms/remittances/group/{two.SubmissionId}", rows[1].QuerySelector("a")!.GetAttribute("href"));
+        }, Timeout);
+
+        cut.FindAll("[aria-label='Remittance history'] tbody tr")[2].QuerySelector(".rm-more")!.Click();
+        cut.WaitForAssertion(() =>
+        {
+            var members = cut.Find("ul[aria-label='Collectors in this remittance']").TextContent;
+            Assert.Contains("Bobby Mercado", members);
+            Assert.Contains("Cian Consigna", members);
+            Assert.Contains("Dina Dela Cruz", members);
+            Assert.Contains("₱100.00", members);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AGroupWithOneVoidedCollector_SaysPartlyVoided_RatherThanRecorded()
+    {
+        ServePosition(Position());
+        ServeHistory(HistoryRow("Partly voided", Member("Bobby Mercado"), Member("Cian Consigna", status: RemittanceStatus.Voided)));
+
+        var cut = RenderComponent<Remittances>();
+
+        cut.WaitForAssertion(() =>
+            Assert.Contains("Partly voided", Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr")).TextContent), Timeout);
+    }
+
+    [Fact]
+    public void TheSubmissionReport_ListsEveryCollector_WithTheirOwnCollections_AndTheCombinedTotal()
+    {
+        var bobby = Detail(80m, 80m);
+        var cian = Detail(40m, 35m) with { Row = Detail(40m, 35m).Row with { CollectorName = "Cian Consigna", Id = Guid.NewGuid() } };
+        var submission = Guid.NewGuid();
+        var report = new RemittanceSubmissionDto(submission, new DateOnly(2026, 10, 2), new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
+            RevenueInstrumentType.CashTicket, "office", 4, 120m, 115m, 5m, "Needs review", [bobby, cian]);
+        _api.Setup(x => x.GetSubmissionAsync(submission)).ReturnsAsync(Result<RemittanceSubmissionDto>.Success(report));
+
+        var cut = RenderComponent<RemittanceSubmission>(p => p.Add(x => x.SubmissionId, submission));
+
+        cut.WaitForAssertion(() =>
+        {
+            var summary = cut.Find("[aria-label='Collector summary']");
+            var rows = summary.QuerySelectorAll("tbody tr");
+            Assert.Equal(2, rows.Length);
+            Assert.Contains("Ana Reyes", rows[0].TextContent);
+            Assert.Contains("Cian Consigna", rows[1].TextContent);
+            Assert.Contains("₱35.00", rows[1].TextContent);
+            Assert.Contains("₱5.00", rows[1].TextContent);
+            Assert.Contains("₱115.00", summary.QuerySelector("tfoot")!.TextContent);
+            Assert.Equal(2, cut.FindAll("section[aria-label^='Collections covered for']").Count);
+            Assert.DoesNotContain(submission.ToString(), cut.Markup);
         }, Timeout);
     }
 

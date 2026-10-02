@@ -1,0 +1,218 @@
+/* V3 hero: one solid civic-blue band (--civic-panel). White text on it meets AA; separators and the icon tile are
+   translucent white. Balanced horizontally on desktop; identity and figures stack on narrow widths. */
+.v3h {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 32px;
+    margin-bottom: 20px;
+    padding: 18px 24px;
+    border-radius: 10px;
+    background: var(--civic-panel);
+    color: #ffffff;
+    overflow: hidden;
+}
+
+.v3h-compact {
+    padding: 14px 20px;
+    margin-bottom: 16px;
+}
+
+.v3h-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.v3h-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.v3h-compact .v3h-icon {
+    width: 40px;
+    height: 40px;
+}
+
+    .v3h-icon ::deep svg {
+        width: 22px;
+        height: 22px;
+        stroke: #ffffff;
+        fill: none;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .v3h-icon ::deep img {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        object-fit: contain;
+        background: #ffffff;
+    }
+
+.v3h-text {
+    min-width: 0;
+}
+
+.v3h-eyebrow {
+    margin-bottom: 2px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.v3h-title {
+    margin: 0;
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #ffffff;
+}
+
+/* FocusOnNavigate moves focus to the page h1 (tabindex -1) for screen readers; it is not an interactive control, so it
+   shows no focus ring. */
+.v3h-title:focus {
+    outline: none;
+}
+
+.v3h-compact .v3h-title {
+    font-size: 1.1875rem;
+}
+
+.v3h-sub {
+    margin-top: 3px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.v3h-figures {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    margin: 0;
+}
+
+    .v3h-figures ::deep .v3h-figure {
+        padding: 0 22px;
+        border-left: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+        .v3h-figures ::deep .v3h-figure:first-child {
+            padding-left: 0;
+            border-left: 0;
+        }
+
+.v3h-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+    .v3h-actions ::deep a,
+    .v3h-actions ::deep button {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+        font: inherit;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+
+        .v3h-actions ::deep a:hover,
+        .v3h-actions ::deep button:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .v3h-actions ::deep a:focus-visible,
+        .v3h-actions ::deep button:focus-visible {
+            outline: 2px solid #ffffff;
+            outline-offset: 2px;
+        }
+
+.v3h-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.v3h-progress-fill {
+    height: 100%;
+    background: #ffffff;
+}
+
+@media (max-width: 1100px) {
+    .v3h-figures ::deep .v3h-figure {
+        padding: 0 14px;
+    }
+}
+
+@media (max-width: 700px) {
+    .v3h {
+        padding: 16px;
+        gap: 14px;
+    }
+
+    .v3h-figures {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+        .v3h-figures ::deep .v3h-figure,
+        .v3h-figures ::deep .v3h-figure:first-child {
+            padding: 0;
+            border-left: 0;
+        }
+
+    .v3h-title {
+        font-size: 1.125rem;
+    }
+}
+
+@media print {
+    .v3h {
+        background: none;
+        color: var(--navy);
+        border: 1px solid var(--border);
+    }
+
+    .v3h-title,
+    .v3h-eyebrow,
+    .v3h-sub {
+        color: var(--navy);
+    }
+
+    .v3h-actions,
+    .v3h-progress {
+        display: none;
+    }
+}

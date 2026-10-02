@@ -33,57 +33,33 @@
 
         <div class="content-area">
 
-                <!-- Vendor Hero Banner — Page-level overview (all facilities) -->
-                <div class="vs-hero">
-                    <div class="vs-hero-left">
-                        <div class="vs-hero-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                <circle cx="9" cy="7" r="4" />
-                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="vs-hero-eyebrow">Spaces &amp; Occupants</div>
-                            <div class="vs-hero-title">Occupancy Registry</div>
-                            <div class="vs-hero-sub">Municipality of @Branding.Municipality, @Branding.Province</div>
-                        </div>
-                    </div>
-                    <div class="vs-hero-stats">
-                        <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(RegistryData?.TotalVendors ?? 0)</div>
-                            <div class="vs-hero-key">Total Spaces</div>
-                            <div class="vs-hero-sub2">@(RegistryData?.ActiveVendors ?? 0) active · @(RegistryData?.ClosedVendors ?? 0) closed</div>
-                        </div>
-                        <div class="vs-hero-divider"></div>
-                        <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(RegistryData?.PaidThisMonth ?? 0)</div>
-                            <div class="vs-hero-key">Paid This Month</div>
-                            <div class="vs-hero-sub2">out of @(RegistryData?.MonthlyBillableVendors ?? 0) billable spaces</div>
-                        </div>
-                        <div class="vs-hero-divider"></div>
-                        <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(RegistryData?.UnpaidCount ?? 0)</div>
-                            <div class="vs-hero-key">Unpaid</div>
-                            <div class="vs-hero-sub2">@((RegistryData?.TotalOutstanding ?? 0).ToString("N0")) outstanding@(RegistryData is { PartialCount: > 0 } ? $" · {RegistryData.PartialCount} partial" : "")</div>
-                        </div>
-                        <div class="vs-hero-divider"></div>
-                        <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@((RegistryData?.MonthlyTarget ?? 0).ToString("N0"))</div>
-                            <div class="vs-hero-key">Monthly Target</div>
-                            <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy") · Monthly-rent facilities</div>
-                        </div>
-                    </div>
-                    <div class="vs-hero-progress">
-                        @{
-                            var allActive = RegistryData?.MonthlyBillableVendors ?? 0;
-                            var allPaid = RegistryData?.PaidThisMonth ?? 0;
-                            var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
-                        }
-                        <div class="vs-hero-progress-fill" style="@($"width: {overallRate}%;")"></div>
-                    </div>
-                </div>
+                <!-- Occupancy Registry hero: the shared civic-blue V3 band (all facilities) -->
+                @{
+                    var allActive = RegistryData?.MonthlyBillableVendors ?? 0;
+                    var allPaid = RegistryData?.PaidThisMonth ?? 0;
+                    var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
+                }
+                <V3Hero Eyebrow="Spaces &amp; Occupants" Title="Occupancy Registry"
+                        Subtitle="@($"Municipality of {Branding.Municipality}, {Branding.Province}")" Progress="overallRate">
+                    <Icon>
+                        <svg viewBox="0 0 24 24">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                    </Icon>
+                    <Figures>
+                        <V3HeroFigure Label="Total spaces" Value="@((RegistryData?.TotalVendors ?? 0).ToString())"
+                                      Note="@($"{RegistryData?.ActiveVendors ?? 0} active · {RegistryData?.ClosedVendors ?? 0} closed")" />
+                        <V3HeroFigure Label="Paid this month" Value="@((RegistryData?.PaidThisMonth ?? 0).ToString())"
+                                      Note="@($"of {RegistryData?.MonthlyBillableVendors ?? 0} billable spaces")" />
+                        <V3HeroFigure Label="Unpaid" Value="@((RegistryData?.UnpaidCount ?? 0).ToString())"
+                                      Note="@($"₱{(RegistryData?.TotalOutstanding ?? 0):N0} outstanding{(RegistryData is { PartialCount: > 0 } ? $" · {RegistryData.PartialCount} partial" : "")}")" />
+                        <V3HeroFigure Label="Monthly target" Value="@($"₱{(RegistryData?.MonthlyTarget ?? 0):N0}")"
+                                      Note="@($"{_now:MMMM yyyy} · monthly-rent facilities")" />
+                    </Figures>
+                </V3Hero>
 
                 <!-- Toolbar (Single Row) -->
                 <div class="vs-toolbar-unified">

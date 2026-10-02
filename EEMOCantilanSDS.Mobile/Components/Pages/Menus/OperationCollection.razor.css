@@ -475,3 +475,43 @@
     box-shadow: inset 0 0 0 1px var(--mobile-blue);
     background: var(--mobile-blue-subtle);
 }
+
+/* Fee type cards: the same selectable-card language as the mode choice, one column so long names read in full. */
+.op-fees {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.op-fee {
+    position: relative;
+    padding-right: 120px;
+}
+
+.op-fee-amount {
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    max-width: 104px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.op-fee-fixed {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 12px;
+}
+
+.op-fee-fixed-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
+}

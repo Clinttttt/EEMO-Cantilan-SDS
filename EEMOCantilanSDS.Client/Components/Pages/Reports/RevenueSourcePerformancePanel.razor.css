@@ -7,6 +7,7 @@
     overflow: hidden;
 }
 
+/* The source selector sits at the right edge of the header, level with the title block. */
 .rsp-head {
     display: flex;
     flex-wrap: nowrap;

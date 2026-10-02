@@ -105,8 +105,8 @@
 
 /* ── Section heading ── */
 .rpt-section-heading { display: flex; align-items: center; gap: 12px; padding: 0 0 4px; }
-.rpt-section-rule { flex: 1; height: 1px; background: var(--border); }
-.rpt-section-heading h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); white-space: nowrap; margin: 0; }
+.rpt-section-rule { display: block; width: 4px; height: 18px; background: var(--gold); border-radius: 2px; }
+.rpt-section-heading h2 { font-size: 15px; font-weight: 700; color: var(--navy); white-space: nowrap; margin: 0; }
 
 /* ── Audit row ── */
 .rpt-audit-row { display: grid; grid-template-columns: 1.4fr 1.6fr; gap: 16px; align-items: start; }

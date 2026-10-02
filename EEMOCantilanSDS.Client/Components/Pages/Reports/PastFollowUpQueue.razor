@@ -1,5 +1,6 @@
 @page "/reports/follow-up/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Client.Components.Shared
 @using System.Globalization
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
@@ -80,59 +81,28 @@
                 : _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
     }
 
-    <!-- Hero + section-count summary (same as the live queue) -->
-    <div class="fh-hero">
-        <div class="fh-hero-left">
-            <div class="fh-hero-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" />
-                </svg>
-            </div>
-            <div>
-                <div class="fh-hero-eyebrow">Follow-up · History</div>
-                <div class="fh-hero-title">Whole-time History</div>
-                <div class="fh-hero-sub">@asOfLabel</div>
-            </div>
-        </div>
-        <div class="fh-hero-stats">
+    <!-- Hero + section-count summary (same family as the live queue) -->
+    <V3Hero Eyebrow="Follow-up · History" Title="Whole-time History" Subtitle="@asOfLabel">
+        <Icon>
+            <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
+        </Icon>
+        <Figures>
             @if (closedScope)
             {
                 @* A closed account needs nothing "immediately" — it ended. So the register's own two figures stand
                    here instead of the urgency bands, which describe a period this view does not have. *@
-                <div class="fh-stat">
-                    <div class="fh-stat-val">@summary.Count</div>
-                    <div class="fh-stat-key">Inactive accounts</div>
-                </div>
-                <div class="fh-hero-divider"></div>
-                <div class="fh-stat">
-                    <div class="fh-stat-val">@summary.Count(r => r.Amount > 0m)</div>
-                    <div class="fh-stat-key">With a balance</div>
-                </div>
+                <V3HeroFigure Label="Inactive accounts" Value="@summary.Count.ToString()" />
+                <V3HeroFigure Label="With a balance" Value="@summary.Count(r => r.Amount > 0m).ToString()" />
             }
             else
             {
-            <div class="fh-stat">
-                <div class="fh-stat-val fh-stat-critical">@summary.Count(r => r.Section == 1)</div>
-                <div class="fh-stat-key">Immediate</div>
-            </div>
-            <div class="fh-hero-divider"></div>
-            <div class="fh-stat">
-                <div class="fh-stat-val">@summary.Count(r => r.Section == 2)</div>
-                <div class="fh-stat-key">This period</div>
-            </div>
-            <div class="fh-hero-divider"></div>
-            <div class="fh-stat">
-                <div class="fh-stat-val">@summary.Count(r => r.Section == 3)</div>
-                <div class="fh-stat-key">Verify</div>
-            </div>
-            <div class="fh-hero-divider"></div>
-            <div class="fh-stat">
-                <div class="fh-stat-val">@summary.Count(r => r.Section == 4)</div>
-                <div class="fh-stat-key">Operational</div>
-            </div>
+                <V3HeroFigure Label="Immediate" Value="@summary.Count(r => r.Section == 1).ToString()" />
+                <V3HeroFigure Label="This period" Value="@summary.Count(r => r.Section == 2).ToString()" />
+                <V3HeroFigure Label="Verify" Value="@summary.Count(r => r.Section == 3).ToString()" />
+                <V3HeroFigure Label="Operational" Value="@summary.Count(r => r.Section == 4).ToString()" />
             }
-        </div>
-    </div>
+        </Figures>
+    </V3Hero>
 
     <!-- Filter bar (same as the live queue). Reason chips on the left, period picker pinned right. -->
     <div class="fh-filterbar">
