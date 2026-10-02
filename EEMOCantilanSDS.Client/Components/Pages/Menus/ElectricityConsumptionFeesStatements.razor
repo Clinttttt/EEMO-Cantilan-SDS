@@ -1,0 +1,83 @@
+@page "/operations/ecf/statements"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@inject IEcfCollectionsApiClient Api
+
+<PageTitle>StallTrack — Electricity Consumption Fees Statements</PageTitle>
+
+@* Statements of account for ECF, owned by the ECF workspace (no dependency on the NPM utility view). Read from the
+   same server obligation read as the ECF workspace; nothing here is calculated, recorded or collected. The layout
+   owns the <main> landmark. *@
+<div class="v3-page">
+    <div class="no-print">
+        <WorkspaceHeader Parent="Electricity Consumption Fees" ParentHref="/operations/ecf" Title="ECF Statements" Code="ECF">
+            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+            <Actions>
+                <label class="v3-period">
+                    <span>Billing month</span>
+                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+                </label>
+                <a class="v3-btn" href="/operations/ecf">ECF workspace</a>
+            </Actions>
+        </WorkspaceHeader>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="no-print" role="alert">
+            <p class="v3-notice v3-notice-error">@_error</p>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+    else if (_loading)
+    {
+        <p role="status" class="no-print">Loading statements…</p>
+    }
+    else
+    {
+        <UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fee (ECF)" InstrumentName="Official Receipt"
+                           PeriodLabel="@PeriodLabel" Lines="@_lines" />
+    }
+</div>
+
+@code {
+    private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    private List<UtilityStatements.StatementLine> _lines = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            _period = parsed;
+            _monthInput = parsed.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetObligationsAsync(_period.Year, _period.Month);
+            if (!result.IsSuccess) { _lines = []; _error = "The statements couldn't be loaded."; return; }
+            _lines = (result.Value ?? []).Select(q => new UtilityStatements.StatementLine(
+                q.StallId, q.StallNo, q.Section, q.PayerNameSnapshot ?? "Payer snapshot unavailable",
+                q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount)).ToList();
+        }
+        catch { _lines = []; _error = "The statements couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+}
