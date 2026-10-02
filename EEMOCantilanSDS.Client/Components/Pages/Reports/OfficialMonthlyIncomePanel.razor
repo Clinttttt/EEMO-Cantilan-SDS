@@ -166,18 +166,6 @@
             </table>
         </div>
 
-        <ul class="mi-notes">
-            @if (HasPendingAmounts)
-            {
-                <li>Total income includes the lines awaiting an approved official grouping, listed separately above.</li>
-            }
-            @foreach (var note in _data.Notes.Where(n => _data.TargetsConfigured || !n.StartsWith("No annual target", StringComparison.Ordinal)))
-            {
-                <li>@note</li>
-            }
-            <li>Prepared from posted collections and authoritative source records; this statement does not replace the office's signed report.</li>
-        </ul>
-
         @* Reconciliation is for audit: it shows how each figure splits between legacy cash before a source's cutover and
            canonical cash after it. The normal statement shows one authoritative amount. *@
         @if (!Annual)
