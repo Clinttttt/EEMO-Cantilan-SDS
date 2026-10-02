@@ -3,7 +3,7 @@
 .gsw-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    align-items: start;
+    align-items: stretch;
     gap: 20px;
 }
 

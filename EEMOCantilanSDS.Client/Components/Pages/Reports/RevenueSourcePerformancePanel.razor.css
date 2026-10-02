@@ -7,15 +7,26 @@
     overflow: hidden;
 }
 
-/* The source selector sits with the title, on the left, as part of the register's navigation. */
+/* The source selector sits at the right edge of the header, level with the title block. */
 .rsp-head {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px 28px;
+    gap: 20px;
     padding: 18px 22px 14px;
     border-bottom: 1px solid var(--border);
+}
+
+.rsp-head > :first-child {
+    min-width: 0;
+}
+
+.rsp-filter {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    min-width: 200px;
+    margin-left: auto;
 }
 
 .rsp-title {
@@ -29,11 +40,6 @@
     margin-top: 2px;
     font-size: 0.8125rem;
     color: var(--text-secondary);
-}
-
-.rsp-filter {
-    min-width: 200px;
-    margin-left: auto;   /* the filter sits at the right edge of the header, level with the title block */
 }
 
 .rsp-state {
@@ -218,4 +224,17 @@
     border-bottom: 0;
     font-weight: 700;
     color: var(--navy);
+}
+
+@media (max-width: 720px) {
+    .rsp-head {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .rsp-filter {
+        width: 100%;
+        margin-left: 0;
+        justify-content: flex-start;
+    }
 }

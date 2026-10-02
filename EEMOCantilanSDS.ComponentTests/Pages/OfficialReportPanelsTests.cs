@@ -74,7 +74,9 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
             // No annual target is configured, so none is shown and attainment is not fabricated.
             Assert.DoesNotContain("%", table.QuerySelector("tbody")!.TextContent);
-            Assert.Contains("does not replace the office", cut.Markup);
+            // The statement carries no explanatory footer notes (V3 removed them); the figures stand on their own.
+            Assert.Empty(cut.FindAll("ul.mi-notes"));
+            Assert.DoesNotContain("does not replace the office", cut.Markup);
         }, Timeout);
     }
 
