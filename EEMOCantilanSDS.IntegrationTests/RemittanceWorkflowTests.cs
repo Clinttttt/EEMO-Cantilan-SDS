@@ -291,17 +291,26 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var w = await SeedAsync();
         await PostThreeAsync(w);
 
-        async Task<bool> TryAsync()
+        // Four independent requests race for the same three collections. A competing write (a unique-coverage violation or a
+        // PostgreSQL deadlock victim, which EF may report wrapped in its "transient failure" InvalidOperationException) is a
+        // normal outcome: it must come back as a Conflict result, never escape as an exception.
+        async Task<Result<RemittanceDetailDto>> TryAsync()
         {
             await using var ctx = db.CreateContext(w.Tenant.Id);
-            return (await Remit(ctx, w).RecordAsync(Request(w, 110m))).IsSuccess;
+            return await Remit(ctx, w).RecordAsync(Request(w, 110m));
         }
         var results = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(TryAsync)));
 
         await using var verify = db.CreateContext(w.Tenant.Id);
-        Assert.Equal(1, results.Count(x => x));
+        Assert.Equal(1, results.Count(x => x.IsSuccess));
+        Assert.All(results.Where(x => !x.IsSuccess), x => Assert.Equal(ResultStatus.Conflict, x.Status));
         Assert.Equal(1, await verify.CollectionRemittances.CountAsync());
-        Assert.Equal(3, await verify.CollectionRemittanceCoverages.CountAsync(x => x.IsActive));
+        var coverage = await verify.CollectionRemittanceCoverages.AsNoTracking().Where(x => x.IsActive).ToListAsync();
+        Assert.Equal(3, coverage.Count);
+        Assert.Equal(3, coverage.Select(x => x.CollectionId).Distinct().Count());
+        Assert.Equal(3, await verify.Collections.CountAsync());      // no duplicate or lost collection
+        Assert.Equal(3, await verify.CollectionLines.CountAsync());
+        Assert.Equal(110m, await verify.CollectionLines.SumAsync(x => x.Amount));
     }
 
     [SkippableFact]
@@ -717,10 +726,12 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         await using var first = db.CreateContext(w.Tenant.Id);
         await using var second = db.CreateContext(w.Tenant.Id);
 
-        var results = await Task.WhenAll(
-            Remit(first, w).RecordBatchAsync(new RecordRemittanceBatchRequest([
-                RequestFor(w.Collector.Id, 110m, "B-A"), RequestFor(ben.Id, 110m, "B-B")])).ContinueWith(t => t.Result.IsSuccess),
-            Remit(second, w).RecordAsync(RequestFor(ben.Id, 110m, "S-B")).ContinueWith(t => t.Result.IsSuccess));
+        var batch = Remit(first, w).RecordBatchAsync(new RecordRemittanceBatchRequest([
+            RequestFor(w.Collector.Id, 110m, "B-A"), RequestFor(ben.Id, 110m, "B-B")]));
+        var single = Remit(second, w).RecordAsync(RequestFor(ben.Id, 110m, "S-B"));
+        await Task.WhenAll(batch, single);                        // neither side lets a deadlock or transient failure escape
+        var results = new[] { batch.Result.IsSuccess, single.Result.IsSuccess };
+        Assert.All(new[] { batch.Result.Status, single.Result.Status }, st => Assert.True(st is ResultStatus.Ok or ResultStatus.Conflict, st.ToString()));
 
         Assert.Contains(true, results);
         await using var check = db.CreateContext(w.Tenant.Id);

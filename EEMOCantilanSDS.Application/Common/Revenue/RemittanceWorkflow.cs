@@ -53,7 +53,7 @@ public sealed class RemittanceWorkflow(
             var remittance = prepared.Remittance!;
             var fingerprint = remittance.IntentFingerprint;
             try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException)
+            catch (Exception ex) when (IsCompetingWrite(ex))
             {
                 db.ChangeTracker.Clear();
                 // Either a concurrent retry with this identity won, or another remittance took one of these collections.
@@ -97,9 +97,29 @@ public sealed class RemittanceWorkflow(
                 ids.Add(prepared.PriorId ?? prepared.Remittance!.Id);
             }
             try { await db.SaveChangesAsync(ct); }
-            catch (DbUpdateException)
+            catch (Exception ex) when (IsCompetingWrite(ex))
             {
                 db.ChangeTracker.Clear();
+                // An identical batch that won the race is the same outcome (idempotent); anything else is a conflict.
+                var winners = new List<Guid>(items.Count);
+                foreach (var item in items)
+                {
+                    var prior = await db.CollectionRemittances.AsNoTracking().SingleOrDefaultAsync(x =>
+                        x.MunicipalityId == actor.TenantId && x.ClientOperationId == item.ClientOperationId, ct);
+                    if (prior is null || prior.IntentFingerprint != Fingerprint(actor, item)) { winners.Clear(); break; }
+                    winners.Add(prior.Id);
+                }
+                if (winners.Count == items.Count)
+                {
+                    var resolved = new List<RemittanceDetailDto>(winners.Count);
+                    foreach (var id in winners)
+                    {
+                        var detail = await DetailAsync(actor.TenantId, id, ct);
+                        if (!detail.IsSuccess) return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(detail.Error ?? "A remittance could not be read back.", detail.Status);
+                        resolved.Add(detail.Value!);
+                    }
+                    return Result<IReadOnlyList<RemittanceDetailDto>>.Success(resolved);
+                }
                 return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
                     "A collection was remitted by another record while these were being saved. Nothing was recorded; reload and review again.",
                     ResultStatus.Conflict);
@@ -538,7 +558,20 @@ public sealed class RemittanceWorkflow(
         if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
             return Result<T>.Forbidden();
         try { return await action(new Actor(tenantId, currentUser.Username ?? "Office User", userId.ToString("N"))); }
-        catch (DbUpdateException) { return Result<T>.Failure("The remittance conflicts with another saved transaction.", ResultStatus.Conflict); }
+        catch (Exception ex) when (IsCompetingWrite(ex)) { return Result<T>.Failure("The remittance conflicts with another saved transaction.", ResultStatus.Conflict); }
+    }
+
+    /// <summary>
+    /// True when a save failed because another transaction wrote at the same time (a unique-coverage violation, a deadlock
+    /// victim, a serialization failure). EF reports those as a <see cref="DbUpdateException"/>, but may wrap it (for example
+    /// in its "likely due to a transient failure" InvalidOperationException), so the whole exception chain is inspected
+    /// rather than only the outermost type. No provider type or message text is matched.
+    /// </summary>
+    private static bool IsCompetingWrite(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+            if (current is DbUpdateException) return true;
+        return false;
     }
 
     private sealed record Actor(Guid TenantId, string Username, string ActorId);
