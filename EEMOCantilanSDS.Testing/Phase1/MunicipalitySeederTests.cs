@@ -28,8 +28,8 @@ public class MunicipalitySeederTests : RepositoryTestBase
         Assert.True(cantilan.IsDefault);
         Assert.True(cantilan.IsActive);
         Assert.Equal("Surigao del Sur", cantilan.Province);
-        Assert.Equal("EEMO", cantilan.OfficeAcronym);
-        Assert.Contains("Economic Enterprise", cantilan.OfficeName);
+        Assert.Equal("MEEDO", cantilan.OfficeAcronym);
+        Assert.Equal("Municipal Economic Enterprises Development Office", cantilan.OfficeName);
 
         // Exactly one default LGU.
         Assert.Single(all, m => m.IsDefault);

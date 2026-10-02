@@ -199,7 +199,7 @@ else
         h.Status == PaymentStatus.Unpaid ? h.TotalBill : h.AmountPaid;
 
     // A paid record with no OR yet = online payment whose Official Receipt hasn't been encoded by staff.
-    // The receipt shows as a provisional acknowledgment until EEMO encodes the OR.
+    // The receipt shows as a provisional acknowledgment until the office encodes the OR.
     private static bool AwaitingOr(PaymentHistoryDto h) =>
         h.Status == PaymentStatus.Paid && string.IsNullOrWhiteSpace(h.ORNumber);
 

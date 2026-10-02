@@ -103,8 +103,8 @@
     const string NeutralSealPath = "/images/stalltrack-seal.png";
     string SealPath = DefaultSealPath;
     string MunicipalityName = "Cantilan";
-    string OfficeAcronym = "EEMO";
-    string OfficeName = "Economic Enterprise and Management Office";
+    string OfficeAcronym = "MEEDO";
+    string OfficeName = "Municipal Economic Enterprises Development Office";
     bool _isDefaultBrand = true;
     string LguParam = string.Empty;
 
@@ -187,8 +187,8 @@
             : isCantilan ? DefaultSealPath : NeutralSealPath;
         MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
         OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
-            : isCantilan ? "EEMO" : MunicipalityName;
-        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+            : isCantilan ? "MEEDO" : MunicipalityName;
+        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Municipal Economic Enterprises Development Office" : b.OfficeName;
     }
 
     void GoToLogin() =>

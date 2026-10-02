@@ -135,16 +135,6 @@
         flex-shrink: 0;
     }
 
-.facility-alert-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--red);
-    margin-left: auto;
-    flex-shrink: 0;
-    box-shadow: 0 0 0 3px var(--red-bg);
-}
-
 .facility-card-stats {
     display: flex;
     gap: 0;

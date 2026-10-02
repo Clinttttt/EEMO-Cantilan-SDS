@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Testing.Tenancy
     /// <summary>
     /// Authenticated "my LGU" branding: resolves the caller's municipality from the tenant context
     /// (the JWT municipality claim) and returns its office label/acronym + seal. Cantilan's acronym is
-    /// "EEMO" — the same literal the current UI hardcodes — so binding it changes nothing for Cantilan.
+    /// "MEEDO" (Municipal Economic Enterprises Development Office).
     /// </summary>
     public class GetCurrentMunicipalityBrandingTests
     {
@@ -34,8 +34,8 @@ namespace EEMOCantilanSDS.Testing.Tenancy
             ctx.Municipalities.Add(Municipality.Create(
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
                 tenantCode: "cantilan-sds",
-                officeName: "Economic Enterprise and Management Office (EEMO)",
-                officeAcronym: "EEMO", isDefault: true));
+                officeName: "Municipal Economic Enterprises Development Office",
+                officeAcronym: "MEEDO", isDefault: true));
             ctx.Municipalities.Add(Municipality.Create(
                 "CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active,
                 tenantCode: "carmen", officeName: "Carmen Economic Enterprise Office", officeAcronym: "CEEO"));
@@ -55,7 +55,7 @@ namespace EEMOCantilanSDS.Testing.Tenancy
 
             Assert.True(result.IsSuccess);
             Assert.Equal("CANTILAN", result.Value!.Code);
-            Assert.Equal("EEMO", result.Value.OfficeAcronym);
+            Assert.Equal("MEEDO", result.Value.OfficeAcronym);
         }
 
         [Fact]
