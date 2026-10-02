@@ -84,9 +84,13 @@ public sealed class RemittanceWorkflow(
                 return Result<IReadOnlyList<RemittanceDetailDto>>.Failure(
                     "Each collector appears once in a batch, each with its own operation identity.", ResultStatus.Invalid);
             var ids = new List<Guid>(items.Count);
+            // Grouping only: one id for the submission and each collector's position in it. A single collector is not a group.
+            Guid? submissionId = items.Count > 1 ? Guid.NewGuid() : null;
+            var sequence = 0;
             foreach (var item in items)
             {
-                var prepared = await PrepareAsync(actor, item, ct);
+                sequence++;
+                var prepared = await PrepareAsync(actor, item, ct, submissionId, submissionId is null ? null : sequence);
                 if (prepared.Failure is { } failure)
                 {
                     db.ChangeTracker.Clear();
@@ -143,7 +147,8 @@ public sealed class RemittanceWorkflow(
     /// Validates one request against posted collections and adds the new remittance and its coverage to the context
     /// without saving. A request already recorded with the same intent resolves to that record (idempotent retry).
     /// </summary>
-    private async Task<PreparedRemittance> PrepareAsync(Actor actor, RecordRemittanceRequest request, CancellationToken ct)
+    private async Task<PreparedRemittance> PrepareAsync(
+        Actor actor, RecordRemittanceRequest request, CancellationToken ct, Guid? submissionId = null, int? submissionSequence = null)
     {
         static PreparedRemittance Fail(string error, ResultStatus status) =>
             new(Result<RemittanceDetailDto>.Failure(error, status), null, null);
@@ -194,7 +199,7 @@ public sealed class RemittanceWorkflow(
             remittance = CollectionRemittance.Record(actor.TenantId, request.CollectorId, request.RemittanceDate,
                 request.From, request.To, request.Instrument, expected, request.AmountRemitted, chosen.Count,
                 request.Reference, request.Remarks, request.ClientOperationId, fingerprint, actor.Username,
-                actor.ActorId, UtcNow);
+                actor.ActorId, UtcNow, submissionId, submissionSequence);
         }
         catch (ArgumentException ex)
         {
@@ -242,6 +247,67 @@ public sealed class RemittanceWorkflow(
             var rows = await query.OrderByDescending(x => x.RemittanceDate).ThenByDescending(x => x.RecordedAtUtc).ToListAsync(ct);
             var names = await CollectorNamesAsync(actor.TenantId, rows.Select(x => x.CollectorId).Distinct().ToArray(), ct);
             return Result<IReadOnlyList<RemittanceRowDto>>.Success(rows.Select(x => ToRow(x, names)).ToList());
+        }, ct);
+
+    /// <summary>
+    /// The History register: remittances saved from one multi-collector submission appear as one row (members in submission
+    /// order), every other remittance as its own row. Filters apply to the independent remittances first, so a row's figures
+    /// are exactly the sum of the members shown. Grouping reads and writes no money.
+    /// </summary>
+    public Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetHistoryAsync(
+        DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, RemittanceStatus? status,
+        CancellationToken ct = default) =>
+        Run<IReadOnlyList<RemittanceHistoryRowDto>>(async actor =>
+        {
+            if (Validate(from, to) is { } problem) return Result<IReadOnlyList<RemittanceHistoryRowDto>>.Failure(problem, ResultStatus.Invalid);
+            var query = db.CollectionRemittances.AsNoTracking().Where(x =>
+                x.MunicipalityId == actor.TenantId && x.RemittanceDate >= from && x.RemittanceDate <= to);
+            if (collectorId is { } c) query = query.Where(x => x.CollectorId == c);
+            if (instrument is { } i) query = query.Where(x => x.Instrument == i);
+            if (status is { } s) query = query.Where(x => x.Status == s);
+            var rows = await query.ToListAsync(ct);
+            var names = await CollectorNamesAsync(actor.TenantId, rows.Select(x => x.CollectorId).Distinct().ToArray(), ct);
+            var grouped = rows
+                .GroupBy(x => x.SubmissionId is { } sid ? (object)sid : x.Id)
+                .Select(g =>
+                {
+                    var members = g.OrderBy(x => x.SubmissionSequence ?? 0).ThenBy(x => x.RecordedAtUtc).ThenBy(x => x.Id).ToList();
+                    var first = members[0];
+                    return new RemittanceHistoryRowDto(first.SubmissionId, first.Id, first.RemittanceDate,
+                        members.Select(x => x.Instrument).Distinct().Count() == 1 ? first.Instrument : null,
+                        members.Sum(x => x.CollectionCount), members.Sum(x => x.ExpectedAmount), members.Sum(x => x.RemittedAmount),
+                        members.Sum(x => x.DifferenceAmount), GroupStatus(members), members.Max(x => x.RecordedAtUtc),
+                        members.Count == 1 ? first.Reference : null,
+                        members.Select(x => new RemittanceHistoryMemberDto(x.Id, x.CollectorId,
+                            names.GetValueOrDefault(x.CollectorId, "Collector"), x.CollectionCount, x.ExpectedAmount,
+                            x.RemittedAmount, x.DifferenceAmount, x.Status)).ToList());
+                })
+                .OrderByDescending(x => x.RemittanceDate).ThenByDescending(x => x.RecordedAtUtc).ThenBy(x => x.PrimaryRemittanceId)
+                .ToList();
+            return Result<IReadOnlyList<RemittanceHistoryRowDto>>.Success(grouped);
+        }, ct);
+
+    /// <summary>The report of one multi-collector submission: each collector's own remittance and the combined totals.</summary>
+    public Task<Result<RemittanceSubmissionDto>> GetSubmissionAsync(Guid submissionId, CancellationToken ct = default) =>
+        Run<RemittanceSubmissionDto>(async actor =>
+        {
+            var members = await db.CollectionRemittances.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.TenantId && x.SubmissionId == submissionId)
+                .OrderBy(x => x.SubmissionSequence).ThenBy(x => x.Id).ToListAsync(ct);
+            if (members.Count == 0) return Result<RemittanceSubmissionDto>.NotFound();
+            var details = new List<RemittanceDetailDto>(members.Count);
+            foreach (var member in members)
+            {
+                var detail = await DetailAsync(actor.TenantId, member.Id, ct);
+                if (!detail.IsSuccess) return Result<RemittanceSubmissionDto>.Failure(detail.Error ?? "A remittance could not be read.", detail.Status);
+                details.Add(detail.Value!);
+            }
+            var first = members[0];
+            return Result<RemittanceSubmissionDto>.Success(new RemittanceSubmissionDto(submissionId, first.RemittanceDate,
+                members.Min(x => x.PeriodFrom), members.Max(x => x.PeriodTo),
+                members.Select(x => x.Instrument).Distinct().Count() == 1 ? first.Instrument : null, first.RecordedBy,
+                members.Sum(x => x.CollectionCount), members.Sum(x => x.ExpectedAmount), members.Sum(x => x.RemittedAmount),
+                members.Sum(x => x.DifferenceAmount), GroupStatus(members), details));
         }, ct);
 
     public Task<Result<RemittanceDetailDto>> GetDetailAsync(Guid id, CancellationToken ct = default) =>
@@ -529,7 +595,13 @@ public sealed class RemittanceWorkflow(
 
     private static RemittanceRowDto ToRow(CollectionRemittance x, Dictionary<Guid, string> names) => new(
         x.Id, x.RemittanceDate, x.CollectorId, names.GetValueOrDefault(x.CollectorId, "Collector"), x.Instrument,
-        x.CollectionCount, x.ExpectedAmount, x.RemittedAmount, x.DifferenceAmount, x.Reference, x.Status, x.RecordedAtUtc);
+        x.CollectionCount, x.ExpectedAmount, x.RemittedAmount, x.DifferenceAmount, x.Reference, x.Status, x.RecordedAtUtc,
+        x.SubmissionId);
+
+    private static string GroupStatus(IReadOnlyCollection<CollectionRemittance> members) =>
+        members.All(x => x.Status == RemittanceStatus.Voided) ? "Voided"
+        : members.Any(x => x.Status == RemittanceStatus.Voided) ? "Partly voided"
+        : members.Any(x => x.NeedsReview) ? "Needs review" : "Recorded";
 
     private static string? Validate(DateOnly from, DateOnly to) =>
         from > to || to.DayNumber - from.DayNumber > 366 ? "Choose a valid period of no more than 367 days." : null;

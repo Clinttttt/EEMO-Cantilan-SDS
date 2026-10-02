@@ -1,0 +1,82 @@
+/* Utility statements — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.us-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text);
+    font-size: 0.8125rem;
+}
+
+.us-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+}
+
+.us-action {
+    text-align: right;
+}
+
+.us-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* The statement sheets exist for paper only. */
+.us-sheets {
+    display: none;
+}
+
+.us-sheet {
+    padding: 0 0 8mm;
+    break-after: page;
+}
+
+.us-sheet:last-child {
+    break-after: auto;
+}
+
+.us-table {
+    width: 100%;
+    margin-top: 6mm;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.us-table th,
+.us-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.us-table thead th {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.us-table tfoot th,
+.us-table tfoot td {
+    border-top: 2px solid var(--navy);
+    border-bottom: 0;
+    font-weight: 600;
+}
+
+.us-table .us-num {
+    text-align: right;
+}
+
+.us-note {
+    margin: 6mm 0 10mm;
+    font-size: 0.8125rem;
+}
+
+@media print {
+    .us-sheets {
+        display: block;
+    }
+}
