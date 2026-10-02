@@ -227,6 +227,24 @@ public class PendingOperationStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Market_fee_issue_carries_the_selected_fee_option_to_the_wire_without_an_amount_rule()
+    {
+        var store = new PendingOperationStore(_dir);
+        var option = Guid.NewGuid();
+        var op = IssuedGovernedOp("MARKET_FEES");
+        op.FeeOptionId = option;
+        op.PayerName = null; // a walk-up sale needs no payer
+        await store.AddIssuedDocumentOperationAsync(op);
+
+        var persisted = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+        Assert.Equal(option, persisted.FeeOptionId);
+        var dto = persisted.ToDto();
+        Assert.Equal(option, dto.FeeOptionId);
+        Assert.Null(dto.PayerName);
+        Assert.Null(dto.VehicleClassCode);
+    }
+
+    [Fact]
     public async Task A_WCF_Cash_Ticket_is_never_available_a_second_time_and_the_wire_carries_no_meter_or_rate_facts()
     {
         var store = new PendingOperationStore(_dir);

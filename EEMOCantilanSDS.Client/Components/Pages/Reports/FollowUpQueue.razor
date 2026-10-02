@@ -1,6 +1,7 @@
 @page "/reports/follow-up"
 @page "/monitoring/follow-up"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
@@ -63,39 +64,18 @@
 <div class="content-area">
 
     <!-- Hero + queue summary -->
-    <div class="fq-hero">
-        <div class="fq-hero-left">
-            <div class="fq-hero-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
-            </div>
-            <div>
-                <div class="fq-hero-eyebrow">@Branding.OfficeAcronym Admin · Work queue</div>
-                <div class="fq-hero-title">Follow-up Queue</div>
-                <div class="fq-hero-sub">As of @AsOf.ToString("MMMM d, yyyy") · @PeriodLabel</div>
-            </div>
-        </div>
-        <div class="fq-hero-stats">
-            <div class="fq-stat">
-                <div class="fq-stat-val">@SectionTotal(1)</div>
-                <div class="fq-stat-key">Action required</div>
-            </div>
-            <div class="fq-hero-divider"></div>
-            <div class="fq-stat">
-                <div class="fq-stat-val">@SectionTotal(2)</div>
-                <div class="fq-stat-key">This period</div>
-            </div>
-            <div class="fq-hero-divider"></div>
-            <div class="fq-stat">
-                <div class="fq-stat-val">@SectionTotal(3)</div>
-                <div class="fq-stat-key">Verify</div>
-            </div>
-            <div class="fq-hero-divider"></div>
-            <div class="fq-stat">
-                <div class="fq-stat-val">@SectionTotal(4)</div>
-                <div class="fq-stat-key">Operational</div>
-            </div>
-        </div>
-    </div>
+    <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Work queue")" Title="Follow-up Queue"
+            Subtitle="@($"As of {AsOf:MMMM d, yyyy} · {PeriodLabel}")">
+        <Icon>
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+        </Icon>
+        <Figures>
+            <V3HeroFigure Label="Action required" Value="@SectionTotal(1).ToString()" />
+            <V3HeroFigure Label="This period" Value="@SectionTotal(2).ToString()" />
+            <V3HeroFigure Label="Verify" Value="@SectionTotal(3).ToString()" />
+            <V3HeroFigure Label="Operational" Value="@SectionTotal(4).ToString()" />
+        </Figures>
+    </V3Hero>
 
     <!-- Filter choices + search -->
     <div class="fq-filterbar">

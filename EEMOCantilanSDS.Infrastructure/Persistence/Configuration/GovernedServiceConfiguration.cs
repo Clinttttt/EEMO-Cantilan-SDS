@@ -32,12 +32,12 @@ public sealed class GovernedServiceSettingConfiguration : IEntityTypeConfigurati
     {
         builder.ToTable("GovernedServiceSettings", table =>
         {
-            table.HasCheckConstraint("CK_GovernedServiceSettings_Basis", "\"Basis\" IN (1, 2, 3)");
+            table.HasCheckConstraint("CK_GovernedServiceSettings_Basis", "\"Basis\" IN (1, 2, 3, 4)");
             table.HasCheckConstraint(
                 "CK_GovernedServiceSettings_AmountShape",
                 "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) " +
                 "OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)) " +
-                "OR (\"Basis\" = 3 AND \"FixedAmount\" IS NULL AND \"MaximumAmount\" IS NULL))");
+                "OR (\"Basis\" IN (3, 4) AND \"FixedAmount\" IS NULL AND \"MaximumAmount\" IS NULL))");
         });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Basis).HasConversion<int>().IsRequired();
@@ -124,6 +124,59 @@ public sealed class VehicleClassRateConfiguration : IEntityTypeConfiguration<Veh
 
         builder.HasOne<VehicleClass>().WithMany()
             .HasForeignKey(x => new { x.MunicipalityId, x.VehicleClassId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class GovernedServiceFeeOptionConfiguration : IEntityTypeConfiguration<GovernedServiceFeeOption>
+{
+    public void Configure(EntityTypeBuilder<GovernedServiceFeeOption> builder)
+    {
+        builder.ToTable("GovernedServiceFeeOptions", table =>
+            table.HasCheckConstraint("CK_GovernedServiceFeeOptions_Code", "\"Code\" IS NULL OR \"Code\" ~ '^[A-Z][A-Z0-9_]{1,39}$'"));
+        builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
+        builder.Property(x => x.Code).HasMaxLength(40);
+        builder.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.Location).HasMaxLength(80);
+        builder.Property(x => x.Description).HasMaxLength(300);
+        builder.Property(x => x.RetiredBy).HasMaxLength(100);
+        builder.Property(x => x.CreatedAtUtc).IsRequired();
+        builder.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        // An internal reference, when given, identifies one option of one service.
+        builder.HasIndex(x => new { x.MunicipalityId, x.GovernedServiceId, x.Code }).IsUnique().HasFilter("\"Code\" IS NOT NULL");
+
+        builder.HasOne<GovernedService>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.GovernedServiceId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class GovernedServiceFeeOptionRateConfiguration : IEntityTypeConfiguration<GovernedServiceFeeOptionRate>
+{
+    public void Configure(EntityTypeBuilder<GovernedServiceFeeOptionRate> builder)
+    {
+        builder.ToTable("GovernedServiceFeeOptionRates", table =>
+        {
+            table.HasCheckConstraint("CK_GovernedServiceFeeOptionRates_Basis", "\"Basis\" IN (1, 2)");
+            table.HasCheckConstraint(
+                "CK_GovernedServiceFeeOptionRates_AmountShape",
+                "((\"Basis\" = 1 AND \"FixedAmount\" IS NOT NULL AND \"FixedAmount\" > 0 AND \"MaximumAmount\" IS NULL) " +
+                "OR (\"Basis\" = 2 AND \"FixedAmount\" IS NULL AND (\"MaximumAmount\" IS NULL OR \"MaximumAmount\" > 0)))");
+        });
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Basis).HasConversion<int>().IsRequired();
+        builder.Property(x => x.FixedAmount).HasPrecision(18, 2);
+        builder.Property(x => x.MaximumAmount).HasPrecision(18, 2);
+        builder.Property(x => x.EffectiveDate).IsRequired();
+        builder.Property(x => x.CreatedAtUtc).IsRequired();
+        builder.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        builder.HasIndex(x => new { x.MunicipalityId, x.FeeOptionId, x.EffectiveDate });
+
+        builder.HasOne<GovernedServiceFeeOption>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.FeeOptionId })
             .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
             .OnDelete(DeleteBehavior.Restrict);
     }

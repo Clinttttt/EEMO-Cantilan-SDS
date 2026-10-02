@@ -58,8 +58,8 @@
                     var allCount = ActiveStalls.Count();
                     var allUnpaid = ActiveStalls.Count(s => !s.PaidToday && !s.AbsentToday);
                 }
-                <div class="npm-sec-tab @(ActiveSection == "All" ? "active" : "")"
-                     @onclick='() => SetSection("All")'>
+                <div class="npm-sec-tab @(ActiveSection == "All" ? "active" : "")" role="button" tabindex="0"
+                     @onclick='() => SetSection("All")' @onkeydown='e => { if (e.Key is "Enter" or " ") SetSection("All"); }'>
                     <div class="npm-sec-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
                     </div>
@@ -76,8 +76,8 @@
                 {
                     var count = StallsBySection(secs.Key).Count();
                     var unpaid = StallsBySection(secs.Key).Count(s => !s.PaidToday && !s.AbsentToday);
-                    <div class="npm-sec-tab @(ActiveSection == secs.Key ? "active" : "")"
-                         @onclick="() => SetSection(secs.Key)">
+                    <div class="npm-sec-tab @(ActiveSection == secs.Key ? "active" : "")" role="button" tabindex="0"
+                         @onclick="() => SetSection(secs.Key)" @onkeydown='e => { if (e.Key is "Enter" or " ") SetSection(secs.Key); }'>
                         <div class="npm-sec-icon">@((MarkupString)secs.Value.Icon)</div>
                         <div class="npm-sec-info">
                             <div class="npm-sec-name">@FacilityCatalog.SectionLabelOf(FacilityCode.NPM, secs.Key)</div>
@@ -95,8 +95,8 @@
                 {
                     var custCount = StallsBySection(cs.Name).Count();
                     var custUnpaid = StallsBySection(cs.Name).Count(s => !s.PaidToday && !s.AbsentToday);
-                    <div class="npm-sec-tab @(ActiveSection == cs.Name ? "active" : "")"
-                         @onclick="() => SetSection(cs.Name)">
+                    <div class="npm-sec-tab @(ActiveSection == cs.Name ? "active" : "")" role="button" tabindex="0"
+                         @onclick="() => SetSection(cs.Name)" @onkeydown='e => { if (e.Key is "Enter" or " ") SetSection(cs.Name); }'>
                         <div class="npm-sec-icon">@((MarkupString)CustomSectionIconSvg)</div>
                         <div class="npm-sec-info">
                             <div class="npm-sec-name">@cs.Name</div>

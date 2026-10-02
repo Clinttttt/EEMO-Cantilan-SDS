@@ -240,4 +240,112 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             CollectorOperationCodes.MarketFees, new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 31)), Times.Once), Timeout);
         _api.Verify(x => x.GetDefinitionsAsync(), Times.Once); // the setup is not re-fetched per month
     }
+
+    private GovernedServiceDefinitionDto FeeTypeDefinition() =>
+        Definition(CollectorOperationCodes.MarketFees, "Market Fees", GovernedServiceSetupState.Active,
+            GovernedServiceBasis.ApprovedFeeOption, mobile: true) with
+        {
+            AllowedBases = [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption]
+        };
+
+    private static GovernedServiceFeeOptionDto Option(string name, string? code, string? location, GovernedServiceBasis? basis,
+        decimal? amount, decimal? ceiling, string status) => new(
+        Guid.NewGuid(), code, name, location, null, basis, amount, ceiling, basis is null ? null : new DateOnly(2026, 9, 1), status,
+        status == "Retired" ? new DateOnly(2026, 9, 15) : null,
+        basis is null ? [] : [new FeeOptionRateVersionDto(new DateOnly(2026, 9, 1), basis.Value, amount, ceiling, "head", DateTime.UtcNow)]);
+
+    [Fact]
+    public void MarketFeeDefinitions_ListNameRuleAmountAndStatus_FromServerData_WithoutInternalCodes()
+    {
+        var comfort = Option("Comfort Room", "CR_TERMINAL", "Transport Terminal", GovernedServiceBasis.FixedAmount, 5m, null, "Active");
+        var parking = Option("Overnight Parking", null, null, GovernedServiceBasis.DirectApprovedAmount, null, 100m, "Active");
+        var retired = Option("Old Sweeping Fee", "OLD_SWEEP", null, GovernedServiceBasis.FixedAmount, 10m, null, "Retired");
+        Serve([FeeTypeDefinition()]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([comfort, parking, retired]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([
+                new FeeOptionTotalDto(comfort.Id, "Comfort Room — Transport Terminal", 4, 20m),
+                new FeeOptionTotalDto(parking.Id, "Overnight Parking", 1, 40m)]));
+
+        var cut = RenderComponent<MarketFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.FindAll("section").Single(s => s.TextContent.Contains("Market Fee definitions"));
+            var headers = panel.QuerySelectorAll("table")[0].QuerySelectorAll("thead th").Select(h => h.TextContent.Trim()).ToList();
+            Assert.Equal(new[] { "Name", "Rule", "Amount", "Status" }, headers.Take(4));
+            var rows = panel.QuerySelectorAll("table")[0].QuerySelectorAll("tbody tr");
+            Assert.Equal(3, rows.Length);
+            Assert.Contains("Comfort Room", rows[0].TextContent);
+            Assert.Contains("Transport Terminal", rows[0].TextContent);
+            Assert.Contains("Fixed", rows[0].TextContent);
+            Assert.Contains("₱5.00", rows[0].TextContent);
+            Assert.Contains("Up to ₱100.00", rows[1].TextContent);
+            Assert.Contains("Retired", rows[2].TextContent);
+            Assert.DoesNotContain("CR_TERMINAL", cut.Markup);
+            Assert.DoesNotContain("OLD_SWEEP", cut.Markup);
+            // A retired option keeps its history but offers no change.
+            Assert.DoesNotContain(rows[2].QuerySelectorAll("button"), b => b.TextContent.Contains("Retire") || b.TextContent.Contains("Schedule"));
+            // Drill-down by fee type adds up to the service's total.
+            Assert.Contains("Collected by fee type", panel.TextContent);
+            Assert.Contains("₱60.00", panel.QuerySelector(".fod-totals tfoot")!.TextContent);
+            Assert.Contains("By approved fee type", cut.Find("aside").TextContent);
+        }, Timeout);
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "History").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Set by head", cut.Markup), Timeout);
+    }
+
+    [Fact]
+    public void MarketFeeDefinitions_AreReadOnlyForAdmin()
+    {
+        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
+        Serve([FeeTypeDefinition()]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Comfort Room", null, null, GovernedServiceBasis.FixedAmount, 5m, null, "Active")]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+
+        var cut = RenderComponent<MarketFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Comfort Room", cut.Markup);
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Add fee type")
+                || b.TextContent.Contains("Schedule amount") || b.TextContent.Trim() == "Retire");
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AddingAFeeType_SendsTheRuleTheHeadChose_AndShowsTheServersList()
+    {
+        Serve([FeeTypeDefinition()]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+        AddFeeOptionRequest? sent = null;
+        _api.Setup(x => x.AddFeeOptionAsync(CollectorOperationCodes.MarketFees, It.IsAny<AddFeeOptionRequest>()))
+            .Callback<string, AddFeeOptionRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Comfort Room", null, null, GovernedServiceBasis.FixedAmount, 5m, null, "Active")]));
+
+        var cut = RenderComponent<MarketFees>();
+        cut.WaitForAssertion(() => Assert.Contains("No fee type has been defined yet.", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
+        cut.Find("form.fod-form input[type=text]").Change("Comfort Room");
+        cut.Find("form.fod-form input[type=number]").Change("5");
+        cut.Find("form.fod-form").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal(("Comfort Room", GovernedServiceBasis.FixedAmount, (decimal?)5m, (decimal?)null),
+                (sent!.DisplayName, sent.Basis, sent.FixedAmount, sent.MaximumAmount));
+            Assert.Contains("Fee type added.", cut.Markup);
+            Assert.DoesNotContain("No fee type has been defined yet.", cut.Markup);
+        }, Timeout);
+    }
 }

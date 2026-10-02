@@ -60,6 +60,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["ObligationPeriods"] = "Obligation periods",
         ["VehicleClasses"] = "Vehicle classes",
         ["VehicleClassRates"] = "Vehicle class rates",
+        ["GovernedServiceFeeOptions"] = "Fee options",
+        ["GovernedServiceFeeOptionRates"] = "Fee option rates",
         ["CollectionRemittances"] = "Collection remittances",
         ["CollectionRemittanceCoverages"] = "Remittance coverage",
         ["AccountableFormSpoilages"] = "Spoiled form records",

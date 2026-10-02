@@ -1,6 +1,7 @@
 @page "/settings/revenue"
 @attribute [Authorize(Roles = "SuperAdmin")]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Services
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Command.Revenue.CreateRevenueClassification
 @using EEMOCantilanSDS.Application.Common
@@ -120,7 +121,7 @@
                         {
                             <tr class="@(item.Id == _selected?.Id ? "is-selected" : null)">
                                 <td>
-                                    <div class="rev-source-name">@(item.EffectivePolicy?.DisplayName ?? NoCurrentPolicyLabel(item))</div>
+                                    <div class="rev-source-name">@SourceNames.For(item.SemanticCode, item.EffectivePolicy?.DisplayName)</div>
                                     <div class="rev-source-code"><span>Internal reference</span> <code>@item.SemanticCode</code></div>
                                 </td>
                                 <td>
@@ -201,14 +202,23 @@
                                 <input id="rev-create-date" type="date" value="@_createDate" @onchange="OnCreateDateChanged" min="@DateText(PhilippineTime.Today)" required />
                             </label>
                         </div>
-                        <label class="v3-field rev-field">
-                            <span>Accountable instrument</span>
-                            <select @bind="_createInstrument">
-                                <option value="">Not configured</option>
-                                <option value="OfficialReceipt">Official Receipt</option>
-                                <option value="CashTicket">Cash Ticket</option>
-                            </select>
-                        </label>
+                        <fieldset class="rev-instrument">
+                            <legend>Accountable instrument</legend>
+                            <div class="rev-instrument-options" role="radiogroup" aria-label="Accountable instrument">
+                                <label class="rev-instrument-option @(_createInstrument == RevenueInstrumentType.OfficialReceipt ? "is-on" : null)">
+                                    <input type="radio" name="rev-create-instrument" checked="@(_createInstrument == RevenueInstrumentType.OfficialReceipt)" @onchange="() => _createInstrument = RevenueInstrumentType.OfficialReceipt" />
+                                    <InstrumentChip Instrument="OR" /> <span>Official Receipt</span>
+                                </label>
+                                <label class="rev-instrument-option @(_createInstrument == RevenueInstrumentType.CashTicket ? "is-on" : null)">
+                                    <input type="radio" name="rev-create-instrument" checked="@(_createInstrument == RevenueInstrumentType.CashTicket)" @onchange="() => _createInstrument = RevenueInstrumentType.CashTicket" />
+                                    <InstrumentChip Instrument="CT" /> <span>Cash Ticket</span>
+                                </label>
+                                <label class="rev-instrument-option @(_createInstrument is null ? "is-on" : null)">
+                                    <input type="radio" name="rev-create-instrument" checked="@(_createInstrument is null)" @onchange="() => _createInstrument = null" />
+                                    <span>Not configured</span>
+                                </label>
+                            </div>
+                        </fieldset>
                         <label class="v3-field rev-field">
                             <span>Description <small>(optional)</small></span>
                             <textarea @bind="_createDescription" maxlength="500" rows="3"></textarea>
@@ -258,14 +268,23 @@ else if (_selected is { } source)
                                     <input id="rev-policy-date" type="date" value="@_policyDate" @onchange="OnPolicyDateChanged" min="@DateText(PhilippineTime.Today)" required />
                                 </label>
                             </div>
-                            <label class="v3-field rev-field">
-                                <span>Accountable instrument</span>
-                                <select @bind="_policyInstrument">
-                                    <option value="">Not configured</option>
-                                    <option value="OfficialReceipt">Official Receipt</option>
-                                    <option value="CashTicket">Cash Ticket</option>
-                                </select>
-                            </label>
+                            <fieldset class="rev-instrument">
+                                <legend>Accountable instrument</legend>
+                                <div class="rev-instrument-options" role="radiogroup" aria-label="Accountable instrument">
+                                    <label class="rev-instrument-option @(_policyInstrument == RevenueInstrumentType.OfficialReceipt ? "is-on" : null)">
+                                        <input type="radio" name="rev-policy-instrument" checked="@(_policyInstrument == RevenueInstrumentType.OfficialReceipt)" @onchange="() => _policyInstrument = RevenueInstrumentType.OfficialReceipt" />
+                                        <InstrumentChip Instrument="OR" /> <span>Official Receipt</span>
+                                    </label>
+                                    <label class="rev-instrument-option @(_policyInstrument == RevenueInstrumentType.CashTicket ? "is-on" : null)">
+                                        <input type="radio" name="rev-policy-instrument" checked="@(_policyInstrument == RevenueInstrumentType.CashTicket)" @onchange="() => _policyInstrument = RevenueInstrumentType.CashTicket" />
+                                        <InstrumentChip Instrument="CT" /> <span>Cash Ticket</span>
+                                    </label>
+                                    <label class="rev-instrument-option @(_policyInstrument is null ? "is-on" : null)">
+                                        <input type="radio" name="rev-policy-instrument" checked="@(_policyInstrument is null)" @onchange="() => _policyInstrument = null" />
+                                        <span>Not configured</span>
+                                    </label>
+                                </div>
+                            </fieldset>
                             <label class="v3-field rev-field">
                                 <span>Description <small>(optional)</small></span>
                                 <textarea @bind="_policyDescription" maxlength="500" rows="3"></textarea>

@@ -33,6 +33,39 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
         string operationCode, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await workflow.GetActivityAsync(operationCode, from, to, ct));
 
+    /// <summary>The approved fee options of a service (e.g. the Market Fee definitions), with each option's amount history.</summary>
+    [HttpGet("{operationCode}/fee-options")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> FeeOptionsAsync(string operationCode, CancellationToken ct) =>
+        HandleResponse(await workflow.GetFeeOptionsAsync(operationCode, ct));
+
+    [HttpPost("{operationCode}/fee-options")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(
+        string operationCode, [FromBody] AddFeeOptionRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.AddFeeOptionAsync(operationCode, request, ct));
+
+    /// <summary>Appends an effective-dated amount rule (today or later); earlier rules and posted amounts are untouched.</summary>
+    [HttpPost("{operationCode}/fee-options/{feeOptionId:guid}/rates")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> ScheduleFeeOptionRateAsync(
+        string operationCode, Guid feeOptionId, [FromBody] ScheduleFeeOptionRateRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.ScheduleFeeOptionRateAsync(operationCode, feeOptionId, request, ct));
+
+    /// <summary>Stops offering an option from today or a later date. History is retained.</summary>
+    [HttpPost("{operationCode}/fee-options/{feeOptionId:guid}/retire")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(
+        string operationCode, Guid feeOptionId, [FromBody] RetireFeeOptionRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.RetireFeeOptionAsync(operationCode, feeOptionId, request, ct));
+
+    /// <summary>Posted money of the service in a period by the fee option frozen on each line (drill-down; each line once).</summary>
+    [HttpGet("{operationCode}/fee-option-totals")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<FeeOptionTotalDto>>> FeeOptionTotalsAsync(
+        string operationCode, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await workflow.GetFeeOptionTotalsAsync(operationCode, from, to, ct));
+
     /// <summary>The calling collector's own posted operation collections (read from the canonical Collection).</summary>
     [HttpGet("records")]
     [Authorize(Roles = "Collector")]

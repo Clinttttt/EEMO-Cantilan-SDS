@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════
    FacilityHero.razor.css — facility / workspace identity band, V3
-   (docs/interface/STALLTRACK_UI_V3_DIRECTION.md). A white surface with navy identity, quiet metadata, the page's
-   figures on the right and a thin civic-blue rate line. Shared by NPM, TCC, SLH, TRM, TPM and Collection Activity;
+   (docs/interface/STALLTRACK_UI_V3_DIRECTION.md). The civic-blue hero family (see V3 block below): identity on the
+   left, the page's figures on the right and a thin rate line. Shared by NPM, TCC, SLH, TRM, TPM and Collection Activity;
    presentation only — every figure is still the page's own.
 ═══════════════════════════════════════════════════ */
 
@@ -133,6 +133,74 @@
 @media (prefers-reduced-motion: reduce) {
     .facility-hero-progress-fill {
         transition: none;
+    }
+}
+
+/* ── V3 hero family (2026-10-02): the facility band takes the Dashboard's civic blue — one solid --civic-panel
+      surface, white identity and figures, translucent dividers and icon tile, a white rate line. It matches V3Hero so
+      every primary workspace reads as one family; each facility still shows only its own figures. ── */
+.facility-hero {
+    padding: 18px 24px;
+    border: 0;
+    background: var(--civic-panel);
+    box-shadow: none;
+}
+
+.facility-hero-icon {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+    .facility-hero-icon ::deep svg {
+        stroke: #ffffff !important;
+    }
+
+.facility-hero-eyebrow {
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.facility-hero-title,
+.facility-hero-val {
+    color: #ffffff;
+}
+
+    .facility-hero-title:focus {
+        outline: none;
+    }
+
+.facility-hero-sub {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.facility-hero-key {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.facility-hero-divider {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.facility-hero-progress {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.facility-hero-progress-fill {
+    background: #ffffff;
+}
+
+@media print {
+    .facility-hero {
+        background: none;
+        border: 1px solid var(--border);
+    }
+
+    .facility-hero-title,
+    .facility-hero-val,
+    .facility-hero-eyebrow,
+    .facility-hero-sub,
+    .facility-hero-key {
+        color: var(--navy);
     }
 }
 

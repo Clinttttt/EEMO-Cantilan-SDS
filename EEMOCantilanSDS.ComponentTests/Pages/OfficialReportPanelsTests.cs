@@ -288,7 +288,9 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
             // No target configured: target and percentage are a dash, never 0 or 0%.
             Assert.DoesNotContain("%", table.QuerySelector("tbody")!.TextContent);
-            Assert.Contains("Annual targets are not configured", cut.Markup);
+            // The dashes speak for themselves: no explanatory notes or footer clutter on the official output.
+            Assert.DoesNotContain("Annual targets are not configured", cut.Markup);
+            Assert.Empty(cut.FindAll(".omi-notes"));
             // A past year has every month reached: a month with nothing collected is a known 0.00.
             Assert.Contains("0.00", table.QuerySelector("tbody")!.TextContent);
             // No analysis chrome: no report tabs and no source-performance widgets on the final output.
