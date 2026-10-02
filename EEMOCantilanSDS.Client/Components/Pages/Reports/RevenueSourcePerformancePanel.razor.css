@@ -11,8 +11,8 @@
 .rsp-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: flex-start;
+    align-items: center;
+    justify-content: space-between;
     gap: 12px 28px;
     padding: 18px 22px 14px;
     border-bottom: 1px solid var(--border);
@@ -33,6 +33,7 @@
 
 .rsp-filter {
     min-width: 200px;
+    margin-left: auto;   /* the filter sits at the right edge of the header, level with the title block */
 }
 
 .rsp-state {

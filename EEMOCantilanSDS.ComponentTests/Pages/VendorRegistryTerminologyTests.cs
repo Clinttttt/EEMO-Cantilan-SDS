@@ -49,7 +49,7 @@ public sealed class VendorRegistryTerminologyTests : TestContext
 
         Assert.Contains("StallTrack — Spaces &amp; Occupants", markup);
         Assert.Contains("Occupancy Registry", markup);
-        Assert.Contains("Total Spaces", markup);
+        Assert.Contains("Total spaces", markup);
         Assert.Contains("billable spaces", markup);
         Assert.Contains("Add Occupant &amp; Space", markup);
         Assert.Contains("Occupant &amp; Contract Information", markup);
