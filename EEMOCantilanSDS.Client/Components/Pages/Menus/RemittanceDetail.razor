@@ -32,6 +32,10 @@
     }
     @if (_detail is { } d)
     {
+        @if (d.Row.SubmissionId is { } submission)
+        {
+            <p class="rm-group-link no-print">Recorded together with other collectors. <a href="@($"/accountable-forms/remittances/group/{submission}")">View the whole submission</a></p>
+        }
         <div class="rm-print-head" aria-hidden="true"><ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel(d)" /></div>
 
         <SummaryStrip Label="Remittance" Items="Summary(d)" />
@@ -66,7 +70,7 @@
                     <tbody>
                         @foreach (var line in d.Breakdown)
                         {
-                            <tr><td>@line.Name</td><td class="v3-num">@Money(line.Amount)</td></tr>
+                            <tr><td>@EEMOCantilanSDS.Client.Services.SourceNames.For(line.Name)</td><td class="v3-num">@Money(line.Amount)</td></tr>
                         }
                     </tbody>
                     <tfoot><tr><td><strong>Total collected</strong></td><td class="v3-num v3-strong">@Money(d.Row.ExpectedAmount)</td></tr></tfoot>
@@ -79,7 +83,7 @@
             <div class="v3-table-wrap" role="region" aria-label="Collections covered" tabindex="0">
                 <table class="v3-table">
                     <thead>
-                        <tr><th scope="col">Date</th><th scope="col">Document</th><th scope="col">Payer</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
+                        <tr><th scope="col">Date</th><th scope="col">Document</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var collection in d.Collections)
@@ -87,6 +91,7 @@
                             <tr>
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
                                 <td class="v3-strong">@(collection.DocumentNumber ?? "—")</td>
+                                <td>@SourceLabel(collection)</td>
                                 <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                 <td class="v3-num">@Money(collection.NetAmount)</td>
                                 <td>@(collection.CorrectedAfterRemittance ? "Corrected after this remittance: review" : "")</td>
@@ -115,6 +120,11 @@
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    /// <summary>?print=1 opens the browser print dialog once the report has loaded (Print / Save as PDF).</summary>
+    [SupplyParameterFromQuery(Name = "print")] public string? Print { get; set; }
+
+    private bool _printed;
+
     private RemittanceDetailDto? _detail;
     private string? _error;
     private string? _voidError;
@@ -136,6 +146,18 @@
         }
         catch { _error = "The remittance could not be loaded."; }
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_detail is not null && Print == "1" && !_printed)
+        {
+            _printed = true;
+            try { await JS.InvokeVoidAsync("print"); } catch (JSException) { }
+        }
+    }
+
+    private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
+        : string.Join(" · ", collection.Lines.Select(l => EEMOCantilanSDS.Client.Services.SourceNames.For(l.Name)));
 
     private async Task VoidAsync()
     {
