@@ -37,6 +37,12 @@ public sealed record TodaysWork(
 public static class TodaysWorkBuilder
 {
     /// <summary>
+    /// The chip on a row under "Available now". The group heading already says it can be collected, so the chip is just
+    /// "Ready". Presentation copy only: availability is still the server's Ready status.
+    /// </summary>
+    public const string ReadyLabel = "Ready";
+
+    /// <summary>
     /// Assignment is not collectibility. Only a facility the server marks available, or an operation the server reports Ready,
     /// is offered for collection. Unassigned work does not appear at all. A missing accountable form is an attention item.
     /// </summary>
@@ -52,7 +58,7 @@ public static class TodaysWorkBuilder
         foreach (var f in facilities.Where(x => x.IsAssigned))
         {
             if (f.IsAvailable)
-                available.Add(new WorkItem(f.Name, "Ready to collect", WorkTarget.Facility, true, FacilityCode: f.Code.ToString()));
+                available.Add(new WorkItem(f.Name, ReadyLabel, WorkTarget.Facility, true, FacilityCode: f.Code.ToString()));
             else
                 unavailable.Add(new WorkItem(f.Name, "Not available yet", WorkTarget.None, false));
         }
@@ -66,7 +72,7 @@ public static class TodaysWorkBuilder
                 // WCF is a utility operation (IA-053) with its own collection page, so an operation-only collector can open it;
                 // a collector who also holds the market can still collect it from the stall sheet.
                 var opens = op.OperationCode == CollectorOperationCodes.Wcf || GovernedServiceCatalog.Find(op.OperationCode) is not null;
-                available.Add(new WorkItem(op.Name, "Ready to collect", opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode));
+                available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode));
             }
             else if (op.Status == CollectorOperationCapabilityStatus.NeedsDocument)
                 attention.Add(new AttentionItem($"{op.Name}: {CapabilityWording.For(op.Status)}", 1, "form"));
