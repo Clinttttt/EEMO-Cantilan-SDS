@@ -343,8 +343,10 @@
 
         @* Every revenue source, facility or not, with the official Monthly Income money for the period. Read only while Summary
            is open (it has its own server read; screen-only, not a pdf-include section) and only for a calendar period. *@
-        @if (_section == "overview" && SelectedYear != "all")
+        @if ((_section == "overview" || _section == "targets") && SelectedYear != "all")
         {
+            @* On Trends & Targets this is the primary view: every revenue source by its own model (no collection rate for a
+               source paid on service). The physical-facility table below is the secondary analysis. *@
             <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" />
         }
 
@@ -767,7 +769,7 @@
                        questioned, not on every reading. Hover or focus shows it, a press pins it open for touch, and it
                        stays in the markup either way so the hover can work at all. Screen only. *@
                     <div class="section-title">
-                        Facility performance — @PeriodLabel<span class="rpt-rule-wrap no-print"><button type="button" class="rpt-rule-mark"
+                        Physical facility analysis — @PeriodLabel<span class="rpt-rule-wrap no-print"><button type="button" class="rpt-rule-mark"
                                 @onclick="() => _facilityRuleOpen = !_facilityRuleOpen"
                                 aria-expanded="@(_facilityRuleOpen ? "true" : "false")"
                                 aria-controls="rpt-facility-rule"

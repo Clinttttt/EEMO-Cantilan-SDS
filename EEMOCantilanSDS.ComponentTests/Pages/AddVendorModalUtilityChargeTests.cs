@@ -60,11 +60,12 @@ public class AddVendorModalUtilityChargeTests : TestContext
     {
         var cut = RenderForm(MarketSpace("Electricity", "Water"));
 
-        // Stated as a separate utility operation, never as a component of stall rent or a reading-driven bill.
+        // Stated as its own utility operation through concise labels — never stall rent, never a reading-driven bill,
+        // and no explanatory paragraph.
         Assert.Contains("Utility service", cut.Markup);
-        Assert.Contains("assessed and collected apart from stall rental", cut.Markup);
-        Assert.Contains("Electricity (ECF)", cut.Markup);
-        Assert.Contains("Water (WCF)", cut.Markup);
+        Assert.Contains("ECF · Official Receipt", cut.Markup);
+        Assert.Contains("WCF · Cash Ticket", cut.Markup);
+        Assert.DoesNotContain("assessed and collected apart from stall rental", cut.Markup);
         Assert.DoesNotContain("amount varies per reading", cut.Markup);
         Assert.DoesNotContain("Utility Charges", cut.Markup);
         Assert.DoesNotContain("metered", cut.Markup);

@@ -1028,3 +1028,60 @@
 .avm-choice-item.is-selected .avm-choice-note {
     color: rgba(255, 255, 255, .82);
 }
+
+/* ── V3 (2026-10-02): the drawer's identity band in the Dashboard's civic blue. Only the header is blue; the form
+      below stays on white. White text on --civic-panel meets AA. ── */
+.eemo-drawer-header {
+    background: var(--civic-panel);
+    border-bottom-color: var(--civic-panel-deep);
+}
+
+.eemo-drawer-header-icon {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+    .eemo-drawer-header-icon svg {
+        stroke: #ffffff;
+    }
+
+.eemo-drawer-header-title {
+    color: #ffffff;
+}
+
+.eemo-drawer-header-sub {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.eemo-drawer-header-close {
+    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+    .eemo-drawer-header-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .eemo-drawer-header-close svg {
+        stroke: #ffffff;
+    }
+
+    .eemo-drawer-header-close:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+    }
+
+.avm-util-hint {
+    margin-left: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.avm-fee-toggle:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}

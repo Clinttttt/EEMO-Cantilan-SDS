@@ -128,3 +128,29 @@ public sealed record WcfReadinessItemDto(string Code, string Title, string Detai
 
 public sealed record WcfCollectorReadinessDto(
     Guid CollectorId, string Name, bool Active, int CashTicketsHeld, int CashTicketsInReview, bool Ready);
+
+/// <summary>
+/// One collector's share in an automatic allocation. <paramref name="Quantity"/> null means "an even share of what is in
+/// office"; a number asks for exactly that many units (custom quantities).
+/// </summary>
+public sealed record AutoAllocateShare(Guid CollectorId, int? Quantity);
+
+/// <summary>
+/// Head/Admin request to let the server lay out collectors' ranges from ONE book's units that are unassigned and in office.
+/// Preview (<paramref name="Commit"/> false) changes nothing. Commit re-reads custody and assigns only when the plan it
+/// computes equals <paramref name="ExpectedPlan"/> (the preview the office confirmed); otherwise nothing is assigned.
+/// </summary>
+public sealed record AutoAllocateFormsRequest(
+    Guid FormBookId, RevenueInstrumentType InstrumentType, IReadOnlyList<AutoAllocateShare> Shares,
+    bool Commit = false, IReadOnlyList<AutoAllocatePlanLine>? ExpectedPlan = null);
+
+/// <summary>A contiguous run of serials inside one book, with its printed document numbers.</summary>
+public sealed record SerialRangeDto(long FirstSerialNumber, long LastSerialNumber, string FirstDocumentNumber, string LastDocumentNumber);
+
+/// <summary>One collector's planned (or assigned) units: a quantity and the contiguous runs that make it up.</summary>
+public sealed record AutoAllocatePlanLine(Guid CollectorId, string CollectorName, int Quantity, IReadOnlyList<SerialRangeDto> Ranges);
+
+/// <summary>The allocation plan, or the assignment it produced when <paramref name="Committed"/>.</summary>
+public sealed record AutoAllocatePlanDto(
+    Guid FormBookId, RevenueInstrumentType InstrumentType, int InOfficeBefore, int InOfficeAfter,
+    IReadOnlyList<AutoAllocatePlanLine> Lines, bool Committed);

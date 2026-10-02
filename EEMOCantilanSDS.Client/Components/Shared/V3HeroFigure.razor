@@ -1,0 +1,15 @@
+@* One key figure inside a V3Hero: the value, what it is, and an optional short note. *@
+<div class="v3h-figure">
+    <dt class="v3h-key">@Label</dt>
+    <dd class="v3h-val">@Value</dd>
+    @if (!string.IsNullOrWhiteSpace(Note))
+    {
+        <dd class="v3h-note">@Note</dd>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+    [Parameter] public string? Note { get; set; }
+}

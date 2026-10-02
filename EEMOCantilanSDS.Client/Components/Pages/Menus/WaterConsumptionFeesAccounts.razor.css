@@ -1,6 +1,13 @@
-/* Water source entry: a register with an inline approved amount, a quiet Mobile state and row actions. */
-.wcfs {
-    margin-top: 20px;
+/* Water source entry: a register with an inline approved amount, a quiet Mobile state and row actions. The page's
+   own gap separates it from the Accounts register; rows centre so plain text, inputs and buttons share one line. */
+.wcfs-table td {
+    vertical-align: middle;
+}
+
+/* A register's footnote sits under a hairline so it does not read as one more row. */
+.v3-panel-note {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
 }
 
 .wcfs-amount {
@@ -36,11 +43,16 @@
         color: var(--text-tertiary);
     }
 
+/* The cell stays a table cell so the row divider runs the full width; the buttons line up inside it. */
 .wcfs-actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
+.wcfs-action-group {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    white-space: nowrap;
 }
 
 /* Activation dialog */

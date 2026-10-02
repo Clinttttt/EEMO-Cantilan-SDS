@@ -2881,6 +2881,21 @@
     }
 }
 
+/* Collections tab: the legacy-source register sits under the official Collections panels, so it takes their frame (a
+   hairline, not the statement's navy rule) and its table meets its header — the global .section-header margin left an
+   empty band between them. */
+@media screen {
+    #rpt-records {
+        border-top-width: 1px;
+        border-top-color: var(--border);
+        box-shadow: var(--elevation-1);
+    }
+
+    #rpt-records .section-header {
+        margin-bottom: 0;
+    }
+}
+
 /* ── V3 consistency (2026-10-01): one control grammar for the report scope ──
    The period values and the facility / source analysis scope form one joined group — one border, one radius, internal
    dividers only — at the same height as the Monthly | Annual control beside it. */

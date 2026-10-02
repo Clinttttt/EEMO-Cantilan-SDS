@@ -40,4 +40,7 @@ public interface IWcfCollectionsApiClient
 
     /// <summary>Moves assigned, unused units between collectors with a reason (POST api/accountable-forms/transfer).</summary>
     Task<Result<int>> TransferAsync(TransferAccountableFormsRequest request);
+
+    /// <summary>Previews or commits an automatic allocation of in-office units across collectors (custody only).</summary>
+    Task<Result<AutoAllocatePlanDto>> AutoAllocateAsync(AutoAllocateFormsRequest request);
 }

@@ -1,9 +1,10 @@
 @page "/transactions"
 @page "/collections/activity"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@using EEMOCantilanSDS.Application.Dtos.Transactions
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Client.Components.Shared
-@inject ITransactionsApiClient TransactionsApi
+@inject ICollectionActivityApiClient ActivityApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
@@ -28,26 +29,41 @@
 
 <div class="content-area">
 
-    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Collections")"
-                  Title="Collection Activity"
-                  Subtitle="Facility collection records, all facilities. Operation, utility and space-rental collections are in the Collections register under Financial Reports."
-                  Icon="@LedgerIcon"
-                  Stats="HeroStats" />
-
-    <!-- Controls: facility filter + day navigator (single row) -->
-    <div class="txn-controls">
-        <div class="txn-segment">
-            @foreach (var f in Filters)
+    <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Collections")" Title="Collection Activity"
+            Subtitle="Recorded collection activity across StallTrack.">
+        <Icon>
+            <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
+        </Icon>
+        <Figures>
+            <V3HeroFigure Label="Collections" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
+            <V3HeroFigure Label="Collected" Value="@($"₱{Visible.Sum(e => e.Amount):N2}")" Note="@ScopeLabel" />
+            @if (Visible.Any(e => e.CorrectionEffect != 0m))
             {
-                <button type="button"
-                        class="txn-seg-tab @(ActiveFilter == f.Code ? "active" : "")"
-                        @onclick="() => SetFilter(f.Code)">
-                    @f.Label
-                </button>
+                <V3HeroFigure Label="Net after corrections" Value="@($"₱{Visible.Sum(e => e.NetAmount):N2}")" />
             }
+        </Figures>
+    </V3Hero>
+
+    <!-- Controls: source scope + source + day navigator (single row) -->
+    <div class="txn-controls">
+        <div class="txn-filters">
+            <div class="txn-segment" role="group" aria-label="Source scope">
+                @foreach (var g in Scopes)
+                {
+                    <button type="button"
+                            class="txn-seg-tab @(_scope == g.Key ? "active" : "")"
+                            aria-pressed="@(_scope == g.Key ? "true" : "false")"
+                            @onclick="() => SetScope(g.Key)">
+                        @g.Label
+                    </button>
+                }
+            </div>
+            <div class="txn-source">
+                <FhSelect Caption="Source" Value="@_source" Options="@SourceOptions" ValueChanged="@(v => _source = v)" />
+            </div>
         </div>
 
-      <div>
+        <div class="txn-nav">
             <div class="txn-daynav">
                 <button type="button" class="txn-navbtn" @onclick="PrevDay" aria-label="Previous day">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
@@ -72,7 +88,7 @@
 
                 @if (!IsToday)
                 {
-                    <button type="button" class="txn-jump-today" @onclick="GoToday" title="Jump to Today">
+                    <button type="button" class="txn-jump-today" @onclick="GoToday" title="Jump to Today" aria-label="Jump to today">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>
                     </button>
                 }
@@ -81,22 +97,22 @@
             <button type="button" class="txn-refresh" title="Refresh" aria-label="Refresh" @onclick="Reload">
                 <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></svg>
             </button>
-      </div>
+        </div>
     </div>
 
-    <!-- Feed table -->
+    <!-- Feed table: one row per collection / document event -->
     <div class="section-card txn-card">
         @if (IsLoading)
         {
             <table class="txn-table txn-loading-table" aria-busy="true" aria-label="Loading collection activity">
                 <thead>
                     <tr>
-                        <th>Date &amp; Time</th>
-                        <th>Facility</th>
-                        <th>Party</th>
+                        <th>Date &amp; time</th>
+                        <th>Source</th>
+                        <th>Payer</th>
                         <th>Details</th>
                         <th class="txn-num">Amount</th>
-                        <th>OR No.</th>
+                        <th>Document</th>
                         <th>Status</th>
                         <th>Recorded by</th>
                     </tr>
@@ -105,20 +121,10 @@
                     @for (var i = 0; i < 8; i++)
                     {
                         <tr>
-                            <td>
-                                <div class="txn-loading-stack">
-                                    <Skeleton Width="92px" Height="12px" Radius="6px" />
-                                    <Skeleton Width="64px" Height="10px" Radius="5px" />
-                                </div>
-                            </td>
-                            <td><Skeleton Width="52px" Height="22px" Radius="999px" /></td>
+                            <td><Skeleton Width="92px" Height="12px" Radius="6px" /></td>
+                            <td><Skeleton Width="110px" Height="13px" Radius="6px" /></td>
                             <td><Skeleton Width="130px" Height="13px" Radius="6px" /></td>
-                            <td>
-                                <div class="txn-loading-stack">
-                                    <Skeleton Width="115px" Height="12px" Radius="6px" />
-                                    <Skeleton Width="90px" Height="10px" Radius="5px" />
-                                </div>
-                            </td>
+                            <td><Skeleton Width="115px" Height="12px" Radius="6px" /></td>
                             <td class="txn-num"><Skeleton Width="78px" Height="13px" Radius="6px" /></td>
                             <td><Skeleton Width="68px" Height="13px" Radius="6px" /></td>
                             <td><Skeleton Width="60px" Height="22px" Radius="999px" /></td>
@@ -128,193 +134,252 @@
                 </tbody>
             </table>
         }
-        else if (!Feed.Any())
+        else if (_loadFailed)
         {
-            <div class="txn-empty">
+            <div class="txn-empty" role="alert">
+                <div class="txn-empty-title">Collection activity could not be loaded</div>
+                <div class="txn-empty-text">Check the connection and refresh.</div>
+                <button type="button" class="txn-retry" @onclick="Reload">Retry</button>
+            </div>
+        }
+        else if (Visible.Count == 0)
+        {
+            <div class="txn-empty" role="status">
                 <div class="txn-empty-ic">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </div>
                 <div class="txn-empty-title">No collection activity @(IsToday ? "yet today" : "on this day")</div>
-                <div class="txn-empty-text">Nothing recorded for @SelectedDate.ToString("MMMM d, yyyy")@(ActiveFilter is null ? "" : $" at {ActiveLabel}"). Use the arrows or calendar to browse other days.</div>
+                <div class="txn-empty-text">Nothing recorded for @SelectedDate.ToString("MMMM d, yyyy")@(IsFiltered ? $" in {ScopeLabel}" : ""). Use the arrows or calendar to browse other days.</div>
             </div>
         }
         else
         {
-            <table class="txn-table">
-                <thead>
-                    <tr>
-                        <th>Date &amp; Time</th>
-                        <th>Facility</th>
-                        <th>Party</th>
-                        <th>Details</th>
-                        <th class="txn-num">Amount</th>
-                        <th>OR No.</th>
-                        <th>Status</th>
-                        <th>Recorded by</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var g in GroupedFeed())
-                    {
-                        var t = g.Head;
-                        var expanded = _expanded.Contains(g.Key);
-                        <tr class="@(g.IsGroup ? "txn-grouprow" : "")" @onclick="() => ToggleGroup(g)">
-                            <td class="txn-when">
-                                <div class="txn-date">@t.OccurredAt.ToString("MMM d, yyyy")</div>
-                                @if (t.HasTime)
-                                {
-                                    <div class="txn-time">@t.OccurredAt.ToString("h:mm tt")</div>
-                                }
-                            </td>
-                            <td><span class="txn-fac-badge fac-@t.FacilityCode.ToString().ToLower()">@FacilityCatalog.ShortNameOf(t.FacilityCode)</span></td>
-                            <td class="txn-party">@t.Party</td>
-                            <td>
-                                <div class="txn-kind">
-                                    @if (g.IsGroup)
-                                    {
-                                        <svg class="txn-chev @(expanded ? "open" : "")" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                                    }
-                                    @t.Kind
-                                </div>
-                                <div class="txn-ref">@(g.IsGroup ? $"{g.Lines.Count} animals · {g.TotalHeads} heads" : t.Reference)</div>
-                            </td>
-                            <td class="txn-num txn-amount">&#8369;@g.Total.ToString("N2")</td>
-                            <td class="txn-or">@(string.IsNullOrEmpty(t.ORNumber) ? "—" : t.ORNumber)</td>
-                            <td><span class="txn-status @(t.Status == "Paid" ? "paid" : "partial")">@t.Status</span></td>
-                            <td class="txn-recorder">@t.RecordedBy</td>
+            <div class="txn-scroll" role="region" aria-label="Collection activity" tabindex="0">
+                <table class="txn-table">
+                    <caption class="v3-sr-only">Collection activity for @SelectedDate.ToString("MMMM d, yyyy")</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date &amp; time</th>
+                            <th scope="col">Source</th>
+                            <th scope="col">Payer</th>
+                            <th scope="col">Details</th>
+                            <th scope="col" class="txn-num">Amount</th>
+                            <th scope="col">Document</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Recorded by</th>
                         </tr>
-
-                        @if (g.IsGroup && expanded)
+                    </thead>
+                    <tbody>
+                        @foreach (var e in Visible)
                         {
-                            @foreach (var line in g.Lines)
+                            var expandable = e.Lines.Count > 1 || e.Corrections.Count > 0;
+                            var expanded = _expanded.Contains(e.EventKey);
+                            var at = e.RecordedAtUtc is { } utc ? PhilippineTime.ToPhilippineTime(utc) : (DateTime?)null;
+                            <tr @key="e.EventKey" class="@(expandable ? "txn-grouprow" : "")">
+                                <td class="txn-when">
+                                    <div class="txn-date">@e.BusinessDate.ToString("MMM d, yyyy")</div>
+                                    @if (at is { } t)
+                                    {
+                                        <div class="txn-time">@t.ToString("h:mm tt")</div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="txn-source-name">@SourceLabel(e)</div>
+                                    @if (e.Facility is { } fac)
+                                    {
+                                        <span class="txn-fac-badge">@FacilityCatalog.ShortNameOf(fac)</span>
+                                    }
+                                </td>
+                                <td class="txn-party">@(string.IsNullOrWhiteSpace(e.PayerName) ? "—" : e.PayerName)</td>
+                                <td>
+                                    <div class="txn-kind">
+                                        @if (expandable)
+                                        {
+                                            <button type="button" class="txn-expand" aria-expanded="@(expanded ? "true" : "false")"
+                                                    aria-label="@(expanded ? "Hide" : "Show") details for @(e.DocumentNumber ?? SourceLabel(e))"
+                                                    @onclick="() => Toggle(e.EventKey)">
+                                                <svg class="txn-chev @(expanded ? "open" : "")" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                                            </button>
+                                        }
+                                        @Detail(e)
+                                    </div>
+                                    @if (e.Subject is { Length: > 0 } subject)
+                                    {
+                                        <div class="txn-ref">@subject</div>
+                                    }
+                                </td>
+                                <td class="txn-num txn-amount">
+                                    &#8369;@e.Amount.ToString("N2")
+                                    @if (e.CorrectionEffect != 0m)
+                                    {
+                                        <div class="txn-net">Net &#8369;@e.NetAmount.ToString("N2")</div>
+                                    }
+                                </td>
+                                <td class="txn-or">
+                                    @if (e.InstrumentType is { } instrument)
+                                    {
+                                        <InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />
+                                    }
+                                    @(string.IsNullOrWhiteSpace(e.DocumentNumber) ? "—" : e.DocumentNumber)
+                                </td>
+                                <td><span class="txn-status @StatusClass(e)">@StatusText(e)</span></td>
+                                <td class="txn-recorder">@e.RecordedBy</td>
+                            </tr>
+
+                            @if (expandable && expanded)
                             {
-                                <tr class="txn-subrow">
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td>
-                                        <div class="txn-subref">@line.Reference</div>
-                                    </td>
-                                    <td class="txn-num txn-subamount">&#8369;@line.Amount.ToString("N2")</td>
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                </tr>
+                                @foreach (var line in e.Lines)
+                                {
+                                    <tr class="txn-subrow">
+                                        <td></td>
+                                        <td colspan="2"><div class="txn-subref">@SourceNames.For(line.ClassificationCode, line.ClassificationName)</div></td>
+                                        <td>
+                                            <div class="txn-subref">@LineDetail(line)</div>
+                                        </td>
+                                        <td class="txn-num txn-subamount">&#8369;@line.Amount.ToString("N2")</td>
+                                        <td colspan="3"></td>
+                                    </tr>
+                                }
+                                @foreach (var c in e.Corrections)
+                                {
+                                    <tr class="txn-subrow txn-correction">
+                                        <td><div class="txn-subref">@c.EffectiveDate.ToString("MMM d, yyyy")</div></td>
+                                        <td colspan="2"><div class="txn-subref">@CorrectionLabel(c.CorrectionType)</div></td>
+                                        <td><div class="txn-subref">@c.Reason</div></td>
+                                        <td class="txn-num txn-subamount">@(c.FinancialEffect == 0m ? "—" : $"₱{c.FinancialEffect:N2}")</td>
+                                        <td colspan="3"></td>
+                                    </tr>
+                                }
                             }
                         }
-                    }
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
+            @if (_feed?.Truncated == true)
+            {
+                <p class="txn-truncated" role="status">Showing the latest @_feed.Events.Count.ToString("N0") of @_feed.EventCount.ToString("N0") collections for this day.</p>
+            }
         }
     </div>
 
 </div>
 
 @code {
-    private RenderFragment LedgerIcon => @<svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>;
+    private const int Limit = 1000;
 
-    private FacilityCode? ActiveFilter;
     private DateOnly SelectedDate = PhilippineTime.Today;
     private bool IsLoading = true;
-    private IReadOnlyList<TransactionFeedDto> Feed = Array.Empty<TransactionFeedDto>();
+    private bool _loadFailed;
+    private CollectionActivityFeedDto? _feed;
+    private string _scope = "all";
+    private string _source = AllSources;
+    private const string AllSources = "all";
 
     [PersistentState(AllowUpdates = true)]
     public TransactionsPageState? CachedTransactions { get; set; }
 
     private bool IsToday => SelectedDate == PhilippineTime.Today;
-
-    // SLH transactions recorded under one OR (multiple animal lines) collapse into one expandable row.
     private readonly HashSet<string> _expanded = new();
-
-    private sealed class TxnGroup
-    {
-        public required TransactionFeedDto Head { get; init; }
-        public required List<TransactionFeedDto> Lines { get; init; }
-        public required string Key { get; init; }
-        public bool IsGroup => Lines.Count > 1;
-        public decimal Total => Lines.Sum(l => l.Amount);
-        public int TotalHeads => Lines.Sum(l => ParseHeads(l.Reference));
-    }
-
-    // Reference looks like "Hog ×2" → pull the count after the × sign.
-    private static int ParseHeads(string reference)
-    {
-        var idx = reference.LastIndexOf('×');
-        return idx >= 0 && int.TryParse(reference[(idx + 1)..].Trim(), out var n) ? n : 1;
-    }
-
-    private List<TxnGroup> GroupedFeed()
-    {
-        var result = new List<TxnGroup>();
-        var slhBuckets = new Dictionary<string, TxnGroup>();
-
-        foreach (var t in Feed)
-        {
-            // Group only slaughter lines that share an OR + party + day.
-            if (t.FacilityCode == FacilityCode.SLH && !string.IsNullOrWhiteSpace(t.ORNumber))
-            {
-                var key = $"SLH|{t.ORNumber}|{t.Party}|{t.OccurredAt:yyyyMMdd}";
-                if (!slhBuckets.TryGetValue(key, out var g))
-                {
-                    g = new TxnGroup { Head = t, Lines = new List<TransactionFeedDto>(), Key = key };
-                    slhBuckets[key] = g;
-                    result.Add(g);
-                }
-                g.Lines.Add(t);
-            }
-            else
-            {
-                result.Add(new TxnGroup { Head = t, Lines = new List<TransactionFeedDto> { t }, Key = t.Id.ToString() });
-            }
-        }
-
-        return result;
-    }
-
-    private void ToggleGroup(TxnGroup g)
-    {
-        if (!g.IsGroup) return;
-        if (!_expanded.Add(g.Key)) _expanded.Remove(g.Key);
-    }
-
     private ElementReference _dateInput;
-    private async Task OpenPicker() => await JS.InvokeVoidAsync("openDatePicker", _dateInput);
 
-    private record FilterOption(FacilityCode? Code, string Label);
+    // Source scopes: a presentation grouping over the event's primary classification, never a business placement.
+    private static readonly IReadOnlyList<(string Key, string Label)> Scopes =
+    [
+        ("all", "All"), ("facilities", "Facilities"), ("operations", "Operations"), ("utilities", "Utilities"), ("space", "Space rental")
+    ];
 
-    private IReadOnlyList<FilterOption> Filters =>
-        new List<FilterOption> { new(null, "All") }
-            .Concat(FacilityCatalog.All.Select(c => new FilterOption(c, FacilityCatalog.ShortNameOf(c))))
+    private static readonly HashSet<string> UtilityCodes = new(StringComparer.Ordinal) { "ECF", "WCF" };
+    private static readonly HashSet<string> SpaceCodes = new(StringComparer.Ordinal)
+        { "VEGETABLE_FRUIT_SPACE_RENTAL", "KANMANGGAY_SPACE_RENTAL", "FIESTA_ARAW_LOT_RENTAL" };
+
+    private static string PrimaryCode(CollectionActivityEventDto e) => e.Lines.Count == 0 ? string.Empty : e.Lines[0].ClassificationCode;
+
+    private static string ScopeOf(CollectionActivityEventDto e)
+    {
+        var code = PrimaryCode(e);
+        if (UtilityCodes.Contains(code)) return "utilities";
+        if (SpaceCodes.Contains(code)) return "space";
+        return e.Facility is not null ? "facilities" : "operations";
+    }
+
+    private IReadOnlyList<CollectionActivityEventDto> InScope =>
+        (_feed?.Events ?? []).Where(e => _scope == "all" || ScopeOf(e) == _scope).ToList();
+
+    private List<CollectionActivityEventDto> Visible =>
+        InScope.Where(e => _source == AllSources || SourceLabel(e) == _source).ToList();
+
+    private IReadOnlyList<(string Value, string Label)> SourceOptions =>
+        new[] { (AllSources, "All sources") }
+            .Concat(InScope.Select(SourceLabel).Distinct().Order(StringComparer.CurrentCulture).Select(n => (n, n)))
             .ToList();
 
-    private string ActiveLabel => Filters.FirstOrDefault(f => f.Code == ActiveFilter)?.Label ?? "All";
+    private bool IsFiltered => _scope != "all" || _source != AllSources;
 
-    private List<FacilityHero.HeroStat> HeroStats => new()
+    private string ScopeLabel => _source != AllSources ? _source
+        : _scope == "all" ? "All sources" : Scopes.First(s => s.Key == _scope).Label;
+
+    private string SourceLabel(CollectionActivityEventDto e)
     {
-        new() { Value = Feed.Count.ToString(), Label = "Activity records" },
-        new() { Value = "₱" + Feed.Sum(t => t.Amount).ToString("N0"), Label = "Total Value" },
-        new() { Value = ActiveFilter is null ? "All" : ActiveFilter.ToString()!, Label = "Facility" },
+        var code = PrimaryCode(e);
+        // Rent is read by facility: "Permanent Stall Rent" alone would merge every facility's stalls into one source.
+        if (code == "PERMANENT_STALL_RENT" && e.Facility is { } fac)
+            return $"{FacilityCatalog.ShortNameOf(fac)} rent";
+        return e.Lines.Count == 0 ? "Collection" : SourceNames.For(code, e.Lines[0].ClassificationName);
+    }
+
+    private static string Detail(CollectionActivityEventDto e) =>
+        e.Lines.Count > 1 ? $"{e.Lines.Count} items" : e.Lines.FirstOrDefault()?.Description ?? "Collection";
+
+    private static string LineDetail(CollectionActivityLineDto line)
+    {
+        var period = line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy") : null;
+        return string.Join(" · ", new[] { line.Description, period }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string StatusText(CollectionActivityEventDto e) => e.Authority == "Legacy"
+        ? e.LegacyStatus switch { "Partial" => "Partial", _ => "Paid" }
+        : e.Disposition;
+
+    private static string StatusClass(CollectionActivityEventDto e) => StatusText(e) switch
+    {
+        "Paid" or "Posted" => "paid",
+        "Partial" or "Document corrected" => "partial",
+        _ => "corrected"
     };
+
+    private static string CorrectionLabel(string type) => type switch
+    {
+        "Void" => "Voided",
+        "Reversal" => "Reversed",
+        "Replacement" => "Replaced by a new collection",
+        "DocumentCorrection" => "Document corrected",
+        _ => "Correction"
+    };
+
+    private void Toggle(string key)
+    {
+        if (!_expanded.Add(key)) _expanded.Remove(key);
+    }
+
+    private void SetScope(string scope)
+    {
+        _scope = scope;
+        _source = AllSources;
+    }
+
+    private async Task OpenPicker() => await JS.InvokeVoidAsync("openDatePicker", _dateInput);
 
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
-        if (CachedTransactions is { } state
-            && state.ActiveFilter == ActiveFilter
-            && state.SelectedDate == SelectedDate)
+        if (CachedTransactions is { } state && state.SelectedDate == SelectedDate)
         {
-            Feed = state.Feed;
+            _feed = state.Feed;
             IsLoading = false;
             return;
         }
 
         await ReloadAsync(paintLoading: true);
-    }
-
-    private async Task SetFilter(FacilityCode? code)
-    {
-        ActiveFilter = code;
-        await Reload();
     }
 
     private async Task ShowLatest()
@@ -352,20 +417,21 @@
     private async Task ReloadAsync(bool paintLoading = false)
     {
         IsLoading = true;
+        _loadFailed = false;
+        _expanded.Clear();
         if (paintLoading)
             await PaintLoadingAsync();
 
         // Cold-start resilience: during prerender the JWT may not be attached yet, so the API can return
-        // 401/403 before the circuit is ready. Retry briefly, and NEVER persist a failed/empty-by-error
-        // load — otherwise the cached empty feed is served on the interactive pass and every refresh,
-        // and the reload is skipped (the "refresh shows 0" bug).
+        // 401/403 before the circuit is ready. Retry briefly, and NEVER persist a failed load — otherwise the
+        // cached empty feed is served on the interactive pass and every refresh, and the reload is skipped.
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = await TransactionsApi.GetRecentAsync(ActiveFilter, SelectedDate, 200);
-            if (result.IsSuccess)
+            var result = await ActivityApi.GetAsync(SelectedDate, SelectedDate, limit: Limit);
+            if (result.IsSuccess && result.Value is { } feed)
             {
-                Feed = result.Value ?? Array.Empty<TransactionFeedDto>();
-                CachedTransactions = new TransactionsPageState(ActiveFilter, SelectedDate, Feed.ToList());
+                _feed = feed;
+                CachedTransactions = new TransactionsPageState(SelectedDate, feed);
                 IsLoading = false;
                 return;
             }
@@ -374,8 +440,9 @@
             await Task.Delay(400);
         }
 
-        // Failed load: show an empty feed but do NOT cache it, so the next lifecycle/refresh retries.
-        Feed = Array.Empty<TransactionFeedDto>();
+        // Failed load: say so, but do NOT cache it, so the next lifecycle/refresh retries.
+        _feed = null;
+        _loadFailed = true;
         IsLoading = false;
     }
 
@@ -385,8 +452,5 @@
         await Task.Yield();
     }
 
-    public sealed record TransactionsPageState(
-        FacilityCode? ActiveFilter,
-        DateOnly SelectedDate,
-        List<TransactionFeedDto> Feed);
+    public sealed record TransactionsPageState(DateOnly SelectedDate, CollectionActivityFeedDto Feed);
 }

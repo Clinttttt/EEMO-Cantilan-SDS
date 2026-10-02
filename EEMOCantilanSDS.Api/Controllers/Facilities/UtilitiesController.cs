@@ -27,13 +27,13 @@ public class UtilitiesController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<UtilityHistoryRowDto>>> GetHistory([FromQuery] Guid stallId)
         => HandleResponse(await Sender.Send(new GetStallUtilityHistoryQuery(stallId)));
 
-    /// <summary>Seed for the entry modal — the existing bill (edit) or carry-forward previous readings.</summary>
+    /// <summary>Seed for the entry modal — the existing bill (edit) or a direct-amount new month (IA-055), with the bases each part accepts.</summary>
     [HttpGet("bill")]
     public async Task<ActionResult<UtilityBillEntryDto>> GetBillForEntry(
         [FromQuery] Guid stallId, [FromQuery] int year, [FromQuery] int month)
         => HandleResponse(await Sender.Send(new GetUtilityBillForEntryQuery(stallId, year, month)));
 
-    /// <summary>Record/update an NPM stall's meter readings and per-bill rates for a billing month.</summary>
+    /// <summary>Record/update an NPM stall's utility assessment for a billing month: a direct approved amount, or a recorded metered part resubmitted unchanged (IA-055).</summary>
     [HttpPost("reading")]
     public async Task<ActionResult<UtilityBillDto>> RecordReading([FromBody] RecordUtilityReadingCommand command)
         => HandleResponse(await Sender.Send(command));

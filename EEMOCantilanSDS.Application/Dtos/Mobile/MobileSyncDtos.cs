@@ -88,7 +88,9 @@ public sealed record SyncOfflineOperationDto(
     string? VehicleClassCode = null,
     // WCF direct entry: the billing period of the selected source (StallId above identifies the source).
     int? BillingYear = null,
-    int? BillingMonth = null);
+    int? BillingMonth = null,
+    // Approved fee option services (e.g. Market Fees): the fee option the collector selected. The amount rule is the server's.
+    Guid? FeeOptionId = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

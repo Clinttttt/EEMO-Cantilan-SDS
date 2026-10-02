@@ -1,0 +1,217 @@
+/* Fee option definitions — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+
+.fod-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 20px 0;
+}
+
+.fod-notice .v3-notice {
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.fod-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+.fod-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.fod-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    align-items: end;
+    gap: 12px;
+}
+
+.fod-rule {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.fod-rule legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Two-way rule choice: one joined control, the selected half in civic blue. */
+.fod-segmented {
+    display: flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.fod-segmented label {
+    position: relative;
+    flex: 1 1 0;
+    padding: 8px 12px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+
+.fod-segmented label + label {
+    border-left: 1px solid var(--border-strong);
+}
+
+.fod-segmented input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fod-segmented label.is-selected {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.fod-segmented label:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.fod-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.fod-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.fod-row-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.fod-row-actions .v3-btn + .v3-btn {
+    margin-left: 6px;
+}
+
+.fod-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.fod-status-active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.fod-status-retired {
+    color: var(--text-tertiary);
+}
+
+.v3-table tbody tr.fod-detail td,
+.v3-table tbody tr.fod-detail:hover td {
+    background: var(--surface-muted);
+}
+
+/* Amount history: a compact, indented ledger under the option, not a second set of table columns. */
+.fod-history-title {
+    margin: 0 0 6px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.fod-history {
+    max-width: 44rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.fod-history li {
+    display: grid;
+    grid-template-columns: 9.5rem 7rem 8rem minmax(0, 1fr);
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 0.8125rem;
+}
+
+.fod-history li + li {
+    border-top: 1px solid var(--border);
+}
+
+.fod-history-date {
+    font-weight: 600;
+}
+
+.fod-history-amount {
+    font-variant-numeric: tabular-nums;
+}
+
+.fod-history-by {
+    color: var(--text-tertiary);
+}
+
+.fod-saved {
+    margin: 12px 20px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 0.8125rem;
+}
+
+.fod-totals {
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--border);
+}
+
+.fod-totals h3 {
+    margin: 0 0 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+@media (max-width: 720px) {
+    /* The register scrolls sideways on a phone; the open form and history stay pinned to the visible width. */
+    .fod-inline,
+    .fod-history,
+    .fod-history-title {
+        position: sticky;
+        left: 20px;
+        width: calc(100vw - 104px);
+    }
+
+    .fod-history li {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .fod-row-actions {
+        white-space: normal;
+    }
+}

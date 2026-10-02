@@ -34,54 +34,24 @@
                the dashboard, where the office starts its day; the reference tenant is never asked. *@
             <MarketRentReminder />
 
-            <!-- Dashboard Hero Banner (always visible — fixed banner, not skeletoned) -->
-            <div class="vs-hero">
-                <div class="vs-hero-left">
-                    <div class="vs-hero-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="7" />
-                            <rect x="14" y="3" width="7" height="7" />
-                            <rect x="3" y="14" width="7" height="7" />
-                            <rect x="14" y="14" width="7" height="7" />
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Overview</div>
-                        <div class="vs-hero-title">Dashboard</div>
-                        <div class="vs-hero-sub">Collection Period: @_now.ToString("MMMM yyyy")</div>
-                    </div>
-                </div>
-                <div class="vs-hero-stats">
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">₱@TotalCollected.ToString("N0")</div>
-                        <div class="vs-hero-key">Facility collections</div>
-                        <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy")</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">₱@TotalPending.ToString("N0")</div>
-                        <div class="vs-hero-key">Facility unpaid</div>
-                        <div class="vs-hero-sub2">@UnpaidCount vendors</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@PaidCount</div>
-                        <div class="vs-hero-key">Facility payments</div>
-                        <div class="vs-hero-sub2">@ActiveFacilitiesCount facilities covered</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@CollectionRate%</div>
-                        <div class="vs-hero-key">Facility collection rate</div>
-                        <div class="vs-hero-sub2">@TotalCollectors active collectors</div>
-                    </div>
-                </div>
-                <div class="vs-hero-progress">
-                    <div class="vs-hero-progress-fill" style="width: @CollectionRate%;"></div>
-                </div>
-            </div>
-
-            <p class="vs-scope-note">The figures above cover the physical facilities. Every revenue source — operations, utilities and space rental as well — is below, from the official Monthly Income.</p>
+            <!-- Dashboard hero (always visible — fixed banner, not skeletoned) -->
+            <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Overview")" Title="Dashboard"
+                    Subtitle="@($"Collection period: {_now:MMMM yyyy}")" Progress="CollectionRate">
+                <Icon>
+                    <svg viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                    </svg>
+                </Icon>
+                <Figures>
+                    <V3HeroFigure Label="Facility collections" Value="@($"₱{TotalCollected:N0}")" Note="@_now.ToString("MMMM yyyy")" />
+                    <V3HeroFigure Label="Facility unpaid" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} vendors")" />
+                    <V3HeroFigure Label="Facility payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} facilities covered")" />
+                    <V3HeroFigure Label="Facility collection rate" Value="@($"{CollectionRate}%")" Note="@($"{TotalCollectors} active collectors")" />
+                </Figures>
+            </V3Hero>
 
             @* The complete revenue universe, from the same server projection Financial Reports uses (one source list, not two).
                Rendered once the page is interactive, so prerendering does not read it twice. *@

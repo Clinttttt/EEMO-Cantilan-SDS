@@ -1,0 +1,64 @@
+@* V3 HERO — the civic-blue identity band first accepted on the Dashboard (2026-10-01), shared so primary workspaces stop
+   copying their own dark banners. Identity on the left (icon tile, eyebrow, h1 title, one short line), the workspace's
+   few key figures on the right, optional actions and an optional progress rule. Solid colour, no gradient or glow.
+   Presentation only: every figure is passed in by the page, which keeps its own data and lifecycle. *@
+<header class="v3h @(Compact ? "v3h-compact" : "")">
+    <div class="v3h-identity">
+        @if (Icon is not null)
+        {
+            <div class="v3h-icon" aria-hidden="true">@Icon</div>
+        }
+        <div class="v3h-text">
+            @if (!string.IsNullOrWhiteSpace(Eyebrow))
+            {
+                <div class="v3h-eyebrow">@Eyebrow</div>
+            }
+            <h1 class="v3h-title">@Title</h1>
+            @if (Meta is not null)
+            {
+                <div class="v3h-sub">@Meta</div>
+            }
+            else if (!string.IsNullOrWhiteSpace(Subtitle))
+            {
+                <div class="v3h-sub">@Subtitle</div>
+            }
+        </div>
+    </div>
+    @if (Figures is not null)
+    {
+        <dl class="v3h-figures">@Figures</dl>
+    }
+    @if (Actions is not null)
+    {
+        <div class="v3h-actions">@Actions</div>
+    }
+    @if (Progress is { } pct)
+    {
+        <div class="v3h-progress" role="presentation">
+            <div class="v3h-progress-fill" style="width:@(Math.Clamp(pct, 0, 100).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div>
+        </div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Eyebrow { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>Rich supporting line in place of <see cref="Subtitle"/> (e.g. a period with a chip).</summary>
+    [Parameter] public RenderFragment? Meta { get; set; }
+
+    /// <summary>Decorative icon (inline SVG or a FacilityMark); rendered aria-hidden.</summary>
+    [Parameter] public RenderFragment? Icon { get; set; }
+
+    /// <summary>The workspace's key figures, as <see cref="V3HeroFigure"/> children.</summary>
+    [Parameter] public RenderFragment? Figures { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>Optional 0–100 progress rule along the bottom edge.</summary>
+    [Parameter] public double? Progress { get; set; }
+
+    /// <summary>A shorter band for report and secondary workspaces.</summary>
+    [Parameter] public bool Compact { get; set; }
+}

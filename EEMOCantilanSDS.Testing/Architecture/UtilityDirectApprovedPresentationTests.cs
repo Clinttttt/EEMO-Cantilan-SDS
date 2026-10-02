@@ -39,7 +39,9 @@ public class UtilityDirectApprovedPresentationTests
     {
         var text = Read(Path.Combine("Reports", "NpmReports.razor"));
 
-        Assert.Contains("Related utilities", text);
+        // The utility statement view is reached from the Financial Report's deep link (?view=utilities); V3 removed its
+        // separate "Related utilities" tab, but the view itself still exists and still states the two utilities apart.
+        Assert.Contains("string.Equals(View, \"utilities\"", text);
         Assert.DoesNotContain("Utility Billing</span>", text);
         Assert.DoesNotContain("CONSUMPTION BILLING", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Generate Billing Statement", text);
@@ -60,7 +62,7 @@ public class UtilityDirectApprovedPresentationTests
         Assert.DoesNotContain("amount varies per reading", text);
         Assert.DoesNotContain(">Utility Charges<", text);
         Assert.Contains("Utility service", text);
-        Assert.Contains("apart from stall rental", text);
+        Assert.Contains("not a rental charge", text);
     }
 
     [Fact]

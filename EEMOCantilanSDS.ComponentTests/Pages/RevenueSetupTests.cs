@@ -236,9 +236,9 @@ public sealed class RevenueSetupTests : TestContext
         var cut = RenderComponent<RevenueSetup>();
         cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
         ClickButton(cut, "Add revenue source");
-        cut.Find(".rev-form input").Change("Temporary Space Rental");
-        cut.Find(".rev-form input[type='date']").Change(DateText(PhilippineTime.Today.AddDays(1)));
-        cut.Find(".rev-form input[pattern]").Change("TEMP_SPACE");
+        cut.Find("#rev-create-name").Change("Temporary Space Rental");
+        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today.AddDays(1)));
+        cut.Find("#rev-create-code").Change("TEMP_SPACE");
         cut.Find(".rev-form").Submit();
 
         cut.WaitForAssertion(() =>
@@ -256,9 +256,9 @@ public sealed class RevenueSetupTests : TestContext
         var (cut, api) = RenderPage([]);
         cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
         ClickButton(cut, "Add revenue source");
-        cut.Find(".rev-form input").Change("Past Source");
-        cut.Find(".rev-form input[type='date']").Change(DateText(PhilippineTime.Today.AddDays(-1)));
-        cut.Find(".rev-form input[pattern]").Change("PAST_SOURCE");
+        cut.Find("#rev-create-name").Change("Past Source");
+        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today.AddDays(-1)));
+        cut.Find("#rev-create-code").Change("PAST_SOURCE");
         cut.Find(".rev-form").Submit();
 
         Assert.Contains("A revenue policy cannot take effect in the past.", cut.Markup);
@@ -286,9 +286,9 @@ public sealed class RevenueSetupTests : TestContext
         var cut = RenderComponent<RevenueSetup>();
         cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
         ClickButton(cut, "Add revenue source");
-        cut.Find(".rev-form input").Change("New Source");
-        cut.Find(".rev-form input[type='date']").Change(DateText(PhilippineTime.Today));
-        cut.Find(".rev-form input[pattern]").Change("NEW_SOURCE");
+        cut.Find("#rev-create-name").Change("New Source");
+        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today));
+        cut.Find("#rev-create-code").Change("NEW_SOURCE");
 
         var pendingSubmit = cut.Find(".rev-form").SubmitAsync();
         cut.WaitForAssertion(() => Assert.True(cut.Find(".rev-modal-actions button[type='submit']").HasAttribute("disabled")), RenderTimeout);
@@ -329,6 +329,49 @@ public sealed class RevenueSetupTests : TestContext
     }
 
     [Fact]
+    public void Manage_OpensDetailsInADrawerBesideTheRegisterAndEscapeClosesIt()
+    {
+        var id = Guid.NewGuid();
+        var current = Policy("STALL_RENT", "Stall Rent", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt, id);
+        var (cut, api) = RenderPage([Classification("STALL_RENT", "Stall Rent", true, true, current, id)], id, [current]);
+
+        cut.WaitForAssertion(() => Assert.Contains("Stall Rent", cut.Markup), RenderTimeout);
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        ClickButton(cut, "Manage");
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = cut.Find(".v3-drawer[role='dialog']");
+            Assert.Equal("true", drawer.GetAttribute("aria-modal"));
+            Assert.Contains("STALL_RENT", drawer.TextContent);
+            Assert.Single(drawer.QuerySelectorAll(".rev-history-table tbody tr"));
+            Assert.Contains("is-selected", cut.Find(".rev-table tbody tr").ClassName);
+        }, RenderTimeout);
+
+        cut.Find(".v3-drawer").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), RenderTimeout);
+        Assert.Single(cut.FindAll(".rev-table tbody tr"));
+    }
+
+    [Fact]
+    public void AddRevenueSource_SeparatesPermanentIdentityFromTheInitialPolicy()
+    {
+        var (cut, _) = RenderPage([], Guid.NewGuid(), []);
+        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
+        ClickButton(cut, "Add revenue source");
+
+        var drawer = cut.Find(".v3-drawer.rev-modal");
+        var sections = drawer.QuerySelectorAll(".v3-drawer-section");
+        Assert.Equal(2, sections.Length);
+        Assert.Contains("Source identity", sections[0].TextContent);
+        Assert.NotNull(sections[0].QuerySelector("#rev-create-code"));
+        Assert.Contains("Initial policy", sections[1].TextContent);
+        Assert.NotNull(sections[1].QuerySelector("#rev-create-name"));
+        Assert.NotNull(sections[1].QuerySelector("#rev-create-date"));
+    }
+
+    [Fact]
     public void FuturePolicyChange_AppendsVersionWithoutReplacingPolicyEffectiveToday()
     {
         var id = Guid.NewGuid();
@@ -351,9 +394,8 @@ public sealed class RevenueSetupTests : TestContext
         ClickButton(cut, "Manage");
         cut.WaitForAssertion(() => Assert.Contains("Policy history", cut.Markup), RenderTimeout);
         ClickButton(cut, "Schedule policy change");
-        var fields = cut.FindAll(".rev-form input");
-        fields[1].Change("Updated Market Fees");
-        fields[2].Change(DateText(PhilippineTime.Today.AddDays(7)));
+        cut.Find("#rev-policy-name").Change("Updated Market Fees");
+        cut.Find("#rev-policy-date").Change(DateText(PhilippineTime.Today.AddDays(7)));
         cut.Find(".rev-form").Submit();
 
         cut.WaitForAssertion(() =>
@@ -392,9 +434,8 @@ public sealed class RevenueSetupTests : TestContext
         ClickButton(cut, "Manage");
         cut.WaitForAssertion(() => Assert.Contains("Policy history", cut.Markup), RenderTimeout);
         ClickButton(cut, "Schedule policy change");
-        var inputs = cut.FindAll(".rev-form input");
-        inputs[1].Change("Market Fees revised");
-        inputs[2].Change(DateText(PhilippineTime.Today.AddDays(1)));
+        cut.Find("#rev-policy-name").Change("Market Fees revised");
+        cut.Find("#rev-policy-date").Change(DateText(PhilippineTime.Today.AddDays(1)));
         cut.Find(".rev-form").Submit();
         cut.WaitForAssertion(() =>
         {
@@ -426,9 +467,9 @@ public sealed class RevenueSetupTests : TestContext
         var cut = RenderComponent<RevenueSetup>();
         cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
         ClickButton(cut, "Add revenue source");
-        cut.Find(".rev-form input").Change("Source");
-        cut.Find(".rev-form input[type='date']").Change(DateText(PhilippineTime.Today));
-        cut.Find(".rev-form input[pattern]").Change("SOURCE_1");
+        cut.Find("#rev-create-name").Change("Source");
+        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today));
+        cut.Find("#rev-create-code").Change("SOURCE_1");
         cut.Find(".rev-form").Submit();
 
         cut.WaitForAssertion(() =>

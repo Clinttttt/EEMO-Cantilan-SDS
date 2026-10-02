@@ -25,6 +25,7 @@
 
 <PageTitle>StallTrack — Official Monthly Income @Year</PageTitle>
 
+<div class="v3-page omi-page">
 <div class="omi-actions no-print">
     <a class="omi-back" href="/reports">← Back to Financial Reports</a>
     <div class="omi-actions-right">
@@ -59,6 +60,8 @@ else
     }
 
     <article class="omi-sheet" aria-labelledby="omi-title">
+        @* The office sheet's letterhead: the municipal seal, the three government lines and the national Bagong Pilipinas
+           mark, then the office. The statement's own title is the table's first heading, as on the sheet. *@
         <header class="omi-head">
             <img class="omi-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
             <div class="omi-head-text">
@@ -66,15 +69,26 @@ else
                 <p>Province of @Branding.Province</p>
                 <p class="omi-muni">Municipality of @Branding.Municipality</p>
             </div>
+            <img class="omi-bp" src="/images/bagong-pilipinas-logo-320.png" alt="Bagong Pilipinas" />
         </header>
         <p class="omi-office">@Branding.OfficeName</p>
-        <h1 id="omi-title" class="omi-title">Monthly Income @Year</h1>
-        <p class="omi-period">@HorizonLabel · Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</p>
+        <h1 id="omi-title" class="v3-sr-only">Monthly Income @Year</h1>
 
         <div class="omi-scroll" role="region" aria-label="Monthly Income statement" tabindex="0">
             @{ _letter = 0; }
             <table class="omi-table">
                 <caption class="v3-sr-only">Monthly Income @Year by revenue line, January to December</caption>
+                @* Column widths for paper: sixteen columns share an A4 landscape line without clipping Total or Percentage. *@
+                <colgroup>
+                    <col class="omi-col-line" />
+                    <col class="omi-col-wide" />
+                    @for (var m = 0; m < 12; m++)
+                    {
+                        <col class="omi-col-month" />
+                    }
+                    <col class="omi-col-wide" />
+                    <col class="omi-col-pct" />
+                </colgroup>
                 <thead>
                     <tr>
                         <th scope="col" class="omi-line">Monthly Income @Year</th>
@@ -84,7 +98,7 @@ else
                             <th scope="col" class="omi-num">@name</th>
                         }
                         <th scope="col" class="omi-num omi-total-col">Total</th>
-                        <th scope="col" class="omi-num">Percentage</th>
+                        <th scope="col" class="omi-num">Percent<wbr />age</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -140,21 +154,9 @@ else
                 </tfoot>
             </table>
         </div>
-
-        <ul class="omi-notes">
-            @if (!_data.TargetsConfigured)
-            {
-                <li>Annual targets are not configured in StallTrack, so Annual Target and Percentage show “—”. Percentage is total ÷ annual target, never collection efficiency.</li>
-            }
-            <li>Each line counts a real collection once: authoritative legacy records before a source's cutover, posted collections after it. A remittance is not income and never changes this statement.</li>
-            @if (UnplacedRows.Count > 0)
-            {
-                <li>The total includes @UnplacedRows.Count line@(UnplacedRows.Count == 1 ? "" : "s") awaiting an approved official grouping, listed apart above.</li>
-            }
-            <li>Blank months have not yet been reached; 0.00 is a month that has passed with nothing collected.</li>
-        </ul>
     </article>
 }
+</div>
 
 @code {
     private static readonly string[] MonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -169,14 +171,6 @@ else
 
     // The last month whose figures exist: the current month this year, all twelve for a past year, none for a future one.
     private int Horizon => Year < PhilippineTime.Today.Year ? 12 : Year > PhilippineTime.Today.Year ? 0 : PhilippineTime.Today.Month;
-
-    private string HorizonLabel => Horizon switch
-    {
-        0 => $"No month of {Year} has been reached",
-        12 => $"January – December {Year}",
-        1 => $"January {Year}",
-        _ => $"January – {CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(Horizon)} {Year}"
-    };
 
     private IEnumerable<OfficialMonthlyIncomeGroupDto> OfficialGroups =>
         _data?.Groups.Where(g => g.Key != OfficialMonthlyIncomeStructure.Pending) ?? [];

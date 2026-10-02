@@ -60,4 +60,7 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
 
     public Task<Result<int>> TransferAsync(TransferAccountableFormsRequest request) =>
         PostAsync<TransferAccountableFormsRequest, int>("api/accountable-forms/transfer", request);
+
+    public Task<Result<AutoAllocatePlanDto>> AutoAllocateAsync(AutoAllocateFormsRequest request) =>
+        PostAsync<AutoAllocateFormsRequest, AutoAllocatePlanDto>("api/accountable-forms/auto-allocate", request);
 }

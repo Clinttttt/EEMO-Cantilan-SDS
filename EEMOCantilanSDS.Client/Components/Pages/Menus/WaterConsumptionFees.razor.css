@@ -277,30 +277,109 @@
         outline-offset: 2px;
     }
 
+/* Readiness as a compact status grid: three columns on desktop, two on a laptop, one on a phone. */
 .wcf-checks {
-    margin: 6px 0 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 8px 0 0;
     padding: 0;
     list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
 }
 
     .wcf-checks li {
-        padding: 4px 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        min-width: 0;
+        margin: 0 -1px -1px 0;
+        padding: 8px 12px;
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
         color: var(--text-secondary);
+        line-height: 1.35;
     }
 
-    .wcf-checks li strong {
-        margin-right: 6px;
+.wcf-check-mark {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.wcf-checks li.ok .wcf-check-mark {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.wcf-checks li.warn .wcf-check-mark {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.wcf-check-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+    .wcf-check-text strong {
         color: var(--text);
         font-weight: 600;
     }
 
-    .wcf-checks li.ok > span {
-        color: var(--green);
+    .wcf-check-text span {
+        font-size: 0.75rem;
+        overflow-wrap: anywhere;
     }
 
-    .wcf-checks li.warn > span {
-        color: var(--red);
+.wcf-collectors {
+    margin-top: 8px;
+}
+
+/* Readable WCF collection details: label / value pairs, never stored evidence. */
+.wcf-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 3px 14px;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-muted);
+    font-size: 0.8125rem;
+}
+
+    .wcf-facts dt {
+        color: var(--text-tertiary);
     }
+
+    .wcf-facts dd {
+        margin: 0;
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
+    }
+
+@media (max-width: 1100px) {
+    .wcf-checks {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .wcf-checks {
+        grid-template-columns: 1fr;
+    }
+}
 
 .wcf-confirm {
     width: min(460px, calc(100vw - 32px));
