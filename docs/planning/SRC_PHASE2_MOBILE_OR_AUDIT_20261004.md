@@ -2,6 +2,8 @@
 
 Status: audit result. Governing decision: IA-062 (SRC is the digital identity of a canonical Collection; the physical OR/CT serial is not a StallTrack collection input). Class **A** = already canonical writer, **B** = legacy writer with an approved canonical equivalent, **C** = prospectively cuttable with already-approved classification/policy, **D** = lacks approved backend/domain rules (no safe cutover without new decisions).
 
+> **Superseded in part.** This table is the original Phase 2 snapshot. The current state of every path (including Tabo and Slaughterhouse, now canonical after Head enablement) is the **Phase 2.2 final-state table at the bottom of this document**.
+
 | Mobile screen / operation | Authority (`CollectionSourceAuthorityMap`) | Current writer | OR dependency | Class | What a safe cutover needs |
 |---|---|---|---|---|---|
 | Governed services (`OperationCollection`: Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit, Transportation) | `GovernedService` = CanonicalAlways | `GovernedServiceWorkflow` | none (since IA-062) | **A** | done |
@@ -40,3 +42,46 @@ The table above is an **implementation audit**; it does not override IA-045/049/
 
 ### Authority and counting
 `CollectionSourceAuthorityMap` is unchanged. ECF and rent use the existing row authority (`UtilityBill` electricity / `PaymentRecord` = CanonicalAfterRowCutover): before a row's activation legacy counts, after it only the canonical Collection counts, and the Mobile canonical writers refuse a Legacy-authority row so one payment can never create two money events. Integration tests prove, for ECF: no serial needed, SRC returned, idempotent replay (same CollectionId and SRC), one Collection, legacy OR evidence untouched, no form consumed, Collection Activity lists one canonical row with the SRC, collector facts/remittance eligibility see the same Collection, and legacy / stale / over-amount / non-collector attempts are refused without writing; and for rent: no serial, SRC, replay, allocation on the PaymentRecord with the projected partial, legacy row refused.
+
+---
+
+## Phase 2.2 — financial proof for ECF/rent, and canonical Tabo and Slaughterhouse (2026-10-04)
+
+### Final state of every Mobile collection path
+
+| Path | State | How a Collector's money is written |
+|---|---|---|
+| Governed services (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit) | **Canonical** | `GovernedServiceWorkflow`; Collection + SRC, no serial |
+| WCF | **Canonical** | `WcfCollectionWorkflow` |
+| Transportation / Parking | **Canonical after Head enablement** (legacy trip writer closed from that date) | governed `TRANSPORTATION`; Menu routes to it |
+| ECF (Electricity) | **Canonical for rows already activated**; legacy for pre-cutover rows | `PostMobileEcfAsync`; SRC, no serial |
+| Monthly rent | **Canonical for rows already activated**; legacy for pre-cutover rows | `PostMobileRentAsync`; SRC, no serial |
+| **Tabo (TPM)** | **Canonical after Head enablement of the `TABO` service** (OR policy, effective-dated); legacy before and for historical CT/OR rows | `FeeScheduleCollectionWorkflow`; SRC, no typed OR |
+| **Slaughterhouse (SLH)** | **Canonical after Head enablement of the `SLAUGHTERHOUSE` service** (current per-head transaction rules); legacy before and for historical rows | `FeeScheduleCollectionWorkflow`; SRC per animal line, no typed OR |
+| NPM daily (`DailyCollection`) | **Legacy** (not migrated) | `RecordDailyCollectionCommand` |
+| Fish/Meat Vendor Fee | **Not built** | — |
+| Slaughterhouse packages / add-ons | **Not built** (none are active in the current rules) | — |
+
+### Phase 2.1 closure (financial proof, no new behaviour)
+For one canonical Mobile ECF collection and one canonical Mobile rent collection, PostgreSQL integration tests prove: counted exactly once in the official Monthly Income row (legacy projection excluded), appears once in the Collector Report under its SRC with no legacy duplicate, appears once in the Collection Activity and the Remittance position (collected = amount, remitted = 0, unremitted = amount); a remittance record moves only remitted/unremitted, never income, and creates no Collection or line. The Mobile.Core queue test proves the real `PendingOperationStore` + `MobileSyncService` keep a queued canonical operation across a failed attempt and reconcile with the server's SRC on retry under the same `ClientOperationId` (never a second identity).
+
+### Tabo and Slaughterhouse: design
+- **Boundary (IA-051 pattern, as Transportation).** `TABO` and `SLAUGHTERHOUSE` are added to `GovernedServiceCatalog` (Basis = DirectApprovedAmount). The Head's governed setting (IsEnabled + MobileEnabled, effective-dated) is only the prospective switch; it carries no amount. They are deliberately *not* in `CollectorOperationCodes.IsSupported` (they are facility-assigned, TPM / SLH), so they do not appear as assignable operations. The generic governed post refuses them (a collector-typed amount can never reach them).
+- **Amount = the existing rules, never typed.** Tabo: market weekday from `ITpmMarketDayProvider`, registry vendor matched by name (as the existing handler), fee `FeeRateKey.TpmVendorDay` from `IFeeRateResolver`, one vendor per market day (an earlier legacy attendance or canonical line refuses). Slaughterhouse: `SlaughterRateKeys` + approved `SlaughterAnimalRates` registry, and the existing `SlaughterTransaction.Create*` calculation is run on an unsaved instance (no second algorithm, nothing stored). The collector-confirmed amount must equal the computed amount; otherwise the post is refused and a durable `Rejected` PostingOperation is recorded.
+- **One writer, no twin.** The workflow posts only the canonical Collection (`SourceKind.GovernedService`, `SourceId = service.Id`, snapshot carries vendor/animal/heads/rate and the instrument policy). It writes **no** `TpmAttendance` / `SlaughterTransaction`, so a real payment is never both a legacy record and a Collection. A new Tabo vendor is registered in the vendor registry only when the post succeeds (a rejected post leaves no vendor).
+- **Legacy writers closed for Collectors from the enablement date.** `AddVendorToMarketDayCommandHandler` and `RecordSlaughterCommandHandler` refuse a *Collector* actor for a date on which the service is enabled (`GovernedCanonicalAuthority`). History stays readable and unchanged; Admin/Web entry is unchanged.
+- **Instrument from policy.** The line freezes the effective `RevenueClassificationPolicy.PermittedInstrumentType` (OR for both under the current policy; Tabo's historical CT rows stay as recorded). No accountable document is created, consumed or required; the SRC is **not** proof a physical form was used.
+- **Mobile.** The Menu item carries `CanonicalCollection`. `Taboan.razor` / `Slaughter.razor` hide the OR box for the canonical path, save under a `ClientOperationId` on the device ("Waiting to sync"), sync, and show the SRC; legacy screens are unchanged before enablement. New queue kind `OfflineOperationKind.FeeScheduleCollection = 11` (shape-checked in `PendingOperationStore`).
+- **Slaughterhouse granularity.** The existing "transaction" is the per-animal-line `SlaughterTransaction` (the owner+OR grouping is only a UI grouping). The canonical path therefore posts **one Collection / SRC per animal line**, preserving the current per-transaction semantics. Combining several lines under one SRC would change no total and is a deferred product choice, not a money-rule ambiguity.
+
+### Reporting and exactly-once (proven on PostgreSQL)
+For one Tabo and one Slaughterhouse collection: official Monthly Income row `TABO` / `SLAUGHTERHOUSE` counts it once; the Collector Report lists it once as a canonical operation collection under its SRC with no legacy line; Collection Activity lists one canonical event; the Remittance position moves only collected/remitted/unremitted and a remittance creates no Collection. Idempotent replay returns the same Collection and SRC; an idempotency conflict (same id, different intent), cross-tenant collector, non-collector role, unassigned collector, not-enabled service, wrong typed amount, non-market day, duplicate vendor-day, unstated rate, unapproved animal and zero heads are all refused with nothing written.
+
+### Known limits (recorded, not hidden)
+- No Head UI yet to enable `TABO` / `SLAUGHTERHOUSE`; use the existing `PUT api/governed-services/{code}` with Basis = DirectApprovedAmount, IsEnabled and MobileEnabled.
+- A device whose cached Menu pre-dates enablement may still open the legacy sheet; the server's closure refuses it with a clear message (nothing is written). Legacy operations already queued on a device before enablement and synced after it are refused for the same reason and appear as Rejected for review - never silently doubled.
+- Web/Mobile operational lists (Taboan attendance, Slaughter transactions) are legacy lists and do not carry canonical Collections; Mobile shows its own recorded SRC cards, and the office sees them in Collection Activity / Collections Register.
+- Admin/Web legacy writers remain open for Tabo and Slaughterhouse (office entry, unchanged).
+
+### Not built / still legacy
+Fish/Meat Vendor Fee Mobile; NPM daily migration; Slaughterhouse packages/add-ons (none active); Head setup UI for the two new switches; backfill of any historical row (none attempted).
