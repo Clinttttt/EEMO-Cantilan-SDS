@@ -210,6 +210,53 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task AShadowLineOnAStillLegacyRow_IsNotCountedBesideItsLegacyMoney_ButTwoIdenticalGenuineCollectionsBothAre()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var tccRecordId = await ReadTccRecordIdAsync(w);
+
+        await using (var ctx = db.CreateContext(w.Tenant.Id))
+        {
+            // Two genuine Market Fees collections: same day, same amount, no payor, different physical CTs.
+            var workflow = new GovernedServiceWorkflow(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), new FixedTenant(w.Tenant.Id));
+            foreach (var doc in w.CtDocuments.Take(2))
+                Assert.True((await workflow.PostMobileAsync(new GovernedServicePostRequest(
+                    1, Guid.NewGuid(), CollectorOperationCodes.MarketFees, Today, 30m, null, "Walk-up", null, doc.Id, doc.DocumentNumber,
+                    DateTime.UtcNow.AddMinutes(-1)))).IsSuccess);
+
+            // A hypothetical future writer posts a canonical line against the TCC rent row whose legacy money (900) is
+            // still authoritative, plus a correction against it. Neither may appear beside the legacy figure.
+            var rentClass = await ctx.RevenueClassifications.SingleAsync(x => x.SemanticCode == RevenueClassificationCodes.PermanentStallRent);
+            var rentPolicy = await ctx.RevenueClassificationPolicies.SingleAsync(x => x.RevenueClassificationId == rentClass.Id);
+            var shadow = Collection.Post(Today, DateTime.UtcNow.AddMinutes(-2), "head", "Head", "Admin",
+                [new CollectionLineDraft(rentClass, rentPolicy, 900m, CollectionSourceKind.PaymentRecord, tccRecordId, null, null,
+                    [new CollectionAllocationDraft(CollectionSourceKind.PaymentRecord, tccRecordId, 900m, null)])]);
+            ctx.Add(shadow);
+            var shadowLine = shadow.Lines.Single();
+            ctx.Add(CollectionCorrection.Record(w.Tenant.Id, shadow.Id, null, null, null, CollectionCorrectionType.Reversal, Today,
+                DateTime.UtcNow, -100m, "shadow partial correction", "head", "Head",
+                [new CollectionCorrectionLineDraft(shadowLine.Id, -100m,
+                    shadowLine.Allocations.Select(a => new CollectionCorrectionAllocationDraft(a.Id, -100m)).ToList())]));
+            await ctx.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(w.Tenant.Id);
+        var statement = Statement(w, read);
+        Assert.Equal(900m, Cell(statement, "RENT_TCC", c => c.Legacy));
+        Assert.Equal(0m, Cell(statement, "RENT_TCC", c => c.Canonical));
+        Assert.Equal(60m, Cell(statement, "MARKET_FEES", c => c.Canonical));
+        Assert.Equal(900m + 100m + 60m, statement.GrandTotal.Total);
+    }
+
+    private async Task<Guid> ReadTccRecordIdAsync(World w)
+    {
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        return await ctx.PaymentRecords.Where(x => x.BaseRentalAmount == 900m).Select(x => x.Id).SingleAsync();
+    }
+
+    [SkippableFact]
     public async Task TheRegisterAndItsRcdSummaryAreDerivedFromPostedCollections_AndASerialTracesToItsRemittance()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

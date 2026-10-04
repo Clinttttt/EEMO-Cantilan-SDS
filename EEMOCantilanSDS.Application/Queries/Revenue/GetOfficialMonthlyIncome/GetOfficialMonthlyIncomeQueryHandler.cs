@@ -109,13 +109,21 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             from line in db.CollectionLines.AsNoTracking()
             join collection in db.Collections.AsNoTracking() on new { line.MunicipalityId, Id = line.CollectionId } equals new { collection.MunicipalityId, collection.Id }
             where line.MunicipalityId == tenantId && collection.BusinessDate >= first && collection.BusinessDate <= last
-            select new { line.Id, line.RevenueClassificationId, collection.BusinessDate, line.Amount }).ToListAsync(ct);
+            select new { line.Id, line.RevenueClassificationId, collection.BusinessDate, line.Amount, line.SourceKind, line.SourceId, line.SourcePart }).ToListAsync(ct);
+
+        // A canonical line counts only when the authority map says the canonical representation of its source row is the
+        // authoritative money (IA-050). A line against a source row whose legacy money still counts is shadow evidence:
+        // the legacy reader already reports that row, so counting the line too would report one collection twice. The
+        // test is the line's source identity, never its amount, payor or date, so two genuine collections are never merged.
+        var counted = await AuthoritativeLineIdsAsync(tenantId, lines.Select(x => (x.Id, x.SourceKind, x.SourceId, x.SourcePart)).ToList(), ct);
+        lines = lines.Where(x => counted.Contains(x.Id)).ToList();
         var lineCorrections = await (
             from correctionLine in db.CollectionCorrectionLines.AsNoTracking()
             join line in db.CollectionLines.AsNoTracking() on new { correctionLine.MunicipalityId, Id = correctionLine.OriginalCollectionLineId } equals new { line.MunicipalityId, line.Id }
             join collection in db.Collections.AsNoTracking() on new { line.MunicipalityId, Id = line.CollectionId } equals new { collection.MunicipalityId, collection.Id }
             where correctionLine.MunicipalityId == tenantId && collection.BusinessDate >= first && collection.BusinessDate <= last
             select new { line.Id, line.RevenueClassificationId, collection.BusinessDate, correctionLine.FinancialEffectAmount }).ToListAsync(ct);
+        lineCorrections = lineCorrections.Where(x => counted.Contains(x.Id)).ToList();
 
         var rentIds = codes.Where(x => x.Value == RevenueClassificationCodes.PermanentStallRent).Select(x => x.Key).ToHashSet();
         foreach (var line in lines.Where(x => !rentIds.Contains(x.RevenueClassificationId)))
@@ -156,6 +164,52 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             }
         }
         return facts;
+    }
+
+    /// <summary>
+    /// The ids of the lines whose canonical money is authoritative. Same rule as the Collection Activity feed: the line's own
+    /// source and every allocation's source must be one whose canonical representation counts. Only stall-rent and utility
+    /// source rows can still be legacy-authoritative; a line against any other source, or one whose source row cannot be read
+    /// (still posted money), is counted.
+    /// </summary>
+    private async Task<HashSet<Guid>> AuthoritativeLineIdsAsync(Guid tenantId,
+        IReadOnlyList<(Guid Id, CollectionSourceKind? Kind, Guid? SourceId, CollectionSourcePart? Part)> lines, CancellationToken ct)
+    {
+        var lineIds = lines.Select(x => x.Id).ToList();
+        var allocations = lineIds.Count == 0 ? [] : await db.CollectionAllocations.AsNoTracking()
+            .Where(a => a.MunicipalityId == tenantId && lineIds.Contains(a.CollectionLineId)
+                && (a.SourceKind == CollectionSourceKind.PaymentRecord || a.SourceKind == CollectionSourceKind.UtilityBill))
+            .Select(a => new { a.CollectionLineId, a.SourceKind, a.SourceId, a.SourcePart }).ToListAsync(ct);
+
+        var recordIds = lines.Where(l => l.Kind == CollectionSourceKind.PaymentRecord && l.SourceId.HasValue).Select(l => l.SourceId!.Value)
+            .Concat(allocations.Where(a => a.SourceKind == CollectionSourceKind.PaymentRecord).Select(a => a.SourceId)).Distinct().ToList();
+        var billIds = lines.Where(l => l.Kind == CollectionSourceKind.UtilityBill && l.SourceId.HasValue).Select(l => l.SourceId!.Value)
+            .Concat(allocations.Where(a => a.SourceKind == CollectionSourceKind.UtilityBill).Select(a => a.SourceId)).Distinct().ToList();
+        var records = await db.PaymentRecords.AsNoTracking()
+            .Where(p => p.MunicipalityId == tenantId && recordIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.SettlementAuthorityState }).ToDictionaryAsync(p => p.Id, p => p.SettlementAuthorityState, ct);
+        var bills = await db.UtilityBills.AsNoTracking()
+            .Where(b => b.MunicipalityId == tenantId && billIds.Contains(b.Id))
+            .Select(b => new { b.Id, b.ElectricitySettlementAuthorityState, b.WaterSettlementAuthorityState }).ToDictionaryAsync(b => b.Id, ct);
+
+        bool Counts(CollectionSourceKind? kind, Guid? sourceId, CollectionSourcePart? part)
+        {
+            if (kind is not { } k) return true;
+            var authority = k switch
+            {
+                CollectionSourceKind.PaymentRecord => sourceId is { } r && records.TryGetValue(r, out var state) ? state : SettlementAuthority.Canonical,
+                CollectionSourceKind.UtilityBill => sourceId is { } b && bills.TryGetValue(b, out var bill)
+                    ? part == CollectionSourcePart.Water ? bill.WaterSettlementAuthorityState : bill.ElectricitySettlementAuthorityState
+                    : SettlementAuthority.Canonical,
+                _ => SettlementAuthority.Canonical
+            };
+            return CollectionSourceAuthorityMap.CanonicalMoneyCounts(k, authority);
+        }
+
+        var allocationsByLine = allocations.ToLookup(a => a.CollectionLineId);
+        return lines.Where(l => Counts(l.Kind, l.SourceId, l.Part)
+                && allocationsByLine[l.Id].All(a => Counts(a.SourceKind, a.SourceId, a.SourcePart)))
+            .Select(l => l.Id).ToHashSet();
     }
 
     private static string CodeOf(Dictionary<Guid, string> codes, Guid id) => codes.GetValueOrDefault(id, "UNKNOWN_CLASSIFICATION");
