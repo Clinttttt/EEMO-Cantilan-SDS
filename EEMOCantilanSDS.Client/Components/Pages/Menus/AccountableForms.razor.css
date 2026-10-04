@@ -467,3 +467,51 @@
         margin-left: 0;
     }
 }
+
+/* ── AF No. 51 accountability: view switch, month control, copy picker, row action ── */
+.af-views {
+    align-self: flex-start;
+}
+
+.af-month {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.af-month .v3-btn {
+    min-width: 36px;
+    padding-inline: 8px;
+}
+
+.af-more {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.af-more summary {
+    width: fit-content;
+    cursor: pointer;
+}
+
+.af-more summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.af-more .v3-field {
+    margin-top: 8px;
+}
+
+.af-copies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 8px 0 0 24px;
+}
+
+.af-row-action-cell {
+    text-align: right;
+    white-space: nowrap;
+}

@@ -230,17 +230,47 @@
                     </div>
                 }
 
-                <label class="cc-field">
-                    <span>Available Official Receipt</span>
-                    <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                            @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
-                        <option value="">Select an available OR</option>
-                        @foreach (var receipt in _receipts)
-                        {
-                            <option value="@receipt.DocumentId">@receipt.DocumentNumber · @receipt.State</option>
-                        }
-                    </select>
-                </label>
+                @* The physical Official Receipt is the office's own booklet. StallTrack suggests the next assigned receipt in its
+                   registered sequence; choosing another is a deliberate recovery action, not the normal path. Nothing here
+                   consumes a receipt: that happens only when the collection is posted. *@
+                <div class="cc-receipt" role="group" aria-label="Official Receipt">
+                    <span class="cc-receipt-label">Official Receipt</span>
+                    @if (SelectedReceipt is { } picked)
+                    {
+                        <strong class="cc-receipt-serial">@picked.DocumentNumber</strong>
+                        <span class="cc-receipt-note">@(picked.IsNextExpected ? "Next assigned receipt" : "Different receipt selected")</span>
+                    }
+                    else if (NextReceipt is { } next)
+                    {
+                        <strong class="cc-receipt-serial">@next.DocumentNumber</strong>
+                        <span class="cc-receipt-note">Next assigned receipt</span>
+                        <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
+                                @onclick="UseNextReceiptAsync">Use this receipt</button>
+                    }
+                    else
+                    {
+                        <span class="cc-receipt-note" role="status">No Official Receipt is available. Ask the office to register or assign one.</span>
+                    }
+                    @if (_receipts.Count > 1 || (SelectedReceipt is null && _receipts.Count > 0 && NextReceipt is null))
+                    {
+                        <button type="button" class="cc-receipt-change" aria-expanded="@(_showReceipts ? "true" : "false")"
+                                @onclick="() => _showReceipts = !_showReceipts">@(_showReceipts ? "Hide receipts" : "Use different receipt")</button>
+                    }
+                    @if (_showReceipts)
+                    {
+                        <label class="cc-field cc-receipt-picker">
+                            <span class="v3-sr-only">Choose a different Official Receipt</span>
+                            <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
+                                    @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
+                                <option value="">No receipt selected</option>
+                                @foreach (var receipt in _receipts)
+                                {
+                                    <option value="@receipt.DocumentId">@receipt.DocumentNumber@(receipt.IsNextExpected ? " · next" : "")</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                </div>
 
                 <div class="cc-total"><span>Total</span><strong>@Money(_draft.TotalAmount)</strong></div>
 
@@ -321,6 +351,12 @@
 @code {
     private EcfCollectionDraftDto? _draft;
     private List<EcfAvailableDocumentDto> _receipts = [];
+    private bool _showReceipts;
+
+    // The server lists the signed-in user's own stock first, in registered sequence; the first row is the next expected receipt.
+    private EcfAvailableDocumentDto? NextReceipt => _receipts.FirstOrDefault(x => x.IsNextExpected) ?? _receipts.FirstOrDefault();
+
+    private EcfAvailableDocumentDto? SelectedReceipt => _draft?.AccountableDocumentId is { } id ? _receipts.FirstOrDefault(x => x.DocumentId == id) : null;
     private List<EcfCollectionActivityDto> _activity = [];
     private List<CollectionPayorDto> _payors = [];
     private IReadOnlyList<CollectionCandidateDto> _candidates = [];
@@ -542,10 +578,14 @@
         finally { _busy = false; }
     }
 
-    private async Task SelectDocumentAsync(ChangeEventArgs args)
+    private Task SelectDocumentAsync(ChangeEventArgs args) =>
+        SelectReceiptAsync(Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null);
+
+    private Task UseNextReceiptAsync() => SelectReceiptAsync(NextReceipt?.DocumentId);
+
+    private async Task SelectReceiptAsync(Guid? documentId)
     {
         if (_draft is null) return;
-        var documentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null;
         _busy = true;
         _error = null;
         try

@@ -179,33 +179,6 @@ public sealed class AccountableFormsTests : TestContext
     }
 
     [Fact]
-    public void RegisterOfficialReceiptBook_SubmitsTheOrInstrument_AndAllowsANumericOnlyBook()
-    {
-        var api = FormsApi(withOrBook: true);
-        api.Setup(x => x.ReceiveBookAsync(It.IsAny<ReceiveAccountableFormBookRequest>()))
-            .ReturnsAsync(Result<AccountableFormBookDto>.Success(OrBook()));
-        Services.AddSingleton(api.Object);
-        Services.AddSingleton(CollectorsApi().Object);
-
-        var cut = RenderComponent<AccountableForms>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Official Receipts").Click();
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Register received book").Click();
-
-        var inputs = cut.Find("[role='dialog']").QuerySelectorAll("input");
-        inputs[0].Change("Book OR-2");
-        Assert.Equal(string.Empty, inputs[1].GetAttribute("value") ?? string.Empty); // prefix stays blank
-        cut.Find("[role='dialog']").QuerySelectorAll("input")[2].Change("501");
-        cut.Find("[role='dialog']").QuerySelectorAll("input")[3].Change("550");
-        Assert.Contains("000501 – 000550 · 50 receipts", cut.Find("[role='dialog']").TextContent);
-        cut.Find("#af-register-form").Submit();
-
-        cut.WaitForAssertion(() => api.Verify(x => x.ReceiveBookAsync(It.Is<ReceiveAccountableFormBookRequest>(r =>
-            r.InstrumentType == RevenueInstrumentType.OfficialReceipt && r.NumberPrefix == string.Empty
-            && r.FirstSerialNumber == 501 && r.LastSerialNumber == 550)), Times.Once), Timeout);
-    }
-
-    [Fact]
     public void AccountWithoutTheCollectorList_CannotAssign_AndIsToldWhy()
     {
         var collectors = new Mock<ICollectorsApiClient>();
@@ -371,6 +344,209 @@ public sealed class AccountableFormsTests : TestContext
         Assert.DoesNotContain(dialog.QuerySelectorAll("button"), b => b.TextContent.Trim() is "Preview allocation" or "Assign Cash Tickets");
         dialog.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Transfer unused tickets").Click();
         Assert.Contains("Transfer Cash Tickets", cut.Find("[role='dialog'] h2").TextContent);
+    }
+
+    // ── AF No. 51: printed serials, cancellation, loss by copy, follow-up references, history ──
+    private static readonly Guid SuffixBookId = Guid.NewGuid();
+
+    private static AccountableFormBookDto SuffixBook() => new(
+        SuffixBookId, RevenueInstrumentType.OfficialReceipt, "AF No. 51", string.Empty, 2315601, 2315605,
+        [
+            new(Guid.NewGuid(), "2315601 A", AccountableDocumentState.InOffice, null, 2315601),
+            new(Guid.NewGuid(), "2315602 A", AccountableDocumentState.InOffice, null, 2315602),
+            new(Guid.NewGuid(), "2315603 A", AccountableDocumentState.Assigned, CollectorId, 2315603),
+            new(Guid.NewGuid(), "2315604 A", AccountableDocumentState.Voided, null, 2315604),
+            new(Guid.NewGuid(), "2315605 A", AccountableDocumentState.Lost, null, 2315605),
+        ], NumberSuffix: " A", Quantity: 5, SourceAuthority: "Municipal Treasurer");
+
+    private Mock<IWcfCollectionsApiClient> SuffixApi(params AccountableFormExceptionDto[] exceptions)
+    {
+        var api = new Mock<IWcfCollectionsApiClient>();
+        api.Setup(x => x.GetBooksAsync()).ReturnsAsync(Result<IReadOnlyList<AccountableFormBookDto>>.Success([SuffixBook()]));
+        api.Setup(x => x.GetFormExceptionsAsync()).ReturnsAsync(Result<IReadOnlyList<AccountableFormExceptionDto>>.Success(exceptions));
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(CollectorsApi().Object);
+        return api;
+    }
+
+    private IRenderedComponent<AccountableForms> OpenOfficialReceipts()
+    {
+        var cut = RenderComponent<AccountableForms>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("tbody tr")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Official Receipts").Click();
+        return cut;
+    }
+
+    [Fact]
+    public void RegisteringReceipts_TakesTheSerialsAsPrinted_CountsTheQuantity_AndSubmitsThemExactly()
+    {
+        var api = SuffixApi();
+        api.Setup(x => x.RegisterFormsAsync(It.IsAny<RegisterAccountableFormsRequest>()))
+            .ReturnsAsync(Result<AccountableFormBookDto>.Success(SuffixBook()));
+        var cut = OpenOfficialReceipts();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Register received book").Click();
+
+        cut.Find("input[placeholder='2315601 A']").Input("2315601 A");
+        cut.Find("input[placeholder='2315650 A']").Input("2315650 A");
+
+        Assert.Contains("2315601 A – 2315650 A · 50 receipts", cut.Find("[role='dialog']").TextContent);
+        cut.Find("#af-register-form").Submit();
+
+        cut.WaitForAssertion(() => api.Verify(x => x.RegisterFormsAsync(It.Is<RegisterAccountableFormsRequest>(r =>
+            r.InstrumentType == RevenueInstrumentType.OfficialReceipt && r.FirstSerial == "2315601 A" && r.LastSerial == "2315650 A"
+            && r.Quantity == null && r.FormVariant == null && r.SourceAuthority == "Municipal Treasurer")), Times.Once), Timeout);
+        // Official Receipts no longer go through the numeric prefix-and-digits route.
+        api.Verify(x => x.ReceiveBookAsync(It.IsAny<ReceiveAccountableFormBookRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void ARangeWithADifferentSuffix_OrAWrongQuantity_IsExplainedAndCannotBeSubmitted()
+    {
+        var api = SuffixApi();
+        var cut = OpenOfficialReceipts();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Register received book").Click();
+
+        cut.Find("input[placeholder='2315601 A']").Input("2315601 A");
+        cut.Find("input[placeholder='2315650 A']").Input("2315650 B");
+        Assert.Contains("same printed prefix and suffix", cut.Find("[role='alert']").TextContent);
+        Assert.True(cut.Find("button[form='af-register-form']").HasAttribute("disabled"));
+
+        cut.Find("input[placeholder='2315650 A']").Input("2315650 A");
+        cut.Find("input[type='number']").Input("40");
+        Assert.Contains("That range holds 50, not 40", cut.Find("[role='alert']").TextContent);
+        Assert.True(cut.Find("button[form='af-register-form']").HasAttribute("disabled"));
+        api.Verify(x => x.RegisterFormsAsync(It.IsAny<RegisterAccountableFormsRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Receipts_ShowTheirPrintedSerialAndReadableStates_WithNoInternalCodes()
+    {
+        SuffixApi();
+        var cut = OpenOfficialReceipts();
+
+        var table = cut.Find("[aria-label='Official Receipt units']").TextContent;
+        Assert.Contains("2315601 A", table);
+        Assert.Contains("Cancelled", table);
+        Assert.Contains("Lost", table);
+        Assert.DoesNotContain("Voided", cut.Find(".af-page").TextContent);
+        Assert.DoesNotMatch("[A-Z]+_[A-Z]+", cut.Markup);
+        Assert.Contains("Lost", cut.Find("dl[aria-label='Official Receipt custody']").TextContent);
+    }
+
+    [Fact]
+    public void ReportingALoss_ByCopy_NormalizesThePrintedSerial_AndSendsOnlyTheMissingCopy()
+    {
+        var api = SuffixApi();
+        api.Setup(x => x.ReportFormLossAsync(It.IsAny<ReportFormLossRequest>()))
+            .ReturnsAsync(Result<FormLossResultDto>.Success(new(1, 1, "2315601 A", "2315601 A")));
+        var cut = OpenOfficialReceipts();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Report lost form").Click();
+
+        // The serial may be typed without the space; it is matched to the registered form, which keeps its printed value.
+        cut.Find("#af-loss-form input[required]").Input("2315601A");
+        cut.Find("input[name='af-loss-scope'][type='radio']:not([checked])").Change(true);
+        cut.FindAll("#af-loss-form input[type='checkbox']").Single(c => c.ParentElement!.TextContent.Contains("Duplicate")).Change(true);
+        cut.Find("#af-loss-form textarea").Input("Duplicate was not in the booklet");
+        Assert.Contains("Will block", cut.Find("[role='dialog']").TextContent);
+        cut.Find("#af-loss-form").Submit();
+
+        cut.WaitForAssertion(() => api.Verify(x => x.ReportFormLossAsync(It.Is<ReportFormLossRequest>(r =>
+            r.FormBookId == SuffixBookId && r.FirstSerialNumber == 2315601 && r.LastSerialNumber == 2315601
+            && r.Copies == AccountableFormCopies.Duplicate && r.Narrative == "Duplicate was not in the booklet")), Times.Once), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("blocked from use", cut.Markup), Timeout);
+    }
+
+    [Fact]
+    public void ALossWithoutAnyChosenCopy_IsRefusedBeforeSubmitting()
+    {
+        var api = SuffixApi();
+        var cut = OpenOfficialReceipts();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Report lost form").Click();
+        cut.Find("#af-loss-form input[required]").Input("2315601 A");
+        cut.Find("input[name='af-loss-scope'][type='radio']:not([checked])").Change(true);
+        cut.Find("#af-loss-form textarea").Input("Missing");
+
+        Assert.Contains("Choose what is missing", cut.Find("[role='dialog'] [role='alert']").TextContent);
+        Assert.True(cut.Find("button[form='af-loss-form']").HasAttribute("disabled"));
+        api.Verify(x => x.ReportFormLossAsync(It.IsAny<ReportFormLossRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Cancelling_ARegisteredReceipt_NeedsOnlyItsSerialAndReason_AndPromisesNoMoney()
+    {
+        SuffixApi();
+        var remittances = new Mock<IRemittancesApiClient>();
+        remittances.Setup(x => x.SpoilAsync(It.IsAny<SpoilFormRequest>())).ReturnsAsync(Result<SpoiledFormDto>.Success(
+            new(Guid.NewGuid(), "2315602 A", RevenueInstrumentType.OfficialReceipt, "Wrong payor", null, "Office", DateTime.UtcNow, null)));
+        Services.AddSingleton(remittances.Object);
+        var cut = OpenOfficialReceipts();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record cancellation").Click();
+
+        cut.Find("#af-spoil-form input[required]").Input("2315602 A");
+        cut.FindAll("#af-spoil-form input[required]")[1].Change("Wrong payor");
+        cut.Find("#af-spoil-form").Submit();
+
+        cut.WaitForAssertion(() => remittances.Verify(x => x.SpoilAsync(It.Is<SpoilFormRequest>(r => r.Reason == "Wrong payor")), Times.Once), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("cancelled. It is not revenue and cannot return to stock. Add the RCD reference", cut.Markup), Timeout);
+    }
+
+    [Fact]
+    public void Exceptions_ShowNeedsFollowUp_UntilTheReferenceIsAdded_ThenShowTheReference()
+    {
+        var needs = new AccountableFormExceptionDto(Guid.NewGuid(), "2315604 A", RevenueInstrumentType.OfficialReceipt, "Cancelled",
+            "Wrong payor", null, null, "Office", DateTime.UtcNow, null, null, true, []);
+        var done = new AccountableFormExceptionDto(Guid.NewGuid(), "2315605 A", RevenueInstrumentType.OfficialReceipt, "Duplicate missing",
+            "Duplicate not in the booklet", "Market", new DateOnly(2026, 10, 1), "Office", DateTime.UtcNow, CollectorId, "Ana Reyes", false, ["Notice of Loss 10-2026"]);
+        var api = SuffixApi(needs, done);
+        api.Setup(x => x.AddFormReferenceAsync(It.IsAny<AddFormReferenceRequest>()))
+            .ReturnsAsync(Result<FormReferenceResultDto>.Success(new(1, "2315604 A", "2315604 A")));
+        var cut = OpenOfficialReceipts();
+
+        Assert.Contains("Exceptions (1)", cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Exceptions")).TextContent);
+        cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Exceptions")).Click();
+
+        var rows = cut.FindAll("[aria-label='Cancelled and lost forms'] tbody tr");
+        Assert.Equal(2, rows.Count);
+        Assert.Contains("Needs follow-up", rows[0].TextContent);
+        Assert.Contains("Notice of Loss 10-2026", rows[1].TextContent);
+        Assert.Contains("Duplicate missing", rows[1].TextContent);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add RCD reference").Click();
+        cut.Find("#af-ref-form input[required]").Input("RCD 10-2026");
+        cut.Find("#af-ref-form").Submit();
+
+        cut.WaitForAssertion(() => api.Verify(x => x.AddFormReferenceAsync(It.Is<AddFormReferenceRequest>(r =>
+            r.FormBookId == SuffixBookId && r.FirstSerialNumber == 2315604 && r.Kind == AccountableFormReferenceKind.Cancellation
+            && r.Reference == "RCD 10-2026")), Times.Once), Timeout);
+    }
+
+    [Fact]
+    public void HistoryAndAccountabilitySupport_ReadTheLedger_AndDoNotClaimToBeTheOfficialReport()
+    {
+        var api = SuffixApi();
+        api.Setup(x => x.GetFormHistoryAsync(RevenueInstrumentType.OfficialReceipt)).ReturnsAsync(
+            Result<IReadOnlyList<AccountableFormHistoryEventDto>>.Success(
+            [
+                new(DateTime.UtcNow, "Assigned", "2315601 A – 2315625 A", 25, "Head", "Office", "Bobby Mercado", null),
+                new(DateTime.UtcNow.AddHours(-1), "Duplicate missing", "2315603 A", 1, "Head", "Bobby Mercado", null, "Market · Not in the booklet"),
+            ]));
+        api.Setup(x => x.GetFormRaafSupportAsync(RevenueInstrumentType.OfficialReceipt, It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(
+            Result<AccountableFormRaafSupportDto>.Success(new(RevenueInstrumentType.OfficialReceipt, 2026, 10,
+            [
+                new(SuffixBookId, "AF No. 51", 0, 5, 1, 1, 1, 2, [], [], [], [], [], [new(2315601, 2315602, "2315601 A", "2315602 A")]),
+            ])));
+        var cut = OpenOfficialReceipts();
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "History").Click();
+        var history = cut.Find("[aria-label='Official Receipt history']").TextContent;
+        Assert.Contains("2315601 A – 2315625 A", history);
+        Assert.Contains("Office → Bobby Mercado", history);
+        Assert.Contains("Duplicate missing", history);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Accountability").Click();
+        var support = cut.Find("[aria-label='Accountability support by book']").TextContent;
+        Assert.Contains("2315601 A – 2315602 A", support);
+        Assert.Contains("it is not that report", cut.Markup);
     }
 
     private static Mock<IWcfCollectionsApiClient> FormsApi(bool withOrBook = false)

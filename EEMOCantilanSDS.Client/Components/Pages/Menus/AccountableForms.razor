@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Dtos
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @* The custody endpoints are exposed through the WCF-named client today (api/accountable-forms/*). The name is
    historical; the capability is generic accountable-form custody. *@
@@ -52,7 +53,11 @@
                     </button>
                     <button class="v3-btn" type="button" @onclick="OpenSpoil" disabled="@(_busy || !Books.Any())">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9.5" y1="12.5" x2="14.5" y2="17.5" /><line x1="14.5" y1="12.5" x2="9.5" y2="17.5" /></svg>
-                        Record spoiled form
+                        Record cancellation
+                    </button>
+                    <button class="v3-btn" type="button" @onclick="OpenLoss" disabled="@(_busy || !Books.Any())">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12.5" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        Report lost form
                     </button>
                 </div>
                 <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenAssign" disabled="@(_busy || !Books.Any())">
@@ -74,6 +79,15 @@
 
     <SummaryStrip Label="@($"{Noun} custody")" Items="SummaryItems" />
 
+    <div class="v3-btn-group af-views" role="group" aria-label="Accountable forms view">
+        <button class="v3-btn" type="button" aria-pressed="@(_view == View.Stock ? "true" : "false")" @onclick="() => SetViewAsync(View.Stock)">Stock &amp; custody</button>
+        <button class="v3-btn" type="button" aria-pressed="@(_view == View.Exceptions ? "true" : "false")" @onclick="() => SetViewAsync(View.Exceptions)">Exceptions@(FollowUpCount > 0 ? $" ({FollowUpCount})" : "")</button>
+        <button class="v3-btn" type="button" aria-pressed="@(_view == View.History ? "true" : "false")" @onclick="() => SetViewAsync(View.History)">History</button>
+        <button class="v3-btn" type="button" aria-pressed="@(_view == View.Support ? "true" : "false")" @onclick="() => SetViewAsync(View.Support)">Accountability</button>
+    </div>
+
+    @if (_view == View.Stock)
+    {
     <section class="v3-panel" aria-labelledby="af-books-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
             <h2 id="af-books-title">@Noun books</h2>
@@ -90,7 +104,8 @@
                         <th scope="col" class="v3-num">Assigned</th>
                         <th scope="col" class="v3-num">Consumed</th>
                         <th scope="col" class="v3-num">Needs review</th>
-                        <th scope="col" class="v3-num">Spoiled</th>
+                        <th scope="col" class="v3-num">Cancelled</th>
+                        <th scope="col" class="v3-num">Lost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -105,12 +120,13 @@
                             <td class="v3-num">@Count(book, AccountableDocumentState.Consumed)</td>
                             <td class="v3-num @(Count(book, AccountableDocumentState.ReconciliationRequired) > 0 ? "af-attention" : null)">@Count(book, AccountableDocumentState.ReconciliationRequired)</td>
                             <td class="v3-num">@Count(book, AccountableDocumentState.Voided)</td>
+                            <td class="v3-num @(Count(book, AccountableDocumentState.Lost) > 0 ? "af-attention" : null)">@Count(book, AccountableDocumentState.Lost)</td>
                         </tr>
                     }
                     @if (!Books.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="8">
+                            <td class="v3-empty" colspan="9">
                                 @if (_loading)
                                 {
                                     <span role="status">Loading books…</span>
@@ -209,7 +225,165 @@
         </div>
     </section>
 
-    <p class="af-scope">This workspace covers Official Receipt and Cash Ticket inventory and collector custody, including returning unused forms and recording spoiled blank forms. Money remittance is recorded separately in <a href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>, and a form's custody never decides what has been remitted. Void/replacement of an issued document and signed RCD certification are not managed here.</p>
+    }
+    else if (_view == View.Exceptions)
+    {
+        <section class="v3-panel" aria-labelledby="af-exc-title" aria-busy="@(_viewLoading ? "true" : "false")">
+            <header class="v3-panel-header">
+                <h2 id="af-exc-title">Cancelled and lost @Nouns.ToLowerInvariant()</h2>
+                <span class="v3-panel-meta">@ExceptionRows.Count().ToString("N0") recorded@(FollowUpCount > 0 ? $" · {FollowUpCount:N0} need follow-up" : "")</span>
+            </header>
+            @if (!string.IsNullOrWhiteSpace(_viewError))
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@_viewError</p>
+            }
+            <div class="v3-table-wrap" role="region" aria-label="Cancelled and lost forms" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">@Unit</th>
+                            <th scope="col">What happened</th>
+                            <th scope="col">Details</th>
+                            <th scope="col">Held by</th>
+                            <th scope="col">Recorded</th>
+                            <th scope="col">Follow-up</th>
+                            <th scope="col"><span class="v3-sr-only">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in ExceptionRows)
+                        {
+                            <tr @key="@($"{row.AccountableDocumentId}-{row.Kind}-{row.RecordedAtUtc.Ticks}")">
+                                <td class="v3-strong">@row.DocumentNumber</td>
+                                <td>@row.Kind</td>
+                                <td>@row.Detail@(string.IsNullOrWhiteSpace(row.Place) ? "" : $" · {row.Place}")</td>
+                                <td>@(row.CustodianName ?? "Office")</td>
+                                <td>@When(row.RecordedAtUtc) · @row.ActorName</td>
+                                <td>
+                                    @if (row.NeedsFollowUp)
+                                    {
+                                        <span class="af-attention">Needs follow-up</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="v3-state">@string.Join(", ", row.References)</span>
+                                    }
+                                </td>
+                                <td class="af-row-action-cell">
+                                    <button class="v3-btn" type="button" @onclick="() => OpenReference(row)" disabled="@_busy">@ReferenceLabel(row)</button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!ExceptionRows.Any())
+                        {
+                            <tr><td class="v3-empty" colspan="7">@(_viewLoading ? "Loading…" : $"No {Nouns.ToLowerInvariant()} have been cancelled or reported lost.")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else if (_view == View.History)
+    {
+        <section class="v3-panel" aria-labelledby="af-history-title" aria-busy="@(_viewLoading ? "true" : "false")">
+            <header class="v3-panel-header">
+                <h2 id="af-history-title">@Noun history</h2>
+                <span class="v3-panel-meta">Newest first</span>
+            </header>
+            @if (!string.IsNullOrWhiteSpace(_viewError))
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@_viewError</p>
+            }
+            <div class="v3-table-wrap v3-table-wrap-tall" role="region" aria-label="@($"{Noun} history")" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">When</th>
+                            <th scope="col">Event</th>
+                            <th scope="col">@Units</th>
+                            <th scope="col" class="v3-num">Qty</th>
+                            <th scope="col">By</th>
+                            <th scope="col">From → To</th>
+                            <th scope="col">Reason / reference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _history)
+                        {
+                            <tr>
+                                <td>@When(item.AtUtc)</td>
+                                <td class="v3-strong">@item.Event</td>
+                                <td>@item.Serials</td>
+                                <td class="v3-num">@item.Quantity.ToString("N0")</td>
+                                <td>@(item.Actor ?? "—")</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.From) && string.IsNullOrWhiteSpace(item.To) ? "—" : $"{item.From ?? "—"} → {item.To ?? "—"}")</td>
+                                <td>@(item.Detail ?? "—")</td>
+                            </tr>
+                        }
+                        @if (!_history.Any())
+                        {
+                            <tr><td class="v3-empty" colspan="7">@(_viewLoading ? "Loading…" : $"No {Nouns.ToLowerInvariant()} activity yet.")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else if (_view == View.Support)
+    {
+        <section class="v3-panel" aria-labelledby="af-support-title" aria-busy="@(_viewLoading ? "true" : "false")">
+            <header class="v3-panel-header">
+                <h2 id="af-support-title">Accountability support</h2>
+                <div class="af-month" role="group" aria-label="Month">
+                    <button class="v3-btn" type="button" aria-label="Previous month" @onclick="() => ShiftSupportMonthAsync(-1)">‹</button>
+                    <span class="v3-panel-meta">@_supportMonth.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)</span>
+                    <button class="v3-btn" type="button" aria-label="Next month" @onclick="() => ShiftSupportMonthAsync(1)">›</button>
+                </div>
+            </header>
+            @if (!string.IsNullOrWhiteSpace(_viewError))
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@_viewError</p>
+            }
+            <div class="v3-table-wrap" role="region" aria-label="Accountability support by book" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Book</th>
+                            <th scope="col" class="v3-num">Beginning</th>
+                            <th scope="col" class="v3-num">Received</th>
+                            <th scope="col" class="v3-num">Issued</th>
+                            <th scope="col" class="v3-num">Cancelled</th>
+                            <th scope="col" class="v3-num">Lost</th>
+                            <th scope="col" class="v3-num">Ending</th>
+                            <th scope="col">Ending serials</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _support?.Rows ?? [])
+                        {
+                            <tr>
+                                <td class="v3-strong">@row.Form</td>
+                                <td class="v3-num">@row.Beginning.ToString("N0")</td>
+                                <td class="v3-num">@row.Receipts.ToString("N0")</td>
+                                <td class="v3-num">@row.Issued.ToString("N0")</td>
+                                <td class="v3-num">@row.Cancelled.ToString("N0")</td>
+                                <td class="v3-num">@row.Lost.ToString("N0")</td>
+                                <td class="v3-num">@row.Ending.ToString("N0")</td>
+                                <td>@(row.EndingRanges.Count == 0 ? "—" : string.Join(", ", row.EndingRanges.Select(r => r.FirstSerialNumber == r.LastSerialNumber ? r.FirstDocumentNumber : $"{r.FirstDocumentNumber} – {r.LastDocumentNumber}")))</td>
+                            </tr>
+                        }
+                        @if (_support is null || _support.Rows.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="8">@(_viewLoading ? "Loading…" : "No form activity or balance for this month.")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="af-scope">Counts of forms from the form ledger. This supports preparing the prescribed Report of Accountability for Accountable Forms; it is not that report.</p>
+        </section>
+    }
+
+    <p class="af-scope">Custody and accountability of physical forms only. Money is recorded when a collection is posted and remitted in <a href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>; a form's custody never decides what has been remitted.</p>
 </div>
 
 @if (_dialog == Dialog.Register)
@@ -221,7 +395,40 @@
                 <h2 id="af-register-title">Register received book</h2>
                 <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
             </header>
-            <form class="v3-modal-body" id="af-register-form" @onsubmit="RegisterAsync" @onsubmit:preventDefault="true">
+            <form class="v3-modal-body" id="af-register-form" @onsubmit="SubmitRegisterAsync" @onsubmit:preventDefault="true">
+                @if (UsesPrintedSerials)
+                {
+                    <div class="v3-form-grid">
+                        <label class="v3-field"><span>First serial</span><input @ref="_firstField" required maxlength="40" placeholder="2315601 A" autocomplete="off" @bind="_orFirst" @bind:event="oninput" /></label>
+                        <label class="v3-field"><span>Last serial</span><input required maxlength="40" placeholder="2315650 A" autocomplete="off" @bind="_orLast" @bind:event="oninput" /></label>
+                        <label class="v3-field"><span>Quantity (optional)</span><input type="number" min="1" @bind="_orQuantity" @bind:event="oninput" /></label>
+                    </div>
+                    <div class="v3-form-grid">
+                        <label class="v3-field"><span>Received</span><input type="date" @bind="_orReceivedOn" /></label>
+                        <label class="v3-field"><span>Source</span><input maxlength="100" @bind="_orSource" /></label>
+                        <label class="v3-field"><span>Reference (optional)</span><input maxlength="100" @bind="_orReference" /></label>
+                    </div>
+                    <details class="af-more">
+                        <summary>Printed form variant</summary>
+                        <label class="v3-field"><span>Variant, only if printed on the form</span><input maxlength="20" placeholder="51-A" @bind="_orVariant" /></label>
+                    </details>
+                    @if (OrRegisterProblem is { } orProblem)
+                    {
+                        @if (!string.IsNullOrWhiteSpace(_orFirst) && !string.IsNullOrWhiteSpace(_orLast))
+                        {
+                            <p class="af-field-error" role="alert">@orProblem</p>
+                        }
+                    }
+                    else
+                    {
+                        <div class="af-preview" aria-live="polite">
+                            <span>Preview</span>
+                            <strong>@OrRegisterPreview</strong>
+                        </div>
+                    }
+                }
+                else
+                {
                 <p class="af-hint">Record a pre-numbered @Noun book the office has physically received. StallTrack does not generate @Unit.ToLowerInvariant() numbers.</p>
                 <div class="v3-form-grid">
                     <label class="v3-field"><span>Book reference</span><input @ref="_firstField" required maxlength="80" @bind="_seriesName" /></label>
@@ -246,6 +453,7 @@
                         <strong>@RegisterPreview</strong>
                     </div>
                 }
+                }
                 @if (!string.IsNullOrWhiteSpace(_dialogError))
                 {
                     <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
@@ -253,7 +461,7 @@
             </form>
             <footer class="v3-modal-footer">
                 <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="af-register-form" disabled="@(_busy || RegisterProblem is not null)">Register book</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-register-form" disabled="@(_busy || (UsesPrintedSerials ? OrRegisterProblem : RegisterProblem) is not null)">@(UsesPrintedSerials ? "Register receipts" : "Register book")</button>
             </footer>
         </section>
     </div>
@@ -297,7 +505,8 @@
                             <div><dt>Assigned</dt><dd>@Count(selected, AccountableDocumentState.Assigned).ToString("N0")</dd></div>
                             <div><dt>Consumed</dt><dd>@Count(selected, AccountableDocumentState.Consumed).ToString("N0")</dd></div>
                             <div><dt>Needs review</dt><dd>@Count(selected, AccountableDocumentState.ReconciliationRequired).ToString("N0")</dd></div>
-                            <div><dt>Spoiled</dt><dd>@Count(selected, AccountableDocumentState.Voided).ToString("N0")</dd></div>
+                            <div><dt>Cancelled</dt><dd>@Count(selected, AccountableDocumentState.Voided).ToString("N0")</dd></div>
+                            <div><dt>Lost</dt><dd>@Count(selected, AccountableDocumentState.Lost).ToString("N0")</dd></div>
                         </dl>
                         @if (Count(selected, AccountableDocumentState.InOffice) == 0)
                         {
@@ -452,7 +661,7 @@
                                         <div><dt>Already assigned · @held.Collector</dt><dd>@held.Count.ToString("N0")</dd></div>
                                     }
                                     @if (check.Issued > 0) { <div><dt>Already issued</dt><dd>@check.Issued.ToString("N0")</dd></div> }
-                                    @if (check.Spoiled > 0) { <div><dt>Spoiled</dt><dd>@check.Spoiled.ToString("N0")</dd></div> }
+                                    @if (check.Spoiled > 0) { <div><dt>Cancelled or lost</dt><dd>@check.Spoiled.ToString("N0")</dd></div> }
                                     @if (check.Review > 0) { <div><dt>Needs review</dt><dd>@check.Review.ToString("N0")</dd></div> }
                                     @if (check.Missing > 0) { <div><dt>Outside the book</dt><dd>@check.Missing.ToString("N0")</dd></div> }
                                     <div class="af-facts-total"><dt>Remaining in office after this</dt><dd>@check.RemainingAfter.ToString("N0")</dd></div>
@@ -613,26 +822,21 @@
 
 @if (_dialog == Dialog.Spoil)
 {
+    @* Cancellation of a blank form: recorded at once, with the serial as printed. The RCD reference is added later. *@
     <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
         <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-spoil-title"
                  @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
             <header class="v3-modal-header">
-                <h2 id="af-spoil-title">Record a spoiled or cancelled blank @Unit.ToLowerInvariant()</h2>
+                <h2 id="af-spoil-title">Record cancellation</h2>
                 <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
             </header>
             <form class="v3-modal-body" id="af-spoil-form" @onsubmit="SpoilAsync" @onsubmit:preventDefault="true">
-                <p class="af-hint">For a blank form spoiled before any payer was served. It uses up the form but records no money, is never revenue, and never returns to stock.</p>
-                <label class="v3-field">
-                    <span>@Noun book</span>
-                    <select @ref="_firstField" @bind="_spoilBookId">
-                        <option value="">Select book</option>
-                        @foreach (var book in Books)
-                        {
-                            <option value="@book.BookId">@book.SeriesName · @RangeLabel(book)</option>
-                        }
-                    </select>
-                </label>
-                <label class="v3-field"><span>Serial number</span><input type="number" min="0" @bind="_spoilSerial" /></label>
+                <p class="af-hint">A blank @Unit.ToLowerInvariant() spoiled before anyone was served. It is used up, never revenue, and never returns to stock.</p>
+                <label class="v3-field"><span>@Unit serial</span><input @ref="_firstField" required maxlength="40" autocomplete="off" @bind="_spoilSerialText" @bind:event="oninput" /></label>
+                @if (!string.IsNullOrWhiteSpace(_spoilSerialText) && FindUnit(_spoilSerialText) is null)
+                {
+                    <p class="af-field-error" role="alert">That serial is not in a registered book.</p>
+                }
                 <label class="v3-field"><span>Reason</span><input required maxlength="200" @bind="_spoilReason" /></label>
                 <label class="v3-field"><span>Note (optional)</span><input maxlength="500" @bind="_spoilNote" /></label>
                 @if (!string.IsNullOrWhiteSpace(_dialogError))
@@ -642,14 +846,101 @@
             </form>
             <footer class="v3-modal-footer">
                 <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="af-spoil-form" disabled="@(_busy || _spoilBookId is null || string.IsNullOrWhiteSpace(_spoilReason))">Record as spoiled</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-spoil-form" disabled="@(_busy || FindUnit(_spoilSerialText) is null || string.IsNullOrWhiteSpace(_spoilReason))">Record cancellation</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_dialog == Dialog.Loss)
+{
+    @* Loss: the form is blocked at once. The notice or report reference is added afterwards from Exceptions. *@
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal v3-drawer" role="dialog" aria-modal="true" aria-labelledby="af-loss-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-loss-title">Report lost form</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-loss-form" @onsubmit="ReportLossAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">The @Unit.ToLowerInvariant() is blocked from use as soon as this is recorded. Add the notice reference later.</p>
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>First serial</span><input @ref="_firstField" required maxlength="40" autocomplete="off" @bind="_lossFirst" @bind:event="oninput" /></label>
+                    <label class="v3-field"><span>Last serial (if a range)</span><input maxlength="40" autocomplete="off" @bind="_lossLast" @bind:event="oninput" /></label>
+                </div>
+                @if (UsesPrintedSerials)
+                {
+                    <fieldset class="af-strategy">
+                        <legend>What is missing?</legend>
+                        <label class="af-check"><input type="radio" name="af-loss-scope" checked="@_lossWhole" @onchange="() => _lossWhole = true" /> Entire receipt set</label>
+                        <label class="af-check"><input type="radio" name="af-loss-scope" checked="@(!_lossWhole)" @onchange="() => _lossWhole = false" /> Selected copies</label>
+                        @if (!_lossWhole)
+                        {
+                            <div class="af-copies">
+                                <label class="af-check"><input type="checkbox" checked="@_lossOriginal" @onchange="e => _lossOriginal = (bool)e.Value!" /> Original</label>
+                                <label class="af-check"><input type="checkbox" checked="@_lossDuplicate" @onchange="e => _lossDuplicate = (bool)e.Value!" /> Duplicate</label>
+                                <label class="af-check"><input type="checkbox" checked="@_lossTriplicate" @onchange="e => _lossTriplicate = (bool)e.Value!" /> Triplicate</label>
+                            </div>
+                        }
+                    </fieldset>
+                }
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>Lost on (approx.)</span><input type="date" max="@PhilippineTime.Today.ToString("yyyy-MM-dd")" @bind="_lossDate" /></label>
+                    <label class="v3-field"><span>Place (optional)</span><input maxlength="200" @bind="_lossPlace" /></label>
+                </div>
+                <label class="v3-field"><span>What happened</span><textarea required rows="3" maxlength="500" @bind="_lossNarrative" @bind:event="oninput"></textarea></label>
+                @if (LossTarget is { } target && LossProblem is null)
+                {
+                    <div class="af-preview" aria-live="polite">
+                        <span>Will block</span>
+                        <strong>@SerialRange(target.Book, target.First, target.Last) · @target.Count.ToString("N0") @(target.Count == 1 ? Unit.ToLowerInvariant() : Units.ToLowerInvariant())</strong>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_lossFirst) && LossProblem is { } lossProblem)
+                {
+                    <p class="af-field-error" role="alert">@lossProblem</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-loss-form" disabled="@(_busy || LossProblem is not null)">Report lost</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_dialog == Dialog.Reference && _referenceRow is { } reference)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDialog">
+        <section class="v3-modal" role="dialog" aria-modal="true" aria-labelledby="af-ref-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnDialogKey">
+            <header class="v3-modal-header">
+                <h2 id="af-ref-title">@ReferenceLabel(reference) · @reference.DocumentNumber</h2>
+                <button class="af-close" type="button" aria-label="Close" @onclick="CloseDialog">×</button>
+            </header>
+            <form class="v3-modal-body" id="af-ref-form" @onsubmit="AddReferenceAsync" @onsubmit:preventDefault="true">
+                <p class="af-hint">@(reference.Kind == "Cancelled" ? "The RCD that carried the cancelled copies." : "The notice of loss or report that evidences this loss.") It changes nothing else.</p>
+                <label class="v3-field"><span>Reference</span><input @ref="_firstField" required maxlength="200" @bind="_referenceText" @bind:event="oninput" /></label>
+                <label class="v3-field"><span>Note (optional)</span><input maxlength="500" @bind="_referenceNote" /></label>
+                @if (!string.IsNullOrWhiteSpace(_dialogError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_dialogError</p>
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseDialog">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="af-ref-form" disabled="@(_busy || string.IsNullOrWhiteSpace(_referenceText))">Add reference</button>
             </footer>
         </section>
     </div>
 }
 
 @code {
-    private enum Dialog { None, Register, Assign, Transfer, Return, Spoil }
+    private enum Dialog { None, Register, Assign, Transfer, Return, Spoil, Loss, Reference }
 
     private List<AccountableFormBookDto> _books = [];
     private List<CollectorListDto> _collectors = [];
@@ -784,7 +1075,7 @@
     private string Unit => _instrument == RevenueInstrumentType.OfficialReceipt ? "Receipt" : "Ticket";
     private string Units => _instrument == RevenueInstrumentType.OfficialReceipt ? "Receipts" : "Tickets";
 
-    private void SelectInstrument(RevenueInstrumentType instrument)
+    private async Task SelectInstrument(RevenueInstrumentType instrument)
     {
         if (instrument == _instrument) return;
         _instrument = instrument;
@@ -792,6 +1083,7 @@
         _bookFilter = string.Empty;
         _stateFilter = string.Empty;
         _message = null;
+        await LoadViewAsync();
     }
 
     private IEnumerable<AccountableFormBookDto> Books =>
@@ -814,7 +1106,8 @@
         new("Assigned", StateTotal(AccountableDocumentState.Assigned).ToString(), Emphasis: true),
         new("Consumed", StateTotal(AccountableDocumentState.Consumed).ToString()),
         new("Needs review", StateTotal(AccountableDocumentState.ReconciliationRequired).ToString()),
-        new("Spoiled", StateTotal(AccountableDocumentState.Voided).ToString()),
+        new("Cancelled", StateTotal(AccountableDocumentState.Voided).ToString()),
+        new("Lost", StateTotal(AccountableDocumentState.Lost).ToString(), Emphasis: StateTotal(AccountableDocumentState.Lost) > 0),
     ];
 
     /// <summary>Assigned, unused tickets grouped by collector and book, shown as runs of consecutive serials.</summary>
@@ -904,7 +1197,7 @@
             .GroupBy(d => d.AssignedUserId).Select(g => (CollectorName(g.Key), g.Count())).ToList();
         var inOffice = InRange(AccountableDocumentState.InOffice);
         return new RangeCheck(first, last, AllocatedTotal, inOffice, held, InRange(AccountableDocumentState.Consumed),
-            InRange(AccountableDocumentState.Voided), InRange(AccountableDocumentState.ReconciliationRequired),
+            InRange(AccountableDocumentState.Voided) + InRange(AccountableDocumentState.Lost), InRange(AccountableDocumentState.ReconciliationRequired),
             AllocatedTotal - inRange.Count, Count(book, AccountableDocumentState.InOffice) - inOffice);
     }
 
@@ -980,6 +1273,8 @@
             var books = await FormsApi.GetBooksAsync();
             if (!books.IsSuccess) _error = books.Error ?? "Accountable-form books could not be loaded.";
             else _books = books.Value?.ToList() ?? [];
+            await LoadExceptionsAsync();
+            if (_view is View.History or View.Support) await LoadViewAsync();
 
             var collectors = await CollectorsApi.GetAllCollectorsAsync();
             if (collectors.IsSuccess)
@@ -1061,6 +1356,8 @@
             .OrderBy(d => d.SerialNumber).FirstOrDefault();
         _assignStart = next?.SerialNumber ?? book.FirstSerialNumber;
     }
+
+    private Task SubmitRegisterAsync() => UsesPrintedSerials ? RegisterReceiptsAsync() : RegisterAsync();
 
     private async Task RegisterAsync()
     {
@@ -1146,8 +1443,7 @@
     private Guid? _returnBookId;
     private long _returnFirst;
     private long _returnLast;
-    private Guid? _spoilBookId;
-    private long _spoilSerial;
+    private string _spoilSerialText = string.Empty;
     private string _spoilReason = string.Empty;
     private string _spoilNote = string.Empty;
 
@@ -1161,8 +1457,7 @@
 
     private void OpenSpoil()
     {
-        _spoilBookId = null;
-        _spoilSerial = 0;
+        _spoilSerialText = string.Empty;
         _spoilReason = string.Empty;
         _spoilNote = string.Empty;
         OpenDialog(Dialog.Spoil);
@@ -1187,9 +1482,9 @@
 
     private async Task SpoilAsync()
     {
-        if (_busy || _spoilBookId is not { } bookId || string.IsNullOrWhiteSpace(_spoilReason)) return;
-        var document = Books.FirstOrDefault(b => b.BookId == bookId)?.Documents.FirstOrDefault(d => d.SerialNumber == _spoilSerial);
-        if (document is null) { _dialogError = "That serial is not in the selected book."; return; }
+        if (_busy || string.IsNullOrWhiteSpace(_spoilReason)) return;
+        if (FindUnit(_spoilSerialText) is not { } unit) { _dialogError = "That serial is not in a registered book."; return; }
+        var document = unit.Document;
         _busy = true;
         _dialogError = null;
         try
@@ -1198,7 +1493,7 @@
                 string.IsNullOrWhiteSpace(_spoilNote) ? null : _spoilNote.Trim()));
             if (!result.IsSuccess) { _dialogError = result.Error ?? "The form could not be recorded as spoiled."; return; }
             _dialog = Dialog.None;
-            _message = $"{result.Value!.DocumentNumber} recorded as spoiled. It is not revenue and cannot return to stock.";
+            _message = $"{result.Value!.DocumentNumber} cancelled. It is not revenue and cannot return to stock. Add the RCD reference when you have it.";
             await LoadAsync();
         }
         catch (Exception ex) { _dialogError = ex.Message; }
@@ -1249,7 +1544,257 @@
         AccountableDocumentState.Assigned => "Assigned",
         AccountableDocumentState.Consumed => "Consumed",
         AccountableDocumentState.ReconciliationRequired => "Needs review",
-        AccountableDocumentState.Voided => "Voided",
+        AccountableDocumentState.Voided => "Cancelled",
+        AccountableDocumentState.Lost => "Lost",
         _ => state.ToString(),
     };
+
+    // ── AF No. 51 accountability: exceptions, history, accountability support, loss and follow-up references ──
+    // Presentation over the form ledger only: custody, money, remittance and revenue stay separate ledgers (IA-052). Nothing
+    // here posts a collection, and no Treasurer step exists (IA-058).
+    private enum View { Stock, Exceptions, History, Support }
+
+    private View _view = View.Stock;
+    private List<AccountableFormExceptionDto> _exceptions = [];
+    private List<AccountableFormHistoryEventDto> _history = [];
+    private AccountableFormRaafSupportDto? _support;
+    private DateOnly _supportMonth = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private bool _viewLoading;
+    private string? _viewError;
+
+    private IEnumerable<AccountableFormExceptionDto> ExceptionRows => _exceptions.Where(x => x.Instrument == _instrument);
+
+    private int FollowUpCount => ExceptionRows.Count(x => x.NeedsFollowUp);
+
+    private async Task SetViewAsync(View view)
+    {
+        _view = view;
+        _viewError = null;
+        await LoadViewAsync();
+    }
+
+    private async Task LoadViewAsync()
+    {
+        if (_view == View.Stock) return;
+        _viewLoading = true;
+        _viewError = null;
+        try
+        {
+            switch (_view)
+            {
+                case View.Exceptions:
+                    await LoadExceptionsAsync();
+                    break;
+                case View.History:
+                    var history = await FormsApi.GetFormHistoryAsync(_instrument);
+                    if (history.IsSuccess) _history = history.Value?.ToList() ?? [];
+                    else _viewError = history.Error ?? "The history could not be loaded.";
+                    break;
+                case View.Support:
+                    var support = await FormsApi.GetFormRaafSupportAsync(_instrument, _supportMonth.Year, _supportMonth.Month);
+                    if (support.IsSuccess) _support = support.Value;
+                    else _viewError = support.Error ?? "The accountability support view could not be loaded.";
+                    break;
+            }
+        }
+        catch (Exception ex) { _viewError = ex.Message; }
+        finally { _viewLoading = false; }
+    }
+
+    // The follow-up count is informational: a failure here never blocks custody work.
+    private async Task LoadExceptionsAsync()
+    {
+        try
+        {
+            var result = await FormsApi.GetFormExceptionsAsync();
+            _exceptions = result is { IsSuccess: true, Value: not null } ? result.Value.ToList() : [];
+        }
+        catch { _exceptions = []; }
+    }
+
+    private async Task ShiftSupportMonthAsync(int months)
+    {
+        _supportMonth = _supportMonth.AddMonths(months);
+        await LoadViewAsync();
+    }
+
+    private static string When(DateTime utc) =>
+        PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Finds a registered form by its serial as printed ("2315601 A"), or by its digits alone when that is unambiguous.</summary>
+    private (AccountableFormBookDto Book, CashTicketDocumentDto Document)? FindUnit(string? printed)
+    {
+        var key = AccountableSerial.Normalize(printed);
+        if (key.Length == 0) return null;
+        var exact = AllTickets.Where(t => AccountableSerial.Normalize(t.Document.DocumentNumber) == key).ToList();
+        if (exact.Count == 1) return exact[0];
+        if (exact.Count == 0 && long.TryParse(key, out var digits))
+        {
+            var bySerial = AllTickets.Where(t => t.Document.SerialNumber == digits).ToList();
+            if (bySerial.Count == 1) return bySerial[0];
+        }
+        return null;
+    }
+
+    // Register Official Receipts: the serials exactly as printed; the quantity is counted from the range, never assumed.
+    private string _orFirst = string.Empty;
+    private string _orLast = string.Empty;
+    private int? _orQuantity;
+    private string _orVariant = string.Empty;
+    private DateOnly? _orReceivedOn = PhilippineTime.Today;
+    private string _orSource = "Municipal Treasurer";
+    private string _orReference = string.Empty;
+
+    private bool UsesPrintedSerials => _instrument == RevenueInstrumentType.OfficialReceipt;
+
+    private string? OrRegisterProblem
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(_orFirst) || string.IsNullOrWhiteSpace(_orLast)) return "Enter the first and last serial exactly as printed.";
+            if (!AccountableSerial.TryParseRange(_orFirst, _orLast, out var start, out var last, out var error)) return error;
+            var count = last - start.Number + 1;
+            if (count > MaxFormsPerRegistration)
+                return $"One registration can hold at most {MaxFormsPerRegistration:N0} receipts. Register this range in parts.";
+            if (_orQuantity is { } stated && stated != count) return $"That range holds {count:N0}, not {stated:N0}. Check the first and last serial.";
+            return null;
+        }
+    }
+
+    private string OrRegisterPreview
+    {
+        get
+        {
+            if (!AccountableSerial.TryParseRange(_orFirst, _orLast, out var start, out var last, out _)) return string.Empty;
+            var count = last - start.Number + 1;
+            return $"{start.Raw} – {start.Format(last)} · {count:N0} receipt{(count == 1 ? "" : "s")}";
+        }
+    }
+
+    private async Task RegisterReceiptsAsync()
+    {
+        if (OrRegisterProblem is not null || _busy) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await FormsApi.RegisterFormsAsync(new RegisterAccountableFormsRequest(
+                RevenueInstrumentType.OfficialReceipt, _orFirst.Trim(), _orLast.Trim(), _orQuantity,
+                string.IsNullOrWhiteSpace(_orVariant) ? null : _orVariant.Trim(), _orReceivedOn,
+                string.IsNullOrWhiteSpace(_orSource) ? null : _orSource.Trim(),
+                string.IsNullOrWhiteSpace(_orReference) ? null : _orReference.Trim()));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? "The Official Receipts could not be registered."; return; }
+            var registered = result.Value!;
+            _dialog = Dialog.None;
+            _message = $"Registered {registered.Documents.Count:N0} Official Receipts ({RangeLabel(registered)}).";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // Report lost: whole set or by copy. A blank form is blocked at once; the external notice is added afterwards.
+    private string _lossFirst = string.Empty;
+    private string _lossLast = string.Empty;
+    private bool _lossWhole = true;
+    private bool _lossOriginal;
+    private bool _lossDuplicate;
+    private bool _lossTriplicate;
+    private DateOnly? _lossDate = PhilippineTime.Today;
+    private string _lossPlace = string.Empty;
+    private string _lossNarrative = string.Empty;
+
+    private void OpenLoss()
+    {
+        _lossFirst = string.Empty;
+        _lossLast = string.Empty;
+        _lossWhole = true;
+        _lossOriginal = _lossDuplicate = _lossTriplicate = false;
+        _lossDate = PhilippineTime.Today;
+        _lossPlace = string.Empty;
+        _lossNarrative = string.Empty;
+        OpenDialog(Dialog.Loss);
+    }
+
+    private (AccountableFormBookDto Book, long First, long Last, int Count)? LossTarget
+    {
+        get
+        {
+            if (FindUnit(_lossFirst) is not { } first) return null;
+            var last = string.IsNullOrWhiteSpace(_lossLast) ? first : FindUnit(_lossLast);
+            if (last is not { } end || end.Book.BookId != first.Book.BookId || end.Document.SerialNumber < first.Document.SerialNumber) return null;
+            return (first.Book, first.Document.SerialNumber, end.Document.SerialNumber, (int)(end.Document.SerialNumber - first.Document.SerialNumber + 1));
+        }
+    }
+
+    private AccountableFormCopies LossCopies => _lossWhole || !UsesPrintedSerials
+        ? AccountableFormCopies.WholeSet
+        : (_lossOriginal ? AccountableFormCopies.Original : 0)
+            | (_lossDuplicate ? AccountableFormCopies.Duplicate : 0)
+            | (_lossTriplicate ? AccountableFormCopies.Triplicate : 0);
+
+    private string? LossProblem =>
+        FindUnit(_lossFirst) is null ? $"Enter the {Unit.ToLowerInvariant()} serial exactly as printed. It must be a registered {Noun}."
+        : LossTarget is null ? "The last serial must be in the same book and not before the first."
+        : LossCopies == 0 ? "Choose what is missing."
+        : _lossDate is null || _lossDate > PhilippineTime.Today ? "Enter the date it was lost; it cannot be in the future."
+        : string.IsNullOrWhiteSpace(_lossNarrative) ? "Say what happened."
+        : null;
+
+    private async Task ReportLossAsync()
+    {
+        if (_busy || LossProblem is not null || LossTarget is not { } target || _lossDate is not { } lostOn) return;
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var result = await FormsApi.ReportFormLossAsync(new ReportFormLossRequest(target.Book.BookId, target.First, target.Last, LossCopies,
+                lostOn, string.IsNullOrWhiteSpace(_lossPlace) ? null : _lossPlace.Trim(), _lossNarrative.Trim()));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? "The loss could not be recorded."; return; }
+            var loss = result.Value!;
+            _dialog = Dialog.None;
+            _message = loss.BlockedFromIssue > 0
+                ? $"{loss.FirstNumber}{(loss.Reported > 1 ? $" – {loss.LastNumber}" : "")} reported lost and blocked from use. Add the notice reference when you have it."
+                : $"{loss.FirstNumber} loss recorded as an exception. It had already been issued, so its financial record is unchanged.";
+            await LoadAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // External follow-up: the RCD that carried a cancelled form, or the notice for a loss.
+    private AccountableFormExceptionDto? _referenceRow;
+    private string _referenceText = string.Empty;
+    private string _referenceNote = string.Empty;
+
+    private void OpenReference(AccountableFormExceptionDto row)
+    {
+        _referenceRow = row;
+        _referenceText = string.Empty;
+        _referenceNote = string.Empty;
+        OpenDialog(Dialog.Reference);
+    }
+
+    private async Task AddReferenceAsync()
+    {
+        if (_busy || _referenceRow is not { } row || string.IsNullOrWhiteSpace(_referenceText)) return;
+        if (FindUnit(row.DocumentNumber) is not { } unit) { _dialogError = "That form is not in the registered books."; return; }
+        _busy = true;
+        _dialogError = null;
+        try
+        {
+            var kind = row.Kind == "Cancelled" ? AccountableFormReferenceKind.Cancellation : AccountableFormReferenceKind.Loss;
+            var result = await FormsApi.AddFormReferenceAsync(new AddFormReferenceRequest(unit.Book.BookId, unit.Document.SerialNumber,
+                unit.Document.SerialNumber, kind, _referenceText.Trim(), string.IsNullOrWhiteSpace(_referenceNote) ? null : _referenceNote.Trim()));
+            if (!result.IsSuccess) { _dialogError = result.Error ?? "The reference could not be added."; return; }
+            _dialog = Dialog.None;
+            _message = $"Reference added to {row.DocumentNumber}.";
+            await LoadExceptionsAsync();
+        }
+        catch (Exception ex) { _dialogError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private static string ReferenceLabel(AccountableFormExceptionDto row) =>
+        row.Kind == "Cancelled" ? "Add RCD reference" : "Add notice reference";
 }

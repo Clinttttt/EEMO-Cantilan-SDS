@@ -49,6 +49,24 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<AccountableFormBookDto>> ReceiveBookAsync(ReceiveAccountableFormBookRequest request) =>
         PostAsync<ReceiveAccountableFormBookRequest, AccountableFormBookDto>("api/accountable-forms/books", request);
 
+    public Task<Result<AccountableFormBookDto>> RegisterFormsAsync(RegisterAccountableFormsRequest request) =>
+        PostAsync<RegisterAccountableFormsRequest, AccountableFormBookDto>("api/accountable-forms/register", request);
+
+    public Task<Result<FormLossResultDto>> ReportFormLossAsync(ReportFormLossRequest request) =>
+        PostAsync<ReportFormLossRequest, FormLossResultDto>("api/accountable-forms/loss", request);
+
+    public Task<Result<FormReferenceResultDto>> AddFormReferenceAsync(AddFormReferenceRequest request) =>
+        PostAsync<AddFormReferenceRequest, FormReferenceResultDto>("api/accountable-forms/references", request);
+
+    public Task<Result<IReadOnlyList<AccountableFormExceptionDto>>> GetFormExceptionsAsync() =>
+        GetAsync<IReadOnlyList<AccountableFormExceptionDto>>("api/accountable-forms/exceptions");
+
+    public Task<Result<IReadOnlyList<AccountableFormHistoryEventDto>>> GetFormHistoryAsync(EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType instrument) =>
+        GetAsync<IReadOnlyList<AccountableFormHistoryEventDto>>($"api/accountable-forms/history?instrument={(int)instrument}");
+
+    public Task<Result<AccountableFormRaafSupportDto>> GetFormRaafSupportAsync(EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType instrument, int year, int month) =>
+        GetAsync<AccountableFormRaafSupportDto>($"api/accountable-forms/raaf-support?instrument={(int)instrument}&year={year}&month={month}");
+
     public Task<Result<int>> AssignCashTicketsAsync(AssignAccountableFormRangeRequest request) =>
         PostAsync<AssignAccountableFormRangeRequest, int>("api/accountable-forms/cash-tickets/assign", request);
 

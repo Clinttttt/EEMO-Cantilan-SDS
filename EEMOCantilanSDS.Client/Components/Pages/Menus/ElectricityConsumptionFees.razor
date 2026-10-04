@@ -203,17 +203,43 @@
                         </ul>
                     }
 
-                    <label class="v3-field">
-                        <span>Official Receipt</span>
-                        <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                                @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
-                            <option value="">Select available OR</option>
-                            @foreach (var document in _availableReceipts)
-                            {
-                                <option value="@document.DocumentId">@document.DocumentNumber · @document.State</option>
-                            }
-                        </select>
-                    </label>
+                    <div class="ecf-receipt" role="group" aria-label="Official Receipt">
+                        <span class="ecf-receipt-label">Official Receipt</span>
+                        @if (SelectedReceipt is { } picked)
+                        {
+                            <strong class="ecf-receipt-serial">@picked.DocumentNumber</strong>
+                            <span class="ecf-receipt-note">@(picked.IsNextExpected ? "Next assigned receipt" : "Different receipt selected")</span>
+                        }
+                        else if (NextReceipt is { } next)
+                        {
+                            <strong class="ecf-receipt-serial">@next.DocumentNumber</strong>
+                            <span class="ecf-receipt-note">Next assigned receipt</span>
+                            <button type="button" class="v3-btn" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)" @onclick="UseNextReceiptAsync">Use this receipt</button>
+                        }
+                        else
+                        {
+                            <span class="ecf-receipt-note" role="status">No Official Receipt is available. Ask the office to register or assign one.</span>
+                        }
+                        @if (_availableReceipts.Count > 1)
+                        {
+                            <button type="button" class="ecf-receipt-change" aria-expanded="@(_showReceipts ? "true" : "false")"
+                                    @onclick="() => _showReceipts = !_showReceipts">@(_showReceipts ? "Hide receipts" : "Use different receipt")</button>
+                        }
+                        @if (_showReceipts)
+                        {
+                            <label class="v3-field ecf-receipt-picker">
+                                <span class="v3-sr-only">Choose a different Official Receipt</span>
+                                <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
+                                        @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
+                                    <option value="">No receipt selected</option>
+                                    @foreach (var document in _availableReceipts)
+                                    {
+                                        <option value="@document.DocumentId">@document.DocumentNumber@(document.IsNextExpected ? " · next" : "")</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+                    </div>
 
                     <div class="ecf-total">
                         <span>Draft total</span>
@@ -286,6 +312,12 @@
     private string _searchText = string.Empty;
     private List<EcfObligationQuoteDto> _quotes = [];
     private List<EcfAvailableDocumentDto> _availableReceipts = [];
+    private bool _showReceipts;
+
+    // The server lists the signed-in user's own stock first, in registered sequence; the first row is the next expected receipt.
+    private EcfAvailableDocumentDto? NextReceipt => _availableReceipts.FirstOrDefault(x => x.IsNextExpected) ?? _availableReceipts.FirstOrDefault();
+
+    private EcfAvailableDocumentDto? SelectedReceipt => _draft?.AccountableDocumentId is { } id ? _availableReceipts.FirstOrDefault(x => x.DocumentId == id) : null;
     private List<EcfCollectionActivityDto> _activity = [];
     private EcfCollectionDraftDto? _draft;
     private EcfObligationQuoteDto? _draftSourceQuote;
@@ -427,10 +459,14 @@
         });
     }
 
-    private async Task SelectDocumentAsync(ChangeEventArgs args)
+    private Task SelectDocumentAsync(ChangeEventArgs args) =>
+        SelectReceiptAsync(Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null);
+
+    private Task UseNextReceiptAsync() => SelectReceiptAsync(NextReceipt?.DocumentId);
+
+    private async Task SelectReceiptAsync(Guid? documentId)
     {
         if (_draft is null) return;
-        Guid? documentId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
         await RunAsync(async () =>
         {
             var result = await EcfApi.SelectDocumentAsync(_draft.DraftId,

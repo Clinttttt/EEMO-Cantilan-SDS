@@ -211,6 +211,35 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task AReceiptReportedLostAfterReview_CannotBeUsedToPost_AndNothingIsConsumedOrCollected()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Workflow(context, seed);
+        var draft = await workflow.CreateDraftAsync(new CreateEcfCollectionDraftRequest(seed.BillId, 100m, seed.OrDocumentId));
+        Assert.True(draft.IsSuccess, draft.Error);
+        var reviewed = (await workflow.ReviewAsync(draft.Value!.DraftId, new EcfDraftRevisionRequest(draft.Value.Revision))).Value!;
+
+        // The physical form turns out to be missing before the money is posted: it is blocked at once.
+        await using (var office = db.CreateContext(seed.TenantId))
+        {
+            var custody = new AccountableFormCustodyWorkflow(office, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId));
+            var book = await office.AccountableDocuments.Where(x => x.Id == seed.OrDocumentId).Select(x => new { x.FormBookId, x.SerialNumber }).SingleAsync();
+            var loss = await custody.ReportLossAsync(new ReportFormLossRequest(book.FormBookId, book.SerialNumber, book.SerialNumber,
+                AccountableFormCopies.WholeSet, PhilippineTime.Today, "Office", "Missing from the booklet"));
+            Assert.True(loss.IsSuccess, loss.Error);
+        }
+
+        await using var fresh = db.CreateContext(seed.TenantId);
+        var posted = await Workflow(fresh, seed).PostAsync(reviewed.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, Guid.NewGuid()));
+        Assert.False(posted.IsSuccess);
+        Assert.Empty(await fresh.Collections.ToListAsync());
+        Assert.Equal(AccountableDocumentState.Lost, (await fresh.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
+    }
+
+    [SkippableFact]
     public async Task StaleSourceVersionIsDurablyRejectedThenRefreshAndReviewAllowsNewAttempt()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

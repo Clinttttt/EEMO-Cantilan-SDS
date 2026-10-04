@@ -30,6 +30,19 @@ public interface IWcfCollectionsApiClient
     Task<Result<IReadOnlyList<WcfReconciliationExceptionDto>>> GetReconciliationExceptionsAsync();
     Task<Result<IReadOnlyList<AccountableFormBookDto>>> GetBooksAsync();
     Task<Result<AccountableFormBookDto>> ReceiveBookAsync(ReceiveAccountableFormBookRequest request);
+
+    /// <summary>Registers a range from its printed serials, exactly as printed (POST api/accountable-forms/register).</summary>
+    Task<Result<AccountableFormBookDto>> RegisterFormsAsync(RegisterAccountableFormsRequest request);
+
+    /// <summary>Reports a serial or range lost, whole or by copy; a blank form is blocked at once (POST api/accountable-forms/loss).</summary>
+    Task<Result<FormLossResultDto>> ReportFormLossAsync(ReportFormLossRequest request);
+
+    /// <summary>Adds the external RCD or notice reference to cancelled or lost forms (POST api/accountable-forms/references).</summary>
+    Task<Result<FormReferenceResultDto>> AddFormReferenceAsync(AddFormReferenceRequest request);
+
+    Task<Result<IReadOnlyList<AccountableFormExceptionDto>>> GetFormExceptionsAsync();
+    Task<Result<IReadOnlyList<AccountableFormHistoryEventDto>>> GetFormHistoryAsync(EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType instrument);
+    Task<Result<AccountableFormRaafSupportDto>> GetFormRaafSupportAsync(EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType instrument, int year, int month);
     Task<Result<int>> AssignCashTicketsAsync(AssignAccountableFormRangeRequest request);
 
     /// <summary>Custody assignment of a received Official Receipt range (POST api/accountable-forms/official-receipts/assign).</summary>
