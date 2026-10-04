@@ -134,22 +134,6 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
         if (instruments.Count == 0)
             reasons.Add((CollectorOperationCapabilityStatus.NeedsPolicy, PolicyNotEffective));
 
-        // Present custody, not history: assigned to this collector under an unreturned assignment interval.
-        var held = await (
-                from document in db.AccountableDocuments.AsNoTracking()
-                join assignment in db.AccountableFormAssignments.AsNoTracking()
-                    on new { document.MunicipalityId, DocumentId = document.Id }
-                    equals new { assignment.MunicipalityId, DocumentId = assignment.AccountableDocumentId }
-                where document.MunicipalityId == tenantId
-                    && document.State == AccountableDocumentState.Assigned
-                    && document.AssignedUserId == collectorId
-                    && assignment.AssignedUserId == collectorId
-                    && assignment.ReturnedAtUtc == null
-                select document.InstrumentType)
-            .Distinct().ToListAsync(ct);
-        if (!instruments.Any(held.Contains))
-            reasons.Add((CollectorOperationCapabilityStatus.NeedsDocument, NoAssignedDocument));
-
         var status = reasons.Count == 0 ? CollectorOperationCapabilityStatus.Ready : reasons[0].Status;
         return new(entry.Code, name, true, status, status == CollectorOperationCapabilityStatus.Ready,
             reasons.Select(x => x.Code).ToArray());
@@ -192,23 +176,6 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             : null;
         if (instrument != RevenueInstrumentType.CashTicket)
             reasons.Add((CollectorOperationCapabilityStatus.NeedsPolicy, PolicyNotEffective));
-
-        // Present custody, not history: the ticket must be Assigned to this collector under an unreturned assignment.
-        var holdsTicket = await (
-                from document in db.AccountableDocuments.AsNoTracking()
-                join assignment in db.AccountableFormAssignments.AsNoTracking()
-                    on new { document.MunicipalityId, DocumentId = document.Id }
-                    equals new { assignment.MunicipalityId, DocumentId = assignment.AccountableDocumentId }
-                where document.MunicipalityId == tenantId
-                    && document.InstrumentType == RevenueInstrumentType.CashTicket
-                    && document.State == AccountableDocumentState.Assigned
-                    && document.AssignedUserId == collectorId
-                    && assignment.AssignedUserId == collectorId
-                    && assignment.ReturnedAtUtc == null
-                select document.Id)
-            .AnyAsync(ct);
-        if (!holdsTicket)
-            reasons.Add((CollectorOperationCapabilityStatus.NeedsDocument, NoAssignedCashTicket));
 
         var status = reasons.Count == 0 ? CollectorOperationCapabilityStatus.Ready : reasons[0].Status;
         return new(code, name, true, status, status == CollectorOperationCapabilityStatus.Ready,

@@ -18,10 +18,6 @@ public sealed class WcfCollectionsController(
         [FromQuery] int throughYear, [FromQuery] int throughMonth, CancellationToken ct) =>
         HandleResponse(await workflow.GetObligationsAsync(throughYear, throughMonth, ct));
 
-    [HttpGet("cash-tickets/available")]
-    public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> CashTicketsAsync(CancellationToken ct) =>
-        HandleResponse(await workflow.GetAvailableCashTicketsAsync(ct));
-
     [HttpGet("mobile-sources")]
     public async Task<ActionResult<IReadOnlyList<WcfMobileSourceDto>>> MobileSourcesAsync(
         [FromQuery] int billingYear, [FromQuery] int billingMonth, CancellationToken ct) =>

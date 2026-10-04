@@ -3,11 +3,11 @@ using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Mobile.Records;
 
-/// <summary>One physical document (or walk-up collection) with the revenue lines it covers.</summary>
+/// <summary>One collection, identified by its StallTrack Reference Code (SRC), with the revenue lines it covers.</summary>
 public sealed record OperationRecord(
     Guid CollectionId,
     DateOnly BusinessDate,
-    string? DocumentNumber,
+    string ReferenceCode,
     RevenueInstrumentType? Instrument,
     string? PayorName,
     string Status,
@@ -31,9 +31,9 @@ public static class OperationRecordGrouping
                 var lines = g.Select(x => new OperationRecordLine(x.ClassificationName, x.SourceLabel, x.Amount + x.CorrectionEffect)).ToList();
                 // A collection is Posted only when every line is; any correction is shown rather than hidden.
                 var status = g.All(x => x.Status == "Posted") ? "Posted" : g.Any(x => x.Status == "Reversed") ? "Reversed" : "Corrected";
-                return new OperationRecord(g.Key, first.BusinessDate, first.DocumentNumber, first.Instrument, first.PayorName, status,
+                return new OperationRecord(g.Key, first.BusinessDate, first.ReferenceCode, first.Instrument, first.PayorName, status,
                     lines.Sum(x => x.Amount), lines);
             })
-            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal)
+            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal)
             .ToList();
 }

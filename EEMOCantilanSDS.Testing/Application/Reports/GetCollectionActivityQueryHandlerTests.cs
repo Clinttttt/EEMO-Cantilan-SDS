@@ -22,7 +22,7 @@ public class GetCollectionActivityQueryHandlerTests
     private static CollectionActivityEventDto Event(string key, string authority, decimal amount, decimal effect = 0m,
         FacilityCode? facility = null, Guid? collector = null, int minutes = 0) =>
         new(key, authority, authority == "Canonical" ? "Collection" : "PaymentRecord", null, Day,
-            new DateTime(2026, 10, 1, 1, minutes, 0, DateTimeKind.Utc), null, null, [], null, null, collector, null, "office",
+            new DateTime(2026, 10, 1, 1, minutes, 0, DateTimeKind.Utc), authority == "Canonical" ? "SRC-2026-000001" : null, null, null, [], [], null, null, collector, null, "office",
             facility, null, null, amount, effect, amount + effect, "Posted", null, [], []);
 
     private static (GetCollectionActivityQueryHandler Handler, Mock<ICollectionActivityReader> Reader) Build(

@@ -79,10 +79,4 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
     public async Task<ActionResult<GovernedServiceTermsDto>> TermsAsync(
         string operationCode, [FromQuery] GovernedServiceMode? mode, CancellationToken ct) =>
         HandleResponse(await workflow.GetTermsAsync(operationCode, mode, ct));
-
-    [HttpGet("{operationCode}/documents")]
-    [Authorize(Roles = "Collector")]
-    public async Task<ActionResult<IReadOnlyList<CashTicketDocumentDto>>> DocumentsAsync(
-        string operationCode, [FromQuery] GovernedServiceMode? mode, CancellationToken ct) =>
-        HandleResponse(await workflow.GetAvailableDocumentsAsync(operationCode, mode, ct));
 }

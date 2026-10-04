@@ -108,7 +108,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             new PostEcfCollectionDraftRequest(reviewed.Value!.Revision, operationId));
         Assert.True(posted.IsSuccess, posted.Error);
         Assert.Equal(300m, posted.Value!.Amount);
-        Assert.Equal("OR-0001", posted.Value.DocumentNumber);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", posted.Value.ReferenceCode);
 
         var collection = await context.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
         Assert.Equal(300m, collection.TotalAmount);
@@ -132,16 +132,17 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var bill = await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
         Assert.Equal(500m, bill.ElecAmountPaid);
         Assert.Equal(PaymentStatus.Partial, bill.ElecStatus);
-        Assert.Equal("OR-0001", bill.ElecORNumber);
+        Assert.Equal("LEGACY-E-001", bill.ElecORNumber);   // the legacy document field is left as it was; the SRC is on the Collection
         Assert.Equal(7m, bill.WaterPartialAmount);
         Assert.Equal(PaymentStatus.Partial, bill.WaterStatus);
         Assert.Equal("LEGACY-W-001", bill.WaterORNumber);
         Assert.Equal(SettlementAuthority.Legacy, bill.WaterSettlementAuthorityState);
 
+        // IA-062: no physical form is consumed; the Collection is identified by its server-generated SRC.
         var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId);
-        Assert.Equal(AccountableDocumentState.Consumed, document.State);
-        Assert.Equal(collection.Id, document.CollectionId);
-        Assert.Equal(operationId, document.ClientOperationId);
+        Assert.Equal(AccountableDocumentState.InOffice, document.State);
+        Assert.Null(document.CollectionId);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", collection.ReferenceCode);
         var operation = await context.PostingOperations.SingleAsync(x => x.ClientOperationId == operationId);
         Assert.Equal(PostingOperationStatus.Succeeded, operation.Status);
         Assert.Equal(collection.Id, operation.CollectionId);
@@ -159,9 +160,6 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             new PostEcfCollectionDraftRequest(savedDraft.Revision - 1, Guid.NewGuid()));
         Assert.True(differentOperation.IsSuccess, differentOperation.Error);
         Assert.Equal(collection.Id, differentOperation.Value!.CollectionId);
-        var consumedOrReuse = await workflow.CreateDraftAsync(
-            new CreateEcfCollectionDraftRequest(seed.BillId, 100m, seed.OrDocumentId));
-        Assert.False(consumedOrReuse.IsSuccess);
 
         var activity = await workflow.GetActivityAsync(new DateOnly(seed.Period.Year, seed.Period.Month, 1),
             new DateOnly(seed.Period.Year, seed.Period.Month, 1).AddMonths(1).AddDays(-1));
@@ -211,7 +209,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task AReceiptReportedLostAfterReview_CannotBeUsedToPost_AndNothingIsConsumedOrCollected()
+    public async Task APhysicalFormReportedLostAfterReview_DoesNotAffectPosting_BecauseNoFormIsNeeded()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -222,7 +220,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.True(draft.IsSuccess, draft.Error);
         var reviewed = (await workflow.ReviewAsync(draft.Value!.DraftId, new EcfDraftRevisionRequest(draft.Value.Revision))).Value!;
 
-        // The physical form turns out to be missing before the money is posted: it is blocked at once.
+        // A physical form turns out to be missing before the money is posted. A collection no longer depends on any form.
         await using (var office = db.CreateContext(seed.TenantId))
         {
             var custody = new AccountableFormCustodyWorkflow(office, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId));
@@ -234,8 +232,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
 
         await using var fresh = db.CreateContext(seed.TenantId);
         var posted = await Workflow(fresh, seed).PostAsync(reviewed.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, Guid.NewGuid()));
-        Assert.False(posted.IsSuccess);
-        Assert.Empty(await fresh.Collections.ToListAsync());
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Single(await fresh.Collections.ToListAsync());
         Assert.Equal(AccountableDocumentState.Lost, (await fresh.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
     }
 
@@ -340,7 +338,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task CompetingFullOutstandingAttemptsConsumeOnlyOneOrAndOneAllocation()
+    public async Task CompetingFullOutstandingAttemptsPostOnlyOneCollectionAndOneAllocation()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -377,14 +375,13 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(800m, (await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
         var documents = await verify.AccountableDocuments.OrderBy(x => x.SerialNumber).ToListAsync();
         var orDocuments = documents.Where(x => x.InstrumentType == RevenueInstrumentType.OfficialReceipt).ToList();
-        Assert.Single(orDocuments, x => x.State == AccountableDocumentState.Consumed);
-        Assert.Single(orDocuments, x => x.State == AccountableDocumentState.InOffice);
+        Assert.All(orDocuments, x => Assert.Equal(AccountableDocumentState.InOffice, x.State));   // no physical form is consumed (IA-062)
         Assert.Single(documents, x => x.InstrumentType == RevenueInstrumentType.CashTicket
             && x.State == AccountableDocumentState.InOffice);
     }
 
     [SkippableFact]
-    public async Task OverOutstandingAndCashTicketDocumentsCannotEnterEcfDraft()
+    public async Task OverOutstandingCannotEnterEcfDraft_AndASuppliedLegacyDocumentIsIgnored()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -395,8 +392,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var over = await workflow.CreateDraftAsync(new CreateEcfCollectionDraftRequest(seed.BillId, 601m));
         Assert.False(over.IsSuccess);
         var ct = await workflow.CreateDraftAsync(new CreateEcfCollectionDraftRequest(seed.BillId, 100m, seed.CtDocumentId));
-        Assert.False(ct.IsSuccess);
-        Assert.Empty(await context.WebCollectionDrafts.ToListAsync());
+        Assert.True(ct.IsSuccess, ct.Error);   // a physical document id is ignored (IA-062), never validated
+        Assert.Single(await context.WebCollectionDrafts.ToListAsync());
         Assert.Empty(await context.Collections.ToListAsync());
     }
 
@@ -509,7 +506,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(500m, row.Lines.Single(x => x.ClassificationName == "Electricity Consumption Fee").Amount);
         Assert.Contains("kWh", row.Lines.Single(x =>
             x.ClassificationName == "Electricity Consumption Fee").CalculationDetail);
-        Assert.Equal(AccountableDocumentState.Consumed,
+        Assert.Equal(AccountableDocumentState.InOffice,
             (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
 
         var julyRecord = await context.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[july]);
@@ -912,7 +909,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(2, collection.Lines.Count);
         Assert.Equal(2, collection.Lines.Sum(x => x.Allocations.Count));
         Assert.Single(await verify.PostingOperations.ToListAsync(), x => x.ClientOperationId == operationId);
-        Assert.Equal(AccountableDocumentState.Consumed,
+        Assert.Equal(AccountableDocumentState.InOffice,
             (await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
         Assert.Equal(100m, (await verify.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period])).PartialAmount);
         Assert.Equal(300m, (await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
@@ -987,7 +984,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Contains("late August rent", fine.CalculationSnapshot);
         var ecfLine = Assert.Single(collection.Lines, x => x.RevenueClassificationId != finesId);
         Assert.Equal(500m, ecfLine.Amount);
-        Assert.Equal(AccountableDocumentState.Consumed,
+        Assert.Equal(AccountableDocumentState.InOffice,
             (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.OrDocumentId)).State);
 
         // One OR, two independently classified official lines; the fines register reads the canonical line.
@@ -998,7 +995,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(50m, row.Amount);
         Assert.Equal("Lisa ECF", row.PayerName);
         Assert.Equal("Stall ECF-01 · late August rent", row.Origin);
-        Assert.StartsWith("OR-", row.DocumentNumber);
+        Assert.StartsWith("SRC-", row.ReferenceCode);
         Assert.Equal("Posted", row.Status);
     }
 

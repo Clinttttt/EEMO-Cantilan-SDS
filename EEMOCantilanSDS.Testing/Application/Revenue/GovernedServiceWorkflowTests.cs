@@ -229,7 +229,7 @@ public sealed class GovernedServiceWorkflowTests
     // ── Posting ───────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task IncompleteSetup_PostsNothing_AndTheIssuedDocumentIsQuarantinedNotReturnedToStock()
+    public async Task IncompleteSetup_PostsNothing_RecordsARejection_AndNeverTouchesAPhysicalDocument()
     {
         var w = await CreateAsync();
         var (db, workflow) = Open(w, "Collector");
@@ -239,17 +239,16 @@ public sealed class GovernedServiceWorkflowTests
         var result = await workflow.PostMobileAsync(Post(w, CollectorOperationCodes.MarketFees, 30m, doc));
 
         Assert.False(result.IsSuccess);
-        Assert.StartsWith("RECONCILIATION_REQUIRED:", result.Error);
-        Assert.Empty(db.Collections);
-        var stored = await db.AccountableDocuments.SingleAsync(x => x.Id == doc.Id);
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired, stored.State);
+        Assert.DoesNotContain("RECONCILIATION_REQUIRED", result.Error);
+        Assert.Equal(AccountableDocumentState.Assigned, (await db.AccountableDocuments.SingleAsync(x => x.Id == doc.Id)).State);
         var op = await db.PostingOperations.SingleAsync();
-        Assert.Equal(PostingOperationStatus.ReconciliationRequired, op.Status);
-        Assert.Equal(doc.Id, op.AccountableDocumentId);
+        Assert.Equal(PostingOperationStatus.Rejected, op.Status);
+        Assert.Null(op.AccountableDocumentId);
+        Assert.Empty(db.Collections);
     }
 
     [Fact]
-    public async Task FixedAmountService_PostsOneClassifiedLine_FreezesSetupEvidence_AndConsumesTheDocument()
+    public async Task FixedAmountService_PostsOneClassifiedLine_FreezesSetupEvidence_AndNeedsNoPhysicalDocument()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.MarketFees, GovernedServiceBasis.FixedAmount, 30m, null);
@@ -273,9 +272,10 @@ public sealed class GovernedServiceWorkflowTests
         Assert.Equal(RevenueClassificationCodes.MarketFees, classification.SemanticCode);
         Assert.Contains("\"basis\":1", line.CalculationSnapshot);
         Assert.Contains("\"fixedAmount\":30", line.CalculationSnapshot);
+        // SRC replaces the physical serial as the identity: a supplied (legacy) document is ignored, never consumed.
         var stored = await db.AccountableDocuments.SingleAsync(x => x.Id == doc.Id);
-        Assert.Equal(AccountableDocumentState.Consumed, stored.State);
-        Assert.Equal(collection.Id, stored.CollectionId);
+        Assert.Equal(AccountableDocumentState.Assigned, stored.State);
+        Assert.Null(stored.CollectionId);
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
-    public async Task ADifferentOperationIdCannotReuseAConsumedDocument()
+    public async Task TwoOperationsEachPostTheirOwnCollection_AndNoDocumentIsConsumed()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.LandingBerthing, GovernedServiceBasis.DirectApprovedAmount, null, null);
@@ -315,9 +315,10 @@ public sealed class GovernedServiceWorkflowTests
 
         var second = await workflow.PostMobileAsync(Post(w, CollectorOperationCodes.LandingBerthing, 50m, doc));
 
-        Assert.False(second.IsSuccess);
-        Assert.Single(db.Collections);
-        Assert.Equal(AccountableDocumentState.Consumed, (await db.AccountableDocuments.SingleAsync(x => x.Id == doc.Id)).State);
+        Assert.True(second.IsSuccess, second.Error);
+        Assert.NotEqual(Guid.Empty, second.Value!.CollectionId);
+        Assert.Equal(2, await db.Collections.CountAsync());
+        Assert.Equal(AccountableDocumentState.Assigned, (await db.AccountableDocuments.SingleAsync(x => x.Id == doc.Id)).State);
     }
 
     [Theory]
@@ -334,7 +335,7 @@ public sealed class GovernedServiceWorkflowTests
 
         Assert.False(result.IsSuccess);
         Assert.Empty(db.Collections);
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired, (await db.AccountableDocuments.SingleAsync(x => x.Id == w.Ct[0].Id)).State);
+        Assert.Equal(AccountableDocumentState.Assigned, (await db.AccountableDocuments.SingleAsync(x => x.Id == w.Ct[0].Id)).State);
     }
 
     [Fact]
@@ -355,7 +356,7 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
-    public async Task TheCollectorCannotPostWithTheWrongInstrument_TransferCattleIsOrNotCt()
+    public async Task TheInstrumentIsPolicyMetadata_ASuppliedLegacyDocumentOfAnotherInstrumentIsIgnored()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.TransferLargeCattle, GovernedServiceBasis.DirectApprovedAmount, null, null);
@@ -363,10 +364,10 @@ public sealed class GovernedServiceWorkflowTests
         await using var _ = db;
 
         var result = await workflow.PostMobileAsync(Post(w, CollectorOperationCodes.TransferLargeCattle, 200m, w.Ct[0]));
-
-        Assert.False(result.IsSuccess);
-        Assert.Empty(db.Collections);
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired, (await db.AccountableDocuments.SingleAsync(x => x.Id == w.Ct[0].Id)).State);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, result.Value!.Instrument);
+        Assert.Single(db.Collections);
+        Assert.Equal(AccountableDocumentState.Assigned, (await db.AccountableDocuments.SingleAsync(x => x.Id == w.Ct[0].Id)).State);
     }
 
     [Fact]
@@ -380,14 +381,10 @@ public sealed class GovernedServiceWorkflowTests
 
         var whole = await workflow.PostMobileAsync(Post(w, code, 300m, w.Or[0], GovernedServiceMode.WholePayment));
         var daily = await workflow.PostMobileAsync(Post(w, code, 20m, w.Ct[0], GovernedServiceMode.DailyTransaction));
-        var wholeWithCt = await workflow.PostMobileAsync(Post(w, code, 300m, w.Ct[1], GovernedServiceMode.WholePayment));
-        var dailyWithOr = await workflow.PostMobileAsync(Post(w, code, 20m, w.Or[1], GovernedServiceMode.DailyTransaction));
         var noMode = await workflow.PostMobileAsync(Post(w, code, 20m, w.Ct[2], mode: null));
 
         Assert.Equal(RevenueInstrumentType.OfficialReceipt, whole.Value!.Instrument);
         Assert.Equal(RevenueInstrumentType.CashTicket, daily.Value!.Instrument);
-        Assert.False(wholeWithCt.IsSuccess);
-        Assert.False(dailyWithOr.IsSuccess);
         Assert.False(noMode.IsSuccess);
         Assert.Equal(2, await db.Collections.CountAsync());
         var lines = await db.CollectionLines.ToListAsync();
@@ -460,27 +457,6 @@ public sealed class GovernedServiceWorkflowTests
     // ── Reads ─────────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CollectorSeesOnlyOwnDocumentsOfTheInstrumentTheModeResolves()
-    {
-        var w = await CreateAsync();
-        var code = CollectorOperationCodes.VegetableFruitSpaceRental;
-        var (db, workflow) = Open(w, "Collector");
-        await using var _ = db;
-
-        var whole = (await workflow.GetAvailableDocumentsAsync(code, GovernedServiceMode.WholePayment)).Value!;
-        var daily = (await workflow.GetAvailableDocumentsAsync(code, GovernedServiceMode.DailyTransaction)).Value!;
-        var noMode = await workflow.GetAvailableDocumentsAsync(code, null);
-
-        Assert.All(whole, d => Assert.StartsWith("OR", d.DocumentNumber));
-        Assert.All(daily, d => Assert.StartsWith("CT", d.DocumentNumber));
-        Assert.Equal(3, whole.Count);
-        Assert.Equal(ResultStatus.Invalid, noMode.Status);
-
-        var other = Open(w, "Collector", w.OtherCollector.Id).Workflow;
-        Assert.Equal(ResultStatus.Forbidden, (await other.GetAvailableDocumentsAsync(code, GovernedServiceMode.WholePayment)).Status);
-    }
-
-    [Fact]
     public async Task Terms_ShowTheApprovedRuleAndTheInstrumentTheModeResolves_ForAnAssignedCollectorOnly()
     {
         var w = await CreateAsync();
@@ -523,7 +499,7 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
-    public async Task ActivityRegister_ListsPostedCollectionsWithDocumentPayerAndCollector()
+    public async Task ActivityRegister_ListsPostedCollectionsWithReferencePayerAndCollector()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.MarketFees, GovernedServiceBasis.DirectApprovedAmount, null, null);
@@ -534,7 +510,7 @@ public sealed class GovernedServiceWorkflowTests
         var activity = await Open(w, "Admin").Workflow.GetActivityAsync(CollectorOperationCodes.MarketFees, Today.AddDays(-1), Today);
 
         var row = Assert.Single(activity.Value!);
-        Assert.Equal(w.Ct[0].Number, row.DocumentNumber);
+        Assert.NotNull(row.ReferenceCode); // the SRC itself is generated by PostgreSQL; see the integration tests
         Assert.Equal("Walk-up payer", row.PayerName);
         Assert.Equal("Comfort room", row.Reference);
         Assert.Equal("Ana Reyes", row.CollectorName);
@@ -587,7 +563,7 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
-    public async Task Transportation_RefusesAWrongAmount_AnUnknownClass_AndAMissingClass_KeepingTheDocumentQuarantined()
+    public async Task Transportation_RefusesAWrongAmount_AnUnknownClass_AndAMissingClass_WithoutTouchingAnyDocument()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.Transportation, GovernedServiceBasis.VehicleClassRate, null, null);
@@ -601,7 +577,7 @@ public sealed class GovernedServiceWorkflowTests
 
         Assert.Empty(db.Collections);
         var states = await db.AccountableDocuments.Where(x => w.Ct.Select(d => d.Id).Contains(x.Id)).Select(x => x.State).ToListAsync();
-        Assert.All(states, s => Assert.Equal(AccountableDocumentState.ReconciliationRequired, s));
+        Assert.All(states, s => Assert.Equal(AccountableDocumentState.Assigned, s));
     }
 
     [Fact]

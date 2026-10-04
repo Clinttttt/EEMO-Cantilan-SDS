@@ -102,7 +102,9 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
             await del.ExecuteNonQueryAsync(ct);
         }
 
-        // 2) Re-insert from the snapshot, parents → children, verbatim (json_populate_recordset).
+        // 2) Re-insert from the snapshot, parents → children, verbatim (json_populate_recordset). Generated columns (the
+        // stored SRC code) are never inserted: the database recomputes them from the restored year and number, so a restore
+        // reproduces each Collection's original SRC and never allocates a new one.
         foreach (var (schema, table) in order)
         {
             if (!snapshot.Tables.TryGetValue(table, out var json) || string.IsNullOrWhiteSpace(json) || json == "[]")
@@ -111,13 +113,35 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
                 continue;
             }
 
+            var columns = await InsertableColumnsAsync(connection, dbTx, schema, table, ct);
             await using var ins = connection.CreateCommand();
             ins.Transaction = dbTx;
             ins.CommandText =
-                $"INSERT INTO \"{schema}\".\"{table}\" " +
-                $"SELECT * FROM json_populate_recordset(NULL::\"{schema}\".\"{table}\", @json::json);";
+                $"INSERT INTO \"{schema}\".\"{table}\" ({columns}) " +
+                $"SELECT {columns} FROM json_populate_recordset(NULL::\"{schema}\".\"{table}\", @json::json);";
             AddParam(ins, "json", json);
-            perTable[table] = await ins.ExecuteNonQueryAsync(ct);
+            try
+            {
+                perTable[table] = await ins.ExecuteNonQueryAsync(ct);
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation
+                && string.Equals(table, "Collections", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "This backup contains collection reference codes (SRC) that already exist in this database. " +
+                    "Nothing was restored; reference codes are never regenerated or renumbered.", ex);
+            }
+        }
+
+        // The SRC sequence must never hand out a number a restored Collection already carries.
+        await using (var seq = connection.CreateCommand())
+        {
+            seq.Transaction = dbTx;
+            seq.CommandText =
+                "SELECT setval('\"CollectionReferenceNumberSeq\"', GREATEST(" +
+                "(SELECT COALESCE(MAX(\"ReferenceNumber\"), 1) FROM \"Collections\"), " +
+                "(SELECT last_value FROM \"CollectionReferenceNumberSeq\")), true);";
+            await seq.ExecuteScalarAsync(ct);
         }
 
         // 3) Append (never overwrite) an audit event for the restore itself, with a structured per-table
@@ -144,6 +168,24 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
 
         await tx.CommitAsync(ct);
         return new TenantRestoreResult(tablesTouched, rows, perTable);
+    }
+
+    /// <summary>The table's columns that may be inserted: everything except database-generated columns.</summary>
+    private static async Task<string> InsertableColumnsAsync(
+        System.Data.Common.DbConnection connection, System.Data.Common.DbTransaction tx, string schema, string table, CancellationToken ct)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText =
+            "SELECT column_name FROM information_schema.columns " +
+            "WHERE table_schema = @schema AND table_name = @table AND is_generated = 'NEVER' ORDER BY ordinal_position;";
+        AddParam(cmd, "schema", schema);
+        AddParam(cmd, "table", table);
+        var names = new List<string>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            names.Add("\"" + reader.GetString(0).Replace("\"", "\"\"") + "\"");
+        return string.Join(", ", names);
     }
 
     // Restorable tables in dependency (insert) order: a table appears AFTER every restorable table it

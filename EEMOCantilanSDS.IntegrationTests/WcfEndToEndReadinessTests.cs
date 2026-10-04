@@ -160,8 +160,6 @@ public sealed class WcfEndToEndReadinessTests(PostgresFixture db)
         var quote = Assert.Single((await collector.GetObligationsAsync(w.Period.Year, w.Period.Month)).Value!);
         Assert.True(quote.CanCollectCanonical);
         Assert.Equal((10m, 0m, 10m, "DirectApproved"), (quote.AssessedAmount, quote.CumulativeSettledEvidence, quote.OutstandingAmount, quote.ChargeBasis));
-        var ticket = (await collector.GetAvailableCashTicketsAsync()).Value!.OrderBy(t => t.SerialNumber).First();
-        Assert.Equal(w.CtNumber, ticket.DocumentNumber);
 
         var request = new WcfCollectionPostRequest(1, Guid.NewGuid(), PhilippineTime.Today, quote.UtilityBillId, 10m,
             quote.WaterSourceVersion, w.CtId, w.CtNumber, DateTime.UtcNow.AddMinutes(-1));
@@ -173,7 +171,7 @@ public sealed class WcfEndToEndReadinessTests(PostgresFixture db)
         var collection = await ctx.Collections.Include(x => x.Lines).AsNoTracking().SingleAsync();
         Assert.Equal((10m, w.CollectorId), (collection.TotalAmount, collection.CollectorId!.Value));
         Assert.Equal(CollectionSourcePart.Water, Assert.Single(collection.Lines).SourcePart);
-        Assert.Equal(AccountableDocumentState.Consumed, (await ctx.AccountableDocuments.AsNoTracking().SingleAsync(x => x.Id == w.CtId)).State);
+        Assert.Equal(AccountableDocumentState.Assigned, (await ctx.AccountableDocuments.AsNoTracking().SingleAsync(x => x.Id == w.CtId)).State);   // no ticket is consumed (IA-062)
 
         // Settled: nothing outstanding, yet the operation is still Ready — no debt is not an authorization failure.
         Assert.Empty((await collector.GetObligationsAsync(w.Period.Year, w.Period.Month)).Value!);

@@ -172,7 +172,6 @@
                     <dl class="v3-facts">
                         <div><dt>Status</dt><dd>@_draft.Status</dd></div>
                         <div><dt>Payer</dt><dd>@(_draft.PayerNameSnapshot ?? "Not recorded")</dd></div>
-                        <div><dt>Official Receipt</dt><dd>@(_draft.DocumentNumber ?? "Not selected")</dd></div>
                     </dl>
 
                     @if (_draft.RequiresBusinessDateRefresh)
@@ -203,51 +202,13 @@
                         </ul>
                     }
 
-                    <div class="ecf-receipt" role="group" aria-label="Official Receipt">
-                        <span class="ecf-receipt-label">Official Receipt</span>
-                        @if (SelectedReceipt is { } picked)
-                        {
-                            <strong class="ecf-receipt-serial">@picked.DocumentNumber</strong>
-                            <span class="ecf-receipt-note">@(picked.IsNextExpected ? "Next assigned receipt" : "Different receipt selected")</span>
-                        }
-                        else if (NextReceipt is { } next)
-                        {
-                            <strong class="ecf-receipt-serial">@next.DocumentNumber</strong>
-                            <span class="ecf-receipt-note">Next assigned receipt</span>
-                            <button type="button" class="v3-btn" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)" @onclick="UseNextReceiptAsync">Use this receipt</button>
-                        }
-                        else
-                        {
-                            <span class="ecf-receipt-note" role="status">No Official Receipt is available. Ask the office to register or assign one.</span>
-                        }
-                        @if (_availableReceipts.Count > 1)
-                        {
-                            <button type="button" class="ecf-receipt-change" aria-expanded="@(_showReceipts ? "true" : "false")"
-                                    @onclick="() => _showReceipts = !_showReceipts">@(_showReceipts ? "Hide receipts" : "Use different receipt")</button>
-                        }
-                        @if (_showReceipts)
-                        {
-                            <label class="v3-field ecf-receipt-picker">
-                                <span class="v3-sr-only">Choose a different Official Receipt</span>
-                                <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                                        @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
-                                    <option value="">No receipt selected</option>
-                                    @foreach (var document in _availableReceipts)
-                                    {
-                                        <option value="@document.DocumentId">@document.DocumentNumber@(document.IsNextExpected ? " · next" : "")</option>
-                                    }
-                                </select>
-                            </label>
-                        }
-                    </div>
-
                     <div class="ecf-total">
                         <span>Draft total</span>
                         <strong>@Money(_draft.TotalAmount)</strong>
                     </div>
 
                     <a class="v3-btn v3-btn-primary" href="/collections/current">Review and post</a>
-                    <p class="ecf-footnote">Nothing is recorded as revenue and no OR is used until the collection is posted.</p>
+                    <p class="ecf-footnote">Nothing is recorded as revenue until the collection is posted. StallTrack then assigns its reference code (SRC).</p>
                 </div>
             }
         </aside>
@@ -265,7 +226,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Business date</th>
-                        <th scope="col">Official Receipt · payer</th>
+                        <th scope="col">Reference · payer</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Total</th>
                         <th scope="col">Items</th>
@@ -276,7 +237,7 @@
                     {
                         <tr>
                             <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm")</span></td>
-                            <td><span class="v3-strong">@activity.DocumentNumber</span><span class="v3-block">@(activity.PayerName ?? "No payer recorded")</span></td>
+                            <td><span class="v3-strong">@activity.ReferenceCode</span><span class="v3-block">@(activity.PayerName ?? "No payer recorded")</span></td>
                             <td>@activity.CurrentDisposition</td>
                             <td class="v3-num v3-strong">@Money(activity.TotalAmount)</td>
                             <td>
@@ -311,13 +272,8 @@
     private string _areaFilter = string.Empty;
     private string _searchText = string.Empty;
     private List<EcfObligationQuoteDto> _quotes = [];
-    private List<EcfAvailableDocumentDto> _availableReceipts = [];
-    private bool _showReceipts;
 
-    // The server lists the signed-in user's own stock first, in registered sequence; the first row is the next expected receipt.
-    private EcfAvailableDocumentDto? NextReceipt => _availableReceipts.FirstOrDefault(x => x.IsNextExpected) ?? _availableReceipts.FirstOrDefault();
 
-    private EcfAvailableDocumentDto? SelectedReceipt => _draft?.AccountableDocumentId is { } id ? _availableReceipts.FirstOrDefault(x => x.DocumentId == id) : null;
     private List<EcfCollectionActivityDto> _activity = [];
     private EcfCollectionDraftDto? _draft;
     private EcfObligationQuoteDto? _draftSourceQuote;
@@ -378,13 +334,6 @@
             }
             _quotes = quotes.Value?.ToList() ?? [];
 
-            var receipts = await EcfApi.GetAvailableReceiptsAsync();
-            if (!receipts.IsSuccess)
-            {
-                _error = ErrorText(receipts, "Unable to load available Official Receipts.");
-                return;
-            }
-            _availableReceipts = receipts.Value?.ToList() ?? [];
 
             var current = await EcfApi.GetCurrentDraftAsync();
             if (current.IsSuccess)
@@ -459,22 +408,6 @@
         });
     }
 
-    private Task SelectDocumentAsync(ChangeEventArgs args) =>
-        SelectReceiptAsync(Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null);
-
-    private Task UseNextReceiptAsync() => SelectReceiptAsync(NextReceipt?.DocumentId);
-
-    private async Task SelectReceiptAsync(Guid? documentId)
-    {
-        if (_draft is null) return;
-        await RunAsync(async () =>
-        {
-            var result = await EcfApi.SelectDocumentAsync(_draft.DraftId,
-                new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
-            SetDraftResult(result, "Official Receipt selection updated. Review is required again.");
-        });
-    }
-
     private async Task ResumeDraftAsync()
     {
         if (_draft is null || !_draft.RequiresBusinessDateRefresh) return;
@@ -515,7 +448,7 @@
                 _error = ErrorText(result, "ECF Collection could not be posted.");
                 return;
             }
-            _message = $"Collection {ShortId(result.Value!.CollectionId)} · {result.Value.DocumentNumber} · {Money(result.Value.Amount)} · {result.Value.CurrentDisposition}.";
+            _message = $"Collection recorded · {result.Value!.ReferenceCode} · {Money(result.Value.Amount)} · {result.Value.CurrentDisposition}.";
             await ReloadSupportingDataAsync();
         });
     }
@@ -542,8 +475,6 @@
         var quotes = await EcfApi.GetObligationsAsync(_period.Year, _period.Month);
         if (quotes.IsSuccess) _quotes = quotes.Value?.ToList() ?? [];
         await LoadDraftSourceAsync();
-        var receipts = await EcfApi.GetAvailableReceiptsAsync();
-        if (receipts.IsSuccess) _availableReceipts = receipts.Value?.ToList() ?? [];
         var from = new DateOnly(_period.Year, _period.Month, 1);
         var activity = await EcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
         if (activity.IsSuccess) _activity = activity.Value?.ToList() ?? [];

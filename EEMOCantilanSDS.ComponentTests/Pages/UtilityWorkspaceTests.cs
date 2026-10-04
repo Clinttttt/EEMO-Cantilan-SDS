@@ -119,10 +119,9 @@ public sealed class UtilityWorkspaceTests : TestContext
 
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
-            Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Cash Ticket exceptions");
+            Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collections needing review");
             Assert.Contains("1 of 1 open for collection", cut.Markup);
-            Assert.Contains("1 unassigned CT in office", cut.Markup);
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms");
+            Assert.DoesNotContain("unassigned CT", cut.Markup);   // physical stock never gates readiness (IA-062)
         }, Timeout);
 
         api.Verify(x => x.PostAsync(It.IsAny<WcfCollectionPostRequest>()), Times.Never);
@@ -146,14 +145,14 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Wcf_WithoutAvailableTickets_SaysSoInTheReadinessLine()
+    public void Wcf_ReadinessNeverMentionsPhysicalCashTicketStock()
     {
         Services.AddSingleton(WcfApi([WcfQuote(outstanding: 10m, canCollect: true)], []).Object);
 
         var cut = RenderComponent<WaterConsumptionFees>();
 
         cut.WaitForAssertion(() =>
-            Assert.Contains("No unassigned CTs in office", cut.Markup), Timeout);
+            Assert.DoesNotContain("unassigned CT", cut.Markup), Timeout);
     }
 
     [Fact]
@@ -177,8 +176,6 @@ public sealed class UtilityWorkspaceTests : TestContext
         var api = new Mock<IEcfCollectionsApiClient>();
         api.Setup(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<EcfObligationQuoteDto>>.Success(quotes));
-        api.Setup(x => x.GetAvailableReceiptsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success(Array.Empty<EcfAvailableDocumentDto>()));
         api.Setup(x => x.GetCurrentDraftAsync()).ReturnsAsync(Result<EcfCollectionDraftDto>.NotFound());
         api.Setup(x => x.GetActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(Result<IReadOnlyList<EcfCollectionActivityDto>>.Success(Array.Empty<EcfCollectionActivityDto>()));
@@ -296,8 +293,6 @@ public sealed class UtilityWorkspaceTests : TestContext
         var api = new Mock<IWcfCollectionsApiClient>();
         api.Setup(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<IReadOnlyList<WcfObligationQuoteDto>>.Success(quotes ?? []));
-        api.Setup(x => x.GetAvailableCashTicketsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<CashTicketDocumentDto>>.Success(tickets ?? []));
         api.Setup(x => x.GetActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(Result<IReadOnlyList<WcfCollectionActivityDto>>.Success(Array.Empty<WcfCollectionActivityDto>()));
         api.Setup(x => x.GetReconciliationExceptionsAsync())

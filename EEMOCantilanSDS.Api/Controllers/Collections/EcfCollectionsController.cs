@@ -21,10 +21,6 @@ public sealed class EcfCollectionsController(ISender sender, EcfCollectionWorkfl
     public async Task<ActionResult<EcfObligationQuoteDto>> GetObligation(Guid utilityBillId, CancellationToken ct) =>
         HandleResponse(await workflow.GetObligationAsync(utilityBillId, ct));
 
-    [HttpGet("official-receipts/available")]
-    public async Task<ActionResult<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceipts(CancellationToken ct) =>
-        HandleResponse(await workflow.GetAvailableReceiptsAsync(ct));
-
     [HttpGet("drafts/current")]
     public async Task<ActionResult<EcfCollectionDraftDto>> GetCurrentDraft(CancellationToken ct) =>
         HandleResponse(await workflow.GetCurrentDraftAsync(ct));
@@ -42,11 +38,6 @@ public sealed class EcfCollectionsController(ISender sender, EcfCollectionWorkfl
     public async Task<ActionResult<EcfCollectionDraftDto>> UpdateAllocation(
         Guid draftId, [FromBody] UpdateEcfDraftAllocationRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.UpdateAllocationAsync(draftId, request, ct));
-
-    [HttpPut("drafts/{draftId:guid}/document")]
-    public async Task<ActionResult<EcfCollectionDraftDto>> SelectDocument(
-        Guid draftId, [FromBody] SelectEcfDraftDocumentRequest request, CancellationToken ct) =>
-        HandleResponse(await workflow.SelectDocumentAsync(draftId, request, ct));
 
     [HttpPost("drafts/{draftId:guid}/review")]
     public async Task<ActionResult<EcfCollectionDraftDto>> Review(

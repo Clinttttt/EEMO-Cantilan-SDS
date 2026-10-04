@@ -70,10 +70,12 @@ public sealed class PendingOperationStore : IPendingOperationStore
         try
         {
             if (HasStorageFault)
-                throw new IOException("Issued Cash Ticket state is unavailable because the local queue has a storage fault.");
+                throw new IOException("The local queue has a storage fault.");
             var issuedShape = operation.Kind switch
             {
-                OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0,
+                OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0
+                    || (operation.UtilityBillId is null && operation.StallId is not null
+                        && operation.BillingYear is not null && operation.BillingMonth is not null),
                 // A governed service records facts only: which operation, and (for Vegetable/Fruit) the mode.
                 // Transportation additionally carries the vehicle class: without it the server cannot resolve the approved rate.
                 OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode)
@@ -81,22 +83,18 @@ public sealed class PendingOperationStore : IPendingOperationStore
                         || !string.IsNullOrWhiteSpace(operation.VehicleClassCode)),
                 _ => false
             };
-            if (!issuedShape
-                || operation.AccountableDocumentId is not { } id || id == Guid.Empty
-                || string.IsNullOrWhiteSpace(operation.DocumentNumber)
-                || operation.ReceivedAmount is null or <= 0m
-                || operation.IssuedAtUtc is null)
-                throw new InvalidOperationException("A physically issued operation must include its document and source evidence.");
+            if (!issuedShape || operation.ReceivedAmount is null or <= 0m)
+                throw new InvalidOperationException("A queued collection must include its source facts and a positive amount.");
             var items = new List<PendingOperation>(await LoadUnsafeAsync());
             if (HasStorageFault)
-                throw new IOException("Issued Cash Ticket state is unavailable because the local queue could not be read.");
+                throw new IOException("The local queue could not be read.");
             if (items.Any(x => x.ClientOperationId == operation.ClientOperationId
-                || x.AccountableDocumentId == operation.AccountableDocumentId))
-                throw new InvalidOperationException("This operation or Cash Ticket is already present in the local queue.");
+                || (operation.AccountableDocumentId is { } legacyId && x.AccountableDocumentId == legacyId)))
+                throw new InvalidOperationException("This collection is already present in the local queue.");
             operation.IssuedDocumentState = IssuedDocumentLocalState.IssuedLocallyPendingSync;
             items.Add(operation);
             if (!await SaveUnsafeAsync(items))
-                throw new IOException("The issued Cash Ticket and its queued operation could not be durably saved.");
+                throw new IOException("The queued collection could not be durably saved.");
         }
         finally
         {

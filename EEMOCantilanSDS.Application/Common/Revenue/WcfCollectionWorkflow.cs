@@ -345,24 +345,6 @@ public sealed class WcfCollectionWorkflow(
         ? stall.Facility!.SectionLabel(marketSection) ?? stall.CustomSectionName ?? string.Empty
         : stall.CustomSectionName ?? string.Empty;
 
-    public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync(
-        CancellationToken ct = default) => Run(async actor =>
-    {
-        if (actor.Role == "Collector"
-            && !await CollectorHasOperationAssignmentAsync(actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
-            return Result<IReadOnlyList<CashTicketDocumentDto>>.Forbidden();
-        var documents = await db.AccountableDocuments.AsNoTracking()
-            .Where(x => x.MunicipalityId == actor.TenantId
-                && x.InstrumentType == RevenueInstrumentType.CashTicket
-                && (actor.Role == "Collector"
-                    ? x.State == AccountableDocumentState.Assigned && x.AssignedUserId == actor.UserId
-                    : x.State == AccountableDocumentState.InOffice))
-            .OrderBy(x => x.SerialNumber)
-            .Select(x => new CashTicketDocumentDto(x.Id, x.DocumentNumber, x.State, x.AssignedUserId, x.SerialNumber))
-            .ToListAsync(ct);
-        return Result<IReadOnlyList<CashTicketDocumentDto>>.Success(documents);
-    }, ct, requireNpmAuthorityForCollector: false);
-
     public Task<Result<IReadOnlyList<WcfReconciliationExceptionDto>>> GetReconciliationExceptionsAsync(
         CancellationToken ct = default) => Run(async actor =>
     {
@@ -530,10 +512,6 @@ public sealed class WcfCollectionWorkflow(
         var allocations = await db.CollectionAllocations.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.TenantId && lineIds.Contains(x.CollectionLineId))
             .ToListAsync(ct);
-        var documents = await db.AccountableDocuments.AsNoTracking()
-            .Where(x => x.MunicipalityId == actor.TenantId
-                && x.CollectionId.HasValue && ids.Contains(x.CollectionId.Value))
-            .ToListAsync(ct);
         var policyIds = lines.Select(x => x.RevenueClassificationPolicyId).Distinct().ToArray();
         var names = await db.RevenueClassificationPolicies.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.TenantId && policyIds.Contains(x.Id))
@@ -565,7 +543,7 @@ public sealed class WcfCollectionWorkflow(
                     ? "Document corrected" : "Posted";
             return new WcfCollectionActivityDto(
                 collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
-                documents.FirstOrDefault(x => x.CollectionId == collection.Id)?.DocumentNumber ?? "Cash Ticket unavailable",
+                collection.ReferenceCode,
                 collection.PayerName, collection.TotalAmount, detail.Count, disposition, detail);
         }).ToList();
         return Result<IReadOnlyList<WcfCollectionActivityDto>>.Success(activity);
@@ -586,63 +564,40 @@ public sealed class WcfCollectionWorkflow(
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, origin, ActorId(actor));
         var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
         if (prior is not null)
-            return await ResolvePriorAsync(prior, fingerprint, origin, actor, ct);
+            return await ResolvePriorAsync(prior, fingerprint, origin, actor, ct, request.ReceivedAmount);
 
-        var document = request.AccountableDocumentId == Guid.Empty ? null
-            : await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
         // Routine WCF field collection belongs to the assigned collector on Collector Mobile; Head/Admin Web is
         // monitoring and reconciliation only. A Web intent already bound to an operation still replays above, but a
         // new one is durably rejected. The office ticket was never issued by this request, so it stays in stock.
         if (!mobile)
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                 "WEB_CHANNEL_RETIRED",
                 "Routine WCF collection is recorded by the assigned collector on Collector Mobile. Web WCF posting is retired; no Collection was created.", ct);
         // WCF is a utility operation (IA-053): the collector is authorized by the WCF operation assignment alone. NPM is
         // only the current Water source's context, checked on the source below, never a collector authorization.
         if (mobile && !await CollectorHasOperationAssignmentAsync(
                 actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                 "COLLECTOR_OPERATION_NOT_ASSIGNED",
                 "An explicit WCF operation assignment is required. Any physically issued Cash Ticket is retained for office reconciliation.", ct);
-        var collectorOwnsDocument = mobile && document?.State == AccountableDocumentState.Assigned
-            && document.AssignedUserId == actor.UserId;
-        var validCustody = mobile
-            ? collectorOwnsDocument
-            : actor.Role is "Admin" or "SuperAdmin"
-                && document?.State == AccountableDocumentState.InOffice;
 
         if (request.SchemaVersion != 1)
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                 "PAYLOAD_VERSION_UNSUPPORTED", "This WCF collection payload version is not supported.", ct);
         // A direct entry (Collector Mobile only) names a source and period instead of a prepared UtilityBill.
         var direct = request.UtilityBillId == Guid.Empty;
-        if (request.AccountableDocumentId == Guid.Empty
-            || request.ReceivedAmount <= 0m
+        if (request.ReceivedAmount <= 0m
             || request.ReceivedAmount > MaxDirectAmount
             || decimal.Round(request.ReceivedAmount, 2, MidpointRounding.ToZero) != request.ReceivedAmount
             || (direct
                 ? !mobile || request.StallId is not { } stallId || stallId == Guid.Empty
                     || request.BillingYear is not (>= 2000 and <= 2200) || request.BillingMonth is not (>= 1 and <= 12)
                 : request.WaterSourceVersion <= 0))
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                "INVALID_INTENT", "WCF requires a positive received amount, a Water source (or a source and period for a direct amount), and Cash Ticket identity.", ct);
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                "INVALID_INTENT", "WCF requires a positive received amount and a Water source (or a source and period for a direct amount).", ct);
         if (request.BusinessDate > BusinessToday)
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                 "FUTURE_BUSINESS_DATE", "Collection BusinessDate cannot be later than the current Philippine business date.", ct);
-        if (mobile && (request.IssuedAtUtc is not { Kind: DateTimeKind.Utc } issuedAt || issuedAt > DateTime.UtcNow))
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                "INVALID_ISSUE_TIME", "The physical Cash Ticket issue time must be a valid past or present UTC timestamp.", ct);
-        if (document is null)
-            return await RecordTerminalAsync(actor, request, normalized, origin, null, mobile,
-                "DOCUMENT_NOT_FOUND", "The Cash Ticket identity was not found in this tenant.", ct);
-        if (!validCustody)
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                "DOCUMENT_CUSTODY_INVALID", "This Cash Ticket is not available to the current collector or office user.", ct);
-        if (document.InstrumentType != RevenueInstrumentType.CashTicket
-            || !string.Equals(document.DocumentNumber, request.DocumentNumber?.Trim(), StringComparison.Ordinal))
-            return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                "DOCUMENT_IDENTITY_INVALID", "The document identity does not match an assigned Cash Ticket.", ct);
 
         try
         {
@@ -652,7 +607,7 @@ public sealed class WcfCollectionWorkflow(
             {
                 var established = await EstablishDirectSourceAsync(actor, request, ct);
                 if (established.Code is { } problem)
-                    return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                    return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                         problem, established.Message!, ct);
                 bill = established.Bill!;
             }
@@ -661,7 +616,7 @@ public sealed class WcfCollectionWorkflow(
                 bill = await UtilityBillQuery(actor.TenantId, tracked: true)
                     .SingleOrDefaultAsync(x => x.Id == request.UtilityBillId, ct);
                 if (bill is null)
-                    return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                    return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                         "SOURCE_NOT_FOUND", "The Water obligation is not available in this tenant.", ct);
             }
 
@@ -670,8 +625,8 @@ public sealed class WcfCollectionWorkflow(
             if (bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy)
             {
                 if (!direct && bill.WaterSourceVersion != request.WaterSourceVersion)
-                    return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                        "SOURCE_VERSION_STALE", "The Water obligation changed after it was quoted. The physical Cash Ticket requires reconciliation.", ct);
+                    return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                        "SOURCE_VERSION_STALE", "The Water obligation changed after it was quoted. The collection was not recorded; reload and try again.", ct);
                 if (await TryActivateProspectivelyAsync(bill, actor, request.ClientOperationId, direct, ct))
                     expectedVersion = bill.WaterSourceVersion;
             }
@@ -680,20 +635,20 @@ public sealed class WcfCollectionWorkflow(
             var policy = await ResolvePolicyAsync(actor.TenantId, request.BusinessDate, ct);
             var facts = await BuildFactsAsync(bill, policy, actor.TenantId, request.BusinessDate, ct);
             if (bill.WaterSettlementAuthorityState != SettlementAuthority.Canonical)
-                return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy ? "SOURCE_LEGACY" : "SOURCE_CUTOVER_PENDING",
-                    "The Water source is not under Canonical settlement authority. The issued Cash Ticket requires controlled reconciliation.", ct);
+                    "The Water source is not under Canonical settlement authority. The collection was not recorded.", ct);
             if (bill.WaterSourceVersion != expectedVersion)
-                return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                    "SOURCE_VERSION_STALE", "The Water obligation changed after it was quoted. The physical Cash Ticket requires reconciliation.", ct);
+                return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                    "SOURCE_VERSION_STALE", "The Water obligation changed after it was quoted. The collection was not recorded; reload and try again.", ct);
             if (request.ReceivedAmount > facts.Quote.OutstandingAmount)
-                return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "AMOUNT_EXCEEDS_OUTSTANDING", "The received amount exceeds the current Water outstanding balance.", ct);
             if (facts.Quote.Instrument != RevenueInstrumentType.CashTicket)
-                return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
-                    "INSTRUMENT_POLICY_CONFLICT", "The effective WCF policy does not permit Cash Ticket collection.", ct);
+                return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                    "INSTRUMENT_POLICY_CONFLICT", "The effective WCF policy does not permit this collection.", ct);
             if (facts.Quote.OutstandingAmount <= 0m)
-                return await RecordTerminalAsync(actor, request, normalized, origin, document, mobile,
+                return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "SOURCE_ALREADY_SETTLED", "The Water obligation has no outstanding balance.", ct);
 
             var snapshot = facts.SourceSnapshot;
@@ -706,14 +661,14 @@ public sealed class WcfCollectionWorkflow(
             var actorId = ActorId(actor);
             var sourceProjection = new Action<DateTime>(now =>
                 bill.ApplyCanonicalWaterProjection(facts.Quote.CumulativeSettledEvidence + request.ReceivedAmount,
-                    document.DocumentNumber, now, actor.Username));
+                    null, now, actor.Username));
             var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
                 actor.TenantId, request.ClientOperationId, IntentVersion, normalized, origin, actorId,
-                actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], document,
+                actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], null,
                 collectorId: mobile ? actor.UserId : null, payorId: facts.Quote.PayorId,
                 payerName: facts.Quote.PayerNameSnapshot, sourceProjections: [sourceProjection], ct: ct);
             return Result<WcfCollectionOutcomeDto>.Success(new WcfCollectionOutcomeDto(
-                collection.Id, document.Id, document.DocumentNumber, collection.BusinessDate,
+                collection.Id, collection.ReferenceCode, collection.BusinessDate,
                 collection.TotalAmount, "Posted", false));
         }
         catch (DbUpdateConcurrencyException)
@@ -721,56 +676,28 @@ public sealed class WcfCollectionWorkflow(
             db.ChangeTracker.Clear();
             var winner = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
             if (winner is not null)
-                return await ResolvePriorAsync(winner, fingerprint, origin, actor, ct);
-            var currentDocument = await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
-            return await RecordTerminalAsync(actor, request, normalized, origin, currentDocument, mobile,
-                "POST_CONCURRENCY_CONFLICT", "A source or Cash Ticket changed while posting; no Collection was partially posted.", ct);
+                return await ResolvePriorAsync(winner, fingerprint, origin, actor, ct, request.ReceivedAmount);
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                "POST_CONCURRENCY_CONFLICT", "A source changed while posting; no Collection was partially posted.", ct);
         }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
             var winner = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
             if (winner is not null)
-                return await ResolvePriorAsync(winner, fingerprint, origin, actor, ct);
-            var currentDocument = await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
-            return await RecordTerminalAsync(actor, request, normalized, origin, currentDocument, mobile,
-                "POST_CONFLICT", "The source, Cash Ticket, or operation identity conflicts with another posting.", ct);
+                return await ResolvePriorAsync(winner, fingerprint, origin, actor, ct, request.ReceivedAmount);
+            return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                "POST_CONFLICT", "The source or operation identity conflicts with another posting.", ct);
         }
     }
 
     private async Task<Result<WcfCollectionOutcomeDto>> RecordTerminalAsync(
         Actor actor, WcfCollectionPostRequest request, string normalized, string origin,
-        AccountableDocument? document, bool mobile, string code, string message, CancellationToken ct)
+        bool mobile, string code, string message, CancellationToken ct)
     {
-        var physicalIssue = mobile && request.AccountableDocumentId != Guid.Empty
-            && !string.IsNullOrWhiteSpace(request.DocumentNumber);
-        var issuedDocument = document;
-        if (physicalIssue && (issuedDocument is null
-            || issuedDocument.InstrumentType != RevenueInstrumentType.CashTicket
-            || !string.Equals(issuedDocument.DocumentNumber, request.DocumentNumber?.Trim(), StringComparison.Ordinal)))
-        {
-            issuedDocument = await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId
-                && x.InstrumentType == RevenueInstrumentType.CashTicket
-                && x.DocumentNumber == request.DocumentNumber!.Trim(), ct);
-        }
-        var reconciliation = physicalIssue;
-        var issueTime = request.IssuedAtUtc is { Kind: DateTimeKind.Utc } issuedAt && issuedAt <= DateTime.UtcNow
-            ? issuedAt : clock?.UtcNow ?? DateTime.UtcNow;
-        if (reconciliation && issuedDocument is not null
-            && await CanQuarantinePhysicalDocumentAsync(issuedDocument, actor, fromWeb: false, ct)
-            && (issuedDocument.ClientOperationId is null || issuedDocument.ClientOperationId == request.ClientOperationId))
-            issuedDocument.MarkPhysicalIssueReconciliationRequired(request.ClientOperationId, issueTime, actor.Username);
         var operation = PostingOperation.Record(actor.TenantId, request.ClientOperationId,
-            IntentVersion, normalized, origin, ActorId(actor),
-            reconciliation ? PostingOperationStatus.ReconciliationRequired : PostingOperationStatus.Rejected,
-            reconciliation ? "PHYSICAL_DOCUMENT_RECONCILIATION" : code,
-            reconciliation
-                ? $"RECONCILIATION_REQUIRED: {message} Ticket {issuedDocument?.DocumentNumber ?? request.DocumentNumber} remains unavailable for reuse and requires review."
-                : message,
-            null, issuedDocument?.Id ?? document?.Id, DateTime.UtcNow);
+            IntentVersion, normalized, origin, ActorId(actor), PostingOperationStatus.Rejected,
+            code, message, null, null, DateTime.UtcNow);
         db.PostingOperations.Add(operation);
         try
         {
@@ -786,9 +713,7 @@ public sealed class WcfCollectionWorkflow(
                     origin, actor, ct);
             throw;
         }
-        return Result<WcfCollectionOutcomeDto>.Failure(
-            reconciliation ? $"RECONCILIATION_REQUIRED: {message} A physical Cash Ticket issuance remains unavailable for reuse and requires office review." : message,
-            ResultStatus.Conflict);
+        return Result<WcfCollectionOutcomeDto>.Failure(message, ResultStatus.Conflict);
     }
 
     private static Guid CreateLegacyOperationId(Guid tenantId, string actorId, SyncOfflineOperationDto request)
@@ -820,9 +745,9 @@ public sealed class WcfCollectionWorkflow(
     }
 
     private async Task<Result<WcfCollectionOutcomeDto>> ResolvePriorAsync(
-        PostingOperation prior, string fingerprint, string origin, Actor actor, CancellationToken ct)
+        PostingOperation prior, string fingerprint, string origin, Actor actor, CancellationToken ct, decimal? requestedAmount = null)
     {
-        if (prior.Origin != origin || prior.ActorId != ActorId(actor) || prior.IntentFingerprint != fingerprint)
+        if (prior.Origin != origin || prior.ActorId != ActorId(actor) || (prior.IntentFingerprint != fingerprint && prior.AccountableDocumentId is null))   // a pre-SRC operation bound a physical document into its intent; it still replays
             return Result<WcfCollectionOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different WCF posting intent.",
                 ResultStatus.Conflict);
@@ -834,12 +759,13 @@ public sealed class WcfCollectionWorkflow(
             x.MunicipalityId == actor.TenantId && x.Id == collectionId, ct);
         if (collection is null)
             return Result<WcfCollectionOutcomeDto>.Failure("The recorded Collection outcome is unavailable.", ResultStatus.Conflict);
-        var document = prior.AccountableDocumentId is { } documentId
-            ? await db.AccountableDocuments.AsNoTracking().SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == documentId, ct)
-            : null;
+        // A pre-SRC operation cannot be compared by fingerprint (its intent bound a physical document), so it replays only
+        // for the same money: a different amount under the same ClientOperationId is still a conflict.
+        if (prior.IntentFingerprint != fingerprint && requestedAmount is { } amount && amount != collection.TotalAmount)
+            return Result<WcfCollectionOutcomeDto>.Failure(
+                "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
         return Result<WcfCollectionOutcomeDto>.Success(new WcfCollectionOutcomeDto(
-            collection.Id, document?.Id ?? Guid.Empty, document?.DocumentNumber ?? "Cash Ticket unavailable",
+            collection.Id, collection.ReferenceCode,
             collection.BusinessDate, collection.TotalAmount, "Posted", true));
     }
 
@@ -1002,10 +928,7 @@ public sealed class WcfCollectionWorkflow(
             BillingMonth = request.BillingMonth,
             SourcePart = CollectionSourcePart.Water.ToString(),
             DirectAmount = request.ReceivedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
-            Instrument = RevenueInstrumentType.CashTicket.ToString(),
-            AccountableDocumentId = request.AccountableDocumentId,
-            DocumentNumber = request.DocumentNumber?.Trim(),
-            IssuedAtUtc = request.IssuedAtUtc?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+            Instrument = RevenueInstrumentType.CashTicket.ToString()
         }, JsonOptions)
         : JsonSerializer.Serialize(new
         {
@@ -1019,10 +942,7 @@ public sealed class WcfCollectionWorkflow(
             SourcePart = CollectionSourcePart.Water.ToString(),
             ReceivedAmount = request.ReceivedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
             WaterSourceVersion = request.WaterSourceVersion,
-            Instrument = RevenueInstrumentType.CashTicket.ToString(),
-            AccountableDocumentId = request.AccountableDocumentId,
-            DocumentNumber = request.DocumentNumber?.Trim(),
-            IssuedAtUtc = request.IssuedAtUtc?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+            Instrument = RevenueInstrumentType.CashTicket.ToString()
         }, JsonOptions);
 
     private static string ActorId(Actor actor) => actor.UserId.ToString("N");

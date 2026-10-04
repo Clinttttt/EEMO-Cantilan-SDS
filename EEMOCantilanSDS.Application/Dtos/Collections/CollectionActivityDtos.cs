@@ -24,7 +24,7 @@ public sealed record CollectionActivityFeedDto(
     IReadOnlyList<string> Notes);
 
 /// <summary>
-/// One collection/document event. <see cref="Authority"/> is "Legacy" or "Canonical". <see cref="Amount"/> is the money the
+/// One collection event. <see cref="ReferenceCode"/> is the StallTrack Reference Code (SRC) of a canonical Collection (null for Legacy rows, never fabricated); <see cref="DocumentNumber"/> is optional physical OR/CT evidence. <see cref="Authority"/> is "Legacy" or "Canonical". <see cref="Amount"/> is the money the
 /// event recorded; <see cref="CorrectionEffect"/> is the signed effect of corrections linked to it (canonical only), and
 /// <see cref="NetAmount"/> their sum. The original event is never removed by a correction.
 /// </summary>
@@ -35,9 +35,11 @@ public sealed record CollectionActivityEventDto(
     Guid? CollectionId,
     DateOnly BusinessDate,
     DateTime? RecordedAtUtc,
+    string? ReferenceCode,
     string? DocumentNumber,
     RevenueInstrumentType? InstrumentType,
     IReadOnlyList<string> ReplacementDocumentNumbers,
+    IReadOnlyList<string> ReplacementReferenceCodes,
     string? PayerName,
     Guid? PayorId,
     Guid? CollectorId,

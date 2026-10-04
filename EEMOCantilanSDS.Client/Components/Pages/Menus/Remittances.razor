@@ -245,7 +245,7 @@
                                                        @onchange="e => SelectAll(draft, e.Value is true)" />
                                             </th>
                                             <th scope="col">Date</th>
-                                            <th scope="col">Document</th>
+                                            <th scope="col">SRC</th>
                                             <th scope="col">Revenue source</th>
                                             <th scope="col">Payor</th>
                                             <th scope="col" class="v3-num">Amount</th>
@@ -255,10 +255,10 @@
                                         @foreach (var collection in scope.Collections)
                                         {
                                             <tr>
-                                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.DocumentNumber}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.ReferenceCode}")" checked="@draft.Selected.Contains(collection.CollectionId)"
                                                            @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
                                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                                <td class="v3-strong">@(collection.DocumentNumber ?? "—")</td>
+                                                <td class="v3-strong">@collection.ReferenceCode</td>
                                                 <td>@SourceLabel(collection)</td>
                                                 <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                                 <td class="v3-num">@Money(collection.NetAmount)</td>
@@ -267,7 +267,7 @@
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colspan="5"><strong>Selected · @draft.Selected.Count of @scope.Collections.Count@(scope.FirstDocumentNumber is null ? "" : $" · {scope.FirstDocumentNumber} to {scope.LastDocumentNumber}")</strong></td>
+                                            <td colspan="5"><strong>Selected · @draft.Selected.Count of @scope.Collections.Count@(scope.FirstReferenceCode is null ? "" : $" · {scope.FirstReferenceCode} to {scope.LastReferenceCode}")</strong></td>
                                             <td class="v3-num v3-strong">@Money(draft.Expected)</td>
                                         </tr>
                                     </tfoot>

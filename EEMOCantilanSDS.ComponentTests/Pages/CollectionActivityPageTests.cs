@@ -24,7 +24,7 @@ public sealed class CollectionActivityPageTests : TestContext
         FacilityCode? facility = null, RevenueInstrumentType? instrument = null, string? document = null,
         IReadOnlyList<CollectionActivityLineDto>? lines = null) =>
         new(key, authority, authority == "Canonical" ? "Collection" : "PaymentRecord", null, PhilippineTime.Today,
-            DateTime.UtcNow, document, instrument, [], "Juan Dela Cruz", null, null, null, "office", facility, null,
+            DateTime.UtcNow, authority == "Canonical" ? "SRC-2026-000127" : null, document, instrument, [], [], "Juan Dela Cruz", null, null, null, "office", facility, null,
             authority == "Legacy" ? "Paid" : null, amount, 0m, amount, authority == "Legacy" ? "Recorded" : "Posted", null,
             lines ?? [new CollectionActivityLineDto(code, name, amount, null, null, null, null, null, null)], []);
 

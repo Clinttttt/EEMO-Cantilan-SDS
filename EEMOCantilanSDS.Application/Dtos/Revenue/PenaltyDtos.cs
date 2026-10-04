@@ -22,4 +22,4 @@ public sealed record AddPenaltyDraftLineRequest(
 /// <summary>One posted fine, as recorded in the canonical Collection.</summary>
 public sealed record PenaltyRegisterRowDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? PayerName, string? Origin,
-    string PenaltyCode, string PenaltyName, string DocumentNumber, decimal Amount, string Status);
+    string PenaltyCode, string PenaltyName, string ReferenceCode, decimal Amount, string Status);

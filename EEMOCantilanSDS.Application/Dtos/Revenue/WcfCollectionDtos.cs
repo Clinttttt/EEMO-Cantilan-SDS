@@ -16,17 +16,17 @@ public sealed record CashTicketDocumentDto(
     Guid DocumentId, string DocumentNumber, AccountableDocumentState State,
     Guid? AssignedUserId, long SerialNumber);
 
-/// <summary>Versioned received-money intent for one assigned physical Cash Ticket.</summary>
+/// <summary>Versioned received-money intent for one WCF collection. The physical document fields are legacy and ignored (IA-062).</summary>
 public sealed record WcfCollectionPostRequest(
     int SchemaVersion, Guid ClientOperationId, DateOnly BusinessDate,
     Guid UtilityBillId, decimal ReceivedAmount, long WaterSourceVersion,
-    Guid AccountableDocumentId, string DocumentNumber, DateTime? IssuedAtUtc,
+    Guid? AccountableDocumentId = null, string? DocumentNumber = null, DateTime? IssuedAtUtc = null,
     // Direct entry (UtilityBillId empty): the eligible source and billing period the collector selected. The server
     // establishes the Water amount on that source and posts it in one operation; an office-prepared amount wins.
     Guid? StallId = null, int? BillingYear = null, int? BillingMonth = null);
 
 public sealed record WcfCollectionOutcomeDto(
-    Guid CollectionId, Guid AccountableDocumentId, string DocumentNumber,
+    Guid CollectionId, string ReferenceCode,
     DateOnly BusinessDate, decimal Amount, string Disposition, bool ExistingOutcome);
 
 public sealed record WcfCollectionActivityLineDto(
@@ -35,7 +35,7 @@ public sealed record WcfCollectionActivityLineDto(
 
 public sealed record WcfCollectionActivityDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc,
-    string DocumentNumber, string? PayerName, decimal TotalAmount, int ItemCount,
+    string ReferenceCode, string? PayerName, decimal TotalAmount, int ItemCount,
     string Disposition, IReadOnlyList<WcfCollectionActivityLineDto> Lines);
 
 public sealed record ReceiveAccountableFormBookRequest(

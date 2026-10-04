@@ -95,7 +95,10 @@ public sealed record SyncOfflineOperationDto(
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,
     SyncResultStatus Status,
-    string? Message);
+    string? Message,
+    // The server-allocated StallTrack Reference Code of the posted Collection (null while waiting or when rejected).
+    string? ReferenceCode = null,
+    Guid? CollectionId = null);
 
 public sealed record SyncOfflineCollectionsResultDto(
     int SyncedCount,

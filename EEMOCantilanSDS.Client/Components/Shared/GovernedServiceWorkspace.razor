@@ -7,7 +7,7 @@
 @inject IGovernedServicesApiClient GovernedApi
 
 @* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
-   Collection itself happens on Collector Mobile with an assigned document; nothing here records money. Every figure is
+   Collection itself happens on Collector Mobile; nothing here records money. Every figure is
    the server's; a service without an approved amount rule says so and produces no Collection. *@
 <div class="gsw-layout">
     <section class="v3-panel" aria-labelledby="@_activityTitleId" aria-busy="@(_loading ? "true" : "false")">
@@ -30,7 +30,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Date</th>
-                        <th scope="col">Document</th>
+                        <th scope="col">SRC</th>
                         <th scope="col">@(HasFeeOptions ? "Fee type / payer" : "Payer / reference")</th>
                         <th scope="col">Collector</th>
                         <th scope="col">Status</th>
@@ -42,7 +42,7 @@
                     {
                         <tr>
                             <td>@row.BusinessDate.ToString("MMM d, yyyy")</td>
-                            <td class="v3-strong">@row.DocumentNumber<span class="v3-block">@InstrumentLabel(row)</span></td>
+                            <td class="v3-strong">@row.ReferenceCode@if (row.Mode is { } rowMode) { <span class="v3-block">@ModeLabel(rowMode)</span> }</td>
                             <td>@if (!string.IsNullOrWhiteSpace(row.FeeOptionName)) {<span class="gsw-fee">@row.FeeOptionName</span>}@(string.IsNullOrWhiteSpace(row.PayerName) ? (string.IsNullOrWhiteSpace(row.FeeOptionName) ? "—" : null) : row.PayerName)@if (!string.IsNullOrWhiteSpace(row.Reference)) {<span class="v3-block">@row.Reference</span>}</td>
                             <td>@(row.CollectorName ?? "—")</td>
                             <td>@row.Disposition</td>
@@ -77,7 +77,7 @@
         </div>
         <p class="v3-panel-note">
             Recorded by assigned collectors on Collector Mobile.
-            <a href="/collectors">Collectors</a> assigns the operation; <a href="/accountable-forms">Accountable Forms</a> holds document custody.
+            <a href="/collectors">Collectors</a> assigns the operation; Each collection is recorded with its own StallTrack reference code (SRC).
         </p>
     </section>
 
@@ -366,11 +366,4 @@
 
     private static string InstrumentName(RevenueInstrumentType instrument) =>
         instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
-
-    private static string InstrumentLabel(GovernedServiceActivityDto row) => row.Instrument switch
-    {
-        { } i when row.Mode is { } m => $"{InstrumentName(i)} · {ModeLabel(m)}",
-        { } i => InstrumentName(i),
-        _ => string.Empty
-    };
 }

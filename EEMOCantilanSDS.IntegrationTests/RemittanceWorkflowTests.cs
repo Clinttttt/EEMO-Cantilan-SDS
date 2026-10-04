@@ -129,7 +129,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.Equal(0m, mine.Remitted);
         Assert.Equal(110m, mine.Unremitted);
         var tickets = Assert.Single(mine.Forms);
-        Assert.Equal((10, 3, 7), (tickets.Assigned, tickets.Issued, tickets.OnHand));
+        Assert.Equal((10, 0, 10), (tickets.Assigned, tickets.Issued, tickets.OnHand));   // posting consumes no physical form (IA-062)
 
         // The office position for the same period agrees with the collector's own row.
         var office = (await Remit(ctx, w).GetPositionAsync(Today.AddDays(-1), Today)).Value!;
@@ -168,7 +168,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.Equal(3, mine.Rows.Count);
         Assert.Equal(110m, mine.Net);
         Assert.All(mine.Rows, r => Assert.Equal(w.Collector.Id, r.CollectorId));
-        Assert.All(mine.Rows, r => Assert.NotNull(r.DocumentNumber));
+        Assert.All(mine.Rows, r => Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", r.ReferenceCode));
 
         // The other tenant's collector data is not visible from this tenant's scope.
         var none = (await As(other.Collector.Id, "Collector").GetMyRegisterAsync(Today.AddDays(-1), Today)).Value!;
@@ -223,15 +223,15 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         // No new revenue event: the remittance wrote no Collection and no line.
         Assert.Equal(collections, await ctx.Collections.CountAsync());
         Assert.Equal(lines, await ctx.CollectionLines.CountAsync());
-        // Seven tickets are still on hand, assigned to the collector, untouched by the remittance.
+        // All ten tickets are still assigned to the collector: neither a collection nor a remittance touches them.
         var stock = await ctx.AccountableDocuments.CountAsync(x => x.State == AccountableDocumentState.Assigned && x.AssignedUserId == w.Collector.Id);
-        Assert.Equal(7, stock);
+        Assert.Equal(10, stock);
 
         var position = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!;
         var row = Assert.Single(position.Collectors);
         Assert.Equal((110m, 110m, 0m), (row.Collected, row.Remitted, row.Unremitted));
         var forms = Assert.Single(row.Forms);
-        Assert.Equal((10, 3, 0, 0, 0, 7, 10), (forms.Assigned, forms.Issued, forms.Spoiled, forms.Returned, forms.NeedsReview, forms.OnHand, forms.AccountedFor));
+        Assert.Equal((10, 0, 0, 0, 0, 10, 10), (forms.Assigned, forms.Issued, forms.Spoiled, forms.Returned, forms.NeedsReview, forms.OnHand, forms.AccountedFor));
     }
 
     [SkippableFact]
@@ -392,6 +392,11 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         await using var ctx = db.CreateContext(w.Tenant.Id);
         var custody = new AccountableFormCustodyWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id));
 
+        // A collection consumes no physical form (IA-062); an issued ticket is a form the office recorded as issued, so mark three that way.
+        foreach (var i in new[] { 0, 1, 2 })
+            (await ctx.AccountableDocuments.SingleAsync(x => x.Id == w.Documents[i].Id)).Consume(null, Guid.NewGuid(), DateTime.UtcNow, "office");
+        await ctx.SaveChangesAsync();
+
         // An issued ticket cannot return or be spoiled.
         Assert.False((await custody.ReturnUnusedAsync(new ReturnUnusedFormsRequest(w.BookId, 1, 5))).IsSuccess);
         Assert.False((await custody.SpoilAsync(new SpoilFormRequest(w.Documents[0].Id, "torn", null))).IsSuccess);
@@ -435,7 +440,8 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         await using var ctx = db.CreateContext(w.Tenant.Id);
         var facts = (await AsCollector(ctx, w).GetMyCollectionsAsync(MonthStart, MonthEnd)).Value!;
         var fact = Assert.Single(facts);
-        Assert.Equal((Today, w.Documents[0].DocumentNumber, 50m), (fact.BusinessDate, fact.DocumentNumber, fact.NetAmount));
+        Assert.Equal((Today, 50m), (fact.BusinessDate, fact.NetAmount));
+        Assert.StartsWith("SRC-", fact.ReferenceCode);
         Assert.Equal("Landing/Berthing", Assert.Single(fact.Lines).Name);
         // The walk-up payer text is evidence, never an identity.
         Assert.Null(fact.PayorId);
@@ -591,7 +597,8 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
 
         var month = (await register.Handle(new(Today.Year, Today.Month), CancellationToken.None)).Value!;
         var landing = month.Rows.Single(r => r.Key == "LANDING_BERTHING");
-        Assert.Equal((50m, 1, 1, 1), (landing.Collected, landing.TransactionCount, landing.DocumentCount, landing.CollectorCount));
+        Assert.Equal((50m, 1, 1), (landing.Collected, landing.TransactionCount, landing.CollectorCount));
+        Assert.Null(landing.DocumentCount);   // a physical document count is no longer derivable (IA-062)
         Assert.Equal((EEMOCantilanSDS.Application.Dtos.Revenue.RevenueSourceModel.Transactional, "Active", "CT"),
             (landing.Model, landing.Status, landing.Instruments));
         Assert.Null(landing.Facility);

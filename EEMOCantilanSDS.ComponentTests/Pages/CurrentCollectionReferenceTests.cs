@@ -11,17 +11,15 @@ using Moq;
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
 /// <summary>
-/// The physical Official Receipt is the office's own booklet. The collection screen suggests the next assigned receipt in its
-/// registered sequence; browsing the stock is a deliberate recovery action. Opening the screen never selects or consumes one.
+/// IA-062: StallTrack's own reference code (SRC) is the identity of a collection. Current Collection never asks for, suggests or
+/// selects a physical Official Receipt; a reviewed draft posts on its own and the success text names the SRC the server assigned.
 /// </summary>
-public sealed class CurrentCollectionReceiptTests : TestContext
+public sealed class CurrentCollectionReferenceTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
-    private static readonly Guid NextId = Guid.NewGuid();
-    private static readonly Guid OtherId = Guid.NewGuid();
     private readonly Mock<IEcfCollectionsApiClient> _collections = new();
 
-    public CurrentCollectionReceiptTests()
+    public CurrentCollectionReferenceTests()
     {
         Services.AddSingleton(_collections.Object);
         Services.AddSingleton(Mock.Of<IPenaltiesApiClient>(x => x.GetDefinitionsAsync() ==
@@ -34,15 +32,10 @@ public sealed class CurrentCollectionReceiptTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         _collections.Setup(x => x.GetCollectionActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(Result<IReadOnlyList<EcfCollectionActivityDto>>.Success([]));
-        _collections.Setup(x => x.GetAvailableReceiptsAsync()).ReturnsAsync(Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success(
-        [
-            new(NextId, "2315601 A", AccountableDocumentState.Assigned, true),
-            new(OtherId, "2315602 A", AccountableDocumentState.Assigned),
-        ]));
     }
 
-    private static EcfCollectionDraftDto Draft(Guid? documentId = null) => new(
-        Guid.NewGuid(), 1, PhilippineTime.Today, "Draft", false, null, "Lisa Reyes", Guid.NewGuid(), documentId, null,
+    private static EcfCollectionDraftDto Draft(bool reviewed) => new(
+        Guid.NewGuid(), 1, PhilippineTime.Today, "Draft", reviewed, null, "Lisa Reyes", Guid.NewGuid(), null, null,
         500m, null, [new(Guid.NewGuid(), 500m, "Electricity Consumption Fee", Guid.NewGuid(), CollectionSourcePart.Electricity, 1, 500m,
             CollectionSourceKind.UtilityBill, Guid.NewGuid(), [], null)]);
 
@@ -50,65 +43,60 @@ public sealed class CurrentCollectionReceiptTests : TestContext
     {
         _collections.Setup(x => x.GetCurrentDraftAsync()).ReturnsAsync(Result<EcfCollectionDraftDto>.Success(draft));
         var cut = RenderComponent<CurrentCollection>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[aria-label='Official Receipt']")), Timeout);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".cc-total")), Timeout);
         return cut;
     }
 
     [Fact]
-    public void TheNextAssignedReceiptIsShown_WithoutABrowsableList_AndNothingIsSelectedByOpeningTheScreen()
+    public void ThereIsNoOfficialReceiptSelector_NextReceiptSuggestion_OrCancelAction()
     {
-        var cut = Render(Draft());
+        var cut = Render(Draft(reviewed: true));
 
-        var receipt = cut.Find("[aria-label='Official Receipt']");
-        Assert.Contains("2315601 A", receipt.TextContent);
-        Assert.Contains("Next assigned receipt", receipt.TextContent);
-        Assert.Empty(receipt.QuerySelectorAll("select"));
-        Assert.DoesNotContain("2315602 A", receipt.TextContent);
-        _collections.Verify(x => x.SelectDocumentAsync(It.IsAny<Guid>(), It.IsAny<SelectEcfDraftDocumentRequest>()), Times.Never);
+        Assert.Empty(cut.FindAll("[aria-label='Official Receipt']"));
+        Assert.Empty(cut.FindAll("select"));
+        Assert.DoesNotContain("Next assigned receipt", cut.Markup);
+        Assert.DoesNotContain("Use this receipt", cut.Markup);
+        Assert.DoesNotContain("Cancel receipt", cut.Markup);
+        Assert.DoesNotContain("Choose an available OR", cut.Markup);
     }
 
     [Fact]
-    public void UsingTheNextReceipt_SelectsExactlyThatOne_OnTheCurrentRevision()
+    public void AReviewedDraftPostsWithNoReceipt_AndTheSuccessMessageNamesTheSrc()
     {
-        var draft = Draft();
-        _collections.Setup(x => x.SelectDocumentAsync(draft.DraftId, It.IsAny<SelectEcfDraftDocumentRequest>()))
-            .ReturnsAsync(Result<EcfCollectionDraftDto>.Success(Draft(NextId) with { DraftId = draft.DraftId, Revision = 2 }));
+        var draft = Draft(reviewed: true);
+        _collections.Setup(x => x.PostAsync(draft.DraftId, It.IsAny<PostEcfCollectionDraftRequest>()))
+            .ReturnsAsync(Result<EcfPostOutcomeDto>.Success(new(Guid.NewGuid(), "SRC-2026-000127", "Posted", 500m, 1, false)));
         var cut = Render(draft);
 
-        cut.FindAll("[aria-label='Official Receipt'] button").Single(b => b.TextContent.Trim() == "Use this receipt").Click();
+        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Post Collection");
+        Assert.False(post.HasAttribute("disabled"));
+        post.Click();
 
-        cut.WaitForAssertion(() => _collections.Verify(x => x.SelectDocumentAsync(draft.DraftId,
-            It.Is<SelectEcfDraftDocumentRequest>(r => r.AccountableDocumentId == NextId && r.ExpectedRevision == 1)), Times.Once), Timeout);
-        cut.WaitForAssertion(() => Assert.Contains("Next assigned receipt", cut.Find("[aria-label='Official Receipt']").TextContent), Timeout);
-        Assert.Empty(cut.FindAll("[aria-label='Official Receipt'] button").Where(b => b.TextContent.Trim() == "Use this receipt"));
+        cut.WaitForAssertion(() => Assert.Contains("SRC-2026-000127", cut.Find(".cc-notice").TextContent), Timeout);
+        Assert.Contains("Collection recorded", cut.Find(".cc-notice").TextContent);
+        _collections.Verify(x => x.PostAsync(draft.DraftId, It.Is<PostEcfCollectionDraftRequest>(r => r.ExpectedRevision == 1)), Times.Once);
     }
 
     [Fact]
-    public void ChoosingADifferentReceipt_IsASecondaryActionThatRevealsTheRecoveryList()
+    public void AnUnreviewedDraftCannotBePosted_ForTheReviewReasonAloneNotForALackOfAReceipt()
     {
-        var draft = Draft();
-        _collections.Setup(x => x.SelectDocumentAsync(draft.DraftId, It.IsAny<SelectEcfDraftDocumentRequest>()))
-            .ReturnsAsync(Result<EcfCollectionDraftDto>.Success(Draft(OtherId) with { DraftId = draft.DraftId, Revision = 2 }));
-        var cut = Render(draft);
+        var cut = Render(Draft(reviewed: false));
 
-        cut.FindAll("[aria-label='Official Receipt'] button").Single(b => b.TextContent.Trim() == "Use different receipt").Click();
-        var picker = cut.Find("[aria-label='Official Receipt'] select");
-        Assert.Contains("2315602 A", picker.InnerHtml);
-        picker.Change(OtherId.ToString());
-
-        cut.WaitForAssertion(() => _collections.Verify(x => x.SelectDocumentAsync(draft.DraftId,
-            It.Is<SelectEcfDraftDocumentRequest>(r => r.AccountableDocumentId == OtherId)), Times.Once), Timeout);
-        cut.WaitForAssertion(() => Assert.Contains("Different receipt selected", cut.Find("[aria-label='Official Receipt']").TextContent), Timeout);
+        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Post Collection");
+        Assert.True(post.HasAttribute("disabled"));
     }
 
     [Fact]
-    public void WithNoReceiptAvailable_TheOfficeIsToldToRegisterOrAssignOne()
+    public void PostedActivityIsListedByItsSrc()
     {
-        _collections.Setup(x => x.GetAvailableReceiptsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success([]));
-        var cut = Render(Draft());
+        _collections.Setup(x => x.GetCollectionActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<EcfCollectionActivityDto>>.Success(
+            [
+                new(Guid.NewGuid(), PhilippineTime.Today, DateTime.UtcNow, "SRC-2026-000126", "Lisa Reyes", 300m, 1, "Posted", [])
+            ]));
+        var cut = Render(Draft(reviewed: false));
 
-        Assert.Contains("Ask the office to register or assign one", cut.Find("[aria-label='Official Receipt']").TextContent);
-        Assert.Empty(cut.FindAll("[aria-label='Official Receipt'] button"));
+        cut.WaitForAssertion(() => Assert.Contains("SRC-2026-000126", cut.Find(".cc-activity").TextContent), Timeout);
+        Assert.Contains("Reference / payer", cut.Find(".cc-activity").TextContent);
     }
 }

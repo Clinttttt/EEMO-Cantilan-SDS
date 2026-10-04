@@ -139,26 +139,6 @@ public sealed class CollectionComposerWorkflow(
         return Result<IReadOnlyList<CollectionPayorDto>>.Success(payors);
     }, ct);
 
-    public Task<Result<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceiptsAsync(CancellationToken ct = default) => Run(async actor =>
-    {
-        // Sequence-aware: stock the signed-in user holds comes first, then office stock, each in its book's receipt order and then
-        // serial order, so the first row is the next expected receipt. The list is a recovery picker, not an inventory browser.
-        var rows = await (
-            from x in db.AccountableDocuments.AsNoTracking()
-            join b in db.AccountableFormBooks.AsNoTracking() on new { x.MunicipalityId, Id = x.FormBookId } equals new { b.MunicipalityId, b.Id }
-            where x.MunicipalityId == actor.MunicipalityId
-                && x.InstrumentType == RevenueInstrumentType.OfficialReceipt
-                && (x.State == AccountableDocumentState.InOffice
-                    || (x.State == AccountableDocumentState.Assigned && x.AssignedUserId == actor.UserId))
-            select new { x.Id, x.DocumentNumber, x.State, x.SerialNumber, b.ReceivedAtUtc }).ToListAsync(ct);
-        var documents = rows
-            .OrderBy(x => x.State == AccountableDocumentState.Assigned ? 0 : 1).ThenBy(x => x.ReceivedAtUtc).ThenBy(x => x.SerialNumber)
-            .Take(200)
-            .Select((x, i) => new EcfAvailableDocumentDto(x.Id, x.DocumentNumber, x.State, i == 0))
-            .ToList();
-        return Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success(documents);
-    }, ct);
-
     public Task<Result<EcfCollectionDraftDto>> GetCurrentDraftAsync(CancellationToken ct = default) => Run(async actor =>
     {
         var draft = await db.WebCollectionDrafts.AsNoTracking()
@@ -189,8 +169,6 @@ public sealed class CollectionComposerWorkflow(
 
         if (request.OneOffPayerName?.Trim().Length > 200)
             throw Problem("Payer name must not exceed 200 characters.", ResultStatus.Invalid);
-        if (request.AccountableDocumentId.HasValue)
-            await RequireSelectableReceiptAsync(request.AccountableDocumentId.Value, actor, tracked: false, ct);
 
         // An explicit contract-to-Payor link is authoritative. Otherwise retain the occupant evidence
         // from this exact billing-period occupancy, or a staff-entered one-off snapshot when none exists.
@@ -200,7 +178,7 @@ public sealed class CollectionComposerWorkflow(
         var draft = WebCollectionDraft.Create(
             actor.MunicipalityId, actor.UserId, BusinessToday,
             facts.Quote.PayorId, payerName, RevenueInstrumentType.OfficialReceipt,
-            request.AccountableDocumentId, actor.Username);
+            null, actor.Username);
         var line = WebCollectionDraftLine.Create(
             actor.MunicipalityId, draft.Id, 0,
             facts.Policy.RevenueClassificationId, facts.Policy.Id,
@@ -652,23 +630,6 @@ public sealed class CollectionComposerWorkflow(
         return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
     }, ct);
 
-    public Task<Result<EcfCollectionDraftDto>> SelectDocumentAsync(
-        Guid draftId, SelectEcfDraftDocumentRequest request, CancellationToken ct = default) => Run(async actor =>
-    {
-        var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
-        if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
-        EnsureExpectedRevision(draft, request.ExpectedRevision);
-        EnsureDraftBusinessDateIsCurrent(draft);
-        if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
-            throw Problem("This ECF draft is not an Official Receipt collection.", ResultStatus.Conflict);
-        if (request.AccountableDocumentId.HasValue)
-            await RequireSelectableReceiptAsync(request.AccountableDocumentId.Value, actor, tracked: false, ct);
-
-        draft.SelectAccountableDocument(request.ExpectedRevision, request.AccountableDocumentId, actor.Username);
-        await db.SaveChangesAsync(ct);
-        return Result<EcfCollectionDraftDto>.Success(await ToDraftDtoAsync(draft, ct));
-    }, ct);
-
     public Task<Result<EcfCollectionDraftDto>> ReviewAsync(
         Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => Run(async actor =>
     {
@@ -680,13 +641,10 @@ public sealed class CollectionComposerWorkflow(
         if (lines.Count == 0)
             throw Problem("Add at least one approved source line before review.", ResultStatus.Invalid);
         var resolved = await ResolveDraftSourcesAsync(draft, lines, tracked: false, ct);
-        if (!draft.AccountableDocumentId.HasValue)
-            throw Problem("Select an available Official Receipt before review.", ResultStatus.Invalid);
-        var document = await RequireSelectableReceiptAsync(draft.AccountableDocumentId.Value, actor, tracked: false, ct);
         if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
             throw Problem("All reviewed lines must resolve to an Official Receipt.", ResultStatus.Conflict);
 
-        var normalizedIntent = NormalizeComposerIntent(draft, resolved, document.DocumentNumber);
+        var normalizedIntent = NormalizeComposerIntent(draft, resolved);
         draft.Review(request.ExpectedRevision, FingerprintFinancialContent(normalizedIntent),
             actor.UserId, DateTime.UtcNow);
         await db.SaveChangesAsync(ct);
@@ -761,11 +719,7 @@ public sealed class CollectionComposerWorkflow(
 
         var lines = await DraftLinesAsync(actor.MunicipalityId, draft.Id, ct);
         var allocations = await DraftAllocationsAsync(actor.MunicipalityId, draft.Id, ct);
-        var selectedDocument = draft.AccountableDocumentId is { } selectedId
-            ? await db.AccountableDocuments.AsNoTracking().SingleOrDefaultAsync(
-                x => x.Id == selectedId && x.MunicipalityId == actor.MunicipalityId, ct)
-            : null;
-        var normalizedIntent = NormalizeComposerIntent(draft, lines, allocations, selectedDocument?.DocumentNumber);
+        var normalizedIntent = NormalizeComposerIntent(draft, lines, allocations);
         var fingerprint = PostingOperation.ComputeIntentFingerprint(
             IntentVersion, normalizedIntent, WebOrigin, ActorIdentity(actor));
 
@@ -785,11 +739,6 @@ public sealed class CollectionComposerWorkflow(
             return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
                 draft.AccountableDocumentId, "REVIEW_REQUIRED",
                 "This exact draft revision has not been reviewed. Review the current lines and allocations before posting.", ct);
-
-        if (!draft.AccountableDocumentId.HasValue || selectedDocument is null)
-            return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
-                draft.AccountableDocumentId, "OR_UNAVAILABLE",
-                "Select a valid available Official Receipt and review again.", ct);
 
         ResolvedDraft resolved;
         try
@@ -817,25 +766,11 @@ public sealed class CollectionComposerWorkflow(
                     : "A source is quiesced for cutover reconciliation and cannot be posted.", ct);
         }
 
-        if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt
-            || selectedDocument.InstrumentType != RevenueInstrumentType.OfficialReceipt
-            || selectedDocument.State is not (AccountableDocumentState.InOffice or AccountableDocumentState.Assigned)
-            || (selectedDocument.State == AccountableDocumentState.Assigned && selectedDocument.AssignedUserId != actor.UserId))
+        if (draft.InstrumentFamily != RevenueInstrumentType.OfficialReceipt)
             return await RecordRejectionAsync(actor, request.ClientOperationId, normalizedIntent,
-                draft.AccountableDocumentId, "OR_UNAVAILABLE",
-                "The selected Official Receipt is unavailable, assigned elsewhere, or incompatible with the reviewed lines.", ct);
+                null, "INSTRUMENT_INCOMPATIBLE",
+                "The reviewed lines do not resolve to one compatible instrument policy.", ct);
 
-        AccountableDocument document;
-        try
-        {
-            document = await RequireSelectableReceiptAsync(
-                draft.AccountableDocumentId.Value, actor, tracked: true, ct);
-        }
-        catch (WorkflowProblem problem)
-        {
-            return await RejectOrResolveExistingAsync(actor, request.ClientOperationId, normalizedIntent,
-                draft.AccountableDocumentId, "OR_UNAVAILABLE", problem.Message, ct);
-        }
         var collectionLineDrafts = resolved.Lines.Select(line => new CollectionLineDraft(
             line.Classification ?? line.Sources[0].Classification, line.Policy ?? line.Sources[0].Policy, line.Line.Amount,
             line.Line.SourceKind, line.Line.SourceId, line.Line.SourcePart,
@@ -858,9 +793,9 @@ public sealed class CollectionComposerWorkflow(
                         if (source.UtilityBill is { } bill)
                         {
                             if (source.Allocation.SourcePart == CollectionSourcePart.Electricity)
-                                bill.ApplyCanonicalElectricityProjection(cumulative, document.DocumentNumber, now, actor.Username);
+                                bill.ApplyCanonicalElectricityProjection(cumulative, null, now, actor.Username);
                             else if (source.Allocation.SourcePart == CollectionSourcePart.Water)
-                                bill.ApplyCanonicalWaterProjection(cumulative, document.DocumentNumber, now, actor.Username);
+                                bill.ApplyCanonicalWaterProjection(cumulative, null, now, actor.Username);
                             else
                                 throw Problem("Unsupported UtilityBill source part.", ResultStatus.Conflict);
                         }
@@ -876,7 +811,7 @@ public sealed class CollectionComposerWorkflow(
             collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
                 actor.MunicipalityId, request.ClientOperationId, IntentVersion, normalizedIntent,
                 WebOrigin, ActorIdentity(actor), actor.Username, actor.Role, draft.BusinessDate,
-                actor.Username, collectionLineDrafts, document, payorId: draft.PayorId,
+                actor.Username, collectionLineDrafts, payorId: draft.PayorId,
                 payerName: draft.PayerNameSnapshot, sourceProjections: projections,
                 beforeCommit: (collectionId, _) => draft.MarkPosted(request.ExpectedRevision, collectionId, actor.Username),
                 ct: ct);
@@ -900,7 +835,7 @@ public sealed class CollectionComposerWorkflow(
         }
 
         return Result<EcfPostOutcomeDto>.Success(new EcfPostOutcomeDto(
-            collection.Id, document.DocumentNumber, "Posted", collection.TotalAmount,
+            collection.Id, collection.ReferenceCode, "Posted", collection.TotalAmount,
             collection.Lines.Count, false));
     }, ct);
 
@@ -940,10 +875,6 @@ public sealed class CollectionComposerWorkflow(
         var allocations = await db.CollectionAllocations.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.MunicipalityId && lineIds.Contains(x.CollectionLineId))
             .OrderBy(x => x.SourceKind).ThenBy(x => x.SourceId).ToListAsync(ct);
-        var docs = await db.AccountableDocuments.AsNoTracking()
-            .Where(x => x.MunicipalityId == actor.MunicipalityId
-                && x.CollectionId.HasValue && ids.Contains(x.CollectionId.Value))
-            .ToListAsync(ct);
         var correctionRows = await db.CollectionCorrections.AsNoTracking()
             .Where(x => x.MunicipalityId == actor.MunicipalityId && ids.Contains(x.OriginalCollectionId))
             .Select(x => new { x.OriginalCollectionId, x.CorrectionType, x.FinancialEffectAmount })
@@ -985,7 +916,7 @@ public sealed class CollectionComposerWorkflow(
             }).ToList();
             return new EcfCollectionActivityDto(collection.Id, collection.BusinessDate,
                 collection.RecordedAtUtc,
-                docs.FirstOrDefault(x => x.CollectionId == collection.Id)?.DocumentNumber ?? "OR unavailable",
+                collection.ReferenceCode,
                 collection.PayerName, collection.TotalAmount, detail.Count, disposition, detail);
         }).OrderByDescending(x => x.RecordedAtUtc).ToList();
 
@@ -1419,15 +1350,14 @@ public sealed class CollectionComposerWorkflow(
     }
 
     private static string NormalizeComposerIntent(
-        WebCollectionDraft draft, ResolvedDraft resolved, string? documentNumber) =>
+        WebCollectionDraft draft, ResolvedDraft resolved) =>
         NormalizeComposerIntent(draft, resolved.Lines.Select(x => x.Line).ToList(),
-            resolved.Sources.Select(x => x.Allocation).ToList(), documentNumber);
+            resolved.Sources.Select(x => x.Allocation).ToList());
 
     private static string NormalizeComposerIntent(
         WebCollectionDraft draft,
         IReadOnlyList<WebCollectionDraftLine> lines,
-        IReadOnlyList<WebCollectionDraftAllocation> allocations,
-        string? documentNumber)
+        IReadOnlyList<WebCollectionDraftAllocation> allocations)
     {
         var normalizedLines = lines.Select(line =>
         {
@@ -1446,7 +1376,7 @@ public sealed class CollectionComposerWorkflow(
         return JsonSerializer.Serialize(new NormalizedComposerIntent(
             IntentVersion, draft.MunicipalityId, draft.Id, draft.OwnerUserId, draft.BusinessDate,
             draft.PayorId, draft.PayerNameSnapshot, draft.InstrumentFamily,
-            draft.AccountableDocumentId, documentNumber, normalizedLines), IntentJsonOptions);
+            null, null, normalizedLines), IntentJsonOptions);
     }
 
     private static JsonSerializerOptions CreateIntentJsonOptions()
@@ -1655,23 +1585,6 @@ public sealed class CollectionComposerWorkflow(
         catch (JsonException) { return null; }
     }
 
-    private async Task<AccountableDocument> RequireSelectableReceiptAsync(
-        Guid documentId, Actor actor, bool tracked, CancellationToken ct)
-    {
-        if (documentId == Guid.Empty)
-            throw Problem("Select a valid Official Receipt document.", ResultStatus.Invalid);
-        IQueryable<AccountableDocument> query = db.AccountableDocuments.Where(x =>
-            x.Id == documentId && x.MunicipalityId == actor.MunicipalityId);
-        if (!tracked) query = query.AsNoTracking();
-        var document = await query.SingleOrDefaultAsync(ct);
-        if (document is null) throw Problem("Official Receipt document was not found in this tenant.", ResultStatus.NotFound);
-        if (document.InstrumentType != RevenueInstrumentType.OfficialReceipt
-            || document.State is not (AccountableDocumentState.InOffice or AccountableDocumentState.Assigned)
-            || (document.State == AccountableDocumentState.Assigned && document.AssignedUserId != actor.UserId))
-            throw Problem("Official Receipt document is unavailable or assigned to another staff member.", ResultStatus.Conflict);
-        return document;
-    }
-
     private async Task<PostingOperation?> FindPostingOperationAsync(Guid tenantId, Guid operationId, CancellationToken ct) =>
         await db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
@@ -1680,7 +1593,7 @@ public sealed class CollectionComposerWorkflow(
         PostingOperation prior, string expectedFingerprint, Actor actor, CancellationToken ct)
     {
         if (prior.Origin != WebOrigin || prior.ActorId != ActorIdentity(actor)
-            || prior.IntentFingerprint != expectedFingerprint)
+            || (prior.IntentFingerprint != expectedFingerprint && prior.AccountableDocumentId is null))   // a pre-SRC operation bound a physical document into its intent; it still replays
             return Result<EcfPostOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent or actor.",
                 ResultStatus.Conflict);
@@ -1729,28 +1642,15 @@ public sealed class CollectionComposerWorkflow(
         var collection = await db.Collections.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == collectionId && x.MunicipalityId == tenantId, ct)
             ?? throw Problem("Posted Collection outcome was not found.", ResultStatus.NotFound);
-        var document = await db.AccountableDocuments.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.CollectionId == collection.Id, ct);
         var corrections = await db.CollectionCorrections.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.OriginalCollectionId == collection.Id)
             .Select(x => new { x.CorrectionType, x.FinancialEffectAmount }).ToListAsync(ct);
         var disposition = corrections.Any(x => x.FinancialEffectAmount < 0m) ? "Reversed"
             : corrections.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection)
                 ? "Document corrected" : "Posted";
-        return new EcfPostOutcomeDto(collection.Id, document?.DocumentNumber ?? "OR unavailable",
+        return new EcfPostOutcomeDto(collection.Id, collection.ReferenceCode,
             disposition, collection.TotalAmount, await db.CollectionLines.CountAsync(
                 x => x.MunicipalityId == tenantId && x.CollectionId == collection.Id, ct), replay);
-    }
-
-    private async Task<Result<EcfPostOutcomeDto>> RejectOrResolveExistingAsync(
-        Actor actor, Guid operationId, string normalized, Guid? docId,
-        string code, string message, CancellationToken ct)
-    {
-        var prior = await FindPostingOperationAsync(actor.MunicipalityId, operationId, ct);
-        if (prior is not null)
-            return await ResolvePriorOperationAsync(prior,
-                PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, WebOrigin, ActorIdentity(actor)), actor, ct);
-        return await RecordRejectionAsync(actor, operationId, normalized, docId, code, message, ct);
     }
 
     private static void EnsureDraftEligible(SourceFacts facts)

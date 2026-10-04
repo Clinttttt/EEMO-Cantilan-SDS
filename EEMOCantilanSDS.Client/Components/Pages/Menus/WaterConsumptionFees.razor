@@ -13,7 +13,7 @@
 <PageTitle>StallTrack — Water Consumption Fees</PageTitle>
 
 @* WCF on the Web is monitoring, source review and reporting. Field collection is recorded on Collector Mobile, and
-   Cash Ticket custody is managed in Accountable Forms. The layout owns the <main> landmark. *@
+   The layout owns the <main> landmark. *@
 <div class="v3-page wcf-page">
     <WorkspaceHeader Parent="Operations" Title="Water Consumption Fees" Code="WCF">
         <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
@@ -58,7 +58,7 @@
             <div class="wcf-mobile-text">
                 <h2 id="wcf-mobile-title">Collector Mobile</h2>
                 <p class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>@MobileStateLabel</p>
-                <p class="wcf-mobile-sub">Cash Ticket · Direct amount · @SettlementReadiness · @StockReadiness</p>
+                <p class="wcf-mobile-sub">Direct amount · @SettlementReadiness</p>
             </div>
             <div class="wcf-mobile-actions">
                 @if (_mobile is { Active: false, ReadyToEnable: true })
@@ -77,7 +77,7 @@
 
         @if (_mobile is { Active: true } active)
         {
-            <p class="wcf-mobile-note">Collectors record Water Consumption Fees on Mobile with their assigned Cash Tickets@(active.EffectiveFrom is { } from ? $" since {from:MMM d, yyyy}" : ""). When no amount is prepared, the collector enters it at collection.</p>
+            <p class="wcf-mobile-note">Collectors record Water Consumption Fees on Mobile@(active.EffectiveFrom is { } from ? $" since {from:MMM d, yyyy}" : ""). When no amount is prepared, the collector enters it at collection.</p>
         }
         else if (_mobile is { Blockers.Count: > 0 } blocked)
         {
@@ -116,7 +116,7 @@
                         {
                             <li class="@(collector.Ready ? "ok" : "warn")">
                                 <span class="wcf-check-mark" aria-hidden="true">@(collector.Ready ? "✓" : "!")</span>
-                                <span class="wcf-check-text"><strong>@collector.Name</strong><span>@(collector.Active ? $"{collector.CashTicketsHeld:N0} Cash Tickets in custody" : "Inactive")@(collector.CashTicketsInReview > 0 ? $" · {collector.CashTicketsInReview} in review" : "")</span></span>
+                                <span class="wcf-check-text"><strong>@collector.Name</strong><span>@(collector.Active ? "Active" : "Inactive")</span></span>
                             </li>
                         }
                     </ul>
@@ -137,7 +137,7 @@
                     <h2 id="wcf-confirm-title">Enable WCF Mobile collection?</h2>
                 </header>
                 <div class="v3-modal-body">
-                    <p>Collectors assigned to Water Consumption Fee will be able to record new WCF collections using their assigned Cash Tickets.</p>
+                    <p>Collectors assigned to Water Consumption Fee will be able to record new WCF collections on Mobile. Each collection is given its own StallTrack reference code (SRC).</p>
                     <dl class="wcf-confirm-facts">
                         <div><dt>Amount method</dt><dd>Direct amount</dd></div>
                         <div><dt>Historical Water records</dt><dd>Not changed</dd></div>
@@ -230,13 +230,13 @@
         <div class="v3-table-wrap" role="region" aria-label="Posted WCF collections" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">WCF Collections for @ThroughPeriodLabel</caption>
-                <thead><tr><th scope="col">Business date</th><th scope="col">Cash Ticket · payer</th><th scope="col">Status</th><th scope="col" class="v3-num">Total</th><th scope="col">Items</th></tr></thead>
+                <thead><tr><th scope="col">Business date</th><th scope="col">Reference · payer</th><th scope="col">Status</th><th scope="col" class="v3-num">Total</th><th scope="col">Items</th></tr></thead>
                 <tbody>
                     @foreach (var item in _activity)
                     {
                         <tr>
                             <td>@item.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(item.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
-                            <td><span class="v3-strong">@item.DocumentNumber</span><span class="v3-block">@(item.PayerName ?? "No payer recorded")</span></td>
+                            <td><span class="v3-strong">@item.ReferenceCode</span><span class="v3-block">@(item.PayerName ?? "No payer recorded")</span></td>
                             <td>@item.Disposition</td>
                             <td class="v3-num v3-strong">@Money(item.TotalAmount)</td>
                             <td>
@@ -253,7 +253,7 @@
                                             }
                                             <dt>Billing period</dt><dd>@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) : "Not recorded")</dd>
                                             <dt>Approved amount</dt><dd>@Money(line.Amount)</dd>
-                                            <dt>Cash Ticket</dt><dd>@item.DocumentNumber</dd>
+                                            <dt>Reference</dt><dd>@item.ReferenceCode</dd>
                                             <dt>Status</dt><dd>@item.Disposition</dd>
                                         </dl>
                                     }
@@ -272,22 +272,22 @@
 
     <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
         <header class="v3-panel-header">
-            <h2 id="wcf-reconciliation-title">Cash Ticket exceptions</h2>
+            <h2 id="wcf-reconciliation-title">Collections needing review</h2>
             <span class="v3-panel-meta">@(_exceptions.Count == 0 ? "None recorded" : $"{_exceptions.Count} need office review")</span>
         </header>
         @if (_exceptions.Count > 0)
         {
-            <p class="v3-panel-note">Issued tickets that could not be accepted as collections. They stay unavailable until the office reviews them.</p>
+            <p class="v3-panel-note">Earlier collector submissions that could not be accepted as collections. They stay out of the books until the office reviews them.</p>
         }
         <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
             <table class="v3-table">
-                <thead><tr><th scope="col">Recorded</th><th scope="col">Ticket</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                <thead><tr><th scope="col">Recorded</th><th scope="col">Physical document</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
                 <tbody>
                     @foreach (var exception in _exceptions)
                     {
                         <tr>
                             <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
-                            <td class="v3-strong">@(exception.DocumentNumber ?? "Document identity unresolved")</td>
+                            <td class="v3-strong">@(exception.DocumentNumber ?? "—")</td>
                             <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
                             <td>@exception.OutcomeCode</td>
                             <td>@exception.OutcomeDetails</td>
@@ -295,7 +295,7 @@
                     }
                     @if (_exceptions.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="5">No Cash Ticket exceptions are recorded.</td></tr>
+                        <tr><td class="v3-empty" colspan="5">No collections need review.</td></tr>
                     }
                 </tbody>
             </table>
@@ -308,7 +308,6 @@
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private string _searchText = string.Empty;
     private List<WcfObligationQuoteDto> _quotes = [];
-    private List<CashTicketDocumentDto> _tickets = [];
     private List<WcfCollectionActivityDto> _activity = [];
     private List<WcfReconciliationExceptionDto> _exceptions = [];
     private bool _busy;
@@ -356,9 +355,6 @@
             var obligations = await WcfApi.GetObligationsAsync(_through.Year, _through.Month);
             if (!obligations.IsSuccess) _error = obligations.Error ?? "Unable to load WCF source facts.";
             else _quotes = obligations.Value?.ToList() ?? [];
-            var tickets = await WcfApi.GetAvailableCashTicketsAsync();
-            if (!tickets.IsSuccess) _error ??= tickets.Error ?? "Unable to load Cash Ticket custody state.";
-            else _tickets = tickets.Value?.ToList() ?? [];
             var from = new DateOnly(_through.Year, _through.Month, 1);
             var activity = await WcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
             if (!activity.IsSuccess) _error ??= activity.Error ?? "Unable to load WCF Collection Activity.";
@@ -473,10 +469,6 @@
             return $"{open} of {owing} open for collection";
         }
     }
-
-    private string StockReadiness => _tickets.Count == 0
-        ? "No unassigned CTs in office"
-        : $"{_tickets.Count} unassigned CT{(_tickets.Count == 1 ? "" : "s")} in office";
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
     private static string CollectionState(WcfObligationQuoteDto quote) => quote switch

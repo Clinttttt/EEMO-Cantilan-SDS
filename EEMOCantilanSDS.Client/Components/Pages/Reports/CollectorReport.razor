@@ -221,7 +221,7 @@
                         <thead>
                             <tr class="cr-gap-row"><td colspan="7"></td></tr>
                             <tr>
-                                <th>Document No.</th>
+                                <th>SRC / Document No.</th>
                                 <th>Date &amp; Time</th>
                                 <th>Payor</th>
                                 <th>Stall / Unit</th>
@@ -238,7 +238,7 @@
                             @foreach (var t in r.Receipts)
                             {
                                 <tr>
-                                    <td>@(t.DocumentNumber == "—" ? "—" : "#" + t.DocumentNumber)</td>
+                                    <td>@(t.DocumentNumber == "—" || t.DocumentNumber.StartsWith("SRC-", StringComparison.Ordinal) ? t.DocumentNumber : "#" + t.DocumentNumber)</td>
                                     <td>
                                         @if (t.BusinessDate is { } businessDate)
                                         {
@@ -347,7 +347,7 @@
                             <thead>
                                 <tr class="cr-gap-row"><td colspan="6"></td></tr>
                                 <tr>
-                                    <th>Document</th>
+                                    <th>SRC</th>
                                     <th>Date</th>
                                     <th>Operation</th>
                                     <th>Payer / reference</th>

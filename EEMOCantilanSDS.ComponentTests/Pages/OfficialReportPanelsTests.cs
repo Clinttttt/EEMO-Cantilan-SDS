@@ -141,14 +141,14 @@ public sealed class OfficialReportPanelsTests : TestContext
         var a = Guid.NewGuid();
         return new CollectionsRegisterDto(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
         [
-            new CollectionRegisterRowDto(a, new DateOnly(2026, 9, 3), "CT-000101", RevenueInstrumentType.CashTicket, null, Guid.NewGuid(), "Ana Reyes",
+            new CollectionRegisterRowDto(a, new DateOnly(2026, 9, 3), "SRC-2026-000101", null, RevenueInstrumentType.CashTicket, null, Guid.NewGuid(), "Ana Reyes",
                 market, "Market Fees", "Market Fees", 30m, 0m, "Posted"),
-            new CollectionRegisterRowDto(Guid.NewGuid(), new DateOnly(2026, 9, 4), "OR-000201", RevenueInstrumentType.OfficialReceipt, "Lisa Reyes", null, null,
+            new CollectionRegisterRowDto(Guid.NewGuid(), new DateOnly(2026, 9, 4), "SRC-2026-000201", null, RevenueInstrumentType.OfficialReceipt, "Lisa Reyes", null, null,
                 ice, "Ice Plant", "ICE · Stall ICE-01 Sep 2026", 250m, 0m, "Posted"),
         ],
         [
-            new CollectionsSummaryLineDto(market, "Market Fees", 1, 30m, 0m, 30m, "CT-000101", "CT-000101"),
-            new CollectionsSummaryLineDto(ice, "Ice Plant", 1, 250m, 0m, 250m, "OR-000201", "OR-000201"),
+            new CollectionsSummaryLineDto(market, "Market Fees", 1, 30m, 0m, 30m, "SRC-2026-000101", "SRC-2026-000101"),
+            new CollectionsSummaryLineDto(ice, "Ice Plant", 1, 250m, 0m, 250m, "SRC-2026-000201", "SRC-2026-000201"),
         ], 280m, 0m, 280m, false);
     }
 
@@ -160,14 +160,14 @@ public sealed class OfficialReportPanelsTests : TestContext
         var ecf = Guid.NewGuid();
         var register = new CollectionsRegisterDto(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
         [
-            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "OR-000001", RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
+            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
                 rent, "Stall Rental", "NPM · Stall 12", 500m, 0m, "Posted"),
-            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "OR-000001", RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
+            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
                 ecf, "General Distribution / ECF", "ECF · Stall 12", 650m, 0m, "Posted"),
         ],
         [
-            new CollectionsSummaryLineDto(rent, "Stall Rental", 1, 500m, 0m, 500m, "OR-000001", "OR-000001"),
-            new CollectionsSummaryLineDto(ecf, "General Distribution / ECF", 1, 650m, 0m, 650m, "OR-000001", "OR-000001"),
+            new CollectionsSummaryLineDto(rent, "Stall Rental", 1, 500m, 0m, 500m, "SRC-2026-000001", "SRC-2026-000001"),
+            new CollectionsSummaryLineDto(ecf, "General Distribution / ECF", 1, 650m, 0m, 650m, "SRC-2026-000001", "SRC-2026-000001"),
         ], 1150m, 0m, 1150m, false);
         _reports.Setup(x => x.GetCollectionsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
             .ReturnsAsync(Result<CollectionsRegisterDto>.Success(register));
@@ -192,7 +192,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             .ReturnsAsync(Result<CollectionsRegisterDto>.Success(register));
         var target = register.Rows[1];
         _reports.Setup(x => x.GetCollectionAsync(target.CollectionId)).ReturnsAsync(Result<CollectionDocumentDto>.Success(new CollectionDocumentDto(
-            target.CollectionId, "OR-000201", RevenueInstrumentType.OfficialReceipt, "Issued / consumed", target.BusinessDate, DateTime.UtcNow,
+            target.CollectionId, "SRC-2026-000201", null, RevenueInstrumentType.OfficialReceipt, null, target.BusinessDate, DateTime.UtcNow,
             "Lisa Reyes", null, 250m, 0m, [new CollectionDocumentLineDto("Ice Plant", target.SourceLabel, 250m, 0m, ["ICE allocation: ₱250.00"])], null, null)));
 
         var cut = RenderComponent<CollectionsRegisterPanel>(p => p.Add(x => x.From, new DateOnly(2026, 9, 1)).Add(x => x.To, new DateOnly(2026, 9, 30)).Add(x => x.PeriodLabel, "September 2026"));
@@ -207,11 +207,11 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("Office", cut.Markup);   // a Web collection has no collector
         }, Timeout);
 
-        cut.FindAll("button.cr-link").Single(b => b.TextContent.Trim() == "OR-000201").Click();
+        cut.FindAll("button.cr-link").Single(b => b.TextContent.Trim() == "SRC-2026-000201").Click();
         cut.WaitForAssertion(() =>
         {
-            var doc = cut.Find("aside[aria-label='Collection document']");
-            Assert.Contains("OR-000201", doc.TextContent);
+            var doc = cut.Find("aside[aria-label='Collection detail']");
+            Assert.Contains("SRC-2026-000201", doc.TextContent);
             Assert.Contains("not yet remitted", doc.TextContent);
             Assert.Contains("ICE allocation", doc.TextContent);
         }, Timeout);
@@ -230,7 +230,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         var collectionId = Guid.NewGuid();
         _reports.Setup(x => x.TraceDocumentAsync("CT-004120")).ReturnsAsync(Result<DocumentTraceDto>.Success(new DocumentTraceDto(
             "CT-004120", RevenueInstrumentType.CashTicket, "Issued / consumed", "Ana Reyes", null,
-            new CollectionDocumentDto(collectionId, "CT-004120", RevenueInstrumentType.CashTicket, "Issued / consumed", new DateOnly(2026, 9, 3),
+            new CollectionDocumentDto(collectionId, "SRC-2026-004120", "CT-004120", RevenueInstrumentType.CashTicket, "Issued / consumed", new DateOnly(2026, 9, 3),
                 DateTime.UtcNow, null, "Ana Reyes", 30m, 0m, [new CollectionDocumentLineDto("Market Fees", "Market Fees", 30m, 0m, [])],
                 Guid.NewGuid(), "Recorded"))));
 

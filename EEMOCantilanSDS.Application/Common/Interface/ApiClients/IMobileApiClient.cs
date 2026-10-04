@@ -23,8 +23,6 @@ public interface IMobileApiClient
     /// <summary>Read-only: the signed-in collector's own canonical collections for a period (GET api/Mobile/records/collections).</summary>
     Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to);
 
-    /// <summary>Documents of the instrument this governed operation (and mode) resolves to that this collector holds (GET api/governed-services/{code}/documents).</summary>
-    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode);
 
     /// <summary>The approved terms in force today for an assigned governed operation (GET api/governed-services/{code}/terms).</summary>
     Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode);
@@ -70,7 +68,6 @@ public interface IMobileApiClient
 
     /// <summary>Eligible WCF sources for a billing period, each with its prepared, settled and outstanding Water amounts.</summary>
     Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetWcfSourcesAsync(int billingYear, int billingMonth);
-    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
     Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);

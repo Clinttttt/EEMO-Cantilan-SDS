@@ -155,7 +155,7 @@
                         <th scope="col">Payor</th>
                         <th scope="col">Origin</th>
                         <th scope="col">Penalty</th>
-                        <th scope="col">OR</th>
+                        <th scope="col">SRC</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Amount</th>
                     </tr>
@@ -168,7 +168,7 @@
                             <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)</td>
                             <td>@(string.IsNullOrWhiteSpace(row.Origin) ? "—" : row.Origin)</td>
                             <td>@row.PenaltyName</td>
-                            <td class="v3-strong">@row.DocumentNumber</td>
+                            <td class="v3-strong">@row.ReferenceCode</td>
                             <td>@row.Status</td>
                             <td class="v3-num v3-strong">₱@row.Amount.ToString("N2")</td>
                         </tr>

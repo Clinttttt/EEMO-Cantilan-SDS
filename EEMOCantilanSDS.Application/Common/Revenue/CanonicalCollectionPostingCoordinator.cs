@@ -14,7 +14,7 @@ public sealed class CanonicalCollectionPostingCoordinator(IAppDbContext db)
         Guid municipalityId, Guid clientOperationId, int intentVersion,
         string normalizedIntent, string origin, string actorId, string actorName,
         string actorRole, DateOnly businessDate, string updatedBy,
-        IReadOnlyList<CollectionLineDraft> lines, AccountableDocument document,
+        IReadOnlyList<CollectionLineDraft> lines, AccountableDocument? document = null,
         Guid? collectorId = null, Guid? payorId = null, string? payerName = null,
         IReadOnlyList<Action<DateTime>>? sourceProjections = null,
         Action<Guid, DateTime>? beforeCommit = null, CancellationToken ct = default)
@@ -23,14 +23,14 @@ public sealed class CanonicalCollectionPostingCoordinator(IAppDbContext db)
         var collection = Collection.Post(businessDate, recordedAtUtc, actorId, actorName,
             actorRole, lines, collectorId: collectorId, payerName: payerName,
             clientOperationId: clientOperationId, payorId: payorId);
-        document.Consume(collection.Id, clientOperationId, recordedAtUtc, updatedBy);
+        document?.Consume(collection.Id, clientOperationId, recordedAtUtc, updatedBy);
         foreach (var project in sourceProjections ?? Array.Empty<Action<DateTime>>())
             project(recordedAtUtc);
         beforeCommit?.Invoke(collection.Id, recordedAtUtc);
 
         var operation = PostingOperation.Record(municipalityId, clientOperationId,
             intentVersion, normalizedIntent, origin, actorId, PostingOperationStatus.Succeeded,
-            null, null, collection.Id, document.Id, recordedAtUtc);
+            null, null, collection.Id, document?.Id, recordedAtUtc);
         db.Collections.Add(collection);
         db.PostingOperations.Add(operation);
         await db.SaveChangesAsync(ct);

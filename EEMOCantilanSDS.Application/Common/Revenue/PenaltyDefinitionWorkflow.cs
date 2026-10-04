@@ -82,17 +82,15 @@ public sealed class PenaltyDefinitionWorkflow(
                     && collection.BusinessDate >= @from && collection.BusinessDate <= to
                     && line.SourceKind == CollectionSourceKind.PenaltyDefinition
                 orderby collection.BusinessDate descending, collection.RecordedAtUtc descending
-                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName,
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
                     version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
             var ids = rows.Select(x => x.Id).ToArray();
-            var documents = await db.AccountableDocuments.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.CollectionId.HasValue && ids.Contains(x.CollectionId.Value)).ToListAsync(ct);
             var corrections = await db.CollectionCorrections.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionId))
                 .Select(x => new { x.OriginalCollectionId, x.FinancialEffectAmount }).ToListAsync(ct);
             var register = rows.Select(x => new PenaltyRegisterRowDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.PayerName,
                 ReadOrigin(x.CalculationSnapshot), x.Code, x.DisplayName,
-                documents.FirstOrDefault(d => d.CollectionId == x.Id)?.DocumentNumber ?? "—", x.Amount,
+                x.ReferenceCode, x.Amount,
                 corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted")).ToList();
             return Result<IReadOnlyList<PenaltyRegisterRowDto>>.Success(register);
         }, ct);

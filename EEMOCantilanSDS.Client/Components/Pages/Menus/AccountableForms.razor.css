@@ -550,3 +550,11 @@
         max-width: 100%;
     }
 }
+
+.af-role-note {
+    max-width: 72ch;
+    margin: 0 0 16px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}

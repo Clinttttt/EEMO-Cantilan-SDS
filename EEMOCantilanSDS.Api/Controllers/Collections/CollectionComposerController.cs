@@ -35,10 +35,6 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
         [FromQuery] string? search, CancellationToken ct) =>
         HandleResponse(await composer.SearchCollectionPayorsAsync(search, ct));
 
-    [HttpGet("official-receipts/available")]
-    public async Task<ActionResult<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceipts(CancellationToken ct) =>
-        HandleResponse(await composer.GetAvailableReceiptsAsync(ct));
-
     [HttpGet("activity")]
     public async Task<ActionResult<IReadOnlyList<EcfCollectionActivityDto>>> GetActivity(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
@@ -69,11 +65,6 @@ public sealed class CollectionComposerController(ISender sender, CollectionCompo
     public async Task<ActionResult<EcfCollectionDraftDto>> UpdateAllocation(
         Guid draftId, [FromBody] UpdateCollectionDraftAllocationRequest request, CancellationToken ct) =>
         HandleResponse(await composer.UpdateDraftAllocationAsync(draftId, request, ct));
-
-    [HttpPut("drafts/{draftId:guid}/document")]
-    public async Task<ActionResult<EcfCollectionDraftDto>> SelectDocument(
-        Guid draftId, [FromBody] SelectEcfDraftDocumentRequest request, CancellationToken ct) =>
-        HandleResponse(await composer.SelectDocumentAsync(draftId, request, ct));
 
     [HttpPost("drafts/{draftId:guid}/resume")]
     public async Task<ActionResult<EcfCollectionDraftDto>> ResumeDraft(

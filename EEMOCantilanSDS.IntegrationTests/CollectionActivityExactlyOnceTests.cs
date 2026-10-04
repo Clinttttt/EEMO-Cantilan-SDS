@@ -192,11 +192,14 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
         Assert.Equal(("Legacy", 100m, RevenueClassificationCodes.Ecf), (ecf.Authority, ecf.Amount, ecf.Lines.Single().ClassificationCode));
         // The converted ICE row's legacy projection is never listed beside its Collection.
         Assert.DoesNotContain(feed.Events, e => e.EventKey == $"PaymentRecord:{w.IceRecordId}");
-        var or = Assert.Single(feed.Events, e => e.DocumentNumber == "OR-0001");
+        // Legacy rows keep the source's own document and are never given a fabricated SRC; canonical rows are identified by SRC.
+        Assert.All(feed.Events.Where(e => e.Authority == "Legacy"), e => Assert.Null(e.ReferenceCode));
+        Assert.All(feed.Events.Where(e => e.Authority == "Canonical"), e => Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", e.ReferenceCode!));
+        var or = Assert.Single(feed.Events, e => e.Authority == "Canonical" && e.Facility == FacilityCode.ICE);
         Assert.Equal(("Canonical", 250m, RevenueInstrumentType.OfficialReceipt, FacilityCode.ICE, "Posted"),
             (or.Authority, or.Amount, or.InstrumentType, or.Facility, or.Disposition));
         Assert.Equal(RevenueClassificationCodes.IcePlant, or.Lines.Single().ClassificationCode);
-        var ct = Assert.Single(feed.Events, e => e.DocumentNumber == "CT-0001");
+        var ct = Assert.Single(feed.Events, e => e.Authority == "Canonical" && e.Amount == 30m);
         Assert.Equal(("Canonical", 30m, RevenueInstrumentType.CashTicket, w.Collector.Id, "Ana Reyes"),
             (ct.Authority, ct.Amount, ct.InstrumentType, ct.CollectorId, ct.CollectorName));
         Assert.Equal(Today, ct.BusinessDate);
@@ -219,7 +222,9 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
         var byCollector = new GetCollectionActivityQueryHandler(new CollectionActivityReader(read),
                 new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id), new Clock())
             .Handle(new GetCollectionActivityQuery(Period, Today, CollectorId: w.Collector.Id), CancellationToken.None).Result.Value!;
-        Assert.Equal(new[] { "CT-0001", "LEGACY-1" }, byCollector.Events.Select(e => e.DocumentNumber!).Order(StringComparer.Ordinal));
+        Assert.Equal(2, byCollector.Events.Count);
+        Assert.Single(byCollector.Events, e => e.Authority == "Legacy" && e.DocumentNumber == "LEGACY-1" && e.ReferenceCode is null);
+        Assert.Single(byCollector.Events, e => e.Authority == "Canonical" && e.ReferenceCode!.StartsWith("SRC-"));
     }
 
     private static CollectionActivityLineDto PermanentLine(CollectionActivityEventDto e) => e.Lines.First();
@@ -236,7 +241,8 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
         var feed = Feed(read, w);
 
         var or = Assert.Single(feed.Events, e => e.Authority == "Canonical");
-        Assert.Equal(("OR-0001", 550m), (or.DocumentNumber, or.Amount));
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", or.ReferenceCode!);
+        Assert.Equal(550m, or.Amount);
         Assert.Equal(550m, or.Lines.Sum(l => l.Amount));
         Assert.All(or.Lines, l => Assert.Equal(nameof(CollectionSourceKind.PaymentRecord), l.SourceKind));
         Assert.Equal(550m, feed.CanonicalAmount);
@@ -280,7 +286,7 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
         Assert.Single(feed.Events, e => e.EventKey == $"PaymentRecord:{w.TccRecordId}");
         Assert.Equal(1000m, feed.LegacyAmount);
 
-        var ct = Assert.Single(feed.Events, e => e.DocumentNumber == "CT-0001");
+        var ct = Assert.Single(feed.Events, e => e.Authority == "Canonical" && e.Amount == 30m);
         Assert.Equal(("Reversed", 30m, -30m, 0m), (ct.Disposition, ct.Amount, ct.CorrectionEffect, ct.NetAmount));
         Assert.Equal(nameof(CollectionCorrectionType.Reversal), ct.Corrections.Single().CorrectionType);
         Assert.Equal((30m, -30m, 1000m), (feed.CanonicalAmount, feed.CorrectionEffect, feed.NetAmount));

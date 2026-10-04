@@ -32,7 +32,6 @@ public sealed record EcfObligationQuoteDto(
     bool CanAddToDraft,
     bool CanPostCanonical);
 
-public sealed record EcfAvailableDocumentDto(Guid DocumentId, string DocumentNumber, AccountableDocumentState State, bool IsNextExpected = false);
 
 public sealed record EcfCollectionDraftLineDto(
     Guid LineId,
@@ -119,7 +118,7 @@ public sealed record EcfCollectionDraftDto(
 
 public sealed record EcfPostOutcomeDto(
     Guid CollectionId,
-    string DocumentNumber,
+    string ReferenceCode,
     string CurrentDisposition,
     decimal Amount,
     int ItemCount,
@@ -145,7 +144,7 @@ public sealed record EcfCollectionActivityDto(
     Guid CollectionId,
     DateOnly BusinessDate,
     DateTime RecordedAtUtc,
-    string DocumentNumber,
+    string ReferenceCode,
     string? PayerName,
     decimal TotalAmount,
     int ItemCount,
@@ -173,6 +172,5 @@ public sealed record UpdateCollectionDraftAllocationRequest(
     decimal ProposedAmount);
 
 public sealed record UpdateEcfDraftAllocationRequest(long ExpectedRevision, decimal ProposedAmount);
-public sealed record SelectEcfDraftDocumentRequest(long ExpectedRevision, Guid? AccountableDocumentId);
 public sealed record EcfDraftRevisionRequest(long ExpectedRevision);
 public sealed record PostEcfCollectionDraftRequest(long ExpectedRevision, Guid ClientOperationId);

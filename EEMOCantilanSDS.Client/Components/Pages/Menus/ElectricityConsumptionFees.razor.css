@@ -122,10 +122,3 @@
 }
 
 /* Official Receipt: the next assigned receipt is the normal path; choosing another is a secondary recovery action. */
-.ecf-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-.ecf-receipt-label { flex: 0 0 100%; color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; }
-.ecf-receipt-serial { color: var(--navy); font-size: 1.125rem; font-variant-numeric: tabular-nums; }
-.ecf-receipt-note { color: var(--text-secondary); font-size: 0.75rem; }
-.ecf-receipt-change { margin-left: auto; padding: 4px 0; border: 0; background: transparent; color: var(--accent); font-size: 0.75rem; font-weight: 600; text-decoration: underline; cursor: pointer; }
-.ecf-receipt-change:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ecf-receipt-picker { flex: 0 0 100%; margin: 8px 0 0; }

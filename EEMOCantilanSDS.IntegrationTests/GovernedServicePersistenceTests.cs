@@ -197,7 +197,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
         "Walk-up", "PG test", f.Document.Id, f.Document.DocumentNumber, DateTime.UtcNow.AddMinutes(-1));
 
     [SkippableFact]
-    public async Task GovernedLine_IsAcceptedByTheWidenedSourceConstraint_AndConsumesTheDocumentOnce()
+    public async Task GovernedLine_IsAcceptedByTheWidenedSourceConstraint_AndConsumesNoPhysicalDocument()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -215,7 +215,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
         Assert.Equal(CollectionSourceKind.GovernedService, line.SourceKind);
         Assert.Equal(30m, line.Amount);
         var stored = await verify.AccountableDocuments.SingleAsync(x => x.Id == f.Document.Id);
-        Assert.Equal(AccountableDocumentState.Consumed, stored.State);
+        Assert.Equal(AccountableDocumentState.Assigned, stored.State);
         Assert.Single(await verify.PostingOperations.ToListAsync());
     }
 
@@ -239,7 +239,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
         var theirs = await reader.GetCollectionsAsync(stranger, today.AddDays(-1), today);
 
         var row = Assert.Single(mine.OperationCollections!);
-        Assert.Equal(f.Document.DocumentNumber, row.DocumentNumber);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", row.DocumentNumber);   // the collection reference is the primary identity (IA-062)
         Assert.Equal("Market Fees", row.OperationName);
         Assert.Equal(RevenueInstrumentType.CashTicket, row.Instrument);
         Assert.Equal("PG test", row.Reference);
@@ -256,7 +256,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
             Assert.Equal("Market Fees", record.OperationName);
             Assert.Equal(30m, record.Amount);
             Assert.Equal("Posted", record.Disposition);
-            Assert.Equal(f.Document.DocumentNumber, record.DocumentNumber);
+            Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", record.ReferenceCode);
         }
         await using var strangerCtx = db.CreateContext(f.Tenant.Id);
         var strangerFlow = new GovernedServiceWorkflow(strangerCtx, new Caller(stranger, f.Tenant.Id, "Collector"), new FixedTenant(f.Tenant.Id));
@@ -264,7 +264,7 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task TwoConcurrentPostsOnTheSameDocument_ProduceExactlyOneCollection()
+    public async Task TwoConcurrentPostsWithDifferentOperations_ProduceTwoCollections_EachWithItsOwnSrc_AndNoDocumentIsConsumed()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -273,16 +273,15 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
         var second = CollectorWorkflow(f, out var ctx2);
         await using var _1 = ctx1;
         await using var _2 = ctx2;
-
         var results = await Task.WhenAll(
             first.PostMobileAsync(Request(f)),
             second.PostMobileAsync(Request(f)));
 
-        Assert.Equal(1, results.Count(x => x.IsSuccess));
+        Assert.Equal(2, results.Count(x => x.IsSuccess));
+        Assert.Equal(2, results.Select(x => x.Value!.ReferenceCode).Distinct().Count());
         await using var verify = db.CreateContext(f.Tenant.Id);
-        Assert.Single(await verify.Collections.ToListAsync());
-        Assert.Equal(30m, (await verify.CollectionLines.SingleAsync()).Amount);
-        Assert.Equal(AccountableDocumentState.Consumed, (await verify.AccountableDocuments.SingleAsync(x => x.Id == f.Document.Id)).State);
+        Assert.Equal(2, (await verify.Collections.ToListAsync()).Count);
+        Assert.Equal(AccountableDocumentState.Assigned, (await verify.AccountableDocuments.SingleAsync(x => x.Id == f.Document.Id)).State);
     }
 
     [SkippableFact]

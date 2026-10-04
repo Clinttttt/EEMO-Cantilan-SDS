@@ -2,10 +2,11 @@ using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Revenue;
 
-/// <summary>One classified line of a posted canonical Collection. The same document number can appear on several rows.</summary>
+/// <summary>One classified line of a posted canonical Collection. The same SRC can appear on several rows (one per classified line).</summary>
 public sealed record CollectionRegisterRowDto(
     Guid CollectionId,
     DateOnly BusinessDate,
+    string ReferenceCode,
     string? DocumentNumber,
     RevenueInstrumentType? Instrument,
     string? PayorName,
@@ -26,12 +27,12 @@ public sealed record CollectionRegisterRowDto(
 public sealed record CollectionsSummaryLineDto(
     Guid ClassificationId,
     string ClassificationName,
-    int DocumentCount,
+    int CollectionCount,
     decimal Gross,
     decimal CorrectionEffect,
     decimal Net,
-    string? FirstDocumentNumber,
-    string? LastDocumentNumber);
+    string? FirstReferenceCode,
+    string? LastReferenceCode);
 
 public sealed record CollectionsRegisterDto(
     DateOnly From,
@@ -53,6 +54,7 @@ public sealed record CollectionDocumentLineDto(
 
 public sealed record CollectionDocumentDto(
     Guid CollectionId,
+    string ReferenceCode,
     string? DocumentNumber,
     RevenueInstrumentType? Instrument,
     string? DocumentState,

@@ -33,7 +33,7 @@ public sealed class GetCollectionActivityQueryHandler(
         + "Collection is its own event. A document correction moves no money.",
         "Drafts, assessments, opening settlement, remittances, shadow rows and online-provider transactions are not collections "
         + "and are not listed.",
-        "Legacy rows carry the document number the source recorded; their instrument is not inferred."
+        "Canonical Collections are identified by their StallTrack Reference Code (SRC). Legacy rows carry the document number the source recorded and no SRC; their instrument is not inferred."
     ];
 
     public async Task<Result<CollectionActivityFeedDto>> Handle(GetCollectionActivityQuery request, CancellationToken ct)

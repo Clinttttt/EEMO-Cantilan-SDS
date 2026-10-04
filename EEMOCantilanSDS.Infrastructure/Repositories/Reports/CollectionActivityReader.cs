@@ -88,7 +88,7 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
     {
         var amount = lines.Sum(l => l.Amount);
         return new CollectionActivityEventDto(key, Legacy, kind.ToString(), null, date, recordedAtUtc,
-            string.IsNullOrWhiteSpace(document) ? null : document.Trim(), null, [], payer, null,
+            null, string.IsNullOrWhiteSpace(document) ? null : document.Trim(), null, [], [], payer, null,
             collectorId, CollectorName(collectorId, collectors), Recorder(collectorId, createdBy, collectors),
             facility, subject, status, amount, 0m, amount, "Recorded", null, lines, []);
     }
@@ -301,7 +301,7 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         var tenant = w.TenantId;
         var collections = await context.Collections.AsNoTracking()
             .Where(c => c.MunicipalityId == tenant && c.BusinessDate >= w.From && c.BusinessDate <= w.To)
-            .Select(c => new { c.Id, c.BusinessDate, c.RecordedAtUtc, c.ActorName, c.CollectorId, c.PayorId, c.PayerName })
+            .Select(c => new { c.Id, c.BusinessDate, c.RecordedAtUtc, c.ReferenceCode, c.ActorName, c.CollectorId, c.PayorId, c.PayerName })
             .ToListAsync(ct);
         if (collections.Count == 0) return [];
         var ids = collections.Select(c => c.Id).ToArray();
@@ -360,6 +360,9 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         var policyNames = await context.RevenueClassificationPolicies.AsNoTracking()
             .Where(p => p.MunicipalityId == tenant && policyIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
+        var policyInstruments = await context.RevenueClassificationPolicies.AsNoTracking()
+            .Where(p => p.MunicipalityId == tenant && policyIds.Contains(p.Id) && p.PermittedInstrumentType != null)
+            .ToDictionaryAsync(p => p.Id, p => (RevenueInstrumentType?)p.PermittedInstrumentType, ct);
 
         var corrections = await context.CollectionCorrections.AsNoTracking()
             .Where(c => c.MunicipalityId == tenant && ids.Contains(c.OriginalCollectionId))
@@ -382,6 +385,13 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .Select(d => new { d.Id, d.CollectionId, d.DocumentNumber, d.InstrumentType })
             .ToListAsync(ct);
         var replacementDocSet = replacementDocIds.ToHashSet();
+        var replacementCollectionIds = corrections.Where(c => c.ReplacementCollectionId.HasValue)
+            .Select(c => c.ReplacementCollectionId!.Value).Distinct().ToArray();
+        var replacementCodes = replacementCollectionIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await context.Collections.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenant && replacementCollectionIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.ReferenceCode, ct);
 
         var linesByCollection = authoritative.ToLookup(l => l.CollectionId);
         var events = new List<CollectionActivityEventDto>();
@@ -435,7 +445,10 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 .Select(d => d.DocumentNumber).OrderBy(n => n, StringComparer.Ordinal).ToList();
 
             events.Add(new CollectionActivityEventDto($"Collection:{c.Id}", Canonical, "Collection", c.Id, c.BusinessDate,
-                c.RecordedAtUtc, primary?.DocumentNumber, primary?.InstrumentType, replacementNumbers, c.PayerName, c.PayorId,
+                c.RecordedAtUtc, c.ReferenceCode, primary?.DocumentNumber, primary?.InstrumentType ?? policyInstruments.GetValueOrDefault(own[0].RevenueClassificationPolicyId), replacementNumbers,
+                linked.Where(x => x.ReplacementCollectionId.HasValue).Select(x => replacementCodes.GetValueOrDefault(x.ReplacementCollectionId!.Value))
+                    .Where(x => !string.IsNullOrEmpty(x)).Select(x => x!).OrderBy(x => x, StringComparer.Ordinal).ToList(),
+                c.PayerName, c.PayorId,
                 c.CollectorId, CollectorName(c.CollectorId, collectors),
                 c.CollectorId is { } id ? collectors.GetValueOrDefault(id, "Collector") : string.IsNullOrWhiteSpace(c.ActorName) ? "Office" : c.ActorName,
                 facilities.Count == 1 ? facilities[0] : null,

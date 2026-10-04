@@ -597,7 +597,7 @@
                         }
 
                         <div class="misc-wcf-block">
-                            <div class="misc-period-label">Water · Cash Ticket</div>
+                            <div class="misc-period-label">Water</div>
                             @if (WcfCapability is { Status: CollectorOperationCapabilityStatus.NotAssigned })
                             {
                                 <div class="misc-empty">@WcfCapabilityMessage</div>
@@ -619,58 +619,22 @@
                                 <div class="misc-util-state">@SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00") · @FormatPeso(SelectedWcfQuote.OutstandingAmount) outstanding</div>
                                 @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
                                 {
-                                    <div class="misc-empty">Canonical WCF settlement is not active for this source. Do not issue a Cash Ticket through the canonical workflow.</div>
+                                    <div class="misc-empty">Canonical WCF settlement is not active for this source. It cannot be collected through the canonical workflow.</div>
                                 }
                                 else if (WcfCapability is not { IsCollectible: true })
                                 {
-                                    @* The server's capability answer decides whether this collector may issue a WCF Cash Ticket
+                                    @* The server's capability answer decides whether this collector may record a WCF collection
                                        today; the obligation above is shown for reference only. *@
                                     <div class="misc-empty">@WcfCapabilityMessage</div>
                                 }
                                 else if (Sync.HasStorageFault)
                                 {
-                                    <div class="misc-empty">Local ticket history needs attention. Offline Cash Ticket issue is blocked until storage is healthy.</div>
+                                    <div class="misc-empty">Local queue storage needs attention. Offline collection is blocked until storage is healthy.</div>
                                 }
                                 else
                                 {
                                     <input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="Amount received" aria-label="Water amount received" @bind="WcfReceivedAmount" @bind:event="oninput" />
-                                    @if (SelectedWcfTicket is { } nextTicket)
-                                    {
-                                        @* The next assigned Cash Ticket is resolved for the collector; changing it is secondary. *@
-                                        <div class="wcf-ticket" aria-label="Next assigned Cash Ticket">
-                                            <div class="wcf-ticket-head">
-                                                <span class="wcf-ticket-badge">CT</span>
-                                                <span class="wcf-ticket-title">Next assigned Cash Ticket</span>
-                                                <span class="wcf-ticket-count">@AvailableWcfTickets.Count left</span>
-                                            </div>
-                                            <div class="wcf-ticket-serial">@nextTicket.DocumentNumber</div>
-                                            <div class="wcf-ticket-note">This ticket will be issued when you record the collection.</div>
-                                            @if (AvailableWcfTickets.Count > 1)
-                                            {
-                                                <button type="button" class="wcf-ticket-change" aria-expanded="@(_showWcfTickets ? "true" : "false")"
-                                                        @onclick="() => _showWcfTickets = !_showWcfTickets">@(_showWcfTickets ? "Hide assigned tickets" : "Change ticket")</button>
-                                                @if (_showWcfTickets)
-                                                {
-                                                    <div class="wcf-ticket-list" role="listbox" aria-label="Assigned Cash Tickets">
-                                                        @foreach (var ticket in AvailableWcfTickets)
-                                                        {
-                                                            var isNext = ticket.DocumentId == nextTicket.DocumentId;
-                                                            <button type="button" role="option" aria-selected="@(isNext ? "true" : "false")"
-                                                                    class="wcf-ticket-option @(isNext ? "selected" : "")"
-                                                                    @onclick="() => { SelectedWcfDocumentId = ticket.DocumentId; _showWcfTickets = false; }">
-                                                                @ticket.DocumentNumber@(isNext ? " · will issue" : "")
-                                                            </button>
-                                                        }
-                                                    </div>
-                                                }
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="misc-empty" role="status">No assigned Cash Ticket available. Ask the office to assign a Cash Ticket range before collecting water.</div>
-                                    }
-                                    <button class="btn-primary" type="button" disabled="@(!CanCaptureWcf)" @onclick="CaptureWcfAsync">Record and issue Cash Ticket</button>
+                                    <button class="btn-primary" type="button" disabled="@(!CanCaptureWcf)" @onclick="CaptureWcfAsync">Record collection</button>
                                     <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture). Obligation period: @SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00").</div>
                                 }
                             }
@@ -875,12 +839,9 @@
     private decimal MiscElecPartial;
     private decimal MiscWaterPartial;
     private IReadOnlyList<WcfObligationQuoteDto> WcfObligations = Array.Empty<WcfObligationQuoteDto>();
-    private IReadOnlyList<CashTicketDocumentDto> WcfTickets = Array.Empty<CashTicketDocumentDto>();
-    private readonly HashSet<Guid> LocallyIssuedWcfDocuments = new();
     private bool WcfLoadFailed;
     private decimal WcfReceivedAmount;
     private Guid? SelectedWcfBillId;
-    private Guid? SelectedWcfDocumentId;
     private string? WcfMessage;
 
     /// <summary>
@@ -923,16 +884,6 @@
         ? WcfObligationsForSelectedStall.FirstOrDefault(x => x.UtilityBillId == billId)
         : null;
 
-    // The collector's assigned tickets still usable on this device, in serial order (a queued issue keeps its ticket).
-    private IReadOnlyList<CashTicketDocumentDto> AvailableWcfTickets =>
-        EEMOCantilanSDS.Mobile.Presentation.NextAccountableDocument.Usable(
-            WcfTickets.Where(x => x.State == AccountableDocumentState.Assigned), LocallyIssuedWcfDocuments);
-
-    // The next ticket in serial order, unless the collector deliberately chose another assigned one.
-    private CashTicketDocumentDto? SelectedWcfTicket =>
-        EEMOCantilanSDS.Mobile.Presentation.NextAccountableDocument.Resolve(AvailableWcfTickets, SelectedWcfDocumentId);
-
-    private bool _showWcfTickets;
 
     // Server-derived: assignment, authorization, policy, custody and settlement authority for the WCF operation.
     // Null means the capability could not be read (never "assume collectible").
@@ -943,16 +894,15 @@
         CollectorOperationCapabilityStatus.NotAssigned => "Water collection is not assigned to you. Ask the office to assign it.",
         CollectorOperationCapabilityStatus.Unsupported => "Water collection is not available on Collector Mobile yet.",
         CollectorOperationCapabilityStatus.AssignedButInactive => "Your Water collection authorization is not active. Contact the office.",
-        CollectorOperationCapabilityStatus.PendingCutover => "Water Cash Ticket collection is not active yet. The office has not switched this source over.",
+        CollectorOperationCapabilityStatus.PendingCutover => "Water collection is not active yet. The office has not switched this source over.",
         CollectorOperationCapabilityStatus.NeedsPolicy => "No approved Water collection policy is in effect today.",
-        CollectorOperationCapabilityStatus.NeedsDocument => "You hold no assigned Cash Ticket. Request Cash Tickets from the office.",
+        CollectorOperationCapabilityStatus.NeedsDocument => "Water collection is not ready. Contact the office.",
         CollectorOperationCapabilityStatus.Ready => string.Empty,
         _ => "Water collection eligibility could not be verified. Retry while online."
     };
 
     private bool CanCaptureWcf => SelectedWcfQuote is { CanCollectCanonical: true, OutstandingAmount: > 0m }
         && WcfCapability is { IsCollectible: true }
-        && SelectedWcfTicket is not null
         && WcfReceivedAmount > 0m
         && WcfReceivedAmount <= SelectedWcfQuote.OutstandingAmount
         && decimal.Round(WcfReceivedAmount, 2, MidpointRounding.ToZero) == WcfReceivedAmount
@@ -1172,29 +1122,17 @@
                         StringComparer.OrdinalIgnoreCase)
                 : new(StringComparer.OrdinalIgnoreCase);
             var wcf = await MobileApi.GetWcfObligationsAsync(SelectedYear, SelectedMonth);
-            var tickets = await MobileApi.GetAvailableCashTicketsAsync();
             var capabilities = await MobileApi.GetOperationCapabilitiesAsync();
             WcfCapability = capabilities.IsSuccess
                 ? capabilities.Value?.Operations.FirstOrDefault(x => x.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf)
                 : null;
-            WcfLoadFailed = !wcf.IsSuccess || wcf.Value is null || !tickets.IsSuccess || tickets.Value is null;
+            WcfLoadFailed = !wcf.IsSuccess || wcf.Value is null;
             WcfObligations = wcf.IsSuccess && wcf.Value is not null
                 ? wcf.Value.Where(x => x.OutstandingAmount > 0m).ToList()
                 : Array.Empty<WcfObligationQuoteDto>();
             if (SelectedWcfBillId is not { } selectedWcfBill
                 || !WcfObligationsForSelectedStall.Any(x => x.UtilityBillId == selectedWcfBill))
                 SelectedWcfBillId = WcfObligationsForSelectedStall.FirstOrDefault()?.UtilityBillId;
-            WcfTickets = tickets.IsSuccess && tickets.Value is not null
-                ? tickets.Value
-                : Array.Empty<CashTicketDocumentDto>();
-            LocallyIssuedWcfDocuments.Clear();
-            foreach (var queued in await Sync.GetAllAsync())
-            {
-                if (queued.Kind == OfflineOperationKind.WcfCollection && queued.AccountableDocumentId is { } documentId)
-                    LocallyIssuedWcfDocuments.Add(documentId);
-            }
-            if (SelectedWcfDocumentId is { } selected && !AvailableWcfTickets.Any(x => x.DocumentId == selected))
-                SelectedWcfDocumentId = null;
         }
         catch
         {
@@ -1205,17 +1143,16 @@
             WcfLoadFailed = true;
             WcfCapability = null;
             WcfObligations = Array.Empty<WcfObligationQuoteDto>();
-            WcfTickets = Array.Empty<CashTicketDocumentDto>();
         }
     }
 
     private async Task CaptureWcfAsync()
     {
-        if (!CanCaptureWcf || SelectedWcfQuote is not { } quote || SelectedWcfTicket is not { } ticket)
+        if (!CanCaptureWcf || SelectedWcfQuote is not { } quote)
         {
             WcfMessage = Sync.HasStorageFault
-                ? "Local queue storage is not healthy. Do not issue a Cash Ticket."
-                : "Refresh the Water source and assigned Cash Tickets, then enter an amount within the outstanding balance.";
+                ? "Local queue storage is not healthy. Do not record collections until it is fixed."
+                : "Refresh the Water source, then enter an amount within the outstanding balance.";
             return;
         }
 
@@ -1231,38 +1168,33 @@
             UtilityBillId = quote.UtilityBillId,
             ReceivedAmount = WcfReceivedAmount,
             WaterSourceVersion = quote.WaterSourceVersion,
-            AccountableDocumentId = ticket.DocumentId,
-            DocumentNumber = ticket.DocumentNumber,
-            IssuedAtUtc = DateTime.UtcNow,
             FacilityLabel = "NPM",
             Title = quote.PayerNameSnapshot ?? $"Stall {quote.StallNo}",
-            Detail = $"WCF · {quote.BillingYear}-{quote.BillingMonth:00} · CT {ticket.DocumentNumber}",
+            Detail = $"WCF · {quote.BillingYear}-{quote.BillingMonth:00}",
             Amount = WcfReceivedAmount
         };
 
         try
         {
-            // This durable local write binds the physical ticket to its immutable operation before this
-            // screen reports the issue as safely captured or starts synchronization.
+            // This durable local write binds the collection to its immutable operation before this
+            // screen reports it as safely captured or starts synchronization. The server returns the SRC.
             await Sync.EnqueueIssuedDocumentAsync(operation);
-            LocallyIssuedWcfDocuments.Add(ticket.DocumentId);
-            WcfMessage = "Cash Ticket issue saved on this device. The ticket is unavailable for reuse.";
+            WcfMessage = "Saved on this device. Waiting to sync.";
             if (Sync.IsOnline)
                 await Sync.SyncNowAsync(force: true);
             var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
             if (result?.LocalStatus == PendingLocalStatus.Synced)
-                WcfMessage = "Cash Ticket acknowledged by the server. It remains consumed.";
+                WcfMessage = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
             else if (result?.LocalStatus == PendingLocalStatus.ReconciliationRequired)
-                WcfMessage = "RECONCILIATION REQUIRED. Keep this physical Cash Ticket; office review is required.";
+                WcfMessage = "This collection needs office review before it is recorded.";
             else if (result is not null)
-                WcfMessage = "Cash Ticket issue is durably queued and awaiting synchronization.";
+                WcfMessage = "Saved on this device. Waiting to sync.";
             WcfReceivedAmount = 0m;
-            SelectedWcfDocumentId = null;
             await LoadUtilityBillsAsync();
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
-            WcfMessage = "The physical ticket and operation could not be safely saved. Do not issue the ticket; resolve device storage attention first.";
+            WcfMessage = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
         }
         finally
         {
@@ -1770,7 +1702,6 @@
         SelectedWcfBillId = WcfObligations.Where(x => x.StallId == stall.StallId && x.OutstandingAmount > 0m)
             .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
             .Select(x => (Guid?)x.UtilityBillId).FirstOrDefault();
-        SelectedWcfDocumentId = null;
         WcfMessage = null;
         SheetError = null;
         ShowCollectionSheet = true;
@@ -2130,7 +2061,6 @@
         MiscElecPartial = MiscWaterPartial = 0m;
         MiscElecOr = MiscWaterOr = string.Empty;
         WcfReceivedAmount = 0m;
-        SelectedWcfDocumentId = null;
         WcfMessage = null;
         SheetError = null;
     }

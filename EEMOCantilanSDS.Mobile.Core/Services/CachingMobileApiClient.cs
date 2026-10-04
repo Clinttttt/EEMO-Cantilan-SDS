@@ -70,10 +70,6 @@ public sealed class CachingMobileApiClient(
     public Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode) =>
         ReadThroughAsync($"operations|terms|{operationCode}|{mode}|{Today}", () => inner.GetOperationTermsAsync(operationCode, mode));
 
-    // Custody changes with every issue, and "operations" is cleared after every write, so a used document is not offered again.
-    public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
-        ReadThroughAsync($"operations|documents|{operationCode}|{mode}|{Today}", () => inner.GetOperationDocumentsAsync(operationCode, mode));
-
     public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
         ReadThroughAsync($"position|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyPositionAsync(from, to));
 
@@ -101,9 +97,6 @@ public sealed class CachingMobileApiClient(
 
     public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         ReadThroughAsync($"wcf|obligations|{throughYear}|{throughMonth}", () => inner.GetWcfObligationsAsync(throughYear, throughMonth));
-
-    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
-        ReadThroughAsync("wcf|cash-tickets", inner.GetAvailableCashTicketsAsync);
 
     public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionOutcomeDto>> PostWcfCollectionAsync(
         EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionPostRequest request) =>

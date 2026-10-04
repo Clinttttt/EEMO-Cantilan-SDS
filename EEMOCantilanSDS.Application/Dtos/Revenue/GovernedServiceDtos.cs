@@ -45,31 +45,32 @@ public sealed record ConfigureGovernedServiceRequest(
     bool IsEnabled, bool MobileEnabled);
 
 /// <summary>
-/// Versioned received-money intent for one physically issued OR or Cash Ticket. The collector supplies facts only:
+/// Versioned received-money intent for one collection. The collector supplies facts only:
 /// the amount is validated against approved setup, and the classification, instrument and rate are server-resolved.
 /// </summary>
 public sealed record GovernedServicePostRequest(
     int SchemaVersion, Guid ClientOperationId, string OperationCode, DateOnly BusinessDate,
     decimal ReceivedAmount, GovernedServiceMode? Mode, string? PayerName, string? Reference,
-    Guid AccountableDocumentId, string DocumentNumber, DateTime? IssuedAtUtc,
+    // Legacy, ignored (IA-062): a physical OR/CT serial is no longer required or read. Old queued payloads may still carry them.
+    Guid? AccountableDocumentId = null, string? DocumentNumber = null, DateTime? IssuedAtUtc = null,
     // Transportation / Parking only: the stable vehicle class the collector selected. The amount is that class's approved rate.
     string? VehicleClassCode = null,
     // ApprovedFeeOption services: the approved fee option the collector selected (never a typed fee name).
     Guid? FeeOptionId = null);
 
 public sealed record GovernedServiceOutcomeDto(
-    Guid CollectionId, Guid AccountableDocumentId, string DocumentNumber, DateOnly BusinessDate,
+    Guid CollectionId, string ReferenceCode, DateOnly BusinessDate,
     decimal Amount, RevenueInstrumentType Instrument, string Disposition, bool ExistingOutcome);
 
 public sealed record GovernedServiceActivityDto(
-    Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string DocumentNumber,
+    Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? ReferenceCode,
     RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName, string? Reference,
     decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null);
 
 /// <summary>One collection a collector took through a governed operation, as the server recorded it.</summary>
 public sealed record GovernedServiceRecordDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string OperationCode, string OperationName,
-    string DocumentNumber, RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName,
+    string? ReferenceCode, RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName,
     string? Reference, decimal Amount, string Disposition, string? FeeOptionName = null);
 
 /// <summary>

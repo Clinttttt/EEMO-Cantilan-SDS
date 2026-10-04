@@ -86,19 +86,19 @@
             <section class="v3-panel" aria-label="@($"Collections covered for {item.Row.CollectorName}")" @key="item.Row.Id">
                 <header class="v3-panel-header">
                     <h2>@item.Row.CollectorName</h2>
-                    <span class="v3-panel-meta">@(item.FirstDocumentNumber is null ? "" : $"{item.FirstDocumentNumber} to {item.LastDocumentNumber}")</span>
+                    <span class="v3-panel-meta">@(item.FirstReferenceCode is null ? "" : $"{item.FirstReferenceCode} to {item.LastReferenceCode}")</span>
                 </header>
                 <div class="v3-table-wrap" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
                     <table class="v3-table">
                         <thead>
-                            <tr><th scope="col">Date</th><th scope="col">Document</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th></tr>
+                            <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var collection in item.Collections)
                             {
                                 <tr>
                                     <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                    <td class="v3-strong">@(collection.DocumentNumber ?? "—")</td>
+                                    <td class="v3-strong">@collection.ReferenceCode</td>
                                     <td>@SourceLabel(collection)</td>
                                     <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                     <td class="v3-num">@Money(collection.NetAmount)</td>

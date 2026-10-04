@@ -91,7 +91,7 @@ public sealed class PendingOperation
     public string? ElecORNumber { get; set; }
     public string? WaterORNumber { get; set; }
 
-    // Canonical WCF v1 received-money intent and physically issued Cash Ticket evidence.
+    // Canonical received-money intent. The physical document fields are legacy and no longer required (IA-062); old queued rows may still carry them.
     public int PayloadVersion { get; set; }
     public decimal? ReceivedAmount { get; set; }
     public long? WaterSourceVersion { get; set; }
@@ -99,6 +99,11 @@ public sealed class PendingOperation
     public string? DocumentNumber { get; set; }
     public DateTime? IssuedAtUtc { get; set; }
     public IssuedDocumentLocalState? IssuedDocumentState { get; set; }
+
+    // The server-allocated StallTrack Reference Code (SRC) and Collection id, set only when the server acknowledges the sync.
+    // The device never invents an SRC: until then the operation is shown as waiting to sync.
+    public string? ReferenceCode { get; set; }
+    public Guid? ServerCollectionId { get; set; }
 
     // Governed configurable service facts (Kind = GovernedService). No rate, classification or instrument is stored:
     // those are resolved by the server from approved configuration.

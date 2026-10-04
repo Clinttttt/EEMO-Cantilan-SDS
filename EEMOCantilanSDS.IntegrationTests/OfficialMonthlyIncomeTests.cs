@@ -288,9 +288,10 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Equal(3, register.Rows.Count);
         Assert.Equal(310m, register.Net);
         var market = Assert.Single(register.Summary, x => x.ClassificationName == "MARKET_FEES");
-        Assert.Equal((2, 60m), (market.DocumentCount, market.Net));
-        Assert.Equal(("CT-0001", "CT-0002"), (market.FirstDocumentNumber, market.LastDocumentNumber));
-        Assert.Contains(register.Rows, r => r.ClassificationName == "ICE_PLANT" && r.DocumentNumber == "OR-0001" && r.Instrument == RevenueInstrumentType.OfficialReceipt);
+        Assert.Equal((2, 60m), (market.CollectionCount, market.Net));
+        Assert.NotNull(market.FirstReferenceCode);
+        Assert.NotEqual(market.FirstReferenceCode, market.LastReferenceCode);
+        Assert.Contains(register.Rows, r => r.ClassificationName == "ICE_PLANT" && r.ReferenceCode.StartsWith("SRC-") && r.Instrument == RevenueInstrumentType.OfficialReceipt);
         // Filters are honoured on the server.
         Assert.Equal(2, (await reports.GetRegisterAsync(Today.AddDays(-1), Today, w.Collector.Id, RevenueInstrumentType.CashTicket, null)).Value!.Rows.Count);
 
@@ -298,11 +299,14 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         var remit = new RemittanceWorkflow(read, new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id));
         Assert.True((await remit.RecordAsync(new RecordRemittanceRequest(Guid.NewGuid(), w.Collector.Id, Today, Today.AddDays(-1), Today,
             RevenueInstrumentType.CashTicket, null, 60m, "ACK", null))).IsSuccess);
-        var traced = (await reports.TraceAsync("CT-0001")).Value!;
-        Assert.Equal("Issued / consumed", traced.State);
-        Assert.Equal(30m, traced.Collection!.Total);
-        Assert.NotNull(traced.Collection.RemittanceId);
-        Assert.Equal("Ana Reyes", traced.Collection.CollectorName);
+        // The remittance that covers a collection is read from the collection itself, by its SRC (IA-062).
+        var ctRow = register.Rows.First(r => r.Instrument == RevenueInstrumentType.CashTicket);
+        var detail = (await reports.GetCollectionAsync(ctRow.CollectionId)).Value!;
+        Assert.Equal(ctRow.ReferenceCode, detail.ReferenceCode);
+        Assert.Equal(30m, detail.Total);
+        Assert.NotNull(detail.RemittanceId);
+        Assert.Equal("Ana Reyes", detail.CollectorName);
+        // A registered physical serial is no longer consumed by a collection: tracing it finds custody only.
         var unused = (await reports.TraceAsync("CT-0003")).Value!;
         Assert.Equal(("Assigned", "Ana Reyes"), (unused.State, unused.Custodian));
         Assert.Null(unused.Collection);
@@ -333,7 +337,8 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         // The web-posted OR and the Mobile-posted CT each appear once, under their own document; the converted ICE row's
         // legacy PaymentRecord projection and the still-legacy sources are not listed, so nothing is duplicated.
         Assert.Equal(2, activity.Count);
-        Assert.Equal(new[] { "CT-0001", "OR-0001" }, activity.Select(x => x.DocumentNumber).Order());
+        Assert.Equal(2, activity.Select(x => x.ReferenceCode).Distinct().Count());
+        Assert.All(activity, a => Assert.StartsWith("SRC-", a.ReferenceCode));
         Assert.Equal(280m, activity.Sum(x => x.TotalAmount));
         Assert.All(activity, a => Assert.Equal("Posted", a.CurrentDisposition));
     }

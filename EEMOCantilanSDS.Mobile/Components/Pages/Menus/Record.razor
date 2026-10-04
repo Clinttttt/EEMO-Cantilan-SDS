@@ -356,11 +356,11 @@
                                 }
                                 else if (op.LocalStatus == PendingLocalStatus.ReconciliationRequired)
                                 {
-                                    <div class="pending-item-msg">@(!string.IsNullOrWhiteSpace(op.ResultMessage) ? op.ResultMessage : "Physical Cash Ticket requires office reconciliation. Keep the ticket.")</div>
+                                    <div class="pending-item-msg">@(!string.IsNullOrWhiteSpace(op.ResultMessage) ? op.ResultMessage : "This collection needs office review before it is recorded.")</div>
                                 }
                                 else if (op.IssuedDocumentState == IssuedDocumentLocalState.SyncedAcknowledged)
                                 {
-                                    <div class="pending-item-msg">Server acknowledged this physical Cash Ticket. Its identity remains retained locally.</div>
+                                    <div class="pending-item-msg">@(string.IsNullOrWhiteSpace(op.ReferenceCode) ? "Collection recorded." : $"Collection recorded · {op.ReferenceCode}")</div>
                                 }
                                 else if (op.LocalStatus == PendingLocalStatus.Failed)
                                 {
@@ -376,7 +376,7 @@
                                 <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
                                 <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
                                 @if ((orphaned || op.LocalStatus == PendingLocalStatus.Rejected)
-                                    && op.AccountableDocumentId is null && op.IssuedDocumentState is null)
+                                    && op.AccountableDocumentId is null)
                                 {
                                     <button class="pending-discard" type="button" @onclick="() => DiscardPendingAsync(op.ClientOperationId)">Discard</button>
                                 }
@@ -778,7 +778,7 @@
 
     static string PendingStatusLabel(PendingOperation op) => op.LocalStatus switch
     {
-        PendingLocalStatus.Pending => "Pending",
+        PendingLocalStatus.Pending => "Waiting to sync",
         PendingLocalStatus.Failed => "Retry",
         PendingLocalStatus.Rejected => "Rejected",
         PendingLocalStatus.ReconciliationRequired => "Reconciliation",

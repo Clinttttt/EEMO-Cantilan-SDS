@@ -35,10 +35,10 @@ public sealed class CollectionsReportWorkflow(
             var summary = rows.GroupBy(x => x.ClassificationId).Select(g => new CollectionsSummaryLineDto(
                 g.Key, g.First().ClassificationName, g.Select(x => x.CollectionId).Distinct().Count(),
                 g.Sum(x => x.Amount), g.Sum(x => x.CorrectionEffect), g.Sum(x => x.Amount + x.CorrectionEffect),
-                g.Select(x => x.DocumentNumber).Where(x => x is not null).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault(),
-                g.Select(x => x.DocumentNumber).Where(x => x is not null).OrderBy(x => x, StringComparer.Ordinal).LastOrDefault()))
+                g.Select(x => x.ReferenceCode).OrderBy(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).FirstOrDefault(),
+                g.Select(x => x.ReferenceCode).OrderBy(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).LastOrDefault()))
                 .OrderBy(x => x.ClassificationName, StringComparer.OrdinalIgnoreCase).ToList();
-            var ordered = rows.OrderByDescending(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal).ToList();
+            var ordered = rows.OrderByDescending(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
             return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to,
                 ordered.Take(RowLimit).ToList(), summary, rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect),
                 rows.Sum(x => x.Amount + x.CorrectionEffect), ordered.Count > RowLimit));
@@ -60,7 +60,7 @@ public sealed class CollectionsReportWorkflow(
         if (from > to || to.DayNumber - from.DayNumber > 366)
             return Result<CollectionsRegisterDto>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
         var rows = (await LoadRowsAsync(tenantId, from, to, collectorId, null, null, ct)).Select(x => x.Row)
-            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal).ToList();
+            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
         return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to, rows.Take(RowLimit).ToList(), [],
             rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect), rows.Sum(x => x.Amount + x.CorrectionEffect), rows.Count > RowLimit));
     }
@@ -102,18 +102,22 @@ public sealed class CollectionsReportWorkflow(
     {
         var collections = db.Collections.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.BusinessDate >= from && x.BusinessDate <= to);
         if (collectorId is { } c) collections = collections.Where(x => x.CollectorId == c);
-        var list = await collections.Select(x => new { x.Id, x.BusinessDate, x.PayerName, x.CollectorId }).ToListAsync(ct);
+        var list = await collections.Select(x => new { x.Id, x.BusinessDate, x.PayerName, x.CollectorId, x.ReferenceCode }).ToListAsync(ct);
         if (list.Count == 0) return [];
         var ids = list.Select(x => x.Id).ToArray();
         var lines = await db.CollectionLines.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.CollectionId))
-            .Select(x => new { x.Id, x.CollectionId, x.RevenueClassificationId, x.Amount, x.SourceKind, x.SourceId, x.CalculationSnapshot })
+            .Select(x => new { x.Id, x.CollectionId, x.RevenueClassificationId, x.RevenueClassificationPolicyId, x.Amount, x.SourceKind, x.SourceId, x.CalculationSnapshot })
             .ToListAsync(ct);
         var lineIds = lines.Select(x => x.Id).ToArray();
         var documents = (await db.AccountableDocuments.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.CollectionId != null && ids.Contains(x.CollectionId!.Value))
             .Select(x => new { CollectionId = x.CollectionId!.Value, x.DocumentNumber, x.InstrumentType }).ToListAsync(ct))
             .GroupBy(x => x.CollectionId).ToDictionary(g => g.Key, g => g.First());
+        var policyIds = lines.Select(x => x.RevenueClassificationPolicyId).Distinct().ToArray();
+        var policyInstruments = await db.RevenueClassificationPolicies.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && policyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.PermittedInstrumentType, ct);
         var effects = (await db.CollectionCorrectionLines.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && lineIds.Contains(x.OriginalCollectionLineId))
             .Select(x => new { x.OriginalCollectionLineId, x.FinancialEffectAmount }).ToListAsync(ct))
@@ -128,9 +132,10 @@ public sealed class CollectionsReportWorkflow(
             if (classificationId is { } wanted && line.RevenueClassificationId != wanted) continue;
             var collection = list.Single(x => x.Id == line.CollectionId);
             documents.TryGetValue(collection.Id, out var document);
-            if (instrument is { } i && document?.InstrumentType != i) continue;
+            var rowInstrument = document?.InstrumentType ?? policyInstruments.GetValueOrDefault(line.RevenueClassificationPolicyId);
+            if (instrument is { } i && rowInstrument != i) continue;
             var effect = effects.GetValueOrDefault(line.Id);
-            rows.Add((line.Id, new CollectionRegisterRowDto(collection.Id, collection.BusinessDate, document?.DocumentNumber, document?.InstrumentType,
+            rows.Add((line.Id, new CollectionRegisterRowDto(collection.Id, collection.BusinessDate, collection.ReferenceCode, document?.DocumentNumber, rowInstrument,
                 collection.PayerName, collection.CollectorId, collection.CollectorId is { } cid ? collectors.GetValueOrDefault(cid) : null,
                 line.RevenueClassificationId, names.GetValueOrDefault(line.RevenueClassificationId, "Unclassified"),
                 labels.GetValueOrDefault(line.Id, "—"), line.Amount, effect,
@@ -168,7 +173,7 @@ public sealed class CollectionsReportWorkflow(
                 .Select(x => $"{x.label}: ₱{x.a.Amount.ToString("N2", CultureInfo.InvariantCulture)}").ToList();
             return new CollectionDocumentLineDto(row.Row.ClassificationName, row.Row.SourceLabel, row.Row.Amount, row.Row.CorrectionEffect, details);
         }).ToList();
-        return new CollectionDocumentDto(collection.Id, document?.DocumentNumber, document?.InstrumentType,
+        return new CollectionDocumentDto(collection.Id, collection.ReferenceCode, document?.DocumentNumber, document?.InstrumentType ?? rows.Select(x => x.Row.Instrument).FirstOrDefault(x => x is not null),
             document is null ? null : StateLabel(document.State), collection.BusinessDate, collection.RecordedAtUtc,
             collection.PayerName, (rows.Count > 0 ? rows[0].Row.CollectorName : null), collection.TotalAmount,
             rows.Sum(x => x.Row.CorrectionEffect), lines, coverage?.Id, coverage?.Status.ToString());

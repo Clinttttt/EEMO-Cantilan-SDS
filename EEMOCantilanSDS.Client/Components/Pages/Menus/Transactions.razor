@@ -61,6 +61,10 @@
             <div class="txn-source">
                 <FhSelect Caption="Source" Value="@_source" Options="@SourceOptions" ValueChanged="@(v => _source = v)" />
             </div>
+            <div class="txn-search">
+                <input type="search" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
+                       @bind="_search" @bind:event="oninput" />
+            </div>
         </div>
 
         <div class="txn-nav">
@@ -112,7 +116,7 @@
                         <th>Payer</th>
                         <th>Details</th>
                         <th class="txn-num">Amount</th>
-                        <th>Document</th>
+                        <th>SRC</th>
                         <th>Status</th>
                         <th>Recorded by</th>
                     </tr>
@@ -164,7 +168,7 @@
                             <th scope="col">Payer</th>
                             <th scope="col">Details</th>
                             <th scope="col" class="txn-num">Amount</th>
-                            <th scope="col">Document</th>
+                            <th scope="col">SRC</th>
                             <th scope="col">Status</th>
                             <th scope="col">Recorded by</th>
                         </tr>
@@ -196,7 +200,7 @@
                                         @if (expandable)
                                         {
                                             <button type="button" class="txn-expand" aria-expanded="@(expanded ? "true" : "false")"
-                                                    aria-label="@(expanded ? "Hide" : "Show") details for @(e.DocumentNumber ?? SourceLabel(e))"
+                                                    aria-label="@(expanded ? "Hide" : "Show") details for @(e.ReferenceCode ?? e.DocumentNumber ?? SourceLabel(e))"
                                                     @onclick="() => Toggle(e.EventKey)">
                                                 <svg class="txn-chev @(expanded ? "open" : "")" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
                                             </button>
@@ -216,11 +220,28 @@
                                     }
                                 </td>
                                 <td class="txn-or">
-                                    @if (e.InstrumentType is { } instrument)
+                                    @if (!string.IsNullOrWhiteSpace(e.ReferenceCode))
                                     {
-                                        <InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />
+                                        <span class="txn-src">@e.ReferenceCode</span>
                                     }
-                                    @(string.IsNullOrWhiteSpace(e.DocumentNumber) ? "—" : e.DocumentNumber)
+                                    else
+                                    {
+                                        <span class="txn-src txn-src-none" title="Recorded before StallTrack reference codes">Legacy</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(e.DocumentNumber))
+                                    {
+                                        <span class="txn-physical">
+                                            @if (e.InstrumentType is { } instrument)
+                                            {
+                                                <InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />
+                                            }
+                                            @e.DocumentNumber
+                                        </span>
+                                    }
+                                    @if (e.ReplacementReferenceCodes.Count > 0)
+                                    {
+                                        <span class="txn-physical">Replaced by @string.Join(", ", e.ReplacementReferenceCodes)</span>
+                                    }
                                 </td>
                                 <td><span class="txn-status @StatusClass(e)">@StatusText(e)</span></td>
                                 <td class="txn-recorder">@e.RecordedBy</td>
@@ -306,14 +327,26 @@
         (_feed?.Events ?? []).Where(e => _scope == "all" || ScopeOf(e) == _scope).ToList();
 
     private List<CollectionActivityEventDto> Visible =>
-        InScope.Where(e => _source == AllSources || SourceLabel(e) == _source).ToList();
+        InScope.Where(e => _source == AllSources || SourceLabel(e) == _source).Where(MatchesSearch).ToList();
+
+    private string _search = string.Empty;
+
+    // Case-insensitive over the collection reference (SRC), any physical document recorded with it, and the payer.
+    private bool MatchesSearch(CollectionActivityEventDto e)
+    {
+        var q = _search.Trim();
+        return q.Length == 0
+            || (e.ReferenceCode?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (e.DocumentNumber?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (e.PayerName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
 
     private IReadOnlyList<(string Value, string Label)> SourceOptions =>
         new[] { (AllSources, "All sources") }
             .Concat(InScope.Select(SourceLabel).Distinct().Order(StringComparer.CurrentCulture).Select(n => (n, n)))
             .ToList();
 
-    private bool IsFiltered => _scope != "all" || _source != AllSources;
+    private bool IsFiltered => _scope != "all" || _source != AllSources || !string.IsNullOrWhiteSpace(_search);
 
     private string ScopeLabel => _source != AllSources ? _source
         : _scope == "all" ? "All sources" : Scopes.First(s => s.Key == _scope).Label;

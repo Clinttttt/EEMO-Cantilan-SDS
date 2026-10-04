@@ -65,7 +65,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         Definition(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental", state, modeAware: true),
     ];
 
-    private static GovernedServiceActivityDto Row(decimal amount, string document = "CT000010", GovernedServiceMode? mode = null,
+    private static GovernedServiceActivityDto Row(decimal amount, string document = "SRC-2026-000010", GovernedServiceMode? mode = null,
         RevenueInstrumentType instrument = RevenueInstrumentType.CashTicket) => new(
         Guid.NewGuid(), new DateOnly(2026, 9, 30), DateTime.UtcNow, document, instrument, mode, "Maria Santos", "Stall 4",
         amount, "Ana Reyes", "Posted");
@@ -139,11 +139,11 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Vegetable_ShowsTheInstrumentResolvedByEachMode_AndDailyRowsShowTheirMode()
+    public void Vegetable_ShowsTheInstrumentPolicyResolvedByEachMode_AndRowsShowTheirSrcAndMode()
     {
         Serve(All(GovernedServiceSetupState.Active),
-            [Row(300m, "OR000005", GovernedServiceMode.WholePayment, RevenueInstrumentType.OfficialReceipt),
-             Row(20m, "CT000006", GovernedServiceMode.DailyTransaction)]);
+            [Row(300m, "SRC-2026-000005", GovernedServiceMode.WholePayment, RevenueInstrumentType.OfficialReceipt),
+             Row(20m, "SRC-2026-000006", GovernedServiceMode.DailyTransaction)]);
 
         var cut = RenderComponent<VegetableFruit>();
 
@@ -155,8 +155,10 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             Assert.Contains("Daily transaction", setup);
             Assert.Contains("Cash Ticket", setup);
             var rows = cut.FindAll("tbody tr");
-            Assert.Contains("Official Receipt · Whole payment", rows[0].TextContent);
-            Assert.Contains("Cash Ticket · Daily transaction", rows[1].TextContent);
+            Assert.Contains("SRC-2026-000005", rows[0].TextContent);
+            Assert.Contains("Whole payment", rows[0].TextContent);
+            Assert.Contains("SRC-2026-000006", rows[1].TextContent);
+            Assert.Contains("Daily transaction", rows[1].TextContent);
         }, Timeout);
     }
 

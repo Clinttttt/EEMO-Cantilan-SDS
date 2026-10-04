@@ -30,8 +30,6 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         JSInterop.Mode = JSRuntimeMode.Loose;
-        _collections.Setup(x => x.GetAvailableReceiptsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success([]));
         _collections.Setup(x => x.GetCollectionActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(Result<IReadOnlyList<EcfCollectionActivityDto>>.Success([]));
     }
@@ -102,7 +100,7 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
             Assert.NotNull(sent);
             Assert.Equal(("LATE_PAYMENT", 50m, "Stall 4 · August rent", 3L),
                 (sent!.PenaltyCode, sent.ProposedAmount, sent.Origin, sent.ExpectedRevision));
-            Assert.Contains("Penalty added to the same Official Receipt", cut.Markup);
+            Assert.Contains("Penalty added to this collection", cut.Markup);
             Assert.Contains("Late payment penalty", cut.Markup);
             Assert.Contains("PHP 550.00", cut.Markup);
         }, Timeout);

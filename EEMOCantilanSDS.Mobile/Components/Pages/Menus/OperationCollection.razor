@@ -14,9 +14,9 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 @* Focused field collection for a governed configurable service (Market Fees, Landing / Berthing, Transfer Large Cattle,
-   Vegetable / Fruit). The collector records transaction facts only: the amount rule, classification and OR/CT
-   instrument come from the server's approved setup, and the physical document must be one assigned to this collector.
-   The issue is durably queued (with the document's identity) BEFORE it is reported as captured, exactly like WCF. *@
+   Vegetable / Fruit). The collector records transaction facts only: the amount rule, classification and instrument
+   policy come from the server's approved setup. No physical serial is chosen or typed: the collection is durably queued
+   BEFORE it is reported as captured, and the server returns its StallTrack Reference Code (SRC) when it syncs. *@
 <div class="page-shell">
     <div class="header">
         <div class="header-eyebrow">Operation</div>
@@ -66,8 +66,6 @@
             else
             {
                 var terms = Variant.Terms;
-                var instrument = InstrumentName(terms.Instrument);
-                var shortCode = terms.Instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT";
 
                 @* 1 — What the office approved: system-provided, never edited here. *@
                 <section class="op-facts" aria-label="Approved terms">
@@ -82,7 +80,6 @@
                         <span class="op-facts-amount">@AmountHeadline(terms)</span>
                     </div>
                     <dl class="op-facts-grid">
-                        <div><dt>Receipt</dt><dd><span class="op-chip">@shortCode</span> @instrument</dd></div>
                         <div><dt>Business date</dt><dd>@Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
                         @if (_mode is { } activeMode)
                         {
@@ -93,18 +90,7 @@
 
                 @if (Sync.HasStorageFault)
                 {
-                    <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not issue a document until it is healthy.</div>
-                }
-                else if (NextDocument is null)
-                {
-                    @* No assigned form: nothing to collect with, and nothing to pick from. *@
-                    <section class="op-form op-form-empty" role="status" aria-label="@($"No assigned {instrument}")">
-                        <span class="op-form-badge warn">!</span>
-                        <div>
-                            <div class="op-form-title">No assigned @instrument available</div>
-                            <p class="op-form-note">Ask the office to assign @(shortCode == "CT" ? "a Cash Ticket" : "an Official Receipt") range before collecting this operation.</p>
-                        </div>
-                    </section>
+                    <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not record collections until it is healthy.</div>
                 }
                 else
                 {
@@ -194,51 +180,10 @@
                         </label>
                     </section>
 
-                    @* 3 — The accountable form: resolved for the collector, not picked from a list. *@
-                    <section class="op-form" aria-labelledby="op-form-title">
-                        <div class="op-form-head">
-                            <span class="op-form-badge">@shortCode</span>
-                            <div class="op-form-headtext">
-                                <h2 id="op-form-title" class="op-form-title">Next assigned @instrument</h2>
-                                <span class="op-form-ready">Ready · assigned to you</span>
-                            </div>
-                        </div>
-                        <div class="op-form-serial" aria-label="@($"{instrument} number")">@NextDocument.DocumentNumber</div>
-                        <p class="op-form-note">This @(shortCode == "CT" ? "ticket" : "receipt") will be issued when you record the collection.</p>
-                        <dl class="op-form-custody">
-                            <div><dt>Remaining assigned</dt><dd>@UsableDocuments.Count</dd></div>
-                            <div><dt>Range on hand</dt><dd>@NextAccountableDocument.RangeLabel(UsableDocuments)</dd></div>
-                        </dl>
-                        @if (UsableDocuments.Count > 1)
-                        {
-                            <button type="button" class="op-form-change" aria-expanded="@(_showDocuments ? "true" : "false")"
-                                    @onclick="() => _showDocuments = !_showDocuments">
-                                @(_showDocuments ? "Hide assigned forms" : $"Change {(shortCode == "CT" ? "ticket" : "receipt")}")
-                            </button>
-                            @if (_showDocuments)
-                            {
-                                <ul class="op-form-list" role="listbox" aria-label="@($"Assigned {instrument}s")">
-                                    @foreach (var document in UsableDocuments)
-                                    {
-                                        var isNext = document.DocumentId == NextDocument.DocumentId;
-                                        <li>
-                                            <button type="button" role="option" aria-selected="@(isNext ? "true" : "false")"
-                                                    class="op-form-option @(isNext ? "selected" : "")"
-                                                    @onclick="() => ChooseDocument(document.DocumentId)">
-                                                <span>@document.DocumentNumber</span>
-                                                @if (isNext) { <span class="op-form-option-tag">Will issue</span> }
-                                            </button>
-                                        </li>
-                                    }
-                                </ul>
-                            }
-                        }
-                    </section>
-
-                    @* 4 — One action. *@
+                    @* 3 — One action. *@
                     <div class="op-action">
                         <button class="op-cta" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
-                            @(_saving ? "Saving…" : $"Record and issue {instrument}")
+                            @(_saving ? "Saving…" : "Record collection")
                         </button>
                         @if (!CanCapture && !_saving && DisabledReason(terms) is { } why)
                         {
@@ -269,7 +214,7 @@
                     {
                         <li class="op-record-row">
                             <div class="op-record-main">
-                                <span class="op-record-doc">@record.DocumentNumber</span>
+                                <span class="op-record-doc">@record.ReferenceCode</span>
                                 <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
                             </div>
                             <div class="op-record-side">
@@ -289,16 +234,15 @@
     [Parameter] public string Code { get; set; } = string.Empty;
 
     private sealed record ModeOption(GovernedServiceMode? Mode, GovernedServiceTermsDto? Terms,
-        IReadOnlyList<CashTicketDocumentDto> Documents, string Note)
+        string Note)
     {
-        public bool Available => Terms is not null && Documents.Count > 0;
+        public bool Available => Terms is not null;
     }
 
     private GovernedServiceCatalog.Entry? _entry;
     private List<ModeOption> _variants = [];
     private GovernedServiceMode? _mode;
     private List<GovernedServiceRecordDto> _records = [];
-    private HashSet<Guid> _locallyIssued = [];
     private bool _loading = true;
     private bool _recordsFailed;
     private bool _saving;
@@ -307,7 +251,6 @@
     private decimal _amount;
     private string? _payer;
     private string? _reference;
-    private Guid? _documentId;
     private string _vehicleClass = string.Empty;
     private Guid? _feeOption;
 
@@ -327,24 +270,6 @@
     private string Subtitle => _entry is { ModeAware: true } ? "Choose whole payment or daily transaction" : "Field collection";
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
     private ModeOption? Variant => _variants.FirstOrDefault(v => v.Mode == _mode);
-
-    // The assigned forms still usable on this device, in serial order: anything already issued here (including an issue
-    // waiting in the offline queue) is excluded, so it can never be offered twice.
-    private IReadOnlyList<CashTicketDocumentDto> UsableDocuments =>
-        NextAccountableDocument.Usable(Variant?.Documents ?? [], _locallyIssued);
-
-    // The form to issue: the next in serial order, unless the collector deliberately chose another assigned one.
-    private CashTicketDocumentDto? NextDocument => NextAccountableDocument.Resolve(UsableDocuments, _documentId);
-
-    private CashTicketDocumentDto? SelectedDocument => NextDocument;
-
-    private bool _showDocuments;
-
-    private void ChooseDocument(Guid documentId)
-    {
-        _documentId = documentId;
-        _showDocuments = false;
-    }
 
     // Why the primary action is unavailable, in the collector's terms.
     private string? DisabledReason(GovernedServiceTermsDto terms) =>
@@ -381,9 +306,9 @@
         : Variant?.Terms is { Basis: GovernedServiceBasis.FixedAmount } fixedTerms
         ? fixedTerms.FixedAmount ?? 0m : _amount;
 
-    // The server revalidates every one of these; they only keep an obviously wrong entry from becoming an issued document.
+    // The server revalidates every one of these; they only keep an obviously wrong entry from being queued.
     private bool CanCapture => !_saving && !Sync.HasStorageFault && Variant is { Available: true, Terms: { } t }
-        && SelectedDocument is not null && ExpectedAmount > 0m
+        && ExpectedAmount > 0m
         && decimal.Round(ExpectedAmount, 2, MidpointRounding.ToZero) == ExpectedAmount
         && (t.Basis != GovernedServiceBasis.DirectApprovedAmount || t.MaximumAmount is not { } ceiling || ExpectedAmount <= ceiling)
         && (t.Basis != GovernedServiceBasis.VehicleClassRate || SelectedVehicleClass is not null)
@@ -446,26 +371,10 @@
             foreach (var mode in modes)
             {
                 var terms = await MobileApi.GetOperationTermsAsync(Code, mode);
-                var documents = terms.IsSuccess
-                    ? await MobileApi.GetOperationDocumentsAsync(Code, mode)
-                    : null;
-                var list = documents is { IsSuccess: true, Value: not null } ? documents.Value : [];
-                _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null, list,
-                    terms.IsSuccess
-                        ? list.Count == 0
-                            ? $"You hold no assigned {InstrumentName(terms.Value!.Instrument)}."
-                            : $"{InstrumentName(terms.Value!.Instrument)} · {list.Count} held"
-                        : terms.Error ?? "Not available today."));
+                _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null,
+                    terms.IsSuccess ? AmountHeadline(terms.Value!) : terms.Error ?? "Not available today."));
             }
             _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
-
-            _locallyIssued.Clear();
-            foreach (var queued in await Sync.GetAllAsync())
-                if (queued.Kind == OfflineOperationKind.GovernedService && queued.AccountableDocumentId is { } id)
-                    _locallyIssued.Add(id);
-            if (_documentId is { } selected && !UsableDocuments.Any(d => d.DocumentId == selected))
-                _documentId = null;
-
             await LoadRecordsAsync();
         }
         catch (HttpRequestException)
@@ -489,7 +398,6 @@
     private void SelectMode(GovernedServiceMode? mode)
     {
         _mode = mode;
-        _documentId = null;
         _amount = 0m;
         _vehicleClass = string.Empty;
         _feeOption = null;
@@ -498,11 +406,11 @@
 
     private async Task CaptureAsync()
     {
-        if (!CanCapture || Variant?.Terms is not { } terms || SelectedDocument is not { } document)
+        if (!CanCapture || Variant?.Terms is not { } terms)
         {
             _message = Sync.HasStorageFault
-                ? "Local queue storage is not healthy. Do not issue a document."
-                : "Check the amount and choose one of your assigned documents.";
+                ? "Local queue storage is not healthy. Do not record collections until it is fixed."
+                : "Check the amount and the details above.";
             return;
         }
 
@@ -523,42 +431,37 @@
             VehicleClassCode = terms.Basis == GovernedServiceBasis.VehicleClassRate ? _vehicleClass : null,
             FeeOptionId = terms.Basis == GovernedServiceBasis.ApprovedFeeOption ? SelectedFeeOption?.Id : null,
             ReceivedAmount = amount,
-            AccountableDocumentId = document.DocumentId,
-            DocumentNumber = document.DocumentNumber,
-            IssuedAtUtc = DateTime.UtcNow,
             FacilityLabel = Title,
             Title = string.IsNullOrWhiteSpace(_payer) ? Title : _payer!.Trim(),
-            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")}{(SelectedVehicleClass is { } vc ? " · " + vc.Name : "")}{(SelectedFeeOption is { } fo ? " · " + fo.Name : "")} · {InstrumentName(terms.Instrument)} {document.DocumentNumber}",
+            Detail = $"{Title}{(_mode is { } m ? " · " + ModeLabel(m) : "")}{(SelectedVehicleClass is { } vc ? " · " + vc.Name : "")}{(SelectedFeeOption is { } fo ? " · " + fo.Name : "")}",
             Amount = amount
         };
 
         try
         {
-            // The durable local write binds the physical document to its immutable operation before this screen
-            // reports the issue as captured or starts synchronization.
+            // The durable local write binds the collection to its immutable operation before this screen reports it as
+            // captured or starts synchronization. The device never invents a reference code: the server returns the SRC.
             await Sync.EnqueueIssuedDocumentAsync(operation);
-            _locallyIssued.Add(document.DocumentId);
-            _message = $"{InstrumentName(terms.Instrument)} issue saved on this device. The document is unavailable for reuse.";
+            _message = "Saved on this device. Waiting to sync.";
             if (Sync.IsOnline)
                 await Sync.SyncNowAsync(force: true);
             var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
             if (result?.LocalStatus == PendingLocalStatus.Synced)
-                _message = $"{InstrumentName(terms.Instrument)} acknowledged by the server. It remains consumed.";
-            else if (result?.LocalStatus == PendingLocalStatus.ReconciliationRequired)
-                _message = $"RECONCILIATION REQUIRED. Keep this physical {InstrumentName(terms.Instrument)}; office review is required.";
+                _message = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                _message = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
             else if (result is not null)
-                _message = $"{InstrumentName(terms.Instrument)} issue is durably queued and awaiting synchronization.";
+                _message = "Saved on this device. Waiting to sync.";
             _amount = 0m;
             _vehicleClass = string.Empty;
             _feeOption = null;
-            _documentId = null;
             _payer = null;
             _reference = null;
             await LoadAsync();
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
-            _message = "The physical document and operation could not be safely saved. Do not issue the document; resolve device storage attention first.";
+            _message = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
         }
         finally
         {
@@ -586,8 +489,6 @@
     private static string ModeLabel(GovernedServiceMode? mode) =>
         mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
 
-    private static string InstrumentName(RevenueInstrumentType instrument) =>
-        instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
 
     private static string AmountRule(GovernedServiceTermsDto terms) => terms.Basis switch
     {
@@ -601,7 +502,7 @@
     {
         CollectorOperationCapabilityStatus.AssignedButInactive => "Your authorization is not active. Contact the office.",
         CollectorOperationCapabilityStatus.NeedsPolicy => "The office has not finished setting this operation up.",
-        CollectorOperationCapabilityStatus.NeedsDocument => "You hold no assigned document for this operation. Request one from the office.",
+        CollectorOperationCapabilityStatus.NeedsDocument => "This operation is not ready for collection. Contact the office.",
         CollectorOperationCapabilityStatus.Unsupported => "This operation is not available on Collector Mobile yet.",
         _ => "This operation is not collectible right now."
     };

@@ -120,7 +120,7 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
             DateTime.UtcNow.AddMinutes(-1), StallId: w.StallId, BillingYear: w.Period.Year, BillingMonth: w.Period.Month);
 
     [SkippableFact]
-    public async Task EnablingIsOneServerCheckedStep_Idempotent_AndBlockedOnlyByRealBlockers()
+    public async Task EnablingIsOneServerCheckedStep_Idempotent_AndNeverBlockedByCashTicketStock()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -128,10 +128,9 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         await using (var ctx = db.CreateContext(noTickets.TenantId))
         {
             var status = (await Office(ctx, noTickets).GetStatusAsync()).Value!;
-            var blocker = Assert.Single(status.Blockers);
-            Assert.Equal("CASH_TICKETS", blocker.Code);
-            Assert.Contains("Bobby Mercado", blocker.Detail);
-            Assert.False((await Office(ctx, noTickets).EnableAsync()).IsSuccess);
+            // IA-062: Cash Ticket stock is never a readiness blocker, so a tenant holding no tickets is still ready.
+            Assert.True(status.ReadyToEnable);
+            Assert.Empty(status.Blockers);
             Assert.Empty(await ctx.CollectorOperationActivations.ToListAsync());
         }
 
@@ -154,7 +153,7 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task ADirectMobileAmount_PostsOnceAsWcf_ConsumesTheTicket_AndSettlesTheNewSource()
+    public async Task ADirectMobileAmount_PostsOnceAsWcf_NeedsNoTicket_AndSettlesTheNewSource()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -178,7 +177,8 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         var collection = await ctx.Collections.Include(x => x.Lines).AsNoTracking().SingleAsync();
         Assert.Equal((40m, w.CollectorId), (collection.TotalAmount, collection.CollectorId!.Value));
         Assert.Equal(CollectionSourcePart.Water, Assert.Single(collection.Lines).SourcePart);
-        Assert.Equal(AccountableDocumentState.Consumed, (await ctx.AccountableDocuments.AsNoTracking().SingleAsync(x => x.Id == ticket.Id)).State);
+        Assert.Equal(AccountableDocumentState.Assigned, (await ctx.AccountableDocuments.AsNoTracking().SingleAsync(x => x.Id == ticket.Id)).State);   // no ticket is consumed (IA-062)
+        Assert.StartsWith("SRC-", collection.ReferenceCode);
         var cutover = await ctx.CollectionSettlementCutovers.AsNoTracking().SingleAsync();
         Assert.Contains("CollectorDirectEntry", cutover.ReconciliationEvidence);
         Assert.Equal(0m, cutover.OpeningLegacySettledAmount);
@@ -209,13 +209,13 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         Assert.True((await Office(ctx, w).EnableAsync()).IsSuccess);
         Assert.True((await Wcf(ctx, w, "Admin").EstablishObligationAsync(new(w.StallId, w.Period.Year, w.Period.Month, 50m))).IsSuccess);
 
-        // A direct entry against a prepared source is refused: the ₱50 stays, nothing posts, the issued ticket goes to review.
+        // A direct entry against a prepared source is refused: the ₱50 stays and nothing posts.
         var conflicting = await Wcf(ctx, w, "Collector").PostMobileAsync(Direct(w, w.Tickets[1], 40m));
         Assert.False(conflicting.IsSuccess);
-        Assert.StartsWith("RECONCILIATION_REQUIRED", conflicting.Error);
+        Assert.DoesNotContain("RECONCILIATION_REQUIRED", conflicting.Error);
         Assert.Equal(50m, (await ctx.UtilityBills.AsNoTracking().SingleAsync()).WaterCharge);
         Assert.Empty(await ctx.Collections.AsNoTracking().ToListAsync());
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired,
+        Assert.Equal(AccountableDocumentState.Assigned,
             (await ctx.AccountableDocuments.AsNoTracking().SingleAsync(x => x.Id == w.Tickets[1].Id)).State);
 
         // Collected against the prepared amount: it becomes canonical at this first collection.
@@ -274,10 +274,9 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         var notEnabled = await Wcf(ctx, w, "Collector").PostMobileAsync(Direct(w, w.Tickets[1], 40m));
         Assert.False(notEnabled.IsSuccess);
         Assert.Empty(await ctx.Collections.AsNoTracking().ToListAsync());
-        // That issued ticket now awaits office review, and enabling waits until it is resolved: a real, actionable blocker.
+        // A refused collection is a durable rejection, not an office-review item, so it blocks nothing.
         var blocked = (await Office(ctx, w).GetStatusAsync()).Value!;
-        Assert.Equal(["CT_REVIEW", "POSTING"], blocked.Blockers.Select(b => b.Code).Order());
-        Assert.False((await Office(ctx, w).EnableAsync()).IsSuccess);
+        Assert.Empty(blocked.Blockers);
 
         // Historical legacy money is never converted, even once WCF is enabled (a fresh tenant with the same history).
         var period2 = new DateOnly(Today.Year, Today.Month, 1);

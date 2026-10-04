@@ -133,8 +133,8 @@ public sealed class MobileSyncService
     }
 
     /// <summary>
-    /// Durably records a physically issued Cash Ticket and its exact WCF intent in the same queue file.
-    /// Failure is surfaced to the caller, which must not report a safe capture or offer another ticket.
+    /// Durably queues one collection and its exact intent. No serial or reference code is invented on the device: the server returns the SRC when it syncs.
+    /// Failure is surfaced to the caller, which must not report a safe capture.
     /// </summary>
     public async Task EnqueueIssuedDocumentAsync(PendingOperation operation)
     {
@@ -143,7 +143,7 @@ public sealed class MobileSyncService
         operation.ResultMessage = null;
         operation.OwnerKey = _collector.CollectorKey;
         if (string.IsNullOrWhiteSpace(operation.OwnerKey))
-            throw new InvalidOperationException("A signed-in collector is required to issue a Cash Ticket.");
+            throw new InvalidOperationException("A signed-in collector is required to record a collection.");
         await _store.AddIssuedDocumentOperationAsync(operation);
         await RefreshCountAsync();
         NotifyChanged();
@@ -156,7 +156,8 @@ public sealed class MobileSyncService
     {
         var existing = (await _store.GetAllAsync()).FirstOrDefault(o => o.ClientOperationId == clientOperationId);
         if (existing is null) return false;
-        if (existing.AccountableDocumentId is not null || existing.IssuedDocumentState is not null)
+        if (existing.AccountableDocumentId is not null || existing.LocalStatus == PendingLocalStatus.Synced
+            || (existing.IssuedDocumentState is not null && existing.LocalStatus != PendingLocalStatus.Rejected))
             return false;
         await _store.RemoveAsync(clientOperationId);
         await RefreshCountAsync();
@@ -275,7 +276,9 @@ public sealed class MobileSyncService
                     {
                         op.LocalStatus = PendingLocalStatus.Synced;
                         op.IssuedDocumentState = IssuedDocumentLocalState.SyncedAcknowledged;
-                        op.ResultMessage = itemResult.Message ?? "Cash Ticket acknowledged by the server.";
+                        op.ReferenceCode = itemResult.ReferenceCode;
+                        op.ServerCollectionId = itemResult.CollectionId;
+                        op.ResultMessage = itemResult.Message ?? (itemResult.ReferenceCode is null ? "Collection recorded." : $"Collection recorded · {itemResult.ReferenceCode}");
                         await _store.UpdateAsync(op);
                     }
                     else
@@ -288,7 +291,7 @@ public sealed class MobileSyncService
                 case SyncResultStatus.ReconciliationRequired:
                     op.LocalStatus = PendingLocalStatus.ReconciliationRequired;
                     op.IssuedDocumentState = IssuedDocumentLocalState.ReconciliationRequired;
-                    op.ResultMessage = itemResult.Message ?? "Physical Cash Ticket requires office reconciliation.";
+                    op.ResultMessage = itemResult.Message ?? "This collection requires office review.";
                     await _store.UpdateAsync(op);
                     rejected++;
                     break;

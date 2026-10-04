@@ -94,7 +94,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Date</th>
-                            <th scope="col">Document</th>
+                            <th scope="col">SRC</th>
                             <th scope="col">Instrument</th>
                             @if (ModeAware)
                             {
@@ -113,11 +113,11 @@
                         }
                         else
                         {
-                            @foreach (var row in _activity.OrderBy(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal))
+                            @foreach (var row in _activity.OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal))
                             {
                                 <tr>
                                     <td>@row.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
-                                    <td>@row.DocumentNumber</td>
+                                    <td>@row.ReferenceCode</td>
                                     <td>@InstrumentShort(row.Instrument)</td>
                                     @if (ModeAware)
                                     {
@@ -231,10 +231,10 @@
             Csv("Instrument", InstrumentFact),
             Csv("Date prepared", PhilippineTime.Now.ToString("yyyy-MM-dd")),
             string.Empty,
-            Csv("Date", "Document", "Instrument", "Mode", "Payer", "Reference", "Collector", "Amount", "Status"),
+            Csv("Date", "SRC", "Instrument", "Mode", "Payer", "Reference", "Collector", "Amount", "Status"),
         };
         rows.AddRange((_activity ?? []).OrderBy(x => x.BusinessDate).Select(x => Csv(
-            x.BusinessDate.ToString("yyyy-MM-dd"), x.DocumentNumber, InstrumentShort(x.Instrument), ModeLabel(x.Mode),
+            x.BusinessDate.ToString("yyyy-MM-dd"), x.ReferenceCode, InstrumentShort(x.Instrument), ModeLabel(x.Mode),
             x.PayerName ?? "Walk-up", x.Reference ?? "", x.CollectorName ?? "Office",
             x.Amount.ToString("0.00", CultureInfo.InvariantCulture), x.Disposition)));
         return string.Join("\r\n", rows);

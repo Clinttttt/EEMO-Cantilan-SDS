@@ -57,7 +57,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
                 entry.Facility,
                 cell.Total, cell.Legacy, cell.Canonical,
                 countable ? mine.Select(f => f.CollectionId).Distinct().Count() : null,
-                countable ? mine.Where(f => f.DocumentId is not null).Select(f => f.DocumentId).Distinct().Count() : null,
+                null, // A physical document count is no longer derivable: collections are identified by SRC (IA-062).
                 countable ? mine.Where(f => f.CollectorId is not null).Select(f => f.CollectorId).Distinct().Count() : null,
                 RevenueSourceCatalog.StatusFor(entry.Model, cell.Total, awaiting),
                 awaiting));
@@ -92,10 +92,6 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
         if (lines.Count == 0) return [];
 
         var collectionIds = lines.Select(x => x.CollectionId).Distinct().ToArray();
-        var documents = (await db.AccountableDocuments.AsNoTracking()
-                .Where(x => x.MunicipalityId == tenantId && x.CollectionId != null && collectionIds.Contains(x.CollectionId!.Value))
-                .Select(x => new { CollectionId = x.CollectionId!.Value, x.Id }).ToListAsync(ct))
-            .GroupBy(x => x.CollectionId).ToDictionary(g => g.Key, g => (Guid?)g.First().Id);
 
         // Stall rent is placed by the facility of the rent source, as the statement places it.
         var rentLineIds = lines.Where(x => codes.GetValueOrDefault(x.RevenueClassificationId) == RevenueClassificationCodes.PermanentStallRent)
@@ -119,7 +115,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
             var code = codes.GetValueOrDefault(line.RevenueClassificationId, "UNKNOWN_CLASSIFICATION");
             var facility = code == RevenueClassificationCodes.PermanentStallRent ? rentFacility.GetValueOrDefault(line.Id) : null;
             return new CanonicalFact(OfficialMonthlyIncomeStructure.RowKeyFor(code, facility), line.CollectionId,
-                documents.GetValueOrDefault(line.CollectionId), line.CollectorId);
+                null, line.CollectorId);
         }).ToList();
     }
 

@@ -75,7 +75,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var posted = await workflow.PostMobileAsync(request);
         Assert.True(posted.IsSuccess, posted.Error);
         Assert.Equal(5m, posted.Value!.Amount);
-        Assert.Equal(seed.CtNumber, posted.Value.DocumentNumber);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", posted.Value.ReferenceCode);
 
         var collection = await context.Collections.Include(x => x.Lines)
             .ThenInclude(x => x.Allocations).SingleAsync();
@@ -97,16 +97,16 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(12m, bill.WaterAmountPaid);
         Assert.Equal(PaymentStatus.Partial, bill.WaterStatus);
         Assert.Equal(12m, bill.WaterPartialAmount);
-        Assert.Equal(seed.CtNumber, bill.WaterORNumber); // legacy-named compatibility projection only
+        Assert.Equal("LEGACY-W-001", bill.WaterORNumber); // the legacy-named field is left untouched; the SRC is on the Collection
         Assert.Equal(10m, bill.ElecAmountPaid);
         Assert.Equal(PaymentStatus.Partial, bill.ElecStatus);
         Assert.Equal("LEGACY-E-001", bill.ElecORNumber);
         Assert.Equal(SettlementAuthority.Legacy, bill.ElectricitySettlementAuthorityState);
 
         var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
-        Assert.Equal(AccountableDocumentState.Consumed, document.State);
-        Assert.Equal(operationId, document.ClientOperationId);
-        Assert.Equal(collection.Id, document.CollectionId);
+        Assert.Equal(AccountableDocumentState.Assigned, document.State);   // no physical Cash Ticket is consumed (IA-062)
+        Assert.Null(document.CollectionId);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", collection.ReferenceCode);
         var retry = await workflow.PostMobileAsync(request);
         Assert.True(retry.IsSuccess, retry.Error);
         Assert.True(retry.Value!.ExistingOutcome);
@@ -114,19 +114,14 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var changedIntent = await workflow.PostMobileAsync(request with { ReceivedAmount = 6m });
         Assert.False(changedIntent.IsSuccess);
         Assert.Contains("IDEMPOTENCY CONFLICT", changedIntent.Error, StringComparison.OrdinalIgnoreCase);
-        var differentOperationForSameTicket = await workflow.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid() });
-        Assert.False(differentOperationForSameTicket.IsSuccess);
-        Assert.Contains("not available", differentOperationForSameTicket.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Single(await context.Collections.ToListAsync());
-        Assert.Equal(AccountableDocumentState.Consumed,
-            (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
 
         var activity = await Workflow(context, seed, "Admin").GetActivityAsync(businessDate, businessDate);
         Assert.True(activity.IsSuccess, activity.Error);
         var row = Assert.Single(activity.Value!);
         Assert.Equal(collection.Id, row.CollectionId);
         Assert.Equal("Posted", row.Disposition);
-        Assert.Equal(seed.CtNumber, row.DocumentNumber);
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", row.ReferenceCode);
         Assert.Equal(1, row.ItemCount);
     }
 
@@ -169,7 +164,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var reportQuery = new CollectorReportQueries(context);
         var report = await reportQuery.GetCollectionsAsync(seed.CollectorId.Value, businessDate, PhilippineTime.Today);
         var receipt = Assert.Single(report.Lines);
-        Assert.Equal(seed.CtNumber, receipt.DocumentNumber);
+        Assert.Equal(posted.Value.ReferenceCode, receipt.DocumentNumber);   // the collector report carries the SRC for a canonical line
         Assert.Equal(5m, receipt.Amount);
         Assert.Equal(businessDate, receipt.BusinessDate);
         Assert.Equal(seed.Period, receipt.BilledMonth);
@@ -284,7 +279,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task OrCannotPostAsWcfAndLegacyMobileIssueIsRetainedForReconciliation()
+    public async Task WebWcfIsRetired_AndALegacySourceIsRejectedOnMobile_WithoutTouchingAnyPhysicalForm()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -312,12 +307,10 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
             1, clientOperationId, seed.Period, seed.BillId, 1m, quote.WaterSourceVersion,
             seed.CtDocumentId, seed.CtNumber, DateTime.UtcNow.AddMinutes(-1)));
         Assert.False(mobileAttempt.IsSuccess);
-        Assert.Contains("RECONCILIATION_REQUIRED", mobileAttempt.Error, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired,
-            (await mobileContext.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
-        Assert.Equal(clientOperationId,
-            (await mobileContext.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).ClientOperationId);
-        Assert.Equal(PostingOperationStatus.ReconciliationRequired,
+        Assert.DoesNotContain("RECONCILIATION_REQUIRED", mobileAttempt.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(AccountableDocumentState.Assigned,
+            (await mobileContext.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);   // the physical ticket is never touched (IA-062)
+        Assert.Equal(PostingOperationStatus.Rejected,
             (await mobileContext.PostingOperations.SingleAsync(x => x.ClientOperationId == clientOperationId)).Status);
 
         var differentOperation = await mobileWorkflow.PostMobileAsync(new WcfCollectionPostRequest(
@@ -355,7 +348,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         await using var verify = db.CreateContext(seed.TenantId);
         Assert.Single(await verify.Collections.ToListAsync());
         Assert.Single(await verify.PostingOperations.Where(x => x.ClientOperationId == request.ClientOperationId).ToListAsync());
-        Assert.Equal(AccountableDocumentState.Consumed,
+        Assert.Equal(AccountableDocumentState.Assigned,
             (await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
     }
 
@@ -392,7 +385,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(5m, collection.TotalAmount);
         var bill = await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
         Assert.Equal(12m, bill.WaterAmountPaid);
-        Assert.Equal(AccountableDocumentState.Consumed,
+        Assert.Equal(AccountableDocumentState.Assigned,
             (await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
         var officeTicket = await verify.AccountableDocuments.SingleAsync(x => x.Id == seed.OfficeCtDocumentId);
         Assert.Equal(AccountableDocumentState.InOffice, officeTicket.State); // never issued by the retired path
@@ -475,7 +468,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task MobileRejectionAfterPhysicalIssueKeepsTicketOutOfStock()
+    public async Task MobileRejection_RecordsNothing_AndNeverTouchesAPhysicalTicket()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -491,37 +484,9 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.False(overOutstanding.IsSuccess);
         Assert.Contains("exceeds", overOutstanding.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(await context.Collections.ToListAsync());
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired,
+        Assert.Equal(AccountableDocumentState.Assigned,
             (await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId)).State);
         Assert.Equal(7m, (await context.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).WaterAmountPaid);
-    }
-
-    [SkippableFact]
-    public async Task CollectorCannotPostAgainstAnotherCollectorsAssignedCashTicket()
-    {
-        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
-        await db.ResetAsync();
-        var seed = await SeedAsync(canonicalWater: true, assignTicket: true);
-        Assert.NotNull(seed.OtherCollectorId);
-        await using var context = db.CreateContext(seed.TenantId);
-        var quoteResult = await Workflow(context, seed, "Admin")
-            .GetObligationsAsync(seed.Period.Year, seed.Period.Month);
-        Assert.True(quoteResult.IsSuccess, quoteResult.Error);
-        var quote = Assert.Single(quoteResult.Value!);
-        var actor = new TestActor(seed.OtherCollectorId!.Value, seed.TenantId, "Collector");
-        var otherCollectorWorkflow = new WcfCollectionWorkflow(context, actor, new FixedTenant(seed.TenantId));
-
-        var available = await otherCollectorWorkflow.GetAvailableCashTicketsAsync();
-        Assert.True(available.IsSuccess, available.Error);
-        Assert.DoesNotContain(available.Value!, x => x.DocumentId == seed.CtDocumentId);
-        var posted = await otherCollectorWorkflow.PostMobileAsync(new WcfCollectionPostRequest(
-            1, Guid.NewGuid(), PhilippineTime.Today, seed.BillId, 1m,
-            quote.WaterSourceVersion, seed.CtDocumentId, seed.CtNumber, DateTime.UtcNow.AddMinutes(-1)));
-        Assert.False(posted.IsSuccess);
-        Assert.Empty(await context.Collections.ToListAsync());
-        var ticket = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
-        Assert.Equal(AccountableDocumentState.Assigned, ticket.State);
-        Assert.Equal(seed.CollectorId, ticket.AssignedUserId);
     }
 
     [SkippableFact]
@@ -912,7 +877,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
             seed.TenantId, role), new FixedTenant(seed.TenantId));
 
     [SkippableFact]
-    public async Task MobileWcfPostingNeedsExplicitOperationAssignmentAndHoldsIssuedTicketForReconciliation()
+    public async Task MobileWcfPostingNeedsExplicitOperationAssignment_AndARefusalIsDurableWithoutTouchingATicket()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -930,9 +895,9 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Contains("explicit WCF operation assignment", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(await context.Collections.ToListAsync());
         var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
-        Assert.Equal(AccountableDocumentState.ReconciliationRequired, document.State);
-        Assert.Equal(request.ClientOperationId, document.ClientOperationId);
-        Assert.Equal(PostingOperationStatus.ReconciliationRequired,
+        Assert.Equal(AccountableDocumentState.Assigned, document.State);
+        Assert.Null(document.ClientOperationId);
+        Assert.Equal(PostingOperationStatus.Rejected,
             (await context.PostingOperations.SingleAsync()).Status);
     }
 

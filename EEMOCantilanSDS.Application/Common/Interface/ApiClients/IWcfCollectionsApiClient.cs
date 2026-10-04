@@ -6,7 +6,6 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IWcfCollectionsApiClient
 {
     Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetObligationsAsync(int throughYear, int throughMonth);
-    Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync();
 
     /// <summary>Head/Admin: the Water sources that can be set up for a billing period (GET api/wcf-collections/setup-sources).</summary>
     Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(int billingYear, int billingMonth);

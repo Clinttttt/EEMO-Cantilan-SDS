@@ -392,38 +392,6 @@ public sealed class GovernedServiceWorkflow(
 
     // ── Collector reads ────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>The documents of the instrument this operation (and mode) resolves to that are present in this collector's custody.</summary>
-    public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableDocumentsAsync(
-        string operationCode, GovernedServiceMode? mode, CancellationToken ct = default) =>
-        Run<IReadOnlyList<CashTicketDocumentDto>>(async actor =>
-        {
-            var entry = GovernedServiceCatalog.Find(operationCode);
-            if (actor.Role != "Collector" || entry is null
-                || !await IsAssignedAsync(actor, entry.Code, ct))
-                return Result<IReadOnlyList<CashTicketDocumentDto>>.Forbidden();
-            if (entry.ModeAware != mode.HasValue)
-                return Result<IReadOnlyList<CashTicketDocumentDto>>.Failure(
-                    entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ResultStatus.Invalid);
-            var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, BusinessToday, ct);
-            if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
-                return Result<IReadOnlyList<CashTicketDocumentDto>>.Success([]);
-            var documents = await (
-                    from document in db.AccountableDocuments.AsNoTracking()
-                    join assignment in db.AccountableFormAssignments.AsNoTracking()
-                        on new { document.MunicipalityId, DocumentId = document.Id }
-                        equals new { assignment.MunicipalityId, DocumentId = assignment.AccountableDocumentId }
-                    where document.MunicipalityId == actor.TenantId
-                        && document.InstrumentType == instrument
-                        && document.State == AccountableDocumentState.Assigned
-                        && document.AssignedUserId == actor.UserId
-                        && assignment.AssignedUserId == actor.UserId
-                        && assignment.ReturnedAtUtc == null
-                    orderby document.SerialNumber
-                    select new CashTicketDocumentDto(document.Id, document.DocumentNumber, document.State, document.AssignedUserId, document.SerialNumber))
-                .ToListAsync(ct);
-            return Result<IReadOnlyList<CashTicketDocumentDto>>.Success(documents);
-        }, ct);
-
     /// <summary>
     /// The approved terms in force today for an operation the collector is assigned to. It answers "not collectible" as a
     /// failure with the reason, rather than a guessed zero or a default amount.
@@ -481,47 +449,30 @@ public sealed class GovernedServiceWorkflow(
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor));
         var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
         if (prior is not null)
-            return await ResolvePriorAsync(prior, fingerprint, actor, ct);
-
-        var document = request.AccountableDocumentId == Guid.Empty ? null
-            : await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
+            return await ResolvePriorAsync(prior, fingerprint, actor, ct, request.ReceivedAmount);
 
         var entry = GovernedServiceCatalog.Find(request.OperationCode);
         if (entry is null)
-            return await RecordTerminalAsync(actor, request, normalized, document, "OPERATION_UNSUPPORTED",
+            return await RecordTerminalAsync(actor, request, normalized, "OPERATION_UNSUPPORTED",
                 "This operation is not a governed configurable service.", ct);
         if (!await IsAssignedAsync(actor, entry.Code, ct))
-            return await RecordTerminalAsync(actor, request, normalized, document, "COLLECTOR_OPERATION_NOT_ASSIGNED",
-                "An explicit operation assignment for an active collector is required. A physically issued document is retained for office reconciliation.", ct);
+            return await RecordTerminalAsync(actor, request, normalized, "COLLECTOR_OPERATION_NOT_ASSIGNED",
+                "An explicit operation assignment for an active collector is required.", ct);
         if (request.SchemaVersion != 1)
-            return await RecordTerminalAsync(actor, request, normalized, document, "PAYLOAD_VERSION_UNSUPPORTED",
+            return await RecordTerminalAsync(actor, request, normalized, "PAYLOAD_VERSION_UNSUPPORTED",
                 "This collection payload version is not supported.", ct);
-        if (request.AccountableDocumentId == Guid.Empty || string.IsNullOrWhiteSpace(request.DocumentNumber)
-            || request.ReceivedAmount <= 0m
+        if (request.ReceivedAmount <= 0m
             || decimal.Round(request.ReceivedAmount, 2, MidpointRounding.ToZero) != request.ReceivedAmount)
-            return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
-                "A positive received amount and the issued document identity are required.", ct);
+            return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
+                "A positive received amount is required.", ct);
         if (request.PayerName?.Trim().Length > 200 || request.Reference?.Trim().Length > 200)
-            return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
+            return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
                 "Payer and reference text must not exceed 200 characters.", ct);
         if (request.BusinessDate > BusinessToday)
-            return await RecordTerminalAsync(actor, request, normalized, document, "FUTURE_BUSINESS_DATE",
+            return await RecordTerminalAsync(actor, request, normalized, "FUTURE_BUSINESS_DATE",
                 "Collection BusinessDate cannot be later than the current Philippine business date.", ct);
-        if (request.IssuedAtUtc is not { Kind: DateTimeKind.Utc } issuedAt || issuedAt > DateTime.UtcNow)
-            return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_ISSUE_TIME",
-                "The physical document issue time must be a valid past or present UTC timestamp.", ct);
-        if (document is null)
-            return await RecordTerminalAsync(actor, request, normalized, null, "DOCUMENT_NOT_FOUND",
-                "The document identity was not found in this tenant.", ct);
-        if (document.State != AccountableDocumentState.Assigned || document.AssignedUserId != actor.UserId)
-            return await RecordTerminalAsync(actor, request, normalized, document, "DOCUMENT_CUSTODY_INVALID",
-                "This document is not assigned to the current collector.", ct);
-        if (!string.Equals(document.DocumentNumber, request.DocumentNumber.Trim(), StringComparison.Ordinal))
-            return await RecordTerminalAsync(actor, request, normalized, document, "DOCUMENT_IDENTITY_INVALID",
-                "The document number does not match the assigned document.", ct);
         if (entry.ModeAware != request.Mode.HasValue || request.Mode is { } m && !Enum.IsDefined(m))
-            return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_MODE",
+            return await RecordTerminalAsync(actor, request, normalized, "INVALID_MODE",
                 entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ct);
 
         try
@@ -532,22 +483,19 @@ public sealed class GovernedServiceWorkflow(
                 .Where(x => x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
             var setting = GovernedServiceSetting.Resolve(versions, request.BusinessDate);
             if (service is null || setting is null)
-                return await RecordTerminalAsync(actor, request, normalized, document, "SERVICE_SETUP_REQUIRED",
+                return await RecordTerminalAsync(actor, request, normalized, "SERVICE_SETUP_REQUIRED",
                     "This service has no approved amount rule for the business date. No Collection was created.", ct);
             if (!setting.IsEnabled)
-                return await RecordTerminalAsync(actor, request, normalized, document, "SERVICE_DISABLED",
+                return await RecordTerminalAsync(actor, request, normalized, "SERVICE_DISABLED",
                     "This service is disabled for new transactions.", ct);
             if (!setting.MobileEnabled)
-                return await RecordTerminalAsync(actor, request, normalized, document, "MOBILE_CHANNEL_DISABLED",
+                return await RecordTerminalAsync(actor, request, normalized, "MOBILE_CHANNEL_DISABLED",
                     "This service is not enabled for Collector Mobile.", ct);
             var resolved = await ResolvePolicyAsync(actor.TenantId, entry, request.Mode, request.BusinessDate, ct);
             if (resolved is null)
-                return await RecordTerminalAsync(actor, request, normalized, document, "POLICY_NOT_EFFECTIVE",
+                return await RecordTerminalAsync(actor, request, normalized, "POLICY_NOT_EFFECTIVE",
                     "No effective approved instrument policy exists for this operation and business date.", ct);
             var instrument = resolved.Policy.PermittedInstrumentType!.Value;
-            if (document.InstrumentType != instrument)
-                return await RecordTerminalAsync(actor, request, normalized, document, "INSTRUMENT_POLICY_CONFLICT",
-                    $"The approved policy requires {(instrument == RevenueInstrumentType.OfficialReceipt ? "an Official Receipt" : "a Cash Ticket")} for this transaction.", ct);
             // Transportation / Parking: the collector states the vehicle class; the amount is that class's approved rate in
             // force on the business date, never a typed or remembered figure. Any other service takes no class.
             VehicleClass? vehicleClass = null;
@@ -556,25 +504,25 @@ public sealed class GovernedServiceWorkflow(
             if (setting.Basis == GovernedServiceBasis.VehicleClassRate)
             {
                 if (string.IsNullOrEmpty(classCode))
-                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_REQUIRED",
+                    return await RecordTerminalAsync(actor, request, normalized, "VEHICLE_CLASS_REQUIRED",
                         "Choose the vehicle class. Its approved rate is the amount.", ct);
                 vehicleClass = await db.VehicleClasses.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.MunicipalityId == actor.TenantId && x.Code == classCode && x.IsActive, ct);
                 if (vehicleClass is null)
-                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_UNKNOWN",
+                    return await RecordTerminalAsync(actor, request, normalized, "VEHICLE_CLASS_UNKNOWN",
                         "This vehicle class is not an approved, active class for this office.", ct);
                 var rates = await db.VehicleClassRates.AsNoTracking().Where(x =>
                     x.MunicipalityId == actor.TenantId && x.VehicleClassId == vehicleClass.Id).ToListAsync(ct);
                 vehicleRate = VehicleClassRate.Resolve(rates, request.BusinessDate);
                 if (vehicleRate is null)
-                    return await RecordTerminalAsync(actor, request, normalized, document, "VEHICLE_CLASS_RATE_NOT_EFFECTIVE",
+                    return await RecordTerminalAsync(actor, request, normalized, "VEHICLE_CLASS_RATE_NOT_EFFECTIVE",
                         "This vehicle class has no approved rate in force for the business date.", ct);
                 if (request.ReceivedAmount != vehicleRate.Amount)
-                    return await RecordTerminalAsync(actor, request, normalized, document, "AMOUNT_NOT_APPROVED",
+                    return await RecordTerminalAsync(actor, request, normalized, "AMOUNT_NOT_APPROVED",
                         "The amount is not the approved rate for this vehicle class.", ct);
             }
             else if (!string.IsNullOrEmpty(classCode))
-                return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
+                return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
                     "This service does not take a vehicle class.", ct);
 
             // Approved fee options: the collector selects an option the office configured; its rule in force on the business
@@ -585,32 +533,32 @@ public sealed class GovernedServiceWorkflow(
             if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
             {
                 if (request.FeeOptionId is not { } optionId || optionId == Guid.Empty)
-                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_REQUIRED",
+                    return await RecordTerminalAsync(actor, request, normalized, "FEE_OPTION_REQUIRED",
                         "Choose the approved fee being collected.", ct);
                 feeOption = await db.GovernedServiceFeeOptions.AsNoTracking().SingleOrDefaultAsync(x =>
                     x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id && x.Id == optionId, ct);
                 if (feeOption is null || !feeOption.IsOfferedOn(request.BusinessDate))
-                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_UNKNOWN",
+                    return await RecordTerminalAsync(actor, request, normalized, "FEE_OPTION_UNKNOWN",
                         "This fee is not an approved, offered fee option for this operation on the business date.", ct);
                 var optionRates = await db.GovernedServiceFeeOptionRates.AsNoTracking().Where(x =>
                     x.MunicipalityId == actor.TenantId && x.FeeOptionId == feeOption.Id).ToListAsync(ct);
                 feeRate = GovernedServiceFeeOptionRate.Resolve(optionRates, request.BusinessDate);
                 if (feeRate is null)
-                    return await RecordTerminalAsync(actor, request, normalized, document, "FEE_OPTION_RATE_NOT_EFFECTIVE",
+                    return await RecordTerminalAsync(actor, request, normalized, "FEE_OPTION_RATE_NOT_EFFECTIVE",
                         "This fee option has no approved amount rule in force for the business date.", ct);
                 if (feeRate.CheckAmount(request.ReceivedAmount) is { } optionProblem)
-                    return await RecordTerminalAsync(actor, request, normalized, document, optionProblem,
+                    return await RecordTerminalAsync(actor, request, normalized, optionProblem,
                         optionProblem == "AMOUNT_ABOVE_CEILING"
                             ? "The amount exceeds the approved ceiling for this fee."
                             : "The amount is not the approved amount for this fee.", ct);
             }
             else if (request.FeeOptionId is not null)
-                return await RecordTerminalAsync(actor, request, normalized, document, "INVALID_INTENT",
+                return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
                     "This service does not take a fee option.", ct);
 
             if (setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
                 && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
-                return await RecordTerminalAsync(actor, request, normalized, document, amountProblem,
+                return await RecordTerminalAsync(actor, request, normalized, amountProblem,
                     amountProblem == "AMOUNT_ABOVE_CEILING"
                         ? "The amount exceeds the approved ceiling for this service."
                         : "The amount is not the approved amount for this service.", ct);
@@ -630,52 +578,28 @@ public sealed class GovernedServiceWorkflow(
                 CollectionSourceKind.GovernedService, service.Id, null, snapshot, null);
             var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
                 actor.TenantId, request.ClientOperationId, IntentVersion, normalized, MobileOrigin, ActorId(actor),
-                actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], document,
+                actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], null,
                 collectorId: actor.UserId, payerName: string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim(), ct: ct);
-            return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, document.Id, document.DocumentNumber,
+            return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
                 collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false));
         }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
             var winner = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
-            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct);
-            var current = await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == request.AccountableDocumentId, ct);
-            return await RecordTerminalAsync(actor, request, normalized, current, "POST_CONFLICT",
-                "The document or operation identity conflicts with another posting; no Collection was partially posted.", ct);
+            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct, request.ReceivedAmount);
+            return await RecordTerminalAsync(actor, request, normalized, "POST_CONFLICT",
+                "The operation identity conflicts with another posting; no Collection was partially posted.", ct);
         }
     }
 
     private async Task<Result<GovernedServiceOutcomeDto>> RecordTerminalAsync(
-        Actor actor, GovernedServicePostRequest request, string normalized, AccountableDocument? document,
+        Actor actor, GovernedServicePostRequest request, string normalized,
         string code, string message, CancellationToken ct)
     {
-        // A collector who wrote a physical document has issued it whatever the server now says: it is quarantined for
-        // office reconciliation and never returned to stock. Without a document identity there is nothing issued.
-        var physicalIssue = request.AccountableDocumentId != Guid.Empty && !string.IsNullOrWhiteSpace(request.DocumentNumber);
-        var issued = document;
-        if (physicalIssue && (issued is null
-            || !string.Equals(issued.DocumentNumber, request.DocumentNumber.Trim(), StringComparison.Ordinal)))
-        {
-            var number = request.DocumentNumber.Trim();
-            issued = await db.AccountableDocuments.SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.DocumentNumber == number, ct);
-        }
-        var issueTime = request.IssuedAtUtc is { Kind: DateTimeKind.Utc } at && at <= DateTime.UtcNow ? at : UtcNow;
-        if (physicalIssue && issued is not null
-            && await CanQuarantineAsync(issued, actor, ct)
-            && (issued.ClientOperationId is null || issued.ClientOperationId == request.ClientOperationId))
-            issued.MarkPhysicalIssueReconciliationRequired(request.ClientOperationId, issueTime, actor.Username);
-
         db.PostingOperations.Add(PostingOperation.Record(actor.TenantId, request.ClientOperationId,
-            IntentVersion, normalized, MobileOrigin, ActorId(actor),
-            physicalIssue ? PostingOperationStatus.ReconciliationRequired : PostingOperationStatus.Rejected,
-            physicalIssue ? "PHYSICAL_DOCUMENT_RECONCILIATION" : code,
-            physicalIssue
-                ? $"RECONCILIATION_REQUIRED: {message} Document {issued?.DocumentNumber ?? request.DocumentNumber} remains unavailable for reuse and requires review."
-                : message,
-            null, issued?.Id ?? document?.Id, DateTime.UtcNow));
+            IntentVersion, normalized, MobileOrigin, ActorId(actor), PostingOperationStatus.Rejected,
+            code, message, null, null, DateTime.UtcNow));
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
@@ -686,15 +610,13 @@ public sealed class GovernedServiceWorkflow(
                     PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor)), actor, ct);
             throw;
         }
-        return Result<GovernedServiceOutcomeDto>.Failure(
-            physicalIssue ? $"RECONCILIATION_REQUIRED: {message} A physically issued document remains unavailable for reuse and requires office review." : message,
-            ResultStatus.Conflict);
+        return Result<GovernedServiceOutcomeDto>.Failure(message, ResultStatus.Conflict);
     }
 
     private async Task<Result<GovernedServiceOutcomeDto>> ResolvePriorAsync(
-        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct)
+        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct, decimal? requestedAmount = null)
     {
-        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) || prior.IntentFingerprint != fingerprint)
+        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) || (prior.IntentFingerprint != fingerprint && prior.AccountableDocumentId is null))   // a pre-SRC operation bound a physical document into its intent; it still replays
             return Result<GovernedServiceOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
         if (prior.Status != PostingOperationStatus.Succeeded || prior.CollectionId is not { } collectionId)
@@ -704,13 +626,15 @@ public sealed class GovernedServiceWorkflow(
             .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == collectionId, ct);
         if (collection is null)
             return Result<GovernedServiceOutcomeDto>.Failure("The recorded Collection outcome is unavailable.", ResultStatus.Conflict);
-        var document = prior.AccountableDocumentId is { } documentId
-            ? await db.AccountableDocuments.AsNoTracking().SingleOrDefaultAsync(x =>
-                x.MunicipalityId == actor.TenantId && x.Id == documentId, ct)
-            : null;
-        return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, document?.Id ?? Guid.Empty,
-            document?.DocumentNumber ?? "Document unavailable", collection.BusinessDate, collection.TotalAmount,
-            document?.InstrumentType ?? RevenueInstrumentType.CashTicket, "Posted", true));
+        // A pre-SRC operation cannot be compared by fingerprint (its intent bound a physical document), so it replays only
+        // for the same money: a different amount under the same ClientOperationId is still a conflict.
+        if (prior.IntentFingerprint != fingerprint && requestedAmount is { } amount && amount != collection.TotalAmount)
+            return Result<GovernedServiceOutcomeDto>.Failure(
+                "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
+        var instrument = ReadSnapshot(collection.Lines.OrderBy(x => x.Id).FirstOrDefault()?.CalculationSnapshot)?.Instrument
+            ?? RevenueInstrumentType.CashTicket;
+        return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
+            collection.BusinessDate, collection.TotalAmount, instrument, "Posted", true));
     }
 
     // ── Office activity ────────────────────────────────────────────────────────────────────────────────
@@ -737,8 +661,6 @@ public sealed class GovernedServiceWorkflow(
                 && x.BusinessDate >= from && x.BusinessDate <= to)
                 .OrderByDescending(x => x.RecordedAtUtc).ToListAsync(ct);
             var collectionIds = collections.Select(x => x.Id).ToArray();
-            var documents = await db.AccountableDocuments.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.CollectionId.HasValue && collectionIds.Contains(x.CollectionId.Value)).ToListAsync(ct);
             var collectorIds = collections.Where(x => x.CollectorId.HasValue).Select(x => x.CollectorId!.Value).Distinct().ToArray();
             var collectors = await db.CollectorUsers.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && collectorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, ct);
@@ -750,12 +672,11 @@ public sealed class GovernedServiceWorkflow(
             {
                 var line = lines.First(x => x.CollectionId == collection.Id);
                 var facts = ReadSnapshot(line.CalculationSnapshot);
-                var document = documents.FirstOrDefault(x => x.CollectionId == collection.Id);
                 var effects = corrections.Where(x => x.OriginalCollectionId == collection.Id).ToList();
                 var disposition = effects.Any(x => x.FinancialEffectAmount < 0m) ? "Reversed"
                     : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection) ? "Document corrected" : "Posted";
                 return new GovernedServiceActivityDto(collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
-                    document?.DocumentNumber ?? "Document unavailable", document?.InstrumentType, facts?.Mode,
+                    collection.ReferenceCode, facts?.Instrument, facts?.Mode,
                     collection.PayerName, facts?.Reference, line.Amount,
                     collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName);
             }).ToList();
@@ -782,21 +703,18 @@ public sealed class GovernedServiceWorkflow(
                     && collection.BusinessDate >= @from && collection.BusinessDate <= to
                     && line.SourceKind == CollectionSourceKind.GovernedService
                 orderby collection.RecordedAtUtc descending
-                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName,
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
                     service.OperationCode, line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
             var ids = rows.Select(x => x.Id).ToArray();
-            var documents = await db.AccountableDocuments.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.CollectionId.HasValue && ids.Contains(x.CollectionId.Value)).ToListAsync(ct);
             var corrections = await db.CollectionCorrections.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionId))
                 .Select(x => new { x.OriginalCollectionId, x.FinancialEffectAmount }).ToListAsync(ct);
             var records = rows.Select(x =>
             {
                 var facts = ReadSnapshot(x.CalculationSnapshot);
-                var document = documents.FirstOrDefault(d => d.CollectionId == x.Id);
                 return new GovernedServiceRecordDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.OperationCode,
                     GovernedServiceCatalog.Find(x.OperationCode)?.Name ?? x.OperationCode,
-                    document?.DocumentNumber ?? "—", document?.InstrumentType, facts?.Mode, x.PayerName, facts?.Reference,
+                    x.ReferenceCode, facts?.Instrument, facts?.Mode, x.PayerName, facts?.Reference,
                     x.Amount, corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted",
                     facts?.FeeOptionName);
             }).ToList();
@@ -827,15 +745,6 @@ public sealed class GovernedServiceWorkflow(
         && await db.CollectorOperationAssignments.AsNoTracking().AnyAsync(x =>
             x.MunicipalityId == actor.TenantId && x.CollectorId == actor.UserId && x.OperationCode == operationCode, ct);
 
-    private async Task<bool> CanQuarantineAsync(AccountableDocument document, Actor actor, CancellationToken ct)
-    {
-        if (document.State != AccountableDocumentState.Assigned || document.AssignedUserId != actor.UserId)
-            return false;
-        return await db.AccountableFormAssignments.AsNoTracking().AnyAsync(x =>
-            x.MunicipalityId == actor.TenantId && x.AccountableDocumentId == document.Id
-            && x.AssignedUserId == actor.UserId && x.ReturnedAtUtc == null, ct);
-    }
-
     private Task<PostingOperation?> FindOperationAsync(Guid tenantId, Guid operationId, CancellationToken ct) =>
         db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
@@ -865,10 +774,7 @@ public sealed class GovernedServiceWorkflow(
             BusinessDate = request.BusinessDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             ReceivedAmount = request.ReceivedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
             PayerName = string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim(),
-            Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim(),
-            AccountableDocumentId = request.AccountableDocumentId,
-            DocumentNumber = request.DocumentNumber?.Trim(),
-            IssuedAtUtc = request.IssuedAtUtc?.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+            Reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim()
         }, JsonOptions);
 
     private static string ActorId(Actor actor) => actor.UserId.ToString("N");

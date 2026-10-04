@@ -364,8 +364,8 @@ public sealed class RemittanceWorkflow(
             .Where(x => x.MunicipalityId == tenantId && payorIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
         IReadOnlyList<CollectorCollectionFactDto> rows = facts
-            .OrderBy(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal)
-            .Select(x => new CollectorCollectionFactDto(x.CollectionId, x.BusinessDate, x.DocumentNumber, x.Instrument,
+            .OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal)
+            .Select(x => new CollectorCollectionFactDto(x.CollectionId, x.BusinessDate, x.ReferenceCode, x.Instrument,
                 x.PayorId, x.PayorId is { } id ? payorNames.GetValueOrDefault(id) : null, x.Net, x.Lines))
             .ToList();
         return Result<IReadOnlyList<CollectorCollectionFactDto>>.Success(rows);
@@ -419,7 +419,7 @@ public sealed class RemittanceWorkflow(
     // ── Internals ──────────────────────────────────────────────────────────────────────────────────────
 
     private sealed record CollectionFact(
-        Guid CollectionId, Guid? CollectorId, DateOnly BusinessDate, string? DocumentNumber, RevenueInstrumentType? Instrument,
+        Guid CollectionId, Guid? CollectorId, DateOnly BusinessDate, string ReferenceCode, RevenueInstrumentType? Instrument,
         string? PayerName, decimal Net, IReadOnlyList<RemittanceBreakdownDto> Lines, bool Covered, Guid? CoveringRemittanceId,
         bool CorrectedAfterRemittance, Guid? PayorId = null);
 
@@ -428,7 +428,7 @@ public sealed class RemittanceWorkflow(
         Guid tenantId, Guid collectorId, DateOnly from, DateOnly to, RevenueInstrumentType? instrument, CancellationToken ct) =>
         (await LoadCollectionFactsAsync(tenantId, collectorId, from, to, instrument, ct))
             .Where(x => !x.Covered && x.Net > 0m)
-            .OrderBy(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal)
+            .OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal)
             .Select(ToCollectionDto).ToList();
 
     private async Task<List<CollectionFact>> LoadCollectionFactsAsync(
@@ -438,18 +438,22 @@ public sealed class RemittanceWorkflow(
         var collections = db.Collections.AsNoTracking().Where(x =>
             x.MunicipalityId == tenantId && x.CollectorId != null && x.BusinessDate >= from && x.BusinessDate <= to);
         if (collectorId is { } c) collections = collections.Where(x => x.CollectorId == c);
-        var list = await collections.Select(x => new { x.Id, x.CollectorId, x.BusinessDate, x.PayerName, x.PayorId, x.TotalAmount, x.RecordedAtUtc })
+        var list = await collections.Select(x => new { x.Id, x.CollectorId, x.BusinessDate, x.PayerName, x.PayorId, x.TotalAmount, x.RecordedAtUtc, x.ReferenceCode })
             .ToListAsync(ct);
         if (list.Count == 0) return [];
         var ids = list.Select(x => x.Id).ToArray();
         var lines = await db.CollectionLines.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.CollectionId))
-            .Select(x => new { x.Id, x.CollectionId, x.RevenueClassificationId, x.Amount }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.CollectionId, x.RevenueClassificationId, x.RevenueClassificationPolicyId, x.Amount }).ToListAsync(ct);
         var lineIds = lines.Select(x => x.Id).ToArray();
         var documents = (await db.AccountableDocuments.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.CollectionId != null && ids.Contains(x.CollectionId!.Value))
             .Select(x => new { CollectionId = x.CollectionId!.Value, x.DocumentNumber, x.InstrumentType }).ToListAsync(ct))
             .GroupBy(x => x.CollectionId).ToDictionary(g => g.Key, g => g.First());
+        var policyIds = lines.Select(x => x.RevenueClassificationPolicyId).Distinct().ToArray();
+        var policyInstruments = await db.RevenueClassificationPolicies.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && policyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.PermittedInstrumentType, ct);
         var corrections = await db.CollectionCorrections.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.OriginalCollectionId))
             .Select(x => new { x.Id, x.OriginalCollectionId, x.RecordedAtUtc, x.FinancialEffectAmount }).ToListAsync(ct);
@@ -470,7 +474,9 @@ public sealed class RemittanceWorkflow(
         foreach (var collection in list)
         {
             documents.TryGetValue(collection.Id, out var document);
-            if (instrument is { } wanted && document?.InstrumentType != wanted) continue;
+            var instrumentOf = document?.InstrumentType ?? lines.Where(x => x.CollectionId == collection.Id)
+                .Select(x => policyInstruments.GetValueOrDefault(x.RevenueClassificationPolicyId)).FirstOrDefault(x => x is not null);
+            if (instrument is { } wanted && instrumentOf != wanted) continue;
             var myCorrections = corrections.Where(x => x.OriginalCollectionId == collection.Id).ToList();
             var net = collection.TotalAmount + myCorrections.Sum(x => x.FinancialEffectAmount);
             var myLines = lines.Where(x => x.CollectionId == collection.Id).Select(line =>
@@ -485,7 +491,7 @@ public sealed class RemittanceWorkflow(
                 : isCovered && remittanceTimes.TryGetValue(cover!.RemittanceId, out var at)
                 && myCorrections.Any(x => x.RecordedAtUtc > at);
             facts.Add(new CollectionFact(collection.Id, collection.CollectorId, collection.BusinessDate,
-                document?.DocumentNumber, document?.InstrumentType, collection.PayerName, net, myLines, isCovered,
+                collection.ReferenceCode, instrumentOf, collection.PayerName, net, myLines, isCovered,
                 isCovered ? cover!.RemittanceId : null, after, collection.PayorId));
         }
         return facts;
@@ -508,7 +514,7 @@ public sealed class RemittanceWorkflow(
     }
 
     private static RemittanceCollectionDto ToCollectionDto(CollectionFact x) =>
-        new(x.CollectionId, x.BusinessDate, x.DocumentNumber, x.Instrument, x.PayerName, x.Net, x.Lines, x.CorrectedAfterRemittance);
+        new(x.CollectionId, x.BusinessDate, x.ReferenceCode, x.Instrument, x.PayerName, x.Net, x.Lines, x.CorrectedAfterRemittance);
 
     private static RemittanceScopeDto BuildScope(
         Guid collectorId, DateOnly from, DateOnly to, RevenueInstrumentType? instrument, IReadOnlyList<RemittanceCollectionDto> collections) =>
@@ -521,10 +527,10 @@ public sealed class RemittanceWorkflow(
             .Where(x => x.Amount != 0m).OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
     private static string? FirstDocument(IEnumerable<RemittanceCollectionDto> collections) =>
-        collections.Select(x => x.DocumentNumber).Where(x => x is not null).OrderBy(x => x, StringComparer.Ordinal).FirstOrDefault();
+        collections.Select(x => x.ReferenceCode).OrderBy(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).FirstOrDefault();
 
     private static string? LastDocument(IEnumerable<RemittanceCollectionDto> collections) =>
-        collections.Select(x => x.DocumentNumber).Where(x => x is not null).OrderBy(x => x, StringComparer.Ordinal).LastOrDefault();
+        collections.Select(x => x.ReferenceCode).OrderBy(x => x.Length).ThenBy(x => x, StringComparer.Ordinal).LastOrDefault();
 
     private async Task<Result<RemittanceDetailDto>> DetailAsync(Guid tenantId, Guid id, CancellationToken ct)
     {
@@ -535,7 +541,7 @@ public sealed class RemittanceWorkflow(
             .Where(x => x.MunicipalityId == tenantId && x.RemittanceId == id).Select(x => x.CollectionId).ToListAsync(ct);
         var facts = (await LoadCollectionFactsForIdsAsync(tenantId, covered, remittance, ct));
         var names = await CollectorNamesAsync(tenantId, [remittance.CollectorId], ct);
-        var collections = facts.Select(ToCollectionDto).OrderBy(x => x.BusinessDate).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal).ToList();
+        var collections = facts.Select(ToCollectionDto).OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
         return Result<RemittanceDetailDto>.Success(new RemittanceDetailDto(
             ToRow(remittance, names), remittance.PeriodFrom, remittance.PeriodTo, remittance.Remarks, remittance.RecordedBy,
             remittance.VoidReason, remittance.VoidedBy, remittance.VoidedAtUtc, collections, Breakdown(collections),

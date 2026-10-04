@@ -8,8 +8,8 @@
 @inject IJSRuntime JS
 
 @* The Collections register (IA-052): every classified line of a posted collection, with the RCD-style summary derived from the
-   same rows. Transactions first, report second: no total is typed and none is computed in the browser. One document can
-   appear on several rows; opening a row shows the one parent document, itemized. Legacy-authoritative sources stay in their
+   same rows. Transactions first, report second: no total is typed and none is computed in the browser. One collection can
+   appear on several rows; opening a row shows the one parent collection, itemized. Legacy-authoritative sources stay in their
    own registers below until their source goes canonical. *@
 <section class="cr" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
     <div class="cr-print-head" aria-hidden="true"><ReportLetterhead Title="Collections Register" Period="@PeriodLabel" /></div>
@@ -56,8 +56,8 @@
                 <thead>
                     <tr>
                         <th scope="col">Revenue line</th>
-                        <th scope="col" class="v3-num">Documents</th>
-                        <th scope="col">Serials</th>
+                        <th scope="col" class="v3-num">Collections</th>
+                        <th scope="col">References</th>
                         <th scope="col" class="v3-num">Collected</th>
                         <th scope="col" class="v3-num">Corrections</th>
                         <th scope="col" class="v3-num">Net</th>
@@ -68,8 +68,8 @@
                     {
                         <tr>
                             <td>@SourceNames.Name(line.ClassificationName)</td>
-                            <td class="v3-num">@line.DocumentCount</td>
-                            <td>@(line.FirstDocumentNumber is null ? "—" : line.FirstDocumentNumber == line.LastDocumentNumber ? line.FirstDocumentNumber : $"{line.FirstDocumentNumber} – {line.LastDocumentNumber}")</td>
+                            <td class="v3-num">@line.CollectionCount</td>
+                            <td>@(line.FirstReferenceCode is null ? "—" : line.FirstReferenceCode == line.LastReferenceCode ? line.FirstReferenceCode : $"{line.FirstReferenceCode} – {line.LastReferenceCode}")</td>
                             <td class="v3-num">@Money(line.Gross)</td>
                             <td class="v3-num">@(line.CorrectionEffect == 0m ? "—" : Money(line.CorrectionEffect))</td>
                             <td class="v3-num v3-strong">@Money(line.Net)</td>
@@ -94,7 +94,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Date</th>
-                            <th scope="col">Document</th>
+                            <th scope="col">SRC</th>
                             <th scope="col">Instrument</th>
                             <th scope="col">Payor</th>
                             <th scope="col">Collector</th>
@@ -115,12 +115,12 @@
                             <tr class="@(continuation ? "cr-cont" : "cr-doc")">
                                 @if (continuation)
                                 {
-                                    <td colspan="5" class="cr-cont-cell"><span class="v3-sr-only">Same document @row.DocumentNumber:</span></td>
+                                    <td colspan="5" class="cr-cont-cell"><span class="v3-sr-only">Same collection @row.ReferenceCode:</span></td>
                                 }
                                 else
                                 {
                                     <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                    <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@(row.DocumentNumber ?? "—")</button></td>
+                                    <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@row.ReferenceCode</button></td>
                                     <td>@(row.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
                                     <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
                                     <td>@(row.CollectorName ?? "Office")</td>
@@ -147,17 +147,17 @@
 
     @if (_document is { } doc)
     {
-        <aside class="cr-panel cr-doc" aria-label="Collection document">
+        <aside class="cr-panel cr-doc" aria-label="Collection detail">
             <header class="cr-doc-head">
-                <h3>@doc.PayorName@(string.IsNullOrWhiteSpace(doc.PayorName) ? "Collection" : "") · @(doc.DocumentNumber ?? "no document")</h3>
+                <h3>@doc.PayorName@(string.IsNullOrWhiteSpace(doc.PayorName) ? "Collection" : "") · @doc.ReferenceCode</h3>
                 <button class="v3-btn v3-btn-sm no-print" type="button" @onclick="() => _document = null">Close</button>
             </header>
-            <p class="cr-note">@(doc.Instrument switch { RevenueInstrumentType.OfficialReceipt => "Official Receipt", RevenueInstrumentType.CashTicket => "Cash Ticket", _ => "Document" })
+            <p class="cr-note">Collection recorded
                 · @doc.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
                 · @(doc.CollectorName ?? "Office")
-                @(doc.DocumentState is null ? "" : $"· {doc.DocumentState}")
+                @(string.IsNullOrWhiteSpace(doc.DocumentNumber) ? "" : $"· physical document {doc.DocumentNumber}")
                 @(doc.RemittanceId is null ? "· not yet remitted" : $"· covered by a remittance ({doc.RemittanceStatus})")</p>
-            <table class="v3-table" aria-label="Document lines">
+            <table class="v3-table" aria-label="Collection lines">
                 <tbody>
                     @foreach (var line in doc.Lines)
                     {

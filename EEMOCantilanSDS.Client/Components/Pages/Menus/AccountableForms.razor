@@ -19,7 +19,7 @@
 @* Head / Admin office custody of physical accountable forms. Recording money happens elsewhere (Collector Mobile);
    nothing on this page creates a collection. The layout owns the <main> landmark. *@
 <div class="v3-page af-page">
-    <WorkspaceHeader Title="Accountable Forms" Subtitle="Physical inventory and collector custody">
+    <WorkspaceHeader Title="Accountable Forms" Subtitle="Optional register of physical OR and CT books">
         <Meta><InstrumentChip Instrument="@Chip" ShowName="true" /></Meta>
         <Actions>
             @* Two groups on one rail: the form type and book registration on the left; custody and remittance on the
@@ -67,6 +67,7 @@
             </div>
         </Actions>
     </WorkspaceHeader>
+<p class="af-role-note" role="note">This is an optional back-office register of physical OR and CT books. Collections do not need it: StallTrack records every collection with its own reference code (SRC) whether or not a physical form is registered here. Counts below reflect only what has been registered or recorded against these books.</p>
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {

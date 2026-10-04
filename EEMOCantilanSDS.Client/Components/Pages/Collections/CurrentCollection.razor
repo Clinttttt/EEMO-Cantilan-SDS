@@ -21,7 +21,7 @@
     <header class="cc-hero">
         <p>REVENUE COLLECTIONS</p>
         <h1>Current Collection</h1>
-        <span>Prepare one payer's compatible itemized charges for an Official Receipt.</span>
+        <span>Prepare one payer's itemized charges. StallTrack records the collection and assigns its reference code.</span>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(_message))
@@ -126,7 +126,7 @@
             <header>
                 <p class="cc-eyebrow">SERVER-PERSISTED · NON-FINANCIAL UNTIL POSTED</p>
                 <h2 id="cc-draft-title">Review Collection</h2>
-                <p>One draft, one payer context, one Official Receipt, multiple classified lines.</p>
+                <p>One draft, one payer context, multiple classified lines.</p>
             </header>
 
             @if (_draft is null)
@@ -138,8 +138,6 @@
                 <dl class="cc-summary">
                     <div><dt>Payer</dt><dd>@(_draft.PayerNameSnapshot ?? "Name snapshot unavailable")</dd></div>
                     <div><dt>Business date</dt><dd>@_draft.BusinessDate.ToString("dd MMM yyyy")</dd></div>
-                    <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
-                    <div><dt>Document</dt><dd>@(_draft.DocumentNumber ?? "Choose an available OR")</dd></div>
                     <div><dt>Revision</dt><dd>@_draft.Revision</dd></div>
                 </dl>
 
@@ -230,47 +228,6 @@
                     </div>
                 }
 
-                @* The physical Official Receipt is the office's own booklet. StallTrack suggests the next assigned receipt in its
-                   registered sequence; choosing another is a deliberate recovery action, not the normal path. Nothing here
-                   consumes a receipt: that happens only when the collection is posted. *@
-                <div class="cc-receipt" role="group" aria-label="Official Receipt">
-                    <span class="cc-receipt-label">Official Receipt</span>
-                    @if (SelectedReceipt is { } picked)
-                    {
-                        <strong class="cc-receipt-serial">@picked.DocumentNumber</strong>
-                        <span class="cc-receipt-note">@(picked.IsNextExpected ? "Next assigned receipt" : "Different receipt selected")</span>
-                    }
-                    else if (NextReceipt is { } next)
-                    {
-                        <strong class="cc-receipt-serial">@next.DocumentNumber</strong>
-                        <span class="cc-receipt-note">Next assigned receipt</span>
-                        <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
-                                @onclick="UseNextReceiptAsync">Use this receipt</button>
-                    }
-                    else
-                    {
-                        <span class="cc-receipt-note" role="status">No Official Receipt is available. Ask the office to register or assign one.</span>
-                    }
-                    @if (_receipts.Count > 1 || (SelectedReceipt is null && _receipts.Count > 0 && NextReceipt is null))
-                    {
-                        <button type="button" class="cc-receipt-change" aria-expanded="@(_showReceipts ? "true" : "false")"
-                                @onclick="() => _showReceipts = !_showReceipts">@(_showReceipts ? "Hide receipts" : "Use different receipt")</button>
-                    }
-                    @if (_showReceipts)
-                    {
-                        <label class="cc-field cc-receipt-picker">
-                            <span class="v3-sr-only">Choose a different Official Receipt</span>
-                            <select value="@(_draft.AccountableDocumentId?.ToString() ?? string.Empty)"
-                                    @onchange="SelectDocumentAsync" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)">
-                                <option value="">No receipt selected</option>
-                                @foreach (var receipt in _receipts)
-                                {
-                                    <option value="@receipt.DocumentId">@receipt.DocumentNumber@(receipt.IsNextExpected ? " · next" : "")</option>
-                                }
-                            </select>
-                        </label>
-                    }
-                </div>
 
                 <div class="cc-total"><span>Total</span><strong>@Money(_draft.TotalAmount)</strong></div>
 
@@ -289,7 +246,7 @@
                     <button type="button" class="cc-button cc-secondary" disabled="@_busy"
                             @onclick="DiscardAsync">Discard draft</button>
                 </div>
-                <p class="cc-footnote">Review is bound to this exact revision. Posting revalidates all sources and allocations together. Drafts do not allocate money, consume ORs, or appear in Collection Activity.</p>
+                <p class="cc-footnote">Review is bound to this exact revision. Posting revalidates all sources and allocations together. Drafts do not allocate money or appear in Collection Activity. The collection reference (SRC) is assigned when it is posted.</p>
                 <p class="cc-footnote">Set an allocation to PHP 0.00 to remove that source period from its line.</p>
             }
         </section>
@@ -309,13 +266,13 @@
         {
             <div class="cc-table-wrap">
                 <table class="cc-table">
-                    <thead><tr><th>Business date / recorded time</th><th>Document / payer</th><th>State</th><th class="cc-number">Total</th><th>Detail</th></tr></thead>
+                    <thead><tr><th>Business date / recorded time</th><th>Reference / payer</th><th>State</th><th class="cc-number">Total</th><th>Detail</th></tr></thead>
                     <tbody>
                         @foreach (var activity in _activity)
                         {
                             <tr>
                                 <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span>@PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
-                                <td><strong>@activity.DocumentNumber</strong><span>@(activity.PayerName ?? "No payer snapshot")</span></td>
+                                <td><strong>@activity.ReferenceCode</strong><span>@(activity.PayerName ?? "No payer snapshot")</span></td>
                                 <td>@activity.CurrentDisposition</td>
                                 <td class="cc-number">@Money(activity.TotalAmount)</td>
                                 <td>
@@ -350,13 +307,8 @@
 
 @code {
     private EcfCollectionDraftDto? _draft;
-    private List<EcfAvailableDocumentDto> _receipts = [];
-    private bool _showReceipts;
 
-    // The server lists the signed-in user's own stock first, in registered sequence; the first row is the next expected receipt.
-    private EcfAvailableDocumentDto? NextReceipt => _receipts.FirstOrDefault(x => x.IsNextExpected) ?? _receipts.FirstOrDefault();
 
-    private EcfAvailableDocumentDto? SelectedReceipt => _draft?.AccountableDocumentId is { } id ? _receipts.FirstOrDefault(x => x.DocumentId == id) : null;
     private List<EcfCollectionActivityDto> _activity = [];
     private List<CollectionPayorDto> _payors = [];
     private IReadOnlyList<CollectionCandidateDto> _candidates = [];
@@ -377,8 +329,7 @@
     private PenaltyDefinitionDto? SelectedPenalty => string.IsNullOrEmpty(_penaltyCode)
         ? null : _penalties.FirstOrDefault(x => x.Code == _penaltyCode);
 
-    private bool CanPost => _draft is { Status: "Draft", IsReviewedForCurrentRevision: true,
-        AccountableDocumentId: not null }
+    private bool CanPost => _draft is { Status: "Draft", IsReviewedForCurrentRevision: true }
         && !_draft.RequiresBusinessDateRefresh
         && _draft.Lines.Count > 0
         && _draft.Lines.SelectMany(x => x.Allocations ?? []).All(x => x.SourceAuthority == SettlementAuthority.Canonical);
@@ -393,8 +344,6 @@
             var draft = await CollectionsApi.GetCurrentDraftAsync();
             _draft = draft.IsSuccess ? draft.Value : null;
             if (_draft is not null) PopulateAllocationInputs();
-            var receipts = await CollectionsApi.GetAvailableReceiptsAsync();
-            _receipts = receipts.IsSuccess ? receipts.Value?.ToList() ?? [] : [];
             var today = PhilippineTime.Today;
             var from = new DateOnly(today.Year, today.Month, 1);
             var to = from.AddMonths(1).AddDays(-1);
@@ -432,7 +381,7 @@
             _penaltyCode = string.Empty;
             _penaltyAmount = 0m;
             _penaltyOrigin = null;
-            _message = "Penalty added to the same Official Receipt. Review is required again.";
+            _message = "Penalty added to this collection. Review is required again.";
         }
         catch (Exception exception) { _error = exception.Message; }
         finally { _busy = false; }
@@ -578,28 +527,6 @@
         finally { _busy = false; }
     }
 
-    private Task SelectDocumentAsync(ChangeEventArgs args) =>
-        SelectReceiptAsync(Guid.TryParse(args.Value?.ToString(), out var id) ? id : (Guid?)null);
-
-    private Task UseNextReceiptAsync() => SelectReceiptAsync(NextReceipt?.DocumentId);
-
-    private async Task SelectReceiptAsync(Guid? documentId)
-    {
-        if (_draft is null) return;
-        _busy = true;
-        _error = null;
-        try
-        {
-            var result = await CollectionsApi.SelectDocumentAsync(_draft.DraftId,
-                new SelectEcfDraftDocumentRequest(_draft.Revision, documentId));
-            if (!result.IsSuccess) { _error = ErrorText(result, "Official Receipt could not be selected."); return; }
-            _draft = result.Value;
-            _message = "Official Receipt selection changed. Review this revision again.";
-        }
-        catch (Exception exception) { _error = exception.Message; }
-        finally { _busy = false; }
-    }
-
     private async Task ReviewAsync()
     {
         if (_draft is null) return;
@@ -634,7 +561,7 @@
             var result = await CollectionsApi.PostAsync(_draft.DraftId,
                 new PostEcfCollectionDraftRequest(_draft.Revision, operationId));
             if (!result.IsSuccess) { _error = ErrorText(result, "Collection could not be posted."); return; }
-            _message = $"Posted {result.Value!.DocumentNumber} · {Money(result.Value.Amount)}.";
+            _message = $"Collection recorded. Reference {result.Value!.ReferenceCode} · {Money(result.Value.Amount)}.";
             _draft = null;
             await LoadAsync();
         }

@@ -195,21 +195,22 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandlerTests
     }
 
     [Fact]
-    public async Task GovernedOperationNeedsADocumentWhenNoneOfTheResolvedInstrumentIsHeld()
+    public async Task GovernedOperationIsReadyWithoutHoldingAnyPhysicalForm()
     {
-        // Market Fees resolves to a Cash Ticket; a collector holding only an OR (or nothing) cannot collect it.
+        // IA-062: SRC is the digital identity of a collection, so physical OR/CT stock never gates readiness.
         var noTicket = await SeedAsync(assignTicket: false, operations: [CollectorOperationCodes.MarketFees]);
         await ConfigureMarketFeesAsync(noTicket);
-        var orPolicy = await SeedAsync(operations: [CollectorOperationCodes.MarketFees]);
+        var orPolicy = await SeedAsync(assignTicket: false, operations: [CollectorOperationCodes.MarketFees]);
         await ConfigureMarketFeesAsync(orPolicy, RevenueInstrumentType.OfficialReceipt);
 
         var none = MarketFees(await RunAsync(noTicket));
-        var wrongInstrument = MarketFees(await RunAsync(orPolicy));
+        var orOnly = MarketFees(await RunAsync(orPolicy));
 
-        Assert.Equal(CollectorOperationCapabilityStatus.NeedsDocument, none.Status);
-        Assert.Equal([GetCollectorOperationCapabilitiesQueryHandler.NoAssignedDocument], none.ReasonCodes);
-        Assert.Equal(CollectorOperationCapabilityStatus.NeedsDocument, wrongInstrument.Status);
-        Assert.False(wrongInstrument.IsCollectible);
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready, none.Status);
+        Assert.True(none.IsCollectible);
+        Assert.Empty(none.ReasonCodes);
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready, orOnly.Status);
+        Assert.True(orOnly.IsCollectible);
     }
 
     [Theory]
@@ -254,14 +255,14 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandlerTests
     }
 
     [Fact]
-    public async Task NonCtPolicyNeedsPolicyAndNoCustodyNeedsDocument()
+    public async Task NonCtPolicyNeedsPolicy_ButHoldingNoCashTicketDoesNotBlockWcf()
     {
         var policy = Wcf(await RunAsync(await SeedAsync(ctPolicy: false, operations: [CollectorOperationCodes.Wcf])));
-        var document = Wcf(await RunAsync(await SeedAsync(assignTicket: false, operations: [CollectorOperationCodes.Wcf])));
+        var noStock = Wcf(await RunAsync(await SeedAsync(assignTicket: false, operations: [CollectorOperationCodes.Wcf])));
 
         Assert.Equal(CollectorOperationCapabilityStatus.NeedsPolicy, policy.Status);
-        Assert.Equal(CollectorOperationCapabilityStatus.NeedsDocument, document.Status);
-        Assert.False(document.IsCollectible);
+        Assert.Equal(CollectorOperationCapabilityStatus.Ready, noStock.Status);
+        Assert.True(noStock.IsCollectible);
     }
 
     [Fact]

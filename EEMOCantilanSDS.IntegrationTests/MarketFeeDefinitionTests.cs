@@ -162,22 +162,22 @@ public sealed class MarketFeeDefinitionTests(PostgresFixture db)
             var ok = await Collector(w, ctx).PostMobileAsync(Post(w, 0, 5m, w.ComfortRoom));
             Assert.True(ok.IsSuccess, ok.Error);
             Assert.Equal(RevenueInstrumentType.CashTicket, ok.Value!.Instrument);
-            Assert.Equal("CT-0001", ok.Value.DocumentNumber);
+            Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", ok.Value.ReferenceCode);
         }
         await using (var ctx = db.CreateContext(w.Tenant.Id))
         {
-            // A typed amount on a fixed fee is never accepted; the ticket written for it is held for reconciliation.
+            // A typed amount on a fixed fee is never accepted; the collection is not recorded.
             var overridden = await Collector(w, ctx).PostMobileAsync(Post(w, 1, 7m, w.ComfortRoom));
             Assert.False(overridden.IsSuccess);
-            Assert.StartsWith("RECONCILIATION_REQUIRED:", overridden.Error);
+            Assert.DoesNotContain("RECONCILIATION_REQUIRED", overridden.Error);
         }
 
         await using var verify = db.CreateContext(w.Tenant.Id);
         var line = await verify.CollectionLines.SingleAsync();
         Assert.Equal(5m, line.Amount);
         Assert.Contains("Comfort Room", line.CalculationSnapshot);
-        Assert.Equal(AccountableDocumentState.Consumed, (await verify.AccountableDocuments.SingleAsync(x => x.Id == w.Tickets[0].Id)).State);
-        Assert.NotEqual(AccountableDocumentState.Assigned, (await verify.AccountableDocuments.SingleAsync(x => x.Id == w.Tickets[1].Id)).State);
+        Assert.Equal(AccountableDocumentState.Assigned, (await verify.AccountableDocuments.SingleAsync(x => x.Id == w.Tickets[0].Id)).State);   // no physical form is consumed (IA-062)
+        Assert.Equal(AccountableDocumentState.Assigned, (await verify.AccountableDocuments.SingleAsync(x => x.Id == w.Tickets[1].Id)).State);
         Assert.Single(await verify.Collections.ToListAsync());
     }
 
@@ -224,7 +224,7 @@ public sealed class MarketFeeDefinitionTests(PostgresFixture db)
         Assert.Empty(await verify.Collections.ToListAsync());
         var outcomes = await verify.PostingOperations.ToListAsync();
         Assert.Equal(4, outcomes.Count);
-        Assert.All(outcomes, o => Assert.Equal(PostingOperationStatus.ReconciliationRequired, o.Status));
+        Assert.All(outcomes, o => Assert.Equal(PostingOperationStatus.Rejected, o.Status));
     }
 
     [SkippableFact]
@@ -264,7 +264,7 @@ public sealed class MarketFeeDefinitionTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task AWalkUpSaleNeedsNoPayor_AndTheTicketIsConsumedExactlyOnce()
+    public async Task AWalkUpSaleNeedsNoPayor_AndAReplayIsTheSameSale_WhileANewOperationIsANewSale()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -278,25 +278,25 @@ public sealed class MarketFeeDefinitionTests(PostgresFixture db)
         }
         await using (var ctx = db.CreateContext(w.Tenant.Id))
         {
-            // The same operation replayed is the same outcome; a new operation on the consumed ticket is not a second sale.
+            // The same operation replayed is the same outcome and the same SRC.
             var replay = await Collector(w, ctx).PostMobileAsync(sale);
             Assert.True(replay.IsSuccess, replay.Error);
             Assert.True(replay.Value!.ExistingOutcome);
         }
         await using (var ctx = db.CreateContext(w.Tenant.Id))
-            Assert.False((await Collector(w, ctx).PostMobileAsync(Post(w, 0, 5m, w.ComfortRoom))).IsSuccess);
+            Assert.True((await Collector(w, ctx).PostMobileAsync(Post(w, 0, 5m, w.ComfortRoom))).IsSuccess);   // a different operation is a different sale
         await using (var ctx = db.CreateContext(w.Tenant.Id))
             Assert.True((await Collector(w, ctx).PostMobileAsync(Post(w, 1, 5m, w.ComfortRoom, payer: null))).IsSuccess);
 
         await using var verify = db.CreateContext(w.Tenant.Id);
         Assert.Empty(await verify.Payors.ToListAsync());     // typed payer text never creates a Payor
         var collections = await verify.Collections.ToListAsync();
-        Assert.Equal(2, collections.Count);
+        Assert.Equal(3, collections.Count);
+        Assert.Equal(3, collections.Select(c => c.ReferenceCode).Distinct().Count());
         Assert.All(collections, c => Assert.Null(c.PayorId));
         Assert.Contains(collections, c => c.PayerName == "Juan (walk-up)");
         Assert.Contains(collections, c => c.PayerName is null);
-        var consumed = await verify.AccountableDocuments.Where(x => x.State == AccountableDocumentState.Consumed).Select(x => x.Id).ToListAsync();
-        Assert.Equal(new[] { w.Tickets[0].Id, w.Tickets[1].Id }.Order(), consumed.Order());
+        Assert.Empty(await verify.AccountableDocuments.Where(x => x.State == AccountableDocumentState.Consumed).ToListAsync());   // no physical form is consumed (IA-062)
     }
 
     [SkippableFact]

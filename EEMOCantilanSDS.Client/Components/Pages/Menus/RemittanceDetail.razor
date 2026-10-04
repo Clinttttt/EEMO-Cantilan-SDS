@@ -49,7 +49,7 @@
                 <div><dt>Collector</dt><dd>@d.Row.CollectorName</dd></div>
                 <div><dt>Coverage period</dt><dd>@PeriodLabel(d)</dd></div>
                 <div><dt>Instrument</dt><dd>@InstrumentLabel(d.Row.Instrument)</dd></div>
-                <div><dt>Documents covered</dt><dd>@(d.FirstDocumentNumber is null ? "—" : $"{d.FirstDocumentNumber} to {d.LastDocumentNumber}")</dd></div>
+                <div><dt>References covered</dt><dd>@(d.FirstReferenceCode is null ? "—" : $"{d.FirstReferenceCode} to {d.LastReferenceCode}")</dd></div>
                 <div><dt>Reference</dt><dd>@(d.Row.Reference ?? "—")</dd></div>
                 <div><dt>Recorded by</dt><dd>@d.RecordedBy · @d.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
                 @if (!string.IsNullOrWhiteSpace(d.Remarks))
@@ -83,14 +83,14 @@
             <div class="v3-table-wrap" role="region" aria-label="Collections covered" tabindex="0">
                 <table class="v3-table">
                     <thead>
-                        <tr><th scope="col">Date</th><th scope="col">Document</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
+                        <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var collection in d.Collections)
                         {
                             <tr>
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td class="v3-strong">@(collection.DocumentNumber ?? "—")</td>
+                                <td class="v3-strong">@collection.ReferenceCode</td>
                                 <td>@SourceLabel(collection)</td>
                                 <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                 <td class="v3-num">@Money(collection.NetAmount)</td>

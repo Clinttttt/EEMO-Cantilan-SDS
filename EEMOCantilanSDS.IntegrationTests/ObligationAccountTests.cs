@@ -156,7 +156,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         var collection = await context.Collections.Include(x => x.Lines).SingleAsync();
         Assert.Equal(2, collection.Lines.Count);
         Assert.Equal(2, collection.Lines.Select(l => l.RevenueClassificationId).Distinct().Count());
-        Assert.Equal(1, await context.AccountableDocuments.CountAsync(x => x.CollectionId == collection.Id));
+        Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", collection.ReferenceCode);   // one collection, one SRC, two classified lines
     }
 
     [SkippableFact]

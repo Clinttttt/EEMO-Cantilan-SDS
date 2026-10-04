@@ -21,8 +21,6 @@ public sealed class EcfCollectionWorkflow
         _composer.GetObligationsAsync(year, month, ct);
     public Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId, CancellationToken ct = default) =>
         _composer.GetObligationAsync(utilityBillId, ct);
-    public Task<Result<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceiptsAsync(CancellationToken ct = default) =>
-        _composer.GetAvailableReceiptsAsync(ct);
     public Task<Result<EcfCollectionDraftDto>> GetCurrentDraftAsync(CancellationToken ct = default) =>
         _composer.GetCurrentDraftAsync(ct);
     public Task<Result<EcfCollectionDraftDto>> GetDraftAsync(Guid draftId, CancellationToken ct = default) =>
@@ -31,8 +29,6 @@ public sealed class EcfCollectionWorkflow
         _composer.CreateDraftAsync(request, ct);
     public Task<Result<EcfCollectionDraftDto>> UpdateAllocationAsync(Guid draftId, UpdateEcfDraftAllocationRequest request, CancellationToken ct = default) =>
         _composer.UpdateAllocationAsync(draftId, request, ct);
-    public Task<Result<EcfCollectionDraftDto>> SelectDocumentAsync(Guid draftId, SelectEcfDraftDocumentRequest request, CancellationToken ct = default) =>
-        _composer.SelectDocumentAsync(draftId, request, ct);
     public Task<Result<EcfCollectionDraftDto>> ReviewAsync(Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) =>
         _composer.ReviewAsync(draftId, request, ct);
     public Task<Result<EcfCollectionDraftDto>> DiscardAsync(Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) =>

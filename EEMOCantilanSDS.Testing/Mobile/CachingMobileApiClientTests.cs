@@ -278,7 +278,7 @@ public class CachingMobileApiClientTests
             .ReturnsAsync(Result<CollectorOperationCapabilitiesDto>.Success(capabilities));
         inner.Setup(x => x.PostWcfCollectionAsync(It.IsAny<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionPostRequest>()))
             .ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.WcfCollectionOutcomeDto>.Success(
-                new(Guid.NewGuid(), Guid.NewGuid(), "CT000101", DateOnly.FromDateTime(DateTime.Now), 10m, "Posted", false)));
+                new(Guid.NewGuid(), "SRC-2026-000101", DateOnly.FromDateTime(DateTime.Now), 10m, "Posted", false)));
         var cache = new FakeOfflineReadCache();
         var sut = Sut(inner.Object, cache, online: true);
 

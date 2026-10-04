@@ -11,8 +11,6 @@ public sealed class WcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
         GetAsync<IReadOnlyList<WcfObligationQuoteDto>>(
             $"api/wcf-collections/obligations?throughYear={throughYear}&throughMonth={throughMonth}");
 
-    public Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
-        GetAsync<IReadOnlyList<CashTicketDocumentDto>>("api/wcf-collections/cash-tickets/available");
 
     public Task<Result<IReadOnlyList<WcfSetupSourceDto>>> GetSetupSourcesAsync(int billingYear, int billingMonth) =>
         GetAsync<IReadOnlyList<WcfSetupSourceDto>>(

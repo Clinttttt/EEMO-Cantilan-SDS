@@ -115,14 +115,13 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join record in context.PaymentRecords.AsNoTracking() on allocation.SourceId equals record.Id
             join stall in context.Stalls.AsNoTracking() on record.StallId equals stall.Id
             join facility in context.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
             where collection.CollectorId == collectorId
                 && collection.BusinessDate >= rentFrom && collection.BusinessDate <= rentTo
                 && allocation.SourceKind == CollectionSourceKind.PaymentRecord
                 && record.SettlementAuthorityState == SettlementAuthority.Canonical
             select new
             {
-                document.DocumentNumber, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
+                DocumentNumber = collection.ReferenceCode, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
                 stall.StallNo, FacilityCode = facility.Code, record.BillingYear, record.BillingMonth, allocation.Amount
             })
             .ToListAsync(ct);
@@ -227,17 +226,17 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join stall in context.Stalls.AsNoTracking() on bill.StallId equals stall.Id
             join facility in context.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
             join classification in context.RevenueClassifications.AsNoTracking() on line.RevenueClassificationId equals classification.Id
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
             where (collection.CollectorId == collectorId
                 && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
                 && line.SourceKind == CollectionSourceKind.UtilityBill
                 && line.SourcePart == CollectionSourcePart.Water
                 && classification.SemanticCode == RevenueClassificationCodes.Wcf
                 && bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical
-                && document.InstrumentType == RevenueInstrumentType.CashTicket)
+                && policy.PermittedInstrumentType == RevenueInstrumentType.CashTicket)
             select new
             {
-                DocumentNumber = document.DocumentNumber,
+                DocumentNumber = collection.ReferenceCode,
                 collection.RecordedAtUtc,
                 collection.BusinessDate,
                 PayorName = collection.PayerName,
@@ -267,7 +266,6 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join bill in context.UtilityBills.AsNoTracking() on line.SourceId equals bill.Id
             join stall in context.Stalls.AsNoTracking() on bill.StallId equals stall.Id
             join facility in context.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
             where collection.CollectorId == collectorId
                 && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
                 && line.SourceKind == CollectionSourceKind.UtilityBill
@@ -275,7 +273,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 && bill.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical
             select new
             {
-                document.DocumentNumber, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
+                DocumentNumber = collection.ReferenceCode, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
                 stall.StallNo, FacilityCode = facility.Code, bill.BillingYear, bill.BillingMonth, line.Amount
             })
             .ToListAsync(ct);
@@ -294,14 +292,14 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
             join service in context.GovernedServices.AsNoTracking()
                 on new { line.MunicipalityId, Id = line.SourceId } equals new { service.MunicipalityId, Id = (Guid?)service.Id }
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
             where collection.CollectorId == collectorId
                 && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
                 && line.SourceKind == CollectionSourceKind.GovernedService
             select new
             {
-                document.DocumentNumber,
-                document.InstrumentType,
+                DocumentNumber = collection.ReferenceCode,
+                InstrumentType = (RevenueInstrumentType?)policy.PermittedInstrumentType,
                 collection.RecordedAtUtc,
                 collection.BusinessDate,
                 collection.PayerName,
@@ -319,13 +317,13 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join period in context.ObligationPeriods.AsNoTracking() on allocation.SourceId equals period.Id
             join account in context.ObligationAccounts.AsNoTracking()
                 on new { period.MunicipalityId, Id = period.ObligationAccountId } equals new { account.MunicipalityId, account.Id }
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
             where collection.CollectorId == collectorId
                 && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
                 && allocation.SourceKind == CollectionSourceKind.ObligationPeriod
             select new
             {
-                document.DocumentNumber, document.InstrumentType, collection.RecordedAtUtc, collection.BusinessDate,
+                DocumentNumber = collection.ReferenceCode, InstrumentType = (RevenueInstrumentType?)policy.PermittedInstrumentType, collection.RecordedAtUtc, collection.BusinessDate,
                 collection.PayerName, account.Kind, account.SubjectLabel, period.PeriodStart, allocation.Amount
             })
             .ToListAsync(ct);
@@ -334,13 +332,13 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
             join version in context.PenaltyDefinitions.AsNoTracking()
                 on new { line.MunicipalityId, Id = line.SourceId } equals new { version.MunicipalityId, Id = (Guid?)version.Id }
-            join document in context.AccountableDocuments.AsNoTracking() on (Guid?)collection.Id equals document.CollectionId
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
             where collection.CollectorId == collectorId
                 && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
                 && line.SourceKind == CollectionSourceKind.PenaltyDefinition
             select new
             {
-                document.DocumentNumber, document.InstrumentType, collection.RecordedAtUtc, collection.BusinessDate,
+                DocumentNumber = collection.ReferenceCode, InstrumentType = (RevenueInstrumentType?)policy.PermittedInstrumentType, collection.RecordedAtUtc, collection.BusinessDate,
                 collection.PayerName, version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount
             })
             .ToListAsync(ct);

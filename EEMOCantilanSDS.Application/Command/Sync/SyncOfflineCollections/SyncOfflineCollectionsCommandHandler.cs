@@ -44,15 +44,16 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 }
                 var outcome = await wcfWorkflow.PostMobileAsync(new WcfCollectionPostRequest(
                     op.PayloadVersion, op.ClientOperationId, op.BusinessDate, op.UtilityBillId ?? Guid.Empty,
-                    op.ReceivedAmount ?? 0m, op.WaterSourceVersion ?? 0, op.AccountableDocumentId ?? Guid.Empty,
-                    op.DocumentNumber ?? string.Empty, op.IssuedAtUtc,
+                    op.ReceivedAmount ?? 0m, op.WaterSourceVersion ?? 0, op.AccountableDocumentId,
+                    op.DocumentNumber, op.IssuedAtUtc,
                     StallId: op.UtilityBillId is null ? op.StallId : null, BillingYear: op.BillingYear, BillingMonth: op.BillingMonth), ct);
                 var wcfStatus = outcome.IsSuccess ? SyncResultStatus.Synced
                     : outcome.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
                         ? SyncResultStatus.ReconciliationRequired
                         : IsTransient(outcome.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, wcfStatus,
-                    outcome.IsSuccess ? null : outcome.Error));
+                    outcome.IsSuccess ? null : outcome.Error,
+                    outcome.Value?.ReferenceCode, outcome.Value?.CollectionId));
                 continue;
             }
             if (op.Kind == OfflineOperationKind.GovernedService)
@@ -66,13 +67,14 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 var governed = await governedWorkflow.PostMobileAsync(new GovernedServicePostRequest(
                     op.PayloadVersion, op.ClientOperationId, op.OperationCode ?? string.Empty, op.BusinessDate,
                     op.ReceivedAmount ?? 0m, op.CollectionMode, op.PayerName, op.Reference,
-                    op.AccountableDocumentId ?? Guid.Empty, op.DocumentNumber ?? string.Empty, op.IssuedAtUtc, op.VehicleClassCode, op.FeeOptionId), ct);
+                    op.AccountableDocumentId, op.DocumentNumber, op.IssuedAtUtc, op.VehicleClassCode, op.FeeOptionId), ct);
                 var governedStatus = governed.IsSuccess ? SyncResultStatus.Synced
                     : governed.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
                         ? SyncResultStatus.ReconciliationRequired
                         : IsTransient(governed.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, governedStatus,
-                    governed.IsSuccess ? null : governed.Error));
+                    governed.IsSuccess ? null : governed.Error,
+                    governed.Value?.ReferenceCode, governed.Value?.CollectionId));
                 continue;
             }
             // Idempotent: a record already carrying this client operation id means it was synced.

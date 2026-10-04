@@ -13,9 +13,6 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId) =>
         GetAsync<EcfObligationQuoteDto>($"api/ecf-collections/obligations/{utilityBillId}");
 
-    public Task<Result<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceiptsAsync() =>
-        GetAsync<IReadOnlyList<EcfAvailableDocumentDto>>("api/ecf-collections/official-receipts/available");
-
     public Task<Result<EcfCollectionDraftDto>> GetCurrentDraftAsync() =>
         GetAsync<EcfCollectionDraftDto>("api/ecf-collections/drafts/current");
 
@@ -31,9 +28,6 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
 
     public Task<Result<EcfCollectionDraftDto>> UpdateAllocationAsync(Guid draftId, UpdateEcfDraftAllocationRequest request) =>
         PutAsync<UpdateEcfDraftAllocationRequest, EcfCollectionDraftDto>($"api/ecf-collections/drafts/{draftId}/allocation", request);
-
-    public Task<Result<EcfCollectionDraftDto>> SelectDocumentAsync(Guid draftId, SelectEcfDraftDocumentRequest request) =>
-        PutAsync<SelectEcfDraftDocumentRequest, EcfCollectionDraftDto>($"api/ecf-collections/drafts/{draftId}/document", request);
 
     public Task<Result<EcfCollectionDraftDto>> ReviewAsync(Guid draftId, EcfDraftRevisionRequest request) =>
         PostAsync<EcfDraftRevisionRequest, EcfCollectionDraftDto>($"api/ecf-collections/drafts/{draftId}/review", request);

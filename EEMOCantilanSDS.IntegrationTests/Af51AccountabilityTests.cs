@@ -205,28 +205,14 @@ public sealed class Af51AccountabilityTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task TheNextExpectedReceiptFollowsTheRegisteredSequence_AndACancelledOrLostSerialIsSkippedNeverReused()
+    public async Task ACancelledOrLostSerialIsNeverReused_AndTheRegisterNoLongerGatesCollections()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
         var w = await SeedAsync();
         var book = await RegisterOkAsync(w, "2315601 A", "2315606 A");
 
-        async Task<IReadOnlyList<EcfAvailableDocumentDto>> Available()
-        {
-            await using var ctx = db.CreateContext(w.TenantId);
-            var composer = new CollectionComposerWorkflow(ctx, new Head(w.HeadId, w.TenantId), new FixedTenant(w.TenantId));
-            var result = await composer.GetAvailableReceiptsAsync();
-            Assert.True(result.IsSuccess, result.Error);
-            return result.Value!;
-        }
-
-        var all = await Available();
-        Assert.Equal("2315601 A", all[0].DocumentNumber);
-        Assert.True(all[0].IsNextExpected);
-        Assert.Single(all, x => x.IsNextExpected);
-
-        // 2315601 A is spoiled on the desk; 2315602 A is reported lost. The sequence moves past both and neither returns.
+        // 2315601 A is spoiled on the desk; 2315602 A is reported lost. Neither returns to stock (a collection needs neither, IA-062).
         await using (var ctx = db.CreateContext(w.TenantId))
         {
             var id = (await ctx.AccountableDocuments.SingleAsync(x => x.DocumentNumber == "2315601 A")).Id;
@@ -236,9 +222,6 @@ public sealed class Af51AccountabilityTests(PostgresFixture db)
             Assert.True((await Custody(ctx, w).ReportLossAsync(new(book.BookId, 2315602, 2315602, AccountableFormCopies.WholeSet,
                 PhilippineTime.Today, "Market", "Booklet slipped from the bag"))).IsSuccess);
 
-        var next = await Available();
-        Assert.Equal("2315603 A", next[0].DocumentNumber);
-        Assert.DoesNotContain(next, x => x.DocumentNumber is "2315601 A" or "2315602 A");
 
         // They can never be assigned, returned, re-spoiled or registered again.
         await using var verify = db.CreateContext(w.TenantId);

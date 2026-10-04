@@ -19,7 +19,7 @@ else if (_records.Count > 0)
             {
                 <li class="ors-row">
                     <div class="ors-main">
-                        <div class="ors-name">@(record.DocumentNumber ?? "Walk-up")<span class="ors-kind"> · @Kind(record.Instrument)</span></div>
+                        <div class="ors-name">@record.ReferenceCode</div>
                         <div class="ors-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName)</div>
                         @foreach (var line in record.Lines)
                         {

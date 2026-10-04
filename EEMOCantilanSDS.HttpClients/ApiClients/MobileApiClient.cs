@@ -52,9 +52,6 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
         await GetAsync<GovernedServiceTermsDto>(
             $"api/governed-services/{Uri.EscapeDataString(operationCode)}/terms{(mode is { } m ? $"?mode={m}" : string.Empty)}");
 
-    public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetOperationDocumentsAsync(string operationCode, GovernedServiceMode? mode) =>
-        await GetAsync<IReadOnlyList<CashTicketDocumentDto>>(
-            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/documents{(mode is { } m ? $"?mode={m}" : string.Empty)}");
 
     public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>> GetMyPositionAsync(DateOnly from, DateOnly to) =>
         await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.CollectorPositionDto>($"api/Mobile/position?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
@@ -92,8 +89,6 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<IReadOnlyList<WcfObligationQuoteDto>>> GetWcfObligationsAsync(int throughYear, int throughMonth) =>
         await GetAsync<IReadOnlyList<WcfObligationQuoteDto>>($"api/wcf-collections/obligations?throughYear={throughYear}&throughMonth={throughMonth}");
 
-    public async Task<Result<IReadOnlyList<CashTicketDocumentDto>>> GetAvailableCashTicketsAsync() =>
-        await GetAsync<IReadOnlyList<CashTicketDocumentDto>>("api/wcf-collections/cash-tickets/available");
 
     public async Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request) =>
         await PostAsync<WcfCollectionPostRequest, WcfCollectionOutcomeDto>("api/wcf-collections/mobile-collections", request);

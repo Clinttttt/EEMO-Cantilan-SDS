@@ -10,7 +10,7 @@ public sealed record RemittanceBreakdownDto(Guid ClassificationId, string Name, 
 public sealed record RemittanceCollectionDto(
     Guid CollectionId,
     DateOnly BusinessDate,
-    string? DocumentNumber,
+    string ReferenceCode,
     RevenueInstrumentType? Instrument,
     string? PayerName,
     decimal NetAmount,
@@ -26,8 +26,8 @@ public sealed record RemittanceScopeDto(
     IReadOnlyList<RemittanceCollectionDto> Collections,
     decimal ExpectedAmount,
     IReadOnlyList<RemittanceBreakdownDto> Breakdown,
-    string? FirstDocumentNumber,
-    string? LastDocumentNumber);
+    string? FirstReferenceCode,
+    string? LastReferenceCode);
 
 public sealed record RecordRemittanceRequest(
     Guid ClientOperationId,
@@ -110,8 +110,8 @@ public sealed record RemittanceDetailDto(
     DateTime? VoidedAtUtc,
     IReadOnlyList<RemittanceCollectionDto> Collections,
     IReadOnlyList<RemittanceBreakdownDto> Breakdown,
-    string? FirstDocumentNumber,
-    string? LastDocumentNumber,
+    string? FirstReferenceCode,
+    string? LastReferenceCode,
     bool NeedsReview);
 
 /// <summary>Physical form accountability for one collector and instrument. These are counts of forms, never pesos.</summary>
@@ -164,7 +164,7 @@ public sealed record SpoiledFormDto(
 public sealed record CollectorCollectionFactDto(
     Guid CollectionId,
     DateOnly BusinessDate,
-    string? DocumentNumber,
+    string ReferenceCode,
     RevenueInstrumentType? Instrument,
     Guid? PayorId,
     string? PayorName,

@@ -16,7 +16,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
 /// WCF Mobile collection, enabled once per tenant (2026-10-01). Readiness is derived by the server from what StallTrack already
-/// knows — the WCF policy, the collectors assigned WCF, their Cash Ticket custody and any WCF collection awaiting office
+/// knows — the WCF policy, the collectors assigned WCF, and any WCF collection awaiting office
 /// review — so the Head is never asked to attest or type a fact the system holds. "One tap" is automatic validation, not a
 /// bypass: Enable re-evaluates every check inside its own transaction and activates nothing while a blocker remains.
 /// Activation is prospective and idempotent; historical Water records are not changed (they keep their explicit migration).
@@ -120,48 +120,18 @@ public sealed class WcfMobileCollectionWorkflow(
             "Cash Ticket · direct amount", "The Water Consumption Fee policy in effect is not Cash Ticket.",
             "Open Revenue Setup", "/settings/revenue");
 
-        // Collectors assigned WCF, and the Cash Tickets each holds now (present custody, not history).
+        // Collectors assigned WCF. Cash Ticket stock is never a readiness gate (IA-062).
         var assigned = await (
             from assignment in db.CollectorOperationAssignments.AsNoTracking()
             join collector in db.CollectorUsers.AsNoTracking() on assignment.CollectorId equals collector.Id
             where assignment.MunicipalityId == tenantId && assignment.OperationCode == CollectorOperationCodes.Wcf
             select new { collector.Id, collector.FullName, collector.IsActive }).ToListAsync(ct);
         var activeIds = assigned.Where(x => x.IsActive).Select(x => x.Id).ToArray();
-        var held = activeIds.Length == 0 ? [] : (await (
-                from document in db.AccountableDocuments.AsNoTracking()
-                join custody in db.AccountableFormAssignments.AsNoTracking()
-                    on new { document.MunicipalityId, DocumentId = document.Id }
-                    equals new { custody.MunicipalityId, DocumentId = custody.AccountableDocumentId }
-                where document.MunicipalityId == tenantId && document.InstrumentType == RevenueInstrumentType.CashTicket
-                    && document.State == AccountableDocumentState.Assigned && document.AssignedUserId != null
-                    && activeIds.Contains(document.AssignedUserId.Value)
-                    && custody.AssignedUserId == document.AssignedUserId && custody.ReturnedAtUtc == null
-                select document.AssignedUserId!.Value).ToListAsync(ct))
-            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
-        var review = activeIds.Length == 0 ? [] : (await db.AccountableDocuments.AsNoTracking()
-                .Where(x => x.MunicipalityId == tenantId && x.InstrumentType == RevenueInstrumentType.CashTicket
-                    && x.State == AccountableDocumentState.ReconciliationRequired && x.AssignedUserId != null
-                    && activeIds.Contains(x.AssignedUserId.Value))
-                .Select(x => x.AssignedUserId!.Value).ToListAsync(ct))
-            .GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
 
         Check("COLLECTOR", "Collector assignment", activeIds.Length > 0,
             activeIds.Length == 1 ? "1 active collector assigned" : $"{activeIds.Length} active collectors assigned",
             assigned.Count == 0 ? "No collector is assigned Water Consumption Fee." : "Every collector assigned Water Consumption Fee is inactive.",
             "Assign collector", "/collectors");
-        if (activeIds.Length > 0)
-        {
-            var withTickets = activeIds.Count(c => held.GetValueOrDefault(c) > 0);
-            var without = assigned.Where(x => x.IsActive && held.GetValueOrDefault(x.Id) == 0).Select(x => x.FullName).ToList();
-            Check("CASH_TICKETS", "Cash Ticket custody", withTickets > 0,
-                $"{held.Values.Sum():N0} Cash Tickets in collector custody",
-                $"Cash Tickets have not been assigned to {string.Join(", ", without)}.",
-                "Manage Accountable Forms", "/accountable-forms");
-            var inReview = review.Values.Sum();
-            Check("CT_REVIEW", "Cash Ticket review", inReview == 0, "No Cash Ticket awaits review",
-                $"{inReview} Cash Ticket{(inReview == 1 ? "" : "s")} in collector custody {(inReview == 1 ? "needs" : "need")} office review.",
-                "Open Accountable Forms", "/accountable-forms");
-        }
 
         // WCF collections already waiting for office review must be resolved first.
         var pending = await db.PostingOperations.AsNoTracking().CountAsync(x =>
@@ -177,8 +147,7 @@ public sealed class WcfMobileCollectionWorkflow(
             && (x.WaterStatus != PaymentStatus.Unpaid || x.WaterSettlementAuthorityState == SettlementAuthority.PendingCutover), ct);
 
         var collectors = assigned.OrderBy(x => x.FullName, StringComparer.OrdinalIgnoreCase).Select(x => new WcfCollectorReadinessDto(
-            x.Id, x.FullName, x.IsActive, held.GetValueOrDefault(x.Id), review.GetValueOrDefault(x.Id),
-            x.IsActive && held.GetValueOrDefault(x.Id) > 0 && review.GetValueOrDefault(x.Id) == 0)).ToList();
+            x.Id, x.FullName, x.IsActive, 0, 0, x.IsActive)).ToList();
 
         return new WcfMobileStatusDto(activation is not null, activation?.EffectiveFrom, activation?.ActivatedAtUtc,
             activation?.ActivatedBy, activation is null && blockers.Count == 0,
