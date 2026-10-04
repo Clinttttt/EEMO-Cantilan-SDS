@@ -62,6 +62,7 @@ public class FacilityConfigurationRatesTests : TestContext
         Services.AddSingleton(Mock.Of<ITpmApiClient>());
         Services.AddSingleton(Mock.Of<ITrmApiClient>());
         Services.AddSingleton(Mock.Of<ISlaughterApiClient>());
+        Services.AddSingleton(Mock.Of<IGovernedServicesApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
