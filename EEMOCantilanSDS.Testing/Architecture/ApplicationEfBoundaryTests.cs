@@ -186,6 +186,8 @@ public class ApplicationEfBoundaryTests
         "RemittanceWorkflow.cs",
         "CollectionsReportWorkflow.cs",
         "TransportationCollectionAuthority.cs",
+        "GovernedCanonicalAuthority.cs",
+        "FeeScheduleCollectionWorkflow.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,
