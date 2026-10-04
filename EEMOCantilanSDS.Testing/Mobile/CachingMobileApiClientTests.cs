@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Requests.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -264,6 +265,32 @@ public class CachingMobileApiClientTests
         await sut.RecordMonthlyCollectionAsync(request);
 
         Assert.True(cache.Has("monthly|TCC|2026|6")); // unchanged on failure
+    }
+
+    [Fact]
+    public async Task Fee_type_terms_follow_the_server_online_and_fall_back_to_the_last_synchronized_list_offline()
+    {
+        // A fee type the Head adds must reach an online collector on the next read (never held back by yesterday's list), and an
+        // offline collector keeps the last list the server gave. The ids are the stable fee-option identities, not display text.
+        static GovernedServiceTermsDto Terms(params Guid[] ids) => new("MARKET_FEES", "Market Fees", false,
+            GovernedServiceBasis.ApprovedFeeOption, null, null, RevenueInstrumentType.CashTicket, false, null,
+            ids.Select((id, i) => new FeeOptionTermDto(id, $"Fee {i}", null, GovernedServiceBasis.FixedAmount, 10m, null)).ToList());
+        var first = Guid.NewGuid();
+        var added = Guid.NewGuid();
+        var inner = new Mock<IMobileApiClient>();
+        var served = Terms(first);
+        inner.Setup(x => x.GetOperationTermsAsync("MARKET_FEES", null))
+            .ReturnsAsync(() => Result<GovernedServiceTermsDto>.Success(served));
+        var cache = new FakeOfflineReadCache();
+        var online = Sut(inner.Object, cache, online: true);
+
+        Assert.Equal([first], (await online.GetOperationTermsAsync("MARKET_FEES", null)).Value!.FeeOptions!.Select(x => x.Id));
+        served = Terms(first, added);                                                        // the Head adds a fee type
+        Assert.Equal([first, added], (await online.GetOperationTermsAsync("MARKET_FEES", null)).Value!.FeeOptions!.Select(x => x.Id));
+
+        var strict = new Mock<IMobileApiClient>(MockBehavior.Strict);
+        var offline = Sut(strict.Object, cache, online: false);
+        Assert.Equal([first, added], (await offline.GetOperationTermsAsync("MARKET_FEES", null)).Value!.FeeOptions!.Select(x => x.Id));
     }
 
     [Fact]

@@ -321,6 +321,94 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void ADisabledService_SaysWhyMobileIsNotCollecting_AndCanBeEnabledInOneClick()
+    {
+        var disabled = Definition(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental",
+            GovernedServiceSetupState.Disabled, GovernedServiceBasis.DirectApprovedAmount, ceiling: 1000m, mobile: true, modeAware: true);
+        Serve([disabled]);
+        ConfigureGovernedServiceRequest? sent = null;
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.VegetableFruitSpaceRental, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(disabled with { State = GovernedServiceSetupState.Active }));
+
+        var cut = RenderComponent<VegetableFruit>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var setup = cut.Find("aside").TextContent;
+            Assert.Contains("Allowed, but new transactions are not enabled", setup);   // never a bare "Enabled" next to Disabled
+            Assert.DoesNotContain("Whole payment", cut.Markup);
+            Assert.Contains("Monthly rental", cut.Markup);
+        }, Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable new transactions").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.True(sent!.IsEnabled && sent.MobileEnabled);
+            Assert.Equal((GovernedServiceBasis.DirectApprovedAmount, (decimal?)1000m), (sent.Basis, sent.MaximumAmount));   // same approved rule
+            Assert.Contains("Active", cut.Find("aside").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void FeeTypes_AreOnlyOfferedToCollectorsUnderTheFeeTypeRule_AndTheHeadCanSwitchToIt()
+    {
+        var direct = FeeTypeDefinition() with { Basis = GovernedServiceBasis.DirectApprovedAmount };
+        Serve([direct]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+        ConfigureGovernedServiceRequest? sent = null;
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.MarketFees, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(FeeTypeDefinition()));
+
+        var cut = RenderComponent<MarketFees>();
+
+        cut.WaitForAssertion(() => Assert.Contains("only when the amount rule is", cut.Find(".gsw-fee-rule").TextContent), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Collect by fee type").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(GovernedServiceBasis.ApprovedFeeOption, sent!.Basis);
+            Assert.True(sent.IsEnabled && sent.MobileEnabled);
+            Assert.Empty(cut.FindAll(".gsw-fee-rule"));                                     // now in force: the notice goes away
+        }, Timeout);
+    }
+
+    [Fact]
+    public void FacilityActivation_TurnsTaboOnWithOneSwitch_SettingEnabledAndMobileTogether()
+    {
+        var tabo = Definition(CollectorOperationCodes.Tabo, "Tabo", GovernedServiceSetupState.SetupRequired, issues: "The amount rule has not been set up.") with
+        { AllowedBases = [GovernedServiceBasis.DirectApprovedAmount] };
+        Serve([tabo]);
+        ConfigureGovernedServiceRequest? sent = null;
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.Tabo, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(
+                tabo with { State = GovernedServiceSetupState.Active, Basis = GovernedServiceBasis.DirectApprovedAmount, MobileEnabled = true, SetupIssues = [] }));
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.FacilityCanonicalCollection>(p => p
+            .Add(x => x.OperationCode, CollectorOperationCodes.Tabo).Add(x => x.Name, "Tabo vendor fees"));
+
+        cut.WaitForAssertion(() => Assert.Contains("Not turned on", cut.Markup), Timeout);
+        Assert.DoesNotContain("Postman", cut.Markup);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Turn on").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.True(sent!.IsEnabled && sent.MobileEnabled);                               // no half-enabled state can be saved
+            Assert.Equal(GovernedServiceBasis.DirectApprovedAmount, sent.Basis);
+            Assert.Null(sent.FixedAmount);                                                     // the existing fee schedule stays the amount authority
+            Assert.Contains("On", cut.Find(".fcc-state").TextContent);
+            Assert.Contains("Turn off", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
     public void AddingAFeeType_SendsTheRuleTheHeadChose_AndShowsTheServersList()
     {
         Serve([FeeTypeDefinition()]);

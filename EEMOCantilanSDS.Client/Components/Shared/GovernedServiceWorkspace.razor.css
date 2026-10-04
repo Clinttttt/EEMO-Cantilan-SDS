@@ -173,3 +173,11 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.gsw-fee-rule {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin: 0 0 12px;
+}

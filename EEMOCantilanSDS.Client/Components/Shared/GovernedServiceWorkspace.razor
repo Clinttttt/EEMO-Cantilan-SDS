@@ -208,6 +208,19 @@
 
 @if (HasFeeOptions)
 {
+    @if (_definition is { Basis: not GovernedServiceBasis.ApprovedFeeOption })
+    {
+        @* The collector is only offered fee types when the amount rule is "By approved fee type". Defining a type while another rule
+           is in force would otherwise look saved and never reach Collector Mobile. *@
+        <p class="v3-notice gsw-fee-rule" role="status">
+            Collectors are offered these fee types only when the amount rule is <strong>By approved fee type</strong>. Today's rule is <strong>@BasisLabel(_definition)</strong>.
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="UseFeeTypesAsync" disabled="@_saving">Collect by fee type</button>
+                </Authorized>
+            </AuthorizeView>
+        </p>
+    }
     <div class="gsw-fee-options">
         <FeeOptionDefinitions OperationCode="@OperationCode" Title="@FeeOptionsTitle" Month="@_month" Changed="LoadDefinitionAsync" />
     </div>
@@ -330,6 +343,25 @@
             if (!result.IsSuccess) { _saveError = result.Error ?? "New transactions could not be enabled."; return; }
             _definition = result.Value;
             _saved = "New transactions are enabled.";
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // Switches the amount rule to "By approved fee type" from today, keeping the service on for Collector Mobile. Earlier collections
+    // keep the rule they used; the fee types themselves (and their own amount rules) are the Head's, below.
+    private async Task UseFeeTypesAsync()
+    {
+        if (_saving || _definition is null) return;
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var result = await GovernedApi.ConfigureAsync(OperationCode, new ConfigureGovernedServiceRequest(
+                PhilippineTime.Today, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true));
+            if (!result.IsSuccess) { _saveError = result.Error ?? "The amount rule could not be changed."; return; }
+            _definition = result.Value;
+            _saved = "Collectors are now offered the approved fee types.";
         }
         catch (Exception ex) { _saveError = ex.Message; }
         finally { _saving = false; }
