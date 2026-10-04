@@ -56,6 +56,8 @@ public static class TenantBackupTableNames
         ["CollectionRemittances"] = "Collection remittances",
         ["CollectionRemittanceCoverages"] = "Remittance coverage",
         ["AccountableFormSpoilages"] = "Spoiled form records",
+        ["AccountableFormLossReports"] = "Lost form reports",
+        ["AccountableFormReferences"] = "Form follow-up references",
     };
 
     public static string Display(string table)

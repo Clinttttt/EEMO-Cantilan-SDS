@@ -166,6 +166,7 @@ public class ApplicationEfBoundaryTests
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
         "WcfMobileCollectionWorkflow.cs",
         "AccountableFormCustodyWorkflow.cs",
+        "AccountableFormCustodyWorkflow.Accountability.cs",
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
         // permission rows. It carries no money, source, document or policy state.
         "CollectorOperationAssignmentWorkflow.cs",

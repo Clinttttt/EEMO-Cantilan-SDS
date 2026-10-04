@@ -65,6 +65,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["CollectionRemittances"] = "Collection remittances",
         ["CollectionRemittanceCoverages"] = "Remittance coverage",
         ["AccountableFormSpoilages"] = "Spoiled form records",
+        ["AccountableFormLossReports"] = "Lost form reports",
+        ["AccountableFormReferences"] = "Form follow-up references",
     };
 
     public async Task<TenantUsageDto> GetUsageAsync(CancellationToken ct)
