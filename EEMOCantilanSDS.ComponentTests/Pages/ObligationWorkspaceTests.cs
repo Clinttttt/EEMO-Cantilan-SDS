@@ -68,7 +68,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal(title, Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
             Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
-            Assert.Contains("has been opened yet", cut.Markup);
+            Assert.Contains("found.", cut.Markup);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record") || b.TextContent.Contains("Collect"));
         }, Timeout);
     }
@@ -198,7 +198,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("accounts couldn't be loaded", cut.Find("[role='alert']").TextContent);
-            Assert.DoesNotContain("has been opened yet", cut.Markup);
+            Assert.DoesNotContain("spaces found.", cut.Markup);
         }, Timeout);
     }
 }

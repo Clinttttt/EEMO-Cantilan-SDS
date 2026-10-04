@@ -110,7 +110,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("accounts couldn't be loaded", cut.Find("[role='alert']").TextContent);
-            Assert.DoesNotContain("has been opened yet", cut.Markup);
+            Assert.DoesNotContain("No spaces found.", cut.Markup);
         }, Timeout);
     }
 

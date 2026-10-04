@@ -90,7 +90,7 @@
     {
         <div class="empty-state">
             <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
-            <div class="empty-title">No Stalls Found</div>
+            <div class="empty-title">No @EmptyNoun found</div>
             <div class="empty-sub">Try adjusting the filters or search.</div>
         </div>
     }
@@ -353,6 +353,14 @@
 @code {
 
     [Parameter] public string Facility { get; set; } = string.Empty;
+
+    // The operation's own noun in the empty state: an ice-plant unit is a space, a barbecue unit a stand, the rest are stalls.
+    private string EmptyNoun => Facility?.Trim().ToLowerInvariant() switch
+    {
+        "ice" or "iceplant" or "ice-plant" => "spaces",
+        "bbq" => "stands",
+        _ => "stalls"
+    };
     [Parameter] public string ColumnSet { get; set; } = "Lease";
     [Parameter] public IEnumerable<TStall> FilteredStalls { get; set; } = new List<TStall>();
     [Parameter] public EventCallback<TStall> OnPaymentClick { get; set; }

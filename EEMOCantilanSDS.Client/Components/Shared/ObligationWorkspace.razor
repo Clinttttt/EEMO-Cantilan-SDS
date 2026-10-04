@@ -142,7 +142,7 @@
                             <td class="v3-empty" colspan="@(_holders ? 9 : 7)">
                                 @if (_loading) { <span role="status">Loading accounts…</span> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
-                                else { <span>No @Name account has been opened yet.</span> }
+                                else { <span>No @(SubjectNoun == "Lot" ? "lots" : "spaces") found.</span> }
                             </td>
                         </tr>
                     }
@@ -161,10 +161,7 @@
                 }
             </table>
         </div>
-        <p class="v3-panel-note">
-            Collected on an Official Receipt in <a href="/collections/current">Current Collection</a>; any amount up to the
-            remaining balance may be paid, and the obligation is unchanged by how it is paid.
-        </p>
+        <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
     </section>
 
     <AuthorizeView Roles="SuperAdmin">
