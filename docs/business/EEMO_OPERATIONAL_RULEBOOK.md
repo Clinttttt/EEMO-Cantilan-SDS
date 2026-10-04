@@ -181,7 +181,7 @@ Future StallTrack support should therefore be capable of representing:
 
 Do not reduce this to a boolean `Remitted = Yes/No`.
 
-Remittance is **not** triggered by, or blocked by, exhaustion of the assigned Cash Ticket range (IA-052). Complete accountability of a physical batch remains issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions, tracked separately from the money.
+Remittance is **not** triggered by, or blocked by, exhaustion of the assigned Cash Ticket range (IA-052); canonical collections in a remittance are identified by SRC (IA-062), and unused paper stock is never money. Complete accountability of a physical batch remains issued/consumed + spoiled/cancelled + returned + remaining + reconciliation exceptions, tracked separately from the money.
 ## 6. Cash Ticket payer identity
 
 For transactional Cash Ticket collections, payor identity is **optional**, not universally mandatory.
@@ -322,7 +322,7 @@ Collectors never configure these rules. Collector Mobile may show an operation o
 
 If the operation later proves to require specialized approval, assessment, regulatory, lifecycle, or reconciliation behavior, promote it to a specialized source domain while preserving the canonical Collection model and existing posted history.
 
-**Transfer Large Cattle** is the first explicit use of this pattern. Current direction (Clint / Core Brain, 2026-09-30, IA-049): **Official Receipt**, Collector Mobile, occasional, **direct approved amount**, kept intentionally simple (business date, payer/owner, concise reference, approved amount, assigned OR). It stays **Setup Required** and non-collectible until authorized setup records its approved amount rule and an OR policy is effective; no livestock registry or certificate system is built.
+**Transfer Large Cattle** is the first explicit use of this pattern. Current direction (Clint / Core Brain, 2026-09-30, IA-049): **Official Receipt**, Collector Mobile, occasional, **direct approved amount**, kept intentionally simple (business date, payer/owner, concise reference, approved amount). The Official Receipt is instrument policy; an assigned or typed OR serial is not required to record the collection, which is identified by its SRC (IA-062). It stays **Setup Required** and non-collectible until authorized setup records its approved amount rule and an OR policy is effective; no livestock registry or certificate system is built.
 
 See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 

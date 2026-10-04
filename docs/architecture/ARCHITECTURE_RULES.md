@@ -181,3 +181,7 @@ tenant. Consequences you must respect:
   API `/health` 200, portal `/login` 200, and the scoped CSS bundle brace-balanced.
 - Mobile changes need a RELEASE APK rebuild before collectors see them.
 - Documentation-only paths (`docs/**`, `.agents/**`, `README.md`, `AGENTS.md`) are excluded from the deploy trigger.
+
+## SRC-first collection identity (IA-062)
+
+A canonical Collection is identified by its server-allocated StallTrack Reference Code (`SRC-YYYY-NNNNNN`, global monotonic sequence, immutable, replay-stable). No writer may require a physical OR/CT serial, an assigned document or document stock to post or to be ready. `ReferenceCode` is a database-generated column: never write it. Physical accountable forms are a separate optional ledger. See `decisions/DECISION_REGISTRY.md` (IA-062).

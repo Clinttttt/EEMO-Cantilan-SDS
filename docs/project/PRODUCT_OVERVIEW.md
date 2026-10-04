@@ -45,7 +45,7 @@ effective date in `FacilityRates`.
 - **Platform operator** — onboards LGUs (assess → validate → activate), issues the Head account, can clear a
   Head's second factor. Cross-tenant reach requires the `IsPlatformOperator` flag.
 - **Head (SuperAdmin)** — everything within their own LGU. May act on Admins and themselves, never on a peer Head.
-- **Admin** — records, OR entry, reports. No account management, no audit trail.
+- **Admin** — records, reports (OR entry only on legacy-authoritative sources; canonical collections carry an SRC). No account management, no audit trail.
 - **Collector** — mobile only, limited to assigned facilities.
 - **Payor** — public portal for their own stall's dues and online payment.
 

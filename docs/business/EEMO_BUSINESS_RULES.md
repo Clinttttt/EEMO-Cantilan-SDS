@@ -138,7 +138,7 @@ Consequences the whole system holds to:
   print "No contract (space only)" / "No contract (extension)" across the contract columns.
 - **Payment status:** Paid / Partial / Unpaid per stall per period. A **partial counts as unpaid** for the
   paid-vs-unpaid invariant (Paid + Unpaid == Billable) and is additionally surfaced as a partial count.
-- **OR numbers** are entered by hand from the physical receipt book, never generated. Adding an OR number
+- **OR numbers** (legacy-authoritative writers only; canonical collections are identified by SRC and need none, IA-062) are entered by hand from the physical receipt book, never generated. Adding an OR number
   never rewrites the original collector or timestamp. OR uniqueness is enforced per tenant.
 - **NPM is never billed monthly.** `RecordPayment` refuses an NPM stall — daily collections and the
   month-settlement service are the only routes — and online payment routes NPM to a daily-derived path.

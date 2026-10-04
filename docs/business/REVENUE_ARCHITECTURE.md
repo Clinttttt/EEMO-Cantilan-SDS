@@ -362,4 +362,4 @@ These dispositions do not implement RevenueClassification, Collection, Collectio
   `ClientOperationId`. A part with legacy settlement keeps the explicit, attested legacy-migration cutover.
 - A direct entry establishes the Water amount on the one bill for the source and current period (creating the bill only when
   none exists, never touching Electricity) and posts the Collection, its WCF line and the Cash Ticket consumption atomically
-  and idempotently; an existing prepared amount refuses the entry (Cash Ticket held for reconciliation).
+  and idempotently; an existing prepared amount refuses the entry (a durable rejection; since IA-062 no physical ticket is held).

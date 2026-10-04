@@ -30,6 +30,14 @@ Direction change from Clint: the **StallTrack Reference Code (SRC)** — `SRC-YY
 - **Accountable Forms** no longer implies collection consumption; Issued/Consumed counts now reflect only forms the office recorded as issued.
 - **Open / not done here:** cross-day SRC search on Collection Activity (the page filters the loaded day only; a server-side search parameter is the follow-up); `SettlementCutoverWorkflow` still reports accountable-document inventory as a cutover prerequisite for converting a legacy source (a source-cutover concern, intentionally untouched); Mobile Electricity (typed OR number) and the other legacy NPM writers keep their legacy path until their own cutover; Mobile Android runtime review is still pending.
 
+## 1B. Consolidation checkpoint (2026-10-04, documentation only)
+
+- **Authority:** IA-062 (SRC-first) governs collection identity. SRC is not an Official Receipt, Cash Ticket or government receipt; physical OR/CT (AF No. 51 for ORs, suffix semantics still open under IA-059) remain real-world evidence and instrument policy, tracked in the optional Accountable Forms register.
+- **Not universal yet:** SRC-first applies to already-canonical writers (Web Current Collection/ECF, WCF Mobile, governed services). Legacy Mobile writers (Market daily, Monthly Collection, Taboan, Terminal, Electricity and other facility writers) still take a typed OR number and stay legacy until a controlled prospective cutover; their historical OR evidence is untouched.
+- **Phase 2 items:** (a) `SettlementCutoverWorkflow` still treats accountable-document inventory reconciliation as a cutover prerequisite — contradicts IA-062, not yet fixed; (b) the legacy Mobile cutovers above; (c) cross-day SRC lookup (search currently filters the loaded day only).
+- **Local dev data:** the local dev DB holds a test collection (payer "SRC runtime check", SRC-2026-000006). It is review data, not evidence; SRC gaps are valid, so do not renumber.
+- **Naming:** current office name is MEEDO; older records may keep the historical EEMO terminology (see `docs/README.md`).
+
 ## 2. Validation state
 
 Latest completed validation reported for the branch:
