@@ -85,3 +85,30 @@ For one Tabo and one Slaughterhouse collection: official Monthly Income row `TAB
 
 ### Not built / still legacy
 Fish/Meat Vendor Fee Mobile; NPM daily migration; Slaughterhouse packages/add-ons (none active); Head setup UI for the two new switches; backfill of any historical row (none attempted).
+
+> Superseded by Phase 2.3 below for: Head setup UI (built), Fish/Meat Vendor Fee Mobile (built). NPM daily remains legacy (blocker below).
+
+---
+
+## Phase 2.3 — presentation closure (2026-10-04)
+
+### Built
+- **Head activation, no API client.** `FacilityCanonicalCollection` sits in the Tabo-an and Slaughterhouse **Configure** drawers (Facility Configuration). One switch saves "enabled for new transactions" and "Collector Mobile" together, so the half-enabled state cannot be saved from there. No Revenue Setup screen was added.
+- **Half-enabled governed state.** The governed workspace opens the editor enabled (it used to open a Disabled service unchecked and save it Disabled again), offers a one-click "Enable new transactions" for a Disabled service, and says "Allowed, but new transactions are not enabled" instead of a bare "Enabled" beside Disabled. Local data root cause: Vegetable/Fruit had a 2026-10-04 setting with IsEnabled = false, MobileEnabled = true.
+- **Policy-version duplicate.** Enabling never needs a new policy row. The Schedule-policy dialog now defaults to the day after the latest version, so the Head is not handed a date the history already holds.
+- **Vegetable / Fruit.** Wording is Monthly rental (OR) / Daily transaction (CT) on Web and Mobile; Mobile mode tiles and the facts card show the policy instrument. The mode resolves the instrument (IA-046); the collector never picks it. Both modes post one Collection with an SRC (proved on PostgreSQL and in the live Mobile app).
+- **Market Fee definitions on Mobile.** Mobile already read active fee options live (stable `FeeOptionId`; read-through cache only as the offline fallback). Local root cause of "not visible": Market Fees was on the **Direct approved amount** rule, and fee types are offered to collectors only under **By approved fee type**. The workspace now says so and offers "Collect by fee type". Verified live: Head adds Comfort Room (Terminal / Public Market) in Web, Mobile lists both, a post references the option id, retiring removes it from new collections, history stays readable.
+- **Fish / Meat Vendor Fee Mobile.** The authoritative domain is the monthly **obligation account** on an NPM Fish/Meat stall (IA-050), not a per-kilo weighing. `PostMobileObligationAsync` reuses `ObligationCollectionSource` (same facts, Official Receipt policy, snapshot as Web); the collector picks account and period, the amount is capped at the period balance, no serial, SRC returned, idempotent, offline-queued (`OfflineOperationKind.ObligationCollection`). Distinct from NPM daily, Tabo, Market Fees and Weight and Measure.
+- **Accountable Forms.** Physical-book registration moved behind a collapsed "Record a physical book (back-office)" disclosure; the page is "Physical form history". Nothing is deleted; OR/CT labels stay; collection never depends on a registered book. Wording states that the SRC is neither an OR nor a CT.
+- **Mobile display fixes** from the live run: day figures on the Tabo and Slaughter screens now include recorded canonical lines; SRC badges wrap; instrument shown on governed operations.
+
+### Blocker: NPM daily canonical migration (not built)
+Stopped for this sub-flow only, because continuing would mean guessing the transaction boundary and classification:
+- `DailyCollection` is a mutable per-day status row (paid / unpaid / absent, re-mark, un-mark), not an append-only money event. Canonical Collections are append-only; a canonical NPM writer must define how mark-unpaid/absent and corrections map to a Collection correction.
+- Its income is the **stall-rent row (`RENT_NPM`, `PERMANENT_STALL_RENT`)**; the day fee is a different cadence of the same rent source. NPM month settlement (rent goal / pure days, arrears, earned-through) reads `DailyCollection`. Whether a canonical day is an allocation against the month's `PaymentRecord` or a new source is an accounting decision, as is the classification and rate of the fish/meat weighing add-on on the same row.
+- Needed from the Head/Core Brain: (1) the canonical source and classification for a daily stall fee, (2) how a day is corrected or voided, (3) whether month settlement reads canonical days. Until then the NPM daily writer stays legacy and unchanged.
+
+### Known limits
+- Vegetable / Fruit has one approved ceiling (Direct approved amount), not a separate configured amount per mode, and the repository states no monthly rate. The collector enters the amount within the ceiling. A per-mode fixed amount needs the Head to state the rates first.
+- Market Fees offers fee types only under the By approved fee type rule (now explained in the UI).
+- Fish/Meat dues list loads online; offline shows the last synchronized list and the server revalidates on sync.
