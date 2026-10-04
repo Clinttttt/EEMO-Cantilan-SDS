@@ -179,8 +179,8 @@ DID: one unauthenticated `GET /health` against the production API. DID NOT: any 
 
 BACKEND GAP / follow-ups recorded while converting collection identity to SRC (none are faked in the UI):
 
-- **Cross-day SRC lookup.** Collection Activity filters the loaded day only. Required contract: an optional `search` (case-insensitive SRC, legacy document, payer) on `GET api/collections/activity` that is applied server-side over the requested range.
+- **Cross-day SRC lookup.** RESOLVED in Phase 2 (`reference` parameter on `GET api/collections/activity`).
 - **Legacy Mobile writers.** NPM daily/utility Electricity (typed OR number), TPM/TRM/NCC/ICE legacy payloads and slaughter/Tabo legacy paths do not produce a canonical Collection and therefore have no SRC. They need their own controlled source cutover; this pivot deliberately did not perform one.
-- **Cutover prerequisite wording.** `SettlementCutoverWorkflow` still treats accountable-document inventory reconciliation as evidence for converting a legacy source. That is a source-cutover control and was left unchanged; Core Brain should decide whether to relax it now that collection no longer consumes documents.
+- **Cutover prerequisite wording.** RESOLVED in Phase 2: `SettlementCutoverWorkflow` treats physical document inventory as informational only.
 - **Document trace.** `GET api/official-reports/documents/{number}` now finds physical custody only for forms the office recorded as issued; a Collection is traced by its SRC (`GET api/official-reports/collections/{id}` returns `ReferenceCode`).
-- **Legacy Mobile OR writers (Phase 2).** Market daily, Monthly Collection, Taboan, Terminal, Electricity and other facility writers still ask for a typed OR number; SRC-first is not universal. They stay legacy until a controlled prospective cutover. Cross-day SRC lookup is still pending.
+- **Legacy Mobile OR writers (Phase 2).** Classified in `SRC_PHASE2_MOBILE_OR_AUDIT_20261004.md`; all are class D and stay legacy until their domain rules and controlled cutovers exist.

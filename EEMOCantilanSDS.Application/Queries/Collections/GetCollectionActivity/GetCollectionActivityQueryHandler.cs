@@ -46,6 +46,20 @@ public sealed class GetCollectionActivityQueryHandler(
         if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
             return Result<CollectionActivityFeedDto>.Forbidden();
 
+        if (!string.IsNullOrWhiteSpace(request.Reference))
+        {
+            var code = request.Reference.Trim().ToUpperInvariant();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(code, "^SRC-[0-9]{4}-[0-9]{6,}$"))
+                return Result<CollectionActivityFeedDto>.Failure("Enter a full reference such as SRC-2026-000127.", ResultStatus.Invalid);
+            var found = await reader.FindBusinessDateByReferenceAsync(tenantId, code, ct);
+            var day = found ?? request.From;
+            var matched = found is null ? new List<CollectionActivityEventDto>()
+                : (await reader.GetAsync(tenantId, day, day, ct)).Where(e => e.Authority == "Canonical" && e.ReferenceCode == code).ToList();
+            return Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(
+                day, day, DateBasis, CorrectionBasis, clock.UtcNow, matched, matched.Count, false,
+                0m, matched.Sum(e => e.Amount), matched.Sum(e => e.CorrectionEffect),
+                matched.Sum(e => e.Amount + e.CorrectionEffect), Notes));
+        }
         if (request.From > request.To || request.To.DayNumber - request.From.DayNumber >= GetCollectionActivityQuery.MaxDays)
             return Result<CollectionActivityFeedDto>.Failure(
                 $"Choose a period of 1 to {GetCollectionActivityQuery.MaxDays} days.", ResultStatus.Invalid);

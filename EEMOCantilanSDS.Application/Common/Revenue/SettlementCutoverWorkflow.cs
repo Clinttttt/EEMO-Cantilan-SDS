@@ -224,7 +224,7 @@ public sealed class SettlementCutoverWorkflow(
             .ToListAsync(ct);
         var reconciliationDocuments = reconciliationDocumentRows.Count;
         if (reconciliationDocuments > 0)
-            blockers.Add($"{reconciliationDocuments} physically issued accountable document(s) still require reconciliation.");
+            warnings.Add($"{reconciliationDocuments} physically issued accountable document(s) still require reconciliation in the optional Accountable Forms register (informational; IA-062).");
 
         var documentsById = reconciliationDocumentRows.ToDictionary(x => x.Id);
         var documentsByOperation = reconciliationDocumentRows.Where(x => x.ClientOperationId.HasValue)
@@ -274,7 +274,7 @@ public sealed class SettlementCutoverWorkflow(
                     && a.ReturnedAtUtc == null))
             .CountAsync(ct);
         if (inconsistentAssignedDocuments > 0)
-            blockers.Add($"{inconsistentAssignedDocuments} assigned document(s) disagree with active custody history.");
+            warnings.Add($"{inconsistentAssignedDocuments} assigned document(s) disagree with active custody history (informational; IA-062).");
 
         var unresolvedOnlinePayments = await CountUnresolvedOnlinePaymentsAsync(actor.TenantId, source, ct);
         if (unresolvedOnlinePayments > 0)
@@ -286,8 +286,6 @@ public sealed class SettlementCutoverWorkflow(
             blockers.Add(source.MobileWriterStatus);
         AddEvidenceBlockers(evidence, affectedCollectors, blockers, requiresWcfPayload);
         var missingCollectorEvidence = GetMissingCollectorEvidence(evidence, affectedCollectors, requiresWcfPayload);
-        if (activeAssignedDocumentCount > 0 && evidence?.AccountableDocumentInventoryReconciled != true)
-            blockers.Add("Active accountable-document custody assignments exist and have not been reconciled against physical inventory.");
 
         warnings.Add("The candidate opening position is historical balance evidence, never a Collection or cash report event.");
         warnings.Add("Legacy compatibility reports must be checked for duplicate counting; canonical Collection projections are not additional revenue.");
@@ -295,7 +293,7 @@ public sealed class SettlementCutoverWorkflow(
         if (!string.IsNullOrWhiteSpace(source.LegacyDocumentEvidence))
             warnings.Add("The legacy document field is preserved as source evidence and is not proof of an accountable OR/CT unit.");
         if (activeAssignedDocumentCount > 0)
-            warnings.Add($"{activeAssignedDocumentCount} active {source.RequiredInstrument} unit(s) remain in collector custody and must be included in the inventory reconciliation evidence.");
+            warnings.Add($"{activeAssignedDocumentCount} active {source.RequiredInstrument} unit(s) remain in collector custody and remain in collector custody (informational; physical stock does not gate a canonical source, IA-062).");
         if (source.LegacyWriterStatus is { } writerStatus)
             warnings.Add(writerStatus);
 
@@ -318,7 +316,6 @@ public sealed class SettlementCutoverWorkflow(
             online = unresolvedOnlinePayments,
             reconciliationOperations = sourceOperations.Length,
             reconciliationExceptions,
-            activeAssignedDocuments,
             collectors = affectedCollectors.Order().ToArray(),
             evidence = evidence is null ? null : new
             {
@@ -432,14 +429,14 @@ public sealed class SettlementCutoverWorkflow(
     {
         if (evidence is null)
         {
-            blockers.Add("Reconciliation evidence is required for legacy-writer quiescence, device queues, online payments, accountable documents, and report readers.");
+            blockers.Add("Reconciliation evidence is required for legacy-writer quiescence, device queues, online payments, and report readers.");
             return;
         }
         if (!evidence.LegacyWritersQuiesced) blockers.Add("Legacy Web, Mobile, import, maintenance, and correction writers are not attested quiesced for this exact scope.");
         if (!evidence.MobileQueuesDrained) blockers.Add("Collector device-local offline queues have not been attested drained.");
         if (!evidence.NoUnregisteredFieldDevices) blockers.Add("The affected collector/device inventory is not confirmed complete.");
         if (!evidence.OnlinePaymentsDrained) blockers.Add("Initiated and provider-confirmed online payment activity is not attested drained.");
-        if (!evidence.AccountableDocumentInventoryReconciled) blockers.Add("Physical accountable-document inventory and custody have not been reconciled.");
+        // IA-062: physical OR/CT inventory is a separate back-office ledger; AccountableDocumentInventoryReconciled is informational only.
         if (!evidence.ReportingPathVerified) blockers.Add("Collection Activity, classification totals, and applicable financial report paths have not been verified for this source.");
         if (string.IsNullOrWhiteSpace(evidence.EvidenceReference)) blockers.Add("A durable reconciliation evidence reference is required.");
         if (evidence.EvidenceReference?.Length > 1_000 || (evidence.CollectorEvidence?.Count ?? 0) > 500)

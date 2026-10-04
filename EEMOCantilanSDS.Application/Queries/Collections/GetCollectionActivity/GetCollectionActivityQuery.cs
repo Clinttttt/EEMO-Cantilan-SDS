@@ -15,7 +15,10 @@ public sealed record GetCollectionActivityQuery(
     FacilityCode? Facility = null,
     Guid? CollectorId = null,
     string? Authority = null,
-    int Limit = GetCollectionActivityQuery.DefaultLimit) : IRequest<Result<CollectionActivityFeedDto>>
+    int Limit = GetCollectionActivityQuery.DefaultLimit,
+    // Exact StallTrack Reference Code lookup (case-insensitive). When set, From/To are ignored and the result is the one canonical
+    // Collection with that SRC, on its own business date; no SRC is ever matched to a legacy row.
+    string? Reference = null) : IRequest<Result<CollectionActivityFeedDto>>
 {
     public const int MaxDays = 31;
     public const int DefaultLimit = 500;

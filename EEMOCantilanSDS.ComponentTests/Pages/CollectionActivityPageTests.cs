@@ -33,8 +33,8 @@ public sealed class CollectionActivityPageTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         _activity
-            .Setup(client => client.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>()))
-            .ReturnsAsync((DateOnly from, DateOnly to, FacilityCode? _, Guid? _, string? _, int _) =>
+            .Setup(client => client.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>(), null))
+            .ReturnsAsync((DateOnly from, DateOnly to, FacilityCode? _, Guid? _, string? _, int _, string? _) =>
                 Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(from, to, "basis", "LatestCorrected",
                     DateTime.UtcNow, events, events.Length, false, 0m, 0m, 0m, 0m, [])));
 
@@ -76,6 +76,29 @@ public sealed class CollectionActivityPageTests : TestContext
     }
 
     [Fact]
+    public void ACompleteSrcNotOnTheLoadedDay_IsLookedUpOnTheServer_AndThePageJumpsToItsDay()
+    {
+        var other = PhilippineTime.Today.AddDays(-9);
+        var hit = Event("far", "Canonical", "MARKET_FEES", "Market Fees", 25m) with { ReferenceCode = "SRC-2026-000127", BusinessDate = other };
+        var page = RenderPage();   // today is empty
+        _activity.Setup(c => c.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>(), "SRC-2026-000127"))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(other, other, "b", "LatestCorrected",
+                DateTime.UtcNow, [hit], 1, false, 0m, 25m, 0m, 25m, [])));
+        _activity.Setup(c => c.GetAsync(other, other, null, null, null, It.IsAny<int>(), null))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(other, other, "b", "LatestCorrected",
+                DateTime.UtcNow, [hit], 1, false, 0m, 25m, 0m, 25m, [])));
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".txn-empty")), TimeSpan.FromSeconds(5));
+
+        page.Find("input.txn-search-input").Input("SRC-2026-000127");
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("SRC-2026-000127", page.Find("table.txn-table tbody").TextContent);
+            Assert.Contains(other.ToString("MMMM d, yyyy"), page.Find(".txn-datebox-sub").TextContent);
+        }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void LoadsTheUnifiedFeedOncePerDay_AndTheDayNavigatorMovesIt()
     {
         var page = RenderPage();
@@ -87,7 +110,7 @@ public sealed class CollectionActivityPageTests : TestContext
 
         // A scope is a filter over the loaded day, not another request.
         page.FindAll("button.txn-seg-tab").Single(button => button.TextContent.Trim() == "Operations").Click();
-        _activity.Verify(client => client.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>()), Times.Once);
+        _activity.Verify(client => client.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>(), null), Times.Once);
 
         page.Find("button[aria-label='Previous day']").Click();
         page.WaitForAssertion(

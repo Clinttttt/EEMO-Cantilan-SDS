@@ -11,4 +11,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 public interface ICollectionActivityReader
 {
     Task<IReadOnlyList<CollectionActivityEventDto>> GetAsync(Guid tenantId, DateOnly from, DateOnly to, CancellationToken ct = default);
+
+    /// <summary>The business date of the canonical Collection carrying this exact SRC in the tenant, or null.</summary>
+    Task<DateOnly?> FindBusinessDateByReferenceAsync(Guid tenantId, string referenceCode, CancellationToken ct = default);
 }

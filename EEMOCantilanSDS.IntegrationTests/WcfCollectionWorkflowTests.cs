@@ -658,22 +658,21 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         var readiness = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
         Assert.True(readiness.IsSuccess, readiness.Error);
         Assert.True(readiness.Value!.Ready, string.Join(" | ", readiness.Value.BlockingReasons));
-        Assert.Equal(1, readiness.Value.ActiveAssignedDocuments);
+        Assert.Equal(1, readiness.Value.ActiveAssignedDocuments);   // reported for information only (IA-062)
 
         var frozen = await workflow.FreezeOpeningPositionAsync(new SettlementCutoverFreezeRequest(
             scope, readiness.Value.SourceVersion, readiness.Value.ReadinessFingerprint, evidence));
         Assert.True(frozen.IsSuccess, frozen.Error);
 
-        var document = await context.AccountableDocuments.SingleAsync(x => x.Id == seed.CtDocumentId);
-        var assignment = await context.AccountableFormAssignments.SingleAsync(x => x.AccountableDocumentId == seed.CtDocumentId);
         var beforeCustodyChange = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
-        assignment.RecordReturn("test-office-admin", DateTime.UtcNow);
-        document.ReturnToOffice("test-office-admin");
+        // A real financial/readiness change after the freeze: an unresolved posting operation now references the source.
+        context.PostingOperations.Add(PostingOperation.Record(seed.TenantId, Guid.NewGuid(), 1,
+            $"{{\"sourceId\":\"{seed.BillId:D}\",\"sourcePart\":\"Water\"}}", "Mobile/Wcf", "collector",
+            PostingOperationStatus.ReconciliationRequired, "SYNC_ISSUE", "Awaiting office review.", null, null, DateTime.UtcNow));
         await context.SaveChangesAsync();
 
         var reevaluated = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
         Assert.True(reevaluated.IsSuccess, reevaluated.Error);
-        Assert.Equal(0, reevaluated.Value!.ActiveAssignedDocuments);
         Assert.NotEqual(readiness.Value.ReadinessFingerprint, reevaluated.Value.ReadinessFingerprint);
         var afterCustodyChange = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
         Assert.Equal(beforeCustodyChange.WaterSourceVersion, afterCustodyChange.WaterSourceVersion);
@@ -693,6 +692,37 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         Assert.Empty(await context.Collections.AsNoTracking().ToListAsync());
         Assert.Empty(await context.CollectionLines.AsNoTracking().ToListAsync());
         Assert.Empty(await context.CollectionAllocations.AsNoTracking().ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task PhysicalFormInventoryNeverBlocksACanonicalCutover_EvenWhenNotAttestedReconciled()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(canonicalWater: false, assignTicket: true);
+        await using var context = db.CreateContext(seed.TenantId);
+        var scope = new SettlementCutoverScope(CollectionSourceKind.UtilityBill, seed.BillId, CollectionSourcePart.Water);
+        var workflow = new SettlementCutoverWorkflow(context,
+            new TestActor(seed.AdminId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
+        Assert.True((await workflow.BeginPendingCutoverAsync(scope)).IsSuccess);
+        // The ticket in collector custody is a physical-stock fact; the inventory flag is NOT attested.
+        var evidence = new SettlementCutoverReconciliationEvidence(true, true, true, true, false, true,
+            "isolated-integration-test:stock-informational", new[]
+            {
+                new CutoverCollectorEvidence(seed.CollectorId!.Value, "1.1.11", 1, true, DateTime.UtcNow, "device-a"),
+                new CutoverCollectorEvidence(seed.OtherCollectorId!.Value, "1.1.11", 1, true, DateTime.UtcNow, "device-b")
+            });
+
+        var ready = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
+
+        Assert.True(ready.Value!.Ready, string.Join(" | ", ready.Value.BlockingReasons));
+        Assert.Equal(1, ready.Value.ActiveAssignedDocuments);
+        Assert.DoesNotContain(ready.Value.BlockingReasons, r => r.Contains("accountable-document", StringComparison.OrdinalIgnoreCase));
+
+        // Device/offline safety still gates: an undrained queue blocks regardless of paper stock.
+        var undrained = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence with { MobileQueuesDrained = false }));
+        Assert.False(undrained.Value!.Ready);
+        Assert.Contains(undrained.Value.BlockingReasons, r => r.Contains("offline queues", StringComparison.OrdinalIgnoreCase));
     }
 
     [SkippableFact]

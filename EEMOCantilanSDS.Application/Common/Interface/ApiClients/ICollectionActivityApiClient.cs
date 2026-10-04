@@ -8,5 +8,5 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface ICollectionActivityApiClient
 {
     Task<Result<CollectionActivityFeedDto>> GetAsync(DateOnly from, DateOnly to, FacilityCode? facility = null,
-        Guid? collectorId = null, string? authority = null, int limit = 500);
+        Guid? collectorId = null, string? authority = null, int limit = 500, string? reference = null);
 }

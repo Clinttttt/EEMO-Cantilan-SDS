@@ -19,6 +19,6 @@ public class CollectionActivityController(ISender sender) : ApiBaseController(se
     public async Task<ActionResult<CollectionActivityFeedDto>> Get(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to,
         [FromQuery] FacilityCode? facility, [FromQuery] Guid? collectorId, [FromQuery] string? authority,
-        [FromQuery] int limit = GetCollectionActivityQuery.DefaultLimit)
-        => HandleResponse(await Sender.Send(new GetCollectionActivityQuery(from, to, facility, collectorId, authority, limit)));
+        [FromQuery] int limit = GetCollectionActivityQuery.DefaultLimit, [FromQuery] string? reference = null)
+        => HandleResponse(await Sender.Send(new GetCollectionActivityQuery(from, to, facility, collectorId, authority, limit, reference)));
 }

@@ -63,7 +63,7 @@
             </div>
             <div class="txn-search">
                 <input type="search" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
-                       @bind="_search" @bind:event="oninput" />
+                       value="@_search" @oninput="OnSearchInputAsync" />
             </div>
         </div>
 
@@ -330,6 +330,31 @@
         InScope.Where(e => _source == AllSources || SourceLabel(e) == _source).Where(MatchesSearch).ToList();
 
     private string _search = string.Empty;
+
+    // A complete SRC that is not on the loaded day is looked up on the server (exact, case-insensitive) and the page jumps to
+    // that Collection's business date. Partial text only filters the loaded day.
+    private static readonly System.Text.RegularExpressions.Regex SrcPattern = new("^SRC-[0-9]{4}-[0-9]{6,}$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private async Task OnSearchInputAsync(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        var code = _search.Trim();
+        if (!SrcPattern.IsMatch(code) || Visible.Any(x => string.Equals(x.ReferenceCode, code, StringComparison.OrdinalIgnoreCase)))
+            return;
+        try
+        {
+            var result = await ActivityApi.GetAsync(SelectedDate, SelectedDate, limit: Limit, reference: code);
+            if (result.IsSuccess && result.Value is { Events.Count: > 0 } found)
+            {
+                SelectedDate = found.To;
+                _scope = "all";
+                _source = AllSources;
+                await ReloadAsync(paintLoading: true);
+            }
+        }
+        catch { /* a failed lookup leaves the loaded day as it was */ }
+    }
 
     // Case-insensitive over the collection reference (SRC), any physical document recorded with it, and the payer.
     private bool MatchesSearch(CollectionActivityEventDto e)

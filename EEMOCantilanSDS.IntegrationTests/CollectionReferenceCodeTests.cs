@@ -1,4 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Queries.Collections.GetCollectionActivity;
+using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
@@ -174,5 +177,48 @@ public sealed class CollectionReferenceCodeTests(PostgresFixture db)
         // The code is a stored computed column: it cannot be assigned directly.
         await Assert.ThrowsAnyAsync<Exception>(() => raw.Database.ExecuteSqlRawAsync(
             $"UPDATE \"Collections\" SET \"ReferenceCode\" = 'SRC-1999-000001' WHERE \"Id\" = '{ids[1]}'"));
+    }
+
+    private sealed class Clock : IClock
+    {
+        public DateOnly PhilippineToday => PhilippineTime.Today;
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => PhilippineTime.Now;
+    }
+
+    [SkippableFact]
+    public async Task ASrcLookupFindsTheCollectionOnAnotherDay_CaseInsensitively_AndNeverInAnotherTenant()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var posted = await PostAsync(w, w.Ana, Request());
+        Assert.True(posted.Ok, posted.Error);
+
+        async Task<EEMOCantilanSDS.Application.Dtos.Collections.CollectionActivityFeedDto?> Lookup(Guid tenant, string reference, DateOnly day)
+        {
+            await using var read = db.CreateContext(tenant);
+            var handler = new GetCollectionActivityQueryHandler(new CollectionActivityReader(read),
+                new Caller(Guid.NewGuid(), tenant, "Admin"), new FixedTenant(tenant), new Clock());
+            return (await handler.Handle(new GetCollectionActivityQuery(day, day, Reference: reference), CancellationToken.None)).Value;
+        }
+
+        var unrelatedDay = PhilippineTime.Today.AddDays(-20);
+        var found = await Lookup(w.Tenant.Id, posted.Src!.ToLowerInvariant(), unrelatedDay);
+        var only = Assert.Single(found!.Events);
+        Assert.Equal(posted.Src, only.ReferenceCode);
+        Assert.Equal(PhilippineTime.Today, found.To);          // the page jumps to the Collection's own business date
+
+        // A normal day query without a reference is unchanged: the unrelated day lists nothing.
+        await using (var read = db.CreateContext(w.Tenant.Id))
+        {
+            var plain = await new GetCollectionActivityQueryHandler(new CollectionActivityReader(read),
+                new Caller(Guid.NewGuid(), w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id), new Clock())
+                .Handle(new GetCollectionActivityQuery(unrelatedDay, unrelatedDay), CancellationToken.None);
+            Assert.Empty(plain.Value!.Events);
+        }
+
+        var other = await SeedAsync();
+        Assert.Empty((await Lookup(other.Tenant.Id, posted.Src, unrelatedDay))!.Events);   // another tenant never sees it
     }
 }

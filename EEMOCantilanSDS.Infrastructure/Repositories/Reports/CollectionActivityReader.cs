@@ -51,6 +51,15 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         return events;
     }
 
+    public async Task<DateOnly?> FindBusinessDateByReferenceAsync(Guid tenantId, string referenceCode, CancellationToken ct = default)
+    {
+        var code = referenceCode.Trim().ToUpperInvariant();
+        var date = await context.Collections.AsNoTracking()
+            .Where(c => c.MunicipalityId == tenantId && c.ReferenceCode == code)
+            .Select(c => (DateOnly?)c.BusinessDate).FirstOrDefaultAsync(ct);
+        return date;
+    }
+
     private readonly record struct Window(Guid TenantId, DateOnly From, DateOnly To, DateTime StartUtc, DateTime EndUtc);
 
     private static DateOnly PhDate(DateTime utc) => DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(utc));
