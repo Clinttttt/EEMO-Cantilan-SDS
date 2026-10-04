@@ -136,6 +136,16 @@ Still unresolved and therefore not to be guessed:
 - the formal semantic meaning of a printed suffix such as `A` after the serial (IA-059). BLGF notices prove trailing letters occur, while AF 51-A / AF 51-C are separately named form variants, so the two concepts must not be conflated;
 - the final UX depth of the first MEEDO OR-accountability release (for example how much booklet/range administration is exposed at once). The data model should still preserve the full accountable range/custody facts required above.
 
+Implemented in StallTrack on 2026-10-04 (IA-061; code on `release/v3-final-closure`):
+
+- **Register** a range from its first and last serial exactly as printed (for example `2315601 A` to `2315650 A`). The quantity is counted from the range; ranges that cannot be counted are refused. Source ("Municipal Treasurer"), reference and received date are provenance text only; nobody at the Treasury signs in or approves anything.
+- **Assign, transfer and return** unused receipts to collectors by range; each serial has one custodian at a time and a full custody history. An issued, cancelled or lost receipt never moves or returns.
+- **Next receipt.** The collection screens show the next assigned receipt; "Use different receipt" is a recovery action. Sequence is suggested, and an unused serial lower than one already issued from the same book is flagged as skipped for review.
+- **Cancellation** is recorded at once with serial and reason (actor and time automatic). The RCD reference is added later; until then the receipt shows "Needs follow-up".
+- **Lost** receipts (a serial or a range; the whole set or selected copies) are blocked at once with place, approximate date and what happened. The notice reference is added later. An already issued receipt whose copy is missing keeps its financial record and gets an exception on it.
+- **One OR, several lines** works through the existing Current Collection / ECF composer for sources that are already on Canonical settlement authority. Sources still on Legacy authority need a controlled cutover first and are not part of this.
+- **Position and history** count forms, never pesos. The "Accountability" view supports preparing the prescribed RAAF; it is not that report.
+
 See [2026-10-04 MEEDO Head AF No. 51 confirmation](../evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md) and [2026-10-04 authoritative Philippine AF No. 51 rules](../evidence/2026-10-04_af51_authoritative_philippine_rules.md).
 
 ## 5. Cash Ticket operating model

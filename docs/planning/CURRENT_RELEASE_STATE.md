@@ -2,7 +2,7 @@
 
 **Status:** Current implementation checkpoint
 **As of:** 2026-10-04
-**Code basis:** `release/v3-final-closure` through `70acb572` before this documentation-reconciliation commit
+**Code basis:** `release/v3-final-closure` through the AF No. 51 accountability commits listed in section 1
 **Production baseline:** `origin/master` at `cdcd3701`
 
 This is the single current implementation-status entry point. Dated audits, handoffs and historical phase documents remain useful evidence, but they must not be used as the current release state without checking this file, current code/tests and Git history.
@@ -15,6 +15,10 @@ This is the single current implementation-status entry point. Dated audits, hand
   - `2d8e5612` — Tabo report body aligned with the V3 report language.
   - `70acb572` — final-closure checkpoint recorded in the RC gap audit.
 - Those three commits were not pushed, merged, deployed, migrated, published or version-bumped at this checkpoint.
+- AF No. 51 accountability and multi-line OR integration (IA-061), local only, on top of the documentation commits:
+  - `b1102c8a` — exact printed serial identity, range registration, Lost state, loss reports, follow-up references, position/history/RAAF-support reads, next-expected receipt order, additive migration `AddAf51SerialIdentityAndAccountabilityEvents`.
+  - `0041e953`, `7874c24b` — Accountable Forms UI (register by printed serial, cancellation, loss by copy, exceptions, history, accountability support) and the next-assigned-receipt picker on Current Collection and ECF.
+  - `86f8e6a5` — new tables added to tenant backup/export; architecture allow-list.
 - PR #27 and PR #28 are already merged; no open PR remains from that earlier closure work.
 
 ## 2. Validation state
@@ -23,9 +27,9 @@ Latest completed validation reported for the branch:
 
 | Check | Result |
 |---|---|
-| Unit tests | 2,478 passed |
-| Component tests | 681 passed |
-| PostgreSQL integration | 194 passed, 7 snapshot-gated skipped |
+| Unit tests | 2,495 passed |
+| Component tests | 692 passed |
+| PostgreSQL integration | 210 passed, 7 snapshot-gated skipped |
 | Solution Release build | 0 errors |
 | Mobile Android Debug | 0 errors |
 | Mobile Android Release | 0 errors |
@@ -56,7 +60,7 @@ Confirmed operational facts now recorded in `docs/evidence/2026-10-04_meedo_head
 
 Authoritative DOF/BLGF/COA research is now recorded in `docs/evidence/2026-10-04_af51_authoritative_philippine_rules.md` and IA-060. It confirms the national baseline for strict serial sequence, Local Treasurer custody/provenance, collector-held accountable forms, quantity/range accountability, monthly RAAF/CRAAF reporting, non-reuse of spoiled/cancelled forms, and immediate notice/control for lost forms. The only serial-identity question left open is the semantic meaning of a trailing printed suffix such as `A` (IA-059); exact printed identity is preserved regardless.
 
-No new OR/accountable-form writer or source cutover was implemented by these documentation/research passes.
+**Implemented since (IA-061):** the AF No. 51 inventory and accountability model is now in code: exact printed serial with a normalized unique key, range registration with a counted quantity, collector custody and transfer, cancellation and loss (whole set or by copy) that never return to stock, "Needs follow-up" until the external RCD or notice reference is added, position/history/accountability-support views, and a next-assigned-receipt picker. One OR with several lines (rent, ECF, penalty) already worked through the Composer for sources on Canonical settlement authority; sources still on Legacy authority were deliberately NOT integrated because that needs a controlled cutover. No cutover, no Treasurer step, no production change, and no change to remittance or revenue reporting were made.
 
 ## 5. Current UI / reporting state
 
@@ -76,6 +80,11 @@ No new OR/accountable-form writer or source cutover was implemented by these doc
 6. **Mobile Electricity:** legacy-path/cutover decision remains open.
 7. **Snapshot validation:** run the seven snapshot-gated tests against a restored local production snapshot before final release sign-off.
 8. **Rendered review:** complete localhost / Windows-Mobile review and an Android runtime check on an appropriate device or installed system image.
+9. **AF No. 51 sequence is suggested, not hard-enforced:** the next expected receipt is offered and skipped serials are flagged for review, but a different receipt can still be used. Whether the office wants a hard block is an open ruling (IA-061).
+10. **Multi-line OR for Legacy-authority sources:** rent, ECF and similar rows still on Legacy settlement authority cannot join a canonical multi-line OR until a controlled source cutover is approved and run.
+11. **Mobile OR paths:** Mobile's Electricity OR remains the legacy typed-number path and does not use the new receipt inventory; Mobile Collect by Payor is still not built.
+12. **AF No. 51 rendered review:** the new Accountable Forms views were reviewed from real components with the compiled CSS in headless Chrome (desktop and 390px), not through a logged-in session against a seeded database.
+13. **Migration pre-check:** before applying `AddAf51SerialIdentityAndAccountabilityEvents` to a database with existing accountable documents, confirm no two documents of one instrument differ only by case or whitespace.
 
 ## 7. Documentation-use rule
 
