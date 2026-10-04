@@ -1,0 +1,11 @@
+@page "/accountable-forms"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@inject NavigationManager Navigation
+
+@* The physical OR/CT book workspace is retired from the Head portal (IA-062): a Collection is identified by its SRC and needs no
+   registered book, assignment or serial. The old address is kept only so existing links land on money accountability. Historical
+   form records stay in the database, untouched and unused by collection, remittance, position and income. *@
+
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/remittances", replace: true);
+}

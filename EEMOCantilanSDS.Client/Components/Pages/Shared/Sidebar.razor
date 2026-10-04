@@ -67,10 +67,10 @@
             <span>Monitoring</span>
         </NavLink>
 
-        @* Accountable Forms: Head / Admin custody of physical forms (Cash Ticket slice released 2026-09-30). *@
-        <NavLink href="/accountable-forms" class="@NavItemClass("/accountable-forms")" Match="NavLinkMatch.All" @onclick='() => SetPendingPath("/accountable-forms")'>
+        @* Remittance & Liquidation: money accountability over canonical Collections. The physical-form workspace is retired (IA-062). *@
+        <NavLink href="/remittances" class="@NavItemClass("/remittances")" Match="NavLinkMatch.All" @onclick='() => SetPendingPath("/remittances")'>
             <svg viewBox="0 0 24 24"><path d="M4 7h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" /><line x1="14" y1="7" x2="14" y2="19" stroke-dasharray="2 2" /></svg>
-            <span>Accountable Forms</span>
+            <span>Remittance &amp; Liquidation</span>
         </NavLink>
 
         <NavLink href="/reports" class="@NavItemClass("/reports")" Match="NavLinkMatch.All" @onclick='() => SetPendingPath("/reports")'>
@@ -216,7 +216,7 @@
                 || IsRouteOrDescendant(path, "/payor/profile"),
             "/monitoring/follow-up" => IsRouteOrDescendant(path, "/monitoring/follow-up")
                 || IsRouteOrDescendant(path, "/reports/follow-up"),
-            "/accountable-forms" => IsRouteOrDescendant(path, "/accountable-forms"),
+            "/remittances" => IsRouteOrDescendant(path, "/remittances") || IsRouteOrDescendant(path, "/accountable-forms"),
             "/reports" => IsRouteOrDescendant(path, "/reports")
                 && !IsRouteOrDescendant(path, "/reports/follow-up"),
             "/collectors" => IsRouteOrDescendant(path, "/collectors"),

@@ -1,3 +1,4 @@
+@page "/remittances/{Id:guid}"
 @page "/accountable-forms/remittances/{Id:guid}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
@@ -15,7 +16,7 @@
 @* The history of one remittance (IA-052): what it covered, what was expected, what was turned over, and the difference.
    A recorded remittance is never edited; a mistake is voided with a reason. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/accountable-forms/remittances" Title="Remittance"
+    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/remittances" Title="Remittance"
                      Subtitle="@Subtitle">
         <Actions>
             <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
@@ -34,7 +35,7 @@
     {
         @if (d.Row.SubmissionId is { } submission)
         {
-            <p class="rm-group-link no-print">Recorded together with other collectors. <a href="@($"/accountable-forms/remittances/group/{submission}")">View the whole submission</a></p>
+            <p class="rm-group-link no-print">Recorded together with other collectors. <a href="@($"/remittances/group/{submission}")">View the whole submission</a></p>
         }
         <div class="rm-print-head" aria-hidden="true"><ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel(d)" /></div>
 
@@ -83,21 +84,23 @@
             <div class="v3-table-wrap" role="region" aria-label="Collections covered" tabindex="0">
                 <table class="v3-table">
                     <thead>
-                        <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th><th scope="col">Note</th></tr>
+                        <tr><th scope="col">SRC</th><th scope="col">Collection date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col">Collector</th><th scope="col">Instrument</th><th scope="col" class="v3-num">Amount</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var collection in d.Collections)
                         {
                             <tr>
+                                <td class="v3-strong">@collection.ReferenceCode@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td class="v3-strong">@collection.ReferenceCode</td>
                                 <td>@SourceLabel(collection)</td>
                                 <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
+                                <td>@d.Row.CollectorName</td>
+                                <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />} else {<span>—</span>}</td>
                                 <td class="v3-num">@Money(collection.NetAmount)</td>
-                                <td>@(collection.CorrectedAfterRemittance ? "Corrected after this remittance: review" : "")</td>
                             </tr>
                         }
                     </tbody>
+                    <tfoot><tr><td colspan="6"><strong>Total</strong></td><td class="v3-num v3-strong">@Money(d.Collections.Sum(x => x.NetAmount))</td></tr></tfoot>
                 </table>
             </div>
         </section>
@@ -107,7 +110,6 @@
             <section class="v3-panel" aria-labelledby="rd-void-title">
                 <header class="v3-panel-header"><h2 id="rd-void-title">Void this remittance</h2></header>
                 <form class="rm-form" aria-label="Void remittance" @onsubmit="VoidAsync" @onsubmit:preventDefault="true">
-                    <p class="rm-note">A recorded remittance is never edited. Voiding it, with a reason, frees its collections so the correct record can cover them. Nothing about the collections themselves changes.</p>
                     <label class="v3-field"><span>Reason</span><input required maxlength="300" @bind="_reason" /></label>
                     @if (!string.IsNullOrWhiteSpace(_voidError)) { <p class="v3-notice v3-notice-error" role="alert">@_voidError</p> }
                     <div class="rm-actions"><button class="v3-btn" type="submit" disabled="@(_saving || string.IsNullOrWhiteSpace(_reason))">Void remittance</button></div>

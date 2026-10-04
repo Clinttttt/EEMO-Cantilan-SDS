@@ -1,3 +1,4 @@
+@page "/remittances"
 @page "/accountable-forms/remittances"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
@@ -15,26 +16,18 @@
 
 <PageTitle>StallTrack — Remittance &amp; Liquidation</PageTitle>
 
-@* Money accountability, apart from physical form custody (IA-052). A remittance records money already collected and turned
-   over; it never creates a collection or revenue, is derived from posted collections exactly once, and adds no Treasury
-   approval step. Remaining tickets are a count of forms, never a peso amount. The layout owns the <main> landmark. *@
+@* Money accountability over canonical Collections (IA-052 / IA-062). A remittance records money already collected and turned
+   over: it never creates a Collection, a line, revenue or an SRC. Physical OR/CT books play no part here; the instrument is
+   only policy metadata on a collection. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Parent="Accountable Forms" ParentHref="/accountable-forms" Title="Remittance & Liquidation"
-                     Subtitle="Reconcile collector collections, accountable forms and remitted funds">
+    <WorkspaceHeader Title="Remittance & Liquidation" Subtitle="Review and remit collected amounts.">
         <Actions>
-            <div class="v3-btn-group" role="group" aria-label="Remittance actions">
-                <a class="v3-btn" href="/accountable-forms">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><line x1="7" y1="9" x2="17" y2="9" /><line x1="7" y1="13" x2="13" y2="13" /></svg>
-                    Forms
-                </a>
-                <button class="v3-btn" type="button" @onclick="PrintAsync">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                    Print summary
-                </button>
-            </div>
-            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenNew" disabled="@(_position is null)">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                New remittance
+            <button class="v3-btn" type="button" @onclick="PrintAsync">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print summary
+            </button>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenConfirm" disabled="@(!Recordable.Any())">
+                Remit selected@(SelectedCount > 0 ? $" ({SelectedCount})" : "")
             </button>
         </Actions>
     </WorkspaceHeader>
@@ -65,7 +58,7 @@
             </select>
         </label>
         <label class="v3-field">
-            <span>Status</span>
+            <span>History status</span>
             <select @bind="_statusFilter">
                 <option value="">All</option>
                 <option value="@((int)RemittanceStatus.Recorded)">Recorded</option>
@@ -86,7 +79,7 @@
                         @foreach (var item in _result)
                         {
                             <tr><th scope="row">@item.Row.CollectorName</th><td class="v3-num">@Money(item.Row.RemittedAmount)</td>
-                                <td><a href="@($"/accountable-forms/remittances/{item.Row.Id}")">View</a></td></tr>
+                                <td><a href="@($"/remittances/{item.Row.Id}")">View</a></td></tr>
                         }
                     </tbody>
                     <tfoot><tr><th scope="row">Total</th><td class="v3-num">@Money(_result.Sum(x => x.Row.RemittedAmount))</td><td></td></tr></tfoot>
@@ -103,14 +96,122 @@
     {
         <SummaryStrip Label="Cash position" Items="SummaryItems(position)" />
 
-        <section class="v3-panel" aria-labelledby="rm-pos-title" aria-busy="@(_loading ? "true" : "false")">
+        <section class="v3-panel" aria-labelledby="rm-due-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="rm-pos-title">Collector position</h2>
-                <details class="rm-help">
-                    <summary>About forms</summary>
-                    <p>Form counts are forms in custody, not pesos. Remittance does not wait for forms to be used.</p>
-                </details>
+                <h2 id="rm-due-title">For remittance</h2>
+                <span class="v3-panel-meta">@Eligible.Count() unremitted</span>
             </header>
+            <div class="v3-table-wrap" role="region" aria-label="Collections for remittance" tabindex="0">
+                <table class="v3-table rm-collections">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="rm-check">
+                                <input type="checkbox" aria-label="Select all collections" checked="@(Eligible.Any() && SelectedCount == Eligible.Count())"
+                                       disabled="@(!Eligible.Any())" @onchange="e => SelectEverything(e.Value is true)" />
+                            </th>
+                            <th scope="col">Date</th>
+                            <th scope="col">SRC</th>
+                            <th scope="col">Collector</th>
+                            <th scope="col">Source / payer</th>
+                            <th scope="col">Instrument</th>
+                            <th scope="col" class="v3-num">Amount</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Eligible)
+                        {
+                            var draft = item.Draft;
+                            var collection = item.Collection;
+                            <tr @key="collection.CollectionId">
+                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.ReferenceCode}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                           @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
+                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td class="v3-strong">@collection.ReferenceCode</td>
+                                <td>@draft.Name</td>
+                                <td>@SourceLabel(collection)@if (!string.IsNullOrWhiteSpace(collection.PayerName)) {<span class="v3-block">@collection.PayerName</span>}</td>
+                                <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@InstrumentCode(instrument)" />} else {<span>—</span>}</td>
+                                <td class="v3-num">@Money(collection.NetAmount)</td>
+                                <td><span class="rm-pill">Unremitted</span></td>
+                            </tr>
+                        }
+                        @if (!Eligible.Any())
+                        {
+                            <tr><td class="v3-empty" colspan="8">@(_loading ? "Loading collections…" : "Nothing is waiting to be remitted in this period.")</td></tr>
+                        }
+                    </tbody>
+                    @if (SelectedCount > 0)
+                    {
+                        <tfoot>
+                            <tr>
+                                <td colspan="6"><strong>Selected · @SelectedCount of @Eligible.Count()</strong></td>
+                                <td class="v3-num v3-strong">@Money(SelectedTotal)</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    }
+                </table>
+            </div>
+        </section>
+
+        @if (_confirming)
+        {
+            @* Each collector becomes their own remittance record (their own amount, reference and operation identity); several are
+               saved together or not at all. *@
+            <section class="v3-panel" aria-labelledby="rm-new-title">
+                <header class="v3-panel-header"><h2 id="rm-new-title">Confirm remittance</h2></header>
+                <form class="rm-form" aria-label="Confirm remittance" @onsubmit="RecordAsync" @onsubmit:preventDefault="true">
+                    <dl class="rm-batch-total" aria-label="Remittance total">
+                        <div><dt>Collectors</dt><dd>@Recordable.Count()</dd></div>
+                        <div><dt>Collections</dt><dd>@SelectedCount</dd></div>
+                        <div><dt>Total</dt><dd>@Money(SelectedTotal)</dd></div>
+                        <div><dt>Remitted</dt><dd>@Money(Recordable.Sum(d => d.Amount ?? 0m))</dd></div>
+                    </dl>
+                    <div class="rm-form-row">
+                        <label class="v3-field"><span>Remittance date</span><input type="date" @bind="_newDate" /></label>
+                    </div>
+                    @foreach (var draft in Recordable)
+                    {
+                        <section class="rm-draft" aria-label="@($"Remittance for {draft.Name}")" @key="draft.CollectorId">
+                            <header class="rm-draft-head">
+                                <h3>@draft.Name</h3>
+                                <dl class="rm-draft-figures">
+                                    <div><dt>Collections</dt><dd>@draft.Selected.Count</dd></div>
+                                    <div><dt>Expected</dt><dd>@Money(draft.Expected)</dd></div>
+                                </dl>
+                            </header>
+                            <div class="rm-form-row">
+                                <label class="v3-field"><span>Amount remitted (₱)</span><input type="number" min="0.01" step="0.01" required @bind="draft.Amount" /></label>
+                                <label class="v3-field"><span>Reference (optional)</span><input maxlength="100" @bind="draft.Reference" /></label>
+                                <label class="v3-field rm-wide"><span>Remarks (optional)</span><input maxlength="500" @bind="draft.Remarks" /></label>
+                            </div>
+                            @if (draft.Amount is { } typed && typed > 0m && typed != draft.Expected)
+                            {
+                                <dl class="rm-reconcile rm-reconcile-flag" role="status" aria-label="@($"Reconciliation for {draft.Name}")">
+                                    <div><dt>Expected</dt><dd>@Money(draft.Expected)</dd></div>
+                                    <div><dt>Remitted</dt><dd>@Money(typed)</dd></div>
+                                    <div><dt>Difference</dt><dd>@Money(draft.Expected - typed)</dd></div>
+                                    <div class="rm-reconcile-status"><dt>Status</dt><dd>@ReconcileStatus(draft.Expected, typed)</dd></div>
+                                </dl>
+                            }
+                        </section>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_formError))
+                    {
+                        <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                    }
+                    <div class="rm-actions">
+                        <button class="v3-btn" type="button" @onclick="CloseConfirm">Cancel</button>
+                        <button class="v3-btn v3-btn-primary" type="submit" disabled="@(_saving || !CanRecord)">
+                            @(Recordable.Count() > 1 ? $"Record {Recordable.Count()} remittances" : "Record remittance")
+                        </button>
+                    </div>
+                </form>
+            </section>
+        }
+
+        <section class="v3-panel" aria-labelledby="rm-pos-title">
+            <header class="v3-panel-header"><h2 id="rm-pos-title">Collector position</h2></header>
             <div class="v3-table-wrap" role="region" aria-label="Collector position" tabindex="0">
                 <table class="v3-table rm-position">
                     <thead>
@@ -119,199 +220,25 @@
                             <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Unremitted</th>
-                            <th scope="col" class="v3-num">CT on hand</th>
-                            <th scope="col" class="v3-num">OR on hand</th>
-                            <th scope="col" class="v3-num">Needs review</th>
-                            <th scope="col"><span class="v3-sr-only">Accountability</span></th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var row in VisibleCollectors(position))
                         {
-                            var open = _openAccountability == row.CollectorId;
                             <tr @key="row.CollectorId">
                                 <td class="v3-strong">@row.CollectorName</td>
                                 <td class="v3-num">@Money(row.Collected)</td>
                                 <td class="v3-num">@Money(row.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(row.Unremitted)</td>
-                                <td class="v3-num">@OnHand(row, RevenueInstrumentType.CashTicket)</td>
-                                <td class="v3-num">@OnHand(row, RevenueInstrumentType.OfficialReceipt)</td>
-                                <td class="v3-num">@row.NeedsReviewCount</td>
-                                <td class="rm-row-action">
-                                    <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(open ? "true" : "false")"
-                                            @onclick="() => _openAccountability = open ? null : row.CollectorId">View accountability</button>
-                                </td>
                             </tr>
-                            @if (open)
-                            {
-                                <tr class="rm-detail" @key="@($"{row.CollectorId}-detail")">
-                                    <td colspan="8">
-                                        <table class="rm-forms-table" aria-label="@($"Form accountability for {row.CollectorName}")">
-                                            <thead>
-                                                <tr><th scope="col">Form</th><th scope="col">Assigned</th><th scope="col">Issued</th><th scope="col">Spoiled</th><th scope="col">Returned</th><th scope="col">To review</th><th scope="col">On hand</th></tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var forms in row.Forms)
-                                                {
-                                                    <tr>
-                                                        <th scope="row">@InstrumentName(forms.Instrument)</th>
-                                                        <td>@Count(forms.Assigned)</td><td>@Count(forms.Issued)</td><td>@Count(forms.Spoiled)</td>
-                                                        <td>@Count(forms.Returned)</td><td>@Count(forms.NeedsReview)</td><td><strong>@Count(forms.OnHand)</strong></td>
-                                                    </tr>
-                                                }
-                                                @if (row.Forms.Count == 0)
-                                                {
-                                                    <tr><td colspan="7">No forms are assigned.</td></tr>
-                                                }
-                                            </tbody>
-                                        </table>
-                                        @if (row.LegacyCollectionsOutsideRemittance > 0m)
-                                        {
-                                            <p class="rm-legacy">Legacy-source collections outside remittance: @Money(row.LegacyCollectionsOutsideRemittance)</p>
-                                        }
-                                    </td>
-                                </tr>
-                            }
                         }
                         @if (!VisibleCollectors(position).Any())
                         {
-                            <tr><td class="v3-empty" colspan="8">No collector has collections or assigned forms in this period.</td></tr>
+                            <tr><td class="v3-empty" colspan="4">No collector has collections in this period.</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
-        </section>
-    }
-
-    @if (_creating)
-    {
-        @* One or more collectors. Each chosen collector gets their own section and becomes their own remittance record with
-           its own collections, amount and reference; several are saved together or not at all. *@
-        <section class="v3-panel" aria-labelledby="rm-new-title">
-            <header class="v3-panel-header"><h2 id="rm-new-title">New remittance</h2></header>
-            <form class="rm-form" aria-label="New remittance" @onsubmit="RecordAsync" @onsubmit:preventDefault="true">
-                <fieldset class="rm-collectors">
-                    <legend>Collectors</legend>
-                    <div class="rm-collector-picks">
-                        @foreach (var collector in _collectors.Where(x => x.IsActive))
-                        {
-                            <label class="rm-pick @(_newCollectors.Contains(collector.Id) ? "is-on" : null)">
-                                <input type="checkbox" checked="@_newCollectors.Contains(collector.Id)"
-                                       @onchange="e => PickCollector(collector.Id, e.Value is true)" />
-                                <span>@collector.FullName</span>
-                            </label>
-                        }
-                    </div>
-                </fieldset>
-                <div class="rm-form-row">
-                    <label class="v3-field"><span>Collected from</span><input type="date" @bind="_newFrom" /></label>
-                    <label class="v3-field"><span>Collected to</span><input type="date" @bind="_newTo" /></label>
-                    <label class="v3-field">
-                        <span>Instrument</span>
-                        <select @bind="_newInstrument">
-                            <option value="">OR and CT</option>
-                            <option value="@((int)RevenueInstrumentType.CashTicket)">Cash Ticket</option>
-                            <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
-                        </select>
-                    </label>
-                    <label class="v3-field"><span>Remittance date</span><input type="date" @bind="_newDate" /></label>
-                    <button class="v3-btn" type="button" @onclick="LoadScopeAsync" disabled="@(_newCollectors.Count == 0)">Show collections</button>
-                </div>
-
-                @foreach (var draft in _drafts)
-                {
-                    var scope = draft.Scope;
-                    <section class="rm-draft" aria-label="@($"Remittance for {draft.Name}")" @key="draft.CollectorId">
-                        <header class="rm-draft-head">
-                            <h3>@draft.Name</h3>
-                            <dl class="rm-draft-figures">
-                                <div><dt>Collections</dt><dd>@scope.Collections.Count</dd></div>
-                                <div><dt>Expected</dt><dd>@Money(scope.ExpectedAmount)</dd></div>
-                            </dl>
-                        </header>
-                        @if (scope.Collections.Count == 0)
-                        {
-                            <p class="rm-note" role="status">No unremitted collections in this scope.</p>
-                        }
-                        else
-                        {
-                            <div class="v3-table-wrap" role="region" aria-label="@($"Collections to cover for {draft.Name}")" tabindex="0">
-                                <table class="v3-table rm-collections">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col" class="rm-check">
-                                                <input type="checkbox" aria-label="@($"Select all collections for {draft.Name}")"
-                                                       checked="@(draft.Selected.Count == scope.Collections.Count)"
-                                                       @onchange="e => SelectAll(draft, e.Value is true)" />
-                                            </th>
-                                            <th scope="col">Date</th>
-                                            <th scope="col">SRC</th>
-                                            <th scope="col">Revenue source</th>
-                                            <th scope="col">Payor</th>
-                                            <th scope="col" class="v3-num">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var collection in scope.Collections)
-                                        {
-                                            <tr>
-                                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.ReferenceCode}")" checked="@draft.Selected.Contains(collection.CollectionId)"
-                                                           @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
-                                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                                <td class="v3-strong">@collection.ReferenceCode</td>
-                                                <td>@SourceLabel(collection)</td>
-                                                <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
-                                                <td class="v3-num">@Money(collection.NetAmount)</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colspan="5"><strong>Selected · @draft.Selected.Count of @scope.Collections.Count@(scope.FirstReferenceCode is null ? "" : $" · {scope.FirstReferenceCode} to {scope.LastReferenceCode}")</strong></td>
-                                            <td class="v3-num v3-strong">@Money(draft.Expected)</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-
-                            <div class="rm-form-row">
-                                <label class="v3-field"><span>Amount remitted (₱)</span><input type="number" min="0.01" step="0.01" required @bind="draft.Amount" /></label>
-                                <label class="v3-field"><span>Reference (optional)</span><input maxlength="100" @bind="draft.Reference" /></label>
-                                <label class="v3-field rm-wide"><span>Remarks (optional)</span><input maxlength="500" @bind="draft.Remarks" /></label>
-                            </div>
-                            @if (draft.Amount is { } typed && typed > 0m)
-                            {
-                                <dl class="rm-reconcile @(draft.Expected - typed != 0m ? "rm-reconcile-flag" : null)" role="status" aria-label="@($"Reconciliation for {draft.Name}")">
-                                    <div><dt>Expected</dt><dd>@Money(draft.Expected)</dd></div>
-                                    <div><dt>Remitted</dt><dd>@Money(typed)</dd></div>
-                                    <div><dt>Difference</dt><dd>@Money(draft.Expected - typed)</dd></div>
-                                    <div class="rm-reconcile-status"><dt>Status</dt><dd>@ReconcileStatus(draft.Expected, typed)</dd></div>
-                                </dl>
-                            }
-                        }
-                    </section>
-                }
-
-                @if (_drafts.Count > 1)
-                {
-                    <dl class="rm-batch-total" aria-label="Batch total">
-                        <div><dt>Collectors</dt><dd>@Recordable.Count()</dd></div>
-                        <div><dt>Expected</dt><dd>@Money(Recordable.Sum(d => d.Expected))</dd></div>
-                        <div><dt>Remitted</dt><dd>@Money(Recordable.Sum(d => d.Amount ?? 0m))</dd></div>
-                        <div><dt>Difference</dt><dd>@Money(Recordable.Sum(d => d.Expected - (d.Amount ?? 0m)))</dd></div>
-                    </dl>
-                }
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-                <div class="rm-actions">
-                    <button class="v3-btn" type="button" @onclick="CloseNew">Cancel</button>
-                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@(_saving || !CanRecord)">
-                        @(Recordable.Count() > 1 ? $"Record {Recordable.Count()} remittances" : "Record remittance")
-                    </button>
-                </div>
-            </form>
         </section>
     }
 
@@ -325,13 +252,11 @@
                 <thead>
                     <tr>
                         <th scope="col">Date</th>
-                        <th scope="col">Collector</th>
-                        <th scope="col">Instrument</th>
+                        <th scope="col">Collectors</th>
                         <th scope="col" class="v3-num">Collections</th>
-                        <th scope="col" class="v3-num">Remitted</th>
-                        <th scope="col" class="v3-num">Difference</th>
-                        <th scope="col">Reference</th>
+                        <th scope="col" class="v3-num">Amount</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Reference</th>
                         <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
                 </thead>
@@ -359,12 +284,10 @@
                                     }
                                 }
                             </td>
-                            <td>@(row.Instrument is { } i ? InstrumentName(i) : "OR and CT")</td>
                             <td class="v3-num">@row.CollectionCount</td>
                             <td class="v3-num">@Money(row.RemittedAmount)</td>
-                            <td class="v3-num @(row.DifferenceAmount != 0m ? "rm-diff-flag" : null)">@Money(row.DifferenceAmount)</td>
+                            <td>@row.StatusLabel@if (row.DifferenceAmount != 0m) {<span class="v3-block rm-diff-flag">Difference @Money(row.DifferenceAmount)</span>}</td>
                             <td>@(row.Reference ?? "—")</td>
-                            <td>@row.StatusLabel</td>
                             <td class="rm-row-action">
                                 <a class="v3-btn v3-btn-sm" href="@viewHref" aria-label="@($"View remittance of {CollectorSummary(row)}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">View</a>
                                 <a class="v3-btn v3-btn-sm" href="@($"{viewHref}?print=1")" aria-label="@($"Print remittance of {CollectorSummary(row)}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">Print</a>
@@ -373,17 +296,12 @@
                     }
                     @if (_register.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="9">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
+                        <tr><td class="v3-empty" colspan="7">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
                     }
                 </tbody>
             </table>
         </div>
     </section>
-
-    <details class="rm-help rm-scope">
-        <summary>About remittance</summary>
-        <p>A remittance records money already collected and turned over. It creates no collection or revenue, and adds no Treasury, deposit or general-ledger step. It does not replace a prescribed government form.</p>
-    </details>
 </div>
 
 @code {
@@ -396,7 +314,6 @@
     private string? _message;
     private string? _error;
     private string? _formError;
-    private Guid? _openAccountability;
     private List<RemittanceDetailDto> _result = [];
 
     private DateOnly _from = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
@@ -405,22 +322,22 @@
     private string _instrumentFilter = string.Empty;
     private string _statusFilter = string.Empty;
 
-    private bool _creating;
-    private readonly List<Guid> _newCollectors = [];
-    private DateOnly _newFrom = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
-    private DateOnly _newTo = PhilippineTime.Today;
+    private bool _confirming;
     private DateOnly _newDate = PhilippineTime.Today;
-    private string _newInstrument = string.Empty;
+    // The scope the eligible collections were loaded for; the server re-derives eligibility from the same scope when recording.
+    private DateOnly _scopeFrom;
+    private DateOnly _scopeTo;
+    private RevenueInstrumentType? _scopeInstrument;
     private List<Draft> _drafts = [];
 
-    /// <summary>One collector's remittance being prepared: their own collections, amount, reference and operation identity.</summary>
+    /// <summary>One collector's remittance being prepared: their own eligible collections, selection, amount and operation identity.</summary>
     private sealed class Draft(Guid collectorId, string name, RemittanceScopeDto scope)
     {
         public Guid CollectorId { get; } = collectorId;
         public string Name { get; } = name;
         public RemittanceScopeDto Scope { get; } = scope;
-        public HashSet<Guid> Selected { get; } = scope.Collections.Select(x => x.CollectionId).ToHashSet();
-        public decimal? Amount { get; set; } = scope.ExpectedAmount;
+        public HashSet<Guid> Selected { get; } = [];
+        public decimal? Amount { get; set; }
         public string Reference { get; set; } = string.Empty;
         public string Remarks { get; set; } = string.Empty;
         // Kept for the life of the draft so a retry after a failure is idempotent on the server.
@@ -428,15 +345,21 @@
         public decimal Expected => Scope.Collections.Where(x => Selected.Contains(x.CollectionId)).Sum(x => x.NetAmount);
     }
 
+    /// <summary>Every unremitted canonical collection in the period, with the collector's draft it belongs to.</summary>
+    private IEnumerable<(Draft Draft, RemittanceCollectionDto Collection)> Eligible =>
+        _drafts.SelectMany(d => d.Scope.Collections.Select(c => (d, c)))
+            .OrderBy(x => x.c.BusinessDate).ThenBy(x => x.c.ReferenceCode, StringComparer.Ordinal);
+
     /// <summary>Drafts that will become records: a collector with nothing selected is left out, never recorded as zero.</summary>
     private IEnumerable<Draft> Recordable => _drafts.Where(d => d.Selected.Count > 0);
+
+    private int SelectedCount => _drafts.Sum(d => d.Selected.Count);
+    private decimal SelectedTotal => _drafts.Sum(d => d.Expected);
 
     private bool CanRecord => Recordable.Any() && Recordable.All(d =>
         d.Amount is { } amount && amount > 0m && amount <= d.Expected && decimal.Round(amount, 2) == amount);
 
-
     private string PeriodLabel => $"{_from.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {_to.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
-
 
     protected override async Task OnInitializedAsync()
     {
@@ -449,6 +372,7 @@
     {
         _loading = true;
         _error = null;
+        _confirming = false;
         try
         {
             var position = await Api.GetPositionAsync(_from, _to);
@@ -461,9 +385,36 @@
                 int.TryParse(_statusFilter, out var status) ? (RemittanceStatus)status : null);
             if (register.IsSuccess) _register = register.Value?.ToList() ?? [];
             else { _register = []; _error ??= "The remittance history couldn't be loaded."; }
+
+            await LoadEligibleAsync();
         }
         catch { _error = "Remittance and liquidation couldn't be loaded."; }
         finally { _loading = false; }
+    }
+
+    /// <summary>
+    /// The unremitted canonical collections of every collector who still holds money in the period. Read from the same scope
+    /// endpoint a remittance is recorded against, so what is offered here is exactly what the server will accept.
+    /// </summary>
+    private async Task LoadEligibleAsync()
+    {
+        _drafts = [];
+        if (_position is null) return;
+        _scopeFrom = _from;
+        _scopeTo = _to;
+        _scopeInstrument = int.TryParse(_instrumentFilter, out var i) ? (RevenueInstrumentType)i : null;
+        var drafts = new List<Draft>();
+        foreach (var row in VisibleCollectors(_position).Where(x => x.Unremitted > 0m))
+        {
+            var result = await Api.GetScopeAsync(row.CollectorId, _scopeFrom, _scopeTo, _scopeInstrument);
+            if (result is not { IsSuccess: true, Value: { } scope })
+            {
+                _error ??= $"{row.CollectorName}: the collections couldn't be loaded.";
+                continue;
+            }
+            if (scope.Collections.Count > 0) drafts.Add(new Draft(row.CollectorId, row.CollectorName, scope));
+        }
+        _drafts = drafts;
     }
 
     private IEnumerable<CollectorPositionDto> VisibleCollectors(AccountabilityPositionDto position) =>
@@ -471,57 +422,37 @@
 
     private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems(AccountabilityPositionDto p) =>
     [
-        new("Collected", Money(p.Collected)),
-        new("Remitted", Money(p.Remitted)),
         new("Unremitted", Money(p.Unremitted), Emphasis: p.Unremitted != 0m),
-        new("Needs review", p.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),
+        new("Selected", Money(SelectedTotal)),
+        new("Remitted", Money(p.Remitted)),
+        new("Collected", Money(p.Collected)),
     ];
 
-    private void OpenNew()
+    private void OpenConfirm()
     {
-        _creating = true;
-        _drafts = [];
+        if (!Recordable.Any()) return;
         _formError = null;
         _message = null;
-        _newFrom = _from;
-        _newTo = _to;
-        _newCollectors.Clear();
         _result = [];
-        if (Guid.TryParse(_collectorFilter, out var filtered)) _newCollectors.Add(filtered);
+        _confirming = true;
     }
 
-    private void CloseNew() => _creating = false;
+    private void CloseConfirm() => _confirming = false;
 
-    private void PickCollector(Guid id, bool include)
+    private void SelectEverything(bool include)
     {
-        if (include && !_newCollectors.Contains(id)) _newCollectors.Add(id);
-        else if (!include) _newCollectors.Remove(id);
-        // A draft only exists for a chosen collector; unpicking one drops their section.
-        _drafts = _drafts.Where(d => _newCollectors.Contains(d.CollectorId)).ToList();
-    }
-
-    private async Task LoadScopeAsync()
-    {
-        _formError = null;
-        _drafts = [];
-        if (_newCollectors.Count == 0) { _formError = "Choose at least one collector."; return; }
-        var instrument = int.TryParse(_newInstrument, out var i) ? (RevenueInstrumentType?)i : null;
-        var drafts = new List<Draft>();
-        foreach (var collector in _newCollectors)
+        foreach (var draft in _drafts)
         {
-            var result = await Api.GetScopeAsync(collector, _newFrom, _newTo, instrument);
-            var name = _collectors.FirstOrDefault(x => x.Id == collector)?.FullName ?? "Collector";
-            if (!result.IsSuccess) { _formError = $"{name}: {result.Error ?? "the collections couldn't be loaded."}"; return; }
-            drafts.Add(new Draft(collector, name, result.Value!));
+            draft.Selected.Clear();
+            if (include) foreach (var collection in draft.Scope.Collections) draft.Selected.Add(collection.CollectionId);
+            draft.Amount = draft.Selected.Count == 0 ? null : draft.Expected;
         }
-        _drafts = drafts;
     }
 
-    private static void SelectAll(Draft draft, bool include)
+    private static void Toggle(Draft draft, Guid id, bool include)
     {
-        draft.Selected.Clear();
-        if (include) foreach (var collection in draft.Scope.Collections) draft.Selected.Add(collection.CollectionId);
-        draft.Amount = draft.Expected;
+        if (include) draft.Selected.Add(id); else draft.Selected.Remove(id);
+        draft.Amount = draft.Selected.Count == 0 ? null : draft.Expected;
     }
 
     private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
@@ -530,19 +461,8 @@
     private static string ReconcileStatus(decimal expected, decimal remitted) =>
         remitted > expected ? "Over expected" : expected - remitted == 0m ? "Balanced" : "Short · for review";
 
-    private static string OnHand(CollectorPositionDto row, RevenueInstrumentType instrument) =>
-        row.Forms.FirstOrDefault(f => f.Instrument == instrument) is { } forms ? Count(forms.OnHand) : "—";
-
-    private static string Count(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
-
-    private static void Toggle(Draft draft, Guid id, bool include)
-    {
-        if (include) draft.Selected.Add(id); else draft.Selected.Remove(id);
-        draft.Amount = draft.Expected;
-    }
-
-    private RecordRemittanceRequest Request(Draft draft) => new(draft.OperationId, draft.CollectorId, _newDate, _newFrom, _newTo,
-        int.TryParse(_newInstrument, out var i) ? (RevenueInstrumentType)i : null, draft.Selected.ToList(), draft.Amount!.Value,
+    private RecordRemittanceRequest Request(Draft draft) => new(draft.OperationId, draft.CollectorId, _newDate, _scopeFrom, _scopeTo,
+        _scopeInstrument, draft.Selected.ToList(), draft.Amount!.Value,
         string.IsNullOrWhiteSpace(draft.Reference) ? null : draft.Reference.Trim(),
         string.IsNullOrWhiteSpace(draft.Remarks) ? null : draft.Remarks.Trim());
 
@@ -568,15 +488,15 @@
                 if (!batch.IsSuccess) { _formError = batch.Error ?? "The remittances could not be recorded. Nothing was recorded."; return; }
                 recorded = batch.Value!;
             }
-            _creating = false;
-            _result = recorded.ToList();
             var review = recorded.Where(x => x.NeedsReview).ToList();
-            _message = recorded.Count == 1
+            var message = recorded.Count == 1
                 ? review.Count == 1
                     ? $"Remittance recorded with a difference of {Money(review[0].Row.DifferenceAmount)} for review."
-                    : "Remittance recorded. It created no collection and no revenue."
-                : $"{recorded.Count} remittances recorded, one per collector{(review.Count > 0 ? $"; {review.Count} with a difference for review" : "")}. They created no collection and no revenue.";
+                    : "Remittance recorded."
+                : $"{recorded.Count} remittances recorded, one per collector{(review.Count > 0 ? $"; {review.Count} with a difference for review" : "")}.";
             await ReloadAsync();
+            _result = recorded.ToList();
+            _message = message;
         }
         catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; }
@@ -586,12 +506,12 @@
 
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 
-    private static string InstrumentName(RevenueInstrumentType instrument) =>
-        instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";
+    private static string InstrumentCode(RevenueInstrumentType instrument) =>
+        instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT";
 
     private static string ViewHref(RemittanceHistoryRowDto row) => row.SubmissionId is { } submission
-        ? $"/accountable-forms/remittances/group/{submission}"
-        : $"/accountable-forms/remittances/{row.PrimaryRemittanceId}";
+        ? $"/remittances/group/{submission}"
+        : $"/remittances/{row.PrimaryRemittanceId}";
 
     private static string CollectorSummary(RemittanceHistoryRowDto row) => row.Members.Count == 1
         ? row.Members[0].CollectorName : $"{row.Members[0].CollectorName} and {row.Members.Count - 1} more";

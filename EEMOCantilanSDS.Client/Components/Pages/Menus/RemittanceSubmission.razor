@@ -1,3 +1,4 @@
+@page "/remittances/group/{SubmissionId:guid}"
 @page "/accountable-forms/remittances/group/{SubmissionId:guid}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
@@ -16,7 +17,7 @@
    amount and status; this report only lays them side by side. It is evidence of turnover, not a receipt or income, and it
    creates and changes nothing. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/accountable-forms/remittances" Title="Remittance"
+    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/remittances" Title="Remittance"
                      Subtitle="@Subtitle">
         <Actions>
             <button class="v3-btn" type="button" @onclick="PrintAsync">Print / Save as PDF</button>
@@ -58,7 +59,7 @@
                         @foreach (var item in d.Remittances)
                         {
                             <tr>
-                                <td class="v3-strong"><a href="@($"/accountable-forms/remittances/{item.Row.Id}")">@item.Row.CollectorName</a></td>
+                                <td class="v3-strong"><a href="@($"/remittances/{item.Row.Id}")">@item.Row.CollectorName</a></td>
                                 <td class="v3-num">@item.Row.CollectionCount</td>
                                 <td class="v3-num">@Money(item.Row.ExpectedAmount)</td>
                                 <td class="v3-num">@Money(item.Row.RemittedAmount)</td>

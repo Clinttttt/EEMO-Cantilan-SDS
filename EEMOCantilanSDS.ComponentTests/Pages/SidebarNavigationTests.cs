@@ -66,7 +66,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "/online-payments",
                 "/vendors",
                 "/monitoring/follow-up",
-                "/accountable-forms",
+                "/remittances",
                 "/reports",
                 "/collectors",
                 "/audit-trail",
@@ -82,7 +82,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "Online Payments",
                 "Payors & Accounts",
                 "Monitoring",
-                "Accountable Forms",
+                "Remittance & Liquidation",
                 "Reports",
                 "Collectors",
                 "Audit Trail",
@@ -155,7 +155,8 @@ public sealed class SidebarNavigationTests : TestContext
     [InlineData("/monitoring/follow-up", "/monitoring/follow-up")]
     [InlineData("/reports/follow-up", "/monitoring/follow-up")]
     [InlineData("/reports/follow-up/history", "/monitoring/follow-up")]
-    [InlineData("/accountable-forms", "/accountable-forms")]
+    [InlineData("/remittances", "/remittances")]
+    [InlineData("/accountable-forms", "/remittances")]
     [InlineData("/reports", "/reports")]
     [InlineData("/reports/financial-summary", "/reports")]
     [InlineData("/collectors", "/collectors")]

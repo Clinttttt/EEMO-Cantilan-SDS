@@ -15,9 +15,9 @@ using Moq;
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
 /// <summary>
-/// Remittance and liquidation (IA-052): money already collected and turned over, apart from physical form custody. The
+/// Remittance and liquidation (IA-052 / IA-062): money already collected and turned over, over canonical Collections. The
 /// workspace derives what is expected from posted collections, keeps a shortfall visible, never lets the remitted amount
-/// exceed it, never treats remaining tickets as pesos, and records nothing that looks like revenue.
+/// exceed it, shows no physical-form inventory or custody, and records nothing that looks like revenue.
 /// </summary>
 public sealed class RemittanceWorkspaceTests : TestContext
 {
@@ -75,19 +75,20 @@ public sealed class RemittanceWorkspaceTests : TestContext
 
     private static RemittanceScopeDto Scope() => new(CollectorId, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), null,
         [
-            new RemittanceCollectionDto(CollectionA, new DateOnly(2026, 9, 3), "CT-000101", RevenueInstrumentType.CashTicket, "Walk-up", 30m,
+            new RemittanceCollectionDto(CollectionA, new DateOnly(2026, 9, 3), "SRC-2026-000101", RevenueInstrumentType.CashTicket, "Walk-up", 30m,
                 [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 30m)]),
-            new RemittanceCollectionDto(CollectionB, new DateOnly(2026, 9, 4), "CT-000102", RevenueInstrumentType.CashTicket, null, 50m,
+            new RemittanceCollectionDto(CollectionB, new DateOnly(2026, 9, 4), "SRC-2026-000102", RevenueInstrumentType.CashTicket, null, 50m,
                 [new RemittanceBreakdownDto(Guid.NewGuid(), "Landing/Berthing", 50m)]),
         ], 80m,
         [new RemittanceBreakdownDto(Guid.NewGuid(), "Landing/Berthing", 50m), new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 30m)],
-        "CT-000101", "CT-000102");
+        "SRC-2026-000101", "SRC-2026-000102");
 
     [Fact]
-    public void Route_IsOfficeOnly_AndTheTicketsOnHandAreACountNeverPesos()
+    public void Route_IsOfficeOnly_AndTheWorkspaceShowsMoney_NeverPhysicalForms()
     {
-        Assert.Equal("/accountable-forms/remittances",
-            Assert.Single(typeof(Remittances).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
+        var routes = typeof(Remittances).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>().Select(x => x.Template).ToList();
+        Assert.Contains("/remittances", routes);                              // the primary address
+        Assert.Contains("/accountable-forms/remittances", routes);            // the old address still lands here
         Assert.Equal("SuperAdmin,Admin",
             Assert.Single(typeof(Remittances).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
         ServePosition(Position());
@@ -101,28 +102,34 @@ public sealed class RemittanceWorkspaceTests : TestContext
             var summary = cut.Find("dl[aria-label='Cash position']").TextContent;
             Assert.Contains("₱20,000.00", summary);
             Assert.Contains("Unremitted", summary);
+            Assert.Contains("Selected", summary);
             var row = Assert.Single(cut.FindAll("[aria-label='Collector position'] tbody tr"));
-            Assert.Contains("9,275", row.TextContent);          // CT on hand: a count, grouped like one
-            Assert.DoesNotContain("assigned ·", row.TextContent); // no audit sentence in the register row
-            // Remaining tickets are never presented as an amount of money.
-            Assert.DoesNotContain("₱9,275", cut.Markup);
-            Assert.DoesNotContain("Legacy-authoritative collections cannot be covered exactly", cut.Markup);
-        }, Timeout);
-
-        // The full counts are one click away, not permanently in the table.
-        cut.FindAll("[aria-label='Collector position'] button").Single(b => b.TextContent.Contains("View accountability")).Click();
-        cut.WaitForAssertion(() =>
-        {
-            var forms = cut.Find("table[aria-label='Form accountability for Ana Reyes']").TextContent;
-            Assert.Contains("10,000", forms);
-            Assert.Contains("725", forms);
+            Assert.Contains("Ana Reyes", row.TextContent);
+            // The position carries a form count (9,275 on hand); the money workspace never shows it, as a count or as pesos.
+            Assert.DoesNotContain("9,275", cut.Markup);
+            foreach (var retired in new[] { "on hand", "Register received book", "Stock", "custody", "Assign", "Transfer", "Return unused",
+                         "cancellation", "lost form", "Needs review", "View accountability", "physical", "Accountable Forms" })
+                Assert.DoesNotContain(retired, cut.Markup, StringComparison.OrdinalIgnoreCase);
         }, Timeout);
     }
 
     [Fact]
-    public void ARemittanceIsDerivedFromCollections_NothingIsRetyped_AndItIsRecordedWithTheSelectionAndOperationId()
+    public void TheOldFormsAddress_RedirectsToRemittance_AndRendersNoFormWorkspace()
     {
-        ServePosition(Position(20000m, 19500m));
+        Assert.Equal("/accountable-forms",
+            Assert.Single(typeof(AccountableFormsRedirect).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
+        var navigation = Services.GetRequiredService<NavigationManager>();
+
+        var cut = RenderComponent<AccountableFormsRedirect>();
+
+        Assert.EndsWith("/remittances", navigation.Uri);
+        Assert.Equal(string.Empty, cut.Markup.Trim());
+    }
+
+    [Fact]
+    public void EligibleCollectionsAreListedWithTheirSrc_SelectingThemTotals_AndTheRemittanceIsRecordedWithTheSelectionAndOperationId()
+    {
+        ServePosition(Position(20000m, 19920m));
         _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
             .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
         RecordRemittanceRequest? sent = null;
@@ -131,23 +138,40 @@ public sealed class RemittanceWorkspaceTests : TestContext
             .ReturnsAsync(Result<RemittanceDetailDto>.Success(Detail(80m, 70m)));
 
         var cut = RenderComponent<Remittances>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance").Click();
-        var form = "form[aria-label='New remittance']";
-        cut.Find($"{form} .rm-collector-picks input").Change(true);
-        cut.FindAll($"{form} button").Single(b => b.TextContent.Trim() == "Show collections").Click();
 
+        // The primary view: unremitted canonical collections, by SRC, with the instrument only as a badge.
         cut.WaitForAssertion(() =>
         {
-            var table = cut.Find("[aria-label='Collections to cover for Ana Reyes']").TextContent;
-            Assert.Contains("Market Fees", table);
-            Assert.Contains("Landing/Berthing", table);
-            Assert.Contains("Revenue source", table);
-            Assert.Contains("₱80.00", table);
-            Assert.DoesNotContain("Nothing here is retyped", cut.Markup);
+            var rows = cut.FindAll("[aria-label='Collections for remittance'] tbody tr");
+            Assert.Equal(2, rows.Count);
+            Assert.Contains("SRC-2026-000101", rows[0].TextContent);
+            Assert.Contains("Ana Reyes", rows[0].TextContent);
+            Assert.Contains("Market Fees", rows[0].TextContent);
+            Assert.Contains("Walk-up", rows[0].TextContent);
+            Assert.Contains("Cash Ticket", rows[0].TextContent);            // spoken instrument name on the badge
+            Assert.Contains("Unremitted", rows[0].TextContent);
+            Assert.Contains("₱30.00", rows[0].TextContent);
+        }, Timeout);
+        // Nothing is selected until the Head selects it, so nothing can be remitted by accident.
+        Assert.True(cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Remit selected")).HasAttribute("disabled"));
+
+        cut.Find("input[aria-label='Select all collections']").Change(true);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("₱80.00", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent);
+            Assert.Contains("₱80.00", cut.Find("dl[aria-label='Cash position']").TextContent);   // Selected
+        }, Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Remit selected (2)").Click();
+
+        var form = "form[aria-label='Confirm remittance']";
+        cut.WaitForAssertion(() =>
+        {
+            var total = cut.Find("dl[aria-label='Remittance total']").TextContent;
+            Assert.Contains("Collectors1", total.Replace(" ", "").Replace("\n", ""));
+            Assert.Contains("₱80.00", total);
         }, Timeout);
 
-        // A shortfall stays visible as a difference and is flagged for review; an excess is called out.
+        // A shortfall stays visible as a difference and is flagged for review; an excess cannot be recorded.
         cut.Find($"{form} input[type='number']").Change("70");
         cut.WaitForAssertion(() =>
         {
@@ -185,10 +209,10 @@ public sealed class RemittanceWorkspaceTests : TestContext
             var row = Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr"));
             Assert.Contains("₱10.00", row.TextContent);
             Assert.Contains("Needs review", row.TextContent);
-            Assert.Equal($"/accountable-forms/remittances/{ana.RemittanceId}", row.QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal($"/remittances/{ana.RemittanceId}", row.QuerySelector("a")!.GetAttribute("href"));
             var actions = row.QuerySelectorAll(".rm-row-action a").Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).ToList();
-            Assert.Equal(("View", $"/accountable-forms/remittances/{ana.RemittanceId}"), actions[0]);
-            Assert.Equal(("Print", $"/accountable-forms/remittances/{ana.RemittanceId}?print=1"), actions[1]);
+            Assert.Equal(("View", $"/remittances/{ana.RemittanceId}"), actions[0]);
+            Assert.Equal(("Print", $"/remittances/{ana.RemittanceId}?print=1"), actions[1]);
         }, Timeout);
     }
 
@@ -215,7 +239,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Equal("+2", rows[2].QuerySelector(".rm-more")!.TextContent.Trim());
             Assert.Contains("₱513.00", rows[1].TextContent);                  // the sum of the two independent records
             // A submission opens its own report; a single remittance opens its own.
-            Assert.Equal($"/accountable-forms/remittances/group/{two.SubmissionId}", rows[1].QuerySelector("a")!.GetAttribute("href"));
+            Assert.Equal($"/remittances/group/{two.SubmissionId}", rows[1].QuerySelector("a")!.GetAttribute("href"));
         }, Timeout);
 
         cut.FindAll("[aria-label='Remittance history'] tbody tr")[2].QuerySelector(".rm-more")!.Click();
@@ -283,48 +307,43 @@ public sealed class RemittanceWorkspaceTests : TestContext
         }, Timeout);
     }
 
+
     [Fact]
-    public void SeveralCollectors_EachGetTheirOwnSectionAmountAndReference_AndAreRecordedAsOneBatch()
+    public void SeveralCollectors_EachGetTheirOwnAmountAndReference_AndAreRecordedAsOneBatch()
     {
         var benId = Guid.NewGuid();
-        var collectors = new Mock<ICollectorsApiClient>();
-        collectors.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(new[]
+        var position = Position(20000m, 19880m);
+        ServePosition(position with
         {
-            new CollectorListDto(CollectorId, "Ana Reyes", "ana@example.test", "C-001", [], 0m, 0, null, true),
-            new CollectorListDto(benId, "Ben Cruz", "ben@example.test", "C-002", [], 0m, 0, null, true),
-        }));
-        Services.AddSingleton(collectors.Object);
-        ServePosition(Position());
+            Collectors = [position.Collectors[0] with { Unremitted = 80m },
+                new CollectorPositionDto(benId, "Ben Cruz", 40m, 0m, 40m, 0, 0m, [])]
+        });
         _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
             .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
         var benCollection = Guid.NewGuid();
         _api.Setup(x => x.GetScopeAsync(benId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
             .ReturnsAsync(Result<RemittanceScopeDto>.Success(new RemittanceScopeDto(benId, new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), null,
-                [new RemittanceCollectionDto(benCollection, new DateOnly(2026, 9, 5), "CT-000201", RevenueInstrumentType.CashTicket, null, 40m,
+                [new RemittanceCollectionDto(benCollection, new DateOnly(2026, 9, 5), "SRC-2026-000201", RevenueInstrumentType.OfficialReceipt, null, 40m,
                     [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 40m)])],
-                40m, [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 40m)], "CT-000201", "CT-000201")));
+                40m, [new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 40m)], "SRC-2026-000201", "SRC-2026-000201")));
         RecordRemittanceBatchRequest? sent = null;
         _api.Setup(x => x.RecordBatchAsync(It.IsAny<RecordRemittanceBatchRequest>()))
             .Callback<RecordRemittanceBatchRequest>(r => sent = r)
             .ReturnsAsync(Result<IReadOnlyList<RemittanceDetailDto>>.Success([Detail(80m, 80m), Detail(40m, 35m)]));
 
         var cut = RenderComponent<Remittances>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "New remittance").Click();
-        var form = "form[aria-label='New remittance']";
-        cut.FindAll($"{form} .rm-collector-picks input")[0].Change(true);
-        cut.FindAll($"{form} .rm-collector-picks input")[1].Change(true);
-        cut.FindAll($"{form} button").Single(b => b.TextContent.Trim() == "Show collections").Click();
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count), Timeout);
+        cut.Find("input[aria-label='Select all collections']").Change(true);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Remit selected (3)").Click();
 
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("section.rm-draft").Count), Timeout);
         Assert.Contains("Ana Reyes", cut.FindAll("section.rm-draft")[0].TextContent);
         Assert.Contains("Ben Cruz", cut.FindAll("section.rm-draft")[1].TextContent);
         cut.FindAll("section.rm-draft")[1].QuerySelector("input[type='number']")!.Change("35");
         cut.FindAll("section.rm-draft")[1].QuerySelectorAll(".rm-form-row input")[1].Change("ACK-B");
-        var total = cut.Find("dl[aria-label='Batch total']").TextContent;
-        Assert.Contains("₱120.00", total);
-        Assert.Contains("₱115.00", total);
-        Assert.Contains("₱5.00", total);
+        var total = cut.Find("dl[aria-label='Remittance total']").TextContent;
+        Assert.Contains("₱120.00", total);                                   // total selected
+        Assert.Contains("₱115.00", total);                                   // being remitted
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record 2 remittances").Click();
 
@@ -347,7 +366,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         new RemittanceRowDto(Guid.NewGuid(), new DateOnly(2026, 9, 30), CollectorId, "Ana Reyes", RevenueInstrumentType.CashTicket, 2,
             expected, remitted, expected - remitted, "ACK-1", RemittanceStatus.Recorded, DateTime.UtcNow),
         new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), null, "office", null, null, null,
-        Scope().Collections, Scope().Breakdown, "CT-000101", "CT-000102", expected != remitted);
+        Scope().Collections, Scope().Breakdown, "SRC-2026-000101", "SRC-2026-000102", expected != remitted);
 
     [Fact]
     public void Detail_ShowsTheDifferenceAndCoverage_AndAVoidNeedsAReason()
@@ -364,7 +383,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("₱10.00", cut.Find("dl[aria-label='Remittance']").TextContent);
-            Assert.Contains("CT-000101 to CT-000102", cut.Markup);
+            Assert.Contains("SRC-2026-000101 to SRC-2026-000102", cut.Markup);
             Assert.Equal(2, cut.FindAll("[aria-label='Collections covered'] tbody tr").Count);
             Assert.True(cut.Find("form[aria-label='Void remittance'] button").HasAttribute("disabled"));
         }, Timeout);
@@ -378,23 +397,4 @@ public sealed class RemittanceWorkspaceTests : TestContext
         }, Timeout);
     }
 
-    [Fact]
-    public void AccountableForms_PointsToRemittance_AndNoLongerSaysItIsNotManaged()
-    {
-        var forms = new Mock<IWcfCollectionsApiClient>();
-        forms.Setup(x => x.GetBooksAsync()).ReturnsAsync(Result<IReadOnlyList<AccountableFormBookDto>>.Success([]));
-        var collectors = new Mock<ICollectorsApiClient>();
-        collectors.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success([]));
-        Services.AddSingleton(forms.Object);
-        Services.AddSingleton(collectors.Object);
-
-        var cut = RenderComponent<AccountableForms>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/accountable-forms/remittances");
-            Assert.DoesNotContain("Remittance, void/replacement and signed RCD processes are not managed here yet", cut.Markup);
-            Assert.Contains("never decides what has been remitted", cut.Markup);
-        }, Timeout);
-    }
 }

@@ -15,7 +15,7 @@
     <header class="ap-head">
         <h2 id="@_titleId">Accountability · @PeriodLabel</h2>
         <div class="ap-tools no-print">
-            <a class="v3-btn v3-btn-sm" href="/accountable-forms/remittances">Remittance &amp; Liquidation</a>
+            <a class="v3-btn v3-btn-sm" href="/remittances">Remittance &amp; Liquidation</a>
             <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">Print</button>
         </div>
     </header>
@@ -110,7 +110,7 @@
                 <div><dt>Collection</dt><dd>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(collection.Total) · @(collection.CollectorName ?? "Office")</dd></div>
                 <div><dt>Revenue lines</dt><dd>@string.Join(" · ", collection.Lines.Select(l => $"{l.ClassificationName} {Money(l.Amount)}"))</dd></div>
                 <div><dt>Remittance</dt><dd>@(collection.RemittanceId is { } id ? $"Covered ({collection.RemittanceStatus})" : "Not yet remitted")
-                    @if (collection.RemittanceId is { } rid) { <a href="@($"/accountable-forms/remittances/{rid}")">Open remittance</a> }</dd></div>
+                    @if (collection.RemittanceId is { } rid) { <a href="@($"/remittances/{rid}")">Open remittance</a> }</dd></div>
             }
         </dl>
     }
