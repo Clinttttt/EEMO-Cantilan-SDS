@@ -85,70 +85,8 @@
 
 @if (ShowPrintReport)
 {
-    <!-- ══ Phase 2: Status Report ══ -->
     <div class="rpt-content print-document-content">
-        <section class="print-report-sheet status-sheet">
-            <header class="print-report-header">
-                <img class="print-report-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
-                <div class="print-republic">Republic of the Philippines</div>
-                <h2>@Branding.OfficeName</h2>
-                <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.ICE) — Current Status Report</div>
-            </header>
-            <div class="print-report-meta">
-                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.ICE)</strong></div>
-                <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
-                <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
-                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
-            </div>
-            <div class="print-report-summary">
-                <div><span>Total Stalls</span><strong>@PrintRows.Count</strong></div>
-                <div><span>Collected</span><strong>&#8369;@PrintRows.Sum(r => r.AmountPaid).ToString("N2")</strong></div>
-                <div><span>Outstanding</span><strong>&#8369;@PrintRows.Sum(r => r.Balance).ToString("N2")</strong></div>
-                <div><span>For Follow-up</span><strong>@PrintRows.Count(r => r.Balance > 0) payor@(PrintRows.Count(r => r.Balance > 0) != 1 ? "s" : "")</strong></div>
-            </div>
-            @if (!PrintRows.Any())
-            {
-                <p class="print-empty">No stallholders under an active contract for @CurrentDate.ToString("MMMM yyyy").</p>
-            }
-            else
-            {
-                <div class="print-table-wrap">
-                    <table class="print-status-table status-sheet">
-                        <thead>
-                            <tr>
-                                <th>Stall No.</th>
-                                <th>Payor / Occupant</th>
-                                <th>Contract Name</th>
-                                <th>Monthly Rate</th>
-                                <th>Status</th>
-                                <th>Amount Paid</th>
-                                <th>Balance</th>
-                                <th>OR No.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in PrintRows)
-                            {
-                                <tr>
-                                    <td>@SpaceNumber.Display(row.StallNo)</td>
-                                    <td>@row.Occupant</td>
-                                    <td class="text-muted-cell">@row.ContractName</td>
-                                    <td>&#8369;@row.MonthlyRate.ToString("N2")</td>
-                                    <td class="status-@row.Status.ToLower()">@row.Status</td>
-                                    <td>@(row.AmountPaid > 0 ? "₱" + row.AmountPaid.ToString("N2") : "-")</td>
-                                    <td>@(row.Balance > 0 ? "₱" + row.Balance.ToString("N2") : "-")</td>
-                                    <td class="text-muted-cell">@(string.IsNullOrEmpty(row.ORNumber) ? "—" : row.ORNumber)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            <div class="print-report-signatures">
-                <SignatureStrip />
-            </div>
-        </section>
+        <RentalMonitoringReport Code="FacilityCode.ICE" Year="CurrentDate.Year" Month="CurrentDate.Month" />
     </div>
 }
 else if (ShowHistory)

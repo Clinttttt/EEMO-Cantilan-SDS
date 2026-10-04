@@ -85,7 +85,7 @@
                         <div class="tcc-mini-key">Partial</div>
                     </div>
                     <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">₱@((Report?.TotalRevenue ?? TotalCollected).ToString("N0"))</div>
+                        <div class="tcc-mini-val">@(Report is null ? "—" : $"₱{Report.TotalRevenue:N0}")</div>
                         <div class="tcc-mini-key">Collected</div>
                     </div>
                 </div>
@@ -94,7 +94,7 @@
             <!-- ── Stalls (NPM-style cards · 2 per row) ── -->
             <FacilityStallsTable TStall="TccStall"
                                  Facility="TCC"
-                                 ColumnSet="MonthlyCard"
+                                 ColumnSet="MonthlyTable"
                                  IsLoading="_loading"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
@@ -165,10 +165,10 @@
 
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
-        new() { Value = $"₱{(Report?.TotalRevenue ?? TotalCollected):N0}", Label = "Collected" },
-        new() { Value = $"₱{(Report?.PendingPaymentAmount ?? TotalPending):N0}", Label = "Pending" },
-        new() { Value = $"{CollectionRate}%", Label = "Collection Rate" },
-        new() { Value = $"{(Report?.OccupiedStalls ?? ActiveStalls.Count())}", Label = "Total Stalls" }
+        new() { Value = Report is null ? "—" : $"₱{Report.TotalRevenue:N0}", Label = "Collected" },
+        new() { Value = Report is null ? "—" : $"₱{Report.PendingPaymentAmount:N0}", Label = "Pending" },
+        new() { Value = Report is null ? "—" : $"{Report.CollectionRate:N0}%", Label = "Collection Rate" },
+        new() { Value = Report?.TotalStalls.ToString() ?? "—", Label = "Total Spaces" }
     };
 
     protected override async Task OnInitializedAsync()
@@ -373,7 +373,7 @@
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
     int CollectionRate => Report is not null
         ? (int)Math.Round(Report.CollectionRate)
-        : (ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0);
+        : 0;
 
     IEnumerable<TccStall> FilteredStalls => Stalls.Where(s =>
     {

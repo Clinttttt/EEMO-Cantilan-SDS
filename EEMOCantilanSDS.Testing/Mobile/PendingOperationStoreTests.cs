@@ -30,6 +30,25 @@ public class PendingOperationStoreTests : IDisposable
         Amount = 30m
     };
 
+    [Fact]
+    public async Task Whole_payment_survives_restart_with_the_same_intent_and_no_typed_receipt()
+    {
+        var store = new PendingOperationStore(_dir);
+        var operation = new PendingOperation
+        {
+            ClientOperationId = Guid.NewGuid(), Kind = OfflineOperationKind.NpmWholePayment,
+            StallId = Guid.NewGuid(), BillingYear = 2026, BillingMonth = 9, BusinessDate = new(2026, 10, 5),
+            ReceivedAmount = 600m, NpmQuoteToken = "reviewed-period-fingerprint", OwnerKey = "collector-A", PayloadVersion = 1
+        };
+        await store.AddIssuedDocumentOperationAsync(operation);
+        var restored = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+        Assert.Equal(operation.ClientOperationId, restored.ClientOperationId);
+        Assert.Equal(operation.NpmQuoteToken, restored.ToDto().NpmQuoteToken);
+        Assert.Equal(600m, restored.ToDto().ReceivedAmount);
+        Assert.Null(restored.ORNumber);
+        Assert.Null(restored.AccountableDocumentId);
+    }
+
     private static PendingOperation IssuedWcfOp() => new()
     {
         ClientOperationId = Guid.NewGuid(),

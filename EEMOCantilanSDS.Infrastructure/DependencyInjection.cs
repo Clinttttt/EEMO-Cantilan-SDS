@@ -75,6 +75,15 @@ namespace EEMOCantilanSDS.Infrastructure
                     sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(), tenant,
                     new Application.Common.Revenue.GovernedCanonicalAuthority(context, tenant));
             });
+            service.AddScoped(sp => new Application.Common.Revenue.NpmWholePaymentWorkflow(
+                sp.GetRequiredService<Application.Common.Interface.Persistence.IStallRepository>(),
+                sp.GetRequiredService<Application.Common.Interface.Persistence.ICollectorRepository>(),
+                sp.GetRequiredService<Application.Common.Interface.Persistence.IDailyCollectionRepository>(),
+                sp.GetRequiredService<Application.Common.Payments.INpmMonthSettlementService>(),
+                sp.GetRequiredService<Application.Common.Revenue.NpmDailyCanonicalPoster>(),
+                sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(),
+                sp.GetRequiredService<Application.Common.Interface.Time.IClock>(),
+                sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>()));
             return service;
         }
 

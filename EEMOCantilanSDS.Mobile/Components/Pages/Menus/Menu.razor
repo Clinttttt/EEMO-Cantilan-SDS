@@ -90,8 +90,11 @@
                 }
                 else
                 {
+                    @foreach (var section in WorkSections.Group(Work.Available))
+                    {
+                    <h3 class="menu-section-title">@section.Name</h3>
                     <ul class="menu-list">
-                        @foreach (var item in Work.Available)
+                        @foreach (var item in section.Items)
                         {
                             <li>
                                 @if (item.CanOpen)
@@ -120,6 +123,7 @@
                             </li>
                         }
                     </ul>
+                    }
                 }
             </section>
 

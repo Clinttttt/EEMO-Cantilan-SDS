@@ -31,14 +31,20 @@ public sealed class ObligationWorkspaceTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(_collections.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
     }
 
-    private void Serve(ObligationKind kind, params ObligationAccountDto[] accounts) =>
+    private void Serve(ObligationKind kind, params ObligationAccountDto[] accounts)
+    {
         _api.Setup(x => x.GetAccountsAsync(kind)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success(accounts));
+        _api.Setup(x => x.GetWorkspaceAsync(kind)).ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new(accounts,
+            accounts.Sum(a => a.AssessedToDate), accounts.Sum(a => a.CollectedToDate), accounts.Sum(a => a.OutstandingToDate))));
+    }
 
     private static ObligationAccountDto Space(decimal amount = 1200m, decimal assessed = 1200m, decimal collected = 400m) => new(
         Guid.NewGuid(), ObligationKind.KanmanggaySpaceRental, "Kanmanggay Space Rental", PayorId, "Ana Reyes", null, null,
@@ -122,8 +128,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             .ReturnsAsync(Result<ObligationAccountDto>.Success(Space()));
 
         var cut = RenderComponent<Kanmanggay>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Open account"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Open account").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
         var search = cut.Find("form[aria-label='Open account'] input[type='search']");
         search.Input("ana");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "a" });
@@ -174,7 +180,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Lot rental accounts'] tbody tr"));
+            var row = Assert.Single(cut.FindAll("[aria-label='Fiesta / Araw accounts'] tbody tr"));
             Assert.Contains("Fiesta · Aug 15, 2026", row.TextContent);
             Assert.Contains("₱2,500.00", row.TextContent);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Change amount");
@@ -184,8 +190,8 @@ public sealed class ObligationWorkspaceTests : TestContext
     [Fact]
     public void FailedLoad_SaysSo_InsteadOfSuggestingNoAccountExists()
     {
-        _api.Setup(x => x.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental))
-            .ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Failure("offline"));
+        _api.Setup(x => x.GetWorkspaceAsync(ObligationKind.KanmanggaySpaceRental))
+            .ReturnsAsync(Result<ObligationWorkspaceDto>.Failure("accounts couldn't be loaded"));
 
         var cut = RenderComponent<Kanmanggay>();
 

@@ -33,9 +33,23 @@ public sealed class NpmDailyCanonicalPoster(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>One day row and the stall-fee money just charged to it (its fee, or a month-end adjustment added to it).</summary>
-    public sealed record Charge(DailyCollection Day, decimal Amount);
+    public sealed record Charge(DailyCollection Day, decimal Amount, bool AdjustmentOnly = false,
+        DateTime? OriginalUpdatedAt = null, string? OriginalUpdatedBy = null);
 
     public sealed record Outcome(Guid CollectionId, string ReferenceCode, decimal Amount, bool Existing);
+
+    public Task<IAppDbContextTransaction> BeginSettlementTransactionAsync(CancellationToken ct = default) =>
+        db.BeginSerializableTransactionAsync(ct);
+
+    public async Task<RevenueInstrumentType?> GetInstrumentAsync(DateOnly paymentDate, CancellationToken ct = default)
+    {
+        var tenantId = municipality.MunicipalityId;
+        var classificationId = await db.RevenueClassifications.Where(c => c.MunicipalityId == tenantId && c.IsActive
+            && c.SemanticCode == RevenueClassificationCodes.PermanentStallRent).Select(c => c.Id).SingleOrDefaultAsync(ct);
+        return await db.RevenueClassificationPolicies.Where(p => p.MunicipalityId == tenantId
+            && p.RevenueClassificationId == classificationId && p.BusinessContext == RevenuePolicyContext.Default && p.EffectiveDate <= paymentDate)
+            .OrderByDescending(p => p.EffectiveDate).Select(p => p.PermittedInstrumentType).FirstOrDefaultAsync(ct);
+    }
 
     /// <summary>True when a payment received on this business date is canonical money.</summary>
     public Task<bool> IsCanonicalAsync(DateOnly paymentDate, CancellationToken ct = default) =>
@@ -140,7 +154,15 @@ public sealed class NpmDailyCanonicalPoster(
                 tenantId, clientOperationId, IntentVersion, normalizedIntent, Origin, ActorId, actorName, role, paymentDate, actorName,
                 [line], null, collectorId: currentUser.CollectorId, payerName: payer,
                 // A day already paid by an earlier Collection (it now carries a month-end adjustment) keeps that Collection as its payer.
-                beforeCommit: (collectionId, _) => { foreach (var charge in charges.Where(c => c.Day.CanonicalCollectionId is null)) charge.Day.ApplyCanonicalPayment(collectionId); },
+                beforeCommit: (collectionId, _) =>
+                {
+                    foreach (var charge in charges)
+                    {
+                        if (charge.AdjustmentOnly)
+                            charge.Day.ApplyCanonicalAdjustment(collectionId, charge.OriginalUpdatedAt, charge.OriginalUpdatedBy);
+                        else if (charge.Day.CanonicalCollectionId is null) charge.Day.ApplyCanonicalPayment(collectionId);
+                    }
+                },
                 ct: ct);
         }
         catch (DbUpdateException)
@@ -187,6 +209,8 @@ public sealed class NpmDailyCanonicalPoster(
 
         var dayIds = allocations.Select(a => a.SourceId).Distinct().ToList();
         var days = await db.DailyCollections.Where(x => x.MunicipalityId == tenantId && dayIds.Contains(x.Id)).ToListAsync(ct);
+        if (days.Any(d => d.CanonicalCollectionId == collection.Id && d.CanonicalAdjustmentCollectionId is not null))
+            return Result<Outcome>.Failure("Void the separately recorded month-end adjustment before its original installment.", ResultStatus.Conflict);
         var actor = currentUser.Username ?? "office";
         var lines = collection.Lines.Select(l => new CollectionCorrectionLineDraft(l.Id, -l.Amount,
             l.Allocations.Select(a => new CollectionCorrectionAllocationDraft(a.Id, -a.Amount)).ToList())).ToList();
@@ -196,6 +220,8 @@ public sealed class NpmDailyCanonicalPoster(
         // Only a day this Collection still pays is projected unpaid; a day since paid again by another Collection is left alone.
         foreach (var day in days.Where(d => d.CanonicalCollectionId == collection.Id))
             day.ApplyCanonicalVoid(actor);
+        foreach (var day in days.Where(d => d.CanonicalAdjustmentCollectionId == collection.Id))
+            day.ApplyCanonicalAdjustmentVoid();
         await db.SaveChangesAsync(ct);
         return Result<Outcome>.Success(new Outcome(collection.Id, collection.ReferenceCode, 0m, false));
     }

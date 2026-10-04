@@ -30,10 +30,13 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
         // frozen amount; an older row without one is priced at the Fish rate read now, which is the legacy reading and is
         // never presented as frozen evidence.
         var daily = await context.DailyCollections.AsNoTracking()
-            .Where(d => d.IsPaid && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc)
+            .Where(d => (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
+                && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc)
             .Select(d => new
             {
-                When = d.UpdatedAt ?? d.CreatedAt, d.DailyFee, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.SettlementAuthorityState,
+                When = d.UpdatedAt ?? d.CreatedAt,
+                DailyFee = d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
+                d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.SettlementAuthorityState,
                 Code = d.Stall!.Facility!.Code
             }).ToListAsync(ct);
         foreach (var d in daily)

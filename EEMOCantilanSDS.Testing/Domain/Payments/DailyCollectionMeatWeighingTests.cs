@@ -34,6 +34,35 @@ public sealed class DailyCollectionMeatWeighingTests
     }
 
     [Fact]
+    public void Canonical_rent_void_preserves_independent_weighing_evidence_and_recognition_date()
+    {
+        var collector = Guid.NewGuid();
+        var day = DailyCollection.Create(Guid.NewGuid(), RateEffective, dailyFee: 30m);
+        day.MarkPaid("", collector, fishKilos: 5m, fishFeeRatePerKilo: 1m,
+            fishFeeRateEffectiveDate: RateEffective, meatKilos: 2m,
+            meatFeeRatePerKilo: 66m, meatFeeRateEffectiveDate: RateEffective);
+        day.ApplyCanonicalPayment(Guid.NewGuid());
+        var recordedAt = day.UpdatedAt;
+
+        day.ApplyCanonicalVoid("office");
+
+        Assert.False(day.IsPaid);
+        Assert.Null(day.CanonicalCollectionId);
+        Assert.Equal(collector, day.CollectorId);
+        Assert.Equal(5m, day.FishFeeAmountFrozen);
+        Assert.Equal(132m, day.MeatFeeAmount);
+        Assert.Equal(recordedAt, day.UpdatedAt);
+
+        day.MarkPaid("", Guid.NewGuid());
+        day.ApplyCanonicalPayment(Guid.NewGuid());
+        Assert.True(day.IsPaid);
+        Assert.Equal(collector, day.CollectorId);
+        Assert.Equal(5m, day.FishFeeAmountFrozen);
+        Assert.Equal(132m, day.MeatFeeAmount);
+        Assert.Equal(recordedAt, day.UpdatedAt);
+    }
+
+    [Fact]
     public void Unpaid_or_absent_transition_clears_meat_source_facts()
     {
         var collection = DailyCollection.Create(Guid.NewGuid(), RateEffective);

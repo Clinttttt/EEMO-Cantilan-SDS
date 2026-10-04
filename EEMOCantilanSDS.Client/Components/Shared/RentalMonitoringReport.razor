@@ -1,0 +1,65 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Enums
+@inject IFacilitiesApiClient Api
+@inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
+@inject IJSRuntime JS
+
+<div class="monitor-controls no-print">
+    <div class="v3-btn-group" role="group" aria-label="Monitoring period">
+        <button class="v3-btn @(!WholeYear ? "v3-btn-primary" : "")" type="button" aria-pressed="@(!WholeYear ? "true" : "false")" @onclick="() => SetYearlyAsync(false)">Month</button>
+        <button class="v3-btn @(WholeYear ? "v3-btn-primary" : "")" type="button" aria-pressed="@(WholeYear ? "true" : "false")" @onclick="() => SetYearlyAsync(true)">Whole year</button>
+    </div>
+    <button class="v3-btn" type="button" @onclick="PrintAsync">Print</button>
+</div>
+@if (Error is not null) { <p class="v3-notice v3-notice-error" role="alert">@Error</p> }
+<OfficeReportShell Title="@($"{Facilities.NameOf(Code)} — Status Report")" Period="@Period">
+    <div class="v3-table-wrap" tabindex="0" aria-label="Status report">
+        <table>
+            <thead><tr><th>Occupant / @(Code == FacilityCode.NPM ? "Stall holder" : "Space holder")</th><th>@(Code == FacilityCode.NPM ? "Stall" : "Space") No.</th>
+                <th class="office-num">@(Code == FacilityCode.NPM ? "Daily rate" : "Monthly rate")</th>
+                <th class="office-num">Assessed · @Period</th><th class="office-num">Account collected</th><th class="office-num">Account balance</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var row in Report?.StallCompliance ?? [])
+                {
+                    <tr><td>@row.Occupant</td><td>@SpaceNumber.Display(row.StallNo)</td>
+                        <td class="office-num">@Money(Code == FacilityCode.NPM ? row.DailyRate : row.MonthlyRate)</td>
+                        <td class="office-num">@Money(row.AccountAssessment ?? row.ExpectedBill)</td>
+                        <td class="office-num">@Money(row.AmountPaid)</td><td class="office-num">@Money(row.Balance)</td><td>@row.Status</td></tr>
+                }
+                @if (Report?.StallCompliance.Count is not > 0) { <tr><td colspan="7">@(Loading ? "Loading…" : "No accounts for this period.")</td></tr> }
+            </tbody>
+            @if (Report?.MonitoringTotals is { } totals)
+            {
+                <tfoot><tr><td colspan="3">Total</td><td class="office-num">@Money(totals.Assessed)</td><td class="office-num">@Money(totals.Collected)</td><td class="office-num">@Money(totals.Balance)</td><td></td></tr></tfoot>
+            }
+        </table>
+    </div>
+    <p class="monitor-note">Assessment and collection include the account's applicable charges. Rates may vary during the period.</p>
+</OfficeReportShell>
+
+@code {
+    [Parameter] public FacilityCode Code { get; set; }
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    private bool WholeYear, Loading;
+    private string? Error;
+    private FacilityReportsDto? Report;
+    private string Period => WholeYear ? Year.ToString() : new DateOnly(Year, Month, 1).ToString("MMMM yyyy");
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private async Task SetYearlyAsync(bool yearly) { WholeYear = yearly; await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        Loading = true; Error = null;
+        try
+        {
+            var result = await Api.GetFacilityReportsAsync(Code, WholeYear ? ReportPeriod.Yearly : ReportPeriod.Monthly, Year, WholeYear ? null : Month);
+            Report = result.IsSuccess ? result.Value : null;
+            if (!result.IsSuccess) Error = result.Error ?? "The status report is unavailable.";
+        }
+        catch { Report = null; Error = "The status report is unavailable."; }
+        finally { Loading = false; }
+    }
+    private static string Money(decimal amount) => amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-PH"));
+    private Task PrintAsync() => JS.InvokeVoidAsync("stalltrackPrint.landscape").AsTask();
+}

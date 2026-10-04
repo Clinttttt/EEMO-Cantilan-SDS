@@ -54,9 +54,9 @@
     margin-bottom: 20px;
     padding: 20px 24px 22px;
     overflow: hidden;
-    border: 1px solid var(--border);
+    border: 1px solid var(--civic-panel);
     border-radius: 10px;
-    background: var(--surface);
+    background: var(--civic-panel);
     box-shadow: var(--elevation-1);
 }
 
@@ -76,12 +76,12 @@
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    background: var(--accent-soft);
-    color: var(--navy);
+    background: rgba(255,255,255,.12);
+    color: white;
 }
 
     .tcc-hero-icon ::deep svg {
-        stroke: var(--navy) !important;
+        stroke: white !important;
     }
 
 .npm-icon-svg {
@@ -97,7 +97,7 @@
 
 .tcc-hero-eyebrow {
     margin-bottom: 2px;
-    color: var(--text-tertiary);
+    color: #d9e8f7;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: .08em;
@@ -105,7 +105,7 @@
 }
 
 .tcc-hero-title {
-    color: var(--navy);
+    color: white;
     font-size: 24px;
     font-weight: 700;
     letter-spacing: -0.01em;
@@ -114,7 +114,7 @@
 
 .tcc-hero-sub {
     margin-top: 2px;
-    color: var(--text-tertiary);
+    color: #d9e8f7;
     font-size: 13px;
 }
 
@@ -138,7 +138,7 @@
     }
 
 .tcc-hero-val {
-    color: var(--navy);
+    color: white;
     font-size: 20px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -147,7 +147,7 @@
 
 .tcc-hero-key {
     margin-top: 2px;
-    color: var(--text-tertiary);
+    color: #d9e8f7;
     font-size: 12px;
     font-weight: 500;
 }

@@ -1,0 +1,121 @@
+@page "/npm/whole-payment/{StallId:guid}"
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
+@inject IMobileApiClient Api
+@inject MobileSyncService Sync
+@inject NavigationManager Navigation
+@inject MobileSessionService Session
+
+<div class="page-shell">
+    <AppHeader CollectorName="@Session.CollectorName" />
+    <main class="whole-workspace">
+        <div class="whole-modes" aria-label="Payment type">
+            <button type="button" @onclick='() => Navigation.NavigateTo("/market")'>Daily</button>
+            <button type="button" class="selected" aria-pressed="true">Whole payment</button>
+        </div>
+        <h1>Whole payment</h1>
+        <p class="whole-payor">@Occupant · Stall @SpaceNo</p>
+        <div class="whole-period">
+            <label>Year <input type="number" min="2000" max="2100" @bind="Year" disabled="@Saving" /></label>
+            <label>Month <select @bind="Month" disabled="@Saving">
+                @for (var m = 1; m <= 12; m++)
+                {
+                    <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
+                }
+            </select></label>
+            <button type="button" class="btn-ghost" @onclick="LoadQuoteAsync" disabled="@Saving">Review amount</button>
+        </div>
+        @if (Loading)
+        {
+            <p role="status">Loading amount…</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <p class="whole-error" role="alert">@Error</p>
+        }
+        @if (Quote is { } quote)
+        {
+            <dl class="whole-review">
+                <div><dt>Period</dt><dd>@(new DateOnly(quote.Year, quote.Month, 1).ToString("MMMM yyyy"))</dd></div>
+                <div><dt>Days covered</dt><dd>@quote.Days</dd></div>
+                <div><dt>Instrument</dt><dd>@(quote.Instrument == global::EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.CashTicket ? "CT" : "OR")</dd></div>
+                @if (quote.Adjustment > 0m) { <div><dt>Month-end adjustment</dt><dd>@Money(quote.Adjustment)</dd></div> }
+                <div class="whole-total"><dt>Amount due</dt><dd>@Money(quote.Amount)</dd></div>
+            </dl>
+            @if (!Sync.IsOnline) { <p class="whole-note">Offline · last reviewed amount. The server verifies it when synced.</p> }
+            <button type="button" class="btn-primary" disabled="@(Saving || Captured || quote.Amount <= 0m || quote.Year != Year || quote.Month != Month)" @onclick="ConfirmAsync">
+                @(Saving ? "Recording…" : quote.Amount <= 0m ? "Nothing remaining" : "Confirm whole payment")
+            </button>
+        }
+        @if (!string.IsNullOrWhiteSpace(Notice)) { <p class="whole-notice" role="status">@Notice</p> }
+    </main>
+</div>
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [SupplyParameterFromQuery] public int Year { get; set; }
+    [SupplyParameterFromQuery] public int Month { get; set; }
+    [SupplyParameterFromQuery] public string? Occupant { get; set; }
+    [SupplyParameterFromQuery] public string? SpaceNo { get; set; }
+    private NpmWholePaymentQuoteDto? Quote;
+    private bool Loading, Saving, Captured;
+    private string? Error, Notice;
+    private readonly Guid OperationId = Guid.NewGuid();
+    private static string Money(decimal amount) => amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-PH"));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+        if (Year == 0) Year = today.Year;
+        if (Month == 0) Month = today.Month;
+        await LoadQuoteAsync();
+    }
+
+    private async Task LoadQuoteAsync()
+    {
+        Loading = true;
+        Error = null;
+        Quote = null;
+        try
+        {
+            var queued = (await Sync.GetAllAsync()).Any(o => o.Kind == OfflineOperationKind.NpmWholePayment
+                && o.StallId == StallId && o.BillingYear == Year && o.BillingMonth == Month
+                && o.LocalStatus != PendingLocalStatus.Synced);
+            if (queued) { Error = "A payment for this period is waiting to sync or needs review. Open Records."; return; }
+            var result = await Api.GetNpmWholePaymentQuoteAsync(StallId, Year, Month);
+            if (result.IsSuccess) Quote = result.Value;
+            else Error = result.Error ?? "The amount could not be reviewed.";
+        }
+        catch (Exception) { Error = "The amount is unavailable. Connect and review it before collecting."; }
+        finally { Loading = false; }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (Quote is not { Amount: > 0m } quote || Captured || Saving || quote.Year != Year || quote.Month != Month) return;
+        Saving = true;
+        Error = null;
+        try
+        {
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+            {
+                ClientOperationId = OperationId, Kind = OfflineOperationKind.NpmWholePayment,
+                StallId = StallId, BillingYear = quote.Year, BillingMonth = quote.Month,
+                BusinessDate = quote.BusinessDate, ReceivedAmount = quote.Amount, NpmQuoteToken = quote.QuoteToken,
+                PayloadVersion = 1, FacilityLabel = "NPM", Title = Occupant ?? "Stall payment",
+                Detail = $"Stall {SpaceNo} · {quote.Year:D4}-{quote.Month:D2}", Amount = quote.Amount
+            });
+            Captured = true;
+            Notice = "Waiting to sync";
+            if (Sync.IsOnline) await Sync.SyncNowAsync();
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(o => o.ClientOperationId == OperationId);
+            if (result?.ReferenceCode is { } src) Notice = $"Collection recorded · {src}";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                Notice = result.ResultMessage ?? "Office review required.";
+        }
+        catch (Exception) { Error = "The payment could not be saved on this device. Check Records before trying again."; }
+        finally { Saving = false; }
+    }
+}

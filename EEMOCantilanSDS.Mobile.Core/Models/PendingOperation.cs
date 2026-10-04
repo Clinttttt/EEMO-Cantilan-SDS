@@ -123,6 +123,7 @@ public sealed class PendingOperation
     // Canonical ECF collection (Kind = EcfCollection): the Electricity source version shown to the collector.
     public long? ElectricitySourceVersion { get; set; }
     public long? RentSourceVersion { get; set; }
+    public string? NpmQuoteToken { get; set; }
 
     // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account (BillingYear/BillingMonth name the period).
     public Guid? ObligationAccountId { get; set; }
@@ -207,5 +208,6 @@ public sealed class PendingOperation
         FeeOptionId,
         ElectricitySourceVersion,
         RentSourceVersion,
-        ObligationAccountId);
+        ObligationAccountId,
+        NpmQuoteToken);
 }

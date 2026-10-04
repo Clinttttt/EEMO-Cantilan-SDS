@@ -48,6 +48,35 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     private static ObligationWorkflow Setup(AppDbContext context, Seed seed, string role = "SuperAdmin") =>
         new(context, new TestActor(seed.UserId, seed.TenantId, role), new FixedTenant(seed.TenantId));
 
+    [SkippableFact]
+    public async Task SpaceImport_ValidatesAllRowsBeforeWriting_SkipsExisting_AndKeepsClosedHistory()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1).AddMonths(-1);
+        var valid = new ImportSpaceHolderRow(new(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "K-1", null, null, start, 100m));
+        var invalid = valid with { Account = valid.Account with { PayorId = Guid.NewGuid(), SubjectLabel = "K-2" } };
+        var refused = await workflow.ImportSpaceHoldersAsync(new([valid, invalid]));
+        Assert.True(refused.IsSuccess);
+        Assert.Single(refused.Value!.NeedsReview);
+        Assert.Equal(0, await ctx.ObligationAccounts.CountAsync());
+        var imported = await workflow.ImportSpaceHoldersAsync(new([valid, valid with
+            { Account = valid.Account with { SubjectLabel = "K-2" }, ClosedOn = start }]));
+        Assert.Equal(2, imported.Value!.Imported);
+        var replay = await workflow.ImportSpaceHoldersAsync(new([valid]));
+        Assert.Equal((0, 1), (replay.Value!.Imported, replay.Value.Skipped));
+        var report = (await workflow.GetStatusReportAsync(ObligationKind.KanmanggaySpaceRental, start.Year)).Value!;
+        Assert.Contains(report.Accounts, a => a.SubjectLabel == "K-2" && a.ActiveTo == start);
+        Assert.Equal(100m, report.Accounts.Single(a => a.SubjectLabel == "K-2").AssessedToDate);
+        Assert.Equal(0, await ctx.Collections.CountAsync());
+        var admin = await Setup(ctx, seed, "Admin").ImportSpaceHoldersAsync(new([valid]));
+        Assert.Equal(ResultStatus.Forbidden, admin.Status);
+    }
+
     private static CollectionComposerWorkflow Composer(AppDbContext context, Seed seed) =>
         new(context, new TestActor(seed.UserId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
 

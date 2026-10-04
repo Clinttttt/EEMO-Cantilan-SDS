@@ -5,7 +5,7 @@
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>StallTrack — List of Stall Holders</PageTitle>
+<PageTitle>StallTrack — @HolderTitle</PageTitle>
 
 <!-- Topbar -->
 <header class="topbar">
@@ -14,13 +14,13 @@
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                 </a>
                 <div>
-                    <div class="topbar-title">List of Stall Holders</div>
+                    <div class="topbar-title">@HolderTitle</div>
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
                         <a href="@BackLink" class="breadcrumb-link">@FacilityName</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">Stall Holders List</span>
+                        <span class="breadcrumb-active">@HolderTitle</span>
                     </div>
                 </div>
             </div>
@@ -43,14 +43,14 @@
                     </div>
                     <div>
                         <div class="lsh-hero-eyebrow">@FacilityCode · @FacilityName</div>
-                        <div class="lsh-hero-title">List of Stall Holders</div>
+                        <div class="lsh-hero-title">@HolderTitle</div>
                         <div class="lsh-hero-sub">Municipality of @Branding.Municipality, @Branding.Province</div>
                     </div>
                 </div>
                 <div class="lsh-hero-stats">
                     <div class="lsh-hero-stat">
                         <div class="lsh-hero-val">@AllActiveStalls.Count()</div>
-                        <div class="lsh-hero-key">Total Stalls</div>
+                        <div class="lsh-hero-key">Total @(IsFacility("npm") ? "Stalls" : "Spaces")</div>
                     </div>
                     @if (IsFacility("npm"))
                     {
@@ -74,7 +74,7 @@
                 <div class="toolbar-left">
                     <div class="search-box">
                         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search name or stall no…"
+                        <input type="text" placeholder="@(IsFacility("npm") ? "Search name or stall no…" : "Search name or space no…")"
                                @bind="SearchQuery" @bind:event="oninput" />
                         @if (!string.IsNullOrEmpty(SearchQuery))
                         {
@@ -129,7 +129,7 @@
                     <div class="lsh-doc-republic">Republic of the Philippines</div>
                     <div class="lsh-doc-office">@Branding.OfficeName</div>
                     <div class="lsh-doc-gov">Municipality of @Branding.Municipality, @Branding.Province</div>
-                    <div class="lsh-doc-title">List of Stallholders</div>
+                    <div class="lsh-doc-title">@HolderTitle</div>
                     <div class="lsh-doc-facility">@FacilityName.ToUpper()</div>
                     @* Filtering to one section makes it part of the document's identity, so it is stated once
                        here in the centre instead of being repeated as a label above the only table. *@
@@ -356,6 +356,7 @@
     [Parameter]
     [SupplyParameterFromQuery]
     public string? Facility { get; set; }
+    private string HolderTitle => IsFacility("npm") ? "Stall Holder List" : "Space Holder List";
 
     string SearchQuery = string.Empty;
     string ActiveSection = "All";

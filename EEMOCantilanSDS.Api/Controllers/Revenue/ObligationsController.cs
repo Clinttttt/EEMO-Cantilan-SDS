@@ -17,6 +17,18 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "SuperAdmin,Admin")]
 public sealed class ObligationsController(ISender sender, ObligationWorkflow workflow) : ApiBaseController(sender)
 {
+    [HttpGet("workspace")]
+    public async Task<ActionResult<ObligationWorkspaceDto>> WorkspaceAsync(ObligationKind kind, CancellationToken ct) =>
+        HandleResponse(await workflow.GetWorkspaceAsync(kind, ct));
+
+    [HttpGet("status-report")]
+    public async Task<ActionResult<ObligationWorkspaceDto>> StatusReportAsync(ObligationKind kind, int year, CancellationToken ct) =>
+        HandleResponse(await workflow.GetStatusReportAsync(kind, year, ct));
+
+    [HttpPost("import")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<ImportSpaceHoldersResult>> ImportAsync(ImportSpaceHoldersRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.ImportSpaceHoldersAsync(request, ct));
     [HttpGet("accounts")]
     public async Task<ActionResult<IReadOnlyList<ObligationAccountDto>>> AccountsAsync(
         [FromQuery] ObligationKind kind, CancellationToken ct) =>

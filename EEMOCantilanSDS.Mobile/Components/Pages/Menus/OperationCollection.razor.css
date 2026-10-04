@@ -32,7 +32,8 @@
 }
 
 .op-mode.disabled {
-    opacity: 0.55;
+    background: var(--mobile-canvas);
+    border-style: dashed;
     cursor: not-allowed;
 }
 
@@ -44,12 +45,12 @@
 .op-mode-title {
     font-size: 13px;
     font-weight: 700;
-    color: var(--navy);
+    color: var(--mobile-navy);
 }
 
 .op-mode-sub {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--mobile-text-secondary);
 }
 
 .op-terms {
@@ -497,7 +498,7 @@
     max-width: 104px;
     font-size: 13px;
     font-weight: 700;
-    color: var(--navy);
+    color: var(--mobile-navy);
     text-align: right;
     font-variant-numeric: tabular-nums;
 }

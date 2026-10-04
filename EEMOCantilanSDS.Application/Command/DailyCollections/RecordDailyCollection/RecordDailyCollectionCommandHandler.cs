@@ -122,6 +122,8 @@ public class RecordDailyCollectionCommandHandler(
 
         if (existing is not null)
         {
+            if (existing.CanonicalAdjustmentCollectionId is not null)
+                return Result<bool>.Failure("This installment carries a posted month-end adjustment. Correct the collection before editing it.", ResultStatus.Conflict);
             if (isCollectorRequest &&
                 existing.CollectorId is { } recordedCollectorId &&
                 collectorId is { } actingCollectorId &&
@@ -134,11 +136,17 @@ public class RecordDailyCollectionCommandHandler(
 
             // A day paid by a canonical Collection is append-only financial history: it is not un-marked or excused here.
             // Its correction is the void of that Collection, which projects the day unpaid.
-            if (existing.SettlementAuthorityState == SettlementAuthority.Canonical && existing.IsPaid
+            if ((existing.SettlementAuthorityState == SettlementAuthority.Canonical || existing.CanonicalAdjustmentCollectionId is not null)
+                && (existing.IsPaid || existing.FishKilos is > 0m || existing.MeatFeeAmount > 0m)
                 && (request.IsAbsent || !request.IsPaid))
                 return Result<bool>.Failure(
                     "This day was paid by a posted collection. Void that collection to correct it; the day cannot be un-marked here.",
                     ResultStatus.Conflict);
+
+            if (existing.SettlementAuthorityState == SettlementAuthority.Canonical && !existing.IsPaid
+                && ((request.FishKilos.HasValue && request.FishKilos != existing.FishKilos)
+                    || (request.MeatKilos.HasValue && request.MeatKilos != existing.MeatKilos)))
+                return Result<bool>.Failure("Existing weighing evidence cannot be replaced by a rent payment.", ResultStatus.Conflict);
 
             // Stamp the offline idempotency key on the UPDATE path too so a lost-ack retry is caught.
             if (request.ClientOperationId is { } existingOpId)

@@ -95,6 +95,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             decimal? fishFeeRatePerKilo = null,
             DateOnly? fishFeeRateEffectiveDate = null)
         {
+            // Recollecting voided canonical rent must not replace a separate weighing event.
+            if (SettlementAuthorityState == SettlementAuthority.Canonical && !IsPaid
+                && (FishKilos is > 0m || MeatFeeAmount > 0m))
+            {
+                if ((fishKilos.HasValue && fishKilos != FishKilos)
+                    || (meatKilos.HasValue && meatKilos != MeatKilos))
+                    throw new InvalidOperationException("Existing weighing evidence cannot be replaced by a rent payment.");
+                IsPaid = true;
+                IsAbsent = false;
+                return;
+            }
             if (meatKilos is < 0m)
                 throw new ArgumentOutOfRangeException(nameof(meatKilos));
             if (meatKilos.HasValue && (meatFeeRatePerKilo is not > 0m || meatFeeRateEffectiveDate is null))
@@ -190,6 +201,26 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// <summary>The canonical Collection that currently pays this day, when one does.</summary>
         public Guid? CanonicalCollectionId { get; private set; }
 
+        /// <summary>A separately collected month-end adjustment; the original installment keeps its own authority.</summary>
+        public Guid? CanonicalAdjustmentCollectionId { get; private set; }
+
+        public void ApplyCanonicalAdjustment(Guid collectionId, DateTime? originalUpdatedAt, string? originalUpdatedBy)
+        {
+            if (collectionId == Guid.Empty || !IsPaid || MonthEndAdjustment is not > 0m)
+                throw new InvalidOperationException("A paid installment and posted adjustment are required.");
+            CanonicalAdjustmentCollectionId = collectionId;
+            // The adjustment has its own Collection recognition date. Do not move the earlier rent or weighing.
+            UpdatedAt = originalUpdatedAt;
+            UpdatedBy = originalUpdatedBy;
+        }
+
+        public void ApplyCanonicalAdjustmentVoid()
+        {
+            if (CanonicalAdjustmentCollectionId is null) return;
+            ClearMonthEndAdjustment();
+            CanonicalAdjustmentCollectionId = null;
+        }
+
         /// <summary>
         /// Hands this day's stall-fee money to a canonical Collection. Called only by the canonical posting path, for a day it
         /// has just marked paid; from then on the row's paid state follows the Collection (and its void), never a legacy edit.
@@ -210,7 +241,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public void ApplyCanonicalVoid(string updatedBy = "System")
         {
             if (SettlementAuthorityState != SettlementAuthority.Canonical) return;
-            MarkUnpaid(updatedBy);
+            // The Collection pays RENT only. Weighing remains independent legacy source evidence;
+            // retain its collector and recognition timestamp as well as its frozen quantity/rate.
+            IsPaid = false;
+            IsAbsent = false;
+            ClearMonthEndAdjustment();
+            if (FishKilos is not > 0m && MeatFeeAmount == 0m)
+            {
+                CollectorId = null;
+                UpdatedAt = DateTime.UtcNow;
+                UpdatedBy = updatedBy;
+            }
             CanonicalCollectionId = null;
         }
 

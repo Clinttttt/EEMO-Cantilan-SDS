@@ -108,7 +108,7 @@ public partial class CollectorRepository
             // each of three past tabs — the receipt they hold said ₱90. A day settled on its own day is unaffected:
             // then the two dates are the same.
             var rows = await _context.DailyCollections.AsNoTracking()
-                .Where(d => (d.IsPaid || d.IsAbsent)
+                .Where(d => (d.IsPaid || d.IsAbsent || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                          && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                          && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null))
                          // A day paid by a canonical Collection is listed by that Collection (its SRC); here it stays only for
@@ -124,7 +124,7 @@ public partial class CollectorRepository
                     d.Stall.StallNo,
                     d.Stall.Section,
                     d.Stall.CustomSectionName,
-                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
+                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                     d.FishKilos,
                     d.MeatFeeAmount,
                     d.IsAbsent,
@@ -385,7 +385,7 @@ public partial class CollectorRepository
 
             var npmCollections = await _context.DailyCollections
                 .AsNoTracking()
-                .Where(d => d.IsPaid
+                .Where(d => (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                     && d.Stall!.Facility!.Code == FacilityCode.NPM
                     && d.CollectionDate >= fromDate
                     && d.CollectionDate <= collectionEnd
@@ -400,7 +400,7 @@ public partial class CollectorRepository
                     d.StallId,
                     d.Stall.StallNo,
                     d.CollectionDate,
-                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
+                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                     d.FishKilos,
                     d.MeatFeeAmount,
                     IsAdmin = d.CollectorId == null,

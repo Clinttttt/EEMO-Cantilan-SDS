@@ -247,6 +247,8 @@ public class NpmMonthSettlementServiceTests
         var daily = new Mock<IDailyCollectionRepository>();
         daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(collected);
+        daily.Setup(r => r.GetByStallAndDateAsync(stall.Id, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid _, DateOnly day, CancellationToken _) => collected.Single(d => d.CollectionDate == day));
         var closures = new Mock<INpmMarketClosureRepository>();
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
@@ -359,6 +361,8 @@ public class NpmMonthSettlementServiceTests
         var daily = new Mock<IDailyCollectionRepository>();
         daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(collected);
+        daily.Setup(r => r.GetByStallAndDateAsync(stall.Id, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid _, DateOnly day, CancellationToken _) => collected.Single(d => d.CollectionDate == day));
         var closures = new Mock<INpmMarketClosureRepository>();
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
@@ -400,6 +404,8 @@ public class NpmMonthSettlementServiceTests
         var daily = new Mock<IDailyCollectionRepository>();
         daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(collected);
+        daily.Setup(r => r.GetByStallAndDateAsync(stall.Id, It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid _, DateOnly day, CancellationToken _) => collected.Single(d => d.CollectionDate == day));
         var closures = new Mock<INpmMarketClosureRepository>();
         closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());

@@ -1,0 +1,3 @@
+.monitor-controls { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; gap: 12px; }
+.monitor-note { margin: 12px 0 0; font-size: 11px; color: var(--text-secondary); }
+@media print { .no-print { display: none !important; } }

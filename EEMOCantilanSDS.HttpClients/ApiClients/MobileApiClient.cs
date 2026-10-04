@@ -12,6 +12,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
+        GetAsync<NpmWholePaymentQuoteDto>($"api/Mobile/npm/whole-payment/quote?stallId={stallId}&year={year}&month={month}");
     public async Task<Result<MobileMenuDto>> GetMenuAsync() =>
         await GetAsync<MobileMenuDto>("api/Mobile/menu");
 

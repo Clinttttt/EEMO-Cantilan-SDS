@@ -45,6 +45,10 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow, RemittanceWorkflow remittances, CollectionsReportWorkflow collections) : ApiBaseController(sender)
 {
+    [HttpGet("npm/whole-payment/quote")]
+    public async Task<ActionResult<NpmWholePaymentQuoteDto>> WholePaymentQuoteAsync(
+        Guid stallId, int year, int month, [FromServices] NpmWholePaymentWorkflow workflow, CancellationToken ct) =>
+        HandleResponse(await workflow.QuoteAsync(stallId, year, month, ct));
     [HttpGet("menu")]
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
     {

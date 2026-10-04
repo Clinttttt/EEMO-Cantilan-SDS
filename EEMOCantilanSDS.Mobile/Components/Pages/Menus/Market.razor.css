@@ -1094,6 +1094,11 @@
     font-variant-numeric: tabular-nums;
 }
 
+.npm-payment-modes { display: flex; gap: 4px; margin: 12px 0; padding: 4px; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); }
+.npm-payment-modes button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--mobile-navy); font: inherit; }
+.npm-payment-modes .selected { background: var(--mobile-blue); color: white; font-weight: 600; }
+.npm-payment-modes button:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: 2px; }
+
 .wcf-ticket-option.selected {
     font-weight: 700;
     color: var(--mobile-navy);

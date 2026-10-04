@@ -162,6 +162,80 @@ public sealed class ObligationWorkflow(
                 : Result<ObligationAccountDto>.Failure("The account was saved but could not be reloaded.", ResultStatus.Conflict);
         }, ct);
 
+    public async Task<Result<ObligationWorkspaceDto>> GetWorkspaceAsync(ObligationKind kind, CancellationToken ct = default)
+    {
+        var result = await GetAccountsAsync(kind, ct);
+        if (!result.IsSuccess) return Result<ObligationWorkspaceDto>.Failure(result.Error!, result.Status);
+        var rows = result.Value!;
+        return Result<ObligationWorkspaceDto>.Success(new(rows, rows.Sum(a => a.AssessedToDate),
+            rows.Sum(a => a.CollectedToDate), rows.Sum(a => a.OutstandingToDate)));
+    }
+
+    public async Task<Result<ObligationWorkspaceDto>> GetStatusReportAsync(ObligationKind kind, int year, CancellationToken ct = default)
+    {
+        if (year is < 2000 or > 2100) return Result<ObligationWorkspaceDto>.Failure("Choose a valid reporting year.", ResultStatus.Invalid);
+        var accounts = await GetAccountsAsync(kind, ct);
+        if (!accounts.IsSuccess) return Result<ObligationWorkspaceDto>.Failure(accounts.Error!, accounts.Status);
+        var rows = new List<ObligationAccountDto>();
+        foreach (var account in accounts.Value!)
+        {
+            var register = await GetRegisterAsync(account.Id, ct);
+            if (!register.IsSuccess) return Result<ObligationWorkspaceDto>.Failure(register.Error!, register.Status);
+            var periods = register.Value!.Where(q => q.PeriodStart.Year == year).ToList();
+            if (periods.Count == 0) continue;
+            rows.Add(account with { AssessedToDate = periods.Sum(q => q.AssessedAmount),
+                CollectedToDate = periods.Sum(q => q.SettledAmount), OutstandingToDate = periods.Sum(q => q.OutstandingAmount) });
+        }
+        return Result<ObligationWorkspaceDto>.Success(new(rows, rows.Sum(a => a.AssessedToDate),
+            rows.Sum(a => a.CollectedToDate), rows.Sum(a => a.OutstandingToDate)));
+    }
+
+    public Task<Result<ImportSpaceHoldersResult>> ImportSpaceHoldersAsync(ImportSpaceHoldersRequest request, CancellationToken ct = default) =>
+        Run<ImportSpaceHoldersResult>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<ImportSpaceHoldersResult>.Forbidden();
+            if (request.Rows is null || request.Rows.Count is 0 or > 200)
+                return Result<ImportSpaceHoldersResult>.Failure("Import between 1 and 200 reviewed rows.", ResultStatus.Invalid);
+            await using var transaction = await db.BeginSerializableTransactionAsync(ct);
+            var payors = await db.Payors.AsNoTracking().Where(p => p.MunicipalityId == actor.TenantId)
+                .Select(p => p.Id).ToListAsync(ct);
+            var existing = await db.ObligationAccounts.AsNoTracking().Where(a => a.MunicipalityId == actor.TenantId)
+                .Select(a => new { a.Kind, a.SubjectLabel, a.Event, a.EventDate }).ToListAsync(ct);
+            static string Key(ObligationKind kind, string label, LotRentalEvent? ev, DateOnly? date) =>
+                $"{kind}|{label.Trim().ToUpperInvariant()}|{ev}|{date:yyyy-MM-dd}";
+            var seen = existing.Select(a => Key(a.Kind, a.SubjectLabel, a.Event, a.EventDate)).ToHashSet();
+            var additions = new List<(ObligationAccount Account, ObligationRate Rate)>();
+            var review = new List<string>();
+            var skipped = 0;
+            for (var index = 0; index < request.Rows.Count; index++)
+            {
+                var row = request.Rows[index];
+                var input = row.Account;
+                try
+                {
+                    if (input.Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+                        throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                    if (!payors.Contains(input.PayorId)) throw new ArgumentException("Choose an existing Business Payor.");
+                    var start = input.Kind == ObligationKind.FiestaArawLotRental ? input.EventDate ?? default : input.ActiveFrom;
+                    if (start < new DateOnly(2020, 1, 1) || start > BusinessToday.AddDays(366))
+                        throw new ArgumentException("Choose a realistic start or event date.");
+                    var account = ObligationAccount.Create(actor.TenantId, input.Kind, input.PayorId, input.StallId,
+                        input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username);
+                    var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
+                    if (row.ClosedOn is { } closed) account.Close(closed);
+                    if (!seen.Add(Key(account.Kind, account.SubjectLabel, account.Event, account.EventDate))) { skipped++; continue; }
+                    additions.Add((account, rate));
+                }
+                catch (ArgumentException ex) { review.Add($"Row {index + 1}: {ex.Message}"); }
+            }
+            // Validate the complete list before any account or financial assessment is written.
+            if (review.Count > 0) return Result<ImportSpaceHoldersResult>.Success(new(0, skipped, review));
+            foreach (var item in additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); }
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return Result<ImportSpaceHoldersResult>.Success(new(additions.Count, skipped, []));
+        }, ct);
+
     /// <summary>Appends an approved amount. It is never retroactive: it must begin after every period already assessed.</summary>
     public Task<Result<bool>> SetRateAsync(Guid accountId, SetObligationRateRequest request, CancellationToken ct = default) =>
         Run<bool>(async actor =>

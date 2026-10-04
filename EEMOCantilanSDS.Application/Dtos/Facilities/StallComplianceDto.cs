@@ -26,5 +26,6 @@ public record StallComplianceDto(
     int AbsentDays = 0,
     // Fish kilos weighed for this stall over the period (NPM only; 0 elsewhere). Recorded on the daily collection
     // whichever way the stall settled, so it is summed independently of how the money was counted.
-    decimal FishKilos = 0m
+    decimal FishKilos = 0m,
+    decimal? AccountAssessment = null
 );

@@ -8,6 +8,19 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 
 public class TodaysWorkTests
 {
+    [Fact]
+    public void Presentation_sections_preserve_every_authorized_row_and_its_capability()
+    {
+        WorkItem[] rows = [new("Public Market", "Ready", WorkTarget.Facility, true, "NPM"),
+            new("Iceplant", "Ready", WorkTarget.Facility, true, "ICE"),
+            new("Water", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.Wcf),
+            new("Future service", "Ready", WorkTarget.None, false, OperationCode: "FUTURE")];
+        var grouped = WorkSections.Group(rows);
+        Assert.Equal(rows.Length, grouped.Sum(g => g.Items.Count));
+        Assert.All(rows, row => Assert.Same(row, Assert.Single(grouped.SelectMany(g => g.Items), item => item == row)));
+        Assert.Equal("Rent & space", grouped[0].Name);
+        Assert.False(Assert.Single(grouped.Single(g => g.Name == "Other operations").Items).CanOpen);
+    }
     private static CollectorOperationCapabilityDto Op(string code, CollectorOperationCapabilityStatus status, bool assigned = true, bool? collectible = null) =>
         new(code, code, assigned, status, collectible ?? status == CollectorOperationCapabilityStatus.Ready, []);
 

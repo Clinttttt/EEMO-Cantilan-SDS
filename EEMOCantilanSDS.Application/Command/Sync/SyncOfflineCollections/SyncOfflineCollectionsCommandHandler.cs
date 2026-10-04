@@ -23,7 +23,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     GovernedServiceWorkflow? governedWorkflow = null,
     CollectionComposerWorkflow? ecfWorkflow = null,
     FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null,
-    NpmDailyCanonicalPoster? npmCanonical = null)
+    NpmDailyCanonicalPoster? npmCanonical = null,
+    NpmWholePaymentWorkflow? npmWholePayment = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -37,6 +38,22 @@ public sealed class SyncOfflineCollectionsCommandHandler(
 
         foreach (var op in request.Operations)
         {
+            if (op.Kind == OfflineOperationKind.NpmWholePayment)
+            {
+                if (npmWholePayment is null)
+                {
+                    results.Add(new(op.ClientOperationId, SyncResultStatus.Failed, "NPM whole payment sync is unavailable."));
+                    continue;
+                }
+                var posted = await npmWholePayment.PostAsync(new(op.ClientOperationId, op.StallId ?? Guid.Empty,
+                    op.BillingYear ?? 0, op.BillingMonth ?? 0, op.BusinessDate, op.ReceivedAmount ?? 0m, op.NpmQuoteToken ?? ""), ct);
+                var outcome = posted.IsSuccess ? SyncResultStatus.Synced
+                    : posted.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true ? SyncResultStatus.ReconciliationRequired
+                    : IsTransient(posted.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new(op.ClientOperationId, outcome, posted.IsSuccess ? null : posted.Error,
+                    posted.Value?.ReferenceCode, posted.Value?.CollectionId));
+                continue;
+            }
             if (op.Kind == OfflineOperationKind.WcfCollection)
             {
                 if (wcfWorkflow is null)

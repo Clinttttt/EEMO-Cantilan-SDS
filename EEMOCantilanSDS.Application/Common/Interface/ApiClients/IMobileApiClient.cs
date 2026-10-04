@@ -12,6 +12,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
+        Task.FromResult(Result<NpmWholePaymentQuoteDto>.Failure("Whole payment is unavailable in this client."));
     Task<Result<MobileMenuDto>> GetMenuAsync();
 
     /// <summary>Read-only: which assigned non-facility operations are collectible now (GET api/Mobile/operations/capabilities).</summary>

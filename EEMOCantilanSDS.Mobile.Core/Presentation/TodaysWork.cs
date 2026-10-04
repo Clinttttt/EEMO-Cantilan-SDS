@@ -25,6 +25,39 @@ public enum WorkTarget { None, Facility, Operation }
 /// <summary>One row in Today's Work. <see cref="CanOpen"/> is true only for something that is ready to collect.</summary>
 public sealed record WorkItem(string Name, string Status, WorkTarget Target, bool CanOpen, string? FacilityCode = null, string? OperationCode = null);
 
+public sealed record WorkSection(string Name, IReadOnlyList<WorkItem> Items);
+
+/// <summary>Groups already-authorized rows without deciding availability or routing.</summary>
+public static class WorkSections
+{
+    public static IReadOnlyList<WorkSection> Group(IReadOnlyList<WorkItem> available) =>
+        new[] { "Rent & space", "Market & vendor", "Utilities", "Transport & services", "Other operations" }
+            .Select(name => new WorkSection(name, available.Where(item => Section(item) == name).ToList()))
+            .Where(section => section.Items.Count > 0).ToList();
+
+    private static string Section(WorkItem item)
+    {
+        if (Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(item.FacilityCode, out var facility))
+        {
+            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TCC or EEMOCantilanSDS.Domain.Enums.FacilityCode.NCC
+                or EEMOCantilanSDS.Domain.Enums.FacilityCode.BBQ or EEMOCantilanSDS.Domain.Enums.FacilityCode.ICE || (int)facility >= 101)
+                return "Rent & space";
+            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.NPM or EEMOCantilanSDS.Domain.Enums.FacilityCode.TPM)
+                return "Market & vendor";
+            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TRM or EEMOCantilanSDS.Domain.Enums.FacilityCode.SLH)
+                return "Transport & services";
+        }
+        return item.OperationCode switch
+        {
+            CollectorOperationCodes.Wcf => "Utilities",
+            CollectorOperationCodes.MarketFees or CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.Tabo => "Market & vendor",
+            CollectorOperationCodes.Transportation or CollectorOperationCodes.LandingBerthing
+                or CollectorOperationCodes.TransferLargeCattle or CollectorOperationCodes.Slaughterhouse => "Transport & services",
+            _ => "Other operations"
+        };
+    }
+}
+
 /// <summary>Something that needs the collector's attention: queued, failed or review-required work, or a missing form.</summary>
 public sealed record AttentionItem(string Text, int Count, string Kind);
 

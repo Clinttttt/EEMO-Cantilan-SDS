@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
+@inject IFacilitiesApiClient FacilitiesApi
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
@@ -38,7 +39,7 @@
                         @* The facility's own mark, in navy ink on the V3 light band. Rendered here rather than
                            by each facility page so a new page cannot forget it; the page's FacilityIcon
                            remains the fallback for facilities without dedicated artwork. *@
-                        <FacilityMark Code="FacilityCodeEnum" Ink="FacilityMarkInk.Navy" Size="24">
+                        <FacilityMark Code="FacilityCodeEnum" Ink="FacilityMarkInk.White" Size="24">
                             <Fallback>@FacilityIcon</Fallback>
                         </FacilityMark>
                     </div>
@@ -50,23 +51,23 @@
                 </div>
                 <div class="tcc-hero-stats">
                     <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")</div>
                         <div class="tcc-hero-key">Collected</div>
                     </div>
                     <div class="tcc-hero-divider"></div>
                     <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">₱@TotalPending.ToString("N0")</div>
+                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"₱{_summary.PendingPaymentAmount:N0}")</div>
                         <div class="tcc-hero-key">Pending</div>
                     </div>
                     <div class="tcc-hero-divider"></div>
                     <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@CollectionRate%</div>
+                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"{_summary.CollectionRate:N0}%")</div>
                         <div class="tcc-hero-key">Collection Rate</div>
                     </div>
                     <div class="tcc-hero-divider"></div>
                     <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@ActiveStallsCount</div>
-                        <div class="tcc-hero-key">Total Stalls</div>
+                        <div class="tcc-hero-val">@(_summary?.TotalStalls.ToString() ?? "—")</div>
+                        <div class="tcc-hero-key">Total @(SpaceWord)s</div>
                     </div>
                 </div>
                 <div class="tcc-hero-progress">
@@ -80,14 +81,14 @@
                      OnFilterChanged="OnFilterChange"
                      Filters="@StatusFilters"
                      ShowSearch="true"
-                     SearchPlaceholder="Search stall no. or occupant…"
+                     SearchPlaceholder="@($"Search {SpaceWord.ToLowerInvariant()} no. or occupant…")"
                      MiddleContent="@ActionBarContent"
                      Actions="@ToolbarActions">
             </Toolbar>
 
             <div class="tcc-section-info">
                 <div class="tcc-section-info-left">
-                    <div class="tcc-section-label">All Stalls</div>
+                    <div class="tcc-section-label">All @(SpaceWord)s</div>
                     <div class="tcc-section-desc">@FacilityDescription</div>
                 </div>
                 <div class="tcc-section-mini-stats">
@@ -104,7 +105,7 @@
                         <div class="tcc-mini-key">Partial</div>
                     </div>
                     <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">₱@CollectedAmount.ToString("N0")</div>
+                        <div class="tcc-mini-val">@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")</div>
                         <div class="tcc-mini-key">Collected</div>
                     </div>
                 </div>
@@ -112,7 +113,7 @@
 
             <FacilityStallsTable TStall="TStall"
                                  Facility="@FacilityShortCode"
-                                 ColumnSet="MonthlyCard"
+                                 ColumnSet="MonthlyTable"
                                  IsLoading="_loading"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
@@ -241,6 +242,8 @@
 
     private async Task LoadStallsFromApi()
     {
+        var summary = await FacilitiesApi.GetFacilityReportsAsync(FacilityCodeEnum, ReportPeriod.Monthly, _statePeriod.Year, _statePeriod.Month);
+        _summary = summary?.IsSuccess == true ? summary.Value : null;
         var stallsTask = StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCodeEnum, null, null, 100);
         var paymentsTask = PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCodeEnum, _statePeriod.Year, _statePeriod.Month);
 
@@ -261,7 +264,8 @@
                 _statePeriod.Year,
                 _statePeriod.Month,
                 stallDtos,
-                paymentDtos);
+                paymentDtos,
+                _summary);
             RebuildStalls(stallDtos, paymentDtos);
         }
     }
@@ -269,7 +273,10 @@
     private void LoadStallsFromPersistentState(FacilityPagePersistentState state)
     {
         RebuildStalls(state.Stalls, state.Payments);
+        _summary = state.Summary;
     }
+
+    private EEMOCantilanSDS.Application.Dtos.Facilities.FacilityReportsDto? _summary;
 
     private void RebuildStalls(IReadOnlyList<StallDto> stallDtos, IReadOnlyList<FacilityPaymentRecordDto> paymentDtos)
     {
@@ -378,7 +385,7 @@
                 Label = "Add New",
                 Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
                 ClassName = "btn-primary",
-                Title = "Add a new stall",
+                Title = $"Add a new {SpaceWord.ToLowerInvariant()}",
                 OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
             });
             return actions;

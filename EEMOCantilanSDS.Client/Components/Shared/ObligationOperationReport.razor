@@ -17,7 +17,7 @@
             <Actions>
                 <label class="v3-period">
                     <span>Fiscal year</span>
-                    <select class="v3-select" aria-label="Fiscal year" @bind="_year">
+                    <select class="v3-select" aria-label="Fiscal year" @bind="_year" @bind:after="LoadAsync">
                         @for (var year = PhilippineTime.Today.Year; year >= PhilippineTime.Today.Year - 2; year--)
                         {
                             <option value="@year">@year</option>
@@ -50,7 +50,7 @@
     }
 
     <article class="v3-report-sheet print-report-sheet" aria-labelledby="@($"{IdPrefix}-title")" aria-busy="@(_loading ? "true" : "false")">
-        <ReportLetterhead Title="@($"{Name} Report")" Period="@($"Fiscal year {_year} · position as of {PhilippineTime.Today:MMMM d, yyyy}")">
+        <ReportLetterhead Title="@($"{Name} Status Report")" Period="@($"Fiscal year {_year} · as of {PhilippineTime.Today:MMMM d, yyyy}")">
             <Facts>
                 <div><dt>Classification</dt><dd>@Classification</dd></div>
                 <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
@@ -61,7 +61,7 @@
         <OperationMonthlyIncome Classification="@Classification" RowKey="@RowKey" Year="_year" HeadingId="@($"{IdPrefix}-official")" />
 
         <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-position")">
-            <h3 id="@($"{IdPrefix}-position")">Obligation position — to date</h3>
+            <h3 id="@($"{IdPrefix}-position")">Obligation position · @(Kind == ObligationKind.FishMeatVendorFee ? "to date" : _year.ToString())</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -75,11 +75,11 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td class="v3-num">@Figure(_accounts?.Count.ToString(CultureInfo.InvariantCulture))</td>
-                            <td class="v3-num">@Figure(_accounts?.Count(a => a.OutstandingToDate > 0m).ToString(CultureInfo.InvariantCulture))</td>
-                            <td class="v3-num">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.AssessedToDate)))</td>
-                            <td class="v3-num">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.CollectedToDate)))</td>
-                            <td class="v3-num v3-strong">@Figure(_accounts is null ? null : Money(_accounts.Sum(a => a.OutstandingToDate)))</td>
+                            <td class="v3-num">@Figure(StatusAccounts?.Count.ToString(CultureInfo.InvariantCulture))</td>
+                            <td class="v3-num">@Figure(StatusAccounts?.Count(a => a.OutstandingToDate > 0m).ToString(CultureInfo.InvariantCulture))</td>
+                            <td class="v3-num">@Figure(_status is not null ? Money(_status.Assessed) : _accounts is null ? null : Money(_accounts.Sum(a => a.AssessedToDate)))</td>
+                            <td class="v3-num">@Figure(_status is not null ? Money(_status.Collected) : _accounts is null ? null : Money(_accounts.Sum(a => a.CollectedToDate)))</td>
+                            <td class="v3-num v3-strong">@Figure(_status is not null ? Money(_status.Outstanding) : _accounts is null ? null : Money(_accounts.Sum(a => a.OutstandingToDate)))</td>
                         </tr>
                     </tbody>
                 </table>
@@ -87,7 +87,7 @@
         </section>
 
         <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-accounts")">
-            <h3 id="@($"{IdPrefix}-accounts")">Accounts</h3>
+            <h3 id="@($"{IdPrefix}-accounts")">@(Kind == ObligationKind.FishMeatVendorFee ? "Accounts · to date" : $"Accounts · {_year}")</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -106,13 +106,13 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (_accounts is null || _accounts.Count == 0)
+                        @if (StatusAccounts is not { Count: > 0 })
                         {
                             <tr><td colspan="@(ShowEvent ? 8 : 7)" class="v3-report-note">@(_loading ? "Loading accounts…" : _accounts is null ? "Accounts are unavailable." : $"No {Name} accounts are registered.")</td></tr>
                         }
                         else
                         {
-                            @foreach (var account in _accounts.OrderBy(a => a.PayerName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                            @foreach (var account in StatusAccounts.OrderBy(a => a.PayerName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
                             {
                                 <tr>
                                     <td>@(account.PayerName ?? "—")</td>
@@ -132,7 +132,7 @@
                     </tbody>
                 </table>
             </div>
-            <p class="v3-report-note">Assessed, settled and outstanding are the server's own to-date figures per account. @Basis</p>
+            <p class="v3-report-note">Server-assessed amounts for @(Kind == ObligationKind.FishMeatVendorFee ? "the account to date" : $"{_year}"). @Basis</p>
         </section>
     </article>
 </div>
@@ -159,6 +159,8 @@
 
     private int _year = PhilippineTime.Today.Year;
     private IReadOnlyList<ObligationAccountDto>? _accounts;
+    private ObligationWorkspaceDto? _status;
+    private IReadOnlyList<ObligationAccountDto>? StatusAccounts => Kind == ObligationKind.FishMeatVendorFee ? _accounts : _status?.Accounts;
     private string? _error;
     private bool _loading;
 
@@ -173,6 +175,12 @@
             var result = await ObligationsApi.GetAccountsAsync(Kind);
             if (result is { IsSuccess: true, Value: { } rows }) _accounts = rows;
             else { _accounts = null; _error = $"The {Name} accounts could not be loaded."; }
+            if (Kind != ObligationKind.FishMeatVendorFee)
+            {
+                var status = await ObligationsApi.GetStatusReportAsync(Kind, _year);
+                _status = status.IsSuccess ? status.Value : null;
+                if (!status.IsSuccess) _error = status.Error ?? "The status report could not be loaded.";
+            }
         }
         catch
         {
@@ -202,7 +210,8 @@
             string.Empty,
             Csv("Payor", SubjectNoun, "Event", ShowEvent ? "Approved amount" : "Monthly obligation", "Assessed", "Settled", "Outstanding"),
         };
-        rows.AddRange((_accounts ?? []).Select(a => Csv(
+        rows.Add(Csv("Reporting year", _year.ToString(CultureInfo.InvariantCulture)));
+        rows.AddRange((StatusAccounts ?? []).Select(a => Csv(
             a.PayerName ?? "", a.SubjectLabel, a.Event?.ToString() ?? "",
             a.CurrentAmount?.ToString("0.00", CultureInfo.InvariantCulture) ?? "",
             a.AssessedToDate.ToString("0.00", CultureInfo.InvariantCulture),

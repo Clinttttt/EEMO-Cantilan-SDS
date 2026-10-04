@@ -102,6 +102,8 @@ public sealed class NpmMonthSettlementService(
             // at the stall would read as owing that difference for ever — no day remains to collect it on.
             if (adjustment > 0m && lastCollected is not null && (maxAmount is null || maxAmount >= adjustment))
             {
+                lastCollected = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, lastCollected.CollectionDate, ct)
+                    ?? throw new InvalidOperationException("The adjustment carrier is unavailable.");
                 lastCollected.AddMonthEndAdjustment(adjustment, recordedBy);
                 return new[] { lastCollected };
             }
@@ -138,6 +140,8 @@ public sealed class NpmMonthSettlementService(
             }
             else
             {
+                dc = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, day, ct)
+                    ?? throw new InvalidOperationException("The settlement day is unavailable.");
                 dc.MarkPaid(orNumber: string.Empty, collectorId: collectorId, fishKilos: null, updatedBy: recordedBy);
             }
             settled.Add(dc);

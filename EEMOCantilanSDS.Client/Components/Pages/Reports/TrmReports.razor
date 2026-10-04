@@ -78,14 +78,8 @@
 {
     <!-- ══ Phase 2: Status Report ══ -->
     <div class="rpt-content print-document-content">
-        <section class="print-report-sheet status-sheet">
-            <header class="print-report-header">
-                <img class="print-report-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
-                <div class="print-republic">Republic of the Philippines</div>
-                <h2>@Branding.OfficeName</h2>
-                <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.TRM) — Collection Status Report</div>
-            </header>
+        <OfficeReportShell Title="@($"{FacilityCatalog.NameOf(FacilityCode.TRM)} — Status Report")" Period="@CurrentDate.ToString("MMMM yyyy")">
+
             <div class="print-report-meta">
                 <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.TRM)</strong></div>
                 <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
@@ -135,10 +129,8 @@
                     </table>
                 </div>
             }
-            <div class="print-report-signatures">
-                <SignatureStrip />
-            </div>
-        </section>
+
+        </OfficeReportShell>
     </div>
 }
 else if (ShowHistory)

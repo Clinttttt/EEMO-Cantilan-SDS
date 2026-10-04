@@ -365,6 +365,13 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Record Daily Collection</div>
+            @if (NpmCanonical)
+            {
+                <div class="npm-payment-modes" aria-label="Payment type">
+                    <button type="button" class="selected" aria-pressed="true">Daily</button>
+                    <button type="button" @onclick="() => OpenWholePayment(SelectedStall.StallId, SelectedDate.Year, SelectedDate.Month, SelectedStall.PayorName, SelectedStall.StallNo)">Whole payment</button>
+                </div>
+            }
             <div class="sheet-sub">
                 @if (IsSettlingPastDay)
                 {
@@ -1389,6 +1396,11 @@
 
     private void OpenMonthSettle(MobileNpmStallArrearsDto payor, MobileNpmMonthArrearDto month)
     {
+        if (NpmCanonical)
+        {
+            OpenWholePayment(payor.StallId, month.Year, month.Month, payor.PayorName, payor.StallNo);
+            return;
+        }
         MonthSettlePayor = payor;
         MonthSettleMonth = month;
         MonthSettleDays = null;
@@ -1406,6 +1418,11 @@
     /// </remarks>
     private void OpenDaysSettle(MobileNpmStallArrearsDto payor)
     {
+        if (NpmCanonical)
+        {
+            OpenWholePayment(payor.StallId, SelectedYear, SelectedMonth, payor.PayorName, payor.StallNo);
+            return;
+        }
         MonthSettlePayor = payor;
         MonthSettleMonth = null;
         MonthSettleDays = payor.DaysOwedThisMonth.OrderBy(d => d).ToList();
@@ -1860,6 +1877,9 @@
     // for no receipt number and shows the SRC the server returns. Before that, the existing sheet is unchanged.
     private MobileFacilityMenuItemDto? NpmMenu => Session.Menu?.Facilities.FirstOrDefault(f => f.Code == FacilityCode.NPM);
     private bool NpmCanonical => NpmMenu?.CanonicalCollection == true;
+
+    private void OpenWholePayment(Guid stallId, int year, int month, string name, string no) =>
+        Navigation.NavigateTo($"/npm/whole-payment/{stallId}?year={year}&month={month}&occupant={Uri.EscapeDataString(name)}&spaceNo={Uri.EscapeDataString(no)}");
     private string NpmInstrumentLabel => NpmMenu?.Instrument switch
     {
         RevenueInstrumentType.OfficialReceipt => "OR · Official Receipt",

@@ -11,13 +11,34 @@
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
    still owed. Money is never recorded here: it is collected on an Official Receipt in Current Collection, and the
    balance is only what canonical allocations say. *@
+@if (SpaceExperience)
+{
+    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental" : "Space rental")" Stats="SpaceStats" />
+    <div class="obw-toolbar">
+        <input class="v3-input" type="search" aria-label="Search spaces or occupants" placeholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant")" @bind="_search" @bind:event="oninput" />
+        <div class="v3-btn-group" role="group" aria-label="Account status">
+            @foreach (var status in new[] { "All", "Paid", "Partial", "Unpaid", "Closed" })
+            {
+                <button class="v3-btn @(_filter == status ? "v3-btn-primary" : "")" type="button" aria-pressed="@(_filter == status ? "true" : "false")" @onclick="() => _filter = status">@status</button>
+            }
+        </div>
+        <button class="v3-btn" type="button" @onclick="() => _holders = true">@(SubjectNoun == "Lot" ? "Lot / Space Holder List" : "Space Holder List")</button>
+        <button class="v3-btn" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
+        <a class="v3-btn" href="@ReportsHref">Reports</a>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <button class="v3-btn" type="button" @onclick="() => _importing = !_importing">Import list</button>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
+        </Authorized></AuthorizeView>
+    </div>
+    @if (_importing) { <SpaceHolderImport Kind="Kind" OnImported="LoadAsync" /> }
+}
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@Name accounts</h2>
+            <h2 id="@_accountsTitleId">@(SpaceExperience ? (_holders ? "Space holders" : $"All {SubjectNoun.ToLowerInvariant()}s") : $"{Name} accounts")</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
-                    @if (!_opening)
+                    @if (!_opening && !SpaceExperience)
                     {
                         <button class="v3-btn v3-btn-sm" type="button" @onclick="OpenForm">Open account</button>
                     }
@@ -40,6 +61,7 @@
                     <tr>
                         <th scope="col">Payor</th>
                         <th scope="col">@SubjectNoun</th>
+                        @if (SpaceExperience && _holders) { <th scope="col">Start date</th><th scope="col">Status</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Collected</th>
@@ -48,13 +70,18 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var account in _accounts)
+                    @foreach (var account in VisibleAccounts)
                     {
                         <tr>
                             <td class="v3-strong">@(account.PayerName ?? "—")</td>
                             <td>@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
                             {<span class="v3-block">@LotLabel(account)</span>}
                             else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
+                            @if (SpaceExperience && _holders)
+                            {
+                                <td>@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
+                            }
                             <td class="v3-num">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
                             <td class="v3-num">@Money(account.AssessedToDate)</td>
                             <td class="v3-num">@Money(account.CollectedToDate)</td>
@@ -70,7 +97,7 @@
                                         }
                                         @if (account.ActiveTo is null)
                                         {
-                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">End</button>
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">@(SpaceExperience ? "Close account" : "End")</button>
                                         }
                                     </Authorized>
                                 </AuthorizeView>
@@ -79,7 +106,7 @@
                         @if (_selected == account.Id)
                         {
                             <tr class="obw-register-row">
-                                <td colspan="7">
+                                <td colspan="@(_holders ? 9 : 7)">
                                     <table class="v3-table obw-register" aria-label="@($"{account.SubjectLabel} periods")">
                                         <thead>
                                             <tr>
@@ -109,10 +136,10 @@
                             </tr>
                         }
                     }
-                    @if (_accounts.Count == 0)
+                    @if (!VisibleAccounts.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="7">
+                            <td class="v3-empty" colspan="@(_holders ? 9 : 7)">
                                 @if (_loading) { <span role="status">Loading accounts…</span> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
                                 else { <span>No @Name account has been opened yet.</span> }
@@ -124,10 +151,10 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="3"><strong>Total</strong></td>
-                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.AssessedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.CollectedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_accounts.Sum(x => x.OutstandingToDate))</td>
+                            <td colspan="@(_holders ? 5 : 3)"><strong>Total</strong></td>
+                            <td class="v3-num v3-strong">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
+                            <td class="v3-num v3-strong">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
+                            <td class="v3-num v3-strong">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -266,6 +293,26 @@
 
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
+    [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public string? ReportsHref { get; set; }
+    private ObligationWorkspaceDto? _workspace;
+    private string _search = string.Empty, _filter = "All";
+    private bool _holders, _importing;
+    private List<FacilityHero.HeroStat> SpaceStats => [
+        new() { Label = "Collected · to date", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
+        new() { Label = "Remaining · to date", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
+        new() { Label = $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
+    private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
+        (!SpaceExperience || (_filter == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
+        && (!SpaceExperience || _filter switch
+        {
+            "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
+            "Partial" => a.CollectedToDate > 0m && a.OutstandingToDate > 0m,
+            "Unpaid" => a.CollectedToDate == 0m,
+            _ => true
+        })
+        && (string.IsNullOrWhiteSpace(_search) || a.SubjectLabel.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (a.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)));
 
     private string AmountHeading => Kind == ObligationKind.FiestaArawLotRental ? "Approved amount" : "Approved monthly";
 
@@ -301,6 +348,14 @@
         _error = null;
         try
         {
+            if (SpaceExperience)
+            {
+                var workspace = await ObligationsApi.GetWorkspaceAsync(Kind);
+                _workspace = workspace.IsSuccess ? workspace.Value : null;
+                _accounts = _workspace?.Accounts.ToList() ?? [];
+                if (!workspace.IsSuccess) _error = workspace.Error ?? $"{Name} accounts couldn't be loaded.";
+                return;
+            }
             var result = await ObligationsApi.GetAccountsAsync(Kind);
             if (result.IsSuccess) _accounts = result.Value?.ToList() ?? [];
             else { _accounts = []; _error = $"{Name} accounts couldn't be loaded."; }

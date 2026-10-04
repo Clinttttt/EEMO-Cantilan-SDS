@@ -180,6 +180,29 @@
                 @if (ShowFillerSlot) { @FillerSlot }
             </div>
         }
+        else if (ColumnSet == "MonthlyTable")
+        {
+            <div class="table-wrap"><table class="data-table">
+                <thead><tr><th>Space No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">Monthly amount</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>@foreach (var s in FilteredStalls)
+                {
+                    var active = GetPropertyValue<bool?>(s, "IsActive") ?? true;
+                    var status = !active ? "Closed" : GetIsPaid(s) ? "Paid" : GetIsPartial(s) ? "Partial" : "Unpaid";
+                    <tr class="data-row">
+                        <td>@GetStallNoForDisplay(s)</td><td>@GetActualOccupant(s)</td>
+                        <td>@(string.IsNullOrWhiteSpace(GetContractName(s)) ? "No contract" : GetContractName(s))</td>
+                        <td>@GetContractDate(s)</td><td class="monthly-money">₱@GetMonthlyRate(s).ToString("N2")</td>
+                        <td><span class="monthly-status">@status</span></td>
+                        <td><div class="action-btns">
+                            <button type="button" class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">₱</button>
+                            <button type="button" class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">↺</button>
+                            @if (OnUtilityClick.HasDelegate && HasUtility(s)) { <button type="button" class="action-btn" title="Utilities" @onclick="() => OnUtilityClick.InvokeAsync(s)">⌁</button> }
+                            <button type="button" class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">→</button>
+                        </div></td>
+                    </tr>
+                }</tbody>
+            </table></div>
+        }
         else if (ColumnSet == "MonthlyCard")
         {
             <div class="ops-grid">

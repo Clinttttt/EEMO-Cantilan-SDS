@@ -158,13 +158,14 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
     {
         var fishRate = await FishRateAsync(w.TenantId, ct);
         var rows = await context.DailyCollections.AsNoTracking()
-            .Where(d => d.MunicipalityId == w.TenantId && d.IsPaid
+            .Where(d => d.MunicipalityId == w.TenantId
+                && (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                 && (d.UpdatedAt ?? d.CreatedAt) >= w.StartUtc && (d.UpdatedAt ?? d.CreatedAt) < w.EndUtc)
             .Select(d => new
             {
                 d.Id, d.StallId, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.ORNumber, d.CollectorId,
                 // A day paid by a canonical Collection is listed by that Collection; only its weighing is legacy money here.
-                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
+                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                 d.CreatedBy, d.CollectionDate, d.Stall!.StallNo, Code = d.Stall.Facility!.Code,
                 Occupant = d.Stall.Contracts.OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
                     .Select(c => c.ActualOccupant).FirstOrDefault(),

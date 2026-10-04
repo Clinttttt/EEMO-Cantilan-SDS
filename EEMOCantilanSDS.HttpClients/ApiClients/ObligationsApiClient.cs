@@ -7,6 +7,12 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class ObligationsApiClient(HttpClient http) : HandleResponse(http), IObligationsApiClient
 {
+    public Task<Result<ObligationWorkspaceDto>> GetWorkspaceAsync(ObligationKind kind) =>
+        GetAsync<ObligationWorkspaceDto>($"api/obligations/workspace?kind={(int)kind}");
+    public Task<Result<ObligationWorkspaceDto>> GetStatusReportAsync(ObligationKind kind, int year) =>
+        GetAsync<ObligationWorkspaceDto>($"api/obligations/status-report?kind={(int)kind}&year={year}");
+    public Task<Result<ImportSpaceHoldersResult>> ImportSpaceHoldersAsync(ImportSpaceHoldersRequest request) =>
+        PostAsync<ImportSpaceHoldersRequest, ImportSpaceHoldersResult>("api/obligations/import", request);
     public Task<Result<IReadOnlyList<ObligationAccountDto>>> GetAccountsAsync(ObligationKind kind) =>
         GetAsync<IReadOnlyList<ObligationAccountDto>>($"api/obligations/accounts?kind={(int)kind}");
 

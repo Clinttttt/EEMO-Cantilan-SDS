@@ -57,6 +57,9 @@ public sealed class CachingMobileApiClient(
     // confident wrong one. The device's own date decides, which is the same clock the capture is stamped with.
     private static string Today => DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
 
+    public Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
+        ReadThroughAsync($"npm|whole|{stallId}|{year}|{month}|{Today}", () => inner.GetNpmWholePaymentQuoteAsync(stallId, year, month));
+
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         ReadThroughAsync($"npm|{year}|{month}|{Today}", () => inner.GetNpmCollectionAsync(year, month));
 

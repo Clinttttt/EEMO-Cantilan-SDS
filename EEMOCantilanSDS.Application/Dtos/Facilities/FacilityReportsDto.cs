@@ -17,5 +17,8 @@ public record FacilityReportsDto(
     DailyCollectionStreakDto? DailyCollectionStreak,
     FeeTypeBreakdownDto? FeeTypeBreakdown,
     IReadOnlyList<FishKiloTrendDto> FishKiloTrend,
-    IReadOnlyList<StallComplianceDto> StallCompliance
+    IReadOnlyList<StallComplianceDto> StallCompliance,
+    MonitoringTotalsDto? MonitoringTotals = null
 );
+
+public sealed record MonitoringTotalsDto(decimal Assessed, decimal Collected, decimal Balance);

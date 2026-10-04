@@ -175,6 +175,8 @@ public class SettleNpmMonthCommandHandler(
         // An adjustment that lands on a day ALREADY collected (no new installment carries it) is remembered apart: that day's
         // own fee is not new money, only the adjustment is.
         DailyCollection? earlierCarrier = null;
+        DateTime? earlierUpdatedAt = null;
+        string? earlierUpdatedBy = null;
         var carriedOnEarlier = 0m;
         if (adjustment > 0m)
         {
@@ -182,6 +184,8 @@ public class SettleNpmMonthCommandHandler(
             if (carrier is not null)
             {
                 var feeBefore = carrier.DailyFee;
+                earlierUpdatedAt = carrier.UpdatedAt;
+                earlierUpdatedBy = carrier.UpdatedBy;
                 carrier.AddMonthEndAdjustment(adjustment, recordedBy);
                 if (settled.Count == 0)
                 {
@@ -200,7 +204,7 @@ public class SettleNpmMonthCommandHandler(
             var charges = settled.Where(x => !ReferenceEquals(x, earlierCarrier))
                 .Select(x => new Common.Revenue.NpmDailyCanonicalPoster.Charge(x, x.DailyFee)).ToList();
             if (earlierCarrier is { SettlementAuthorityState: SettlementAuthority.Canonical } && carriedOnEarlier > 0m)
-                charges.Add(new(earlierCarrier, carriedOnEarlier));
+                charges.Add(new(earlierCarrier, carriedOnEarlier, true, earlierUpdatedAt, earlierUpdatedBy));
             if (charges.Count > 0)
             {
                 var intent = canonical.NormalizeIntent("NpmDailySettleMonth", request.StallId, charges.Select(x => x.Day.CollectionDate), today,

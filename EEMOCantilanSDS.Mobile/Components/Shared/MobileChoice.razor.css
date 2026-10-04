@@ -126,7 +126,11 @@
 
     .mc-option.selected {
         background: var(--mobile-blue-subtle);
+        box-shadow: inset 3px 0 var(--mobile-blue);
     }
+
+.mc-option:hover { background: var(--mobile-blue-subtle); }
+.mc.disabled .mc-name, .mc.disabled .mc-detail { color: var(--mobile-text-secondary); }
 
     .mc-option:focus-visible {
         outline: 2px solid var(--mobile-focus);

@@ -85,6 +85,132 @@ public sealed class NpmDailyCanonicalTests(PostgresFixture db)
     private static NpmMonthSettlementService Settlement(AppDbContext ctx) => new(
         new DailyCollectionRepository(ctx), new NpmMarketClosureRepository(ctx), new FeeRateResolver(ctx), new Clock());
 
+    private static NpmWholePaymentWorkflow Whole(AppDbContext ctx, World w, Actor actor) => new(
+        new StallRepository(ctx), new CollectorRepository(ctx), new DailyCollectionRepository(ctx), Settlement(ctx),
+        Poster(ctx, w.TenantId, actor), actor, new Clock(), new NoCache(), new FixedCode());
+
+    [SkippableTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WholePayment_AdjustmentOnlyPreservesOriginalInstallmentsAndWeighing_AndVoidsIndependently(bool canonicalInstallments)
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var year = Today.Month > 2 ? Today.Year : Today.Year - 1;
+        var w = await SeedAsync(canonical: true, lettingStart: new DateOnly(year, 1, 1));
+        var count = DateTime.DaysInMonth(year, 2);
+        Guid? originalCollectionId = null;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var stall = (await new StallRepository(ctx).GetByIdAsync(w.StallA, CancellationToken.None))!;
+            var rows = new List<EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection>();
+            for (var day = 1; day <= count; day++)
+            {
+                var row = EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection.Create(stall.Id, new DateOnly(year, 2, day));
+                row.MarkPaid("HISTORICAL", w.CollectorId, fishKilos: day == count ? 5m : null, updatedBy: "original collector");
+                ctx.DailyCollections.Add(row);
+                rows.Add(row);
+            }
+            if (canonicalInstallments)
+            {
+                var p = Poster(ctx, w.TenantId, Collector(w));
+                var posted = await p.PostAsync(stall, rows.Select(r => new NpmDailyCanonicalPoster.Charge(r, 30m)).ToList(),
+                    Guid.NewGuid(), p.NormalizeIntent("test installments", stall.Id, rows.Select(r => r.CollectionDate), Today), Today);
+                Assert.True(posted.IsSuccess, posted.Error);
+                originalCollectionId = posted.Value!.CollectionId;
+            }
+            else await ctx.SaveChangesAsync();
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        var last = await verify.DailyCollections.OrderByDescending(d => d.CollectionDate).FirstAsync();
+        var original = (last.CanonicalCollectionId, last.ORNumber, last.CollectorId, last.UpdatedAt, last.FishKilos);
+        var workflow = Whole(verify, w, Collector(w));
+        var quote = (await workflow.QuoteAsync(w.StallA, year, 2)).Value!;
+        Assert.Equal((0, 900m - count * 30m), (quote.Days, quote.Amount));
+        var request = new EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentRequest(Guid.NewGuid(),
+            w.StallA, year, 2, quote.BusinessDate, quote.Amount, quote.QuoteToken);
+        var result = await workflow.PostAsync(request);
+        Assert.True(result.IsSuccess, result.Error);
+        verify.ChangeTracker.Clear();
+        last = await verify.DailyCollections.OrderByDescending(d => d.CollectionDate).FirstAsync();
+        Assert.Equal(original, (last.CanonicalCollectionId, last.ORNumber, last.CollectorId, last.UpdatedAt, last.FishKilos));
+        Assert.Equal(result.Value!.CollectionId, last.CanonicalAdjustmentCollectionId);
+        Assert.Equal(900m, await IncomeAsync(w, "RENT_NPM"));
+        Assert.Equal(0m, (await workflow.QuoteAsync(w.StallA, year, 2)).Value!.Amount);
+        Assert.True((await workflow.PostAsync(request)).Value!.Existing);
+        if (originalCollectionId is { } baseId)
+            Assert.Equal(ResultStatus.Conflict, (await Poster(verify, w.TenantId, Admin(w)).VoidAsync(baseId, "base first")).Status);
+        Assert.True((await Poster(verify, w.TenantId, Admin(w)).VoidAsync(result.Value.CollectionId, "Adjustment correction")).IsSuccess);
+        Assert.Equal(count * 30m, await IncomeAsync(w, "RENT_NPM"));
+        Assert.True(last.IsPaid);
+        Assert.Null(last.CanonicalAdjustmentCollectionId);
+        Assert.Null(last.MonthEndAdjustment);
+        Assert.Equal(5m, last.FishKilos);
+        Assert.Equal(quote.Amount, (await workflow.QuoteAsync(w.StallA, year, 2)).Value!.Amount);
+    }
+
+    [SkippableFact]
+    public async Task WholePayment_UsesTheMonthQuote_OneCollection_DayAllocations_AndStableReplay()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(canonical: true);
+        EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentQuoteDto quote;
+        await using (var ctx = db.CreateContext(w.TenantId))
+            quote = (await Whole(ctx, w, Collector(w)).QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!;
+        var request = new EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentRequest(
+            Guid.NewGuid(), w.StallA, quote.Year, quote.Month, quote.BusinessDate, quote.Amount, quote.QuoteToken);
+        NpmDailyCanonicalPoster.Outcome first;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var result = await Whole(ctx, w, Collector(w)).PostAsync(request);
+            Assert.True(result.IsSuccess, result.Error);
+            first = result.Value!;
+            var collection = await ctx.Collections.Include(c => c.Lines).ThenInclude(l => l.Allocations).SingleAsync();
+            Assert.Equal(quote.Amount, collection.TotalAmount);
+            Assert.Equal(quote.Days, Assert.Single(collection.Lines).Allocations.Count);
+            Assert.All(await ctx.DailyCollections.ToListAsync(), d => Assert.Equal(collection.Id, d.CanonicalCollectionId));
+        }
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var workflow = Whole(ctx, w, Collector(w));
+            var replay = await workflow.PostAsync(request);
+            Assert.True(replay.IsSuccess, replay.Error);
+            Assert.Equal((first.CollectionId, first.ReferenceCode), (replay.Value!.CollectionId, replay.Value.ReferenceCode));
+            Assert.Equal(ResultStatus.Conflict, (await workflow.PostAsync(request with { Amount = request.Amount + 1m })).Status);
+            var empty = (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!;
+            Assert.Equal(0m, empty.Amount);
+            Assert.False((await workflow.PostAsync(request with { ClientOperationId = Guid.NewGuid(), Amount = 0m, QuoteToken = empty.QuoteToken })).IsSuccess);
+            Assert.Equal(1, await ctx.Collections.CountAsync());
+        }
+        Assert.Equal(quote.Amount, await IncomeAsync(w, "RENT_NPM"));
+        Assert.Equal(0m, await PayableAsync(w, w.StallA));
+    }
+
+    [SkippableFact]
+    public async Task WholePayment_StaleOfflineQuoteNeedsReconciliation_AndDoesNotTakeAlreadyPaidDaysAgain()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(canonical: true);
+        EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentQuoteDto quote;
+        await using (var ctx = db.CreateContext(w.TenantId))
+            quote = (await Whole(ctx, w, Collector(w)).QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!;
+        await using (var ctx = db.CreateContext(w.TenantId))
+            Assert.True((await Record(ctx, w.TenantId, Collector(w)).Handle(
+                new RecordDailyCollectionCommand(w.StallA, Today, true, null, null, Guid.NewGuid()), CancellationToken.None)).IsSuccess);
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var workflow = Whole(ctx, w, Collector(w));
+            var stale = await workflow.PostAsync(new(Guid.NewGuid(), w.StallA, quote.Year, quote.Month,
+                quote.BusinessDate, quote.Amount, quote.QuoteToken));
+            Assert.StartsWith("RECONCILIATION_REQUIRED:", stale.Error);
+            Assert.Equal(1, await ctx.Collections.CountAsync());
+            var refreshed = (await workflow.QuoteAsync(w.StallA, quote.Year, quote.Month)).Value!;
+            Assert.Equal(quote.Amount - 30m, refreshed.Amount);
+        }
+    }
+
     private static SettleNpmDaysCommandHandler SettleDays(AppDbContext ctx, Guid tenantId, ICurrentUserService actor) => new(
         new DailyCollectionRepository(ctx), new PaymentRepository(ctx), new StallRepository(ctx), new CollectorRepository(ctx), actor,
         new NpmMarketClosureRepository(ctx), new UnitOfWork(ctx), new NoCache(), new FeeRateResolver(ctx), Settlement(ctx), new FixedCode(),
@@ -94,7 +220,7 @@ public sealed class NpmDailyCanonicalTests(PostgresFixture db)
     private Actor Admin(World w) => new(w.AdminId, w.TenantId, "Admin");
 
     /// <summary>An NPM with three let stalls at ₱30 a day (one a Fish stall with a ₱1/kilo weighing rate) and an assigned collector.</summary>
-    private async Task<World> SeedAsync(bool canonical, bool assign = true)
+    private async Task<World> SeedAsync(bool canonical, bool assign = true, DateOnly? lettingStart = null)
     {
         var tenant = Municipality.Create($"nd-{Guid.NewGuid():N}"[..12], "NPM Daily", "Province", MunicipalityStatus.Active,
             tenantCode: $"npmdaily-{Guid.NewGuid():N}"[..28].ToLowerInvariant());
@@ -107,7 +233,7 @@ public sealed class NpmDailyCanonicalTests(PostgresFixture db)
         await using var ctx = db.CreateContext(tenant.Id);
         var npm = Facility.Create(FacilityCode.NPM, "Public Market", "NPM", municipalityId: tenant.Id);
         ctx.Add(npm);
-        var lettingFrom = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-2);
+        var lettingFrom = lettingStart ?? new DateOnly(Today.Year, Today.Month, 1).AddMonths(-2);
         Stall Let(string no, MarketSection section, string occupant)
         {
             var stall = Stall.Create(npm.Id, no, 900m, ApplicableFees.BaseRental, section, municipalityId: tenant.Id);
@@ -427,5 +553,14 @@ public sealed class NpmDailyCanonicalTests(PostgresFixture db)
         var activity = await new EEMOCantilanSDS.Infrastructure.Repositories.CollectionActivityReader(verify).GetAsync(w.TenantId, Today, Today);
         Assert.Equal(30m, Assert.Single(activity, e => e.Authority == "Canonical").Amount);
         Assert.Equal(5m, Assert.Single(activity, e => e.Authority != "Canonical").Amount);   // the weighing, on its existing path
+
+        var collectionId = (await verify.Collections.SingleAsync()).Id;
+        Assert.True((await Poster(verify, w.TenantId, Admin(w)).VoidAsync(collectionId, "Rent correction only")).IsSuccess);
+        Assert.Equal(0m, await IncomeAsync(w, "RENT_NPM"));
+        Assert.Equal(5m, await IncomeAsync(w, "WEIGHT_AND_MEASURE"));
+        var after = await new EEMOCantilanSDS.Infrastructure.Repositories.CollectionActivityReader(verify).GetAsync(w.TenantId, Today, Today);
+        Assert.Equal(5m, Assert.Single(after, e => e.Authority != "Canonical").Amount);
+        var collector = await new CollectorReportQueries(verify).GetCollectionsAsync(w.CollectorId, Today, Today);
+        Assert.Equal(5m, Assert.Single(collector.Lines, l => l.Nature == "Weighing").Amount);
     }
 }

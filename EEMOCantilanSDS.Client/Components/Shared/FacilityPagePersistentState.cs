@@ -9,4 +9,5 @@ public sealed record FacilityPagePersistentState(
     int Year,
     int Month,
     List<StallDto> Stalls,
-    List<FacilityPaymentRecordDto> Payments);
+    List<FacilityPaymentRecordDto> Payments,
+    EEMOCantilanSDS.Application.Dtos.Facilities.FacilityReportsDto? Summary = null);

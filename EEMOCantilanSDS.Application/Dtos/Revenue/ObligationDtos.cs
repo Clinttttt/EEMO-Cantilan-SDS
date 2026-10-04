@@ -51,6 +51,13 @@ public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Am
 
 public sealed record CloseObligationAccountRequest(DateOnly ActiveTo);
 
+public sealed record ObligationWorkspaceDto(IReadOnlyList<ObligationAccountDto> Accounts,
+    decimal Assessed, decimal Collected, decimal Outstanding);
+
+public sealed record ImportSpaceHolderRow(CreateObligationAccountRequest Account, DateOnly? ClosedOn = null);
+public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows);
+public sealed record ImportSpaceHoldersResult(int Imported, int Skipped, IReadOnlyList<string> NeedsReview);
+
 public sealed record AddObligationDraftAllocationRequest(
     Guid AccountId,
     int BillingYear,

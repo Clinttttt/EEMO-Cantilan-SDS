@@ -1,0 +1,116 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient Api
+@inject IEcfCollectionsApiClient PayorsApi
+
+<section class="v3-panel space-import" aria-label="Import space holders">
+    <header class="v3-panel-header"><h2>Import space holders</h2></header>
+    <div class="space-import-body">
+        <p>Paste a spreadsheet list. Review each row and choose its Business Payor before importing.</p>
+        <label class="v3-field"><span>@(IsEvent ? "Columns: Lot, Occupant, Amount, Event date, Event (Fiesta/Araw), Closed on (optional)" : "Columns: Space, Occupant, Monthly amount, Start date, Closed on (optional)")</span>
+            <textarea class="v3-input" rows="4" @bind="Text" aria-label="Spreadsheet rows"></textarea>
+        </label>
+        <button class="v3-btn" type="button" @onclick="Review">Review rows</button>
+        @if (Rows.Count > 0)
+        {
+            <div class="v3-table-wrap"><table class="v3-table">
+                <thead><tr><th>@(IsEvent ? "Lot" : "Space")</th><th>Occupant / Payor</th><th>Amount</th><th>@(IsEvent ? "Event date" : "Start date")</th><th>Review</th></tr></thead>
+                <tbody>@foreach (var row in Rows)
+                {
+                    <tr><td>@row.Subject</td><td>
+                        <span>@row.Name</span>
+                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => FindAsync(row)" disabled="@Saving">Find Payor</button>
+                        <select class="v3-select" @bind="row.PayorId" aria-label="@($"Payor for {row.Subject}")">
+                            <option value="">Choose Business Payor</option>
+                            @foreach (var payor in row.Payors) { <option value="@payor.PayorId">@payor.DisplayName</option> }
+                        </select>
+                    </td><td>@row.Amount</td><td>@row.Start</td><td>@(row.Error ?? (string.IsNullOrEmpty(row.PayorId) ? "Choose Payor" : "Ready"))</td></tr>
+                }</tbody>
+            </table></div>
+            <button class="v3-btn v3-btn-primary" type="button" disabled="@(Saving || Rows.Any(r => r.Error is not null || string.IsNullOrEmpty(r.PayorId)))" @onclick="ImportAsync">@(Saving ? "Importing…" : "Import reviewed rows")</button>
+        }
+        @if (Message is not null) { <p class="v3-notice" role="status">@Message</p> }
+    </div>
+</section>
+
+@code {
+    [Parameter] public ObligationKind Kind { get; set; }
+    [Parameter] public EventCallback OnImported { get; set; }
+    private bool IsEvent => Kind == ObligationKind.FiestaArawLotRental;
+    private string Text = "";
+    private string? Message;
+    private bool Saving;
+    private List<Row> Rows = [];
+    private sealed class Row
+    {
+        public string Subject = "", Name = "", Amount = "", Start = "", PayorId = "";
+        public decimal Approved;
+        public DateOnly StartDate;
+        public DateOnly? Closed;
+        public LotRentalEvent? Event;
+        public string? Error;
+        public IReadOnlyList<CollectionPayorDto> Payors = [];
+    }
+
+    private void Review()
+    {
+        Rows = [];
+        Message = null;
+        foreach (var line in Text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var cells = line.Split('\t');
+            if (cells[0].Trim().Equals("Space", StringComparison.OrdinalIgnoreCase) || cells[0].Trim().Equals("Lot", StringComparison.OrdinalIgnoreCase)) continue;
+            var row = new Row { Subject = cells[0].Trim(), Name = cells.ElementAtOrDefault(1)?.Trim() ?? "",
+                Amount = cells.ElementAtOrDefault(2)?.Trim() ?? "", Start = cells.ElementAtOrDefault(3)?.Trim() ?? "" };
+            // The same number normalizer used by the existing stallholder spreadsheet import.
+            if (!decimal.TryParse(SheetNumber.Normalize(row.Amount), NumberStyles.Number, CultureInfo.InvariantCulture, out row.Approved) || row.Approved <= 0m)
+                row.Error = "Check approved amount";
+            var date = row.Start.Length == 7 ? row.Start + "-01" : row.Start;
+            if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out row.StartDate)) row.Error = "Use yyyy-MM-dd or yyyy-MM";
+            if (string.IsNullOrWhiteSpace(row.Subject) || string.IsNullOrWhiteSpace(row.Name)) row.Error = "Space and occupant are required";
+            if (IsEvent)
+            {
+                var eventName = cells.ElementAtOrDefault(4)?.Trim();
+                if (Enum.TryParse<LotRentalEvent>(eventName, true, out var ev) && Enum.IsDefined(ev)) row.Event = ev;
+                else row.Error = "Choose Fiesta or Araw";
+            }
+            var closed = cells.ElementAtOrDefault(IsEvent ? 5 : 4)?.Trim();
+            if (!string.IsNullOrEmpty(closed))
+            {
+                if (DateOnly.TryParseExact(closed, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end)) row.Closed = end;
+                else row.Error = "Check closure date";
+            }
+            Rows.Add(row);
+        }
+        if (Rows.Count is 0 or > 200) { Rows = []; Message = "Paste between 1 and 200 rows."; }
+    }
+
+    private async Task FindAsync(Row row)
+    {
+        var result = await PayorsApi.SearchCollectionPayorsAsync(row.Name);
+        row.Payors = result.IsSuccess ? result.Value ?? [] : [];
+        // Identity is an explicit user choice; matching names never create or link an account automatically.
+        if (row.Payors.Count == 0) Message = $"No Business Payor found for {row.Name}. Create or find the Payor first.";
+    }
+
+    private async Task ImportAsync()
+    {
+        if (Saving || Rows.Any(r => r.Error is not null || !Guid.TryParse(r.PayorId, out _))) return;
+        Saving = true;
+        try
+        {
+            var requests = Rows.Select(r => new ImportSpaceHolderRow(new(Kind, Guid.Parse(r.PayorId), null, r.Subject,
+                r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved), r.Closed)).ToList();
+            var result = await Api.ImportSpaceHoldersAsync(new(requests));
+            Message = result.IsSuccess && result.Value is { } summary
+                ? $"Imported {summary.Imported} · Skipped {summary.Skipped} · Needs review {summary.NeedsReview.Count}" : result.Error;
+            if (result.Value?.NeedsReview.Count > 0) Message += " · " + string.Join(" · ", result.Value.NeedsReview.Take(3));
+            if (result.IsSuccess && result.Value?.Imported > 0) { Rows = []; Text = ""; await OnImported.InvokeAsync(); }
+        }
+        catch { Message = "The import could not be confirmed. Reload the holder list before retrying."; }
+        finally { Saving = false; }
+    }
+}

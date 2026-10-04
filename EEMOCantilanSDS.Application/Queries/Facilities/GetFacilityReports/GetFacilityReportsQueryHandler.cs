@@ -43,6 +43,10 @@ public class GetFacilityReportsQueryHandler(
                 token),
             ct);
 
-        return Result<FacilityReportsDto>.Success(report);
+        return Result<FacilityReportsDto>.Success(report with
+        {
+            MonitoringTotals = new(report.StallCompliance.Sum(s => s.AccountAssessment ?? s.ExpectedBill),
+                report.StallCompliance.Sum(s => s.AmountPaid), report.StallCompliance.Sum(s => s.Balance))
+        });
     }
 }

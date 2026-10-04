@@ -25,14 +25,14 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
         var daily = await context.DailyCollections
             .AsNoTracking()
             .Where(d => d.CollectorId == collectorId
-                     && (d.IsPaid || d.IsAbsent)
+                     && (d.IsPaid || d.IsAbsent || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                      && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc)
             .Select(d => new
             {
                 d.ORNumber,
                 d.CollectionDate,
                 // A day paid by a canonical Collection is reported by that Collection below; only its weighing is legacy money.
-                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
+                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                 d.FishKilos,
                 d.MeatFeeAmount,
                 d.IsAbsent,
@@ -210,10 +210,11 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
 
         var officeDaily = await context.DailyCollections
             .AsNoTracking()
-            .Where(d => d.CollectorId == null && d.IsPaid
+            .Where(d => d.CollectorId == null
+                     && (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                      && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                      && assigned.Contains(d.Stall!.Facility!.Code))
-            .Select(d => new { DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee, d.FishKilos, d.MeatFeeAmount })
+            .Select(d => new { DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m), d.FishKilos, d.MeatFeeAmount })
             .ToListAsync(ct);
 
         var officeRecorded = officeDaily.Sum(d => d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount);

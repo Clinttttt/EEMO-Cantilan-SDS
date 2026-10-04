@@ -64,6 +64,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.SettlementAuthority.Legacy)
                 .IsRequired();
             builder.Property(x => x.CanonicalCollectionId);
+            builder.Property(x => x.CanonicalAdjustmentCollectionId);
 
             builder.Ignore(x => x.FishFeeAmount);
             builder.Ignore(x => x.TotalCollected);

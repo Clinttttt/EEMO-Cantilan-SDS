@@ -329,7 +329,7 @@ public partial class FacilityReportsRepository
                 contract?.DurationYears ?? 0,
                 rentBill,
                 absentDays,
-                fishKilosByStall.GetValueOrDefault(s.Id)));
+                fishKilosByStall.GetValueOrDefault(s.Id), totalBill));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();

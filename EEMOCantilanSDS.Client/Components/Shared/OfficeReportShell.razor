@@ -1,0 +1,11 @@
+<article class="office-report print-report-sheet" aria-label="@Title">
+    <ReportLetterhead Title="@Title" Period="@Period" />
+    <div class="office-report-body">@ChildContent</div>
+    <div class="office-signatures"><SignatureStrip /></div>
+</article>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "Status report";
+    [Parameter] public string? Period { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
