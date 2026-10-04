@@ -28,6 +28,24 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
     public decimal TotalAmount { get; private set; }
     public Guid? ClientOperationId { get; private set; }
 
+    /// <summary>The year part of the reference code: the Philippine calendar year the collection was recorded. Presentation context only.</summary>
+    public int ReferenceYear { get; private set; }
+
+    /// <summary>
+    /// The permanent global sequence number of this collection, allocated by the database from one monotonic sequence when the
+    /// collection is saved (IA-062). It is unique across every tenant, never reset (not by year, remittance or collector), never
+    /// reused and never edited. A gap left by a failed transaction is acceptable: this is an application reference, not an
+    /// accountable-form series. Zero only before the first save.
+    /// </summary>
+    public long ReferenceNumber { get; private set; }
+
+    /// <summary>
+    /// The StallTrack Reference Code (SRC), for example SRC-2026-000127: a database-computed function of year and number, so it can
+    /// never drift from them. SRC is NOT an Official Receipt, a Cash Ticket or any government receipt number. Empty before the first
+    /// save.
+    /// </summary>
+    public string ReferenceCode { get; private set; } = string.Empty;
+
     public IReadOnlyCollection<CollectionLine> Lines => _lines.AsReadOnly();
 
     private Collection() { }
@@ -86,7 +104,8 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
             PayorId = payorId,
             PayorUserId = payorUserId,
             PayerName = string.IsNullOrWhiteSpace(payerName) ? null : payerName.Trim(),
-            ClientOperationId = clientOperationId
+            ClientOperationId = clientOperationId,
+            ReferenceYear = PhilippineTime.ToPhilippineTime(recordedAtUtc).Year
         };
 
         foreach (var draft in drafts)

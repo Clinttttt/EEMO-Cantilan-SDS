@@ -28,6 +28,16 @@ public sealed class CollectionConfiguration : IEntityTypeConfiguration<Collectio
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.ClientOperationId);
 
+        // The StallTrack Reference Code (IA-062). The number comes from ONE database sequence (never MAX+1), so concurrent postings
+        // always receive distinct numbers; the code is computed from year and number, so it cannot drift from them. The unique index
+        // is deliberately global (not per tenant): two collections anywhere in StallTrack can never show the same SRC.
+        builder.Property(x => x.ReferenceYear).IsRequired();
+        builder.Property(x => x.ReferenceNumber).UseSequence("CollectionReferenceNumberSeq").IsRequired();
+        builder.Property(x => x.ReferenceCode).HasMaxLength(40)
+            .HasComputedColumnSql("'SRC-' || \"ReferenceYear\"::text || '-' || repeat('0', greatest(6 - length(\"ReferenceNumber\"::text), 0)) || \"ReferenceNumber\"::text", stored: true);
+        builder.HasIndex(x => x.ReferenceNumber).IsUnique();
+        builder.HasIndex(x => x.ReferenceCode).IsUnique();
+
         builder.HasIndex(x => new { x.MunicipalityId, x.BusinessDate });
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectorId, x.BusinessDate });
         builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId })
