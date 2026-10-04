@@ -102,7 +102,14 @@ public sealed class RemittanceWorkspaceTests : TestContext
             var summary = cut.Find("dl[aria-label='Cash position']").TextContent;
             Assert.Contains("₱20,000.00", summary);
             Assert.Contains("Unremitted", summary);
-            Assert.Contains("Selected", summary);
+            Assert.DoesNotContain("Selected", summary);
+            Assert.DoesNotContain("History status", cut.Markup);
+            Assert.DoesNotContain("Remit selected", cut.Markup);
+            Assert.Equal("/remittances/new", cut.FindAll("a").Single(a => a.TextContent.Trim() == "New Remittance").GetAttribute("href"));
+            Assert.Empty(cut.FindAll("input[type='checkbox']"));
+            Assert.Contains("For remittance", cut.Markup);
+            Assert.Contains("View all", cut.Markup);
+            Assert.Contains("Remittance history", cut.Markup);
             var row = Assert.Single(cut.FindAll("[aria-label='Collector position'] tbody tr"));
             Assert.Contains("Ana Reyes", row.TextContent);
             // The position carries a form count (9,275 on hand); the money workspace never shows it, as a count or as pesos.
@@ -137,7 +144,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
             .Callback<RecordRemittanceRequest>(r => sent = r)
             .ReturnsAsync(Result<RemittanceDetailDto>.Success(Detail(80m, 70m)));
 
-        var cut = RenderComponent<Remittances>();
+        var cut = RenderComponent<NewRemittance>();
 
         // The primary view: unremitted canonical collections, by SRC, with the instrument only as a badge.
         cut.WaitForAssertion(() =>
@@ -153,7 +160,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("₱30.00", rows[0].TextContent);
         }, Timeout);
         // Nothing is selected until the Head selects it, so nothing can be remitted by accident.
-        Assert.True(cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Remit selected")).HasAttribute("disabled"));
+        Assert.True(cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review Remittance").HasAttribute("disabled"));
 
         cut.Find("input[aria-label='Select all collections']").Change(true);
         cut.WaitForAssertion(() =>
@@ -161,7 +168,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("₱80.00", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent);
             Assert.Contains("₱80.00", cut.Find("dl[aria-label='Cash position']").TextContent);   // Selected
         }, Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Remit selected (2)").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review Remittance").Click();
 
         var form = "form[aria-label='Confirm remittance']";
         cut.WaitForAssertion(() =>
@@ -331,10 +338,10 @@ public sealed class RemittanceWorkspaceTests : TestContext
             .Callback<RecordRemittanceBatchRequest>(r => sent = r)
             .ReturnsAsync(Result<IReadOnlyList<RemittanceDetailDto>>.Success([Detail(80m, 80m), Detail(40m, 35m)]));
 
-        var cut = RenderComponent<Remittances>();
+        var cut = RenderComponent<NewRemittance>();
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count), Timeout);
         cut.Find("input[aria-label='Select all collections']").Change(true);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Remit selected (3)").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review Remittance").Click();
 
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("section.rm-draft").Count), Timeout);
         Assert.Contains("Ana Reyes", cut.FindAll("section.rm-draft")[0].TextContent);
@@ -345,7 +352,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         Assert.Contains("₱120.00", total);                                   // total selected
         Assert.Contains("₱115.00", total);                                   // being remitted
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record 2 remittances").Click();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Confirm Remittance").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -369,6 +376,38 @@ public sealed class RemittanceWorkspaceTests : TestContext
         Scope().Collections, Scope().Breakdown, "SRC-2026-000101", "SRC-2026-000102", expected != remitted);
 
     [Fact]
+    public void PreparationFiltersSelectionToVisibleSources_AndRetryKeepsTheSameOperationIdentity()
+    {
+        Assert.Equal("/remittances/new", Assert.Single(typeof(NewRemittance).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
+        Assert.Equal("SuperAdmin,Admin", Assert.Single(typeof(NewRemittance).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
+        ServePosition(Position(20000m, 19920m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
+        var requests = new List<RecordRemittanceRequest>();
+        var calls = 0;
+        _api.Setup(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()))
+            .Callback<RecordRemittanceRequest>(requests.Add)
+            .ReturnsAsync(() => ++calls == 1 ? Result<RemittanceDetailDto>.Failure("Retry this request") : Result<RemittanceDetailDto>.Success(Detail(30m, 30m)));
+        var cut = RenderComponent<NewRemittance>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count), Timeout);
+        Assert.DoesNotContain("History status", cut.Markup);
+        var source = cut.FindAll("select").Single(s => s.ParentElement!.TextContent.StartsWith("Source"));
+        source.Change("Market Fees");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Collections for remittance'] tbody tr")), Timeout);
+        cut.Find("input[aria-label='Select all collections']").Change(true);
+        Assert.Contains("₱30.00", cut.Find("[aria-label='Selection summary']").TextContent);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review Remittance").Click();
+        cut.Find("form[aria-label='Confirm remittance']").Submit();
+        cut.WaitForAssertion(() => Assert.Contains("Retry this request", cut.Markup), Timeout);
+        cut.Find("form[aria-label='Confirm remittance']").Submit();
+        cut.WaitForAssertion(() => Assert.Equal(2, requests.Count), Timeout);
+        Assert.Equal(requests[0].ClientOperationId, requests[1].ClientOperationId);
+        Assert.Equal(new[] { CollectionA }, requests[1].CollectionIds);
+        Assert.Equal(30m, requests[1].AmountRemitted);
+        _api.Verify(x => x.RecordBatchAsync(It.IsAny<RecordRemittanceBatchRequest>()), Times.Never);
+    }
+
+    [Fact]
     public void Detail_ShowsTheDifferenceAndCoverage_AndAVoidNeedsAReason()
     {
         var detail = Detail(80m, 70m);
@@ -383,10 +422,15 @@ public sealed class RemittanceWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("₱10.00", cut.Find("dl[aria-label='Remittance']").TextContent);
-            Assert.Contains("SRC-2026-000101 to SRC-2026-000102", cut.Markup);
+            Assert.DoesNotContain("SRC-2026-000101 to SRC-2026-000102", cut.Markup);
+            Assert.Contains("2 collections", cut.Find("[aria-label='Remittance details']").TextContent);
+            Assert.Contains("Collected", cut.Find("dl[aria-label='Remittance']").TextContent);
+            Assert.Contains("₱30.00", cut.Find("[aria-label='Collection breakdown']").TextContent);
             Assert.Equal(2, cut.FindAll("[aria-label='Collections covered'] tbody tr").Count);
             Assert.True(cut.Find("form[aria-label='Void remittance'] button").HasAttribute("disabled"));
         }, Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Print summary").Click();
+        Assert.Contains(JSInterop.Invocations, i => i.Identifier == "print");
 
         cut.Find("form[aria-label='Void remittance'] input").Change("Counted short");
         cut.Find("form[aria-label='Void remittance']").Submit();
@@ -394,6 +438,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         {
             Assert.Equal("Counted short", sent!.Reason);
             Assert.Empty(cut.FindAll("form[aria-label='Void remittance']"));
+            Assert.Contains("Voided", cut.Find("header.rd-header").TextContent);
         }, Timeout);
     }
 

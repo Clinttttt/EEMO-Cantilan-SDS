@@ -6,6 +6,19 @@
     gap: 20px;
 }
 
+.rd-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 24px; border: 1px solid #244d79; border-radius: 12px; background: var(--civic-panel, #173b64); color: white; }
+.rd-header a { color: #dce8f5; font-size: .75rem; }
+.rd-title { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
+.rd-title h1 { margin: 0; color: white; font-size: 1.5rem; letter-spacing: -.025em; }
+.rd-header p { margin: 5px 0 0; font-size: .8125rem; color: #dce8f5; }
+.rd-header .v3-btn { background: white; color: #173b64; border-color: white; }
+.rd-status { padding: 3px 10px; border: 1px solid #e2bcbc; border-radius: 999px; color: #842626; background: #fff5f5; font-size: .75rem; font-weight: 700; }
+.rd-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 960px; gap: 16px 24px; }
+.rd-covered { max-height: 440px; overflow: auto; }
+.rd-covered thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted, #f4f7fa); }
+@media (max-width: 640px) { .rd-header { flex-direction: column; align-items: flex-start; padding: 18px; } .rd-facts { grid-template-columns: 1fr; } }
+@media print { .rd-covered { max-height: none; overflow: visible; } .rd-covered thead { display: table-header-group; } .rd-covered thead th { position: static; } .rm-page tr, .rm-page tfoot { break-inside: avoid; } }
+
 .rm-filters {
     display: flex;
     flex-wrap: wrap;
@@ -122,6 +135,6 @@
         border: 0;
         border-radius: 0;
         box-shadow: none;
-        break-inside: avoid;
+        break-inside: auto;
     }
 }

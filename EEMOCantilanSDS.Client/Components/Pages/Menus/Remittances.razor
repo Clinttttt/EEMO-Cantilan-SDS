@@ -14,23 +14,29 @@
 @inject ICollectorsApiClient CollectorsApi
 @inject IJSRuntime JS
 
-<PageTitle>StallTrack — Remittance &amp; Liquidation</PageTitle>
+<PageTitle>StallTrack — @(Preparation ? "New Remittance" : "Remittance & Liquidation")</PageTitle>
 
 @* Money accountability over canonical Collections (IA-052 / IA-062). A remittance records money already collected and turned
    over: it never creates a Collection, a line, revenue or an SRC. Physical OR/CT books play no part here; the instrument is
    only policy metadata on a collection. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Title="Remittance & Liquidation" Subtitle="Review and remit collected amounts.">
-        <Actions>
+    <header class="rm-header no-print">
+        <div>
+            @if (Preparation) { <a class="rm-back" href="/remittances">Remittance &amp; Liquidation</a> }
+            <h1>@(Preparation ? "New Remittance" : "Remittance & Liquidation")</h1>
+            <p>@(Preparation ? "Select collected amounts to remit." : "Review collected amounts and prepare remittances.")</p>
+        </div>
+        <div class="rm-header-actions">
+        @if (!Preparation)
+        {
             <button class="v3-btn" type="button" @onclick="PrintAsync">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                 Print summary
             </button>
-            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenConfirm" disabled="@(!Recordable.Any())">
-                Remit selected@(SelectedCount > 0 ? $" ({SelectedCount})" : "")
-            </button>
-        </Actions>
-    </WorkspaceHeader>
+            <a class="v3-btn v3-btn-primary" href="/remittances/new">New Remittance</a>
+        }
+        </div>
+    </header>
 
     <div class="rm-print-head" aria-hidden="true">
         <ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel" />
@@ -57,14 +63,14 @@
                 <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
             </select>
         </label>
-        <label class="v3-field">
-            <span>History status</span>
-            <select @bind="_statusFilter">
-                <option value="">All</option>
-                <option value="@((int)RemittanceStatus.Recorded)">Recorded</option>
-                <option value="@((int)RemittanceStatus.Voided)">Voided</option>
-            </select>
-        </label>
+        @if (Preparation)
+        {
+            <label class="v3-field"><span>Source</span><select @bind="_sourceFilter" @bind:after="ClearSelection">
+                <option value="">All sources</option>
+                @foreach (var source in AllEligible.Select(c => SourceLabel(c.Collection)).Distinct().OrderBy(x => x))
+                { <option value="@source">@source</option> }
+            </select></label>
+        }
         <button class="v3-btn" type="submit">Apply</button>
     </form>
 
@@ -72,7 +78,7 @@
     {
         <div class="v3-notice rm-result" role="status">
             <p>@_message</p>
-            @if (_result.Count > 1)
+            @if (_result.Count > 0)
             {
                 <table class="rm-result-table" aria-label="Recorded remittances">
                     <tbody>
@@ -98,17 +104,23 @@
 
         <section class="v3-panel" aria-labelledby="rm-due-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="rm-due-title">For remittance</h2>
-                <span class="v3-panel-meta">@Eligible.Count() unremitted</span>
+                <h2 id="rm-due-title">@(Preparation ? "Ready for remittance" : "For remittance")</h2>
+                <div class="rm-section-actions">
+                    <span class="v3-panel-meta">@Eligible.Count() ready</span>
+                    @if (!Preparation) { <a class="v3-btn v3-btn-sm" href="@PrepareHref">View all</a> }
+                </div>
             </header>
-            <div class="v3-table-wrap" role="region" aria-label="Collections for remittance" tabindex="0">
+            <div class="v3-table-wrap @(Preparation ? "rm-ready-list" : "rm-preview")" role="region" aria-label="Collections for remittance" tabindex="0">
                 <table class="v3-table rm-collections">
                     <thead>
                         <tr>
+                            @if (Preparation)
+                            {
                             <th scope="col" class="rm-check">
                                 <input type="checkbox" aria-label="Select all collections" checked="@(Eligible.Any() && SelectedCount == Eligible.Count())"
                                        disabled="@(!Eligible.Any())" @onchange="e => SelectEverything(e.Value is true)" />
                             </th>
+                            }
                             <th scope="col">Date</th>
                             <th scope="col">SRC</th>
                             <th scope="col">Collector</th>
@@ -124,8 +136,11 @@
                             var draft = item.Draft;
                             var collection = item.Collection;
                             <tr @key="collection.CollectionId">
+                                @if (Preparation)
+                                {
                                 <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.ReferenceCode}")" checked="@draft.Selected.Contains(collection.CollectionId)"
                                            @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
+                                }
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
                                 <td class="v3-strong">@collection.ReferenceCode</td>
                                 <td>@draft.Name</td>
@@ -137,10 +152,10 @@
                         }
                         @if (!Eligible.Any())
                         {
-                            <tr><td class="v3-empty" colspan="8">@(_loading ? "Loading collections…" : "Nothing is waiting to be remitted in this period.")</td></tr>
+                            <tr><td class="v3-empty" colspan="@(Preparation ? 8 : 7)">@(_loading ? "Loading collections…" : "Nothing is waiting to be remitted in this period.")</td></tr>
                         }
                     </tbody>
-                    @if (SelectedCount > 0)
+                    @if (Preparation && SelectedCount > 0)
                     {
                         <tfoot>
                             <tr>
@@ -154,7 +169,17 @@
             </div>
         </section>
 
-        @if (_confirming)
+        @if (Preparation)
+        {
+            <div class="rm-selection no-print" aria-label="Selection summary">
+                <dl><div><dt>Collections selected</dt><dd>@SelectedCount</dd></div>
+                    <div><dt>Collectors</dt><dd>@Recordable.Count()</dd></div>
+                    <div><dt>Total</dt><dd>@Money(SelectedTotal)</dd></div></dl>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenConfirm" disabled="@(!Recordable.Any())">Review Remittance</button>
+            </div>
+        }
+
+        @if (Preparation && _confirming)
         {
             @* Each collector becomes their own remittance record (their own amount, reference and operation identity); several are
                saved together or not at all. *@
@@ -167,6 +192,8 @@
                         <div><dt>Total</dt><dd>@Money(SelectedTotal)</dd></div>
                         <div><dt>Remitted</dt><dd>@Money(Recordable.Sum(d => d.Amount ?? 0m))</dd></div>
                     </dl>
+                    <dl class="rm-review-facts"><div><dt>Coverage period</dt><dd>@PeriodLabel</dd></div>
+                        <div><dt>Instrument mix</dt><dd>@SelectedInstruments</dd></div></dl>
                     <div class="rm-form-row">
                         <label class="v3-field"><span>Remittance date</span><input type="date" @bind="_newDate" /></label>
                     </div>
@@ -177,7 +204,7 @@
                                 <h3>@draft.Name</h3>
                                 <dl class="rm-draft-figures">
                                     <div><dt>Collections</dt><dd>@draft.Selected.Count</dd></div>
-                                    <div><dt>Expected</dt><dd>@Money(draft.Expected)</dd></div>
+                                    <div><dt>Collected</dt><dd>@Money(draft.Expected)</dd></div>
                                 </dl>
                             </header>
                             <div class="rm-form-row">
@@ -203,13 +230,15 @@
                     <div class="rm-actions">
                         <button class="v3-btn" type="button" @onclick="CloseConfirm">Cancel</button>
                         <button class="v3-btn v3-btn-primary" type="submit" disabled="@(_saving || !CanRecord)">
-                            @(Recordable.Count() > 1 ? $"Record {Recordable.Count()} remittances" : "Record remittance")
+                            Confirm Remittance
                         </button>
                     </div>
                 </form>
             </section>
         }
 
+        @if (!Preparation)
+        {
         <section class="v3-panel" aria-labelledby="rm-pos-title">
             <header class="v3-panel-header"><h2 id="rm-pos-title">Collector position</h2></header>
             <div class="v3-table-wrap" role="region" aria-label="Collector position" tabindex="0">
@@ -240,14 +269,18 @@
                 </table>
             </div>
         </section>
+        }
     }
 
+    @if (!Preparation)
+    {
     <section class="v3-panel" aria-labelledby="rm-hist-title">
         <header class="v3-panel-header">
             <h2 id="rm-hist-title">Remittance history</h2>
-            <span class="v3-panel-meta">@_register.Count in this period</span>
+            <div class="rm-section-actions"><span class="v3-panel-meta">@_register.Count in this period</span>
+                @if (History != "all") { <a class="v3-btn v3-btn-sm" href="@HistoryHref">View all</a> }</div>
         </header>
-        <div class="v3-table-wrap" role="region" aria-label="Remittance history" tabindex="0">
+        <div class="v3-table-wrap @(History == "all" ? "" : "rm-history-preview")" role="region" aria-label="Remittance history" tabindex="0">
             <table class="v3-table">
                 <thead>
                     <tr>
@@ -286,7 +319,7 @@
                             </td>
                             <td class="v3-num">@row.CollectionCount</td>
                             <td class="v3-num">@Money(row.RemittedAmount)</td>
-                            <td>@row.StatusLabel@if (row.DifferenceAmount != 0m) {<span class="v3-block rm-diff-flag">Difference @Money(row.DifferenceAmount)</span>}</td>
+                            <td><span class="rm-pill @(row.StatusLabel == "Voided" ? "rm-pill-void" : "")">@row.StatusLabel</span>@if (row.DifferenceAmount != 0m) {<span class="v3-block rm-diff-flag">Difference @Money(row.DifferenceAmount)</span>}</td>
                             <td>@(row.Reference ?? "—")</td>
                             <td class="rm-row-action">
                                 <a class="v3-btn v3-btn-sm" href="@viewHref" aria-label="@($"View remittance of {CollectorSummary(row)}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">View</a>
@@ -302,9 +335,20 @@
             </table>
         </div>
     </section>
+    }
 </div>
 
 @code {
+    [Parameter] public bool Preparation { get; set; }
+    [Parameter] public DateOnly? From { get; set; }
+    [Parameter] public DateOnly? To { get; set; }
+    [Parameter] public string? Collector { get; set; }
+    [Parameter] public string? Instrument { get; set; }
+    [SupplyParameterFromQuery(Name = "history")] public string? History { get; set; }
+    [SupplyParameterFromQuery(Name = "from")] public string? QueryFrom { get; set; }
+    [SupplyParameterFromQuery(Name = "to")] public string? QueryTo { get; set; }
+    [SupplyParameterFromQuery(Name = "collector")] public string? QueryCollector { get; set; }
+    [SupplyParameterFromQuery(Name = "instrument")] public string? QueryInstrument { get; set; }
     private AccountabilityPositionDto? _position;
     private List<RemittanceHistoryRowDto> _register = [];
     private Guid? _openMembers;
@@ -320,7 +364,7 @@
     private DateOnly _to = PhilippineTime.Today;
     private string _collectorFilter = string.Empty;
     private string _instrumentFilter = string.Empty;
-    private string _statusFilter = string.Empty;
+    private string _sourceFilter = string.Empty;
 
     private bool _confirming;
     private DateOnly _newDate = PhilippineTime.Today;
@@ -346,9 +390,11 @@
     }
 
     /// <summary>Every unremitted canonical collection in the period, with the collector's draft it belongs to.</summary>
-    private IEnumerable<(Draft Draft, RemittanceCollectionDto Collection)> Eligible =>
+    private IEnumerable<(Draft Draft, RemittanceCollectionDto Collection)> AllEligible =>
         _drafts.SelectMany(d => d.Scope.Collections.Select(c => (d, c)))
             .OrderBy(x => x.c.BusinessDate).ThenBy(x => x.c.ReferenceCode, StringComparer.Ordinal);
+    private IEnumerable<(Draft Draft, RemittanceCollectionDto Collection)> Eligible => AllEligible
+        .Where(c => string.IsNullOrEmpty(_sourceFilter) || SourceLabel(c.Collection) == _sourceFilter);
 
     /// <summary>Drafts that will become records: a collector with nothing selected is left out, never recorded as zero.</summary>
     private IEnumerable<Draft> Recordable => _drafts.Where(d => d.Selected.Count > 0);
@@ -363,6 +409,10 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _from = From ?? ParseDate(QueryFrom) ?? _from;
+        _to = To ?? ParseDate(QueryTo) ?? _to;
+        _collectorFilter = Collector ?? QueryCollector ?? string.Empty;
+        _instrumentFilter = Instrument ?? QueryInstrument ?? string.Empty;
         var collectors = await CollectorsApi.GetAllCollectorsAsync();
         _collectors = collectors.IsSuccess ? collectors.Value?.ToList() ?? [] : [];
         await ReloadAsync();
@@ -382,7 +432,7 @@
             var register = await Api.GetHistoryAsync(_from, _to,
                 Guid.TryParse(_collectorFilter, out var collector) ? collector : null,
                 int.TryParse(_instrumentFilter, out var instrument) ? (RevenueInstrumentType)instrument : null,
-                int.TryParse(_statusFilter, out var status) ? (RemittanceStatus)status : null);
+                null);
             if (register.IsSuccess) _register = register.Value?.ToList() ?? [];
             else { _register = []; _error ??= "The remittance history couldn't be loaded."; }
 
@@ -420,13 +470,15 @@
     private IEnumerable<CollectorPositionDto> VisibleCollectors(AccountabilityPositionDto position) =>
         position.Collectors.Where(x => !Guid.TryParse(_collectorFilter, out var id) || x.CollectorId == id);
 
-    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems(AccountabilityPositionDto p) =>
-    [
-        new("Unremitted", Money(p.Unremitted), Emphasis: p.Unremitted != 0m),
-        new("Selected", Money(SelectedTotal)),
-        new("Remitted", Money(p.Remitted)),
-        new("Collected", Money(p.Collected)),
-    ];
+    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems(AccountabilityPositionDto p) => Preparation
+        ? [new("Unremitted", Money(p.Unremitted)), new("Selected", Money(SelectedTotal), Emphasis: SelectedCount > 0)]
+        : [new("Unremitted", Money(p.Unremitted), Emphasis: p.Unremitted != 0m), new("Remitted", Money(p.Remitted)), new("Collected", Money(p.Collected))];
+
+    private string PrepareHref => $"/remittances/new?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}&collector={_collectorFilter}&instrument={_instrumentFilter}";
+    private string HistoryHref => $"/remittances?history=all&from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}&collector={_collectorFilter}&instrument={_instrumentFilter}#rm-hist-title";
+    private static DateOnly? ParseDate(string? value) => DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
+    private string SelectedInstruments => string.Join(" and ", Recordable.SelectMany(d => d.Scope.Collections
+        .Where(c => d.Selected.Contains(c.CollectionId))).Select(c => c.Instrument is { } i ? InstrumentCode(i) : "—").Distinct());
 
     private void OpenConfirm()
     {
@@ -441,13 +493,15 @@
 
     private void SelectEverything(bool include)
     {
+        var visible = Eligible.Select(c => c.Collection.CollectionId).ToHashSet();
         foreach (var draft in _drafts)
         {
             draft.Selected.Clear();
-            if (include) foreach (var collection in draft.Scope.Collections) draft.Selected.Add(collection.CollectionId);
+            if (include) foreach (var collection in draft.Scope.Collections.Where(c => visible.Contains(c.CollectionId))) draft.Selected.Add(collection.CollectionId);
             draft.Amount = draft.Selected.Count == 0 ? null : draft.Expected;
         }
     }
+    private void ClearSelection() { SelectEverything(false); _confirming = false; }
 
     private static void Toggle(Draft draft, Guid id, bool include)
     {

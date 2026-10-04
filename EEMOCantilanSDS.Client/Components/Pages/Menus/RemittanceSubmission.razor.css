@@ -6,6 +6,19 @@
     gap: 20px;
 }
 
+.rs-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 24px; border: 1px solid #244d79; border-radius: 12px; background: var(--civic-panel, #173b64); color: white; }
+.rs-header a { color: #dce8f5; font-size: .75rem; }
+.rs-header h1 { margin: 6px 0 0; color: white; font-size: 1.5rem; letter-spacing: -.025em; }
+.rs-header p { margin: 5px 0 0; color: #dce8f5; font-size: .8125rem; }
+.rs-header .v3-btn { background: white; color: #173b64; border-color: white; }
+.rs-status { display: inline-block; margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: #fff5f5; color: #842626; font-size: .75rem; }
+.rs-covered { max-height: 400px; overflow: auto; }
+.rs-covered thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted, #f4f7fa); }
+.rs-breakdown { max-width: 700px; padding: 16px 20px; }
+.rs-breakdown h3 { margin: 0 0 8px; font-size: .875rem; }
+@media (max-width: 640px) { .rs-header { flex-direction: column; align-items: flex-start; padding: 18px; } }
+@media print { .rs-covered { max-height: none; overflow: visible; } .rs-covered thead { display: table-header-group; } .rs-covered thead th { position: static; } .rm-page tr, .rs-breakdown { break-inside: avoid; } }
+
 .rm-filters {
     display: flex;
     flex-wrap: wrap;
@@ -122,6 +135,6 @@
         border: 0;
         border-radius: 0;
         box-shadow: none;
-        break-inside: avoid;
+        break-inside: auto;
     }
 }

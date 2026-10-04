@@ -1,0 +1,14 @@
+@page "/remittances/new"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+
+<Remittances Preparation="true" From="ParsedFrom" To="ParsedTo" Collector="Collector" Instrument="Instrument" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "from")] public string? From { get; set; }
+    [SupplyParameterFromQuery(Name = "to")] public string? To { get; set; }
+    [SupplyParameterFromQuery(Name = "collector")] public string? Collector { get; set; }
+    [SupplyParameterFromQuery(Name = "instrument")] public string? Instrument { get; set; }
+    private DateOnly? ParsedFrom => DateOnly.TryParseExact(From, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var value) ? value : null;
+    private DateOnly? ParsedTo => DateOnly.TryParseExact(To, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var value) ? value : null;
+}

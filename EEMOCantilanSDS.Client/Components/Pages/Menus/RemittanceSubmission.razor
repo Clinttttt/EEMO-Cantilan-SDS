@@ -17,12 +17,12 @@
    amount and status; this report only lays them side by side. It is evidence of turnover, not a receipt or income, and it
    creates and changes nothing. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/remittances" Title="Remittance"
-                     Subtitle="@Subtitle">
-        <Actions>
-            <button class="v3-btn" type="button" @onclick="PrintAsync">Print / Save as PDF</button>
-        </Actions>
-    </WorkspaceHeader>
+    <header class="rs-header no-print">
+        <div><a href="/remittances">Remittance &amp; Liquidation</a>
+            <h1>Remittance @if (_data?.StatusLabel is "Voided" or "Partly voided") { <span class="rs-status">@_data.StatusLabel</span> }</h1>
+            <p>@Subtitle</p></div>
+        <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
+    </header>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
@@ -49,7 +49,7 @@
                         <tr>
                             <th scope="col">Collector</th>
                             <th scope="col" class="v3-num">Collections</th>
-                            <th scope="col" class="v3-num">Expected</th>
+                            <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Difference</th>
                             <th scope="col">Status</th>
@@ -87,9 +87,12 @@
             <section class="v3-panel" aria-label="@($"Collections covered for {item.Row.CollectorName}")" @key="item.Row.Id">
                 <header class="v3-panel-header">
                     <h2>@item.Row.CollectorName</h2>
-                    <span class="v3-panel-meta">@(item.FirstReferenceCode is null ? "" : $"{item.FirstReferenceCode} to {item.LastReferenceCode}")</span>
+                    <span class="v3-panel-meta">@item.Row.CollectionCount collections</span>
                 </header>
-                <div class="v3-table-wrap" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
+                <dl class="v3-facts"><div><dt>Recorded by</dt><dd>@item.RecordedBy · @item.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Instrument</dt><dd>@InstrumentLabel(item.Row.Instrument)</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(item.VoidReason)) { <div><dt>Void reason</dt><dd>@item.VoidReason</dd></div> }</dl>
+                <div class="v3-table-wrap rs-covered" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
                     <table class="v3-table">
                         <thead>
                             <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th></tr>
@@ -107,6 +110,11 @@
                             }
                         </tbody>
                     </table>
+                </div>
+                <div class="rs-breakdown"><h3>Collection breakdown</h3>
+                    <table class="v3-table"><tbody>@foreach (var line in item.Breakdown)
+                        { <tr><td>@EEMOCantilanSDS.Client.Services.SourceNames.For(line.Name)</td><td class="v3-num">@Money(line.Amount)</td></tr> }</tbody>
+                        <tfoot><tr><th>Total collected</th><td class="v3-num">@Money(item.Row.ExpectedAmount)</td></tr></tfoot></table>
                 </div>
             </section>
         }
@@ -152,10 +160,10 @@
 
     private static IReadOnlyList<SummaryStrip.SummaryItem> Summary(RemittanceSubmissionDto d) =>
     [
-        new("Expected (collected)", Money(d.ExpectedAmount)),
+        new("Collected", Money(d.ExpectedAmount)),
         new("Remitted", Money(d.RemittedAmount)),
         new("Difference", Money(d.DifferenceAmount), Emphasis: d.DifferenceAmount != 0m),
-        new("Collections covered", d.CollectionCount.ToString(CultureInfo.InvariantCulture)),
+        new("Collections", d.CollectionCount.ToString(CultureInfo.InvariantCulture)),
     ];
 
     private static string StatusLabel(RemittanceDetailDto item) => item.Row.Status == RemittanceStatus.Voided ? "Voided"

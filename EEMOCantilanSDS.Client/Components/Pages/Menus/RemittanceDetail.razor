@@ -16,12 +16,14 @@
 @* The history of one remittance (IA-052): what it covered, what was expected, what was turned over, and the difference.
    A recorded remittance is never edited; a mistake is voided with a reason. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <WorkspaceHeader Parent="Remittance & Liquidation" ParentHref="/remittances" Title="Remittance"
-                     Subtitle="@Subtitle">
-        <Actions>
+    <header class="rd-header no-print">
+        <div><a href="/remittances">Remittance &amp; Liquidation</a>
+            <div class="rd-title"><h1>Remittance</h1>@if (_detail?.Row.Status == RemittanceStatus.Voided) { <span class="rd-status">Voided</span> }</div>
+            <p>@Subtitle</p></div>
+        <div>
             <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
-        </Actions>
-    </WorkspaceHeader>
+        </div>
+    </header>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
@@ -46,11 +48,11 @@
                 <h2 id="rd-facts-title">Details</h2>
                 <span class="v3-panel-meta">@StatusLabel(d)</span>
             </header>
-            <dl class="v3-facts" aria-label="Remittance details">
+            <dl class="v3-facts rd-facts" aria-label="Remittance details">
                 <div><dt>Collector</dt><dd>@d.Row.CollectorName</dd></div>
                 <div><dt>Coverage period</dt><dd>@PeriodLabel(d)</dd></div>
                 <div><dt>Instrument</dt><dd>@InstrumentLabel(d.Row.Instrument)</dd></div>
-                <div><dt>References covered</dt><dd>@(d.FirstReferenceCode is null ? "—" : $"{d.FirstReferenceCode} to {d.LastReferenceCode}")</dd></div>
+                <div><dt>Collections</dt><dd>@d.Row.CollectionCount collections</dd></div>
                 <div><dt>Reference</dt><dd>@(d.Row.Reference ?? "—")</dd></div>
                 <div><dt>Recorded by</dt><dd>@d.RecordedBy · @d.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
                 @if (!string.IsNullOrWhiteSpace(d.Remarks))
@@ -81,7 +83,7 @@
 
         <section class="v3-panel" aria-labelledby="rd-cols-title">
             <header class="v3-panel-header"><h2 id="rd-cols-title">Collections covered</h2></header>
-            <div class="v3-table-wrap" role="region" aria-label="Collections covered" tabindex="0">
+            <div class="v3-table-wrap rd-covered" role="region" aria-label="Collections covered" tabindex="0">
                 <table class="v3-table">
                     <thead>
                         <tr><th scope="col">SRC</th><th scope="col">Collection date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col">Collector</th><th scope="col">Instrument</th><th scope="col" class="v3-num">Amount</th></tr>
@@ -179,10 +181,10 @@
 
     private IReadOnlyList<SummaryStrip.SummaryItem> Summary(RemittanceDetailDto d) =>
     [
-        new("Expected (collected)", Money(d.Row.ExpectedAmount)),
+        new("Collected", Money(d.Row.ExpectedAmount)),
         new("Remitted", Money(d.Row.RemittedAmount)),
         new("Difference", Money(d.Row.DifferenceAmount), Emphasis: d.Row.DifferenceAmount != 0m),
-        new("Collections covered", d.Row.CollectionCount.ToString(CultureInfo.InvariantCulture)),
+        new("Collections", d.Row.CollectionCount.ToString(CultureInfo.InvariantCulture)),
     ];
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
