@@ -54,7 +54,9 @@ Confirmed operational facts now recorded in `docs/evidence/2026-10-04_meedo_head
 - StallTrack is not replacing the physical OR issuance process;
 - the exact printed receipt identifier, including any suffix, must be preserved and not inferred.
 
-No new OR/accountable-form writer or source cutover was implemented by this documentation pass.
+Authoritative DOF/BLGF/COA research is now recorded in `docs/evidence/2026-10-04_af51_authoritative_philippine_rules.md` and IA-060. It confirms the national baseline for strict serial sequence, Local Treasurer custody/provenance, collector-held accountable forms, quantity/range accountability, monthly RAAF/CRAAF reporting, non-reuse of spoiled/cancelled forms, and immediate notice/control for lost forms. The only serial-identity question left open is the semantic meaning of a trailing printed suffix such as `A` (IA-059); exact printed identity is preserved regardless.
+
+No new OR/accountable-form writer or source cutover was implemented by these documentation/research passes.
 
 ## 5. Current UI / reporting state
 
@@ -67,12 +69,13 @@ No new OR/accountable-form writer or source cutover was implemented by this docu
 ## 6. Open decisions / genuine remaining gaps
 
 1. **Cash Ticket denomination policy:** the open sub-gate recorded under IA-056 still requires office confirmation. Do not infer printed denominations from the current serial-number model.
-2. **Mobile Collect by Payor:** not built. Current canonical Mobile payor identity exists for WCF; governed walk-up services cannot be attached to a Payor by name. A truthful combined workflow needs a payor-linked collectible-item contract and/or authorized Rent/ECF/penalty canonical cutover.
-3. **Collection Activity:** still has an older legacy feed boundary in the Web page; the backend/current-report contract follow-up remains.
-4. **Annual targets:** governance/source/revision policy remains unresolved; do not invent values.
-5. **Mobile Electricity:** legacy-path/cutover decision remains open.
-6. **Snapshot validation:** run the seven snapshot-gated tests against a restored local production snapshot before final release sign-off.
-7. **Rendered review:** complete localhost / Windows-Mobile review and an Android runtime check on an appropriate device or installed system image.
+2. **AF No. 51 printed serial suffix meaning:** IA-059 remains open. Preserve the exact printed value; no suffix-dependent automation is authorized. This does not block the AF No. 51 accountability implementation under IA-057/IA-058/IA-060.
+3. **Mobile Collect by Payor:** not built. Current canonical Mobile payor identity exists for WCF; governed walk-up services cannot be attached to a Payor by name. A truthful combined workflow needs a payor-linked collectible-item contract and/or authorized Rent/ECF/penalty canonical cutover.
+4. **Collection Activity:** still has an older legacy feed boundary in the Web page; the backend/current-report contract follow-up remains.
+5. **Annual targets:** governance/source/revision policy remains unresolved; do not invent values.
+6. **Mobile Electricity:** legacy-path/cutover decision remains open.
+7. **Snapshot validation:** run the seven snapshot-gated tests against a restored local production snapshot before final release sign-off.
+8. **Rendered review:** complete localhost / Windows-Mobile review and an Android runtime check on an appropriate device or installed system image.
 
 ## 7. Documentation-use rule
 

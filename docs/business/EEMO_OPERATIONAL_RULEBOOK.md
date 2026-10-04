@@ -116,13 +116,27 @@ Direct MEEDO Head confirmation on 2026-10-04 establishes the current office prac
 - Preserve the **exact printed receipt identifier**. If a printed identifier includes a suffix letter, preserve it as part of the observed identifier unless the office/accountability authority later confirms a separate semantic treatment. Do not strip, regenerate or infer the suffix.
 - A Treasurer software account, login or approval step is **not required for ordinary MEEDO collection** merely because formal accountable-form inventory is under treasury accountability. StallTrack models the operational assignment/custody evidence needed by MEEDO without inventing an additional approval chain.
 
-Still unresolved and therefore not to be guessed from the specimen alone:
+Authoritative Philippine treasury/accountability research completed on 2026-10-04 adds the following national baseline (IA-060):
 
-- the formal meaning of a printed suffix such as `A`;
-- the exact Cantilan procedure and required evidence for lost, spoiled or cancelled ORs;
-- whether the first OR-accountability release should inventory/assign complete booklets/ranges or initially record the exact physical OR identifier while preserving the existing booklet process.
+- pre-numbered ORs are issued in **strict numerical sequence**;
+- one AF No. 51 serial is one accountable receipt **set**; Original/Duplicate/Triplicate are copies under that one serial, not three separate receipt numbers;
+- the Local Treasurer is the formal custodian of accountable forms requisitioned by the LGU and maintains receipt/issue/transfer records, while authorized collectors may physically hold assigned forms;
+- actual quantity and inclusive serial ranges must be tracked. Do not hard-code `50 receipts per booklet` even though 50-set booklets are common in BLGF notices;
+- accountable forms are issued to bonded officers in sufficient quantities not to exceed three months' use; StallTrack records operational custody/provenance but does not invent a mandatory Treasurer-login or bond-administration workflow;
+- RAAF/CRAAF accountability tracks beginning balance, receipts, issued/cancelled forms and ending balance by quantity/range;
+- a spoiled/cancelled AF No. 51 is never reusable and creates no revenue. For printed ORs without fixed money value, the LTOM requires the cancelled original and duplicate copies to accompany the RCD with cancellation properly noted;
+- accountable officers may not destroy accountable forms on their own and then treat accountability as cleared;
+- a lost serial/copy/range is blocked from normal use. Loss is immediately reported to the Treasurer, who issues a notice/circular identifying kind, quantity, inclusive serials, place and approximate date of loss to prevent fraudulent use;
+- StallTrack may record the loss/cancellation evidence and reference, but it does not itself grant legal relief from accountability;
+- returning unused forms is a custody transfer, not collection, cancellation or remittance;
+- copy-level exceptions must be representable because official BLGF notices include losses of only an Original, Duplicate or Triplicate copy.
 
-See [2026-10-04 MEEDO Head AF No. 51 confirmation](../evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md).
+Still unresolved and therefore not to be guessed:
+
+- the formal semantic meaning of a printed suffix such as `A` after the serial (IA-059). BLGF notices prove trailing letters occur, while AF 51-A / AF 51-C are separately named form variants, so the two concepts must not be conflated;
+- the final UX depth of the first MEEDO OR-accountability release (for example how much booklet/range administration is exposed at once). The data model should still preserve the full accountable range/custody facts required above.
+
+See [2026-10-04 MEEDO Head AF No. 51 confirmation](../evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md) and [2026-10-04 authoritative Philippine AF No. 51 rules](../evidence/2026-10-04_af51_authoritative_philippine_rules.md).
 
 ## 5. Cash Ticket operating model
 

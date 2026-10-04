@@ -796,20 +796,43 @@ Two cross-document distinctions are explicit at this baseline:
 - **IMPACT:** The OR design must support itemized lines under one physical receipt and operational collector custody without inventing an extra software approval chain.
 - **REVISIT CONDITION:** A later Cantilan Treasury/MEEDO ruling changes the custody or approval workflow.
 
-### IA-059 - AF No. 51 suffix meaning and spoiled/cancelled/lost procedure remain an explicit gate (2026-10-04)
+### IA-059 - AF No. 51 printed serial suffix semantics remain unresolved (2026-10-04)
 
 - **ID:** IA-059
-- **SUBJECT:** Printed suffix semantics and exception accountability for Official Receipts
-- **STATUS:** NEEDS MEEDO / TREASURY OR AUTHORITATIVE PHILIPPINE RULE CONFIRMATION
+- **SUBJECT:** Meaning of a printed suffix letter after an AF No. 51 serial
+- **STATUS:** NEEDS MEEDO / TREASURY / PRINTING-SOURCE INPUT
 - **TYPE:** BUSINESS / COMPLIANCE DECISION GATE
 - **DECISION / QUESTION:**
-  - The current specimen shows a printed suffix letter after the numeric OR number, but the office has not confirmed what that suffix formally means.
-  - The exact Cantilan procedure, evidence and state transitions for **spoiled, cancelled or lost** AF No. 51 receipts have not yet been confirmed for StallTrack.
-  - Until confirmed, StallTrack may preserve the exact printed identifier and existing physical evidence, but must not invent reusable-number rules, automatic cancellation semantics, replacement numbering or loss handling.
-  - This gate does **not** block recording an exact OR identifier or supporting the confirmed multi-line OR semantics in IA-057/IA-058; it blocks stronger automated accountable-form exception enforcement.
-- **EVIDENCE / SOURCE:** 2026-10-04 MEEDO clarification; exact suffix/cancellation/loss rules were explicitly left for authoritative research/confirmation.
-- **IMPACT:** Research should distinguish national COA/BLGF/accountable-form requirements from another LGU's implementation pattern, then reconcile the result with Cantilan practice before coding exception states.
-- **REVISIT CONDITION:** Authoritative Philippine accountable-form source and/or direct Cantilan Treasury/MEEDO confirmation.
+  - Authoritative BLGF notices confirm that AF No. 51 serials may be numeric-only or may include a trailing letter (for example `0495997A` and ranges such as `9448651 L – 9448700 L`).
+  - BLGF notices separately identify form variants such as **AF No. 51-A** and **AF No. 51-C**. A trailing letter on the serial must therefore **not** be assumed to mean the form variant.
+  - The current MEEDO specimen shows a printed suffix after the numeric serial, but the researched national sources do not establish a universal semantic meaning for that suffix.
+  - StallTrack shall preserve the exact printed serial text. It may maintain a normalized search key, but must not strip, generate or assign business meaning to the suffix.
+  - This gate does **not** block AF No. 51 recording, custody, sequence-aware use, multi-line ORs, cancellation/spoilage or loss handling under IA-060.
+- **EVIDENCE / SOURCE:** BLGF official Notices of Loss (CY 2021, 2023, 2025); `docs/evidence/2026-10-04_af51_authoritative_philippine_rules.md`.
+- **IMPACT:** No suffix-dependent automation is authorized. The AF No. 51 implementation can proceed using exact printed identity.
+- **REVISIT CONDITION:** Direct Cantilan Treasury/MEEDO confirmation or authoritative printing/accountable-form issuance documentation establishes the suffix meaning.
+
+### IA-060 - AF No. 51 custody, sequence, unused-stock, spoiled/cancelled and lost-form baseline follows DOF/BLGF/COA rules (2026-10-04)
+
+- **ID:** IA-060
+- **SUBJECT:** National accountable-form control baseline for MEEDO's physical AF No. 51 workflow
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS / COMPLIANCE DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - PD 1445 requires immediate issuance of an official receipt for payment and subjects officially numbered receipts to custody, accountability and audit.
+  - LTOM Book II requires pre-numbered official receipts to be issued in **strict numerical sequence**.
+  - One AF No. 51 serial is one accountable receipt **set**; Original/Duplicate/Triplicate are copies of that same serial, not three independent receipts. Copy-level loss/missing exceptions must be representable.
+  - The Local Treasurer is the formal custodian of accountable forms requisitioned by the LGU and maintains receipt/issue/transfer records. Collectors or other duly authorized custodians may physically hold forms and are responsible for safekeeping/use/reporting.
+  - Accountable forms are issued to bonded officers in sufficient quantities not to exceed three months' use. StallTrack records custody/provenance but does not create a mandatory Treasurer-login or bond-administration workflow unless later requested.
+  - Unused forms remain accountable stock. Actual quantity and inclusive serials must be recorded; no universal `50 per booklet` constant is authorized.
+  - RAAF/CRAAF accountability tracks beginning balance, receipts, issuance/cancellation and ending balance by quantity/range. StallTrack may support these data but must not claim to replace a prescribed COA/BLGF form without separate authority.
+  - A spoiled/cancelled AF No. 51 is **not reusable and creates no revenue**. For printed official receipts without fixed money value, LTOM requires the cancelled original and duplicate copies to accompany the RCD with the cancellation properly noted. Accountable officers may not destroy accountable forms on their own and treat accountability as cleared.
+  - A lost AF No. 51 serial/copy/range is blocked from normal use. Loss must be immediately reported to the Treasurer; the Treasurer issues a notice/circular identifying kind, quantity, inclusive serials, place and approximate date of loss to guard against fraudulent use. StallTrack records/supports the evidence but does not itself grant relief from accountability.
+  - Returning an unused assigned range to office custody is an auditable custody transfer, not a collection, cancellation or remittance.
+  - Form custody, collection money and remittance remain separate ledgers (IA-052).
+- **EVIDENCE / SOURCE:** PD 1445 Sec. 68; DOF/BLGF LTOM 2nd Ed. Book II, control of official receipts/accountable forms and collection procedures; LTOM Book III audit procedures; COA RAAF Annex 18/18.1; BLGF Notices of Loss under COA Circular No. 84-233; `docs/evidence/2026-10-04_af51_authoritative_philippine_rules.md`.
+- **IMPACT:** AF No. 51 implementation may now include sequence-aware registered ranges, collector custody, unused/returned stock, permanent non-reusable cancelled/spoiled/lost states and copy-level exception evidence without waiting for a new local rule. Legal liability/relief remains external to StallTrack.
+- **REVISIT CONDITION:** A newer COA/DOF/BLGF rule or explicit lawful Cantilan Treasury procedure changes the accountable-form process.
 ## 4. Decision-gate summary
 
 The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.
@@ -824,7 +847,7 @@ The following items still require MEEDO/Treasury input, a UX decision, authorita
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 | IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |
-| IA-059 | AF No. 51 suffix and spoiled/cancelled/lost procedure | Automated OR exception/accountability enforcement; exact OR identifier recording and multi-line OR support are not blocked |
+| IA-059 | Meaning of printed AF No. 51 serial suffix | Suffix-dependent automation only. AF No. 51 custody, sequence, cancellation/spoilage and loss handling now follow IA-060 and are not blocked. |
 
 ## 5. Superseded interpretations
 
