@@ -552,3 +552,10 @@
         outline: 2px solid var(--accent);
         outline-offset: 1px;
     }
+
+@media (max-width: 768px) {
+    .txn-search {
+        min-width: 0;
+        width: 100%;
+    }
+}
