@@ -178,6 +178,38 @@ public class CompositionRootTests
             Environment.NewLine + string.Join(Environment.NewLine, duplicates));
     }
 
+    /// <summary>
+    /// The NPM daily handlers mark their day rows through the repositories, and the canonical poster writes the Collection that
+    /// pays them. In this container IAppDbContext is a SECOND context instance in the same scope, so a poster built on it saved
+    /// the Collection while the day rows sat unsaved in the repositories' context: money with no day, and the same stall/day
+    /// collectable again. Found by a live run on 2026-10-05; the integration tests could not see it because they hand one
+    /// context to both. The poster must therefore be the repositories' own context.
+    /// </summary>
+    [Fact]
+    public void TheNpmDailyPoster_WritesThroughTheRepositoriesOwnContext()
+    {
+        using var provider = RealRegistrations().BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var repositoriesContext = scope.ServiceProvider.GetRequiredService<EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext>();
+        var poster = scope.ServiceProvider.GetRequiredService<EEMOCantilanSDS.Application.Common.Revenue.NpmDailyCanonicalPoster>();
+
+        var posterContext = poster.GetType()
+            .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Single(f => typeof(EEMOCantilanSDS.Application.Common.Interface.Persistence.IAppDbContext).IsAssignableFrom(f.FieldType))
+            .GetValue(poster);
+
+        Assert.Same(repositoriesContext, posterContext);
+        // And the handlers actually receive it (an optional dependency that silently resolved to null would leave NPM legacy for ever).
+        var handler = scope.ServiceProvider.GetRequiredService<MediatR.IRequestHandler<
+            EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand,
+            EEMOCantilanSDS.Application.Common.Result<bool>>>();
+        var injected = handler.GetType()
+            .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Single(f => f.FieldType == typeof(EEMOCantilanSDS.Application.Common.Revenue.NpmDailyCanonicalPoster))
+            .GetValue(handler);
+        Assert.Same(poster, injected);
+    }
+
     [Fact]
     public void TheRegistrationSetIsNotSilentlyShrinking()
     {

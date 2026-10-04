@@ -46,6 +46,16 @@ public class GetCollectorMobileMenuQueryHandler(
             && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Tabo, today, cancellationToken);
         var slaughter = canonicalAuthority is not null && assigned.Contains(FacilityCode.SLH)
             && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Slaughterhouse, today, cancellationToken);
+        var npmDaily = canonicalAuthority is not null && assigned.Contains(FacilityCode.NPM)
+            && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.NpmDaily, today, cancellationToken);
+        var canonical = new Dictionary<FacilityCode, RevenueInstrumentType?>();
+        foreach (var (facility, on, classification) in new[]
+                 {
+                     (FacilityCode.TPM, tabo, RevenueClassificationCodes.Tabo),
+                     (FacilityCode.SLH, slaughter, RevenueClassificationCodes.Slaughterhouse),
+                     (FacilityCode.NPM, npmDaily, RevenueClassificationCodes.PermanentStallRent)
+                 })
+            if (on) canonical[facility] = await canonicalAuthority!.ResolveInstrumentAsync(classification, today, cancellationToken);
         var facilities = names
             .OrderBy(kv => kv.Key)
             .Select(kv =>
@@ -62,7 +72,8 @@ public class GetCollectorMobileMenuQueryHandler(
                     // → the monthly screen), so a custom facility works end-to-end instead of being locked.
                     isAssigned && archetype != BillingArchetype.Custom,
                     archetype,
-                    kv.Key == FacilityCode.TPM ? tabo : kv.Key == FacilityCode.SLH && slaughter);
+                    canonical.ContainsKey(kv.Key),
+                    canonical.GetValueOrDefault(kv.Key));
             })
             .ToList();
 

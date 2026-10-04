@@ -103,6 +103,13 @@
             </div>
             </div>
 
+            @if (!string.IsNullOrWhiteSpace(NpmNotice))
+            {
+                <div class="state-card" role="status">
+                    <div class="state-text">@NpmNotice</div>
+                </div>
+            }
+
             @if (!FilteredStalls.Any())
             {
                 <div class="state-card">
@@ -456,7 +463,15 @@
                 </div>
             }
 
-            @if (SelectedIsPaid)
+            @if (SelectedIsPaid && NpmCanonical)
+            {
+                @* Canonical daily stall fee: the server issues the SRC; no receipt number is typed. The instrument is policy only. *@
+                <div class="or-number-wrap">
+                    <div class="form-label">Instrument</div>
+                    <div><span class="tx-tag">@NpmInstrumentLabel</span></div>
+                </div>
+            }
+            else if (SelectedIsPaid)
             {
                 <div class="or-number-wrap">
                     <div class="form-label">Official receipt no. <span>optional</span></div>
@@ -1841,6 +1856,61 @@
         return true;
     }
 
+    // IA-051/IA-062: once the Head turns the NPM daily switch on, a daily stall fee is a canonical Collection. The sheet then asks
+    // for no receipt number and shows the SRC the server returns. Before that, the existing sheet is unchanged.
+    private MobileFacilityMenuItemDto? NpmMenu => Session.Menu?.Facilities.FirstOrDefault(f => f.Code == FacilityCode.NPM);
+    private bool NpmCanonical => NpmMenu?.CanonicalCollection == true;
+    private string NpmInstrumentLabel => NpmMenu?.Instrument switch
+    {
+        RevenueInstrumentType.OfficialReceipt => "OR · Official Receipt",
+        RevenueInstrumentType.CashTicket => "CT · Cash Ticket",
+        _ => "Set by the office"
+    };
+    private string? NpmNotice;
+
+    private async Task ConfirmCanonicalDailyAsync()
+    {
+        if (SelectedStall is null) return;
+        var stall = SelectedStall;
+        var day = SelectedDate;
+        var operationId = Guid.NewGuid();
+        await Sync.EnqueueAsync(new PendingOperation
+        {
+            ClientOperationId = operationId,
+            Kind = OfflineOperationKind.NpmDaily,
+            BusinessDate = day,
+            StallId = stall.StallId,
+            IsPaid = true,
+            IsAbsent = false,
+            FishKilos = stall.Section == MarketSection.FishSection ? FishKilos : null,
+            MeatKilos = stall.Section == MarketSection.MeatSection ? MeatKilos : null,
+            ORNumber = null,
+            FacilityLabel = "NPM",
+            Title = stall.PayorName,
+            Detail = $"No. {stall.StallNo}",
+            Amount = stall.DailyRate
+        });
+        NpmNotice = "Saved on this device. Waiting to sync.";
+        if (Collection is not null && day == Collection.CollectionDate)
+            QueuedOfflineStalls.Add(stall.StallId);
+        CloseCollectionSheet();
+        try
+        {
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result is null || result.LocalStatus == PendingLocalStatus.Synced)
+                NpmNotice = result?.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            else if (result.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                NpmNotice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
     private async Task ConfirmCollectionCoreAsync()
     {
         if (SelectedStall is null || Collection is null)
@@ -1889,6 +1959,14 @@
             {
                 IsSaving = false;
             }
+            return;
+        }
+
+        // Canonical daily stall fee (IA-051/IA-062): saved on the device under its own operation id, then synced; the server posts
+        // the Collection and answers with the SRC. Online or offline is the same path, so a retry can never take the day twice.
+        if (NpmCanonical && SelectedIsPaid && !SelectedIsAbsent)
+        {
+            await ConfirmCanonicalDailyAsync();
             return;
         }
 

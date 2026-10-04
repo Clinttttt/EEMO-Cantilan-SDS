@@ -38,4 +38,6 @@ public sealed record MobileFacilityMenuItemDto(
     // IA-051/IA-062: true once the Head has enabled this facility's canonical Mobile collection (Tabo for TPM, Slaughterhouse for
     // SLH). The screen then records facts only and the server returns an SRC; no typed OR. False keeps the existing screen
     // (default, so a menu cached before this field existed still deserializes).
-    bool CanonicalCollection = false);
+    bool CanonicalCollection = false,
+    // The accountable-instrument policy (OR / CT) the canonical collection falls under, for display only. Never a serial.
+    RevenueInstrumentType? Instrument = null);

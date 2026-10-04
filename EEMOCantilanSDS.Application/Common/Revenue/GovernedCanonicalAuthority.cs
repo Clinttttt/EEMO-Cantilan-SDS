@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
@@ -24,5 +25,22 @@ public sealed class GovernedCanonicalAuthority(IAppDbContext db, ICurrentMunicip
         var versions = await db.GovernedServiceSettings.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
         return GovernedServiceSetting.Resolve(versions, businessDate) is { IsEnabled: true, MobileEnabled: true };
+    }
+
+    /// <summary>
+    /// The accountable-instrument policy in force for a classification on a business date (OR or CT), for showing the collector
+    /// which instrument the collection falls under. It is never a serial and never chosen by the collector. Null when none is in force.
+    /// </summary>
+    public async Task<RevenueInstrumentType?> ResolveInstrumentAsync(string classificationCode, DateOnly businessDate, CancellationToken ct = default)
+    {
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty) return null;
+        return await (
+            from policy in db.RevenueClassificationPolicies.AsNoTracking()
+            join classification in db.RevenueClassifications.AsNoTracking() on policy.RevenueClassificationId equals classification.Id
+            where policy.MunicipalityId == tenantId && classification.SemanticCode == classificationCode && classification.IsActive
+                && policy.BusinessContext == RevenuePolicyContext.Default && policy.EffectiveDate <= businessDate
+            orderby policy.EffectiveDate descending
+            select policy.PermittedInstrumentType).FirstOrDefaultAsync(ct);
     }
 }

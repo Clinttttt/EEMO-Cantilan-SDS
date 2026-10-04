@@ -320,6 +320,7 @@
 
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "NPM", StringComparison.OrdinalIgnoreCase))
                 {
+                    <FacilityCanonicalCollection OperationCode="@EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.NpmDaily" Name="daily stall fees" />
                     <div class="cfg-section-label">Market section names</div>
                     @* Stated, not offered for typing, like the rates below. A row that showed an office's own name as a
                        VALUE and the platform's as a grey placeholder read as blank where it meant "called the default",

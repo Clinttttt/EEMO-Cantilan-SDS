@@ -63,6 +63,18 @@ namespace EEMOCantilanSDS.Infrastructure
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
+            // The NPM daily handlers work through the repositories, which hold THIS scoped AppDbContext. IAppDbContext above is a
+            // second instance in the same scope, so a workflow given that one would post the Collection in one context while the
+            // day rows it pays sat unsaved in the other. The canonical NPM poster is therefore built on the repositories' own
+            // context: the day rows and the Collection commit together or not at all.
+            service.AddScoped(sp =>
+            {
+                var context = sp.GetRequiredService<AppDbContext>();
+                var tenant = sp.GetRequiredService<Application.Common.Tenancy.ICurrentMunicipalityAccessor>();
+                return new Application.Common.Revenue.NpmDailyCanonicalPoster(context,
+                    sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(), tenant,
+                    new Application.Common.Revenue.GovernedCanonicalAuthority(context, tenant));
+            });
             return service;
         }
 
