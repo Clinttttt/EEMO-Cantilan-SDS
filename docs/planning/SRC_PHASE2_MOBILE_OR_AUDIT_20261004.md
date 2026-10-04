@@ -112,3 +112,31 @@ Stopped for this sub-flow only, because continuing would mean guessing the trans
 - Vegetable / Fruit has one approved ceiling (Direct approved amount), not a separate configured amount per mode, and the repository states no monthly rate. The collector enters the amount within the ceiling. A per-mode fixed amount needs the Head to state the rates first.
 - Market Fees offers fee types only under the By approved fee type rule (now explained in the UI).
 - Fish/Meat dues list loads online; offline shows the last synchronized list and the server revalidates on sync.
+
+---
+
+## Phase 2.4 — Remittance workspace and NPM daily canonical (2026-10-05)
+
+### Accountable Forms retired from the Head UI
+- The physical-book workspace (register, stock/custody, assign, transfer, return, cancel, lost, exceptions, history, accountability) and its UI tests are removed. `/accountable-forms` redirects to `/remittances`; the sidebar entry is **Remittance & Liquidation**.
+- Nothing is dropped from the database. Historical form tables and rows stay for audit; collection, remittance, collector position and income never read them.
+- OR / CT remain as instrument policy labels. The SRC is never presented as either.
+
+### Remittance & Liquidation (existing workflow, new presentation)
+- Same `RemittanceWorkflow`, entities, APIs, idempotency and multi-collector batch; no parallel model. Routes `/remittances`, `/remittances/{id}`, `/remittances/group/{id}` (the old `/accountable-forms/remittances*` paths still resolve).
+- Primary view: unremitted canonical Collections by SRC with collector, source / payer, an OR/CT badge, amount and status; select, confirm, record. The collector position and history show money only. Detail lists SRC, collection date, source, payer, collector, instrument, amount and a total. Remitting creates no Collection, line or SRC and never moves Monthly Income.
+
+### NPM daily stall fee: canonical from the Head's switch
+Business rulings applied: (1) classification stays the existing stall-rent classification (`PERMANENT_STALL_RENT`, the `RENT_NPM` row); (2) a posted day is corrected only by a canonical void; (3) month settlement follows each day's own authority.
+- **Boundary.** `NPM_DAILY` is a governed switch (enable + Collector Mobile) in the NPM Configure drawer. Before it, a day is a legacy row exactly as before. From that business date every new daily stall-fee payment is canonical, Collector or office.
+- **Writer.** The NPM handlers keep every market rule (occupancy, closures, fee resolution, month ceiling, month-end adjustment). `NpmDailyCanonicalPoster` turns the days they just charged into ONE Collection with an SRC (one allocation per day, `DailyCollection` / `DailyFee`), policy instrument, no typed serial, and hands each day row to canonical authority.
+- **Day row.** `DailyCollection.SettlementAuthorityState` + `CanonicalCollectionId` (additive migration `NpmDailyCanonicalAuthority`; existing rows read Legacy). The row stays the operational day and a projection of its Collection. `DailyCollection` is now `CanonicalAfterRowCutover` in `CollectionSourceAuthorityMap`, so every reader counts a day once: legacy before, the Collection after.
+- **Duplicate day.** Existing unique stall/day, the posting-operation ClientOperationId (same intent replays the same SRC, a reused id with another intent conflicts), and a paid day is not collected again.
+- **Correction.** `POST api/npm-daily/collections/{id}/void` (office only) records a canonical `Void` correction for the full amount and projects the days unpaid; the old un-mark is refused for a canonically paid day. Money leaves reports through the correction, never an exclusion.
+- **Weighing.** Fish/Meat weighing stays on the day row under Weight and Measure (existing mapping) and is never folded into the stall-fee Collection.
+- **Mobile.** The daily sheet drops the receipt box for a canonical stall fee, shows the OR/CT badge, saves as "Waiting to sync" and shows the SRC; the menu carries the canonical flag and instrument.
+- **Found by the live run, fixed.** In the real container `IAppDbContext` is a second context instance, so a poster built on it saved the Collection but not the day rows. The poster is registered on the repositories' own `AppDbContext` (pinned by `CompositionRootTests`).
+
+### Limits
+- The Mobile NPM sheet was compile-verified and its server path was run live against the API, but it was not viewed in the Windows app: the app's Debug build talks to the running dev API on port 5117, which was left untouched.
+- Closing the legacy Collector NPM writer is by construction: after the switch the same command posts canonically; there is no second writer to refuse.
