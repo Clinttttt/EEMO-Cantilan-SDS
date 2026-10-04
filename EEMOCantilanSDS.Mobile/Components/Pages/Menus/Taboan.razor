@@ -56,11 +56,11 @@
             <div class="npm-context" aria-label="Market day position">
                 <div class="npm-context-figures">
                     <div class="npm-figure">
-                        <div class="npm-figure-value">@FormatCurrency(Collection.CollectedAmount)</div>
+                        <div class="npm-figure-value">@FormatCurrency(Collection.CollectedAmount + RecordedCanonical.Sum(q => q.Fee))</div>
                         <div class="npm-figure-key">Collected</div>
                     </div>
                     <div class="npm-figure">
-                        <div class="npm-figure-value">@Collection.VendorCount</div>
+                        <div class="npm-figure-value">@(Collection.VendorCount + RecordedCanonical.Count())</div>
                         <div class="npm-figure-key">Vendors</div>
                     </div>
                     <div class="npm-figure">
@@ -354,6 +354,9 @@
     // returns the StallTrack Reference Code. Before that, the existing flow is unchanged.
     private bool Canonical => Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.TPM && f.CanonicalCollection) == true;
     private string? CanonicalNotice;
+
+    // Canonical vendors already recorded (an SRC issued) count in the market-day figures; the server list carries only legacy attendance.
+    private IEnumerable<QueuedVendor> RecordedCanonical => QueuedVendors.Where(q => q.Badge.StartsWith("Recorded", StringComparison.Ordinal));
 
     private IReadOnlyList<string> KnownGoods => Collection?.KnownGoods ?? Array.Empty<string>();
     private IReadOnlyList<MobileTpmKnownVendorDto> KnownVendors => Collection?.KnownVendors ?? Array.Empty<MobileTpmKnownVendorDto>();

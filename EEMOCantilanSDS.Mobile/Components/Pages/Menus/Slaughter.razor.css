@@ -218,7 +218,7 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.tx-sub { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+.tx-sub { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
 
 .tx-tag {
     font-size: 11px; font-weight: 600; color: var(--text-subtle); flex-shrink: 0;

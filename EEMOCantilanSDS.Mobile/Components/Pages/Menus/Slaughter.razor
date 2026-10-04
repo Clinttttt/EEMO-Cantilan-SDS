@@ -49,15 +49,15 @@
         {
             <div class="summary-strip">
                 <div class="summary-item">
-                    <div class="summary-value">@FormatCurrency(Collection.TotalCollected)</div>
+                    <div class="summary-value">@FormatCurrency(Collection.TotalCollected + RecordedCanonical.Sum(q => q.Total))</div>
                     <div class="summary-key">Today</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-value">@Collection.TotalHeads</div>
+                    <div class="summary-value">@(Collection.TotalHeads + RecordedCanonical.Sum(q => q.TotalHeads))</div>
                     <div class="summary-key">Heads</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-value">@Collection.TransactionCount</div>
+                    <div class="summary-value">@(Collection.TransactionCount + RecordedCanonical.Count())</div>
                     <div class="summary-key">Receipts</div>
                 </div>
             </div>
@@ -474,6 +474,9 @@
     // server returns an SRC per animal line (the existing per-line transaction). Before that, the existing flow is unchanged.
     private bool Canonical => Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.SLH && f.CanonicalCollection) == true;
     private string? CanonicalNotice;
+
+    // Canonical lines already recorded (an SRC issued) count in the day summary; the office list the summary comes from carries only legacy rows.
+    private IEnumerable<QueuedReceipt> RecordedCanonical => QueuedReceipts.Where(q => q.Badge.StartsWith("Recorded", StringComparison.Ordinal));
 
     private sealed record QueuedReceipt(string Owner, string? ORNumber, IReadOnlyList<QueuedLine> Lines, string Badge = "Queued · Offline")
     {

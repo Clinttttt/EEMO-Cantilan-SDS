@@ -81,6 +81,7 @@
                     </div>
                     <dl class="op-facts-grid">
                         <div><dt>Business date</dt><dd>@Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                        <div><dt>Instrument</dt><dd>@InstrumentLabel(terms.Instrument)</dd></div>
                         @if (_mode is { } activeMode)
                         {
                             <div><dt>Mode</dt><dd>@ModeLabel(activeMode)</dd></div>
@@ -283,6 +284,10 @@
         : terms.Basis == GovernedServiceBasis.DirectApprovedAmount && decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
         : null;
 
+    // The accountable-instrument policy, never the collector's choice. The SRC the server issues is neither an OR nor a CT.
+    private static string InstrumentLabel(RevenueInstrumentType instrument) =>
+        instrument == RevenueInstrumentType.OfficialReceipt ? "OR · Official Receipt" : "CT · Cash Ticket";
+
     private static string AmountHeadline(GovernedServiceTermsDto terms) => terms.Basis switch
     {
         GovernedServiceBasis.FixedAmount => Money(terms.FixedAmount ?? 0m),
@@ -372,7 +377,7 @@
             {
                 var terms = await MobileApi.GetOperationTermsAsync(Code, mode);
                 _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null,
-                    terms.IsSuccess ? AmountHeadline(terms.Value!) : terms.Error ?? "Not available today."));
+                    terms.IsSuccess ? (_entry is { ModeAware: true } ? InstrumentLabel(terms.Value!.Instrument) : AmountHeadline(terms.Value!)) : terms.Error ?? "Not available today."));
             }
             _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
             await LoadRecordsAsync();
