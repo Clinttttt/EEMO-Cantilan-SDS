@@ -105,3 +105,72 @@ The integration project has two skip gates, both explicit and intentional:
   (registry lines "SUPERSEDED for WCF by IA-054"). No further change needed.
 - `docs/interface/OFFICIAL_MONTHLY_INCOME_REPORT_V3.md` now points at the in-repo reference image and records the
   letterhead and print geometry. `docs/interface/WEB_ADMIN_V3_VISUAL_SYSTEM.md` lists this pass's pages.
+
+---
+
+# Final-closure checkpoint — 2026-10-04 (local, `release/v3-final-closure`, baseline `cdcd3701`)
+
+Re-audit of the old Cloud TODO list against current master. Git/code is authoritative; nothing below was rebuilt from older notes.
+
+## Old TODO list: status
+
+| Item | Status |
+|---|---|
+| PR #28 (backend RC closure) | Merged. Done. |
+| PR #27 | Already MERGED (2026-10-02); no open PRs remain. Stale administrative item only. |
+| Mobile Collect by Payor | **Not built, deliberately** - see below. |
+| Mobile Change Ticket recovery | Already correct: next Cash Ticket is automatic; "Change ticket" is a collapsed secondary control, shown only when more than one assigned ticket exists (Market, WaterCollection, OperationCollection). No change made. |
+| Cash Ticket denomination (IA-056) | Still **OPEN - awaiting office confirmation**. Not encoded anywhere; unchanged. |
+| Monthly Income duplicate protection | Done this session (below). |
+| Tabo report body | Done this session (below). |
+| Collect-by-payor tests | N/A (feature not built). |
+| Production smoke test | Done, read-only: `GET https://api.stalltrack.site/health` -> 200 `{"status":"ok"}`. No authenticated reads (no credentials used), nothing posted. |
+| MEEDO tenant stored office name | Code defaults/seeds already say MEEDO. The deployed tenant's stored name could not be read (needs an authenticated Office Profile read) and was not touched. If it still holds an older name, the remaining action is an **Office Profile administrative update** by the Head - no migration or code change. |
+| Seven snapshot-gated integration tests | `STALLTRACK_SNAPSHOT_DB` is not set; they remain skipped (7). Run against a restored snapshot before sign-off. |
+| Android builds | Mobile Debug and Release (`net10.0-android`) build with 0 errors. |
+| Android runtime | **Not performed.** The only AVD (`Medium_Phone`) references an Android 37 system image that is not installed; a throwaway 36.1 AVD would not stay running. Per Clint, runtime review is done on the Windows build, not an emulator. The throwaway AVD was deleted; `Medium_Phone` was not modified. |
+| Stale Git branches | Not deleted (remote deletions are outside this pass). |
+
+## Collect by Payor - why it was not built
+
+The only Mobile writers that are keyed to a payor today are WCF (one source per stall per billing month, already searchable by payor/stall at `/wcf`). Governed services (Market Fees, Landing/Berthing, Transportation, ...) are walk-up collections that carry optional payer text only; IA-056 and the Payor rule forbid creating or matching a Payor from typed text. Rent, ECF and penalties are legacy-written on Mobile and a cutover was explicitly out of scope. Aggregating "everything for a payor" would therefore either (a) match governed-service activity to a payor by name, which is forbidden, or (b) reduce to the existing single WCF screen. No hollow screen was added.
+
+```
+BACKEND GAP:
+- current behavior: governed-service collections have no payor identity; Mobile has one payor-keyed canonical writer (WCF).
+- required behavior: a payor-keyed list of every currently collectible canonical obligation, each posted by its own writer.
+- why the UI cannot truthfully implement it: it would need either name matching (forbidden) or a Rent/ECF/penalty canonical cutover (not decided).
+- exact contract needed: GET api/mobile/payors/{payorId}/collectible-items returning items { sourceKind, sourceId, label, outstanding, writer } for canonical-authoritative sources only; each item posted through its existing writer with its own ClientOperationId and Cash Ticket/OR.
+```
+
+Decision for Clint: authorise the payor-linked item read above, or a Rent/ECF cutover, before this workflow is built.
+
+## Monthly Income duplicate protection (done)
+
+Real path: `GetOfficialMonthlyIncomeQueryHandler` counted every canonical line, while the Collection Activity feed already honoured `CollectionSourceAuthorityMap.CanonicalMoneyCounts`. A canonical line (and its corrections) against a stall-rent/utility source row whose legacy money still counts would have been reported beside the legacy figure. No production writer creates such a line today (posting cuts the row over first), so this was latent. The handler now applies the same authority rule on the line's and its allocations' **source identity** - no Distinct/amount/payor/date grouping. Test: a shadow line plus a partial correction is not counted (fails without the guard: 800 vs 0), and two identical Market Fees collections (same day/amount/no payor, different CTs) are both counted. Future invariant: any new writer that posts against a legacy-authoritative row must first cut that row over.
+
+## Tabo report (done)
+
+`/tpm/reports` body moved to the V3 report language: one summary strip, the shared flat trend chart, and two `v3-report-table` registers (Vendors by goods; attendance log / monthly summary). Removed the icon-tile KPIs, gradient/drop-shadow donut, duplicate goods tally (inline-styled meters), card mosaic, redundant eyebrow and dead 3-D/donut CSS. Lifecycle, `[PersistentState]` cache, API calls, figures, and the Status Report/History print documents are unchanged. **Not visually reviewed in a browser this session** - Clint to review at `/tpm/reports` (Monthly, Weekly, Yearly, 400px width).
+
+## Visual review - what was and was not done
+
+No rendered review was performed this session (no local API/seed database was started, and no emulator was permitted). The pages listed in the brief (Revenue Setup, vendor drawer, Follow-up Queue, WCF/ECF statements, remittance screens, Mobile) were **not** visually reviewed; they remain for Clint's localhost pass.
+
+## Results
+
+- Unit 2478/2478 · Component 681/681 · PostgreSQL integration 194 passed / 7 skipped (snapshot-gated) · solution Release build 0 errors · Mobile Android Debug and Release 0 errors.
+- No Domain persistence change, so no EF model/migration check was needed.
+
+## Production effects
+
+DID: one unauthenticated `GET /health` against the production API. DID NOT: any write, post, migration, backfill, tenant/user/policy change, deploy, APK publish, version bump, merge or push.
+
+## Remaining release blockers / open decisions
+
+1. IA-056 Cash Ticket denomination policy (office).
+2. Collect by Payor: needs a payor-linked item contract or a Rent/ECF cutover decision (above).
+3. Run the 7 snapshot tests on a restored snapshot.
+4. Office Profile name check/update for the deployed tenant (MEEDO).
+5. Rendered UI + Windows-Mobile review by Clint; Android device runtime check.
+6. Earlier open items unchanged: Collection Activity page still reads the legacy `api/transactions/recent` (FRONTEND CONTRACT FOLLOW-UP in the backend handoff), annual targets (IA-027), Mobile Electricity legacy path decision.
