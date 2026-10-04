@@ -157,3 +157,9 @@ At the end return the full "STALLTRACK V3 — RELEASE-CANDIDATE BACKEND CLOSURE 
 - Unit 2477/2477 · PostgreSQL integration 173 passed / 7 skipped (snapshot-gated) · API Release build OK ·
   `has-pending-model-changes`: none · `git diff --check` clean.
 - Commits are local: `git push` was refused by the session's permission policy and needs to be run by Clint.
+
+### SRC-first collection pivot (IA-062, 2026-10-04)
+- New `Collections.ReferenceYear/ReferenceNumber/ReferenceCode` (sequence `CollectionReferenceNumberSeq`; migration `AddCollectionReferenceCode`, deterministic backfill, additive). `ReferenceCode` is a stored generated column: never insert/update it (the tenant restore skips generated columns and re-seeds the sequence).
+- API contract changes: `EcfPostOutcomeDto`, `EcfCollectionActivityDto`, `WcfCollectionOutcomeDto`, `WcfCollectionActivityDto`, `GovernedService{Outcome,Activity,Record}Dto`, `PenaltyRegisterRowDto`, `Remittance*`/`CollectorCollectionFactDto` and `CollectionRegister*`/`CollectionDocumentDto` now expose `ReferenceCode` (renamed from `DocumentNumber` where the value was the physical serial); `CollectionActivityEventDto` adds `ReferenceCode` and `ReplacementReferenceCodes` (legacy rows: null). `SyncOperationResultDto` adds `ReferenceCode` and `CollectionId`.
+- Removed endpoints: `GET api/ecf-collections/official-receipts/available`, `PUT api/ecf-collections/drafts/{id}/document` (and the composer twin), `GET api/wcf-collections/cash-tickets/available`, `GET api/governed-services/{code}/documents`. Post requests keep `AccountableDocumentId`/`DocumentNumber`/`IssuedAtUtc` as ignored optional values so old queued Mobile payloads still deserialize.
+- Posting writes `PostingOperation.AccountableDocumentId = null`; a pre-SRC operation (document id present) replays by `ClientOperationId` provided the amount matches.

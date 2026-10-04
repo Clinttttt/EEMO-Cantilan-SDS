@@ -21,6 +21,15 @@ This is the single current implementation-status entry point. Dated audits, hand
   - `86f8e6a5` — new tables added to tenant backup/export; architecture allow-list.
 - PR #27 and PR #28 are already merged; no open PR remains from that earlier closure work.
 
+## 1A. SRC-first collection pivot (IA-062, 2026-10-04) — local, uncommitted to any remote
+
+Direction change from Clint: the **StallTrack Reference Code (SRC)** — `SRC-YYYY-NNNNNN`, a global monotonic database sequence — is the primary digital identity of every canonical Collection, and a physical OR/CT serial is no longer a required input anywhere.
+
+- **Done (this branch):** additive migration `AddCollectionReferenceCode` (sequence, `ReferenceYear`/`ReferenceNumber`/stored `ReferenceCode`, unique indexes, deterministic backfill by `RecordedAtUtc, Id`); posting for Web Current Collection/ECF, WCF Mobile and governed services no longer takes, validates or consumes a document; DTOs, Collection Activity, Collections register/detail, remittance (scope/detail/submission), collector report, fines register, governed/WCF/ECF activity, Mobile records and offline sync results all carry the SRC; OR-selection, "available receipts", "available Cash Tickets" and per-operation documents endpoints removed; WCF/governed readiness no longer depends on CT/OR custody; tenant restore carries the SRC verbatim (generated column is not inserted, sequence re-seeded).
+- **Preserved:** legacy OR/CT APIs, imports and evidence; source authority (no cutover); Accountable Forms (AF No. 51) as an **optional back-office register** with its schema and history; pre-SRC `ClientOperationId`s still replay (same amount).
+- **Accountable Forms** no longer implies collection consumption; Issued/Consumed counts now reflect only forms the office recorded as issued.
+- **Open / not done here:** cross-day SRC search on Collection Activity (the page filters the loaded day only; a server-side search parameter is the follow-up); `SettlementCutoverWorkflow` still reports accountable-document inventory as a cutover prerequisite for converting a legacy source (a source-cutover concern, intentionally untouched); Mobile Electricity (typed OR number) and the other legacy NPM writers keep their legacy path until their own cutover; Mobile Android runtime review is still pending.
+
 ## 2. Validation state
 
 Latest completed validation reported for the branch:
@@ -80,9 +89,9 @@ Authoritative DOF/BLGF/COA research is now recorded in `docs/evidence/2026-10-04
 6. **Mobile Electricity:** legacy-path/cutover decision remains open.
 7. **Snapshot validation:** run the seven snapshot-gated tests against a restored local production snapshot before final release sign-off.
 8. **Rendered review:** complete localhost / Windows-Mobile review and an Android runtime check on an appropriate device or installed system image.
-9. **AF No. 51 sequence is suggested, not hard-enforced:** the next expected receipt is offered and skipped serials are flagged for review, but a different receipt can still be used. Whether the office wants a hard block is an open ruling (IA-061).
+9. **AF No. 51 sequence (IA-061) — superseded for collection by IA-062:** collection screens no longer offer a next receipt; sequence/skipped review applies only inside the optional Accountable Forms register. Whether the office wants a hard block there remains an open ruling.
 10. **Multi-line OR for Legacy-authority sources:** rent, ECF and similar rows still on Legacy settlement authority cannot join a canonical multi-line OR until a controlled source cutover is approved and run.
-11. **Mobile OR paths:** Mobile's Electricity OR remains the legacy typed-number path and does not use the new receipt inventory; Mobile Collect by Payor is still not built.
+11. **Mobile OR paths:** Mobile's Electricity OR remains the legacy typed-number path (a legacy writer awaiting its own cutover, not an SRC path); Mobile Collect by Payor is still not built.
 12. **AF No. 51 rendered review:** the new Accountable Forms views were reviewed from real components with the compiled CSS in headless Chrome (desktop and 390px), not through a logged-in session against a seeded database.
 13. **Migration pre-check:** before applying `AddAf51SerialIdentityAndAccountabilityEvents` to a database with existing accountable documents, confirm no two documents of one instrument differ only by case or whitespace.
 

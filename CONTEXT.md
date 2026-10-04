@@ -29,8 +29,11 @@ Supporting detail that explains how one Collection Line amount was calculated, s
 ## Collection Allocation
 The explicit application of a Collection Line amount to one or more source obligations. Allocation must be visible and intentional; StallTrack must not silently decide where partially paid money goes.
 
+## StallTrack Reference Code (SRC)
+The primary digital identity of every canonical Collection, in the form `SRC-YYYY-NNNNNN` (for example `SRC-2026-000127`). It is allocated by the server from one global, monotonic database sequence at posting; it never resets by year, collector, facility or remittance (the year only states when the Collection was recorded), is immutable, never typed, edited or recycled, and is stable when the same `ClientOperationId` is replayed. SRC is **not** an Official Receipt, a Cash Ticket or any government receipt, and a legacy-authoritative row has none (it keeps the source's own document). See IA-062.
+
 ## Accountable Document
-The physical Official Receipt or Cash Ticket identity associated with a Collection. The document number belongs to the document, not separately to each Collection Line.
+An optional back-office record of a physical Official Receipt or Cash Ticket (accountable stock, custody, cancellation, loss). A Collection is identified by its SRC and neither requires nor consumes an Accountable Document (IA-062). The document number, where one exists, belongs to the document, not to each Collection Line.
 
 ## Official Receipt (OR)
 An Accountable Document for OR-compatible revenue lines. In Cantilan, one OR may contain multiple compatible itemized lines for the same payor. OR-compatible and Cash-Ticket-compatible lines are not mixed on one document.

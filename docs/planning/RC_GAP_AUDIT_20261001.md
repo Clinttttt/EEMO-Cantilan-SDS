@@ -174,3 +174,12 @@ DID: one unauthenticated `GET /health` against the production API. DID NOT: any 
 4. Office Profile name check/update for the deployed tenant (MEEDO).
 5. Rendered UI + Windows-Mobile review by Clint; Android device runtime check.
 6. Earlier open items unchanged: Collection Activity page still reads the legacy `api/transactions/recent` (FRONTEND CONTRACT FOLLOW-UP in the backend handoff), annual targets (IA-027), Mobile Electricity legacy path decision.
+
+## SRC-first pivot addendum (IA-062, 2026-10-04)
+
+BACKEND GAP / follow-ups recorded while converting collection identity to SRC (none are faked in the UI):
+
+- **Cross-day SRC lookup.** Collection Activity filters the loaded day only. Required contract: an optional `search` (case-insensitive SRC, legacy document, payer) on `GET api/collections/activity` that is applied server-side over the requested range.
+- **Legacy Mobile writers.** NPM daily/utility Electricity (typed OR number), TPM/TRM/NCC/ICE legacy payloads and slaughter/Tabo legacy paths do not produce a canonical Collection and therefore have no SRC. They need their own controlled source cutover; this pivot deliberately did not perform one.
+- **Cutover prerequisite wording.** `SettlementCutoverWorkflow` still treats accountable-document inventory reconciliation as evidence for converting a legacy source. That is a source-cutover control and was left unchanged; Core Brain should decide whether to relax it now that collection no longer consumes documents.
+- **Document trace.** `GET api/official-reports/documents/{number}` now finds physical custody only for forms the office recorded as issued; a Collection is traced by its SRC (`GET api/official-reports/collections/{id}` returns `ReferenceCode`).

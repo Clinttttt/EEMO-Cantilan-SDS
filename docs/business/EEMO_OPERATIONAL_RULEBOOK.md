@@ -140,12 +140,20 @@ Implemented in StallTrack on 2026-10-04 (IA-061; code on `release/v3-final-closu
 
 - **Register** a range from its first and last serial exactly as printed (for example `2315601 A` to `2315650 A`). The quantity is counted from the range; ranges that cannot be counted are refused. Source ("Municipal Treasurer"), reference and received date are provenance text only; nobody at the Treasury signs in or approves anything.
 - **Assign, transfer and return** unused receipts to collectors by range; each serial has one custodian at a time and a full custody history. An issued, cancelled or lost receipt never moves or returns.
-- **Next receipt.** The collection screens show the next assigned receipt; "Use different receipt" is a recovery action. Sequence is suggested, and an unused serial lower than one already issued from the same book is flagged as skipped for review.
+- **Next receipt (superseded by IA-062).** Collection screens no longer suggest or select a receipt; the Accountable Forms register is optional back-office custody and never gates a collection.
 - **Cancellation** is recorded at once with serial and reason (actor and time automatic). The RCD reference is added later; until then the receipt shows "Needs follow-up".
 - **Lost** receipts (a serial or a range; the whole set or selected copies) are blocked at once with place, approximate date and what happened. The notice reference is added later. An already issued receipt whose copy is missing keeps its financial record and gets an exception on it.
 - **One OR, several lines** works through the existing Current Collection / ECF composer for sources that are already on Canonical settlement authority. Sources still on Legacy authority need a controlled cutover first and are not part of this.
 - **Position and history** count forms, never pesos. The "Accountability" view supports preparing the prescribed RAAF; it is not that report.
 
+
+### SRC-first collection (IA-062, 2026-10-04)
+
+- Every canonical Collection is identified by its **StallTrack Reference Code** (`SRC-YYYY-NNNNNN`, global monotonic, server-allocated, immutable). The collector or Web user never enters or chooses a physical OR/CT serial to record a collection, and the absence of one never blocks, quarantines or delays a collection.
+- SRC is not an Official Receipt, a Cash Ticket or a government receipt. Where the office still hands over a physical receipt, that stays the office's own procedure; StallTrack may keep the form in the optional Accountable Forms register (IA-057/IA-060) but a collection does not consume it.
+- Cash Ticket versus Official Receipt remains **policy metadata** of the classification (which instrument the office's policy approves); it no longer controls stock, custody or Mobile readiness.
+- Corrections keep the original SRC; a replacement collection gets its own SRC. Offline Mobile collections show "Waiting to sync" until the server returns the SRC.
+- Legacy rows have no SRC and keep the source's own document number.
 See [2026-10-04 MEEDO Head AF No. 51 confirmation](../evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md) and [2026-10-04 authoritative Philippine AF No. 51 rules](../evidence/2026-10-04_af51_authoritative_philippine_rules.md).
 
 ## 5. Cash Ticket operating model

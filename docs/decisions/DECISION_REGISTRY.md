@@ -732,6 +732,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Clint's WCF briefs of 2026-10-01; runtime review with collector Bobby Mercado.
 - **IMPACT:** `CollectorOperationActivations` (one additive table: tenant, operation, effective from, activated at/by); WCF post accepts a source + period for a direct amount; WCF capability is Ready on the operation, not on a prepared row; Web WCF shows a Collector Mobile status with one Enable action; Water Accounts is optional preparation plus legacy migration.
 - **REVISIT CONDITION:** A tenant whose policy requires prior office approval of every Water amount.
+- **UPDATE (IA-062, 2026-10-04):** The readiness rule "Cash Ticket custody, nothing awaiting review" is **narrowed**: Cash Ticket custody and review counts no longer gate WCF Mobile readiness or collection, and a refused direct entry is now a durable rejection with no ticket held for office review. WCF stays a Cash Ticket-**policy** classification with a direct amount; each WCF collection is identified by its SRC.
 
 ### IA-055 - New ECF/WCF assessments are a direct amount only; recorded meter evidence is kept (Clint, 2026-10-01)
 
@@ -779,6 +780,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Direct MEEDO Head clarification and photographed current OR booklet, 2026-10-04; `docs/evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md`.
 - **IMPACT:** Future OR/accountable-form work must model the real physical AF No. 51 identity and coexist with the existing manual issuance process. A computerized-receipt workflow is out of scope unless separately authorized.
 - **REVISIT CONDITION:** MEEDO/Treasury formally adopts a different accountable form or computerized-receipt process.
+- **UPDATE (IA-062, 2026-10-04):** IA-057 is unchanged as a statement of what AF No. 51 is and how its exact printed identity is preserved; IA-062 only makes using it **optional for collection** (it is no longer a required input to post a Collection).
 
 ### IA-058 - One physical OR may itemize several compatible charges; treasury accountability does not create a StallTrack approval dependency (MEEDO Head / confirmed workflow, 2026-10-04)
 
@@ -795,6 +797,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Direct MEEDO Head clarification of 2026-10-04 plus the accountability context recorded in `docs/evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md`.
 - **IMPACT:** The OR design must support itemized lines under one physical receipt and operational collector custody without inventing an extra software approval chain.
 - **REVISIT CONDITION:** A later Cantilan Treasury/MEEDO ruling changes the custody or approval workflow.
+- **UPDATE (IA-062, 2026-10-04):** IA-058 still governs the line model and the treasury boundary (several compatible charges are separate classified lines of one Collection; no Treasurer login or approval). Its premise that one physical OR is the unit of a collection is **clarified**: the unit of a collection is the Collection, identified by its SRC; a physical OR is optional back-office evidence.
 
 ### IA-059 - AF No. 51 printed serial suffix semantics remain unresolved (2026-10-04)
 
@@ -833,6 +836,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** PD 1445 Sec. 68; DOF/BLGF LTOM 2nd Ed. Book II, control of official receipts/accountable forms and collection procedures; LTOM Book III audit procedures; COA RAAF Annex 18/18.1; BLGF Notices of Loss under COA Circular No. 84-233; `docs/evidence/2026-10-04_af51_authoritative_philippine_rules.md`.
 - **IMPACT:** AF No. 51 implementation may now include sequence-aware registered ranges, collector custody, unused/returned stock, permanent non-reusable cancelled/spoiled/lost states and copy-level exception evidence without waiting for a new local rule. Legal liability/relief remains external to StallTrack.
 - **REVISIT CONDITION:** A newer COA/DOF/BLGF rule or explicit lawful Cantilan Treasury procedure changes the accountable-form process.
+- **UPDATE (IA-062, 2026-10-04):** IA-060's custody, cancellation/spoilage and loss rules still govern the optional Accountable Forms register unchanged. They no longer gate collection.
 
 ### IA-061 - AF No. 51 implementation model: exact printed identity, exceptions as append-only events, suggested (not enforced) sequence (2026-10-04)
 
@@ -851,6 +855,29 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** IA-057 to IA-060 and their evidence files; implementation in `AccountableSerial`, `AccountableFormBook`, `AccountableDocument`, `AccountableFormLossReport`, `AccountableFormReference` and `AccountableFormCustodyWorkflow`.
 - **IMPACT:** Additive migration `AddAf51SerialIdentityAndAccountabilityEvents` (book: suffix, variant, received date, source authority, reference; document: normalized number with a deterministic backfill from the existing printed number; two new append-only tables). `POST api/accountable-forms/register`, `loss`, `references`; `GET api/accountable-forms/exceptions`, `position`, `history`, `raaf-support`. Historic ORs and legacy OR fields elsewhere are untouched and stay valid; the inventory rules apply prospectively to registered stock. **Before applying to a database with existing accountable documents,** confirm no two documents of one instrument normalize to the same key (differences of only case or whitespace); the unique index would refuse such data.
 - **REVISIT CONDITION:** IA-059 is resolved; the office rules that sequence must be hard-enforced or that variants may share a serial; or Legacy settlement sources are cut over and may then join a multi-line OR.
+- **UPDATE (IA-062, 2026-10-04):** The **collection-coupled** parts of IA-061 are **superseded**: a Collection no longer consumes a document, the Current Collection / ECF screens no longer suggest or select a next-expected receipt, and Consumed/Issued/Next-expected are no longer driven by posting. Exact printed identity, append-only cancellation/loss events, range registration and the Accountable Forms register itself stand as an optional back-office record.
+
+### IA-062 - SRC (StallTrack Reference Code) is the digital identity of a collection; a physical OR/CT serial is secondary and never blocks collection (Clint, 2026-10-04)
+
+- **ID:** IA-062
+- **SUBJECT:** What identifies a canonical Collection, and what a physical Official Receipt / Cash Ticket serial is for
+- **STATUS:** CONFIRMED (Clint direction, "SRC-FIRST COLLECTION ARCHITECTURE PIVOT") and IMPLEMENTED on `release/v3-final-closure`
+- **TYPE:** BUSINESS DECISION + ARCHITECTURE DIRECTION (supersedes the collection-coupled parts of IA-054, IA-058 and IA-061)
+- **DECISION / QUESTION:**
+  - **SRC = StallTrack Reference Code**, `SRC-YYYY-NNNNNN` (for example `SRC-2026-000127`). It is the primary digital identity of every canonical Collection, shown in Collection Activity, the Collections register, Current Collection, ECF, WCF, governed services, remittance, collector reports and payor-facing history.
+  - The number is a **global, monotonic database sequence**. It never resets by year, collector, facility, remittance or tenant; the year is presentation (the Philippine business year the Collection was recorded in). It is wider than six digits when needed and never truncated. Gaps are acceptable. It is allocated by the server at posting, is immutable, globally unique at the database level (unique on the number and on the code), is never entered, edited, recycled or taken from `MAX+1`, and is stable across a replay of the same `ClientOperationId`.
+  - **SRC is not an Official Receipt, a Cash Ticket or any government receipt.** The wording is "Collection recorded / Collection reference SRC-…". It does not replace a physical OR/CT where the office still hands one over.
+  - **A physical OR/CT serial is no longer a required input for collection**, on Web or Mobile. Posting needs no `AccountableDocumentId` or `DocumentNumber`, selects no document, consumes none and is never blocked by the lack of one. A supplied document is ignored (legacy payloads still deserialize). Whether a policy resolves to an OR or a Cash Ticket **instrument type** stays configuration/metadata (IA-044…IA-048 and revenue policies); it is no longer a stock or custody gate.
+  - Multi-line classified Collections are unchanged (one Collection, one SRC, several classified lines, IA-058 itemization stays true of the line model). Corrections keep the original Collection's SRC; a replacement Collection gets its own SRC and the original shows "Replaced by SRC-…".
+  - **Mobile offline:** the device never invents an SRC. A queued collection shows "Waiting to sync"; the server returns the SRC (`ClientOperationId → CollectionId → SRC`, replay-stable) and the device then shows "Collection recorded · SRC-…".
+  - **Readiness** (collector capability, WCF Mobile enablement, governed-service capability) no longer depends on Cash Ticket or OR stock, custody or review counts.
+  - **Existing data:** every existing canonical Collection is backfilled deterministically (ordered by `RecordedAtUtc`, then `Id`) by the additive migration, then the sequence continues above the maximum. Legacy-authoritative rows are never given an SRC; they show "—"/"Legacy" and keep the source's own document. An old OR/CT document stays visible as legacy evidence in expanded detail. Backup/export/restore carry the number and year verbatim and never regenerate an SRC; a restore that would collide fails explicitly.
+  - **Accountable Forms (AF No. 51 custody, IA-057/IA-060/IA-061)** becomes an **optional, separate back-office register** of physical OR/CT books: receive, assign/transfer/return, cancel, report lost, RAAF support. It does not gate collection, is not consumed by a collection, and no longer presents Consumed/Issued/Next-expected as if collections moved it. Its schema and history are preserved.
+  - Source authority is unchanged (`CollectionSourceAuthorityMap`): this decision identifies Collections that are already canonical; it performs no source cutover. Legacy Mobile writers that still carry a typed OR number (for example NPM daily/utility Electricity entry) remain legacy writers until their own controlled cutover.
+- **RATIONALE:** A collector's recorded money should not depend on the stock of paper in a bag, and a missing serial was producing "quarantined for review" work for an event that had in fact happened. StallTrack needs one unambiguous digital identity per recorded collection for reconciliation, remittance and audit; the physical form remains the office's own business.
+- **EVIDENCE / SOURCE:** Clint's SRC-first architecture brief of 2026-10-04; PostgreSQL proof in `CollectionReferenceCodeTests` (no-serial posting, idempotent replay, concurrent distinct numbers, global monotonic numbering, unique/computed constraints) and the updated workflow/report integration suites.
+- **IMPACT:** Additive migration `AddCollectionReferenceCode` (sequence `CollectionReferenceNumberSeq`; `Collections.ReferenceYear`, `ReferenceNumber`, stored computed `ReferenceCode`; unique indexes). Post outcomes, activity, register, remittance, collector-report and mobile-record DTOs carry `ReferenceCode`; the OR-selection, "available receipts", "available Cash Tickets" and per-operation documents endpoints are removed; request DTOs keep the legacy document fields as ignored optional values. Old pre-SRC `ClientOperationId`s still replay (same amount).
+- **REVISIT CONDITION:** The office decides to make the physical serial a compulsory field again, or Treasury requires the SRC to be printed on an accountable form.
 ## 4. Decision-gate summary
 
 The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.
@@ -881,3 +908,5 @@ The following interpretations must not be reintroduced:
 - `retired collector remittance implementation = the approved remittance design` — **SUPERSEDED**. IA-052 and the later implemented remittance ledger govern; do not restore the retired behavior.
 - `a collector never states the WCF amount` (IA-053) — **SUPERSEDED for WCF by IA-054**: with no office-prepared amount, an authorized collector enters the direct Water amount; a prepared amount still takes precedence.
 - `every new WCF obligation needs its own cutover / Activate for Mobile` — **SUPERSEDED by IA-054**: WCF is enabled once per tenant; per-source cutover remains only for historical legacy money.
+- `a Collection must consume an assigned OR/CT, and readiness depends on CT/OR stock or custody` (IA-054 readiness, IA-058/IA-061 collection coupling) — **SUPERSEDED by IA-062**: SRC is the Collection's identity; a physical serial is optional back-office evidence and never blocks posting or readiness.
+- `Current Collection / ECF suggest and select the next expected Official Receipt` (IA-061) — **SUPERSEDED by IA-062**.
