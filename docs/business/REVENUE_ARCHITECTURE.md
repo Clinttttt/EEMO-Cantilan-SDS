@@ -1,18 +1,18 @@
-# EEMO Revenue Architecture
+# MEEDO Revenue Architecture
 
-**Status:** Planning approved; Phases 0, 1 and 2A are complete. Phase 2B.1 (TPM/TABO) is merged to master at `0514d920` and remains shadow-only. Phase 2B.2 (TRM/TRANSPORTATION_PARKING) is merged to master at `f587dc48`; its exact pre-merge head `fc3adcf3` passed manually dispatched CI, including PostgreSQL/Testcontainers. It was deployed to production by successful deployment run `35950861923`, including successful deployment health checks, but remains shadow-only. Neither shadow reconciliation has switched a production writer or report. Phase 2 remains in progress. The planned next milestone is Phase 3 — AccountableDocument / OR pilot after the Phase 2B shadow proofs are integrated and verified.
-**Scope:** The approved target architecture and information design for StallTrack's broader EEMO revenue-management capabilities.
-**Business authority:** The latest direct clarification from the Cantilan EEMO Head, as recorded through Pass 1 and approved in Pass 2.
+**Status:** Approved architecture and migration direction. Earlier phase/commit/deployment statements in this document are historical planning evidence, not the current release-state authority. For what is implemented, canonical, legacy, pending or blocked now, read `../planning/CURRENT_RELEASE_STATE.md` and verify against current code/tests/Git.
+**Scope:** The approved target architecture and information design for StallTrack's broader MEEDO revenue-management capabilities.
+**Business authority:** The latest direct clarification from the Cantilan MEEDO Head, accepted decisions, and later explicitly approved implementation direction.
 
 This document records intended future semantics and the approved migration direction. It does not claim that the current application already implements them. Current code, migrations, tests, workflows and verified production behavior show what the system does today. If evidence conflicts with an intended rule, surface the contradiction and determine which source is stale before changing behavior. Do not silently choose the implementation over business documentation.
 
 ## 1. Purpose and authority
 
-StallTrack is evolving from a primarily stall and rental system into a broader platform for EEMO operations, assessments, collections, accountable documents and classified revenue reporting. Its mature stall, occupancy, contract, NPM settlement and facility domains remain valuable and are not being replaced by one generic transaction model.
+StallTrack is evolving from a primarily stall and rental system into a broader platform for MEEDO operations, assessments, collections, accountable documents and classified revenue reporting. Its mature stall, occupancy, contract, NPM settlement and facility domains remain valuable and are not being replaced by one generic transaction model.
 
 The authority labels used below mean:
 
-- **Confirmed business rule:** clarified directly by the EEMO Head. It supersedes older contradictory business assumptions.
+- **Confirmed business rule:** clarified directly by the MEEDO Head. It supersedes older contradictory business assumptions.
 - **Target architecture decision:** approved design for future implementation; it does not assert current runtime support.
 - **Business decision gate:** an unresolved ruling that must not be guessed where it changes financial or accountability behavior.
 - **Migration compromise:** a truthful representation of old data whose detail cannot be reconstructed.
@@ -100,7 +100,7 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 | Lot Rental (Fiesta / Araw) | OR | |
 | Current approved slaughterhouse charges | OR | |
 
-**Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket. Tabo uses Official Receipt. Vegetable/Fruit Space Rental is dual-instrument: full/whole payment uses OR and daily transactions use CT.** One OR may contain multiple compatible itemized lines for the same collection/document context, such as stall rent, ECF and a penalty. OR and Cash Ticket lines cannot be mixed on one accountable document. When a classification permits more than one instrument, one instrument must still be resolved explicitly for the posted collection/document; the system must not mix OR and CT lines in one accountable document.
+**Weight & Measure uses Official Receipt for the Cantilan tenant. WCF uses Cash Ticket. Tabo uses Official Receipt. Vegetable/Fruit Space Rental is dual-instrument: full/whole payment uses OR and daily transactions use CT.** MEEDO's current physical OR is **Accountable Form No. 51** (IA-057). One OR may contain multiple compatible itemized lines for the same payor/collection/document context, such as stall rent, ECF and a penalty (IA-058). Preserve the exact printed OR identifier; a printed suffix is not to be stripped or interpreted without authority. OR and Cash Ticket lines cannot be mixed on one accountable document. When a classification permits more than one instrument, one instrument must still be resolved explicitly for the posted collection/document; the system must not mix OR and CT lines in one accountable document.
 
 The existing singular-instrument implementation is therefore insufficient as the final target for every classification. Vegetable/Fruit policy must support contextual instrument resolution while preserving effective dating and immutable posted-document meaning: full/whole payment resolves to OR; daily transaction resolves to CT.
 
@@ -109,12 +109,12 @@ The existing singular-instrument implementation is therefore insufficient as the
 
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
 - Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications, even when collected from the same vendor.
-- Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is the current Cantilan V2 planning basis: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively. Revisit only if EEMO supplies a superseding schedule.
+- Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is the current Cantilan V2 planning basis: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively. Revisit only if MEEDO supplies a superseding schedule.
 - BBQ Stand may roll up under the broader Market operation for operational hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**, charged monthly per space, and uses OR. Lot Rental is charged per lot and uses OR. Market hierarchy does not by itself determine BBQ's final semantic revenue code; BBQ is not thereby `MARKET_FEES`.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
-- The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications and broader EEMO Utility Operations, may be collected separately from rent, and retain their respective Cantilan OR/CT policy. They are not globally owned by NPM merely because legacy UtilityBill currently points to a Stall.
+- The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications and broader MEEDO Utility Operations, may be collected separately from rent, and retain their respective Cantilan OR/CT policy. They are not globally owned by NPM merely because legacy UtilityBill currently points to a Stall.
 - Payor identity may be optional for appropriate transactional Cash Ticket collections.
-- Accountable-form inventory and annual revenue targets are part of the target system. EEMO Monthly Income reference material already shows Annual Target, monthly actuals, Total/YTD and Percentage, establishing office precedent for target reporting; target source, approval/governance, revision policy, period and classification/facility scope remain unresolved.
+- Accountable-form inventory and annual revenue targets are part of the target system. MEEDO Monthly Income reference material already shows Annual Target, monthly actuals, Total/YTD and Percentage, establishing office precedent for target reporting; target source, approval/governance, revision policy, period and classification/facility scope remain unresolved.
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
 - Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market. Cantilan Lot Rental uses OR; Kanmanggay Space Rental also uses OR.
 - When qualifying old/lapsed Arrears are paid, the collection reports under the dedicated **Arrears** revenue classification while retaining the originating facility/obligation reference for traceability.
@@ -267,9 +267,9 @@ Vocabulary boundary:
 
 Partial, queued offline, awaiting document, reversed and voided states remain distinct.
 
-## 12. Approved implementation roadmap
+## 12. Historical implementation roadmap
 
-Each phase is additive and independently reviewable. Specialized obligation calculations remain authoritative throughout; writers/readers migrate only after their compatibility behavior is proven.
+This roadmap is retained to explain the approved migration sequence and architectural dependencies. Its per-phase status cells are a historical snapshot and are **not** the current release-status authority. For current implementation state, use `../planning/CURRENT_RELEASE_STATE.md` and current Git/code/tests. Specialized obligation calculations remain authoritative throughout; writers/readers migrate only after their compatibility behavior is proven.
 
 | Phase | Purpose and dependency |
 |---|---|
@@ -283,8 +283,8 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 | Phase 6 — Cash Ticket / accountable forms | Add CT document issuance and accountability after operating policy is decided: received series/ranges, assignment to collectors/accountable officers, used and remaining units, spoiled/cancelled forms where applicable, and reconciliation. |
 | Phase 7 — source adapters | Adapt utilities, TPM, transportation, fish/weight, penalties, slaughter and other sources as appropriate. Each specialized activity retains its owning domain. |
 | Phase 8 — production classified reporting | Switch approved RCD, Monthly Income and collector revenue views to verified posted classified lines after shadow reconciliation. |
-| Phase 9 — annual targets | Add target setup, revision history, YTD and attainment after target source/period/governance rules are decided. Existing EEMO Monthly Income sheets provide Annual Target/monthly actual/Total/Percentage precedent but do not by themselves grant edit authority. Keep attainment separate from Collection Efficiency. |
-| Later — broader EEMO operations | Add event rentals, additional enterprise operations and other configured revenue sources without forcing every source into Facility or Stall/Contract. |
+| Phase 9 — annual targets | Add target setup, revision history, YTD and attainment after target source/period/governance rules are decided. Existing MEEDO Monthly Income sheets provide Annual Target/monthly actual/Total/Percentage precedent but do not by themselves grant edit authority. Keep attainment separate from Collection Efficiency. |
+| Later — broader MEEDO operations | Add event rentals, additional enterprise operations and other configured revenue sources without forcing every source into Facility or Stall/Contract. |
 
 ### UI migration dependency map
 
@@ -296,7 +296,9 @@ Each phase is additive and independently reviewable. Specialized obligation calc
 - **UI-5:** Accountable Forms and CT capture after Phase 6.
 - **UI-6:** classified cash reports and target reports after Phases 8 and 9.
 
-## 13. Current phase
+## 13. Historical phase snapshot
+
+> The status details below are preserved as implementation history from the earlier phased rollout. Do not use this section to decide what is live today; use `../planning/CURRENT_RELEASE_STATE.md` plus current code/tests/Git.
 
 **Planning:** Approved.
 

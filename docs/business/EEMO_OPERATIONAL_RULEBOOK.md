@@ -1,12 +1,14 @@
-# EEMO Operational Rulebook
+# MEEDO Operational Rulebook
 
-**Status:** Canonical working record for StallTrack V2 business rules confirmed from EEMO Head/staff discussions and office reference material.  
-**Purpose:** Prevent repeated questioning, preserve confirmed operational meaning, and isolate only the remaining questions that materially block implementation.  
-**Scope:** Cantilan EEMO unless explicitly stated otherwise.
+> **Filename compatibility note:** The historical `EEMO_OPERATIONAL_RULEBOOK.md` path is retained so existing repository links remain stable. Current office-facing terminology is **Municipal Economic Enterprises Development Office (MEEDO)**.
+
+**Status:** Canonical working record for StallTrack V2 business rules confirmed from MEEDO Head/staff discussions and office reference material.
+**Purpose:** Prevent repeated questioning, preserve confirmed operational meaning, and isolate only the remaining questions that materially block implementation.
+**Scope:** Cantilan MEEDO unless explicitly stated otherwise.
 
 This document is intentionally practical. It records what the office has already clarified, what the current office references show, and what still requires a direct answer before StallTrack V2 should encode behavior.
 
-When this document conflicts with a later explicit EEMO ruling, update this document and the affected decision record rather than preserving both interpretations.
+When this document conflicts with a later explicit MEEDO ruling, update this document and the affected decision record rather than preserving both interpretations.
 
 ## 1. Confirmed debt terminology
 
@@ -69,7 +71,7 @@ The office board remains valid operational/tally evidence and may show the same 
 - Lot Rental
 - Other Income
 
-The board is therefore useful for workflow and tally context, but the **sheet governs the formal report grouping** unless EEMO later replaces it with a newer official report format.
+The board is therefore useful for workflow and tally context, but the **sheet governs the formal report grouping** unless MEEDO later replaces it with a newer official report format.
 
 StallTrack navigation may still organize work operationally; report classification and Monthly Income output must follow the official sheet structure.
 ## 4. Confirmed Cantilan instrument policy
@@ -102,6 +104,26 @@ Rules:
 - WCF does not move onto an OR merely because the same person is also paying rent.
 - Fines/penalties should appear as a visible receipt line rather than being hidden inside another amount.
 - Where instrument policy is not confirmed, do not guess.
+## 4A. Official Receipt (Accountable Form No. 51) operating model
+
+Direct MEEDO Head confirmation on 2026-10-04 establishes the current office practice for Official Receipts:
+
+- **Accountable Form No. 51 is the OR currently used by MEEDO.**
+- Collectors physically hold the OR booklets they use for collection after the forms are received for MEEDO operations.
+- One physical OR may contain **several compatible OR-based charges for the same payor/context**. Confirmed example: Stall Rental + ECF + penalty.
+- Each charge remains its own **Nature of Collection** / classified collection line. Sharing one OR never collapses several revenue meanings into one undifferentiated amount.
+- StallTrack does **not** replace the existing physical OR issuance process. It may record, itemize, reconcile and report the physical receipt; it must not silently introduce a computerized-receipt process.
+- Preserve the **exact printed receipt identifier**. If a printed identifier includes a suffix letter, preserve it as part of the observed identifier unless the office/accountability authority later confirms a separate semantic treatment. Do not strip, regenerate or infer the suffix.
+- A Treasurer software account, login or approval step is **not required for ordinary MEEDO collection** merely because formal accountable-form inventory is under treasury accountability. StallTrack models the operational assignment/custody evidence needed by MEEDO without inventing an additional approval chain.
+
+Still unresolved and therefore not to be guessed from the specimen alone:
+
+- the formal meaning of a printed suffix such as `A`;
+- the exact Cantilan procedure and required evidence for lost, spoiled or cancelled ORs;
+- whether the first OR-accountability release should inventory/assign complete booklets/ranges or initially record the exact physical OR identifier while preserving the existing booklet process.
+
+See [2026-10-04 MEEDO Head AF No. 51 confirmation](../evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md).
+
 ## 5. Cash Ticket operating model
 
 Cash Tickets are accountable physical forms consumed from an assigned batch/series.
@@ -152,13 +174,13 @@ The classification must remain itemized so monthly and accountable-form reportin
 Every recorded collection line should map to one approved revenue classification once the final catalog is confirmed.
 ## 8. Public Market versus New Public Market
 
-The broader **EEMO/Public Market revenue operation** is not the same thing as the **New Public Market (NPM) facility**.
+The broader **MEEDO/Public Market revenue operation** is not the same thing as the **New Public Market (NPM) facility**.
 
-Charges such as Market Fees, ECF, WCF, Fish/Meat Vendor Fees, Landing/Berthing, Transportation and Weight & Measure belong to the broader EEMO market/revenue operation unless EEMO explicitly assigns them to NPM.
+Charges such as Market Fees, ECF, WCF, Fish/Meat Vendor Fees, Landing/Berthing, Transportation and Weight & Measure belong to the broader MEEDO market/revenue operation unless MEEDO explicitly assigns them to NPM.
 
 NPM remains a specialized permanent-stall/rental workspace.
 
-**ECF and WCF are broader EEMO utility operations, not NPM-owned revenue types.** An NPM stall may be a utility service subject/context, but the target architecture must not require every ECF/WCF assessment to belong to NPM. NPM may surface contextual utility links for its occupants without becoming the global parent of Utility Operations. Existing NPM-bound `UtilityBill` records remain valid legacy/current source evidence and must not be destructively rewritten merely to generalize the future model.
+**ECF and WCF are broader MEEDO utility operations, not NPM-owned revenue types.** An NPM stall may be a utility service subject/context, but the target architecture must not require every ECF/WCF assessment to belong to NPM. NPM may surface contextual utility links for its occupants without becoming the global parent of Utility Operations. Existing NPM-bound `UtilityBill` records remain valid legacy/current source evidence and must not be destructively rewritten merely to generalize the future model.
 
 Vegetable/Fruit Space Rental is separate from permanent NPM Vegetable stalls.
 
@@ -183,7 +205,7 @@ Current V2 rule:
 - the office concern is primarily collection of transportation/parking fees through Cash Tickets;
 - the old StallTrack concept of tracking detailed trips/drivers/plates is not the primary business requirement;
 - rates vary by vehicle type;
-- the referenced schedule is accepted for current V2 planning and should not be re-questioned unless EEMO supplies a superseding schedule.
+- the referenced schedule is accepted for current V2 planning and should not be re-questioned unless MEEDO supplies a superseding schedule.
 
 Known vehicle examples include:
 
@@ -230,19 +252,19 @@ Additional confirmed rules:
 
 ### BBQ Stand
 
-Office board evidence places **Barbecue Stands** under Rent Income. Treat BBQ as a rental workspace unless EEMO later provides a different official classification.
+Office board evidence places **Barbecue Stands** under Rent Income. Treat BBQ as a rental workspace unless MEEDO later provides a different official classification.
 
 ### Ice Plant
 
 For current V2 planning, treat **Income from Ice Plant** as a monthly space/rental-type income source associated with the Ice Plant. A working example given is around ₱1,000/month.
 
-Do not invent a separate ice-sales transaction model unless EEMO later explicitly requires one.
+Do not invent a separate ice-sales transaction model unless MEEDO later explicitly requires one.
 
 ### Slaughterhouse
 
 Treat as its own specialized operation/workspace. Do not silently classify it as Market Fees.
 
-### Malinawa and configurable additional EEMO revenues
+### Malinawa and configurable additional MEEDO revenues
 
 The office board includes an Income from Malinawa family with entries such as:
 
@@ -254,7 +276,7 @@ The office board includes an Income from Malinawa family with entries such as:
 
 For StallTrack V2, these do not need a hardcoded semantic catalog before UI/backend work can proceed. Support them as **admin-configurable revenue/service entries** with a label and configured rate/basis as needed.
 
-This same configurable pattern may support other future EEMO revenue lines that are not part of the fixed core catalog, provided they remain tenant-scoped and auditable.
+This same configurable pattern may support other future MEEDO revenue lines that are not part of the fixed core catalog, provided they remain tenant-scoped and auditable.
 
 ### Governed configurable service pattern
 
@@ -293,13 +315,17 @@ The report may support a simple bottom-level **Refund** label and manually enter
 
 ## 15. What should no longer be re-asked
 
-Unless EEMO provides contradictory new evidence, do not spend staff time re-asking:
+Unless MEEDO provides contradictory new evidence, do not spend staff time re-asking:
 
 - whether Delinquent begins after one elapsed unpaid month;
 - whether old/lapsed-year owed stall debt is treated as Arrears;
 - whether monthly rentals may be paid in daily/multiple installments;
 - whether unpaid monthly remainder carries forward;
 - whether each installment may have its own OR;
+- whether Accountable Form No. 51 is MEEDO's current Official Receipt — it is (2026-10-04 Head confirmation);
+- whether one physical OR may itemize several compatible OR-based charges for the same payor/context — it may, with each Nature of Collection kept separate;
+- whether collectors physically hold the OR booklets used in MEEDO collection — they do;
+- whether StallTrack should replace the current physical OR booklet process — it should not unless a later authorized computerized-receipt policy says otherwise;
 - whether Vegetable/Fruit Space Rental is separate from permanent NPM stalls;
 - whether WCF is CT;
 - whether ECF is OR;
@@ -320,14 +346,14 @@ Unless EEMO provides contradictory new evidence, do not spend staff time re-aski
 - whether paid old/lapsed Arrears report under the dedicated Arrears revenue line — they do, while the originating facility/debt reference remains traceable;
 - whether Slaughterhouse should be treated as Market Fees — it should remain a separate specialized operation/income presentation;
 - whether Malinawa-style additional revenues must all be hardcoded — they may be admin-configurable label/rate entries;
-- whether StallTrack should eventually include missing EEMO operations beyond the original NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM set.
-## 16. High-value open questions for EEMO staff
+- whether StallTrack should eventually include missing MEEDO operations beyond the original NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM set.
+## 16. High-value open questions for MEEDO staff
 
 Only ask questions that still materially change the domain model, rate calculation, instrument policy, or report mapping.
 
 ### Q1 — Market Fees grouping — RESOLVED FOR REPORT CLASSIFICATION
 
-The EEMO Head directed StallTrack to use the office Monthly Income 2026 sheet as the grouping reference because the market/terminal income is already itemized there.
+The MEEDO Head directed StallTrack to use the office Monthly Income 2026 sheet as the grouping reference because the market/terminal income is already itemized there.
 
 Under **Income from Market**, Market Fees is a sibling row alongside General Distribution/ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Transfer Large Cattle, and Ice Plant. These must not be treated as sub-items hidden inside Market Fees.
 
@@ -347,7 +373,7 @@ See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthl
 - IA-053 (2026-10-01): ECF/WCF are broader utility operations; NPM may be the source/context subject but never owns them. Meter readings are not required financial evidence for new current workflows; historical reading fields are preserved only as legacy evidence and never reprice a recorded charge.
 - Fiesta/Araw temporary electricity may still carry its own event/context detail; do not silently assume it is an NPM stall utility.
 
-This direct Cantilan clarification supersedes the earlier IA-047 interim metered/shared/fixed presentation hypothesis for the current demo/target workflow. Keep the underlying architecture flexible enough to preserve approved source/basis evidence if EEMO later supplies a meter/bill/rate schedule.
+This direct Cantilan clarification supersedes the earlier IA-047 interim metered/shared/fixed presentation hypothesis for the current demo/target workflow. Keep the underlying architecture flexible enough to preserve approved source/basis evidence if MEEDO later supplies a meter/bill/rate schedule.
 
 See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 
@@ -390,5 +416,5 @@ Do not distract staff with these during the presentation sprint unless they beco
 
 ---
 
-This rulebook should be updated immediately whenever EEMO answers one of the remaining open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
+This rulebook should be updated immediately whenever MEEDO answers one of the remaining open questions. Once resolved, move the answer into the confirmed section and update the Decision Registry / Revenue Architecture where applicable.
 - IA-054 (2026-10-01): WCF direct Mobile entry. Head/Admin may prepare a WCF amount in advance; when none is prepared, the authorized collector enters the Water amount directly on Mobile for an eligible source (Cash Ticket, direct amount, no meter). A prepared amount always takes precedence. WCF Mobile collection is enabled once per tenant after server-checked readiness; new WCF activity is then canonical prospectively, while historical legacy Water money stays legacy.

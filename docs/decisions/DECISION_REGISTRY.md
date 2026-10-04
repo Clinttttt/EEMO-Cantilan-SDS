@@ -1,7 +1,8 @@
 # StallTrack Interface Decision Registry
 
-**Status:** Active interface decision registry
-**Baseline:** `22f45239adf998d22c33e402aa4c87e2465ac106`
+**Status:** Active interface / business decision registry
+**Historical baseline:** `22f45239adf998d22c33e402aa4c87e2465ac106`
+**Current implementation status:** [CURRENT_RELEASE_STATE.md](../planning/CURRENT_RELEASE_STATE.md) plus current Git/code/tests
 **Architecture:** [INFORMATION_ARCHITECTURE.md](../interface/INFORMATION_ARCHITECTURE.md)
 **Migration:** [MIGRATION_PLAN.md](../interface/MIGRATION_PLAN.md)
 
@@ -24,19 +25,19 @@ Only these values are used:
 
 - `CONFIRMED`
 - `PROPOSED`
-- `NEEDS EEMO INPUT`
+- `NEEDS MEEDO INPUT`
 - `BLOCKED`
 - `FUTURE`
 - `SUPERSEDED`
 
-`CONFIRMED` for interface architecture means approved interface direction. It does not claim that the target interface is implemented.
+`CONFIRMED` for interface architecture means approved interface direction. It does not claim that the target interface is implemented. Earlier `RUNTIME FACT` entries describe the implementation at their recorded baseline/date; later decisions and `CURRENT_RELEASE_STATE.md` govern when implementation has moved on.
 
 ## 2. Known authority reconciliations
 
 Two cross-document distinctions are explicit at this baseline:
 
 1. [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) names the target landing workspace `Dashboard`. The current interface architecture ruling names it `Overview`. This registry treats Overview as the target interface label while preserving the same portfolio-summary purpose. This is an interface wording refinement, not a financial/domain change.
-2. Baseline code, tests, and the accepted EEMO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary.
+2. Baseline code, tests, and the accepted MEEDO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary.
 
 ## 3. Decisions
 
@@ -46,11 +47,11 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Specialized production sources and the generic collection foundation
 - **STATUS:** CONFIRMED
 - **TYPE:** RUNTIME FACT
-- **DECISION / QUESTION:** `PaymentRecord`, `DailyCollection`/NPM settlement, utilities, TPM attendance, TRM trips, slaughter transactions, and online-payment lifecycle records retain their established production authority. `Collection` and `CollectionLine` are not the universal production writer or report source.
-- **RATIONALE:** Interface unification must not imply a financial cutover.
-- **EVIDENCE / SOURCE:** [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 3, 7, 12, and 13; baseline code and migrations.
-- **IMPACT:** Workspace and component changes must continue to read and write through the current authoritative source for each workflow.
-- **REVISIT CONDITION:** Revisit per source only after its approved writer/reader migration, reconciliation, and production cutover.
+- **DECISION / QUESTION:** Financial authority is **source-scoped**, never inferred from which UI or table is newer. Legacy specialized sources remain authoritative until their approved cutover; activated canonical sources use `Collection` / `CollectionLine` and the explicit source-authority map. `Collection` and `CollectionLine` are therefore authoritative for some sources but are not a universal writer/report source for every source.
+- **RATIONALE:** Interface unification must not imply a financial cutover, and canonical rollout must not double-count a legacy-authoritative source.
+- **EVIDENCE / SOURCE:** [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md); IA-051; current source-authority implementation and the 2026-10-04 Monthly Income duplicate guard.
+- **IMPACT:** Workspace, collection and reporting changes must resolve the authoritative representation source-by-source and count money exactly once.
+- **REVISIT CONDITION:** Revisit only if the source-authority/cutover architecture itself is replaced.
 
 ### IA-002 — Target Web workspace model
 
@@ -296,7 +297,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-022
 - **SUBJECT:** Daily ownership of Awaiting OR and payment exceptions
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** NEEDS MEEDO INPUT
 - **TYPE:** BUSINESS DECISION GATE
 - **DECISION / QUESTION:** Confirm whether Head, Admin, or a specific office role owns Awaiting OR handling, payment exceptions, and operational reconciliation with provider status.
 - **RATIONALE:** Current page authorization permits Head/Admin while provider setup is Head-oriented; navigation placement alone cannot define office responsibility.
@@ -332,7 +333,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-025
 - **SUBJECT:** Which current outputs are official office documents
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** NEEDS MEEDO INPUT
 - **TYPE:** BUSINESS DECISION GATE
 - **DECISION / QUESTION:** Preserve office-evidenced report structures, but confirm which outputs are formally official, their authoritative scope, and required signatories. Current candidates include Financial Summary, Monthly Collection Report, List of Stallholders, Slaughterhouse List, Collector Report of Collections, monthly stall-rental/occupant monitoring, Monthly Income/Market Operations, and accountable-form reports.
 - **RATIONALE:** Operational analytics, working registers, and official documents require different stability, signatory, print, and retention expectations. StallTrack may modernize layout without discarding required business fields.
@@ -344,7 +345,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-026
 - **SUBJECT:** Display of tenant-resolved names and standard codes
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** NEEDS MEEDO INPUT
 - **TYPE:** UX DECISION
 - **DECISION / QUESTION:** Confirm when NPM, TPM, TRM, SLH, and other codes accompany tenant-resolved facility names on Web, Mobile, reports, and official documents.
 - **RATIONALE:** Codes aid recognition but must not replace tenant-owned display names or leak Cantilan wording to another tenant.
@@ -368,7 +369,7 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-028
 - **SUBJECT:** Complete official semantic catalog and report coverage
-- **STATUS:** NEEDS EEMO INPUT
+- **STATUS:** NEEDS MEEDO INPUT
 - **TYPE:** BUSINESS DECISION GATE
 - **DECISION / QUESTION:** Which remaining official classifications/codes and groupings complete the EEMO catalog?
 - **RATIONALE:** Phase 1 contains confirmed classifications only; interface labels cannot invent missing semantic identities.
@@ -764,20 +765,66 @@ Two cross-document distinctions are explicit at this baseline:
 - **OPEN:** CASH TICKET DENOMINATION POLICY REQUIRES OFFICE CONFIRMATION — Cash Tickets are modelled as serial-numbered documents without a printed face value; whether a fee type must match a ticket denomination is not modelled and has not been confirmed by the office.
 - **REVISIT CONDITION:** The office confirms printed CT denominations, or asks for a fee type to carry its own instrument.
 
+### IA-057 - Accountable Form No. 51 is MEEDO's current physical Official Receipt (MEEDO Head, 2026-10-04)
+
+- **ID:** IA-057
+- **SUBJECT:** Current Official Receipt form, physical issuance and exact receipt identity
+- **STATUS:** CONFIRMED (direct MEEDO Head / current-office clarification)
+- **TYPE:** BUSINESS DECISION + ACCOUNTABILITY BOUNDARY
+- **DECISION / QUESTION:**
+  - Accountable Form No. 51 is the Official Receipt currently used by MEEDO.
+  - StallTrack does not replace the current physical booklet issuance procedure. The physical receipt remains the accountable instrument; StallTrack records and reconciles it.
+  - Preserve the exact printed receipt identifier as observed. If the printed identifier contains a suffix letter, preserve it rather than stripping, generating or interpreting it without further authority.
+  - OR-compatible and Cash-Ticket-compatible lines still cannot share one accountable document.
+- **EVIDENCE / SOURCE:** Direct MEEDO Head clarification and photographed current OR booklet, 2026-10-04; `docs/evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md`.
+- **IMPACT:** Future OR/accountable-form work must model the real physical AF No. 51 identity and coexist with the existing manual issuance process. A computerized-receipt workflow is out of scope unless separately authorized.
+- **REVISIT CONDITION:** MEEDO/Treasury formally adopts a different accountable form or computerized-receipt process.
+
+### IA-058 - One physical OR may itemize several compatible charges; treasury accountability does not create a StallTrack approval dependency (MEEDO Head / confirmed workflow, 2026-10-04)
+
+- **ID:** IA-058
+- **SUBJECT:** Multi-line OR semantics, collector custody and treasury boundary
+- **STATUS:** CONFIRMED
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
+- **DECISION / QUESTION:**
+  - A single physical OR may contain several compatible OR-based charges for the **same payor/context**. Confirmed example: Stall Rental + ECF + penalty.
+  - Each Nature of Collection remains a separate classified collection line with its own source/classification/amount. One OR does not collapse several charges into one revenue line.
+  - Collectors physically hold the OR booklets used for collection after the forms are received for MEEDO operations.
+  - Formal accountable-form inventory responsibility may sit with the Municipal Treasurer, but ordinary MEEDO collection must not be blocked on a Treasurer StallTrack account, Treasurer login or Treasurer approval step unless Cantilan later explicitly requires one.
+  - Collection, accountable-form custody and remittance remain separate ledgers (consistent with IA-052).
+- **EVIDENCE / SOURCE:** Direct MEEDO Head clarification of 2026-10-04 plus the accountability context recorded in `docs/evidence/2026-10-04_meedo_head_af51_official_receipt_confirmation.md`.
+- **IMPACT:** The OR design must support itemized lines under one physical receipt and operational collector custody without inventing an extra software approval chain.
+- **REVISIT CONDITION:** A later Cantilan Treasury/MEEDO ruling changes the custody or approval workflow.
+
+### IA-059 - AF No. 51 suffix meaning and spoiled/cancelled/lost procedure remain an explicit gate (2026-10-04)
+
+- **ID:** IA-059
+- **SUBJECT:** Printed suffix semantics and exception accountability for Official Receipts
+- **STATUS:** NEEDS MEEDO / TREASURY OR AUTHORITATIVE PHILIPPINE RULE CONFIRMATION
+- **TYPE:** BUSINESS / COMPLIANCE DECISION GATE
+- **DECISION / QUESTION:**
+  - The current specimen shows a printed suffix letter after the numeric OR number, but the office has not confirmed what that suffix formally means.
+  - The exact Cantilan procedure, evidence and state transitions for **spoiled, cancelled or lost** AF No. 51 receipts have not yet been confirmed for StallTrack.
+  - Until confirmed, StallTrack may preserve the exact printed identifier and existing physical evidence, but must not invent reusable-number rules, automatic cancellation semantics, replacement numbering or loss handling.
+  - This gate does **not** block recording an exact OR identifier or supporting the confirmed multi-line OR semantics in IA-057/IA-058; it blocks stronger automated accountable-form exception enforcement.
+- **EVIDENCE / SOURCE:** 2026-10-04 MEEDO clarification; exact suffix/cancellation/loss rules were explicitly left for authoritative research/confirmation.
+- **IMPACT:** Research should distinguish national COA/BLGF/accountable-form requirements from another LGU's implementation pattern, then reconcile the result with Cantilan practice before coding exception states.
+- **REVISIT CONDITION:** Authoritative Philippine accountable-form source and/or direct Cantilan Treasury/MEEDO confirmation.
 ## 4. Decision-gate summary
 
-The following items require EEMO input, a UX decision, or a stated technical prerequisite before their affected capability can be finalized:
+The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.
 
 | ID | Gate | Blocks or constrains |
 |---|---|---|
 | IA-022 | Online-payment operational ownership | Queue ownership, escalation, and messaging |
-| IA-024 | Exact remittance/RCD operating sequence | Any visible remittance capability |
+| IA-024 | Historical remittance/RCD sequence question | **Remittance portion superseded by IA-052.** Only any still-unconfirmed official RCD/signatory/turnover detail remains outside the approved remittance ledger. |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
 | IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 | IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |
+| IA-059 | AF No. 51 suffix and spoiled/cancelled/lost procedure | Automated OR exception/accountability enforcement; exact OR identifier recording and multi-line OR support are not blocked |
 
 ## 5. Superseded interpretations
 
@@ -788,8 +835,8 @@ The following interpretations must not be reintroduced:
 - `ended occupancy balance = current occupant delinquency` — **SUPERSEDED**. It is a separate operational condition belonging to the past occupancy.
 - `daily collection cadence = daily billing basis` — **SUPERSEDED** for monthly rental obligations.
 - `facility = revenue classification` — **SUPERSEDED** as an information model.
-- `current Revenue Setup = authoritative classified cash reporting` — **SUPERSEDED**. Configuration exists; production report cutover has not occurred.
+- `current Revenue Setup = authoritative classified cash reporting` — **SUPERSEDED**. Revenue Setup is configuration; actual money/report authority follows the source-specific authority map and approved cutover state.
 - `OR field = AccountableDocument lifecycle` — **SUPERSEDED** as an architectural assumption.
-- `retired collector remittance = approved future remittance design` — **SUPERSEDED**. Any future workflow requires renewed approval.
+- `retired collector remittance implementation = the approved remittance design` — **SUPERSEDED**. IA-052 and the later implemented remittance ledger govern; do not restore the retired behavior.
 - `a collector never states the WCF amount` (IA-053) — **SUPERSEDED for WCF by IA-054**: with no office-prepared amount, an authorized collector enters the direct Water amount; a prepared amount still takes precedence.
 - `every new WCF obligation needs its own cutover / Activate for Mobile` — **SUPERSEDED by IA-054**: WCF is enabled once per tenant; per-source cutover remains only for historical legacy money.

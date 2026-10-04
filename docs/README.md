@@ -10,7 +10,7 @@ This directory is the permanent, tool-neutral source of project knowledge for St
 
 Use this precedence when sources disagree:
 
-1. Explicit current EEMO/business ruling or explicitly approved task-specific decision.
+1. Explicit current MEEDO/business ruling or explicitly approved task-specific decision.
 2. Accepted decision record in `docs/decisions/`.
 3. Accepted business/revenue architecture and business-rule documentation.
 4. Security and architectural invariants.
@@ -28,6 +28,7 @@ Before changing V2 code, read:
 - `v2/STALLTRACK_V2_MASTER_SPECIFICATION.md` — first-stop map of current production, target V2, future/hidden capability, decision gates, sidebar direction, migration strategy, and UI-preservation rules.
 - when concurrent V2 sessions are active, `planning/ACTIVE_WORKSTREAMS.md` — temporary worktree/file ownership and shared-file locks. This is coordination guidance, not business authority.
 - this `README.md` — authority order and canonical documentation map.
+- `planning/CURRENT_RELEASE_STATE.md` — the single current implementation-status checkpoint; use it before interpreting dated audits, handoffs or phase notes as current state.
 - the relevant authoritative business/architecture source for the task, especially `architecture/ARCHITECTURE_RULES.md`, `architecture/APPLICATION_PATTERNS.md`, `business/EEMO_BUSINESS_RULES.md`, and `business/REVENUE_ARCHITECTURE.md`.
 - `decisions/DECISION_REGISTRY.md` before assuming a business, accountability, report, route-identity, target, remittance, or classification decision.
 - current code, migrations, tests, CI/workflows, and verified production behavior as implementation evidence.
@@ -51,8 +52,8 @@ Before changing V2 code, read:
 
 ### Business
 
-- `business/EEMO_OPERATIONAL_RULEBOOK.md` — direct EEMO Head/staff rulings, office-evidence reconciliations, confirmed operational rules, and the short list of genuinely unresolved business questions. Read this before asking EEMO to re-confirm workflow details.
-- `business/EEMO_BUSINESS_RULES.md` — current specialized facility behavior and accepted office semantics.
+- `business/EEMO_OPERATIONAL_RULEBOOK.md` — direct MEEDO Head/staff rulings, office-evidence reconciliations, confirmed operational rules, and the short list of genuinely unresolved business questions. The legacy filename is retained for link stability. Read this before asking MEEDO to re-confirm workflow details.
+- `business/EEMO_BUSINESS_RULES.md` — current specialized facility behavior and accepted office semantics. The legacy filename is retained for link stability.
 - `business/REVENUE_ARCHITECTURE.md` — target collections, classifications, accountable documents, reporting, and migration phases.
 
 ### Interface
@@ -82,8 +83,9 @@ Before changing V2 code, read:
 
 ### Planning and evidence
 
+- `planning/CURRENT_RELEASE_STATE.md` — single current implementation-status checkpoint. Prefer this over old dated audits/handoffs when asking what is live, canonical, legacy, pending or blocked.
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
-- `planning/STALLTRACK_V2_PHASE_STATUS.md` — current Phase 1–5A implementation history, Phase 5B release gate, and presentation-safe UI completion track. Use this for phase status; it does not override business/decision authority.
+- `planning/STALLTRACK_V2_PHASE_STATUS.md` — historical phase implementation record and release-gate evidence. Use it for phase history, not as a substitute for the current release-state checkpoint.
 - `planning/SOL_HIGH_UI_AUDIT_BASELINE.md` — preserved read-only Sol High Web/Mobile audit findings plus the later Head-rule deltas that supersede stale audit assumptions. Use this as the UI completion handoff, not as business authority.
 - `planning/ITEMIZED_COLLECTIONS_PHASE3_WRITER_INVENTORY.md` — current monthly PaymentRecord settlement writers and their Phase 5 cutover readiness prerequisites; inventory only, not activation authority.
 - `planning/PHASE4_WCF_WRITER_READINESS.md` — current UtilityBill Water/WCF writers, compatibility readers, Cash Ticket custody, and scoped cutover prerequisites; inventory only, not activation authority.
@@ -114,6 +116,7 @@ The documentation must preserve these distinctions:
 - Update internal links, tests, comments, workflow path filters, and skills when a canonical document moves.
 - Avoid duplicating the same rule in several documents. Prefer one canonical rule and link to it.
 - Historical evidence should be clearly labeled as historical.
+- A dated planning/handoff document is a snapshot, not current implementation authority. Compare it with `planning/CURRENT_RELEASE_STATE.md`, current Git/code/tests and the Decision Registry before acting on an old TODO or phase label.
 - Proposed/future capability must never be described as current production behavior.
 - Security, financial, tenancy, and accountability changes require explicit evidence and focused tests.
 - UI documentation must not introduce presentation-side financial calculations.

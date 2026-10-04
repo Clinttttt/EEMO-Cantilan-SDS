@@ -1,14 +1,16 @@
-# StallTrack — EEMO Revenue Collection System
+# StallTrack — MEEDO Revenue Collection System
 
 **Product:** StallTrack (multi-tenant LGU revenue collection platform)
 
-> **Supersession note:** The latest direct Cantilan EEMO Head clarifications and approved target revenue architecture are
+> **Filename compatibility note:** This file keeps its historical `EEMO_BUSINESS_RULES.md` path so existing repository links remain stable. Current office-facing terminology is **Municipal Economic Enterprises Development Office (MEEDO)**.
+>
+> **Supersession note:** The latest direct Cantilan MEEDO Head clarifications and approved target revenue architecture are
 > recorded in `REVENUE_ARCHITECTURE.md`. They supersede older contradictory assumptions in this historical/current-system
 > reference, including the former delinquency-versus-arrears rule. This document remains the reference for existing specialized
 > behavior unless a newer ruling explicitly supersedes it; the new architecture document describes target behavior, not an
 > assertion that the current runtime already implements it.
 
-**First and reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur
+**First and reference tenant:** Municipal Economic Enterprises Development Office (MEEDO), Municipality of Cantilan, Surigao del Sur
 **Status:** In production. Web portal, API and collector app are all live; further LGUs onboard through the platform console.
 
 > This file records accepted BUSINESS behaviour. For layering and coding rules see `../architecture/ARCHITECTURE_RULES.md`, for the reasons

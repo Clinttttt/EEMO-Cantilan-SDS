@@ -1,8 +1,9 @@
 # StallTrack V2 Master Specification
 
 **Status:** Canonical V2 orientation and change-control specification
-**Clean baseline:** `396b7ee5f13c9887b896d8c6cb3380e9945d4679`
-**Clean implementation branch:** `interface-v2/clean-adoption`
+**Historical clean-adoption baseline:** `396b7ee5f13c9887b896d8c6cb3380e9945d4679`
+**Historical clean-adoption branch:** `interface-v2/clean-adoption`
+**Current implementation status:** `../planning/CURRENT_RELEASE_STATE.md` plus current Git/code/tests
 **Applies to:** Web Office portal, Collector Mobile where stated, Payor portal where stated, and future V2 capability placement.
 
 ## 1. Purpose
@@ -19,7 +20,7 @@ When a detail here conflicts with a more authoritative current business ruling o
 - **TARGET V2** — approved direction, migrated incrementally.
 - **FUTURE / HIDDEN** — placement is reserved but capability must not be exposed yet.
 - **BLOCKED** — target cannot be completed until a stated prerequisite exists.
-- **NEEDS EEMO INPUT** — do not infer the answer in UI or code.
+- **NEEDS MEEDO INPUT** — do not infer the answer in UI or code.
 ## 2. What StallTrack V2 is
 
 StallTrack V2 is an incremental evolution of the existing production system. Its purpose is to make responsibilities, navigation, terminology, financial context, reporting, and future capability placement coherent without discarding working production behavior.
@@ -46,8 +47,10 @@ V2 does **not** mean a full rewrite, a new generic design language, or consolida
 - Preserve StallTrack's established navy structure, restrained gold accents, neutral work surfaces, compact operational density, and specialized workflow patterns.
 - Correct misleading semantics, accessibility defects, broken responsive behavior, inconsistency, or a UI that cannot express an approved capability with the smallest compatible change.
 
-**V3 presentation authority:** [`docs/interface/STALLTRACK_UI_V3_DIRECTION.md`](../interface/STALLTRACK_UI_V3_DIRECTION.md), approved by Clint, now governs Web Office visual presentation. It supersedes the visual-preservation requirements in this section and in §8 and §17–18 (navy structure, old dark sidebar styling) for Web presentation only. It does not supersede business rules, EEMO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts, and it does not relax the behavioral preservation, small-slice delivery, or human localhost visual gate in this specification.
-## 4. Current production baseline
+**V3 presentation authority:** [`docs/interface/STALLTRACK_UI_V3_DIRECTION.md`](../interface/STALLTRACK_UI_V3_DIRECTION.md), approved by Clint, now governs Web Office visual presentation. It supersedes the visual-preservation requirements in this section and in §8 and §17–18 (navy structure, old dark sidebar styling) for Web presentation only. It does not supersede business rules, MEEDO rulings, financial architecture, source authority, authorization, tenancy, runtime/application behavior, accessibility, reporting truth, or backend contracts, and it does not relax the behavioral preservation, small-slice delivery, or human localhost visual gate in this specification.
+## 4. Historical clean-adoption production baseline
+
+> This section describes the original V2 clean-adoption baseline. Several source-authority, V3 UI, remittance, WCF, governed-service and reporting changes have shipped since it was written. Use `../planning/CURRENT_RELEASE_STATE.md` for current implementation state.
 
 The clean baseline is a multi-tenant LGU economic-enterprise revenue and operations system. Cantilan is the accuracy baseline; tenant-owned names, facilities, rates, users, branding, and data remain scoped per municipality.
 
@@ -160,7 +163,7 @@ Operations may also list non-facility source operations and governed configurabl
 
 Transfer Large Cattle is now understood as an occasional transfer transaction with a corresponding fee/amount. The Head prefers direct approved amount input. Keep the amount policy configurable and preserve the governed-service boundary; Philippine regulatory references may guide optional transfer/ownership/certificate details and OR-oriented presentation until Cantilan supplies a different local instrument/form rule.
 
-Latest EEMO Head correction (2026-09-27): **Tabo uses OR**. **Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions.** **ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate.** ECF/WCF are broader EEMO Utility Operations rather than NPM-owned revenue types. The office Monthly Income sheet remains the report-grouping authority: Market Fees is one sibling income row, not a container for ECF/WCF/Tabo/Fish-Meat/Landing/Transportation/Weight & Measure/Transfer Large Cattle/Ice Plant.
+Latest MEEDO Head correction (2026-09-27): **Tabo uses OR**. **Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions.** **ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate.** ECF/WCF are broader MEEDO Utility Operations rather than NPM-owned revenue types. The office Monthly Income sheet remains the report-grouping authority: Market Fees is one sibling income row, not a container for ECF/WCF/Tabo/Fish-Meat/Landing/Transportation/Weight & Measure/Transfer Large Cattle/Ice Plant.
 
 **Latest clarification precedence:** direct Head guidance now supersedes IA-047 for Vegetable/Fruit and current ECF/WCF presentation. IA-047 remains reference-only for unresolved regulatory detail, especially Transfer Large Cattle. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 Do not fabricate Cash Ticket, OR, Accountable Forms, classification, or export workflows on the landing page merely because future architecture reserves them.
@@ -294,7 +297,7 @@ Revenue Target Attainment remains separate from Collection Efficiency.
 
 Current documentation identifies candidate office outputs including Financial Summary, Monthly Collection Report, List of Stallholders, Slaughterhouse List, Collector Report of Collections, rental/occupant monitoring, Monthly Income/Market Operations, and accountable-form reporting.
 
-**NEEDS EEMO INPUT:** which outputs are formally official, their authoritative scope, signatories, retention, and final print requirements.
+**NEEDS MEEDO INPUT:** which outputs are formally official, their authoritative scope, signatories, retention, and final print requirements.
 
 Until confirmed:
 
@@ -326,9 +329,9 @@ For governed configurable services, Mobile remains transaction-only. It may rend
 Do not expose Setup Required services as collectible actions to ordinary collectors. Head/Admin Web may still see their setup state. Mobile must never provide a generic form for inventing a charge name, arbitrary amount/rate, classification, or OR/CT choice.
 
 No AccountableDocument, Cash Ticket custody, remittance, WCF, vehicle-class, or configurable-service collection workflow is implied merely by a navigation change. Activation still requires its approved backend authority and rollout gate. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
-## 16. Capability status matrix
+## 16. Historical capability status matrix
 
-Current implementation-phase status is tracked in [`docs/planning/STALLTRACK_V2_PHASE_STATUS.md`](../planning/STALLTRACK_V2_PHASE_STATUS.md). That phase record distinguishes implemented-but-not-activated capability from production cutover authority.
+> This matrix is retained as a clean-adoption-era status snapshot. It is **not** the current implementation-status authority. Use [`docs/planning/CURRENT_RELEASE_STATE.md`](../planning/CURRENT_RELEASE_STATE.md), current Git/code/tests, and later Decision Registry entries before acting on any row below. `STALLTRACK_V2_PHASE_STATUS.md` remains phase history.
 
 | Capability | Status |
 |---|---|
@@ -357,9 +360,11 @@ Current implementation-phase status is tracked in [`docs/planning/STALLTRACK_V2_
 | Transportation class/rate redesign | TARGET V2; Cantilan vehicle-class schedule confirmed for current planning |
 | Canonical stable account/activity routes | BLOCKED on stable IDs |
 | Arrears qualification and recovered-cash mapping | CONFIRMED; old/lapsed debt and paid Arrears use the dedicated Arrears classification with source traceability |
-| Official report/document register | NEEDS EEMO INPUT |
+| Official report/document register | NEEDS MEEDO INPUT |
 
-## 17. Clean-adoption migration strategy
+## 17. Historical clean-adoption migration strategy
+
+This section preserves the original V2 adoption strategy. The repository has since moved through the V3 presentation and backend closure work; do not interpret the old branch/slice sequence below as the current work queue. Use `../planning/CURRENT_RELEASE_STATE.md` for the current queue.
 
 The clean V2 branch starts from the known production-compatible baseline. Do **not** wholesale merge today's experimental presentation branches.
 
@@ -426,13 +431,14 @@ A UI label cannot close a business decision gate.
 Read this master specification first, then follow the detailed source for the task:
 
 - `docs/README.md` — authority, documentation map, conflict handling.
-- `docs/business/EEMO_OPERATIONAL_RULEBOOK.md` — direct EEMO Head/staff rulings, office-evidence reconciliation, confirmed workflow rules, and the current high-value open questions.
+- `docs/planning/CURRENT_RELEASE_STATE.md` — current implementation/release checkpoint; use before dated audits or phase snapshots.
+- `docs/business/EEMO_OPERATIONAL_RULEBOOK.md` — direct MEEDO Head/staff rulings, office-evidence reconciliation, confirmed workflow rules, and the current high-value open questions.
 - `docs/business/EEMO_BUSINESS_RULES.md` — current accepted business semantics.
 - `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue/document architecture and migration phases.
 - `docs/interface/INFORMATION_ARCHITECTURE.md` — detailed target interface/workspace model.
 - `docs/interface/MIGRATION_PLAN.md` — phased interface migration and rollback.
 - `docs/interface/DESIGN_SYSTEM.md` — presentation/accessibility guidance.
-- `docs/decisions/DECISION_REGISTRY.md` — confirmed, blocked, future, and EEMO-input decisions.
+- `docs/decisions/DECISION_REGISTRY.md` — confirmed, blocked, future, and MEEDO-input decisions.
 - `docs/architecture/ARCHITECTURE_RULES.md` — non-negotiable implementation boundaries.
 - `docs/architecture/APPLICATION_PATTERNS.md` — established implementation patterns.
 - `docs/security/SECURITY_ARCHITECTURE.md` and `TENANT_ISOLATION.md` — security/tenant invariants.
@@ -442,7 +448,7 @@ Read this master specification first, then follow the detailed source for the ta
 ## 22. Agent execution rule
 Before changing V2 code, an agent must be able to answer:
 
-1. Is this behavior CURRENT, TARGET V2, FUTURE/HIDDEN, BLOCKED, or NEEDS EEMO INPUT?
+1. Is this behavior CURRENT, TARGET V2, FUTURE/HIDDEN, BLOCKED, or NEEDS MEEDO INPUT?
 2. Which source/domain currently owns the data or mutation?
 3. Does the task actually require a visual change?
 4. Which production UI pattern should be preserved?

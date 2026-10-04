@@ -1,9 +1,9 @@
 # Product Overview
 
-## StallTrack — EEMO Revenue Collection System
+## StallTrack — MEEDO Revenue Collection System
 
 **Product:** StallTrack, a multi-tenant revenue collection platform for LGU-managed economic enterprises.
-**Reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur.
+**Reference tenant:** Municipal Economic Enterprises Development Office (MEEDO), Municipality of Cantilan, Surigao del Sur.
 **Status:** In production — web portal, API and Android collector app are live; further LGUs onboard through the
 platform operator console.
 
@@ -53,7 +53,7 @@ effective date in `FacilityRates`.
 
 - Web portal is admin-only; collectors authenticate in the mobile app.
 - `CollectorId` comes from the authenticated user, never the request body; admin entries leave it null.
-- OR numbers are entered by hand, never generated; adding one never rewrites the original collector or timestamp.
+- MEEDO's current Official Receipt is physical Accountable Form No. 51. Record the exact printed identifier rather than generating it; one physical OR may itemize several compatible charges for the same payor while each collection line keeps its own revenue meaning. Adding an OR never rewrites the original collector or timestamp.
 - Delinquent begins at one fully elapsed unpaid month. Arrears means qualifying old/lapsed debt; its exact qualification boundary remains unresolved and is not inferred from month count. See `../business/REVENUE_ARCHITECTURE.md`. Contract expiry warns within 3 months.
 - A **partial payment counts as unpaid** for the paid-vs-unpaid invariant, and is reported separately as partial.
 - NPM is never billed monthly: `RecordPayment` refuses it; daily collections and month settlement are the routes.
