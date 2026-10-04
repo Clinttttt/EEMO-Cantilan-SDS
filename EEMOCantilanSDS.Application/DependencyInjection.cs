@@ -53,6 +53,8 @@ namespace EEMOCantilanSDS.Application
                 sp => sp.GetRequiredService<Common.Revenue.RemittanceWorkflow>());
             services.AddScoped<Common.Revenue.CollectionsReportWorkflow>();
             services.AddScoped<Common.Revenue.TransportationCollectionAuthority>();
+            services.AddScoped<Common.Revenue.GovernedCanonicalAuthority>();
+            services.AddScoped<Common.Revenue.FeeScheduleCollectionWorkflow>();
             services.AddScoped<Common.Slaughterhouse.ApprovedSlaughterAnimalWorkflow>();
 
             return services;

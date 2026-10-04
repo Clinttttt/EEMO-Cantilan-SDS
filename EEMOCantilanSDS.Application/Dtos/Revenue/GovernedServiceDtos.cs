@@ -48,6 +48,16 @@ public sealed record ConfigureGovernedServiceRequest(
 /// Versioned received-money intent for one collection. The collector supplies facts only:
 /// the amount is validated against approved setup, and the classification, instrument and rate are server-resolved.
 /// </summary>
+/// <summary>
+/// Collector Mobile Tabo / Slaughterhouse canonical collection (IA-062). The amount is the collector-confirmed figure the existing
+/// fee schedule must reproduce; no physical OR/CT is carried. Tabo: <see cref="VendorName"/>/<see cref="Goods"/> (registry by name,
+/// as the existing rule). Slaughterhouse: owner, approved animal, heads.
+/// </summary>
+public sealed record FeeSchedulePostRequest(
+    Guid ClientOperationId, string OperationCode, DateOnly BusinessDate, decimal ReceivedAmount,
+    Guid? VendorId = null, string? VendorName = null, string? Goods = null,
+    EEMOCantilanSDS.Domain.Enums.AnimalType? Animal = null, string? CustomAnimalName = null, int? Heads = null, string? OwnerName = null);
+
 public sealed record GovernedServicePostRequest(
     int SchemaVersion, Guid ClientOperationId, string OperationCode, DateOnly BusinessDate,
     decimal ReceivedAmount, GovernedServiceMode? Mode, string? PayerName, string? Reference,

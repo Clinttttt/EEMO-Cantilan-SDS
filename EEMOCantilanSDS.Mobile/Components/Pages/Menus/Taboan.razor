@@ -78,6 +78,13 @@
                 </button>
             }
 
+            @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
+            {
+                <div class="state-card" role="status">
+                    <div class="state-text">@CanonicalNotice</div>
+                </div>
+            }
+
             <div class="search-wrap">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <input type="text" placeholder="Search vendor or goods" aria-label="Search vendor or goods" @bind="SearchQuery" @bind:event="oninput" />
@@ -103,7 +110,7 @@
                                 <div class="tx-col-info">
                                     <span class="tx-owner">@q.Vendor</span>
                                     <span class="tx-sub">
-                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        <span class="tx-badge badge-queued">@q.Badge</span>
                                         @if (!string.IsNullOrWhiteSpace(q.Goods))
                                         {
                                             <span class="tx-tag">@q.Goods</span>
@@ -171,8 +178,11 @@
                 <div class="form-label" style="margin-top:12px;">Goods</div>
                 @PickerField(Goods, "Select or type goods", "Select Goods", KnownGoods, v => Goods = v, SuggestionType.TpmGoods)
 
-                <div class="form-label" style="margin-top:12px;">Official receipt no. <span>optional</span></div>
-                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="AddORNumber" @bind:event="oninput" />
+                @if (!Canonical)
+                {
+                    <div class="form-label" style="margin-top:12px;">Official receipt no. <span>optional</span></div>
+                    <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="AddORNumber" @bind:event="oninput" />
+                }
             </div>
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
@@ -338,7 +348,12 @@
     // Offline vendor captures (Kind = TpmVendor) for this market day, shown as "Queued · Offline" cards.
     private IReadOnlyList<QueuedVendor> QueuedVendors = Array.Empty<QueuedVendor>();
     private bool _disposed;
-    private sealed record QueuedVendor(string Vendor, string? Goods, string? ORNumber, decimal Fee);
+    private sealed record QueuedVendor(string Vendor, string? Goods, string? ORNumber, decimal Fee, string Badge = "Queued · Offline");
+
+    // IA-051/IA-062: once the Head enables canonical Tabo collection the screen records facts only (no typed OR); the server
+    // returns the StallTrack Reference Code. Before that, the existing flow is unchanged.
+    private bool Canonical => Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.TPM && f.CanonicalCollection) == true;
+    private string? CanonicalNotice;
 
     private IReadOnlyList<string> KnownGoods => Collection?.KnownGoods ?? Array.Empty<string>();
     private IReadOnlyList<MobileTpmKnownVendorDto> KnownVendors => Collection?.KnownVendors ?? Array.Empty<MobileTpmKnownVendorDto>();
@@ -536,6 +551,51 @@
         return true;
     }
 
+    // Canonical Tabo: queued under its ClientOperationId (saved on this device, "Waiting to sync"), then synced; the server checks the
+    // vendor-day fee against the office's schedule and returns the SRC. The shown fee is only the amount the collector confirms.
+    private async Task ConfirmCanonicalAsync()
+    {
+        var operationId = Guid.NewGuid();
+        var date = Collection?.MarketDate ?? DateOnly.FromDateTime(DateTime.Now);
+        var fee = Collection?.VendorFee ?? 0m;
+        try
+        {
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+            {
+                ClientOperationId = operationId,
+                Kind = OfflineOperationKind.FeeScheduleCollection,
+                PayloadVersion = 1,
+                OperationCode = global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Tabo,
+                BusinessDate = date,
+                VendorName = VendorName.Trim(),
+                Goods = Goods.Trim(),
+                ReceivedAmount = fee,
+                FacilityLabel = "TPM",
+                Title = VendorName.Trim(),
+                Detail = Goods.Trim(),
+                Amount = fee
+            });
+            CanonicalNotice = "Saved on this device. Waiting to sync.";
+            CloseSheets();
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result?.LocalStatus == PendingLocalStatus.Synced)
+                CanonicalNotice = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                CanonicalNotice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            await RefreshQueuedAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            SheetError = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
     private async Task ConfirmAddCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(VendorName))
@@ -551,6 +611,12 @@
 
         IsSaving = true;
         SheetError = null;
+
+        if (Canonical)
+        {
+            await ConfirmCanonicalAsync();
+            return;
+        }
 
         // Offline: queue the vendor entry (the ₱100 fee on entry); syncs when connectivity returns.
         if (!Sync.IsOnline)
@@ -731,12 +797,21 @@
     {
         var marketDate = Collection?.MarketDate ?? DateOnly.FromDateTime(DateTime.Now);
         var pending = await Sync.GetAllAsync();
-        QueuedVendors = pending
+        var legacy = pending
             .Where(o => o.Kind == OfflineOperationKind.TpmVendor
                      && o.BusinessDate == marketDate
                      && o.LocalStatus != PendingLocalStatus.Synced)
-            .Select(o => new QueuedVendor(o.VendorName ?? "—", o.Goods, o.ORNumber, o.Amount))
-            .ToList();
+            .Select(o => new QueuedVendor(o.VendorName ?? "—", o.Goods, o.ORNumber, o.Amount));
+        // Canonical Tabo captures stay listed after they sync (the server's list does not carry a Collection), each with its state.
+        var canonical = pending
+            .Where(o => o.Kind == OfflineOperationKind.FeeScheduleCollection
+                     && o.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Tabo
+                     && o.BusinessDate == marketDate)
+            .Select(o => new QueuedVendor(o.VendorName ?? "—", o.Goods, null, o.Amount,
+                o.LocalStatus == PendingLocalStatus.Synced ? (o.ReferenceCode is { } src ? $"Recorded · {src}" : "Recorded")
+                : o.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired ? "Not recorded"
+                : "Waiting to sync"));
+        QueuedVendors = legacy.Concat(canonical).ToList();
     }
 
     private async void OnSyncChanged()

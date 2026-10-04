@@ -21,7 +21,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     ICurrentUserService currentUser,
     WcfCollectionWorkflow? wcfWorkflow = null,
     GovernedServiceWorkflow? governedWorkflow = null,
-    CollectionComposerWorkflow? ecfWorkflow = null)
+    CollectionComposerWorkflow? ecfWorkflow = null,
+    FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -55,6 +56,24 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, wcfStatus,
                     outcome.IsSuccess ? null : outcome.Error,
                     outcome.Value?.ReferenceCode, outcome.Value?.CollectionId));
+                continue;
+            }
+            if (op.Kind == OfflineOperationKind.FeeScheduleCollection)
+            {
+                if (feeScheduleWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "Canonical Tabo/Slaughterhouse sync is not configured."));
+                    continue;
+                }
+                var fee = await feeScheduleWorkflow.PostMobileAsync(new FeeSchedulePostRequest(
+                    op.ClientOperationId, op.OperationCode ?? string.Empty, op.BusinessDate, op.ReceivedAmount ?? 0m,
+                    VendorName: op.VendorName, Goods: op.Goods, Animal: op.AnimalType, CustomAnimalName: op.CustomAnimalType,
+                    Heads: op.NumberOfHeads, OwnerName: op.OwnerName), ct);
+                var feeStatus = fee.IsSuccess ? SyncResultStatus.Synced
+                    : IsTransient(fee.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, feeStatus,
+                    fee.IsSuccess ? null : fee.Error, fee.Value?.ReferenceCode, fee.Value?.CollectionId));
                 continue;
             }
             if (op.Kind == OfflineOperationKind.RentCollection)

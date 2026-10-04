@@ -41,6 +41,12 @@ public static class GovernedServiceCatalog
         // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured.
         new(CollectorOperationCodes.Transportation, "Transportation / Parking", RevenueClassificationCodes.TransportationParking,
             false, [GovernedServiceBasis.VehicleClassRate]),
+        // Tabo and the current Slaughterhouse transaction already have an office-defined amount (vendor market-day fee;
+        // approved per-head rate x heads). The governed setting is only their prospective canonical-collection switch; the
+        // amount is never read from it or typed (FeeScheduleCollectionWorkflow computes it from the existing rules).
+        new(CollectorOperationCodes.Tabo, "Tabo", RevenueClassificationCodes.Tabo, false, [GovernedServiceBasis.DirectApprovedAmount]),
+        new(CollectorOperationCodes.Slaughterhouse, "Slaughterhouse", RevenueClassificationCodes.Slaughterhouse, false,
+            [GovernedServiceBasis.DirectApprovedAmount]),
     ];
 
     public static Entry? Find(string? code) => All.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
@@ -444,6 +450,8 @@ public sealed class GovernedServiceWorkflow(
         if (actor.Role != "Collector") return Result<GovernedServiceOutcomeDto>.Forbidden();
         if (request.ClientOperationId == Guid.Empty)
             return Result<GovernedServiceOutcomeDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
+        // Tabo / Slaughterhouse amounts come from their existing fee rules, never from a collector-typed amount.
+        if (FeeScheduleCollectionWorkflow.Handles(request.OperationCode)) return Result<GovernedServiceOutcomeDto>.Forbidden();
 
         var normalized = NormalizeIntent(actor, request);
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor));

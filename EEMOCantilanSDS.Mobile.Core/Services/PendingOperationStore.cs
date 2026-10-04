@@ -75,6 +75,13 @@ public sealed class PendingOperationStore : IPendingOperationStore
             {
                 OfflineOperationKind.EcfCollection => operation.UtilityBillId is not null && operation.ElectricitySourceVersion is > 0,
                 OfflineOperationKind.RentCollection => operation.StallId is not null && operation.BillingYear is not null && operation.BillingMonth is not null && operation.RentSourceVersion is >= 0,
+                OfflineOperationKind.FeeScheduleCollection => operation.OperationCode switch
+                {
+                    global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Tabo => !string.IsNullOrWhiteSpace(operation.VendorName),
+                    global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse => !string.IsNullOrWhiteSpace(operation.OwnerName)
+                        && operation.AnimalType is not null && operation.NumberOfHeads is > 0,
+                    _ => false
+                },
                 OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0
                     || (operation.UtilityBillId is null && operation.StallId is not null
                         && operation.BillingYear is not null && operation.BillingMonth is not null),

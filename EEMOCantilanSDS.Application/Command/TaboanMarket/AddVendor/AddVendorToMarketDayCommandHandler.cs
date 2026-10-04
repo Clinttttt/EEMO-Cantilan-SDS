@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -19,7 +20,8 @@ public class AddVendorToMarketDayCommandHandler(
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
     ITpmMarketDayProvider marketDayProvider,
-    ITenantContext tenantContext) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
+    ITenantContext tenantContext,
+    Common.Revenue.GovernedCanonicalAuthority? canonicalAuthority = null) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
 {
     public async Task<Result<TpmVendorAttendanceDto>> Handle(AddVendorToMarketDayCommand request, CancellationToken ct)
     {
@@ -35,6 +37,14 @@ public class AddVendorToMarketDayCommandHandler(
             {
                 return Result<TpmVendorAttendanceDto>.Forbidden();
             }
+
+            // From the Head's enablement date a Collector's Tabo collection is a canonical Collection (SRC); the legacy
+            // attendance writer is closed for Collectors so one payment is never recorded on both paths. History is untouched.
+            if (canonicalAuthority is not null
+                && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Tabo, request.MarketDate, ct))
+                return Result<TpmVendorAttendanceDto>.Failure(
+                    "Tabo is collected on the canonical collection workflow. The legacy attendance record is closed for Collector collections; earlier records remain unchanged.",
+                    ResultStatus.Conflict);
         }
 
         // The market date must fall on THIS LGU's configured market weekday (Cantilan = Friday by default).

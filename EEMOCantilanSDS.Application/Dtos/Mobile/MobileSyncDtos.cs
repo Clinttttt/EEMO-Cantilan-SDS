@@ -18,7 +18,9 @@ public enum OfflineOperationKind
     /// <summary>A canonical ECF (Electricity) collection on an already-canonical source: amount only, no physical serial (IA-062).</summary>
     EcfCollection = 9,
     /// <summary>A canonical monthly-rent collection on an already-canonical PaymentRecord: amount only, no physical serial (IA-062).</summary>
-    RentCollection = 10
+    RentCollection = 10,
+    /// <summary>A canonical Tabo (vendor market-day) or Slaughterhouse (approved animal x heads) collection: facts only, the amount is the office's existing fee schedule, no physical serial (IA-062).</summary>
+    FeeScheduleCollection = 11
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal

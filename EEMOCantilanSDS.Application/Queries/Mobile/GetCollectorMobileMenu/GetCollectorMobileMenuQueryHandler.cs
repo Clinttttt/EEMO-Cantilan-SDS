@@ -17,7 +17,8 @@ public class GetCollectorMobileMenuQueryHandler(
     IMunicipalityRepository municipalityRepository,
     EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext tenantContext,
     ICurrentUserService currentUser, IClock clock,
-    ITpmMarketDayProvider marketDayProvider) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
+    ITpmMarketDayProvider marketDayProvider,
+    EEMOCantilanSDS.Application.Common.Revenue.GovernedCanonicalAuthority? canonicalAuthority = null) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
 {
     public async Task<Result<MobileMenuDto>> Handle(GetCollectorMobileMenuQuery request, CancellationToken cancellationToken)
     {
@@ -40,6 +41,11 @@ public class GetCollectorMobileMenuQueryHandler(
         // This drops unconfigured slots (e.g. Custom1–5) and other LGUs' facilities, and always uses the
         // tenant's own facility name (so a custom facility shows its real name, not "Custom1").
         // IsAssigned drives the lock; IsAvailable additionally requires a built mobile collection screen.
+        var today = clock.PhilippineToday;
+        var tabo = canonicalAuthority is not null && assigned.Contains(FacilityCode.TPM)
+            && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Tabo, today, cancellationToken);
+        var slaughter = canonicalAuthority is not null && assigned.Contains(FacilityCode.SLH)
+            && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Slaughterhouse, today, cancellationToken);
         var facilities = names
             .OrderBy(kv => kv.Key)
             .Select(kv =>
@@ -55,7 +61,8 @@ public class GetCollectorMobileMenuQueryHandler(
                     // archetype except the unmapped "Custom" has one (custom FACILITIES bill as MonthlyRental
                     // → the monthly screen), so a custom facility works end-to-end instead of being locked.
                     isAssigned && archetype != BillingArchetype.Custom,
-                    archetype);
+                    archetype,
+                    kv.Key == FacilityCode.TPM ? tabo : kv.Key == FacilityCode.SLH && slaughter);
             })
             .ToList();
 

@@ -67,6 +67,13 @@
                 Record Slaughter
             </button>
 
+            @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
+            {
+                <div class="state-card" role="status">
+                    <div class="state-text">@CanonicalNotice</div>
+                </div>
+            }
+
             <div class="section-label">Today's Transactions</div>
 
             @if (!Collection.Transactions.Any() && QueuedReceipts.Count == 0)
@@ -87,7 +94,7 @@
                                 <div class="tx-col-info">
                                     <span class="tx-owner">@q.Owner</span>
                                     <span class="tx-sub">
-                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        <span class="tx-badge badge-queued">@q.Badge</span>
                                         <span class="tx-tag">@q.Lines.First().Label</span>
                                         @if (q.Lines.Count > 1)
                                         {
@@ -155,8 +162,11 @@
                 <div class="form-label">Owner name</div>
                 @PickerField(OwnerName, "Select or type an owner", "Select Owner", KnownOwners, v => OwnerName = v, SuggestionType.SlhOwner)
 
-                <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
-                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
+                @if (!Canonical)
+                {
+                    <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
+                    <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
+                }
             </div>
 
             <div class="form-label">Animal types · select one or more</div>
@@ -460,7 +470,12 @@
     private bool _disposed;
 
     private sealed record QueuedLine(string Label, int Heads, decimal Amount);
-    private sealed record QueuedReceipt(string Owner, string? ORNumber, IReadOnlyList<QueuedLine> Lines)
+    // IA-051/IA-062: once the Head enables canonical Slaughterhouse collection the screen records facts only (no typed OR) and the
+    // server returns an SRC per animal line (the existing per-line transaction). Before that, the existing flow is unchanged.
+    private bool Canonical => Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.SLH && f.CanonicalCollection) == true;
+    private string? CanonicalNotice;
+
+    private sealed record QueuedReceipt(string Owner, string? ORNumber, IReadOnlyList<QueuedLine> Lines, string Badge = "Queued · Offline")
     {
         public int TotalHeads => Lines.Sum(l => l.Heads);
         public decimal Total => Lines.Sum(l => l.Amount);
@@ -949,6 +964,68 @@
         await RefreshQueuedAsync();
     }
 
+    // Canonical Slaughterhouse: each animal line (the existing per-head transaction) is queued under its own ClientOperationId
+    // ("Waiting to sync"), then synced. The server recomputes the amount from the office's approved rates and returns an SRC per line.
+    private async Task ConfirmCanonicalAsync(IReadOnlyList<RecordMobileSlaughterRequest> lines)
+    {
+        var operationIds = new List<Guid>();
+        try
+        {
+            foreach (var line in lines)
+            {
+                var rate = line.AnimalType switch
+                {
+                    AnimalType.Hog => HogRate,
+                    AnimalType.Carabao or AnimalType.Cow => LargeRate,
+                    _ => line.CustomRate ?? 0m
+                };
+                var animalLabel = line.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(line.CustomAnimalType)
+                    ? line.CustomAnimalType!
+                    : AnimalLabels.For(line.AnimalType);
+                var operationId = Guid.NewGuid();
+                await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+                {
+                    ClientOperationId = operationId,
+                    Kind = OfflineOperationKind.FeeScheduleCollection,
+                    PayloadVersion = 1,
+                    OperationCode = global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse,
+                    BusinessDate = SelectedDate,
+                    OwnerName = line.OwnerName,
+                    AnimalType = line.AnimalType,
+                    NumberOfHeads = line.NumberOfHeads,
+                    CustomAnimalType = line.CustomAnimalType,
+                    ReceivedAmount = rate * line.NumberOfHeads,
+                    FacilityLabel = "SLH",
+                    Title = line.OwnerName,
+                    Detail = $"{animalLabel} ×{line.NumberOfHeads}",
+                    Amount = rate * line.NumberOfHeads
+                });
+                operationIds.Add(operationId);
+            }
+            CanonicalNotice = "Saved on this device. Waiting to sync.";
+            CloseSheet();
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var all = await Sync.GetAllAsync();
+            var mine = all.Where(x => operationIds.Contains(x.ClientOperationId)).ToList();
+            if (mine.Count > 0 && mine.All(x => x.LocalStatus == PendingLocalStatus.Synced))
+                CanonicalNotice = "Collection recorded · " + string.Join(", ", mine.Select(x => x.ReferenceCode).Where(c => c is not null));
+            else if (mine.FirstOrDefault(x => x.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired) is { } refused)
+                CanonicalNotice = refused.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            await RefreshQueuedAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            SheetError = operationIds.Count > 0
+                ? "Some lines were saved on this device and will sync; the rest could not be saved. Check Today's Transactions before entering more."
+                : "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
     private async Task ConfirmCoreAsync()
     {
         if (string.IsNullOrWhiteSpace(OwnerName))
@@ -956,7 +1033,7 @@
             SheetError = "Owner name is required.";
             return;
         }
-        if (string.IsNullOrWhiteSpace(ORNumber))
+        if (!Canonical && string.IsNullOrWhiteSpace(ORNumber))
         {
             SheetError = "OR number is required.";
             return;
@@ -965,7 +1042,7 @@
         // Build the animal lines for this single owner + OR.
         var lines = new List<RecordMobileSlaughterRequest>();
         var owner = OwnerName.Trim();
-        var or = ORNumber.Trim();
+        var or = Canonical ? string.Empty : ORNumber.Trim();
 
         if (HogHeads > 0)
             lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Hog, HogHeads));
@@ -991,6 +1068,12 @@
 
         IsSaving = true;
         SheetError = null;
+
+        if (Canonical)
+        {
+            await ConfirmCanonicalAsync(lines);
+            return;
+        }
 
         // Offline: queue each animal line as its own idempotent operation (shared owner + OR).
         if (!Sync.IsOnline)
@@ -1064,6 +1147,23 @@
                     o.NumberOfHeads ?? 0,
                     o.Amount)).ToList()))
             .ToList();
+
+        // Canonical lines stay listed after they sync (the office list does not carry a Collection), each with its own state / SRC.
+        var canonical = pending
+            .Where(o => o.Kind == OfflineOperationKind.FeeScheduleCollection
+                     && o.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse
+                     && o.BusinessDate == SelectedDate)
+            .Select(o => new QueuedReceipt(
+                o.OwnerName ?? "—", null,
+                [new QueuedLine(
+                    o.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(o.CustomAnimalType)
+                        ? o.CustomAnimalType!
+                        : (o.AnimalType is { } type ? AnimalLabels.For(type) : "Animal"),
+                    o.NumberOfHeads ?? 0, o.Amount)],
+                o.LocalStatus == PendingLocalStatus.Synced ? (o.ReferenceCode is { } src ? $"Recorded · {src}" : "Recorded")
+                : o.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired ? "Not recorded"
+                : "Waiting to sync"));
+        QueuedReceipts = QueuedReceipts.Concat(canonical).ToList();
     }
 
     // Sync events fire off the UI thread — marshal before touching state. A queued item that syncs

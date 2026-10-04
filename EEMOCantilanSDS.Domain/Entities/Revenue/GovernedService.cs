@@ -26,7 +26,8 @@ public sealed class GovernedService : BaseEntity, IMunicipalityOwned
     {
         if (municipalityId == Guid.Empty)
             throw new ArgumentException("A tenant is required.", nameof(municipalityId));
-        if (!CollectorOperationCodes.IsSupported(operationCode) || operationCode == CollectorOperationCodes.Wcf)
+        if (!(CollectorOperationCodes.IsSupported(operationCode) || CollectorOperationCodes.IsFeeSchedule(operationCode))
+            || operationCode == CollectorOperationCodes.Wcf)
             throw new ArgumentException("The operation is not a governed configurable service.", nameof(operationCode));
         if (string.IsNullOrWhiteSpace(createdBy) || createdBy.Trim().Length > 100)
             throw new ArgumentException("The configuring actor is required.", nameof(createdBy));

@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -20,7 +21,8 @@ public class RecordSlaughterCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
+    ITenantContext tenantContext,
+    Common.Revenue.GovernedCanonicalAuthority? canonicalAuthority = null) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordSlaughterCommand request, CancellationToken ct)
     {
@@ -40,6 +42,14 @@ public class RecordSlaughterCommandHandler(
             {
                 return Result<bool>.Forbidden();
             }
+
+            // From the Head's enablement date a Collector's slaughter transaction is a canonical Collection (SRC); the legacy
+            // transaction writer is closed for Collectors so one payment is never recorded on both paths. History is untouched.
+            if (canonicalAuthority is not null
+                && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Slaughterhouse, request.TransactionDate, ct))
+                return Result<bool>.Failure(
+                    "Slaughterhouse is collected on the canonical collection workflow. The legacy transaction record is closed for Collector collections; earlier records remain unchanged.",
+                    ResultStatus.Conflict);
         }
 
         var collectorId = currentUser.CollectorId;
