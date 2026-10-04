@@ -19,6 +19,12 @@ public sealed class AccountableFormBookConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.FirstSerialNumber).IsRequired();
         builder.Property(x => x.LastSerialNumber).IsRequired();
         builder.Property(x => x.SerialWidth).IsRequired();
+        builder.Property(x => x.NumberSuffix).HasMaxLength(30).IsRequired().HasDefaultValue(string.Empty);
+        builder.Property(x => x.FormVariant).HasMaxLength(20).IsRequired().HasDefaultValue(string.Empty);
+        builder.Property(x => x.ReceivedOn);
+        builder.Property(x => x.SourceAuthority).HasMaxLength(100);
+        builder.Property(x => x.SourceReference).HasMaxLength(100);
+        builder.Ignore(x => x.Quantity);
         builder.Property(x => x.ReceivedAtUtc).IsRequired();
         builder.Property(x => x.ReceivedByActorId).HasMaxLength(100).IsRequired();
         builder.Property(x => x.CreatedAt).IsRequired();

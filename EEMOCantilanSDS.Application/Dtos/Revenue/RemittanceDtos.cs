@@ -122,9 +122,10 @@ public sealed record FormAccountabilityDto(
     int Spoiled,
     int Returned,
     int NeedsReview,
-    int OnHand)
+    int OnHand,
+    int Lost = 0)
 {
-    public int AccountedFor => Issued + Spoiled + Returned + NeedsReview + OnHand;
+    public int AccountedFor => Issued + Spoiled + Returned + NeedsReview + OnHand + Lost;
 }
 
 /// <summary>A collector's money and forms position for a period: collected, remitted and unremitted are pesos; forms are counts.</summary>

@@ -16,6 +16,7 @@ public sealed class AccountableDocumentConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.InstrumentType).HasConversion<int>().IsRequired();
         builder.Property(x => x.SerialNumber).IsRequired();
         builder.Property(x => x.DocumentNumber).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.NormalizedNumber).HasMaxLength(100).IsRequired().HasDefaultValue(string.Empty);
         builder.Property(x => x.State).HasConversion<int>().IsRequired().IsConcurrencyToken();
         builder.Property(x => x.AssignedUserId);
         builder.Property(x => x.CollectionId);
@@ -29,6 +30,8 @@ public sealed class AccountableDocumentConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.DeletedAt);
         builder.Property(x => x.DeletedBy).HasMaxLength(100);
         builder.HasIndex(x => new { x.MunicipalityId, x.InstrumentType, x.DocumentNumber }).IsUnique();
+        // The same physical serial written two harmless ways (spacing, case) is one serial.
+        builder.HasIndex(x => new { x.MunicipalityId, x.InstrumentType, x.NormalizedNumber }).IsUnique();
         builder.HasIndex(x => new { x.MunicipalityId, x.FormBookId, x.SerialNumber }).IsUnique();
         builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId })
             .IsUnique().HasFilter("\"ClientOperationId\" IS NOT NULL");

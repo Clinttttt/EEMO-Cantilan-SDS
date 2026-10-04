@@ -251,6 +251,7 @@ public sealed class CollectionsReportWorkflow(
         AccountableDocumentState.Consumed => "Issued / consumed",
         AccountableDocumentState.ReconciliationRequired => "Needs review",
         AccountableDocumentState.Voided => "Spoiled / cancelled",
+        AccountableDocumentState.Lost => "Lost",
         _ => state.ToString()
     };
 

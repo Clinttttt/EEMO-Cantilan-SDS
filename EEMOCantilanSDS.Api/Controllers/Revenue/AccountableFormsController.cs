@@ -70,4 +70,41 @@ public sealed class AccountableFormsController(
     [HttpGet("spoilage")]
     public async Task<ActionResult<IReadOnlyList<SpoiledFormDto>>> SpoiledAsync(CancellationToken ct) =>
         HandleResponse(await workflow.GetSpoiledAsync(ct));
+
+    /// <summary>Registers a range from its printed serials (for example "2315601 A" to "2315650 A"); the serial is kept exactly as printed.</summary>
+    [HttpPost("register")]
+    public async Task<ActionResult<AccountableFormBookDto>> RegisterAsync(
+        [FromBody] RegisterAccountableFormsRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.RegisterAsync(request, ct));
+
+    /// <summary>Reports a serial or range lost, whole or by copy. A blank unit is blocked at once; the external notice may follow.</summary>
+    [HttpPost("loss")]
+    public async Task<ActionResult<FormLossResultDto>> ReportLossAsync(
+        [FromBody] ReportFormLossRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.ReportLossAsync(request, ct));
+
+    /// <summary>Adds the external RCD or notice reference to forms already recorded as cancelled or lost.</summary>
+    [HttpPost("references")]
+    public async Task<ActionResult<FormReferenceResultDto>> AddReferenceAsync(
+        [FromBody] AddFormReferenceRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.AddReferenceAsync(request, ct));
+
+    [HttpGet("exceptions")]
+    public async Task<ActionResult<IReadOnlyList<AccountableFormExceptionDto>>> ExceptionsAsync(CancellationToken ct) =>
+        HandleResponse(await workflow.GetExceptionsAsync(ct));
+
+    [HttpGet("position")]
+    public async Task<ActionResult<AccountableFormPositionDto>> PositionAsync(
+        [FromQuery] RevenueInstrumentType instrument, CancellationToken ct) =>
+        HandleResponse(await workflow.GetPositionAsync(instrument, ct));
+
+    [HttpGet("raaf-support")]
+    public async Task<ActionResult<AccountableFormRaafSupportDto>> RaafSupportAsync(
+        [FromQuery] RevenueInstrumentType instrument, [FromQuery] int year, [FromQuery] int month, CancellationToken ct) =>
+        HandleResponse(await workflow.GetRaafSupportAsync(instrument, year, month, ct));
+
+    [HttpGet("history")]
+    public async Task<ActionResult<IReadOnlyList<AccountableFormHistoryEventDto>>> HistoryAsync(
+        [FromQuery] RevenueInstrumentType instrument, [FromQuery] int limit = 200, CancellationToken ct = default) =>
+        HandleResponse(await workflow.GetHistoryAsync(instrument, limit, ct));
 }

@@ -154,6 +154,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<CollectionRemittance> CollectionRemittances { get; set; }
         public DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; set; }
         public DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; set; }
+        public DbSet<AccountableFormLossReport> AccountableFormLossReports { get; set; }
+        public DbSet<AccountableFormReference> AccountableFormReferences { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
 

@@ -62,7 +62,9 @@ public sealed record TransferAccountableFormsRequest(
 public sealed record AccountableFormBookDto(
     Guid BookId, RevenueInstrumentType InstrumentType, string SeriesName,
     string NumberPrefix, long FirstSerialNumber, long LastSerialNumber,
-    IReadOnlyList<CashTicketDocumentDto> Documents);
+    IReadOnlyList<CashTicketDocumentDto> Documents,
+    string NumberSuffix = "", string FormVariant = "", int Quantity = 0, DateOnly? ReceivedOn = null,
+    string? SourceAuthority = null, string? SourceReference = null, DateTime? ReceivedAtUtc = null);
 
 public sealed record LegacyWaterSyncResolution(
     bool RequiresReconciliation, string? Message, bool PreserveWaterSource = false);

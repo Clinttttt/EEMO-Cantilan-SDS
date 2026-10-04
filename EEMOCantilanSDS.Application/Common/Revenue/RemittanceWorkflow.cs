@@ -579,7 +579,7 @@ public sealed class RemittanceWorkflow(
             rows[group.Key] = new FormAccountabilityDto(group.Key.InstrumentType, group.Count(),
                 Count(AccountableDocumentState.Consumed), Count(AccountableDocumentState.Voided),
                 Count(AccountableDocumentState.InOffice), Count(AccountableDocumentState.ReconciliationRequired),
-                Count(AccountableDocumentState.Assigned));
+                Count(AccountableDocumentState.Assigned), Count(AccountableDocumentState.Lost));
         }
         return rows;
     }

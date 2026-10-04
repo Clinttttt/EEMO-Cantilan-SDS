@@ -88,6 +88,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<CollectionRemittance> CollectionRemittances { get; }
         DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; }
         DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; }
+        DbSet<AccountableFormLossReport> AccountableFormLossReports { get; }
+        DbSet<AccountableFormReference> AccountableFormReferences { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }

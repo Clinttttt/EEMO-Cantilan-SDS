@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>Small Head/Admin custody boundary for accountable-form books and assigned CT units.</summary>
-public sealed class AccountableFormCustodyWorkflow(
+public sealed partial class AccountableFormCustodyWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
@@ -276,7 +276,7 @@ public sealed class AccountableFormCustodyWorkflow(
     }, ct);
 
     /// <summary>Consecutive serials grouped into contiguous runs.</summary>
-    private static IReadOnlyList<SerialRangeDto> Runs(IReadOnlyList<AccountableDocument> units)
+    internal static IReadOnlyList<SerialRangeDto> Runs(IReadOnlyList<AccountableDocument> units)
     {
         var runs = new List<SerialRangeDto>();
         var i = 0;
@@ -381,7 +381,7 @@ public sealed class AccountableFormCustodyWorkflow(
         return $"{string.Join("; ", parts)}. No {InstrumentName(instrument)}s were assigned.";
     }
 
-    private static IEnumerable<string> Runs(IEnumerable<AccountableDocument> documents)
+    internal static IEnumerable<string> Runs(IEnumerable<AccountableDocument> documents)
     {
         AccountableDocument? start = null, previous = null;
         foreach (var document in documents.OrderBy(x => x.SerialNumber))
@@ -484,9 +484,9 @@ public sealed class AccountableFormCustodyWorkflow(
         _ => "accountable document"
     };
 
-    private DateTime UtcNow => clock?.UtcNow ?? DateTime.UtcNow;
+    internal DateTime UtcNow => clock?.UtcNow ?? DateTime.UtcNow;
 
-    private Task<Result<T>> Run<T>(Func<Actor, Task<Result<T>>> action, CancellationToken ct)
+    internal Task<Result<T>> Run<T>(Func<Actor, Task<Result<T>>> action, CancellationToken ct)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is not { } userId || userId == Guid.Empty)
             return Task.FromResult(Result<T>.Unauthorized());
@@ -498,10 +498,11 @@ public sealed class AccountableFormCustodyWorkflow(
         return action(new Actor(tenant, userId, currentUser.Username ?? "Office User", userId.ToString("N")));
     }
 
-    private static AccountableFormBookDto ToDto(AccountableFormBook book, IEnumerable<AccountableDocument> documents) =>
+    internal static AccountableFormBookDto ToDto(AccountableFormBook book, IEnumerable<AccountableDocument> documents) =>
         new(book.Id, book.InstrumentType, book.SeriesName, book.NumberPrefix,
             book.FirstSerialNumber, book.LastSerialNumber, documents.Select(x => new CashTicketDocumentDto(
-                x.Id, x.DocumentNumber, x.State, x.AssignedUserId, x.SerialNumber)).ToList());
+                x.Id, x.DocumentNumber, x.State, x.AssignedUserId, x.SerialNumber)).ToList(),
+            book.NumberSuffix, book.FormVariant, book.Quantity, book.ReceivedOn, book.SourceAuthority, book.SourceReference, book.ReceivedAtUtc);
 
-    private sealed record Actor(Guid TenantId, Guid UserId, string Username, string ActorId);
+    internal sealed record Actor(Guid TenantId, Guid UserId, string Username, string ActorId);
 }

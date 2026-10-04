@@ -32,7 +32,7 @@ public sealed record EcfObligationQuoteDto(
     bool CanAddToDraft,
     bool CanPostCanonical);
 
-public sealed record EcfAvailableDocumentDto(Guid DocumentId, string DocumentNumber, AccountableDocumentState State);
+public sealed record EcfAvailableDocumentDto(Guid DocumentId, string DocumentNumber, AccountableDocumentState State, bool IsNextExpected = false);
 
 public sealed record EcfCollectionDraftLineDto(
     Guid LineId,

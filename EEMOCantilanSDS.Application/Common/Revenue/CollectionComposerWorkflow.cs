@@ -141,14 +141,21 @@ public sealed class CollectionComposerWorkflow(
 
     public Task<Result<IReadOnlyList<EcfAvailableDocumentDto>>> GetAvailableReceiptsAsync(CancellationToken ct = default) => Run(async actor =>
     {
-        var documents = await db.AccountableDocuments.AsNoTracking()
-            .Where(x => x.MunicipalityId == actor.MunicipalityId
+        // Sequence-aware: stock the signed-in user holds comes first, then office stock, each in its book's receipt order and then
+        // serial order, so the first row is the next expected receipt. The list is a recovery picker, not an inventory browser.
+        var rows = await (
+            from x in db.AccountableDocuments.AsNoTracking()
+            join b in db.AccountableFormBooks.AsNoTracking() on new { x.MunicipalityId, Id = x.FormBookId } equals new { b.MunicipalityId, b.Id }
+            where x.MunicipalityId == actor.MunicipalityId
                 && x.InstrumentType == RevenueInstrumentType.OfficialReceipt
                 && (x.State == AccountableDocumentState.InOffice
-                    || (x.State == AccountableDocumentState.Assigned && x.AssignedUserId == actor.UserId)))
-            .OrderBy(x => x.SerialNumber)
-            .Select(x => new EcfAvailableDocumentDto(x.Id, x.DocumentNumber, x.State))
-            .ToListAsync(ct);
+                    || (x.State == AccountableDocumentState.Assigned && x.AssignedUserId == actor.UserId))
+            select new { x.Id, x.DocumentNumber, x.State, x.SerialNumber, b.ReceivedAtUtc }).ToListAsync(ct);
+        var documents = rows
+            .OrderBy(x => x.State == AccountableDocumentState.Assigned ? 0 : 1).ThenBy(x => x.ReceivedAtUtc).ThenBy(x => x.SerialNumber)
+            .Take(200)
+            .Select((x, i) => new EcfAvailableDocumentDto(x.Id, x.DocumentNumber, x.State, i == 0))
+            .ToList();
         return Result<IReadOnlyList<EcfAvailableDocumentDto>>.Success(documents);
     }, ct);
 

@@ -11,6 +11,8 @@ public sealed class AccountableDocument : AuditableEntity, IMunicipalityOwned
     public RevenueInstrumentType InstrumentType { get; private set; }
     public long SerialNumber { get; private set; }
     public string DocumentNumber { get; private set; } = string.Empty;
+    /// <summary>Lookup key of the printed number: upper-cased, whitespace removed. Detects "2315601 A" vs "2315601A"; the printed DocumentNumber stays authoritative.</summary>
+    public string NormalizedNumber { get; private set; } = string.Empty;
     public AccountableDocumentState State { get; private set; } = AccountableDocumentState.InOffice;
     public Guid? AssignedUserId { get; private set; }
     public Guid? CollectionId { get; private set; }
@@ -27,6 +29,7 @@ public sealed class AccountableDocument : AuditableEntity, IMunicipalityOwned
         {
             Id = Guid.NewGuid(), MunicipalityId = book.MunicipalityId, FormBookId = book.Id,
             InstrumentType = book.InstrumentType, SerialNumber = serialNumber, DocumentNumber = number,
+            NormalizedNumber = AccountableSerial.Normalize(number),
             State = AccountableDocumentState.InOffice, CreatedAt = DateTime.UtcNow, CreatedBy = createdBy
         };
     }
@@ -115,8 +118,23 @@ public sealed class AccountableDocument : AuditableEntity, IMunicipalityOwned
         Touch(updatedBy);
     }
 
+    /// <summary>
+    /// Blocks an unused unit for good because it was reported lost. Only a blank unit changes state; an issued unit keeps its
+    /// financial state and its loss is a recorded exception only. A lost unit never returns to stock.
+    /// </summary>
+    public void MarkLost(string updatedBy)
+    {
+        if (State is not (AccountableDocumentState.InOffice or AccountableDocumentState.Assigned))
+            throw new InvalidOperationException("Only an unused document can be blocked as lost.");
+        State = AccountableDocumentState.Lost;
+        AssignedUserId = null;
+        Touch(updatedBy);
+    }
+
     public void Void(string updatedBy)
     {
+        if (State is AccountableDocumentState.Lost or AccountableDocumentState.Voided)
+            throw new InvalidOperationException("A lost or already cancelled document stays as recorded.");
         if (State is AccountableDocumentState.Consumed or AccountableDocumentState.ReconciliationRequired)
             throw new InvalidOperationException("An issued document requires linked correction history and remains consumed.");
         State = AccountableDocumentState.Voided;
