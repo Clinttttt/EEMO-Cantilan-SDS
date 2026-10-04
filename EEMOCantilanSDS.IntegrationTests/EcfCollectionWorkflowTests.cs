@@ -1395,4 +1395,93 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         Assert.False(refused.IsSuccess);
         Assert.Empty(await legacyContext.Collections.ToListAsync());
     }
+
+    // ── Phase 2.2 financial proof: Monthly Income, collector report, remittance for the Mobile canonical writers ──
+
+    private sealed class ProofClock : EEMOCantilanSDS.Application.Common.Interface.Time.IClock
+    {
+        public DateOnly PhilippineToday => PhilippineTime.Today;
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => PhilippineTime.Now;
+    }
+
+    /// <summary>
+    /// One canonical Mobile collection must be counted exactly once everywhere and a remittance must move only the
+    /// collected/remitted/unremitted position, never income and never create a Collection.
+    /// </summary>
+    private async Task ProveExactlyOnceAsync(Guid tenantId, Guid adminId, Guid collectorId, string rowKey, decimal amount, string natureFragment)
+    {
+        var today = PhilippineTime.Today;
+        decimal Income(EEMOCantilanSDS.Application.Dtos.Revenue.OfficialMonthlyIncomeDto d) =>
+            d.Groups.SelectMany(g => g.Rows).Single(r => r.Key == rowKey).Months[today.Month - 1].Total;
+        async Task<EEMOCantilanSDS.Application.Dtos.Revenue.OfficialMonthlyIncomeDto> StatementAsync()
+        {
+            await using var c = db.CreateContext(tenantId);
+            var handler = new EEMOCantilanSDS.Application.Queries.Revenue.GetOfficialMonthlyIncome.GetOfficialMonthlyIncomeQueryHandler(
+                c, new EEMOCantilanSDS.Infrastructure.Repositories.LegacyMonthlyIncomeReader(c), new TestActor(adminId, tenantId),
+                new FixedTenant(tenantId), new ProofClock());
+            return (await handler.Handle(new(today.Year, today.Month), CancellationToken.None)).Value!;
+        }
+
+        // Official Monthly Income: the legacy projection is excluded, the canonical line is counted once.
+        Assert.Equal(amount, Income(await StatementAsync()));
+
+        await using var ctx = db.CreateContext(tenantId);
+        // Collector report: the canonical line appears once and legacy compatibility rows add nothing.
+        var report = await new EEMOCantilanSDS.Infrastructure.Repositories.CollectorReportQueries(ctx)
+            .GetCollectionsAsync(collectorId, today.AddDays(-1), today);
+        var mine = report.Lines.Where(l => l.IsCanonical && l.Nature.Contains(natureFragment, StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Equal(amount, Assert.Single(mine).Amount);
+        Assert.StartsWith("SRC-", mine[0].DocumentNumber);
+        Assert.DoesNotContain(report.Lines, l => !l.IsCanonical && l.Nature.Contains(natureFragment, StringComparison.OrdinalIgnoreCase));
+
+        // Remittance lifecycle.
+        var remit = new RemittanceWorkflow(ctx, new TestActor(adminId, tenantId), new FixedTenant(tenantId));
+        var before = (await remit.GetPositionAsync(today.AddDays(-1), today)).Value!.Collectors.Single(x => x.CollectorId == collectorId);
+        Assert.Equal((amount, 0m, amount), (before.Collected, before.Remitted, before.Unremitted));
+        var collections = await ctx.Collections.CountAsync();
+        var lines = await ctx.CollectionLines.CountAsync();
+        var recorded = await remit.RecordAsync(new RecordRemittanceRequest(Guid.NewGuid(), collectorId, today, today.AddDays(-1), today,
+            null, null, amount, "proof", null));
+        Assert.True(recorded.IsSuccess, recorded.Error);
+        var after = (await remit.GetPositionAsync(today.AddDays(-1), today)).Value!.Collectors.Single(x => x.CollectorId == collectorId);
+        Assert.Equal((amount, amount, 0m), (after.Collected, after.Remitted, after.Unremitted));
+        Assert.Equal((collections, lines), (await ctx.Collections.CountAsync(), await ctx.CollectionLines.CountAsync())); // remittance is not revenue
+        Assert.Equal(amount, Income(await StatementAsync()));                                                           // and income did not move
+    }
+
+    [SkippableFact]
+    public async Task MobileEcf_IsCountedOnceInMonthlyIncome_CollectorReport_AndRemittance()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.NPM);
+        long version;
+        await using (var read = db.CreateContext(seed.TenantId))
+            version = (await read.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElectricitySourceVersion;
+        await using (var context = db.CreateContext(seed.TenantId))
+            Assert.True((await AsCollector(context, seed.TenantId, collectorId).PostMobileEcfAsync(
+                new MobileEcfPostRequest(Guid.NewGuid(), seed.BillId, 100m, version, PhilippineTime.Today))).IsSuccess);
+
+        await ProveExactlyOnceAsync(seed.TenantId, seed.UserId, collectorId, "ECF", 100m, "Electricity");
+    }
+
+    [SkippableFact]
+    public async Task MobileRent_IsCountedOnceInMonthlyIncome_CollectorReport_AndRemittance()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var rent = await SeedRentSourcesAsync(seed, [seed.Period], canonical: true);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.TCC);
+        long version;
+        await using (var read = db.CreateContext(seed.TenantId))
+            version = (await read.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[seed.Period])).SettlementVersion;
+        await using (var context = db.CreateContext(seed.TenantId))
+            Assert.True((await AsCollector(context, seed.TenantId, collectorId).PostMobileRentAsync(
+                new MobileRentPostRequest(Guid.NewGuid(), rent.StallId, seed.Period.Year, seed.Period.Month, 400m, version, PhilippineTime.Today))).IsSuccess);
+
+        await ProveExactlyOnceAsync(seed.TenantId, seed.UserId, collectorId, "RENT_TCC", 400m, "Rental");
+    }
 }

@@ -470,4 +470,58 @@ public class MobileSyncServiceTests
         Assert.Equal(1, summary.Synced);
         Assert.Empty(store.Snapshot);
     }
+
+    [Theory]
+    [InlineData(OfflineOperationKind.EcfCollection)]
+    [InlineData(OfflineOperationKind.RentCollection)]
+    public async Task Canonical_ecf_and_rent_survive_a_failed_attempt_and_reconcile_with_the_servers_src_on_retry(OfflineOperationKind kind)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "eemo-canonical-queue-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new PendingOperationStore(dir);
+            var operation = new PendingOperation
+            {
+                ClientOperationId = Guid.NewGuid(), Kind = kind, PayloadVersion = 1, BusinessDate = new DateOnly(2026, 10, 4),
+                UtilityBillId = kind == OfflineOperationKind.EcfCollection ? Guid.NewGuid() : null,
+                ElectricitySourceVersion = kind == OfflineOperationKind.EcfCollection ? 3 : null,
+                StallId = kind == OfflineOperationKind.RentCollection ? Guid.NewGuid() : null,
+                BillingYear = 2026, BillingMonth = 10, RentSourceVersion = kind == OfflineOperationKind.RentCollection ? 2 : null,
+                ReceivedAmount = 100m, OwnerKey = CollectorA, Title = "Payor", FacilityLabel = "X", Amount = 100m
+            };
+            var sent = new List<Guid>();
+            var collectionId = Guid.NewGuid();
+            var attempt = 0;
+            var api = new Mock<IMobileApiClient>();
+            api.Setup(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()))
+                .ReturnsAsync((SyncOfflineCollectionsCommand cmd) =>
+                {
+                    sent.AddRange(cmd.Operations.Select(o => o.ClientOperationId));
+                    var r = ++attempt == 1
+                        ? new SyncOperationResultDto(operation.ClientOperationId, SyncResultStatus.Failed, "timeout")
+                        : new SyncOperationResultDto(operation.ClientOperationId, SyncResultStatus.Synced, null, "SRC-2026-000321", collectionId);
+                    return Result<SyncOfflineCollectionsResultDto>.Success(
+                        new SyncOfflineCollectionsResultDto(r.Status == SyncResultStatus.Synced ? 1 : 0, 0, r.Status == SyncResultStatus.Failed ? 1 : 0, [r]));
+                });
+            var sut = Sut(store, api.Object, online: false);
+
+            await sut.EnqueueIssuedDocumentAsync(operation);          // saved on the device, nothing sent, no SRC invented
+            var queued = Assert.Single(await store.GetAllAsync());
+            Assert.Equal((PendingLocalStatus.Pending, null), (queued.LocalStatus, queued.ReferenceCode));
+            Assert.Empty(sent);
+
+            var online = Sut(store, api.Object, online: true);
+            await online.SyncNowAsync(force: true);                     // attempt 1 fails: the operation is retained as it was
+            var retained = Assert.Single(await store.GetAllAsync());
+            Assert.Equal((PendingLocalStatus.Failed, 1, null), (retained.LocalStatus, retained.AttemptCount, retained.ReferenceCode));
+
+            await online.SyncNowAsync(force: true);                     // retry: the same ClientOperationId, the server answers
+            var done = Assert.Single(await store.GetAllAsync());
+            Assert.Equal(PendingLocalStatus.Synced, done.LocalStatus);
+            Assert.Equal(("SRC-2026-000321", collectionId), (done.ReferenceCode, done.ServerCollectionId));
+            Assert.Equal(2, sent.Count);
+            Assert.Single(sent.Distinct());                              // never a second identity, so never a second Collection
+        }
+        finally { try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch { } }
+    }
 }
