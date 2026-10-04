@@ -112,7 +112,7 @@
                             <dd>@(instrument.Instrument is { } i ? InstrumentName(i) : "Not approved")</dd>
                         </div>
                     }
-                    <div><dt>Collector Mobile</dt><dd>@(_definition.MobileEnabled ? "Enabled" : "Not enabled")</dd></div>
+                    <div><dt>Collector Mobile</dt><dd>@MobileText(_definition)</dd></div>
                     <div><dt>Effective since</dt><dd>@(_definition.EffectiveDate?.ToString("MMM d, yyyy") ?? "—")</dd></div>
                 </dl>
                 @if (_definition.SetupIssues.Count > 0)
@@ -127,6 +127,11 @@
 
                 <AuthorizeView Roles="SuperAdmin">
                     <Authorized>
+                        @if (!_editing && _definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
+                        {
+                            <p class="gsw-note">New transactions are turned off, so collectors cannot record this on Collector Mobile.</p>
+                            <button class="v3-btn v3-btn-primary gsw-edit" type="button" @onclick="EnableAsync" disabled="@_saving">Enable new transactions</button>
+                        }
                         @if (!_editing)
                         {
                             <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
@@ -175,7 +180,7 @@
                                     <p class="gsw-note">The amount is the approved rate of the vehicle class the collector selects. Set the classes and rates below.</p>
                                 }
                                 <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
-                                <label class="gsw-check"><input type="checkbox" @bind="_mobile" /> Collector Mobile may record it</label>
+                                <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it@(_enabled ? "" : " (needs new transactions enabled)")</label>
                                 @if (!string.IsNullOrWhiteSpace(_saveError))
                                 {
                                     <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
@@ -302,10 +307,41 @@
         _basis = current.Basis ?? current.AllowedBases[0];
         _fixedAmount = current.FixedAmount;
         _ceiling = current.MaximumAmount;
-        _enabled = current.State != GovernedServiceSetupState.Disabled;
-        _mobile = current.Basis is null || current.MobileEnabled;
+        // Opening the editor is how a Head turns the service on, so it opens enabled; a Disabled service no longer opens with the
+        // box unchecked (which saved it Disabled again). Turning it off is an explicit uncheck.
+        _enabled = true;
+        _mobile = current.Basis is null || current.MobileEnabled || current.State == GovernedServiceSetupState.Disabled;
         _editing = true;
     }
+
+    // One click from Disabled: the same approved setup (rule, ceiling) applies again from today, Collector Mobile on with it.
+    private async Task EnableAsync()
+    {
+        if (_saving || _definition is not { Basis: { } basis } current) return;
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var result = await GovernedApi.ConfigureAsync(OperationCode, new ConfigureGovernedServiceRequest(
+                PhilippineTime.Today, basis,
+                basis == GovernedServiceBasis.FixedAmount ? current.FixedAmount : null,
+                basis == GovernedServiceBasis.DirectApprovedAmount ? current.MaximumAmount : null,
+                true, true));
+            if (!result.IsSuccess) { _saveError = result.Error ?? "New transactions could not be enabled."; return; }
+            _definition = result.Value;
+            _saved = "New transactions are enabled.";
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // Never "Enabled" next to a Disabled service without saying why.
+    private static string MobileText(GovernedServiceDefinitionDto d) => d switch
+    {
+        { MobileEnabled: true, State: GovernedServiceSetupState.Disabled } => "Allowed, but new transactions are not enabled",
+        { MobileEnabled: true } => "Enabled",
+        _ => "Not enabled"
+    };
 
     private void CloseEditor() => _editing = false;
 
@@ -320,7 +356,7 @@
                 _effective, _basis,
                 _basis == GovernedServiceBasis.FixedAmount ? _fixedAmount : null,
                 _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null,
-                _enabled, _mobile);
+                _enabled, _enabled && _mobile);
             var result = await GovernedApi.ConfigureAsync(OperationCode, request);
             if (!result.IsSuccess)
             {
@@ -362,7 +398,7 @@
         _ => "Not set up"
     };
 
-    private static string ModeLabel(GovernedServiceMode mode) => mode == GovernedServiceMode.WholePayment ? "Whole payment" : "Daily transaction";
+    private static string ModeLabel(GovernedServiceMode mode) => mode == GovernedServiceMode.WholePayment ? "Monthly rental" : "Daily transaction";
 
     private static string InstrumentName(RevenueInstrumentType instrument) =>
         instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket";

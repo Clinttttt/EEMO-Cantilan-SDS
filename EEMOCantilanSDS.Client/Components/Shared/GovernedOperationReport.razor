@@ -257,7 +257,7 @@
         null => "—",
         _ => mode.Value.ToString() switch
         {
-            "WholePayment" => "Whole payment",
+            "WholePayment" => "Monthly rental",
             "DailyTransaction" => "Daily transaction",
             var other => other,
         },

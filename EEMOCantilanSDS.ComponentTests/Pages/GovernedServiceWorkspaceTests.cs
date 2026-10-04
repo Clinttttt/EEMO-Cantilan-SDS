@@ -150,13 +150,13 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var setup = cut.Find("aside").TextContent;
-            Assert.Contains("Whole payment", setup);
+            Assert.Contains("Monthly rental", setup);
             Assert.Contains("Official Receipt", setup);
             Assert.Contains("Daily transaction", setup);
             Assert.Contains("Cash Ticket", setup);
             var rows = cut.FindAll("tbody tr");
             Assert.Contains("SRC-2026-000005", rows[0].TextContent);
-            Assert.Contains("Whole payment", rows[0].TextContent);
+            Assert.Contains("Monthly rental", rows[0].TextContent);
             Assert.Contains("SRC-2026-000006", rows[1].TextContent);
             Assert.Contains("Daily transaction", rows[1].TextContent);
         }, Timeout);

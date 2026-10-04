@@ -173,7 +173,7 @@
     private static readonly IReadOnlyList<OperationService> SpaceRentalServices =
     [
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
-        new("Vegetable | Fruits", [new("OR", "Whole payment"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit",
+        new("Vegetable | Fruits", [new("OR", "Monthly rental"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit",
             Links: [new("Report", "/operations/vegetable-fruit/report")]),
         new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay",
             Links: [new("Report", "/operations/kanmanggay/report")]),

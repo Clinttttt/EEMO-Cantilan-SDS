@@ -1,0 +1,117 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IGovernedServicesApiClient GovernedApi
+
+@* The prospective switch for a facility whose amount the office already defines (Tabo, Slaughterhouse). It carries no amount:
+   the existing fee schedule stays the authority. One switch sets both "enabled for new transactions" and "Collector Mobile",
+   so the confusing half-enabled state cannot be saved from here. *@
+<section class="fcc" aria-label="@($"{Name} collection on Collector Mobile")">
+    <div class="fcc-head">
+        <span class="fcc-title">Collector Mobile collection</span>
+        @if (_definition is not null)
+        {
+            <span class="fcc-state fcc-state-@(IsOn ? "on" : "off")">@StateText</span>
+        }
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="fcc-error" role="alert">@_error</p>
+        <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+    }
+    else if (_definition is null)
+    {
+        <p class="fcc-note" role="status">Loading…</p>
+    }
+    else
+    {
+        <p class="fcc-note">
+            @(IsOn
+                ? $"Collectors record {Name} on Collector Mobile without typing a receipt number. Each collection gets a StallTrack reference code (SRC)."
+                : $"Switch this on when collectors should record {Name} on Collector Mobile and receive a StallTrack reference code (SRC). Earlier records stay as they are.")
+        </p>
+        @if (!IsOn && _definition.SetupIssues.Count > 0)
+        {
+            <ul class="fcc-note" aria-label="What is still needed">
+                @foreach (var issue in _definition.SetupIssues)
+                {
+                    <li>@issue</li>
+                }
+            </ul>
+        }
+        <AuthorizeView Roles="SuperAdmin">
+            <Authorized>
+                <div class="fcc-actions">
+                    <label class="fcc-date">
+                        <span>@(IsOn ? "Change from" : "Effective from")</span>
+                        <input type="date" @bind="_effective" />
+                    </label>
+                    <button class="v3-btn @(IsOn ? "" : "v3-btn-primary")" type="button" @onclick="() => SaveAsync(!IsOn)" disabled="@_saving">
+                        @(IsOn ? "Turn off" : "Turn on")
+                    </button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+        @if (!string.IsNullOrWhiteSpace(_saved))
+        {
+            <p class="fcc-saved" role="status">@_saved</p>
+        }
+    }
+</section>
+
+@code {
+    /// <summary>The governed operation identity (CollectorOperationCodes), e.g. TABO.</summary>
+    [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
+
+    /// <summary>What the collector records, in the office's words (e.g. "Tabo vendor fees").</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+
+    private GovernedServiceDefinitionDto? _definition;
+    private string? _error;
+    private string? _saved;
+    private bool _saving;
+    private DateOnly _effective = PhilippineTime.Today;
+
+    // On means the Head has enabled new transactions AND Collector Mobile; anything else is off (a stray half-state reads as off).
+    private bool IsOn => _definition is { State: GovernedServiceSetupState.Active, MobileEnabled: true };
+
+    private string StateText => IsOn
+        ? $"On{(_definition!.EffectiveDate is { } d ? $" · since {d:MMM d, yyyy}" : "")}"
+        : _definition is { State: GovernedServiceSetupState.Disabled } ? "Off" : "Not turned on";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            var result = await GovernedApi.GetDefinitionsAsync();
+            if (!result.IsSuccess) { _error = "The setting couldn't be loaded."; return; }
+            _definition = result.Value?.FirstOrDefault(x => x.OperationCode == OperationCode);
+            if (_definition is null) _error = "This setting is not available for this office.";
+        }
+        catch { _error = "The setting couldn't be loaded."; }
+    }
+
+    private async Task SaveAsync(bool on)
+    {
+        if (_saving) return;
+        _saving = true;
+        _error = null;
+        _saved = null;
+        try
+        {
+            var result = await GovernedApi.ConfigureAsync(OperationCode, new ConfigureGovernedServiceRequest(
+                _effective, GovernedServiceBasis.DirectApprovedAmount, null, null, on, on));
+            if (!result.IsSuccess) { _error = result.Error ?? "The setting could not be saved."; return; }
+            _definition = result.Value;
+            _saved = on ? "Turned on. It applies from the date above." : "Turned off. Records already made are unchanged.";
+        }
+        catch { _error = "The setting could not be saved."; }
+        finally { _saving = false; }
+    }
+}

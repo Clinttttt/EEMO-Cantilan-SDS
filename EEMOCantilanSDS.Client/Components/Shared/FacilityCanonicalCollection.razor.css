@@ -1,0 +1,61 @@
+.fcc {
+    display: grid;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 1px solid var(--v3-border, #e3e8ef);
+}
+
+.fcc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.fcc-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.fcc-state {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--v3-border, #e3e8ef);
+}
+
+.fcc-state-on {
+    color: var(--v3-accent, #1d4ed8);
+    border-color: currentColor;
+}
+
+.fcc-note,
+.fcc-saved,
+.fcc-error {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.fcc-error {
+    color: var(--v3-danger, #b42318);
+}
+
+.fcc-actions {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.fcc-date {
+    display: grid;
+    gap: 4px;
+    font-size: 0.75rem;
+}
+
+.fcc-date input {
+    min-height: 40px;
+    padding: 0 8px;
+}

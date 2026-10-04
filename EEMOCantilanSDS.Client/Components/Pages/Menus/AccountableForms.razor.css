@@ -558,3 +558,25 @@
     font-size: 13px;
     line-height: 1.45;
 }
+
+.af-register-disclosure {
+    margin: 0 0 12px;
+    font-size: 0.8125rem;
+}
+
+.af-register-disclosure > summary {
+    cursor: pointer;
+    color: var(--v3-text-muted, #475467);
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+}
+
+.af-register-disclosure > summary:focus-visible {
+    outline: 2px solid var(--v3-accent, #1d4ed8);
+    outline-offset: 2px;
+}
+
+.af-register-disclosure[open] > .v3-btn {
+    margin-top: 8px;
+}

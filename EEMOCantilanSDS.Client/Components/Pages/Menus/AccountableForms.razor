@@ -19,7 +19,7 @@
 @* Head / Admin office custody of physical accountable forms. Recording money happens elsewhere (Collector Mobile);
    nothing on this page creates a collection. The layout owns the <main> landmark. *@
 <div class="v3-page af-page">
-    <WorkspaceHeader Title="Accountable Forms" Subtitle="Optional register of physical OR and CT books">
+    <WorkspaceHeader Title="Accountable Forms" Subtitle="Physical form history">
         <Meta><InstrumentChip Instrument="@Chip" ShowName="true" /></Meta>
         <Actions>
             @* Two groups on one rail: the form type and book registration on the left; custody and remittance on the
@@ -32,10 +32,6 @@
                     <button class="v3-btn" type="button" aria-pressed="@(_instrument == RevenueInstrumentType.OfficialReceipt ? "true" : "false")"
                             @onclick="() => SelectInstrument(RevenueInstrumentType.OfficialReceipt)">Official Receipts</button>
                 </div>
-                <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Register received book
-                </button>
             </div>
             <div class="af-rail-right">
                 <div class="v3-btn-group af-followups" role="group" aria-label="Custody and remittance">
@@ -67,7 +63,14 @@
             </div>
         </Actions>
     </WorkspaceHeader>
-<p class="af-role-note" role="note">This is an optional back-office register of physical OR and CT books. Collections do not need it: StallTrack records every collection with its own reference code (SRC) whether or not a physical form is registered here. Counts below reflect only what has been registered or recorded against these books.</p>
+<p class="af-role-note" role="note">Physical form history. Collections do not need it: every collection has its own StallTrack reference code (SRC), which is not an Official Receipt or Cash Ticket. Counts reflect only forms recorded here.</p>
+
+    @* Registering a received book is a back-office record of physical stock, not a step before collecting. It stays reachable for
+       the office's own history, behind a disclosure, and is never part of the collection workflow. *@
+    <details class="af-register-disclosure">
+        <summary>Record a physical book (back-office)</summary>
+        <button class="v3-btn" type="button" @onclick="OpenRegister" disabled="@_busy">Register received book</button>
+    </details>
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
@@ -134,7 +137,7 @@
                                 }
                                 else
                                 {
-                                    <span>No @Noun books are registered yet. Use <strong>Register received book</strong> when the office receives one.</span>
+                                    <span>No physical @Noun books are recorded. Collections do not need any; StallTrack issues an SRC for each.</span>
                                 }
                             </td>
                         </tr>

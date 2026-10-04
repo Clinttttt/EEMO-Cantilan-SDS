@@ -642,7 +642,11 @@ else if (_selected is { } source)
         _policyName = seed?.DisplayName ?? string.Empty;
         _policyDescription = seed?.Description;
         _policyInstrument = seed?.PermittedInstrumentType;
-        _policyDate = DateText(PhilippineTime.Today);
+        // A version already exists for the latest effective date: that rule is the current one, so a change is scheduled for the day
+        // after it rather than offered a date the history already holds (which would only fail as a duplicate).
+        var today = PhilippineTime.Today;
+        var latest = _history.Count > 0 ? _history.Max(item => item.EffectiveDate) : (DateOnly?)null;
+        _policyDate = DateText(latest is { } l && l >= today ? l.AddDays(1) : today);
         OpenModal(RevenueModal.Policy);
     }
 

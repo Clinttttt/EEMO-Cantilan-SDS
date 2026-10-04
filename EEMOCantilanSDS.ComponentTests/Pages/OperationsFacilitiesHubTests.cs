@@ -231,7 +231,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             var vegetable = Row(cut, "Vegetable | Fruits");
             Assert.Contains("Official Receipt", vegetable.TextContent);
             Assert.Contains("Cash Ticket", vegetable.TextContent);
-            Assert.Contains("Whole payment: Official Receipt", vegetable.TextContent);
+            Assert.Contains("Monthly rental: Official Receipt", vegetable.TextContent);
             Assert.Contains("Daily transaction: Cash Ticket", vegetable.TextContent);
 
             Assert.Contains("Cash Ticket", Row(cut, "Market Fees").TextContent);

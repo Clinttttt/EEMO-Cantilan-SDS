@@ -536,6 +536,7 @@
 
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "TPM", StringComparison.OrdinalIgnoreCase))
                 {
+                    <FacilityCanonicalCollection OperationCode="@EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Tabo" Name="Tabo vendor fees" />
                     <div class="cfg-section-label">Market day</div>
                     <div class="cfg-field-note">
                         Held on a @_cfgMarketDay. A move starts on the date you choose and changes nothing before it.
@@ -669,6 +670,7 @@
 
                 @if (string.Equals(_cfgFacility.Code, "SLH", StringComparison.OrdinalIgnoreCase))
                 {
+                    <FacilityCanonicalCollection OperationCode="@EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse" Name="slaughter transactions" />
                     <div class="cfg-section-label">Built-in animal labels</div>
                     <div class="cfg-field-note">These names change what your office sees. Hog, Carabao, and Cow keep their billing identities and rates.</div>
                     <div class="cfg-field-row">
