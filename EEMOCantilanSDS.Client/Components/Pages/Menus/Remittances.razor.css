@@ -456,3 +456,19 @@
     .rm-page thead th { position: static; }
     .rm-page tr, .rm-page tfoot { break-inside: avoid; }
 }
+
+/* Filters: predictable widths, so the row reads as one intentional toolbar rather than uneven gaps. */
+.rm-filters .v3-field {
+    flex: 0 1 168px;
+    min-width: 140px;
+}
+
+.rm-filters .v3-field input,
+.rm-filters .v3-field select {
+    width: 100%;
+}
+
+/* A selected row reads as selected: a quiet civic-blue tint, never a loud fill. */
+.rm-collections tbody tr:has(input:checked) {
+    background: var(--accent-soft, #eef4ff);
+}

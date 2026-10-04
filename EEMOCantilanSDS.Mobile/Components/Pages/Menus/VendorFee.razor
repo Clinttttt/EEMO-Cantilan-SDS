@@ -49,37 +49,20 @@
                 </div>
             }
 
+            @* What REMAINS due, per vendor and month. A payment taken today is a separate, compact record below: its amount is
+               never shown as the balance. Unpaid shows the amount due; Partial shows what remains and what was already paid. *@
             <div class="section-label">Vendor fees due</div>
 
-            @if (Dues.Count == 0 && Captured.Count == 0)
+            @if (Dues.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">Nothing due</div>
-                    <div class="state-text">No vendor fee has a balance to collect right now.</div>
-                </div>
-            }
-
-            @foreach (var c in Captured)
-            {
-                <div class="tx-card tx-card-queued">
-                    <div class="tx-left-bar tx-left-bar-queued"></div>
-                    <div class="tx-body">
-                        <div class="tx-row-main">
-                            <div class="tx-col-info">
-                                <span class="tx-owner">@c.Title</span>
-                                <span class="tx-sub">
-                                    <span class="tx-badge badge-queued">@c.Badge</span>
-                                    <span class="tx-tag">@c.Detail</span>
-                                </span>
-                            </div>
-                            <div class="tx-col-right"><span class="tx-amount">@Money(c.Amount)</span></div>
-                        </div>
-                    </div>
                 </div>
             }
 
             @foreach (var due in Dues)
             {
+                var partial = due.SettledAmount > 0m;
                 <button class="tx-card" type="button" @onclick="() => Open(due)">
                     <div class="tx-left-bar"></div>
                     <div class="tx-body">
@@ -92,13 +75,47 @@
                                     {
                                         <span class="tx-tag">Stall @due.StallNo</span>
                                     }
-                                    <span class="tx-or">@due.PeriodStart.ToString("MMM yyyy", CultureInfo.InvariantCulture)</span>
+                                    <span class="tx-or">@due.PeriodStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</span>
                                 </span>
+                                @if (partial)
+                                {
+                                    <span class="tx-sub"><span class="tx-badge">Partial</span><span class="tx-or">Paid @Money(due.SettledAmount)</span></span>
+                                }
                             </div>
-                            <div class="tx-col-right"><span class="tx-amount">@Money(due.OutstandingAmount)</span></div>
+                            <div class="tx-col-right">
+                                <span class="tx-amount">@Money(due.OutstandingAmount)</span>
+                                <span class="tx-or">@(partial ? "Remaining" : "Due")</span>
+                            </div>
                         </div>
                     </div>
                 </button>
+            }
+
+            @if (Captured.Count > 0)
+            {
+                <div class="section-label">Recorded on this device</div>
+                @foreach (var c in Captured)
+                {
+                    <div class="tx-card tx-card-queued">
+                        <div class="tx-left-bar tx-left-bar-queued"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@c.Title</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-badge badge-queued">@c.Badge</span>
+                                        <span class="tx-or">@c.Detail</span>
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-amount">@Money(c.Amount)</span>
+                                    <span class="tx-or">Collected</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
             }
         }
     </div>

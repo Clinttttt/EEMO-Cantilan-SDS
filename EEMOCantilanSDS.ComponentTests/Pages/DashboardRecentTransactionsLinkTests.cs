@@ -75,8 +75,8 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
             Assert.DoesNotContain("%", row.TextContent);
             // The old facility-only title is gone; the facility cards are a labelled secondary snapshot.
             Assert.DoesNotContain("Revenue by Facility", cut.Markup);
-            Assert.Contains("Facility snapshot", cut.Markup);
-            Assert.Contains("Facility collections", cut.Markup);
+            Assert.Contains("Operations overview", cut.Markup);
+            Assert.Contains("Outstanding", cut.Markup);
         });
     }
 }

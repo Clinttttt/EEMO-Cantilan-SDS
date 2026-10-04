@@ -46,10 +46,10 @@
                     </svg>
                 </Icon>
                 <Figures>
-                    <V3HeroFigure Label="Facility collections" Value="@($"₱{TotalCollected:N0}")" Note="@_now.ToString("MMMM yyyy")" />
-                    <V3HeroFigure Label="Facility unpaid" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} vendors")" />
-                    <V3HeroFigure Label="Facility payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} facilities covered")" />
-                    <V3HeroFigure Label="Facility collection rate" Value="@($"{CollectionRate}%")" Note="@($"{TotalCollectors} active collectors")" />
+                    <V3HeroFigure Label="Collected" Value="@($"₱{TotalCollected:N0}")" Note="@_now.ToString("MMMM yyyy")" />
+                    <V3HeroFigure Label="Outstanding" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} accounts")" />
+                    <V3HeroFigure Label="Payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} operations")" />
+                    <V3HeroFigure Label="Collection rate" Value="@($"{CollectionRate}%")" Note="@($"{TotalCollectors} active collectors")" />
                 </Figures>
             </V3Hero>
 
@@ -60,18 +60,18 @@
                 <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" />
             }
 
-            <!-- Facility Cards: secondary physical-facility analysis -->
+            <!-- Operations overview -->
             <div class="section-header">
                 <div class="section-title-block">
-                    <div class="section-eyebrow">Physical facilities</div>
-                    <div class="section-heading">Facility snapshot — @_now.ToString("MMMM yyyy")</div>
+                    <div class="section-eyebrow">Operations</div>
+                    <div class="section-heading">Operations overview — @_now.ToString("MMMM yyyy")</div>
                 </div>
                 <div class="section-header-actions">
                     <div class="dashboard-report-tabs" role="group" aria-label="Dashboard report actions">
                         <a href="/reports/month-end" class="dashboard-report-tab">Monthly Collection Report</a>
                         <a href="/reports/collections" class="dashboard-report-tab">Collection Manager</a>
                         <a href="/reports/follow-up" class="dashboard-report-tab">Follow-up Queue</a>
-                        <a href="/stall-holders" class="dashboard-report-tab">Stall Holder List</a>
+                        <a href="/stall-holders" class="dashboard-report-tab">Holder List</a>
                         <a href="/reports/closed-accounts" class="dashboard-report-tab">Closed Accounts</a>
                     </div>
                 </div>
@@ -201,7 +201,7 @@
                                 <tr>
                                     <th>OR #</th>
                                     <th>Payor</th>
-                                    <th>Facility</th>
+                                    <th>Operation</th>
                                     <th>Amount</th>
                                     <th>Recorded By</th>
                                     <th>Time</th>
@@ -356,14 +356,21 @@
     {
         FacilityCode.SLH => "Owners",
         FacilityCode.TRM => "Drivers",
-        _ => "Vendors"
+        FacilityCode.TPM => "Vendors",
+        FacilityCode.ICE => "Spaces",
+        FacilityCode.BBQ => "Stands",
+        FacilityCode.NPM or FacilityCode.TCC or FacilityCode.NCC => "Stalls",
+        _ => "Spaces"
     };
 
+    // The card's third figure and open-action carry the operation's own noun (space, stall, stand), never a generic "Vendors".
     private static string ActionLabel(FacilityCode c) => c switch
     {
-        FacilityCode.SLH => "View Slaughterhouse",
-        FacilityCode.TRM => "View Terminal",
-        FacilityCode.TPM => "View Market",
+        FacilityCode.SLH => "Open Slaughterhouse",
+        FacilityCode.TRM => "Open Terminal",
+        FacilityCode.TPM => "Open Market",
+        FacilityCode.ICE => "Manage Spaces",
+        FacilityCode.BBQ => "Manage Stands",
         _ => "Manage Stalls"
     };
 

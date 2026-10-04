@@ -95,17 +95,17 @@
                 <div class="v3-table-wrap rs-covered" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
                     <table class="v3-table">
                         <thead>
-                            <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Revenue source</th><th scope="col">Payor</th><th scope="col" class="v3-num">Amount</th></tr>
+                            <tr><th scope="col">Date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col" class="v3-num">Amount</th><th scope="col">Reference</th></tr>
                         </thead>
                         <tbody>
                             @foreach (var collection in item.Collections)
                             {
                                 <tr>
                                     <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                    <td class="v3-strong">@collection.ReferenceCode</td>
                                     <td>@SourceLabel(collection)</td>
                                     <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                     <td class="v3-num">@Money(collection.NetAmount)</td>
+                                    <td class="rm-trace">@collection.ReferenceCode</td>
                                 </tr>
                             }
                         </tbody>

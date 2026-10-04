@@ -86,23 +86,23 @@
             <div class="v3-table-wrap rd-covered" role="region" aria-label="Collections covered" tabindex="0">
                 <table class="v3-table">
                     <thead>
-                        <tr><th scope="col">SRC</th><th scope="col">Collection date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col">Collector</th><th scope="col">Instrument</th><th scope="col" class="v3-num">Amount</th></tr>
+                        <tr><th scope="col">Collection date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col">Collector</th><th scope="col">Instrument</th><th scope="col" class="v3-num">Amount</th><th scope="col">Reference</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var collection in d.Collections)
                         {
                             <tr>
-                                <td class="v3-strong">@collection.ReferenceCode@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
-                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
                                 <td>@SourceLabel(collection)</td>
                                 <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
                                 <td>@d.Row.CollectorName</td>
                                 <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />} else {<span>—</span>}</td>
                                 <td class="v3-num">@Money(collection.NetAmount)</td>
+                                <td class="rm-trace">@collection.ReferenceCode</td>
                             </tr>
                         }
                     </tbody>
-                    <tfoot><tr><td colspan="6"><strong>Total</strong></td><td class="v3-num v3-strong">@Money(d.Collections.Sum(x => x.NetAmount))</td></tr></tfoot>
+                    <tfoot><tr><td colspan="5"><strong>Total</strong></td><td class="v3-num v3-strong">@Money(d.Collections.Sum(x => x.NetAmount))</td><td></td></tr></tfoot>
                 </table>
             </div>
         </section>

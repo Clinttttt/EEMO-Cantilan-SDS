@@ -138,3 +138,9 @@
         break-inside: auto;
     }
 }
+
+.rm-trace {
+    color: var(--v3-text-muted, #475467);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}

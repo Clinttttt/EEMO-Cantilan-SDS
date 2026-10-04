@@ -122,7 +122,6 @@
                             </th>
                             }
                             <th scope="col">Date</th>
-                            <th scope="col">SRC</th>
                             <th scope="col">Collector</th>
                             <th scope="col">Source / payer</th>
                             <th scope="col">Instrument</th>
@@ -138,11 +137,10 @@
                             <tr @key="collection.CollectionId">
                                 @if (Preparation)
                                 {
-                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {collection.ReferenceCode}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
                                            @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
                                 }
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td class="v3-strong">@collection.ReferenceCode</td>
                                 <td>@draft.Name</td>
                                 <td>@SourceLabel(collection)@if (!string.IsNullOrWhiteSpace(collection.PayerName)) {<span class="v3-block">@collection.PayerName</span>}</td>
                                 <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@InstrumentCode(instrument)" />} else {<span>—</span>}</td>
@@ -152,14 +150,14 @@
                         }
                         @if (!Eligible.Any())
                         {
-                            <tr><td class="v3-empty" colspan="@(Preparation ? 8 : 7)">@(_loading ? "Loading collections…" : "Nothing is waiting to be remitted in this period.")</td></tr>
+                            <tr><td class="v3-empty" colspan="@(Preparation ? 7 : 6)">@(_loading ? "Loading collections…" : "No collections ready to remit.")</td></tr>
                         }
                     </tbody>
                     @if (Preparation && SelectedCount > 0)
                     {
                         <tfoot>
                             <tr>
-                                <td colspan="6"><strong>Selected · @SelectedCount of @Eligible.Count()</strong></td>
+                                <td colspan="5"><strong>Selected · @SelectedCount of @Eligible.Count()</strong></td>
                                 <td class="v3-num v3-strong">@Money(SelectedTotal)</td>
                                 <td></td>
                             </tr>
@@ -471,7 +469,7 @@
         position.Collectors.Where(x => !Guid.TryParse(_collectorFilter, out var id) || x.CollectorId == id);
 
     private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems(AccountabilityPositionDto p) => Preparation
-        ? [new("Unremitted", Money(p.Unremitted)), new("Selected", Money(SelectedTotal), Emphasis: SelectedCount > 0)]
+        ? [new("Ready to remit", Money(p.Unremitted)), new("Selected", Money(SelectedTotal), Emphasis: SelectedCount > 0)]
         : [new("Unremitted", Money(p.Unremitted), Emphasis: p.Unremitted != 0m), new("Remitted", Money(p.Remitted)), new("Collected", Money(p.Collected))];
 
     private string PrepareHref => $"/remittances/new?from={_from:yyyy-MM-dd}&to={_to:yyyy-MM-dd}&collector={_collectorFilter}&instrument={_instrumentFilter}";

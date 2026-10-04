@@ -151,7 +151,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         {
             var rows = cut.FindAll("[aria-label='Collections for remittance'] tbody tr");
             Assert.Equal(2, rows.Count);
-            Assert.Contains("SRC-2026-000101", rows[0].TextContent);
+            Assert.DoesNotContain("SRC", rows[0].TextContent);   // not a primary column of the selection table
             Assert.Contains("Ana Reyes", rows[0].TextContent);
             Assert.Contains("Market Fees", rows[0].TextContent);
             Assert.Contains("Walk-up", rows[0].TextContent);
