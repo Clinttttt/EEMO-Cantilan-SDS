@@ -68,7 +68,7 @@ public sealed class CurrentCollectionReferenceTests : TestContext
             .ReturnsAsync(Result<EcfPostOutcomeDto>.Success(new(Guid.NewGuid(), "SRC-2026-000127", "Posted", 500m, 1, false)));
         var cut = Render(draft);
 
-        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Post Collection");
+        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record collection");
         Assert.False(post.HasAttribute("disabled"));
         post.Click();
 
@@ -82,7 +82,7 @@ public sealed class CurrentCollectionReferenceTests : TestContext
     {
         var cut = Render(Draft(reviewed: false));
 
-        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Post Collection");
+        var post = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Record collection");
         Assert.True(post.HasAttribute("disabled"));
     }
 

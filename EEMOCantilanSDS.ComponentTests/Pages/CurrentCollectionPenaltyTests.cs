@@ -67,12 +67,12 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
 
         Serve(Draft(1, EcfLine()));   // no approved penalty defined
         var noDefinition = RenderComponent<CurrentCollection>();
-        noDefinition.WaitForAssertion(() => Assert.Contains("Review Collection", noDefinition.Markup), Timeout);
+        noDefinition.WaitForAssertion(() => Assert.Contains("Review collection", noDefinition.Markup), Timeout);
         Assert.Empty(noDefinition.FindAll("[aria-label='Add an approved penalty']"));
 
         Serve(null, Fixed());          // no draft yet
         var noDraft = RenderComponent<CurrentCollection>();
-        noDraft.WaitForAssertion(() => Assert.Contains("Add an eligible operation item", noDraft.Markup), Timeout);
+        noDraft.WaitForAssertion(() => Assert.Contains("Select a charge to begin.", noDraft.Markup), Timeout);
         Assert.Empty(noDraft.FindAll("[aria-label='Add an approved penalty']"));
     }
 

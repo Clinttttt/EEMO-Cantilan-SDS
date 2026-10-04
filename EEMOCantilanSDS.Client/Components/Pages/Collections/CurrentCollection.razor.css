@@ -120,3 +120,20 @@
 }
 
 /* Official Receipt: the next assigned receipt is the normal path; choosing another is a secondary recovery action. */
+
+/* V3 alignment: civic-blue identity comes from V3Hero; the old gold-ruled gradient banner is gone. */
+.cc-panel > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.cc-link {
+    color: var(--accent, #1d4ed8);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.cc-link:hover { text-decoration: underline; }

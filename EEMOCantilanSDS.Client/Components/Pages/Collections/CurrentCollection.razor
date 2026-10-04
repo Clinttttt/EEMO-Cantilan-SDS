@@ -18,11 +18,7 @@
         <span aria-current="page">Current Collection</span>
     </nav>
 
-    <header class="cc-hero">
-        <p>REVENUE COLLECTIONS</p>
-        <h1>Current Collection</h1>
-        <span>Prepare one payer's itemized charges. StallTrack records the collection and assigns its reference code.</span>
-    </header>
+    <V3Hero Eyebrow="Operations" Title="Current Collection" Subtitle="Record a payment." Compact="true" />
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
@@ -36,16 +32,15 @@
     <div class="cc-grid">
         <section class="cc-panel" aria-labelledby="cc-discovery-title">
             <header>
-                <p class="cc-eyebrow">PAYOR-FIRST</p>
-                <h2 id="cc-discovery-title">Find a business Payor</h2>
-                <p>Only obligations explicitly associated with the selected Payor are shown.</p>
+
+                <h2 id="cc-discovery-title">Payer</h2>
             </header>
 
             <div class="cc-search">
-                <label for="cc-payor-search">Payor name</label>
+                <label for="cc-payor-search">Search payer</label>
                 <div>
                     <input id="cc-payor-search" @bind="_payorSearch" @bind:event="oninput"
-                           @onkeydown="HandleSearchKeyAsync" placeholder="Search at least two characters" />
+                           @onkeydown="HandleSearchKeyAsync" placeholder="Name of the payer" />
                     <button type="button" class="cc-button cc-secondary" disabled="@_busy"
                             @onclick="SearchPayorsAsync">Search</button>
                 </div>
@@ -54,9 +49,9 @@
             @if (_payors.Count > 0)
             {
                 <label class="cc-field">
-                    <span>Select Payor</span>
+                    <span>Payer</span>
                     <select value="@(_selectedPayorId?.ToString() ?? string.Empty)" @onchange="SelectPayorAsync" disabled="@_busy">
-                        <option value="">Choose a Payor</option>
+                        <option value="">Choose a payer</option>
                         @foreach (var payor in _payors)
                         {
                             <option value="@payor.PayorId">@payor.DisplayName</option>
@@ -70,7 +65,6 @@
                 <div class="cc-candidate-title">
                     <div>
                         <strong>@_selectedPayorName</strong>
-                        <span>Outstanding rent and ECF items, oldest period first</span>
                     </div>
                     <button type="button" class="cc-button cc-secondary" disabled="@_busy"
                             @onclick="LoadCandidatesAsync">Refresh</button>
@@ -78,7 +72,7 @@
 
                 @if (_candidates.Count == 0)
                 {
-                    <div class="cc-empty">No supported outstanding rent or Electricity obligations are linked to this Payor.</div>
+                    <div class="cc-empty">No outstanding charges.</div>
                 }
                 else
                 {
@@ -93,7 +87,7 @@
                                     var remaining = CandidateRemaining(candidate);
                                     var key = CandidateKey(candidate);
                                     <tr>
-                                        <td><strong>@candidate.SourceLabel</strong><span>@candidate.SourceKind@(candidate.SourcePart is { } sourcePart ? $" / {sourcePart}" : "")</span></td>
+                                        <td><strong>@candidate.SourceLabel</strong></td>
                                         <td>@Month(candidate.BillingYear, candidate.BillingMonth)</td>
                                         <td class="cc-number">@Money(remaining)</td>
                                         <td class="cc-number">
@@ -116,29 +110,26 @@
             }
             else
             {
-                <div class="cc-empty">Search for a Payor, then select the business identity whose linked obligations you intend to collect.</div>
+                <div class="cc-empty">Search for a payer to begin.</div>
             }
 
-            <p class="cc-footnote">Display names do not link people or merge accounts. Unlinked obligations are available from their operation page.</p>
         </section>
 
         <section class="cc-panel cc-draft" aria-labelledby="cc-draft-title">
             <header>
-                <p class="cc-eyebrow">SERVER-PERSISTED · NON-FINANCIAL UNTIL POSTED</p>
-                <h2 id="cc-draft-title">Review Collection</h2>
-                <p>One draft, one payer context, multiple classified lines.</p>
+
+                <h2 id="cc-draft-title">Review collection</h2>
             </header>
 
             @if (_draft is null)
             {
-                <div class="cc-empty">Add an eligible operation item or use Payor-first discovery to start a draft.</div>
+                <div class="cc-empty">Select a charge to begin.</div>
             }
             else
             {
                 <dl class="cc-summary">
                     <div><dt>Payer</dt><dd>@(_draft.PayerNameSnapshot ?? "Name snapshot unavailable")</dd></div>
                     <div><dt>Business date</dt><dd>@_draft.BusinessDate.ToString("dd MMM yyyy")</dd></div>
-                    <div><dt>Revision</dt><dd>@_draft.Revision</dd></div>
                 </dl>
 
                 @if (_draft.RequiresBusinessDateRefresh)
@@ -167,7 +158,6 @@
                                 <div class="cc-allocation">
                                     <div>
                                         <span>@AllocationLabel(allocation)</span>
-                                        <small>@allocation.SourceKind@(allocation.SourcePart is { } part ? $" / {part}" : "")</small>
                                     </div>
                                     <label>
                                         <span class="cc-sr-only">Allocation amount</span>
@@ -234,33 +224,31 @@
                 @if (_draft.Lines.SelectMany(x => x.Allocations ?? []).Any(x => x.SourceAuthority != SettlementAuthority.Canonical))
                 {
                     <div class="cc-notice">
-                        This draft is saved and reviewable. One or more sources remain Legacy or pending cutover, so posting is unavailable until controlled source cutover.
+                        Some charges are not yet collected through canonical collections, so this collection cannot be recorded here.
                     </div>
                 }
 
                 <div class="cc-actions">
                     <button type="button" class="cc-button cc-secondary" disabled="@(_busy || _draft.RequiresBusinessDateRefresh)"
-                            @onclick="ReviewAsync">Review revision</button>
+                            @onclick="ReviewAsync">Review</button>
                     <button type="button" class="cc-button cc-primary" disabled="@(!CanPost || _busy)"
-                            @onclick="PostAsync">Post Collection</button>
+                            @onclick="PostAsync">Record collection</button>
                     <button type="button" class="cc-button cc-secondary" disabled="@_busy"
                             @onclick="DiscardAsync">Discard draft</button>
                 </div>
-                <p class="cc-footnote">Review is bound to this exact revision. Posting revalidates all sources and allocations together. Drafts do not allocate money or appear in Collection Activity. The collection reference (SRC) is assigned when it is posted.</p>
-                <p class="cc-footnote">Set an allocation to PHP 0.00 to remove that source period from its line.</p>
             }
         </section>
     </div>
 
     <section class="cc-panel cc-activity" aria-labelledby="cc-activity-title">
         <header>
-            <p class="cc-eyebrow">POSTED EVENTS</p>
-            <h2 id="cc-activity-title">Collection Activity</h2>
-            <p>Each row represents one posted Collection. Expand it to see the classified lines and source allocations.</p>
+
+            <h2 id="cc-activity-title">Recent collections</h2>
+            <a class="cc-link" href="/collections/activity">View all</a>
         </header>
         @if (_activity.Count == 0)
         {
-            <div class="cc-empty">No canonical collections were recorded this month.</div>
+            <div class="cc-empty">No collections this month.</div>
         }
         else
         {
@@ -268,7 +256,7 @@
                 <table class="cc-table">
                     <thead><tr><th>Business date / recorded time</th><th>Reference / payer</th><th>State</th><th class="cc-number">Total</th><th>Detail</th></tr></thead>
                     <tbody>
-                        @foreach (var activity in _activity)
+                        @foreach (var activity in _activity.Take(5))
                         {
                             <tr>
                                 <td>@activity.BusinessDate.ToString("dd MMM yyyy")<span>@PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
