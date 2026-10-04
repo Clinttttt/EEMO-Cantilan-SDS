@@ -31,10 +31,12 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             {
                 d.ORNumber,
                 d.CollectionDate,
-                d.DailyFee,
+                // A day paid by a canonical Collection is reported by that Collection below; only its weighing is legacy money.
+                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
                 d.FishKilos,
                 d.MeatFeeAmount,
                 d.IsAbsent,
+                CanonicalDay = d.SettlementAuthorityState == SettlementAuthority.Canonical,
                 d.Stall!.StallNo,
                 Code = d.Stall.Facility!.Code,
                 Contracts = d.Stall.Contracts.Select(c => new { c.ActualOccupant, c.NameOnContract, c.EffectivityDate }).ToList(),
@@ -55,11 +57,13 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 continue;
             }
 
+            // DailyFee already includes the month-end difference. Weighed charges remain distinct source facts.
+            var legacyAmount = d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount;
+            if (d.CanonicalDay && legacyAmount == 0m) continue;   // nothing but the canonical stall fee: listed once, below
+
             lines.Add(new CollectorCollectionLine(
-                d.ORNumber, d.When, payor!, d.StallNo, d.Code, "Daily Fee",
-                // DailyFee already includes the month-end difference. Weighed charges remain distinct source facts.
-                d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount,
-                d.CollectionDate, null));
+                d.ORNumber, d.When, payor!, d.StallNo, d.Code, d.CanonicalDay ? "Weighing" : "Daily Fee",
+                legacyAmount, d.CollectionDate, null));
         }
 
         // ── Monthly rentals. Fee money only: the meters are banked apart and are totalled separately below. ──
@@ -133,6 +137,37 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             x.FacilityCode == FacilityCode.ICE ? "Ice Plant" : "Stall Rental",
             x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate, IsCanonical: true)));
 
+        // ── Canonical NPM daily stall fees this collector took: one line per stall day, under the Collection's SRC ──
+        var canonicalDaily = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join allocation in context.CollectionAllocations.AsNoTracking() on line.Id equals allocation.CollectionLineId
+            join day in context.DailyCollections.AsNoTracking() on allocation.SourceId equals day.Id
+            join stall in context.Stalls.AsNoTracking() on day.StallId equals stall.Id
+            join facility in context.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
+            where collection.CollectorId == collectorId
+                && collection.BusinessDate >= rentFrom && collection.BusinessDate <= rentTo
+                && allocation.SourceKind == CollectionSourceKind.DailyCollection
+            select new
+            {
+                DocumentNumber = collection.ReferenceCode, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
+                stall.StallNo, FacilityCode = facility.Code, day.CollectionDate, allocation.Amount, AllocationId = allocation.Id
+            })
+            .ToListAsync(ct);
+        // A voided or reversed day keeps its line with the correction's effect applied, so a fully voided day reads zero and is left out.
+        var dailyAllocationIds = canonicalDaily.Select(x => x.AllocationId).ToList();
+        var dailyEffects = dailyAllocationIds.Count == 0 ? [] : (await context.CollectionCorrectionAllocations.AsNoTracking()
+                .Where(x => dailyAllocationIds.Contains(x.OriginalAllocationId))
+                .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct))
+            .GroupBy(x => x.OriginalAllocationId).ToDictionary(g => g.Key, g => g.Sum(x => x.FinancialEffectAmount));
+        lines.AddRange(canonicalDaily
+            .Select(x => new { x, Net = x.Amount + dailyEffects.GetValueOrDefault(x.AllocationId) })
+            .Where(v => v.Net != 0m)
+            .Select(v => new CollectorCollectionLine(
+                v.x.DocumentNumber, v.x.RecordedAtUtc,
+                string.IsNullOrWhiteSpace(v.x.PayerName) ? "Unidentified payor" : v.x.PayerName,
+                v.x.StallNo, v.x.FacilityCode, "Daily Fee", v.Net, v.x.CollectionDate, null, v.x.BusinessDate, IsCanonical: true)));
+
         // ── Slaughterhouse: one line per animal type on the receipt, its own date being the day it was taken ──
         var slaughter = await context.SlaughterTransactions
             .AsNoTracking()
@@ -178,7 +213,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             .Where(d => d.CollectorId == null && d.IsPaid
                      && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                      && assigned.Contains(d.Stall!.Facility!.Code))
-            .Select(d => new { d.DailyFee, d.FishKilos, d.MeatFeeAmount })
+            .Select(d => new { DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee, d.FishKilos, d.MeatFeeAmount })
             .ToListAsync(ct);
 
         var officeRecorded = officeDaily.Sum(d => d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount);

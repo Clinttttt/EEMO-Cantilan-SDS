@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -179,6 +180,40 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             MonthEndAdjustment = null;
         }
 
+        /// <summary>
+        /// Who answers for this day's stall-fee money (IA-051/IA-062). Legacy: this row's own paid state is the money, as it
+        /// always was. Canonical: the money is the posted Collection in <see cref="CanonicalCollectionId"/>; this row is then only
+        /// the operational day (stall, date, attendance, weighing) and a projection of that Collection's state.
+        /// </summary>
+        public SettlementAuthority SettlementAuthorityState { get; private set; } = SettlementAuthority.Legacy;
+
+        /// <summary>The canonical Collection that currently pays this day, when one does.</summary>
+        public Guid? CanonicalCollectionId { get; private set; }
+
+        /// <summary>
+        /// Hands this day's stall-fee money to a canonical Collection. Called only by the canonical posting path, for a day it
+        /// has just marked paid; from then on the row's paid state follows the Collection (and its void), never a legacy edit.
+        /// </summary>
+        public void ApplyCanonicalPayment(Guid collectionId)
+        {
+            if (collectionId == Guid.Empty) throw new ArgumentException("A posted Collection is required.", nameof(collectionId));
+            if (!IsPaid) throw new InvalidOperationException("Only a paid day can be handed to a canonical Collection.");
+            SettlementAuthorityState = SettlementAuthority.Canonical;
+            CanonicalCollectionId = collectionId;
+            ORNumber = null;   // the canonical identity is the SRC; no typed serial is carried on this path
+        }
+
+        /// <summary>
+        /// Projects the void of the canonical Collection that paid this day: the day is unpaid again. The row stays under
+        /// canonical authority, so its earlier payment can never be counted from the legacy side, and it can be collected again.
+        /// </summary>
+        public void ApplyCanonicalVoid(string updatedBy = "System")
+        {
+            if (SettlementAuthorityState != SettlementAuthority.Canonical) return;
+            MarkUnpaid(updatedBy);
+            CanonicalCollectionId = null;
+        }
+
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
         public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
 
@@ -215,7 +250,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void SetOrNumber(string orNumber, string updatedBy = "System")
         {
-            if (!IsPaid) return;
+            // A day paid by a canonical Collection is identified by its SRC and carries no typed serial.
+            if (!IsPaid || SettlementAuthorityState == SettlementAuthority.Canonical) return;
             ORNumber = orNumber;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;

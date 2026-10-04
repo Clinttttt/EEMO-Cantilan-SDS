@@ -110,7 +110,10 @@ public partial class CollectorRepository
             var rows = await _context.DailyCollections.AsNoTracking()
                 .Where(d => (d.IsPaid || d.IsAbsent)
                          && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
-                         && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null)))
+                         && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null))
+                         // A day paid by a canonical Collection is listed by that Collection (its SRC); here it stays only for
+                         // weighing recorded with it, which is still legacy money.
+                         && (d.SettlementAuthorityState != SettlementAuthority.Canonical || d.IsAbsent || (d.FishKilos ?? 0m) > 0m || d.MeatFeeAmount > 0m))
                 .Select(d => new
                 {
                     d.ORNumber,
@@ -121,7 +124,7 @@ public partial class CollectorRepository
                     d.Stall.StallNo,
                     d.Stall.Section,
                     d.Stall.CustomSectionName,
-                    d.DailyFee,
+                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
                     d.FishKilos,
                     d.MeatFeeAmount,
                     d.IsAbsent,
@@ -387,7 +390,9 @@ public partial class CollectorRepository
                     && d.CollectionDate >= fromDate
                     && d.CollectionDate <= collectionEnd
                     && !monthlyPaymentStallIds.Contains(d.StallId)
-                    && (d.CollectorId == collectorId || d.CollectorId == null))
+                    && (d.CollectorId == collectorId || d.CollectorId == null)
+                    // Canonical days are stated by their Collection in the canonical facts; only weighing remains legacy here.
+                    && (d.SettlementAuthorityState != SettlementAuthority.Canonical || (d.FishKilos ?? 0m) > 0m || d.MeatFeeAmount > 0m))
                 .Select(d => new
                 {
                     d.ORNumber,
@@ -395,7 +400,7 @@ public partial class CollectorRepository
                     d.StallId,
                     d.Stall.StallNo,
                     d.CollectionDate,
-                    d.DailyFee,
+                    DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
                     d.FishKilos,
                     d.MeatFeeAmount,
                     IsAdmin = d.CollectorId == null,

@@ -33,13 +33,15 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
             .Where(d => d.IsPaid && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc)
             .Select(d => new
             {
-                When = d.UpdatedAt ?? d.CreatedAt, d.DailyFee, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount,
+                When = d.UpdatedAt ?? d.CreatedAt, d.DailyFee, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.SettlementAuthorityState,
                 Code = d.Stall!.Facility!.Code
             }).ToListAsync(ct);
         foreach (var d in daily)
         {
             var month = MonthOf(d.When);
-            facts.Add(new(month, RevenueClassificationCodes.PermanentStallRent, d.Code, d.DailyFee, "DailyCollection"));
+            // A day paid by a canonical Collection is reported by that Collection; only its weighing stays on this side.
+            if (CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.DailyCollection, d.SettlementAuthorityState))
+                facts.Add(new(month, RevenueClassificationCodes.PermanentStallRent, d.Code, d.DailyFee, "DailyCollection"));
             var fish = d.FishFeeAmountFrozen ?? ((d.FishKilos ?? 0m) * fishRate);
             if (fish + d.MeatFeeAmount != 0m)
                 facts.Add(new(month, RevenueClassificationCodes.WeightAndMeasure, null, fish + d.MeatFeeAmount, "DailyCollection.Weighing"));

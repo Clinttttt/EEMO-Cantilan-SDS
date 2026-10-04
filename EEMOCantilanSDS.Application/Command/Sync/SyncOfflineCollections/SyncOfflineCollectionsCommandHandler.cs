@@ -22,7 +22,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     WcfCollectionWorkflow? wcfWorkflow = null,
     GovernedServiceWorkflow? governedWorkflow = null,
     CollectionComposerWorkflow? ecfWorkflow = null,
-    FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null)
+    FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null,
+    NpmDailyCanonicalPoster? npmCanonical = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -148,6 +149,20 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                     governed.Value?.ReferenceCode, governed.Value?.CollectionId));
                 continue;
             }
+            // An NPM daily payment received once the NPM daily switch is on is canonical money. The same NPM command decides it
+            // (the market rules are unchanged); a retry is recognised by its posting operation, so the device is told the SAME
+            // SRC, and the id reused for something else is refused rather than waved through as "already synced".
+            if (op.Kind == OfflineOperationKind.NpmDaily && npmCanonical is not null
+                && await npmCanonical.IsCanonicalAsync(PhilippineTime.Today, ct))
+            {
+                var (posted, postedStatus, postedMessage) = await DispatchAsync(op, ct);
+                var outcome = posted ? await npmCanonical.FindPostedAsync(op.ClientOperationId, ct) : null;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId,
+                    posted ? SyncResultStatus.Synced : IsTransient(postedStatus) ? SyncResultStatus.Failed : SyncResultStatus.Rejected,
+                    posted ? null : postedMessage, outcome?.ReferenceCode, outcome?.CollectionId));
+                continue;
+            }
+
             // Idempotent: a record already carrying this client operation id means it was synced.
             if (await syncRepository.IsOperationProcessedAsync(op.ClientOperationId, ct))
             {

@@ -20,7 +20,8 @@ public class RecordDailyCollectionCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
+    ITenantContext tenantContext,
+    Common.Revenue.NpmDailyCanonicalPoster? canonical = null) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
     {
@@ -44,7 +45,23 @@ public class RecordDailyCollectionCommandHandler(
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "System";
-        var orNumber = request.ORNumber?.Trim();
+
+        // IA-051/IA-062: from the business date the Head turns the NPM daily switch on, a NEW daily stall-fee payment is
+        // canonical money - one Collection with an SRC - whoever records it. The market rules below are unchanged; only where
+        // the money lives changes, and no typed receipt serial is carried on that path.
+        var paymentDate = PhilippineTime.Today;
+        var canonicalMoney = canonical is not null && stall.Facility?.Code == FacilityCode.NPM
+            && await canonical.IsCanonicalAsync(paymentDate, ct);
+        var operationId = request.ClientOperationId ?? Guid.NewGuid();
+        var intent = canonicalMoney
+            ? canonical!.NormalizeIntent("NpmDailyRecord", request.StallId, [request.CollectionDate], paymentDate,
+                $"paid={request.IsPaid};absent={request.IsAbsent}")
+            : null;
+        if (canonicalMoney && request.ClientOperationId is not null && request.IsPaid && !request.IsAbsent
+            && await canonical!.FindPriorAsync(operationId, intent!, ct) is { } prior)
+            return prior.IsSuccess ? Result<bool>.Success(true) : Result<bool>.Failure(prior.Error!, ResultStatus.Conflict);
+        DailyCollection? newlyPaid = null;
+        var orNumber = canonicalMoney ? null : request.ORNumber?.Trim();
 
         if (request.MeatKilos is < 0m)
             return Result<bool>.Failure("Meat kilos cannot be negative.", ResultStatus.Invalid);
@@ -115,9 +132,19 @@ public class RecordDailyCollectionCommandHandler(
                     ResultStatus.Conflict);
             }
 
+            // A day paid by a canonical Collection is append-only financial history: it is not un-marked or excused here.
+            // Its correction is the void of that Collection, which projects the day unpaid.
+            if (existing.SettlementAuthorityState == SettlementAuthority.Canonical && existing.IsPaid
+                && (request.IsAbsent || !request.IsPaid))
+                return Result<bool>.Failure(
+                    "This day was paid by a posted collection. Void that collection to correct it; the day cannot be un-marked here.",
+                    ResultStatus.Conflict);
+
             // Stamp the offline idempotency key on the UPDATE path too so a lost-ack retry is caught.
             if (request.ClientOperationId is { } existingOpId)
                 existing.SetClientOperationId(existingOpId);
+
+            if (!existing.IsPaid && request.IsPaid && !request.IsAbsent) newlyPaid = existing;
 
             if (request.IsAbsent)
             {
@@ -191,9 +218,19 @@ public class RecordDailyCollectionCommandHandler(
             }
 
             await dailyCollectionRepository.AddAsync(newCollection, ct);
+            if (request.IsPaid && !request.IsAbsent) newlyPaid = newCollection;
         }
 
-        await unitOfWork.SaveChangesAsync(ct);
+        if (canonicalMoney && newlyPaid is not null)
+        {
+            // The day's stall fee is posted as one Collection (the SRC is its identity). Weighing recorded with the day stays
+            // on the day row under Weight and Measure and is not part of this Collection.
+            var posted = await canonical!.PostAsync(stall, [new(newlyPaid, newlyPaid.DailyFee)], operationId, intent!, paymentDate, ct);
+            if (!posted.IsSuccess)
+                return Result<bool>.Failure(posted.Error ?? "The collection could not be posted.", posted.Status);
+        }
+        else
+            await unitOfWork.SaveChangesAsync(ct);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
             tenantContext.TenantCode,
             stall.Facility?.Code,

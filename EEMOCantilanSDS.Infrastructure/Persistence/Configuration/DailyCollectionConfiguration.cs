@@ -57,6 +57,14 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.MeatFeeRateEffectiveDate);
             builder.Property(x => x.MeatFeeAmount).HasPrecision(18, 2).HasDefaultValue(0m);
 
+            // Additive (IA-051/IA-062): which representation answers for this day's stall-fee money. Every existing row reads
+            // Legacy with no Collection, exactly as before; a row becomes Canonical only when a canonical Collection pays it.
+            builder.Property(x => x.SettlementAuthorityState)
+                .HasConversion<int>()
+                .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.SettlementAuthority.Legacy)
+                .IsRequired();
+            builder.Property(x => x.CanonicalCollectionId);
+
             builder.Ignore(x => x.FishFeeAmount);
             builder.Ignore(x => x.TotalCollected);
 

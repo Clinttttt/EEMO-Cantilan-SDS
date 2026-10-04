@@ -24,7 +24,8 @@ public class SettleNpmDaysCommandHandler(
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
     INpmMonthSettlementService monthSettlement,
-    ITenantContext tenantContext, IClock clock) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock,
+    Common.Revenue.NpmDailyCanonicalPoster? canonical = null) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmDaysCommand request, CancellationToken ct)
     {
@@ -131,6 +132,20 @@ public class SettleNpmDaysCommandHandler(
 
         // One physical receipt (OR) covers all the selected days — stall-aware uniqueness (same rule as
         // the slaughterhouse's one-receipt-per-visit), so the same OR may repeat across this stall's days.
+        // IA-051/IA-062: once the NPM daily switch is on, the days just settled are ONE canonical Collection (an SRC), with no
+        // typed receipt serial. Before it, they are legacy rows exactly as they always were.
+        if (canonical is not null && await canonical.IsCanonicalAsync(today, ct))
+        {
+            var intent = canonical.NormalizeIntent("NpmDailySettleDays", request.StallId, settled.Select(x => x.CollectionDate), today);
+            var posted = await canonical.PostAsync(stall, settled.Select(x => new Common.Revenue.NpmDailyCanonicalPoster.Charge(x, x.DailyFee)).ToList(),
+                Guid.NewGuid(), intent, today, ct);
+            if (!posted.IsSuccess)
+                return Result<bool>.Failure(posted.Error ?? "The collection could not be posted.", posted.Status);
+            foreach (var (year, month) in months)
+                await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(tenantContext.TenantCode, FacilityCode.NPM, year, month, ct);
+            return Result<bool>.Success(true);
+        }
+
         if (!string.IsNullOrWhiteSpace(orNumber))
         {
             if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, request.StallId, ct))

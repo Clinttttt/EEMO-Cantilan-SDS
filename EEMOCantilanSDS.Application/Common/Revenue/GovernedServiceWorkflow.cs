@@ -47,6 +47,10 @@ public static class GovernedServiceCatalog
         new(CollectorOperationCodes.Tabo, "Tabo", RevenueClassificationCodes.Tabo, false, [GovernedServiceBasis.DirectApprovedAmount]),
         new(CollectorOperationCodes.Slaughterhouse, "Slaughterhouse", RevenueClassificationCodes.Slaughterhouse, false,
             [GovernedServiceBasis.DirectApprovedAmount]),
+        // The NPM daily stall fee keeps its existing stall-rent classification and its own market rules (occupancy, closures,
+        // rent goal, month-end adjustment). The setting is only the prospective switch that makes its money canonical.
+        new(CollectorOperationCodes.NpmDaily, "NPM daily stall fee", RevenueClassificationCodes.PermanentStallRent, false,
+            [GovernedServiceBasis.DirectApprovedAmount]),
     ];
 
     public static Entry? Find(string? code) => All.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
@@ -451,7 +455,7 @@ public sealed class GovernedServiceWorkflow(
         if (request.ClientOperationId == Guid.Empty)
             return Result<GovernedServiceOutcomeDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
         // Tabo / Slaughterhouse amounts come from their existing fee rules, never from a collector-typed amount.
-        if (FeeScheduleCollectionWorkflow.Handles(request.OperationCode)) return Result<GovernedServiceOutcomeDto>.Forbidden();
+        if (CollectorOperationCodes.IsFeeSchedule(request.OperationCode)) return Result<GovernedServiceOutcomeDto>.Forbidden();
 
         var normalized = NormalizeIntent(actor, request);
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor));

@@ -29,14 +29,15 @@ public static class CollectionSourceAuthorityMap
 {
     public static SourceReportingAuthority For(CollectionSourceKind kind) => kind switch
     {
-        CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill
+        // An NPM day row is under legacy authority until a canonical Collection pays it (prospective cutover, IA-051).
+        CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.DailyCollection
             => SourceReportingAuthority.CanonicalAfterRowCutover,
 
         CollectionSourceKind.GovernedService or CollectionSourceKind.PenaltyDefinition
             or CollectionSourceKind.ObligationPeriod
             => SourceReportingAuthority.CanonicalAlways,
 
-        CollectionSourceKind.DailyCollection or CollectionSourceKind.SlaughterTransaction
+        CollectionSourceKind.SlaughterTransaction
             or CollectionSourceKind.TpmAttendance or CollectionSourceKind.TrmTrip
             or CollectionSourceKind.OnlinePaymentTransaction
             => SourceReportingAuthority.LegacyOnly,

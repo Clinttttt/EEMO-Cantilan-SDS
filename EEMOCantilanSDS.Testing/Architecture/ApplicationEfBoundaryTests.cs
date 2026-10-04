@@ -188,6 +188,7 @@ public class ApplicationEfBoundaryTests
         "CollectionsReportWorkflow.cs",
         "TransportationCollectionAuthority.cs",
         "GovernedCanonicalAuthority.cs",
+        "NpmDailyCanonicalPoster.cs",
         "FeeScheduleCollectionWorkflow.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",

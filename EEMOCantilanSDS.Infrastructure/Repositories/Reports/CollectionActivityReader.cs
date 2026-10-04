@@ -162,7 +162,9 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 && (d.UpdatedAt ?? d.CreatedAt) >= w.StartUtc && (d.UpdatedAt ?? d.CreatedAt) < w.EndUtc)
             .Select(d => new
             {
-                d.Id, d.StallId, d.DailyFee, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.ORNumber, d.CollectorId,
+                d.Id, d.StallId, d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.ORNumber, d.CollectorId,
+                // A day paid by a canonical Collection is listed by that Collection; only its weighing is legacy money here.
+                DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee,
                 d.CreatedBy, d.CollectionDate, d.Stall!.StallNo, Code = d.Stall.Facility!.Code,
                 Occupant = d.Stall.Contracts.OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
                     .Select(c => c.ActualOccupant).FirstOrDefault(),
@@ -177,15 +179,14 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 var when = g.Max(x => x.When);
                 var min = g.Min(x => x.CollectionDate);
                 var max = g.Max(x => x.CollectionDate);
-                var days = g.Count();
+                var days = g.Count(x => x.DailyFee != 0m);
                 var fee = g.Sum(x => x.DailyFee);
                 var weighing = g.Sum(x => (x.FishFeeAmountFrozen ?? (x.FishKilos ?? 0m) * fishRate) + x.MeatFeeAmount);
                 var period = min == max ? $"{min:MMM d, yyyy}" : $"{min:MMM d} – {max:MMM d, yyyy}";
-                var lines = new List<CollectionActivityLineDto>
-                {
-                    LegacyLine(names, RevenueClassificationCodes.PermanentStallRent, fee, CollectionSourceKind.DailyCollection,
-                        CollectionSourcePart.DailyFee, first.Id, min.Year, min.Month, $"Daily fee · {days} day{(days == 1 ? "" : "s")} · {period}")
-                };
+                var lines = new List<CollectionActivityLineDto>();
+                if (fee != 0m)
+                    lines.Add(LegacyLine(names, RevenueClassificationCodes.PermanentStallRent, fee, CollectionSourceKind.DailyCollection,
+                        CollectionSourcePart.DailyFee, first.Id, min.Year, min.Month, $"Daily fee · {days} day{(days == 1 ? "" : "s")} · {period}"));
                 if (weighing != 0m)
                     lines.Add(LegacyLine(names, RevenueClassificationCodes.WeightAndMeasure, weighing, CollectionSourceKind.DailyCollection,
                         null, first.Id, min.Year, min.Month, "Weighing"));
@@ -338,6 +339,12 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .Where(b => b.MunicipalityId == tenant && billIds.Contains(b.Id))
             .Select(b => new { b.Id, b.ElectricitySettlementAuthorityState, b.WaterSettlementAuthorityState, b.BillingYear, b.BillingMonth, b.Stall!.StallNo, Code = b.Stall.Facility!.Code })
             .ToDictionaryAsync(b => b.Id, ct);
+        // NPM day rows a canonical Collection paid: only for the stall and facility of the line, never for its amount.
+        var dayIds = allocations.Where(a => a.SourceKind == CollectionSourceKind.DailyCollection).Select(a => a.SourceId).Distinct().ToArray();
+        var days = await context.DailyCollections.AsNoTracking()
+            .Where(d => d.MunicipalityId == tenant && dayIds.Contains(d.Id))
+            .Select(d => new { d.Id, d.CollectionDate, d.Stall!.StallNo, Code = d.Stall.Facility!.Code })
+            .ToDictionaryAsync(d => d.Id, ct);
 
         bool SourceCounts(CollectionSourceKind? kind, Guid? sourceId, CollectionSourcePart? part)
         {
@@ -422,6 +429,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     (year, month, description) = (rec.BillingYear, rec.BillingMonth, $"Stall {rec.StallNo}");
                 else if (kind == CollectionSourceKind.UtilityBill && sourceId is { } b && bills.TryGetValue(b, out var bill))
                     (year, month, description) = (bill.BillingYear, bill.BillingMonth, $"Stall {bill.StallNo}");
+                else if (kind == CollectionSourceKind.DailyCollection && sourceId is { } dayId && days.TryGetValue(dayId, out var day))
+                    (year, month, description) = (day.CollectionDate.Year, day.CollectionDate.Month, $"Stall {day.StallNo}");
                 return new CollectionActivityLineDto(code, policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code),
                     l.Amount, kind?.ToString(), l.SourcePart?.ToString(), sourceId, year, month, description);
             }).ToList();
@@ -430,6 +439,7 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     .Concat(allocationsByLine[l.Id].Select(a => ((CollectionSourceKind?)a.SourceKind, (Guid?)a.SourceId))))
                 .Select(s => s.Item1 == CollectionSourceKind.PaymentRecord && s.Item2 is { } r && records.TryGetValue(r, out var rec) ? (FacilityCode?)rec.Code
                     : s.Item1 == CollectionSourceKind.UtilityBill && s.Item2 is { } b && bills.TryGetValue(b, out var bill) ? bill.Code
+                    : s.Item1 == CollectionSourceKind.DailyCollection && s.Item2 is { } d && days.TryGetValue(d, out var day) ? day.Code
                     : null)
                 .Where(f => f.HasValue).Distinct().ToList();
             var stalls = detail.Select(d => d.Description).Where(d => d is not null).Distinct().ToList();

@@ -24,7 +24,8 @@ public class SettleNpmMonthCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext, IClock clock) : IRequestHandler<SettleNpmMonthCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock,
+    Common.Revenue.NpmDailyCanonicalPoster? canonical = null) : IRequestHandler<SettleNpmMonthCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmMonthCommand request, CancellationToken ct)
     {
@@ -171,13 +172,45 @@ public class SettleNpmMonthCommandHandler(
         // met in full and nothing is left behind to read as arrears. When every day was already collected at the
         // stall there is no new installment to carry it, so it lands on the last one taken — otherwise a payor who
         // paid every day of a short month would owe that difference for ever.
+        // An adjustment that lands on a day ALREADY collected (no new installment carries it) is remembered apart: that day's
+        // own fee is not new money, only the adjustment is.
+        DailyCollection? earlierCarrier = null;
+        var carriedOnEarlier = 0m;
         if (adjustment > 0m)
         {
             var carrier = settled.Count > 0 ? settled[^1] : LastCollectedOf(existing, monthStart, monthEnd, occupancy);
             if (carrier is not null)
             {
+                var feeBefore = carrier.DailyFee;
                 carrier.AddMonthEndAdjustment(adjustment, recordedBy);
-                if (settled.Count == 0) settled.Add(carrier);
+                if (settled.Count == 0)
+                {
+                    settled.Add(carrier);
+                    earlierCarrier = carrier;
+                    carriedOnEarlier = carrier.DailyFee - feeBefore;
+                }
+            }
+        }
+
+        // IA-051/IA-062: once the NPM daily switch is on, what this settlement collects is ONE canonical Collection (an SRC),
+        // with no typed receipt serial. A day collected earlier under legacy authority that only now takes the month-end
+        // adjustment stays answered for by its own legacy row, as before, so its earlier money is never re-reported.
+        if (settled.Count > 0 && canonical is not null && await canonical.IsCanonicalAsync(today, ct))
+        {
+            var charges = settled.Where(x => !ReferenceEquals(x, earlierCarrier))
+                .Select(x => new Common.Revenue.NpmDailyCanonicalPoster.Charge(x, x.DailyFee)).ToList();
+            if (earlierCarrier is { SettlementAuthorityState: SettlementAuthority.Canonical } && carriedOnEarlier > 0m)
+                charges.Add(new(earlierCarrier, carriedOnEarlier));
+            if (charges.Count > 0)
+            {
+                var intent = canonical.NormalizeIntent("NpmDailySettleMonth", request.StallId, charges.Select(x => x.Day.CollectionDate), today,
+                    $"{request.Year:D4}-{request.Month:D2}");
+                var posted = await canonical.PostAsync(stall, charges, Guid.NewGuid(), intent, today, ct);
+                if (!posted.IsSuccess)
+                    return Result<bool>.Failure(posted.Error ?? "The collection could not be posted.", posted.Status);
+                await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+                    tenantContext.TenantCode, FacilityCode.NPM, request.Year, request.Month, ct);
+                return Result<bool>.Success(true);
             }
         }
 
